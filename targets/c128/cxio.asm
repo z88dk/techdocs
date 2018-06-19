@@ -111,7 +111,13 @@ DEFC bdos  =  5
 	DSEG
 _fun65:
 	LD	(vic_cmd),A			; save the command passed in A
+	
    if	not use_6551
+
+   ; See https://en.wikipedia.org/wiki/MOS_Technology_6551
+   ; "Commodore International omitted the 6551 from the popular VIC-20, C64, and C128 home computers.
+   ; Instead, these systems implemented a bit-banging UART via KERNAL routines."
+
 fun_di_wait:
 	LD	A,(RS232_status)
 	AND	11000010b		; char to Xmit, Xmiting or receiving _
