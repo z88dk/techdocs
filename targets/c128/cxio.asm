@@ -224,14 +224,14 @@ init_mmu_loop:
 ; install I/O assignments
 ;
 	LD	HL,4000h+2000h 		; 80 and 40 column drivers
-	LD	(0covec),HL
+	LD	(@covec),HL
 	LD 	h,80h
-	LD	(0civec),HL			; assign console input to keys
+	LD	(@civec),HL			; assign console input to keys
 	LD 	h,10h
-	LD	(0lovec),HL			; assign printer to LPT:
+	LD	(@lovec),HL			; assign printer to LPT:
 	LD 	h,00h
-	LD	(0aivec),HL
-	LD	(0aovec),HL			; assign rdr/pun port
+	LD	(@aivec),HL
+	LD	(@aovec),HL			; assign rdr/pun port
 
 	page
 ;
@@ -281,7 +281,7 @@ set_screen:
 	call	prt_msg			; HL saved
 screen_num:
 	DEFM	"80 column display",cr,lf,lf,lf,lf,0
-	LD	(0covec),HL			; assign console output to CRT: (40/80)
+	LD	(@covec),HL			; assign console output to CRT: (40/80)
 
 	page
 
@@ -333,7 +333,7 @@ screen_num:
 	outp	a
 
 	LD	HL,date_hex
-	LD	(0date),HL			; set date to system data
+	LD	(@date),HL			; set date to system data
 
 ;
 ;	setup the sound variables
@@ -1089,7 +1089,7 @@ key_board_in:
 	JR	NZ,no_update
 	LD	A,(char_col_40)
 	LD 	b,a
-	LD	A,(0off40)
+	LD	A,(@off40)
 	CP	b
 	JR	NC,do_update
 	ADD	A,39-1
@@ -1202,7 +1202,7 @@ is_am:
 	JR	NZ,set_hr
 	XOR	a			; becomes 00:00
 set_hr:
-	LD	(0hour),A
+	LD	(@hour),A
 	LD 	b,a
 	LD	A,(old_hr)
 	LD 	c,a
@@ -1212,19 +1212,19 @@ set_hr:
 	JR	NC,same_day
  
 	PUSH	HL
-	LD	HL,(0date)
+	LD	HL,(@date)
 	INC	HL
-	LD	(0date),HL
+	LD	(@date),HL
 	POP	HL
 
 same_day:
 	LD	BC,cia_hours-1
 	inp	a			; read MIN
-	LD	(0min),A
+	LD	(@min),A
 
 	DEC	c
 	inp	a			; read SEC
-	LD	(0sec),A
+	LD	(@sec),A
 
 	DEC	c
 	inp	a			; read 1/10 of SEC (a must to free
@@ -1238,7 +1238,7 @@ old_hr:
 ;
 ;
 set_time
-	LD	A,(0hour)
+	LD	A,(@hour)
 	LD	(old_hr),A
 	CP	12h			; test for noon
 	JR	Z,set_as_is
@@ -1258,10 +1258,10 @@ set_msb:
 set_as_is:
 	outp	a
 	DEC	c
-	LD	A,(0min)
+	LD	A,(@min)
 	outp	a
 	DEC	c
-	LD	A,(0sec)
+	LD	A,(@sec)
 	outp	a
 	DEC	c
 	XOR	a
@@ -1306,12 +1306,12 @@ _xmove:				; can be in bank 0
 ;
 ;
 inter_bank_move:
-	LD	(0buffer),HL		; save HL TEMP
+	LD	(@buffer),HL		; save HL TEMP
 	LD	HL,0
 	ADD	HL,sp
 	LD	sp,bios_stack
 	PUSH	HL		; save old stack  ;**1
-	LD	HL,(0buffer)
+	LD	HL,(@buffer)
 
 inter_bank_move_1:
 	LD 	a,b		; get msb of count
@@ -1368,12 +1368,12 @@ exit_move:
 	EX	DE,HL
 	LD 	a,-1
 	LD	(source_bnk),A	; set MOVE back to normal
-	LD	A,(0cbnk)
+	LD	A,(@cbnk)
 
-	LD	(0buffer),HL
+	LD	(@buffer),HL
 	POP	HL		; recover old stack	;**0
 	LD	SP,HL
-	LD	HL,(0buffer)
+	LD	HL,(@buffer)
 
 ; call	_bank		; set current bank
 ; ret
