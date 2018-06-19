@@ -283,19 +283,19 @@ count:		DEFM	0
 ;
 set_up_dsk:
 	call	send_a		; send the comand
-	LD	A,(0trk)
+	LD	A,(@trk)
 	call	send_a		; send the track
-	LD	A,(0sect)
+	LD	A,(@sect)
 	call	send_a		; send the sector
 	XOR	a
 	LD	(check_sum),A
 	LD 	a,80h
 	LD	(count),A		; transfer 128 bytes
-	LD	HL,(0dma)		; HL = current DMA address
+	LD	HL,(@dma)		; HL = current DMA address
 
    if	banked
 	LD	DE,bank_0	; start by pointing to bank 0
-	LD	A,(0dbnk)		; get the current disk I/O bank
+	LD	A,(@dbnk)		; get the current disk I/O bank
 	OR	a		; is it set to bank 0
 	RET	Z			; yes, return
 
