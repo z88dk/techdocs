@@ -246,7 +246,7 @@ not_locked_entry:
 	POP	BC			; recover BC
 	AND	0eh			; query error _
 	JR	NZ,query_error		; yes, use only bits 5 and 6 
-	LD	A,(0buffer)			; get trk 4 status
+	LD	A,(@buffer)			; get trk 4 status
 	LD 	b,a			; save in B
 	AND	0eh			; trk 4 status error _
 	JR	NZ,query_error		; yes, use only bits 5 and 6
@@ -264,13 +264,13 @@ not_locked_entry:
 	LD 	b,a			; save in B
 	LD 	c,11111111b
 trk_1_trk_4:
-	LD	A,(0buffer+1)		; get number of sectors/track
+	LD	A,(@buffer+1)		; get number of sectors/track
 	SUB	4			; remove 4 to extend the range
 	ADD	A,a			; shift	left
 	ADD	A,b			; combine with rest of mask
 	LD 	b,a			; save in B for now
 
-	LD	A,(0buffer+3)		; minimum sector number
+	LD	A,(@buffer+3)		; minimum sector number
 	ADD	A,b			; add in start sector #
 	PUSH	AF			; save on stack for a moment
 
@@ -736,12 +736,12 @@ wr_multi_sect:
 ;
 ;
 get_drv_info:
-	LD	HL,(0dma)
+	LD	HL,(@dma)
 	LD	(local_dma),HL
 	EX	DE,HL
 	LD	(DPH_pointer),HL
 
-	LD	A,(0adrv)			; get drive number (0 to F)
+	LD	A,(@adrv)			; get drive number (0 to F)
 	AND	a
 	CALL	Z,drive_A_E
 	CP	'E'-'A'			; test if drive E
@@ -855,14 +855,14 @@ set_up_GCR:
 	LD	HL,sect_buffer
 	LD	(sect_buf_ptr),HL
 
-	LD	HL,(0trk)			; 1 K sector pointer 
+	LD	HL,(@trk)			; 1 K sector pointer 
 	ADD	HL,HL
 	ADD	HL,HL			; make 256 byte pointer
 ;
 ;	build a list of tracks and sectors
 ;
 next_sect:
-	LD	(0trk),HL
+	LD	(@trk),HL
 	RET	CALL	FR_trk_sect
 	LD	HL,(vic_trk)			; get trk(L) and sector(H) to HL
 	EX	DE,HL
@@ -872,7 +872,7 @@ next_sect:
 	LD 	(HL),d
 	INC	HL
 	LD	(sect_buf_ptr),HL
-	LD	HL,(0trk)
+	LD	HL,(@trk)
 	INC	l			; update saved above at next_sect
 	LD 	a,l
 	AND	3
@@ -957,7 +957,7 @@ tst_next:
 tst_c64:
 	LD 	b,dir_track	; set the dir track number
 	CP	dsk_c64		; C64 type disk_
-	LD	A,(0sect)		;   get sector # to set
+	LD	A,(@sect)		;   get sector # to set
 	JR	Z,set_up_c64	; yes, go set up for C64 CP/M disk format
 				; no, set up as no type(direct addressing)
 ;
@@ -973,7 +973,7 @@ do_type_7:
 ;
 set_up_c64:
 	LD	(VIC_sect),A	;
-	LD	A,(0trk)		;
+	LD	A,(@trk)		;
         CP     b               ; carry=1 if A < dir_track
 	CCF			; add one if dir_track or more (carry not set)
 	ADC	A,0		; add the carry bit in
@@ -988,14 +988,14 @@ c1581_adj:
 	LD 	a,2		; 2 512 byte sectors equ 1 1K sector
 	LD	(vic_count),A
 
-	LD	A,(0trk)		;
+	LD	A,(@trk)		;
         CP     C1581_dir_trk*2 ; carry=1 if A < dir_track
 	CCF			; add one if dir_track or more (carry not set)
 	ADC	A,0		; add the carry bit in
 	RRA			; track=0trk/2 ; carry set if odd
 	LD	(vic_trk),A		;
 
-	LD	A,(0sect)		; sector # are 0 to 9 (10 sector/trk)
+	LD	A,(@sect)		; sector # are 0 to 9 (10 sector/trk)
 	LD 	b,a		;
 	JR	NC,bottom_1581	;
 	ADD	A,80h		; set top of 1581
@@ -1018,7 +1018,7 @@ set_up_MFM:
 	AND	TypeX		; look at Type0 to Type7
 	JR	Z,do_type_0	;
 	CP	Type2
-	LD	A,(0trk)		; used by Type1, Type2 and Type3
+	LD	A,(@trk)		; used by Type1, Type2 and Type3
 	JR	Z,do_type_2
 	JR	C,do_type_1
 
@@ -1042,7 +1042,7 @@ do_type_2:
 	sub	b
 set_trk:
 	LD 	d,80h		; D=side # (1)
-	LD	(0trk),A
+	LD	(@trk),A
 	jr	do_type_0
 
 	page
@@ -1053,18 +1053,18 @@ set_trk:
 do_type_1:
 	CCF			; carry was set clear it
 	RRA			; divide track by 2 (carry gets LSB)
-	LD	(0trk),A
+	LD	(@trk),A
 	JR	NC,do_type_0
 	call	get_max_num_b	; HL and C changed
-	LD	A,(0sect)
+	LD	A,(@sect)
 	ADD	A,b
-	LD	(0sect),A
+	LD	(@sect),A
 
 do_type_0:
-	LD	A,(0trk)
+	LD	A,(@trk)
 	LD	(vic_trk),A
 	call	get_max_num_b	; B=number of sectors per track per side
-	LD	A,(0sect)		; ..HL and C changed
+	LD	A,(@sect)		; ..HL and C changed
 	CP	b
 	JR	C,is_side_0
 	LD 	d,80h		; D=side # (1)
@@ -1089,7 +1089,7 @@ is_side_0:
 ;
 	CSEG
 rd_1571_data:
-	LD	A,(0dbnk)			; get the disk DMA bank
+	LD	A,(@dbnk)			; get the disk DMA bank
 	call	_bank			; set it
 
 	LD	BC,0DC0Dh		; D1ICR
@@ -1166,7 +1166,7 @@ wr_1571_data:
 	DEC	c			; D1ICR
 	inp	a
 
-	LD	A,(0dbnk)			; get the disk DMA bank
+	LD	A,(@dbnk)			; get the disk DMA bank
 	call	_bank			; set it
 
 	LD 	a,clk_in
@@ -1269,7 +1269,7 @@ dk_cont:
 ;
 ;
 dsk_read:
-	LD	A,(0dbnk)		; get the disk bank
+	LD	A,(@dbnk)		; get the disk bank
 	call	_bank
 	ldir			; do the data move
 	LD	(bank_0),A		; current bank will ALWAYS be 0
