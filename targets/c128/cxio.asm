@@ -143,6 +143,10 @@ fun_di_wait:
 	outp	d
 	DEC	c
 	outp	d			; page 0, 0-0
+	
+	;  DEFC enable_6502  =  0FFE0h ; Z80 code
+	;  DEFC return_6502  =  0FFEEh 
+
 	call	enable_6502+6		; go run the 8502
 	LD 	c,low(page_1_h)
 	outp	e
