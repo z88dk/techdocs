@@ -147,7 +147,7 @@ set_15x1_type:
 	INC	a		; on the disk)
 	LD	(vic_trk),A
 
-	LD	HL,0buffer
+	LD	HL,@buffer
 	LD	(local_DMA),HL	; move DMA pointer to disk buffer
 	call	login_rd
 	AND	a		; read error _
