@@ -144,6 +144,8 @@ fun_di_wait:
 	DEC	c
 	outp	d			; page 0, 0-0
 	
+	;  DEFC enable_z80  =  0FFD0h ; 8502 code
+	;  DEFC return_z80  =  0FFDCh 
 	;  DEFC enable_6502  =  0FFE0h ; Z80 code
 	;  DEFC return_6502  =  0FFEEh 
 
