@@ -1319,7 +1319,7 @@ inter_bank_move_1:
 	JR	Z,count_less_than_256
 	PUSH	BC		; save the count  ;**2
 	PUSH	DE		; save the dest   ;**3
-	LD	DE,0buffer	; make buffer the dest
+	LD	DE,@buffer	; make buffer the dest
 	LD	BC,256		; move 256 bytes
 	LD	A,(source_bnk)
 	call	_bank
@@ -1327,7 +1327,7 @@ inter_bank_move_1:
 
 	POP	DE		; recover dest    ;**2
 	PUSH	HL		; save updated source ;**3
-	LD	HL,0buffer	; make the buffer the source
+	LD	HL,@buffer	; make the buffer the source
 	LD	BC,256		; move 256 bytes
 	LD	A,(dest_bnk)
 	call	_bank
@@ -1348,7 +1348,7 @@ count_less_than_256:
 
 	PUSH	DE		; save count for 2nd half  ;**2
 	PUSH	BC		; save dest adr            ;**3
-	LD	DE,0buffer
+	LD	DE,@buffer
 	LD	A,(source_bnk)
 	call	_bank
 	ldir			; move source to buffer
@@ -1356,7 +1356,7 @@ count_less_than_256:
 	POP	BC		; recover count		  ;**2
 	POP	DE		; recover dest		  ;**1
 	PUSH	HL		; save updated dest	  ;**2
-	LD	HL,0buffer
+	LD	HL,@buffer
 	LD	A,(dest_bnk)
 	call	_bank
 	ldir			; move buffer to dest
