@@ -370,10 +370,10 @@ channel_data:
 ; ***************************************************************************
 ; This follows directly after the full 512 bytes of the driver.
 
-        defs    512-$
-
-if ($ != 512)
+if ($ > 512)
 .ERROR Driver code exceeds 512 bytes
+else
+        defs    512-$
 endif
 
 ; Each relocation is the offset of the high byte of an address to be relocated.
