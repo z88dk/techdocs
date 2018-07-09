@@ -2822,6 +2822,7 @@
 000012DD:	LD HL,131Bh		; LPOS - line counter for Printer
 000012E0:	INC (HL)
 000012E1:	POP HL
+; Send raw code in A to printer
 000012E2:	PUSH BC
 000012E3:	PUSH DE
 000012E4:	PUSH HL
@@ -3138,7 +3139,7 @@
 0000149F:	NOP
 
 
-000014A0:	LD DE,A637h
+000014A0:	LD DE,A637h		; IMDBUF - Immediate command buffer
 000014A3:	CALL 000Bh		; MSX (aka DEPRT), print message in DE
 000014A6:	LD A,(FF87h)
 000014A9:	AND 0Fh
@@ -3191,6 +3192,7 @@
 00001515:	XOR A
 00001516:	LD (362Ah),A
 
+; INPAGN:
 00001519:	LD HL,FFFFh
 0000151C:	LD (3634h),HL	; current program line
 0000151F:	CALL 219Fh
@@ -3233,6 +3235,7 @@
 00001575:	CALL 09C0h
 00001578:	LD E,00h
 0000157A:	JP 3B5Dh
+
 0000157D:	INC DE
 0000157E:	LD A,(DE)
 0000157F:	CP 20h	; ' '
@@ -3240,15 +3243,16 @@
 00001583:	OR A
 00001584:	JR Z,-6Dh
 00001586:	CALL 53F0h			; TSTNUM
-00001589:	JP NC,A40Bh
+00001589:	JP NC,A40Bh			; EDITOR:
 0000158C:	LD A,(362Ah)
 0000158F:	OR A
 00001590:	JP NZ,204Bh
-00001593:	LD HL,A637h
+
+00001593:	LD HL,A637h		; IMDBUF - Direct command
 00001596:	PUSH HL
-00001597:	CALL 7733h
+00001597:	CALL 7733h		; CVIMTX: convert immediate buffer for direct execution
 0000159A:	INC HL
-0000159B:	LD (362Eh),HL		; Current ptr for BASIC interpreter
+0000159B:	LD (362Eh),HL		; NXTLPT: ptr for BASIC interpreter
 0000159E:	LD (HL),00h
 000015A0:	INC HL
 000015A1:	LD (HL),00h
@@ -3272,15 +3276,15 @@
 
 ; Begin the BASIC program execution
 000015C2:	LD HL,(A635h)		; TEXTST,  address of BASIC  program
-000015C5:	LD (362Eh),HL		; Current ptr for BASIC interpreter
+000015C5:	LD (362Eh),HL		; NXTLPT: ptr for BASIC interpreter
 000015C8:	PUSH HL
 
 ; 'REM', 'ELSE'
 ; ('IF' will forcefully execute the 'ELSE' condition when necessary)
-000015C9:	LD HL,(362Eh)		; Current ptr for BASIC interpreter
+000015C9:	LD HL,(362Eh)		; NXTLPT: ptr for BASIC interpreter
 000015CC:	CALL 1773h			; LDDEMI:
 000015CF:	JR Z,-2Bh
-000015D1:	LD (362Eh),DE		; Current ptr for BASIC interpreter
+000015D1:	LD (362Eh),DE		; NXTLPT: ptr for BASIC interpreter
 000015D5:	LD E,(HL)
 000015D6:	INC HL
 000015D7:	LD D,(HL)
@@ -3354,7 +3358,7 @@
 0000165D:	CALL 53F8h
 00001660:	CP 41h
 00001662:	JP C,2066h		; ERROR: Syntax error
-00001665:	CP 5Bh			; "'"  (some BASIC subtracts "A" and checks for 26)
+00001665:	CP 5Bh			; '['  (some BASIC subtracts "A" and checks for 26)
 00001667:	JP NC,2066h		; ERROR: Syntax error
 
 ; 'LET'
@@ -3609,7 +3613,7 @@
 000017D8:	LD (362Dh),A
 000017DB:	LD (3640h),A	; error code
 000017DE:	LD (364Eh),A
-000017E1:	LD HL,000Ah
+000017E1:	LD HL,000Ah		; 10
 000017E4:	LD (3630h),HL	; EDLINE
 000017E7:	LD (3632h),HL
 000017EA:	CALL 17F1h		; init flags
@@ -3641,7 +3645,7 @@
 00001809:	EX DE,HL
 0000180A:	LD HL,(3634h)	; current program line
 0000180D:	LD (1904h),HL
-00001810:	LD HL,(362Eh)		; Current ptr for BASIC interpreter
+00001810:	LD HL,(362Eh)		; NXTLPT: ptr for BASIC interpreter
 00001813:	LD (190Ah),HL
 00001816:	EX DE,HL
 00001817:	LD (18FDh),BC
@@ -3720,7 +3724,7 @@
 00001890:	EXX
 00001891:	LD HL,(3634h)	; current program line
 00001894:	PUSH HL
-00001895:	LD HL,(362Eh)		; Current ptr for BASIC interpreter
+00001895:	LD HL,(362Eh)		; NXTLPT: ptr for BASIC interpreter
 00001898:	PUSH HL
 00001899:	EXX
 0000189A:	PUSH DE
@@ -3730,7 +3734,7 @@
 000018A0:	PUSH HL
 000018A1:	EXX
 000018A2:	LD DE,(A62Dh)		; VARED
-000018A6:	CALL 8D3Ch			; MEMECK
+000018A6:	CALL 8D3Ch			; MEMECK: (SBC SP,DE)
 000018A9:	POP DE
 000018AA:	PUSH DE
 000018AB:	LD C,00h
@@ -3788,7 +3792,7 @@
 00001903:	LD HL,0258h		; 600
 00001906:	LD (3634h),HL	; current program line
 00001909:	LD HL,B56Bh
-0000190C:	LD (362Eh),HL		; Current ptr for BASIC interpreter
+0000190C:	LD (362Eh),HL		; NXTLPT: ptr for BASIC interpreter
 0000190F:	CP 02h
 00001911:	JR NZ,+0Ch
 00001913:	LD HL,0009h
@@ -3835,7 +3839,7 @@
 00001957:	EXX
 00001958:	LD HL,(3634h)	; current program line
 0000195B:	PUSH HL
-0000195C:	LD HL,(362Eh)		; Current ptr for BASIC interpreter
+0000195C:	LD HL,(362Eh)		; NXTLPT: ptr for BASIC interpreter
 0000195F:	PUSH HL
 00001960:	LD HL,2917h
 00001963:	LD B,A
@@ -3991,7 +3995,7 @@
 00001A35:	INC HL
 00001A36:	LD D,(HL)
 00001A37:	INC HL
-00001A38:	LD (362Eh),DE		; Current ptr for BASIC interpreter
+00001A38:	LD (362Eh),DE		; NXTLPT: ptr for BASIC interpreter
 00001A3C:	LD E,(HL)
 00001A3D:	INC HL
 00001A3E:	LD D,(HL)
@@ -4252,7 +4256,7 @@
 00001BF7:	ADD IY,BC
 00001BF9:	JP 6822h
 
-00001BFC:	CALL 8BFDh
+00001BFC:	CALL 8BFDh		; INC HL and check for '('
 00001BFF:	PUSH BC
 00001C00:	CALL 7F95h		; IBYTE: load BASIC argument in A
 00001C03:	POP BC
@@ -4264,7 +4268,7 @@
 ; entry for PRINT USING
 00001C0A:	INC HL
 00001C0B:	PUSH BC
-00001C0C:	CALL 7FB9h
+00001C0C:	CALL 7FB9h		; STREXP:
 00001C0F:	PUSH HL
 00001C10:	LD HL,(A62Bh)		; STRST
 00001C13:	LD BC,0010h
@@ -4827,6 +4831,7 @@
 00001FB7:	INC HL
 00001FB8:	LD (363Eh),HL
 00001FBB:	JR +0Dh
+
 00001FBD:	CALL 21AFh		; CLPTR:
 00001FC0:	LD HL,FFFFh
 00001FC3:	LD (3634h),HL	; current program line
@@ -4839,7 +4844,7 @@
 00001FD7:	OR E
 00001FD8:	JR Z,+17h
 00001FDA:	LD (3641h),HL
-00001FDD:	LD HL,(362Eh)		; Current ptr for BASIC interpreter
+00001FDD:	LD HL,(362Eh)		; NXTLPT: ptr for BASIC interpreter
 00001FE0:	LD (3645h),HL
 00001FE3:	DEC DE
 00001FE4:	LD (3643h),DE
@@ -4864,7 +4869,7 @@
 0000200D:	LD HL,(3643h)
 00002010:	LD (3634h),HL	; current program line
 00002013:	LD HL,(3645h)
-00002016:	LD (362Eh),HL		; Current ptr for BASIC interpreter
+00002016:	LD (362Eh),HL		; NXTLPT: ptr for BASIC interpreter
 00002019:	LD HL,(3641h)
 0000201C:	JP 15E5h
 
@@ -4914,7 +4919,7 @@
 0000208A:	LD HL,(3634h)	; current program line
 0000208D:	LD (3638h),HL	; ERRLNO  ..program line where the last error happened
 00002090:	LD (3630h),HL	; EDLINE
-00002093:	LD HL,(362Eh)		; Current ptr for BASIC interpreter
+00002093:	LD HL,(362Eh)		; NXTLPT: ptr for BASIC interpreter
 00002096:	LD (363Ah),HL
 00002099:	LD HL,(363Eh)
 0000209C:	LD (363Ch),HL
@@ -5013,7 +5018,7 @@
 00002156:	JR Z,+2Eh		; jp over if no parameters
 00002158:	CP 2Ch	; ','
 0000215A:	JR NZ,+09h
-0000215C:	CALL 3088h		Get arguments for line number range (xxx-yyy), DE to BC.
+0000215C:	CALL 3088h		; Get arguments for line number range (xxx-yyy), DE to BC.
 0000215F:	LD DE,(3630h)	; EDLINE
 00002163:	JR +21h
 00002165:	CALL 8262h		; skip SPACEs in (HL), A=next char
@@ -5069,7 +5074,7 @@
 
 ; 'NEW'
 000021C4:	JR Z,+30h
-000021C6:	CP 9Dh
+000021C6:	CP 9Dh			; Token code for 'ON'
 000021C8:	JP NZ,2066h		; ERROR: Syntax error
 000021CB:	INC HL
 000021CC:	LD DE,A73Fh			; KEYBM1 (aka KEYBUF)
@@ -5093,6 +5098,7 @@
 000021EF:	POP HL
 000021F0:	LD (A635h),DE		; TEXTST,  address of BASIC  program
 000021F4:	JR +03h
+
 000021F6:	CALL 6566h
 000021F9:	CALL 21AFh		; CLPTR:
 000021FC:	JP 14DAh		; 
@@ -5170,12 +5176,12 @@
 ; Subroutine for 'TRACE'
 0000227E:	PUSH AF
 0000227F:	PUSH HL
-00002280:	LD A,5Bh
+00002280:	LD A,5Bh		; '['
 00002282:	CALL 0013h		; OUTCH (PRINT char in A)
 00002285:	LD HL,(3634h)	; current program line
 00002288:	CALL 2139h
 0000228B:	CALL 000Bh		; MSX (aka DEPRT), print message in DE
-0000228E:	LD A,5Dh
+0000228E:	LD A,5Dh		; ']'
 00002290:	CALL 0013h		; OUTCH (PRINT char in A)
 00002293:	POP HL
 00002294:	POP AF
@@ -5276,7 +5282,7 @@
 00002348:	POP HL
 00002349:	RET
 
-0000234A:	CALL 7FB9h
+0000234A:	CALL 7FB9h		; STREXP:
 0000234D:	OR A
 0000234E:	RET Z
 0000234F:	LD B,A
@@ -5507,7 +5513,7 @@
 00002509:	LD DE,A739h
 0000250C:	LD A,EDh		; SUBCPU_GET_CALENDAR
 0000250E:	CALL 0023h		; subcpu (A=command, DE=result ptr?)
-00002511:	JP 7FB9h
+00002511:	JP 7FB9h		; STREXP:
 
 00002514:	CALL 2506h
 00002517:	CP 08h
@@ -5619,7 +5625,7 @@
 000025C6:	PUSH HL
 000025C7:	EX DE,HL
 000025C8:	CALL 5436h		; 'CSNG'
-000025CB:	CALL 5ACEh
+000025CB:	CALL 5ACEh		; 'FIX' conversion
 000025CE:	INC HL
 000025CF:	LD A,(HL)
 000025D0:	BIT 7,A
@@ -5644,7 +5650,7 @@
 000025F4:	JR NZ,-36h
 000025F6:	INC HL
 000025F7:	CALL 24FCh
-000025FA:	CALL 7FB9h
+000025FA:	CALL 7FB9h		; STREXP:
 000025FD:	CP 08h
 000025FF:	JP NZ,258Eh
 00002602:	PUSH HL
@@ -5753,7 +5759,7 @@
 000026A8:	LD DE,2908h
 000026AB:	JP 9A44h		; ADD:
 
-000026AE:	CALL 8BFEh
+000026AE:	CALL 8BFEh		; Check for '('
 000026B1:	CALL 7FAAh		; IDEEXP: DE= (HL), A=next character to be parsed
 000026B4:	CALL 2E76h		; CH2CH: Check for comma ','
 000026B7:	PUSH DE
@@ -5762,7 +5768,7 @@
 000026BE:	CALL 7F98h		; Check byte overflow for value in DE and put in A
 000026C1:	PUSH AF
 000026C2:	CALL 24FCh
-000026C5:	CALL 7FB9h
+000026C5:	CALL 7FB9h		; STREXP:
 000026C8:	POP BC
 000026C9:	EX HL,(SP)
 000026CA:	CP B
@@ -5781,7 +5787,7 @@
 ; 'DEF'
 000026D9:	CP C7h		; Token for 'KEY'
 000026DB:	INC HL
-000026DC:	JP Z,3A64h
+000026DC:	JP Z,3A64h	; 'DEF KEY'
 000026DF:	CP FFh
 000026E1:	JR NZ,+10h
 000026E3:	LD A,(HL)
@@ -5811,7 +5817,7 @@
 0000270D:	POP HL
 0000270E:	RET
 
-0000270F:	CALL 8BFEh
+0000270F:	CALL 8BFEh		; Check for '('
 00002712:	CALL 8C2Eh		; INTGTV:  get variable
 00002715:	CP 03h			; is variable type 'string' ?
 00002717:	JP NZ,2060h		; ERROR: Type mismatch
@@ -5836,7 +5842,7 @@
 00002740:	CP F4h			; Token for '='
 00002742:	JP NZ,2066h		; ERROR: Syntax error
 00002745:	INC HL
-00002746:	CALL 7FB9h
+00002746:	CALL 7FB9h		; STREXP:
 00002749:	EXX
 0000274A:	POP BC
 0000274B:	POP HL
@@ -6224,7 +6230,7 @@
 00002E2E:	LD (2E49h),DE
 00002E32:	CALL 17A8h		; END2C: look for next parameter, Z if none
 00002E35:	JR Z,+0Dh
-00002E37:	CALL 8BFEh
+00002E37:	CALL 8BFEh		; Check for '('
 00002E3A:	CALL 7FAAh		; IDEEXP: DE= (HL), A=next character to be parsed
 00002E3D:	LD (2E46h),DE
 00002E41:	CALL 8C08h		; Check for ')'
@@ -6386,9 +6392,9 @@
 00002F24:	RET
 
 ; 'DELETE'
-00002F25:	JP Z,2069h			; ERROR: Missing operand
-00002F28:	CALL 2FEFh
-00002F2B:	CALL 3088h			Get arguments for line number range (xxx-yyy), DE to BC.
+00002F25:	JP Z,2069h		; ERROR: Missing operand
+00002F28:	CALL 2FEFh		; REFLNO: ... Line ref = Number
+00002F2B:	CALL 3088h		; Get arguments for line number range (xxx-yyy), DE to BC.
 00002F2E:	EX DE,HL
 00002F2F:	LD E,C
 00002F30:	LD D,B
@@ -6465,7 +6471,7 @@
 00002FC5:	LD B,H
 00002FC6:	EX DE,HL
 00002FC7:	JR -13h
-00002FC9:	CALL 2FEFh
+00002FC9:	CALL 2FEFh		; REFLNO: ... Line ref = Number
 00002FCC:	POP HL
 00002FCD:	RET
 
@@ -6486,6 +6492,7 @@
 00002FED:	POP DE
 00002FEE:	RET
 
+; REFLNO: ... Line ref = Number
 00002FEF:	PUSH DE
 00002FF0:	PUSH HL
 00002FF1:	LD HL,3016h
@@ -6597,7 +6604,7 @@
 00003085:	SCF
 00003086:	JR -0Fh
 
-Get arguments for line number range (xxx-yyy), DE to BC.
+; ; Get arguments for line number range (xxx-yyy), DE to BC.
 00003088:	LD DE,0000h
 0000308B:	LD BC,FFFFh
 0000308E:	CALL 17A8h		; END2C: look for next parameter, Z if none
@@ -6653,7 +6660,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 
 000030DB:	XOR A
 000030DC:	LD DE,(3630h)		; EDLINE
-000030E0:	CALL NZ,3088h		Get arguments for line number range (xxx-yyy), DE to BC.
+000030E0:	CALL NZ,3088h		; ; Get arguments for line number range (xxx-yyy), DE to BC.
 000030E3:	LD A,D
 000030E4:	OR E
 000030E5:	JR Z,+03h
@@ -6669,7 +6676,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000030F6:	CALL 305Ch
 000030F9:	POP DE
 000030FA:	JR NC,+07h
-000030FC:	LD HL,A637h
+000030FC:	LD HL,A637h		; IMDBUF - Immediate command buffer
 000030FF:	LD (HL),00h
 00003101:	JR +04h
 00003103:	LD BC,0004h
@@ -6733,7 +6740,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003164:	LD E,(HL)
 00003165:	INC HL
 00003166:	LD D,(HL)
-00003167:	LD (362Eh),DE		; Current ptr for BASIC interpreter
+00003167:	LD (362Eh),DE		; NXTLPT: ptr for BASIC interpreter
 0000316B:	INC HL
 
 ; LD HL,(HL)
@@ -6773,7 +6780,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003197:	POP HL
 00003198:	LD (3634h),HL	; current program line
 0000319B:	POP HL
-0000319C:	LD (362Eh),HL		; Current ptr for BASIC interpreter
+0000319C:	LD (362Eh),HL		; NXTLPT: ptr for BASIC interpreter
 0000319F:	POP HL
 000031A0:	PUSH IX
 000031A2:	CP 3Ah	; ':'
@@ -6790,7 +6797,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000031AF:	POP BC
 000031B0:	PUSH HL
 000031B1:	EX DE,HL
-000031B2:	LD HL,(362Eh)		; Current ptr for BASIC interpreter
+000031B2:	LD HL,(362Eh)		; NXTLPT: ptr for BASIC interpreter
 000031B5:	LD (31D4h),HL
 000031B8:	PUSH HL
 000031B9:	LD HL,(3634h)	; current program line
@@ -6800,14 +6807,14 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000031C3:	PUSH HL
 000031C4:	PUSH DE
 000031C5:	LD DE,(3621h)		; TMPEND
-000031C9:	CALL 8D3Ch			; MEMECK
+000031C9:	CALL 8D3Ch			; MEMECK: (SBC SP,DE)
 000031CC:	POP DE
 000031CD:	EX DE,HL
 000031CE:	DEC HL
 000031CF:	CALL 3222h
 000031D2:	EX DE,HL
 000031D3:	LD HL,0000h
-000031D6:	LD (362Eh),HL		; Current ptr for BASIC interpreter
+000031D6:	LD (362Eh),HL		; NXTLPT: ptr for BASIC interpreter
 000031D9:	LD HL,0000h
 000031DC:	LD (3634h),HL	; current program line
 000031DF:	EX DE,HL
@@ -6886,9 +6893,9 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003253:	NOP
 
 ; 'REPEAT'
-00003254:	CP 9Dh
+00003254:	CP 9Dh			; Token code for 'ON'
 00003256:	JR Z,+22h
-00003258:	CP A1h
+00003258:	CP A1h			; Token code for 'OFF'
 0000325A:	JR Z,+1Dh
 0000325C:	POP BC
 0000325D:	PUSH HL
@@ -6896,7 +6903,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003261:	POP HL
 00003262:	PUSH HL
 00003263:	EX DE,HL
-00003264:	LD HL,(362Eh)		; Current ptr for BASIC interpreter
+00003264:	LD HL,(362Eh)		; NXTLPT: ptr for BASIC interpreter
 00003267:	PUSH HL
 00003268:	LD HL,(3634h)	; current program line
 0000326B:	PUSH HL
@@ -6905,7 +6912,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003270:	EX DE,HL
 00003271:	PUSH BC
 00003272:	LD DE,(A62Dh)		; VARED
-00003276:	JP 8D3Ch			; MEMECK
+00003276:	JP 8D3Ch			; MEMECK: (SBC SP,DE)
 
 00003279:	XOR A
 0000327A:	LD (0366h),A		; 0366h= REPTF1 (0=repeat off)
@@ -6920,7 +6927,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003285:	POP BC
 00003286:	PUSH DE
 00003287:	EXX
-00003288:	LD HL,(362Eh)		; Current ptr for BASIC interpreter
+00003288:	LD HL,(362Eh)		; NXTLPT: ptr for BASIC interpreter
 0000328B:	PUSH HL
 0000328C:	LD HL,(3634h)	; current program line
 0000328F:	PUSH HL
@@ -6929,7 +6936,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003294:	EXX
 00003295:	PUSH BC
 00003296:	LD DE,(A62Dh)		; VARED
-0000329A:	CALL 8D3Ch			; MEMECK
+0000329A:	CALL 8D3Ch			; MEMECK: (SBC SP,DE)
 0000329D:	JP 3488h		; 'GOTO'
 
 000032A0:	LD IX,3650h
@@ -6949,7 +6956,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000032B9:	RET Z
 000032BA:	POP BC
 000032BB:	PUSH HL
-000032BC:	LD HL,(362Eh)		; Current ptr for BASIC interpreter
+000032BC:	LD HL,(362Eh)		; NXTLPT: ptr for BASIC interpreter
 000032BF:	PUSH HL
 000032C0:	LD HL,(3634h)	; current program line
 000032C3:	PUSH HL
@@ -6958,7 +6965,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000032C8:	PUSH BC
 000032C9:	EX DE,HL
 000032CA:	LD DE,(A62Dh)		; VARED
-000032CE:	CALL 8D3Ch			; MEMECK
+000032CE:	CALL 8D3Ch			; MEMECK: (SBC SP,DE)
 000032D1:	CALL 305Ch
 000032D4:	JP C,202Dh		; ERROR: Undefined label
 000032D7:	JP 3493h
@@ -6967,7 +6974,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000032DB:	CALL 32EDh
 000032DE:	PUSH HL
 000032DF:	LD HL,(3321h)
-000032E2:	LD (362Eh),HL		; Current ptr for BASIC interpreter
+000032E2:	LD (362Eh),HL		; NXTLPT: ptr for BASIC interpreter
 000032E5:	LD HL,0000h
 000032E8:	LD (3634h),HL	; current program line
 000032EB:	POP HL
@@ -7072,7 +7079,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000338A:	LD HL,(3638h)		; ERRLNO  ..program line where the last error happened
 0000338D:	LD (3634h),HL		; current program line
 00003390:	LD HL,(363Ah)
-00003393:	LD (362Eh),HL		; Current ptr for BASIC interpreter
+00003393:	LD (362Eh),HL		; NXTLPT: ptr for BASIC interpreter
 00003396:	LD HL,(363Ch)
 00003399:	RET Z
 0000339A:	CP 8Eh				; Token for 'NEXT'
@@ -7208,10 +7215,11 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000348C:	CP 0Ch
 0000348E:	JR NZ,+0Dh
 00003490:	CALL 316Ch		; LD HL,(HL)
-00003493:	LD (362Eh),HL		; Current ptr for BASIC interpreter
+00003493:	LD (362Eh),HL		; NXTLPT: ptr for BASIC interpreter
 00003496:	XOR A
 00003497:	LD (3627h),A	; CONTFG
 0000349A:	JP 15CCh
+
 0000349D:	CP 0Bh
 0000349F:	JP NZ,32DAh
 000034A2:	LD E,(HL)
@@ -7391,7 +7399,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000035AE:	LD DE,080Eh		; 'DEFDBL'
 000035B1:	CALL 8262h		; skip SPACEs in (HL), A=next char
 000035B4:	CALL 53F8h		;
-000035B7:	CP 5Bh			; "'"  (some BASIC subtracts "A" and checks for 26)
+000035B7:	CP 5Bh			; '['  (some BASIC subtracts "A" and checks for 26)
 000035B9:	RET NC
 000035BA:	SUB 41h
 000035BC:	RET C
@@ -7413,7 +7421,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000035D4:	RET NZ
 000035D5:	CALL 8261h		; skip SPACEs in (++HL), A=next char
 000035D8:	CALL 53F8h
-000035DB:	CP 5Bh			; "'"  (some BASIC subtracts "A" and checks for 26)
+000035DB:	CP 5Bh			; '['  (some BASIC subtracts "A" and checks for 26)
 000035DD:	RET NC
 000035DE:	SUB 41h
 000035E0:	RET C
@@ -7461,6 +7469,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003625:	DEFB 2
 
 00003626:	NOP
+; CONTFG
 00003627:	NOP
 00003628:	CALL 00ADh
 
@@ -7470,7 +7479,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000362C:	NOP
 0000362D:	NOP
 
-; Current ptr for BASIC interpreter (word)
+; NXTLPT: ptr for BASIC interpreter (word)
 0000362E:	DEFB AA ADD HL,BC
 0000362F:	XOR D
 
@@ -7553,6 +7562,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003675:	INC DE
 00003676:	LD A,(HL)
 00003677:	JR -0Bh
+
 00003679:	INC HL
 0000367A:	CALL 7FAAh		; IDEEXP: DE= (HL), A=next character to be parsed
 0000367D:	CP 2Ch	; ','
@@ -7570,6 +7580,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003692:	INC DE
 00003693:	LD A,(HL)
 00003694:	JR -19h
+
 00003696:	PUSH DE
 00003697:	INC HL
 00003698:	CALL 7F95h		; IBYTE: load BASIC argument in A
@@ -7780,7 +7791,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000037E9:	CALL 3D58h
 000037EC:	RET Z
 000037ED:	CALL 2E73h		; HCH2CH: Skip spaces and check for comma ','
-000037F0:	CALL 8BFEh
+000037F0:	CALL 8BFEh		; Check for '('
 000037F3:	CALL 387Ah
 000037F6:	PUSH DE
 000037F7:	LD DE,538Dh
@@ -7797,7 +7808,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003810:	CALL 8262h		; skip SPACEs in (HL), A=next char
 00003813:	CP F8h			; Token for '-'
 00003815:	JP NZ,2066h		; ERROR: Syntax error
-00003818:	CALL 8BFDh
+00003818:	CALL 8BFDh		; INC HL and check for '('
 0000381B:	CALL 387Ah
 0000381E:	PUSH DE
 0000381F:	LD A,05h
@@ -7871,7 +7882,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000038A7:	JP C,206Fh		; ERROR: Illegal function call
 000038AA:	RET
 
-000038AB:	CALL 8BFEh
+000038AB:	CALL 8BFEh		; Check for '('
 000038AE:	CALL 38C5h
 000038B1:	JR +03h
 
@@ -7881,7 +7892,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000038B9:	JP 8262h		; skip SPACEs in (HL), A=next char
 
 ; Get argument pair "(BC,DE"
-000038BC:	CALL 8BFEh
+000038BC:	CALL 8BFEh		; Check for '('
 000038BF:	LD A,(5384h)
 000038C2:	OR A
 000038C3:	JR NZ,+0Ch
@@ -7970,6 +7981,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000396C:	LD B,A
 0000396D:	RET
 
+; 'KEY LLIST'
 0000396E:	LD A,AFh			; redirect output
 
 ; 'KLIST'
@@ -7997,7 +8009,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000399B:	LD A,2Ch	; ','
 0000399D:	CALL 1420h		; file stuff, depends on value set in FILOUT
 000039A0:	LD A,C
-000039A1:	CALL 3AC9h		; HL = Text associated to FN key in A
+000039A1:	CALL 3AC9h		; KEYBCL - HL = Text associated to FN key in A
 000039A4:	LD B,(HL)
 000039A5:	INC HL
 000039A6:	LD DE,A73Fh		; KEYBM1 (aka KEYBUF)
@@ -8093,13 +8105,14 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003A2F:	LD (HL),2Ch	; ','
 00003A31:	JR -24h
 
-00003A33:	CP 9Dh
+; on-off-stop
+00003A33:	CP 9Dh			; Token code for 'ON'
 00003A35:	LD DE,1F80h
 00003A38:	RET Z
-00003A39:	CP A1h
+00003A39:	CP A1h			; Token code for 'OFF'
 00003A3B:	LD DE,0F00h
 00003A3E:	RET Z
-00003A3F:	CP 99h
+00003A3F:	CP 99h			; Token code for 'STOP'
 00003A41:	LD DE,1FC0h
 00003A44:	RET
 
@@ -8129,13 +8142,14 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003A62:	POP HL
 00003A63:	RET
 
+; 'KEY', 'DEF KEY'
 00003A64:	CALL 8262h		; skip SPACEs in (HL), A=next char
-00003A67:	CP 87h
+00003A67:	CP 87h			; Token code for 'LIST'
 00003A69:	INC HL
 00003A6A:	JP Z,396Fh		; 'KLIST'
-00003A6D:	CP 88h
-00003A6F:	JP Z,396Eh
-00003A72:	CALL 3A33h
+00003A6D:	CP 88h			; Token code for 'LLIST'
+00003A6F:	JP Z,396Eh		; 'KEY LLIST'
+00003A72:	CALL 3A33h		; on-off-stop
 00003A75:	JR Z,-32h
 00003A77:	DEC HL
 00003A78:	CALL 7F95h		; IBYTE: load BASIC argument in A
@@ -8144,7 +8158,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003A80:	EX AF,AF'
 00003A81:	CALL 8262h		; skip SPACEs in (HL), A=next char
 00003A84:	INC HL
-00003A85:	CALL 3A33h
+00003A85:	CALL 3A33h		; on-off-stop
 00003A88:	JR Z,-36h
 00003A8A:	CP 2Ch	; ','
 00003A8C:	JP NZ,2066h		; ERROR: Syntax error
@@ -8153,9 +8167,9 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003A91:	JR Z,+1Fh
 00003A93:	DEC A
 00003A94:	PUSH HL
-00003A95:	CALL 3AC9h		; HL = Text associated to FN key in A
+00003A95:	CALL 3AC9h		; KEYBCL - HL = Text associated to FN key in A
 00003A98:	EX HL,(SP)
-00003A99:	CALL 7FB9h
+00003A99:	CALL 7FB9h		; STREXP:
 00003A9C:	EX HL,(SP)
 00003A9D:	CP 10h
 00003A9F:	JR C,+02h
@@ -8174,7 +8188,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003AB0:	EI
 00003AB1:	RET
 
-00003AB2:	CALL 7FB9h
+00003AB2:	CALL 7FB9h		; STREXP:
 00003AB5:	DEC DE
 00003AB6:	DI
 00003AB7:	CP 40h
@@ -8189,7 +8203,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003AC5:	LD (HL),00h
 00003AC7:	JR -21h
 
-		; HL = Text associated to FN key in A
+; KEYBCL - HL = Text associated to FN key in A
 00003AC9:	ADD A
 00003ACA:	ADD A
 00003ACB:	ADD A
@@ -8628,10 +8642,11 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 ; 'LINE'
 00003D6E:	CALL 8262h		; skip SPACEs in (HL), A=next char
 00003D71:	CP 91h			; Token for 'INPUT'
-00003D73:	JR NZ,+04h
+00003D73:	JR NZ,+04h		; 'draw LINE'
 00003D75:	INC HL
 00003D76:	JP 22CAh		; 'LINPUT'
 
+; 'draw LINE'
 00003D79:	CALL 3DC0h
 00003D7C:	CALL 8262h		; skip SPACEs in (HL), A=next char
 00003D7F:	CP F8h			; Token for '-'
@@ -8690,7 +8705,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003DF0:	CP 82h			; Token for PSET ..FEh, 82h
 00003DF2:	JR Z,+12h
 00003DF4:	DEC HL
-00003DF5:	CALL 7FB9h
+00003DF5:	CALL 7FB9h		; STREXP:
 00003DF8:	OR A
 00003DF9:	JR Z,+01h
 00003DFB:	LD A,(DE)
@@ -8760,14 +8775,14 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00003E82:	JR +28h
 
 00003E84:	CALL 2E73h		; HCH2CH: Skip spaces and check for comma ','
-00003E87:	CALL 7FB9h
+00003E87:	CALL 7FB9h		; STREXP:
 00003E8A:	PUSH HL
 00003E8B:	PUSH DE
 00003E8C:	LD DE,(3621h)		; TMPEND
 00003E90:	LD HL,0258h			; 600
 00003E93:	ADD HL,DE
 00003E94:	EX DE,HL
-00003E95:	CALL 8D3Ch			; MEMECK
+00003E95:	CALL 8D3Ch			; MEMECK: (SBC SP,DE)
 00003E98:	POP DE
 00003E99:	CALL 4A7Eh
 00003E9C:	LD HL,40E1h
@@ -9191,7 +9206,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00004169:	LD A,L
 
 ; 'DEF CHR$'
-0000416A:	CALL 8BFEh
+0000416A:	CALL 8BFEh		; Check for '('
 0000416D:	CALL 7FAAh		; IDEEXP: DE= (HL), A=next character to be parsed
 00004170:	CALL 8C08h		; Check for ')'
 00004173:	CALL 7F98h		; Check byte overflow for value in DE and put in A
@@ -9200,7 +9215,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000417A:	CP F4h			; Token for '='
 0000417C:	JP NZ,2066h		; ERROR: Syntax error
 0000417F:	INC HL
-00004180:	CALL 7FB9h
+00004180:	CALL 7FB9h		; STREXP:
 00004183:	CP 18h
 00004185:	JP NZ,206Fh		; ERROR: Illegal function call
 00004188:	POP AF
@@ -9356,6 +9371,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000042A6:	INC HL
 000042A7:	CALL 7FAAh		; IDEEXP: DE= (HL), A=next character to be parsed
 000042AA:	JR +11h
+
 000042AC:	LD DE,0001h
 000042AF:	LD (4313h),DE
 000042B3:	LD DE,0000h
@@ -10882,10 +10898,10 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 
 ; 'KBUF'
 00004C64:	LD B,00h
-00004C66:	CP 9Dh
+00004C66:	CP 9Dh			; Token code for 'ON'
 00004C68:	JR Z,+06h
 00004C6A:	INC B
-00004C6B:	CP A1h
+00004C6B:	CP A1h			; Token code for 'OFF'
 00004C6D:	JP NZ,2066h		; ERROR: Syntax error
 00004C70:	LD A,B
 00004C71:	LD (0EA5h),A
@@ -11358,7 +11374,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00004F99:	OR A
 00004F9A:	JP Z,206Fh		; ERROR: Illegal function call
 00004F9D:	LD (4FCAh),A
-00004FA0:	CALL 7FB9h
+00004FA0:	CALL 7FB9h		; STREXP:
 00004FA3:	PUSH HL
 00004FA4:	CALL 4FB5h
 00004FA7:	POP HL
@@ -11599,20 +11615,20 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00005109:	LD E,00h
 0000510B:	CALL 5168h
 0000510E:	LD A,39h
-00005110:	CALL 12E2h
+00005110:	CALL 12E2h	; Send raw code in A to printer
 00005113:	LD A,0Fh
-00005115:	CALL 12E2h
+00005115:	CALL 12E2h	; Send raw code in A to printer
 00005118:	LD D,00h
 0000511A:	LD A,(0036h)	; BRKBUF
 0000511D:	CP 03h
 0000511F:	JR Z,+39h
 00005121:	CALL 5168h
 00005124:	LD A,32h
-00005126:	CALL 12E2h
+00005126:	CALL 12E2h	; Send raw code in A to printer
 00005129:	LD A,02h
-0000512B:	CALL 12E2h
+0000512B:	CALL 12E2h	; Send raw code in A to printer
 0000512E:	LD A,80h
-00005130:	CALL 12E2h
+00005130:	CALL 12E2h	; Send raw code in A to printer
 00005133:	PUSH DE
 00005134:	LD HL,A73Fh		; KEYBM1 (aka KEYBUF)
 00005137:	LD B,08h
@@ -11626,7 +11642,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00005141:	LD HL,A73Fh		; KEYBM1 (aka KEYBUF)
 00005144:	LD B,08h
 00005146:	LD A,(HL)
-00005147:	CALL 12E2h
+00005147:	CALL 12E2h	; Send raw code in A to printer
 0000514A:	INC HL
 0000514B:	DJNZ -07h
 0000514D:	POP DE
@@ -11640,16 +11656,16 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00005158:	JR C,-42h
 0000515A:	CALL 5168h
 0000515D:	LD A,39h
-0000515F:	CALL 12E2h
+0000515F:	CALL 12E2h	; Send raw code in A to printer
 00005162:	XOR A
-00005163:	CALL 12E2h
+00005163:	CALL 12E2h	; Send raw code in A to printer
 00005166:	POP HL
 00005167:	RET
 
 00005168:	LD A,1Bh
-0000516A:	CALL 12E2h
+0000516A:	CALL 12E2h	; Send raw code in A to printer
 0000516D:	LD A,25h
-0000516F:	JP 12E2h
+0000516F:	JP 12E2h	; Send raw code in A to printer
 
 ; table for HCOPY
 00005170:	defw 517Ch, 518Ch, 5187h, 5182h, 5231h
@@ -11906,18 +11922,18 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 
 ; 'CLICK'
 0000530B:	INC HL
-0000530C:	CP A1h
+0000530C:	CP A1h			; Token code for 'OFF'
 0000530E:	JR Z,+06h
-00005310:	CP 9Dh
+00005310:	CP 9Dh			; Token code for 'ON'
 00005312:	JP NZ,2066h		; ERROR: Syntax error
 00005315:	XOR A
 00005316:	LD (0E90h),A		; CLICKF
 00005319:	RET
 
 0000531A:	INC HL
-0000531B:	CP 9Dh
+0000531B:	CP 9Dh			; Token code for 'ON'
 0000531D:	JR Z,+09h
-0000531F:	CP A1h
+0000531F:	CP A1h			; Token code for 'OFF'
 00005321:	JP NZ,2066h		; ERROR: Syntax error
 00005324:	LD A,0Dh
 00005326:	JR +02h
@@ -12083,7 +12099,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000053F5:	CCF
 000053F6:	RET
 
-; TOUPPER
+; TOUPPER (DE)
 000053F7:	LD A,(DE)
 000053F8:	CP 61h
 000053FA:	RET C
@@ -12105,7 +12121,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000540E:	RET NC
 0000540F:	CP 41h
 00005411:	RET C
-00005412:	CP 5Bh			; "'"  (some BASIC subtracts "A" and checks for 26)
+00005412:	CP 5Bh			; '['  (some BASIC subtracts "A" and checks for 26)
 00005414:	CCF
 00005415:	RET NC
 00005416:	CP 61h
@@ -12204,7 +12220,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000549F:	LD HL,0000h
 000054A2:	LD (54B4h),HL
 000054A5:	LD HL,0000h
-000054A8:	CALL 53F7h		; TOUPPER
+000054A8:	CALL 53F7h		; TOUPPER (DE)
 000054AB:	INC DE
 000054AC:	CALL 54E6h		; ..Self ModiFying Code (54ADh)
 000054AF:	JR C,+19h
@@ -12280,7 +12296,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000551B:	CALL 53F8h
 0000551E:	CP 26h	; '&'
 00005520:	JR NZ,+17h
-00005522:	CALL 53F7h		; TOUPPER
+00005522:	CALL 53F7h		; TOUPPER (DE)
 00005525:	INC DE
 00005526:	CP 42h	; 'B' (bin)
 00005528:	JP Z,5480h
@@ -12293,10 +12309,10 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 
 00005539:	CP 30h	; '0'
 0000553B:	JR NZ,+0Ah
-0000553D:	CALL 53F7h		; TOUPPER
+0000553D:	CALL 53F7h		; TOUPPER (DE)
 00005540:	INC DE
 00005541:	JR -0Ah
-00005543:	CALL 53F7h		; TOUPPER
+00005543:	CALL 53F7h		; TOUPPER (DE)
 00005546:	INC DE
 00005547:	CP 20h	; ' '
 00005549:	JR NZ,+06h
@@ -12319,7 +12335,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00005570:	LD A,01h
 00005572:	LD (A5FAh),A	; PRODFL+1 ?
 00005575:	LD C,A
-00005576:	CALL 53F7h		; TOUPPER
+00005576:	CALL 53F7h		; TOUPPER (DE)
 00005579:	INC DE
 0000557A:	CP 20h	; ' '
 0000557C:	JR NZ,+06h
@@ -13092,6 +13108,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00005A88:	RET
 
 00005A89:	CALL 9A09h		; CLRFAC: Set FP accumulator to 0
+; POP DE,HL,BC and RET
 00005A8C:	POP DE
 00005A8D:	POP HL
 00005A8E:	POP BC
@@ -13119,7 +13136,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00005AB0:	OR A
 00005AB1:	JR Z,+17h
 00005AB3:	DEC (HL)
-00005AB4:	CALL 5ACEh
+00005AB4:	CALL 5ACEh		; 'FIX' conversion
 00005AB7:	PUSH HL
 00005AB8:	CALL 5BAFh		; HLFLT
 00005ABB:	EX DE,HL
@@ -13137,6 +13154,8 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00005ACA:	INC HL
 00005ACB:	LD (HL),A
 00005ACC:	JR -0Ch
+
+; 'FIX' conversion
 00005ACE:	PUSH BC
 00005ACF:	PUSH HL
 00005AD0:	PUSH DE
@@ -13172,10 +13191,10 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00005B04:	LD (HL),A
 00005B05:	DEC HL
 00005B06:	CALL 5B53h			; Write EDC to (HL)
-00005B09:	JP 5A8Ch
+00005B09:	JP 5A8Ch		; POP DE,HL,BC and RET
 
 00005B0C:	CP B8h			; Token for 'CONSOLE'
-00005B0E:	JP NC,5A8Ch
+00005B0E:	JP NC,5A8Ch		; POP DE,HL,BC and RET
 00005B11:	INC HL
 00005B12:	CALL 5B59h			; Load EDC from (HL)
 00005B15:	PUSH HL
@@ -13259,16 +13278,16 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00005B7C:	PUSH DE
 00005B7D:	LD A,(HL)
 00005B7E:	CP 81h			; compare to '1'
-00005B80:	JP C,5A8Ch
+00005B80:	JP C,5A8Ch		; POP DE,HL,BC and RET
 00005B83:	LD DE,A5DCh		; ZFAC1
 00005B86:	PUSH HL
 00005B87:	CALL 53EAh		; LDIR5: (DE) = (HL), 8 bytes
 00005B8A:	LD HL,A5DCh		; ZFAC1
-00005B8D:	CALL 5ACEh
+00005B8D:	CALL 5ACEh		; 'FIX' conversion
 00005B90:	POP DE
 00005B91:	EX DE,HL
 00005B92:	CALL 9A3Bh		; SUB:
-00005B95:	JP 5A8Ch
+00005B95:	JP 5A8Ch		; POP DE,HL,BC and RET
 
 ; MULTEN:
 00005B98:	PUSH AF
@@ -13548,7 +13567,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 ; 'DEVO$'
 00005D0F:	CALL 5D74h
 00005D12:	PUSH DE
-00005D13:	CALL 7FB9h
+00005D13:	CALL 7FB9h		; STREXP:
 00005D16:	PUSH HL
 00005D17:	CP 80h
 00005D19:	JP NZ,206Fh		; ERROR: Illegal function call
@@ -13561,7 +13580,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00005D29:	POP HL
 00005D2A:	CALL 8262h		; skip SPACEs in (HL), A=next char
 00005D2D:	CALL 2E76h		; CH2CH: Check for comma ','
-00005D30:	CALL 7FB9h
+00005D30:	CALL 7FB9h		; STREXP:
 00005D33:	PUSH HL
 00005D34:	CP 80h
 00005D36:	JP NZ,206Fh		; ERROR: Illegal function call
@@ -13719,7 +13738,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00005E3B:	JR -29h
 
 ; 'DEVICE'
-00005E3D:	CALL 7FB9h
+00005E3D:	CALL 7FB9h		; STREXP:
 00005E40:	PUSH HL
 00005E41:	LD C,A
 00005E42:	LD B,00h
@@ -14072,7 +14091,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000609F:	POP HL
 000060A0:	LD A,(HL)
 000060A1:	CALL 2E76h		; CH2CH: Check for comma ','
-000060A4:	CALL 7FB9h
+000060A4:	CALL 7FB9h		; STREXP:
 000060A7:	PUSH HL
 000060A8:	OR A
 000060A9:	LD HL,008Fh
@@ -14109,7 +14128,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000060E1:	PUSH AF
 000060E2:	LD A,(HL)
 000060E3:	CALL 2E76h		; CH2CH: Check for comma ','
-000060E6:	CALL 7FB9h
+000060E6:	CALL 7FB9h		; STREXP:
 000060E9:	OR A
 000060EA:	LD BC,003Fh
 000060ED:	JR Z,+0Eh
@@ -14157,7 +14176,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 
 ; 'SEARCH'
 0000613D:	CALL 61AEh
-00006140:	CALL 7FB9h
+00006140:	CALL 7FB9h		; STREXP:
 00006143:	LD C,A
 00006144:	PUSH HL
 00006145:	LD HL,(A635h)		; TEXTST,  address of BASIC  program
@@ -14264,7 +14283,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00006208:	LD A,4Fh	; 'O'
 0000620A:	CALL 65FBh
 0000620D:	POP HL
-0000620E:	CALL 3088h			Get arguments for line number range (xxx-yyy), DE to BC.
+0000620E:	CALL 3088h			; ; Get arguments for line number range (xxx-yyy), DE to BC.
 00006211:	LD (6229h),DE		; LISTSN (self modifying code)
 00006215:	LD (6237h),BC		; LISTEN (self modifying code)
 00006219:	PUSH HL
@@ -14375,7 +14394,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000062D4:	LD HL,(1494h)
 000062D7:	CP 02h
 000062D9:	JR NZ,+06h
-000062DB:	CALL 2FEFh
+000062DB:	CALL 2FEFh			; REFLNO: ... Line ref = Number
 000062DE:	LD HL,(A635h)		; TEXTST,  address of BASIC  program
 000062E1:	LD BC,(1492h)
 000062E5:	LD A,11h
@@ -14455,10 +14474,10 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00006377:	JP 15C2h		; Begin the BASIC program execution
 
 ; 'LOAD'
-0000637A:	CP 8Fh			;
+0000637A:	CP 8Fh			; Token code for 'PRINT'
 0000637C:	JP Z,62B5h
 0000637F:	CALL 53F8h
-00006382:	CP 4Dh			;
+00006382:	CP 4Dh			; 'M'
 00006384:	JP Z,6308h
 00006387:	CALL 6659h
 0000638A:	LD (6399h),BC
@@ -14615,15 +14634,15 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 
 ; Token for 'SAVE'
 000064D4:	CALL 53F8h
-000064D7:	CP 4Dh			;
+000064D7:	CP 4Dh			; 'M'
 000064D9:	JR Z,-46h
-000064DB:	CALL 2FEFh
+000064DB:	CALL 2FEFh		; REFLNO: ... Line ref = Number
 000064DE:	CALL 6659h
 000064E1:	CALL 17A8h		; END2C: look for next parameter, Z if none
 000064E4:	JR Z,+0Fh
 000064E6:	CALL 2E76h		; CH2CH: Check for comma ','
 000064E9:	CALL 8262h		; skip SPACEs in (HL), A=next char
-000064EC:	CP 41h			;
+000064EC:	CP 41h			; 'A'
 000064EE:	JP NZ,2066h		; ERROR: Syntax error
 000064F1:	INC HL
 000064F2:	JP 61EEh
@@ -14748,7 +14767,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000065C3:	LD (1492h),HL
 000065C6:	LD (1496h),HL
 000065C9:	POP HL
-000065CA:	CALL 7FB9h
+000065CA:	CALL 7FB9h		; STREXP:
 000065CD:	OR A
 000065CE:	JP Z,689Bh			; ERROR: Bad file mode
 000065D1:	LD A,(DE)
@@ -14831,7 +14850,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 
 00006659:	CALL 17A8h		; END2C: look for next parameter, Z if none
 0000665C:	LD A,00h
-0000665E:	CALL NZ,7FB9h
+0000665E:	CALL NZ,7FB9h	; STREXP:
 00006661:	CP 20h	; ' '
 00006663:	JP NC,206Fh		; ERROR: Illegal function call
 00006666:	PUSH HL
@@ -15034,7 +15053,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00006788:	CP F4h			; Token for '='
 0000678A:	JP NZ,2066h		; ERROR: Syntax error
 0000678D:	INC HL
-0000678E:	CALL 7FB9h
+0000678E:	CALL 7FB9h		; STREXP:
 00006791:	EX AF,AF'
 00006792:	EX HL,(SP)
 00006793:	PUSH DE
@@ -15247,7 +15266,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00006900:	JR +0Ah
 00006902:	LD IX,6975h
 00006906:	JR +04h
-00006908:	LD IX,12E2h
+00006908:	LD IX,12E2h		; [Send raw code in A to printer]
 0000690C:	LD (6915h),IX	; SMC
 00006910:	CALL 691Eh
 00006913:	LD A,(HL)
@@ -17440,10 +17459,12 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00007730:	LD H,L
 00007731:	LD H,L
 00007732:	NOP
+
+; CVIMTX: convert immediate buffer for direct execution
 00007733:	PUSH DE
 00007734:	PUSH BC
 00007735:	LD C,00h
-00007737:	CALL 78D3h
+00007737:	CALL 78D3h		; IMSPACE: check for required SPACE and pick next byte from line
 0000773A:	OR A
 0000773B:	JR Z,+2Fh
 0000773D:	INC DE
@@ -17491,10 +17512,10 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00007788:	JR -53h
 
 0000778A:	POP BC
-0000778B:	CALL 53F7h		; TOUPPER
+0000778B:	CALL 53F7h		; TOUPPER (DE)
 0000778E:	CP 41h
 00007790:	JR C,-0Dh
-00007792:	CP 5Bh			; "'"  (some BASIC subtracts "A" and checks for 26)
+00007792:	CP 5Bh			; '['  (some BASIC subtracts "A" and checks for 26)
 00007794:	JR NC,-11h
 00007796:	LD A,(DE)
 00007797:	CALL 78CBh		; put token/character code and move a byte forward in line being edited
@@ -17503,18 +17524,22 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000779E:	JR NC,-09h
 000077A0:	JR -6Bh
 
+; IMRSV
 000077A2:	PUSH BC
 000077A3:	LD BC,2921h		; TOKEN table
-000077A6:	CALL 788Ch
+000077A6:	CALL 788Ch		; IMSER: search in Token Table
 000077A9:	JR NC,+35h
+
 000077AB:	LD BC,2AF6h		; TOKEN table for prefix $FE
-000077AE:	CALL 788Ch
+000077AE:	CALL 788Ch		; IMSER: search in Token Table
 000077B1:	LD C,FEh
 000077B3:	JR NC,+0Ah
+
 000077B5:	LD BC,2BD7h		; TOKEN table for prefix $FF
-000077B8:	CALL 788Ch
+000077B8:	CALL 788Ch		; IMSER: search in Token Table
 000077BB:	LD C,FFh
 000077BD:	JR C,-35h
+
 000077BF:	LD (HL),C
 000077C0:	INC HL
 000077C1:	LD (HL),B
@@ -17526,7 +17551,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000077CC:	JR Z,+04h
 000077CE:	CP B4h		; Token for 'LOAD'
 000077D0:	JR NZ,-4Fh
-000077D2:	CALL 78D3h
+000077D2:	CALL 78D3h		; IMSPACE: check for required SPACE and pick next byte from line
 000077D5:	CP 3Dh	; '='
 000077D7:	JR NZ,-56h
 000077D9:	LD (HL),F4h		;  force token for '='
@@ -17551,12 +17576,12 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000077FE:	CP 82h		; Token for 'GO'
 00007800:	JR NZ,+1Ch	; 781Eh
 
-00007802:	CALL 78D3h
+00007802:	CALL 78D3h		; IMSPACE: check for required SPACE and pick next byte from line
 00007805:	OR A
 00007806:	JR Z,-10h
 00007808:	PUSH BC
 00007809:	LD BC,2921h		; TOKEN table
-0000780C:	CALL 788Ch
+0000780C:	CALL 788Ch		; IMSER: search in Token Table
 0000780F:	LD A,B
 00007810:	POP BC
 00007811:	JR C,-73h
@@ -17567,7 +17592,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000781C:	JR NZ,-26h
 
 ;
-0000781E:	CALL 78D3h
+0000781E:	CALL 78D3h		; IMSPACE: check for required SPACE and pick next byte from line
 00007821:	CP 2Ch	; ','
 00007823:	JR Z,+0Ah
 00007825:	CALL 53F0h		; TSTNUM
@@ -17584,7 +17609,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00007842:	JP Z,776Ch
 00007845:	JR -29h
 00007847:	CALL 78CBh		; put token/character code and move a byte forward in line being edited
-0000784A:	CALL 78D3h
+0000784A:	CALL 78D3h		; IMSPACE: check for required SPACE and pick next byte from line
 0000784D:	CP 22h	; '"'
 0000784F:	JR NZ,+08h
 00007851:	CALL 78C0h
@@ -17615,6 +17640,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00007887:	JP Z,776Ch
 0000788A:	JR -16h
 
+; IMSER: search in Token Table
 ; Encode Token, BC=table, A=code
 0000788C:	PUSH HL
 0000788D:	PUSH DE
@@ -17632,12 +17658,13 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000789B:	SCF
 0000789C:	RET
 
-0000789D:	CALL 53F7h		; TOUPPER
+0000789D:	CALL 53F7h		; TOUPPER (DE)
 000078A0:	LD C,(HL)
 000078A1:	INC HL
 000078A2:	INC DE
 000078A3:	CP 2Eh	; '.'
 000078A5:	JR Z,+0Fh
+
 000078A7:	SUB C
 000078A8:	JR Z,-0Dh
 000078AA:	CP 80h
@@ -17649,7 +17676,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000078B2:	JR NC,-05h
 000078B4:	JR -24h
 000078B6:	LD A,B
-000078B7:	CP EEh
+000078B7:	CP EEh			; Token code for arithmentic symbols ?
 000078B9:	JR NC,-0Dh
 000078BB:	CCF
 000078BC:	POP HL
@@ -17677,7 +17704,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000078CF:	RET NZ
 000078D0:	JP 2054h	; ERROR: Line buffer overflow
 
-; pick next byte from line
+; IMSPACE: check for required SPACE and pick next byte from line
 000078D3:	LD A,(DE)
 000078D4:	CP 20h	; ' '
 000078D6:	RET NZ
@@ -17692,7 +17719,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000078E2:	JR NZ,+1Dh
 000078E4:	PUSH DE
 000078E5:	INC DE
-000078E6:	CALL 53F7h		; TOUPPER
+000078E6:	CALL 53F7h		; TOUPPER (DE)
 000078E9:	POP DE
 000078EA:	PUSH AF
 000078EB:	CALL 54F6h		; ....get number
@@ -17754,7 +17781,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000793E:	RET
 
 0000793F:	PUSH BC
-00007940:	CALL 7B8Eh
+00007940:	CALL 7B8Eh		; CVBCAS:	Convert ASCII to BC
 00007943:	LD A,0Bh
 00007945:	JR -1Eh
 00007947:	LD A,(A5DBh)		; data type, aka PRCSON
@@ -18111,6 +18138,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00007B8B:	DJNZ -09h
 00007B8D:	RET
 
+; CVBCAS:	Convert ASCII to BC
 00007B8E:	PUSH HL
 00007B8F:	CALL 7BA1h
 00007B92:	LD C,L
@@ -18239,13 +18267,13 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00007F16:	SUB A
 00007F17:	ADD HL,DE
 00007F18:	LD D,H
-00007F19:	LD (HL),54h
+00007F19:	LD (HL),54h		; 'T'
 00007F1B:	SUB B
 00007F1C:	LD E,D
 00007F1D:	LD L,H
 00007F1E:	JR NZ,-71h
 00007F20:	LD H,L
-00007F21:	CP 5Dh
+00007F21:	CP 5Dh			; ']'
 00007F23:	JR +5Eh
 00007F25:	INC HL
 00007F26:	LD E,(HL)
@@ -18365,8 +18393,8 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00007FA7:	EX DE,HL
 00007FA8:	JR +03h			; STDEFC
 
-; IDEEXP: DE= (HL), A=next character to be parsed
-00007FAA:	CALL 7FD1h		; EXPR:
+; EXPR:
+00007FAA:	CALL 7FD1h		; IDEEXP: DE= (HL), A=next character to be parsed
 
 ; STDEFC:
 00007FAD:	PUSH AF
@@ -18380,6 +18408,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00007FB7:	POP AF
 00007FB8:	RET
 
+; STREXP:
 00007FB9:	CALL 7FD1h		; EXPR:
 00007FBC:	PUSH HL
 00007FBD:	EX DE,HL
@@ -18461,6 +18490,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000802C:	POP HL
 0000802D:	POP AF
 0000802E:	JR -1Fh
+
 00008030:	CALL 8050h
 00008033:	CP EAh			; Token for 'XOR'
 00008035:	RET NZ
@@ -18501,6 +18531,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000806C:	POP HL
 0000806D:	POP AF
 0000806E:	JR -1Dh
+
 00008070:	CALL 8090h		; EXPR4:
 00008073:	CP ECh			; Token for 'AND'
 00008075:	RET NZ
@@ -18680,6 +18711,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008179:	POP HL
 0000817A:	CALL 8262h		; skip SPACEs in (HL), A=next char
 0000817D:	JR -3Bh
+
 0000817F:	PUSH HL
 00008180:	PUSH DE
 00008181:	LD HL,FFF8h			; -8 (normal precision BASICs would have '-5')
@@ -18928,7 +18960,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000082FA:	CALL 53F8h
 000082FD:	CP 41h
 000082FF:	RET C
-00008300:	CP 5Bh			; "'"  (some BASIC subtracts "A" and checks for 26)
+00008300:	CP 5Bh			; '['  (some BASIC subtracts "A" and checks for 26)
 00008302:	JP NC,83BFh
 00008305:	LD BC,(91CEh)	; FNVRBF
 00008309:	LD A,B
@@ -19004,7 +19036,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000837A:	CALL 83BBh
 0000837D:	JR -6Fh
 0000837F:	LD HL,(91D0h)
-00008382:	CALL 8BFEh
+00008382:	CALL 8BFEh		; Check for '('
 00008385:	DEC B
 00008386:	JR Z,+18h
 00008388:	DEC HL
@@ -19056,7 +19088,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000083DD:	CP 40h
 000083DF:	JR Z,+1Ch
 000083E1:	DEC HL
-000083E2:	CALL 8BFDh
+000083E2:	CALL 8BFDh		; INC HL and check for '('
 000083E5:	CALL 7FDEh
 000083E8:	CALL 8C08h		; Check for ')'
 000083EB:	CALL 9A32h		; STROMT:  Get argument, on exit: A=data type
@@ -19072,7 +19104,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 
 000083FD:	POP AF
 000083FE:	PUSH DE
-000083FF:	CALL 8BFDh
+000083FF:	CALL 8BFDh		; INC HL and check for '('
 00008402:	CALL 7FDEh
 00008405:	CALL 8C08h		; Check for ')'
 00008408:	CALL 9A32h		; STROMT:  Get argument, on exit: A=data type
@@ -19108,7 +19140,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000843B:	CP B3h
 0000843D:	JR NC,+14h
 0000843F:	PUSH AF
-00008440:	CALL 8BFDh
+00008440:	CALL 8BFDh		; INC HL and check for '('
 00008443:	CALL 7FDEh
 00008446:	CALL 8C08h		; Check for ')'
 00008449:	LD A,(A5DBh)		; data type, aka PRCSON
@@ -19259,7 +19291,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000852A:	JP 9A44h		; ADD:
 
 ; 'CHR$'
-0000852D:	CALL 8BFDh
+0000852D:	CALL 8BFDh		; INC HL and check for '('
 00008530:	SCF
 00008531:	PUSH AF
 00008532:	PUSH DE
@@ -19300,7 +19332,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 
 
 0000856C:	EX DE,HL
-0000856D:	CALL 8D3Ch			; MEMECK
+0000856D:	CALL 8D3Ch			; MEMECK: (SBC SP,DE)
 ; string value
 00008570:	LD (3621h),DE		; TMPEND
 00008574:	LD DE,(A62Bh)		; STRST
@@ -19622,11 +19654,11 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008747:	JR +06h
 
 ; 'CVS'
-00008749:	LD C,05h
+00008749:	LD C,05h		; single precision variable type
 0000874B:	JR +02h
 
 ; 'CVD'
-0000874D:	LD C,08h
+0000874D:	LD C,08h		; double precision variable type
 0000874F:	PUSH HL
 00008750:	CALL 7FC3h		; Load a string parameter
 00008753:	CP C
@@ -19643,7 +19675,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008763:	RET
 
 ; 'VARPTR'
-00008764:	CALL 8BFEh
+00008764:	CALL 8BFEh		; Check for '('
 00008767:	CALL 8262h		; skip SPACEs in (HL), A=next char
 0000876A:	CP 23h	; '#'
 0000876C:	JR Z,+0Fh
@@ -19716,9 +19748,9 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000087DE:	JR -39h
 
 ; 'LEFT$'
-000087E0:	CALL 8B25h
+000087E0:	CALL 8B25h		; BC = parameter between '(' and ','
 000087E3:	CALL 8C08h		; Check for ')'
-000087E6:	CALL 8B1Eh
+000087E6:	CALL 8B1Eh		; A = BC, error if overflow
 000087E9:	EX DE,HL
 000087EA:	LD A,(HL)
 000087EB:	CP C
@@ -19730,9 +19762,9 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 000087F5:	JP 87ACh
 
 ; 'RIGHT$'
-000087F8:	CALL 8B25h
+000087F8:	CALL 8B25h		; BC = parameter between '(' and ','
 000087FB:	CALL 8C08h		; Check for ')'
-000087FE:	CALL 8B1Eh
+000087FE:	CALL 8B1Eh		; A = BC, error if overflow
 00008801:	EX DE,HL
 00008802:	LD A,(HL)
 00008803:	SUB C
@@ -19751,8 +19783,8 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008814:	JR -23h
 
 ; 'MID$'
-00008816:	CALL 8B25h
-00008819:	CALL 8B1Eh
+00008816:	CALL 8B25h		; BC = parameter between '(' and ','
+00008819:	CALL 8B1Eh		; A = BC, error if overflow
 0000881C:	OR A
 0000881D:	JP Z,206Fh		; ERROR: Illegal function call
 00008820:	PUSH AF
@@ -19795,7 +19827,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008857:	EX DE,HL
 00008858:	ADD HL,DE
 00008859:	EX DE,HL
-0000885A:	CALL 8D3Ch			; MEMECK
+0000885A:	CALL 8D3Ch			; MEMECK: (SBC SP,DE)
 0000885D:	LD (3621h),DE		; TMPEND
 00008861:	LD DE,A59Ch		; DGBF00
 00008864:	PUSH DE
@@ -19889,7 +19921,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 
 ; 'MEM$'
 000088FC:	PUSH DE
-000088FD:	CALL 8BFEh
+000088FD:	CALL 8BFEh		; Check for '('
 00008900:	CALL 7F9Fh		; DEEXP:
 00008903:	CALL 2E76h		; CH2CH: Check for comma ','
 00008906:	LD C,E
@@ -19909,6 +19941,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000891C:	PUSH HL
 0000891D:	CALL 8D2Dh			; STRENT:
 00008920:	LD A,C
+
 00008921:	LD (3621h),HL		; TMPEND
 00008924:	POP HL
 00008925:	POP DE
@@ -19916,14 +19949,14 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 
 ; 'CHARACTER$'
 00008928:	PUSH DE
-00008929:	CALL 8966h
+00008929:	CALL 8966h		; get text coordinates, check syntax for "(x,y" and ranges
 0000892C:	CALL 8C08h		; Check for ')'
 0000892F:	LD A,01h
 00008931:	JR +14h
 
 ; 'SCRN$'
 00008933:	PUSH DE
-00008934:	CALL 8966h
+00008934:	CALL 8966h		; get text coordinates, check syntax for "(x,y" and ranges
 00008937:	CALL 2E76h		; CH2CH: Check for comma ','
 0000893A:	POP DE
 0000893B:	PUSH DE
@@ -19950,13 +19983,14 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000895B:	DEC D
 0000895C:	JR NZ,-08h
 0000895E:	EX DE,HL
-0000895F:	CALL 8D3Ch			; MEMECK
+0000895F:	CALL 8D3Ch			; MEMECK: (SBC SP,DE)
 00008962:	EX DE,HL
 00008963:	LD A,E
 00008964:	JR -45h
 
+; get text coordinates, check syntax for "(x,y" and ranges
 00008966:	PUSH DE
-00008967:	CALL 8BFEh
+00008967:	CALL 8BFEh		; Check for '('
 0000896A:	CALL 7F9Fh		; DEEXP:
 0000896D:	CALL 2E76h		; CH2CH: Check for comma ','
 00008970:	CALL 7F98h		; Check byte overflow for value in DE and put in A
@@ -19977,7 +20011,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 
 ; 'POINT'
 0000898D:	PUSH DE
-0000898E:	CALL 8BFEh
+0000898E:	CALL 8BFEh		; Check for '('
 00008991:	CALL 7F9Fh		; DEEXP:
 00008994:	CALL 2E76h		; CH2CH: Check for comma ','
 00008997:	LD C,E
@@ -20000,7 +20034,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 
 ; 'STRING$'
 000089B4:	PUSH DE
-000089B5:	CALL 8BFEh
+000089B5:	CALL 8BFEh		; Check for '('
 000089B8:	CALL 7F9Fh		; DEEXP:
 000089BB:	CALL 2E76h		; CH2CH: Check for comma ','
 000089BE:	CALL 7F98h		; Check byte overflow for value in DE and put in A
@@ -20053,7 +20087,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 
 ; 'INSTR'
 00008A0D:	PUSH DE
-00008A0E:	CALL 8BFEh
+00008A0E:	CALL 8BFEh		; Check for '('
 00008A11:	CALL 7FDEh
 00008A14:	CALL 2E76h		; CH2CH: Check for comma ','
 00008A17:	EX HL,(SP)
@@ -20148,7 +20182,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 
 ; 'HEXCHR$'
 00008A9A:	PUSH DE
-00008A9B:	CALL 8BFEh
+00008A9B:	CALL 8BFEh		; Check for '('
 00008A9E:	CALL 7FDEh
 00008AA1:	CALL 8C08h		; Check for ')'
 00008AA4:	CALL 917Fh		; Verify we have a string in the accumulator
@@ -20169,7 +20203,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008ABF:	INC C
 00008AC0:	DJNZ -08h
 00008AC2:	EX DE,HL
-00008AC3:	CALL 8D3Ch			; MEMECK
+00008AC3:	CALL 8D3Ch			; MEMECK: (SBC SP,DE)
 00008AC6:	LD (3621h),DE		; TMPEND
 00008ACA:	POP HL
 00008ACB:	LD DE,(A62Bh)		; STRST
@@ -20205,7 +20239,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008AF8:	POP HL
 00008AF9:	RET
 
-00008AFA:	CALL 53F7h		; TOUPPER
+00008AFA:	CALL 53F7h		; TOUPPER (DE)
 00008AFD:	SUB 30h
 00008AFF:	JR C,+0Eh
 00008B01:	CP 0Ah
@@ -20229,13 +20263,15 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008B1C:	XOR A
 00008B1D:	RET
 
+; A = BC, error if overflow
 00008B1E:	LD A,B
 00008B1F:	OR A
 00008B20:	JP NZ,206Fh		; ERROR: Illegal function call
 00008B23:	LD A,C
 00008B24:	RET
 
-00008B25:	CALL 8BFEh
+; BC = parameter between '(' and ','
+00008B25:	CALL 8BFEh		; Check for '('
 00008B28:	PUSH DE
 00008B29:	CALL 7FDEh
 00008B2C:	CALL 2E76h		; CH2CH: Check for comma ','
@@ -20248,7 +20284,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 
 ; 'MIRROR$'
 00008B39:	PUSH DE
-00008B3A:	CALL 8BFEh
+00008B3A:	CALL 8BFEh		; Check for '('
 00008B3D:	CALL 7FDEh
 00008B40:	CALL 8C08h		; Check for ')'
 00008B43:	CALL 917Fh		; Verify we have a string in the accumulator
@@ -20272,7 +20308,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008B5D:	JP 8262h		; skip SPACEs in (HL), A=next char
 
 ; 'USR'
-00008B60:	LD C,28h
+00008B60:	LD C,28h			; '(' ?
 00008B62:	PUSH DE
 00008B63:	CALL 8B9Ah
 00008B66:	LD C,(HL)
@@ -20280,7 +20316,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008B68:	LD B,(HL)
 00008B69:	EX DE,HL
 00008B6A:	LD (8B93h),BC
-00008B6E:	CALL 8BFEh
+00008B6E:	CALL 8BFEh		; Check for '('
 00008B71:	POP DE
 00008B72:	PUSH DE
 00008B73:	CALL 7FDEh
@@ -20341,7 +20377,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008BC8:	DEC A
 00008BC9:	LD (91CCh),A
 00008BCC:	EXX
-00008BCD:	CALL 8BFEh
+00008BCD:	CALL 8BFEh		; Check for '('
 00008BD0:	PUSH DE
 00008BD1:	CALL 7FDEh
 00008BD4:	CALL 8C08h		; Check for ')'
@@ -20359,9 +20395,9 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008BEA:	XOR A
 00008BEB:	LD (DE),A
 00008BEC:	POP DE
-00008BED:	LD HL,A637h
+00008BED:	LD HL,A637h		; IMDBUF - Immediate command buffer
 00008BF0:	PUSH HL
-00008BF1:	CALL 7733h
+00008BF1:	CALL 7733h		; CVIMTX: convert immediate buffer for direct execution
 00008BF4:	POP HL
 00008BF5:	POP DE
 00008BF6:	CALL 7FDEh
@@ -20369,8 +20405,10 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008BFA:	JP 8262h		; skip SPACEs in (HL), A=next char
 
 
+; INC HL and check for '('
 00008BFD:	INC HL
 
+; Check for '('
 00008BFE:	CALL 8262h		; skip SPACEs in (HL), A=next char
 00008C01:	CP 28h	; '('
 00008C03:	INC HL
@@ -20438,7 +20476,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008C5B:	LD H,00h
 00008C5D:	ADD HL,DE
 00008C5E:	EX DE,HL
-00008C5F:	CALL 8D3Ch			; MEMECK
+00008C5F:	CALL 8D3Ch			; MEMECK: (SBC SP,DE)
 00008C62:	LD (3621h),DE		; TMPEND
 00008C66:	LDDR
 00008C68:	LD E,A
@@ -20475,7 +20513,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008C8E:	CALL 53F8h
 00008C91:	CP 41h
 00008C93:	JP C,2066h		; ERROR: Syntax error
-00008C96:	CP 5Bh			; "'"  (some BASIC subtracts "A" and checks for 26)
+00008C96:	CP 5Bh			; '['  (some BASIC subtracts "A" and checks for 26)
 00008C98:	JP NC,2066h		; ERROR: Syntax error
 00008C9B:	LD DE,A73Fh		; KEYBM1 (aka KEYBUF)
 00008C9E:	LD B,00h
@@ -20585,11 +20623,11 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008D33:	INC HL
 00008D34:	DJNZ -06h
 00008D36:	EX DE,HL
-00008D37:	CALL 8D3Ch			; MEMECK
+00008D37:	CALL 8D3Ch			; MEMECK: (SBC SP,DE)
 00008D3A:	EX DE,HL
 00008D3B:	RET
 
-; MEMECK
+; MEMECK: (SBC SP,DE)
 00008D3C:	PUSH HL
 00008D3D:	LD HL,0000h
 00008D40:	ADD HL,SP
@@ -20604,7 +20642,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008D4B:	LD A,(HL)
 00008D4C:	CP 24h	; '$'
 00008D4E:	JP NZ,2066h		; ERROR: Syntax error
-00008D51:	CALL 8BFDh
+00008D51:	CALL 8BFDh		; INC HL and check for '('
 00008D54:	PUSH DE
 00008D55:	CALL 7F9Fh		; DEEXP:
 00008D58:	PUSH AF
@@ -20640,7 +20678,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008D8E:	JP Z,1FCAh
 00008D91:	LD (DE),A
 00008D92:	INC DE
-00008D93:	CALL 8D3Ch			; MEMECK
+00008D93:	CALL 8D3Ch			; MEMECK: (SBC SP,DE)
 00008D96:	DJNZ -11h
 00008D98:	JR +27h
 
@@ -20661,7 +20699,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008DB7:	CALL 6822h
 00008DBA:	LD (DE),A
 00008DBB:	INC DE
-00008DBC:	CALL 8D3Ch			; MEMECK
+00008DBC:	CALL 8D3Ch			; MEMECK: (SBC SP,DE)
 00008DBF:	DJNZ -0Ch
 00008DC1:	LD (3621h),DE		; TMPEND
 00008DC5:	POP HL
@@ -20971,7 +21009,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008F88:	ADD HL,DE
 00008F89:	EX DE,HL
 00008F8A:	INC DE
-00008F8B:	CALL 8D3Ch			; MEMECK
+00008F8B:	CALL 8D3Ch			; MEMECK: (SBC SP,DE)
 00008F8E:	LD (HL),B
 00008F8F:	INC HL
 00008F90:	EXX
@@ -21030,7 +21068,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00008FE0:	ADD HL,DE
 00008FE1:	JP C,201Fh		; ERROR: 'Out of memory'
 00008FE4:	EX DE,HL
-00008FE5:	CALL 8D3Ch			; MEMECK
+00008FE5:	CALL 8D3Ch			; MEMECK: (SBC SP,DE)
 00008FE8:	PUSH HL
 00008FE9:	EXX
 00008FEA:	POP HL
@@ -21231,7 +21269,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000911B:	JR NZ,-0Dh
 0000911D:	INC HL
 0000911E:	LD DE,(3621h)		; TMPEND
-00009122:	CALL 8D3Ch			; MEMECK
+00009122:	CALL 8D3Ch			; MEMECK: (SBC SP,DE)
 00009125:	POP DE
 00009126:	PUSH DE
 00009127:	CALL 7FDEh
@@ -21583,7 +21621,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 00009327:	LD DE,A5E4h		; ZFAC1
 0000932A:	CALL 53EAh		; LDIR5: (DE) = (HL), 8 bytes
 0000932D:	LD HL,A5E4h		; ZFAC1
-00009330:	CALL 5ACEh
+00009330:	CALL 5ACEh		; 'FIX' conversion
 00009333:	EX DE,HL
 00009334:	POP HL
 00009335:	JP 9A3Bh		; SUB:
@@ -21607,7 +21645,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 
 ; 'SUM'
 00009354:	CALL 994Dh		; Get a single precision parameter
-00009357:	CALL 5ACEh
+00009357:	CALL 5ACEh		; 'FIX' conversion
 0000935A:	LD A,(HL)
 0000935B:	OR A
 0000935C:	RET Z
@@ -21634,7 +21672,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000937F:	DEC HL
 00009380:	RLCA
 00009381:	JP C,206Fh		; ERROR: Illegal function call
-00009384:	CALL 5ACEh
+00009384:	CALL 5ACEh		; 'FIX' conversion
 00009387:	LD A,(HL)
 00009388:	OR A
 00009389:	JR Z,+04h
@@ -22288,7 +22326,7 @@ Get arguments for line number range (xxx-yyy), DE to BC.
 0000976A:	PUSH DE
 0000976B:	CALL 53EAh		; LDIR5: (DE) = (HL), 8 bytes
 0000976E:	POP HL
-0000976F:	CALL 5ACEh
+0000976F:	CALL 5ACEh		; 'FIX' conversion
 00009772:	PUSH HL
 00009773:	CALL 5BAFh		; HLFLT
 00009776:	XOR A
@@ -24563,16 +24601,17 @@ TOGLE:
 0000A409:	POP HL
 0000A40A:	RET
 
+; EDITOR:
 0000A40B:	CALL 17F1h		; init flags
 0000A40E:	XOR A
 0000A40F:	LD (3627h),A	; CONTFG
 0000A412:	LD (3626h),A	; ERRORF  ..current error condition
-0000A415:	CALL 2FEFh
-0000A418:	CALL 7B8Eh
+0000A415:	CALL 2FEFh		; REFLNO: ... Line ref = Number
+0000A418:	CALL 7B8Eh		; CVBCAS:	Convert ASCII to BC
 0000A41B:	LD (3630h),BC	; EDLINE
 0000A41F:	LD A,B
 0000A420:	OR C
-0000A421:	JP Z,1519h
+0000A421:	JP Z,1519h		; INPAGN:
 0000A424:	INC BC
 0000A425:	LD A,B
 0000A426:	OR C
@@ -24583,8 +24622,8 @@ TOGLE:
 0000A42F:	JR NZ,+01h
 0000A431:	INC DE
 0000A432:	PUSH AF
-0000A433:	LD HL,A637h
-0000A436:	CALL 7733h
+0000A433:	LD HL,A637h		; IMDBUF - Immediate command buffer
+0000A436:	CALL 7733h		; CVIMTX: convert immediate buffer for direct execution
 0000A439:	PUSH HL
 0000A43A:	LD HL,(3630h)	; EDLINE
 0000A43D:	LD E,L
@@ -24594,7 +24633,7 @@ TOGLE:
 0000A443:	POP AF
 0000A444:	OR A
 0000A445:	JP Z,A4D6h
-0000A448:	LD DE,A637h
+0000A448:	LD DE,A637h		; IMDBUF - Immediate command buffer
 0000A44B:	OR A
 0000A44C:	SBC HL,DE
 0000A44E:	LD DE,0005h
@@ -24603,6 +24642,7 @@ TOGLE:
 0000A453:	LD BC,(3630h)	; EDLINE
 0000A457:	LD HL,(A635h)		; TEXTST,  address of BASIC  program
 0000A45A:	JR +05h
+; INSL2:
 0000A45C:	LD E,(HL)
 0000A45D:	INC HL
 0000A45E:	LD D,(HL)
@@ -24615,18 +24655,22 @@ TOGLE:
 0000A465:	LD A,D
 0000A466:	OR E
 0000A467:	JR Z,+0Eh
+
 0000A469:	INC HL
 0000A46A:	INC HL
+
 0000A46B:	LD E,(HL)
 0000A46C:	INC HL
 0000A46D:	LD D,(HL)
+
 0000A46E:	EX DE,HL
 0000A46F:	SBC HL,BC
 0000A471:	DEC DE
 0000A472:	DEC DE
 0000A473:	DEC DE
 0000A474:	EX DE,HL
-0000A475:	JR C,-1Bh
+0000A475:	JR C,-1Bh		; INSL2:
+
 0000A477:	POP DE
 0000A478:	CALL A47Dh
 0000A47B:	JR +42h
@@ -24637,7 +24681,7 @@ TOGLE:
 0000A483:	ADD HL,DE
 0000A484:	JP C,201Fh		; ERROR: 'Out of memory'
 0000A487:	EX DE,HL
-0000A488:	CALL 8D3Ch			; MEMECK
+0000A488:	CALL 8D3Ch			; MEMECK: (SBC SP,DE)
 0000A48B:	EX DE,HL
 0000A48C:	LD (A62Dh),HL		; VARED
 0000A48F:	LD (3621h),HL		; TMPEND
@@ -24680,7 +24724,7 @@ TOGLE:
 0000A4CA:	LD (HL),D
 0000A4CB:	INC HL
 0000A4CC:	EX DE,HL
-0000A4CD:	LD HL,A637h
+0000A4CD:	LD HL,A637h		; IMDBUF - Immediate command buffer
 0000A4D0:	DEC BC
 0000A4D1:	DEC BC
 0000A4D2:	DEC BC
@@ -24688,12 +24732,12 @@ TOGLE:
 0000A4D4:	LDIR
 0000A4D6:	LD A,(362Dh)
 0000A4D9:	OR A
-0000A4DA:	JP Z,1519h
+0000A4DA:	JP Z,1519h		; INPAGN:
 0000A4DD:	LD DE,(3632h)
 0000A4E1:	LD HL,(3630h)	; EDLINE
 0000A4E4:	ADD HL,DE
 0000A4E5:	LD (3630h),HL	; EDLINE
-0000A4E8:	JP NC,1519h
+0000A4E8:	JP NC,1519h		; INPAGN:
 0000A4EB:	JP 1537h
 
 ; DELSUB:
@@ -24772,6 +24816,7 @@ TOGLE:
 0000A557:	LD (A62Bh),HL		; STRST
 0000A55A:	POP HL
 0000A55B:	POP DE
+
 0000A55C:	PUSH DE
 0000A55D:	PUSH HL
 0000A55E:	EX DE,HL
@@ -24785,9 +24830,11 @@ TOGLE:
 0000A569:	LDIR
 0000A56B:	EX DE,HL
 0000A56C:	LD (A62Dh),HL		; VARED
+
 0000A56F:	XOR A
 0000A570:	LD (3627h),A		; CONTFG
 0000A573:	JP A4FCh			; RTDLTE:	pop DE,HL,BC,AF and RET
+
 
 ; Page in the IPL ROM and call (HL)
 0000A576:	LD A,1Dh
@@ -24980,6 +25027,7 @@ TOGLE:
 ; TEXTST,  address of BASIC  program
 0000A635:	XOR B
 0000A636:	XOR B
+; IMDBUF - Immediate command buffer
 0000A637:	INC C
 0000A638:	DEC C
 0000A639:	JR NZ,+20h
