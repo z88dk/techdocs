@@ -1,5 +1,5 @@
 ; ***************************************************************************
-; * Example NextOS keyboard driver file                                     *
+; * Example NextZXOS keyboard driver file                                   *
 ; ***************************************************************************
 ;
 ; This file generates the actual keyboard.drv file which can be installed

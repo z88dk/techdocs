@@ -1,10 +1,10 @@
 ; ***************************************************************************
-; * Example NextOS keyboard driver                                          *
+; * Example NextZXOS keyboard driver                                        *
 ; ***************************************************************************
-; The keyboard driver used by NextOS may be replaced by installing a
+; The keyboard driver used by NextZXOS may be replaced by installing a
 ; special driver with id 0.
 
-; This file is the 512-byte NextOS driver itself, plus relocation table.
+; This file is the 512-byte NextZXOS driver itself, plus relocation table.
 ;
 ; Assemble with: pasmo keyboard.asm keyboard.bin keyboard.sym
 ;
@@ -14,7 +14,7 @@
 ; Keyboard drivers are installed using the same .install dot command
 ; as standard drivers, and immediately replace the existing keyboard
 ; driver (the keyboard driver does not count towards the total number
-; of standard installable NextOS drivers).
+; of standard installable NextZXOS drivers).
 ;
 ; The main differences between the keyboard driver and standard drivers
 ; are as follows:

@@ -1,8 +1,8 @@
 ; ***************************************************************************
-; * Simple example NextOS driver                                            *
+; * Simple example NextZXOS driver                                          *
 ; ***************************************************************************
 ;
-; This file is the 512-byte NextOS driver itself, plus relocation table.
+; This file is the 512-byte NextZXOS driver itself, plus relocation table.
 ;
 ; Assemble with: pasmo border.asm border.bin border.sym
 ;
@@ -274,7 +274,7 @@ reloc_21:
 ; an "end of file" error).
 ; NOTE: Normally you should not use IX as an input parameter, as it cannot
 ;       be set differently to HL if calling via the esxDOS-compatible API.
-;       This call is a special case that is only made by NextOS.
+;       This call is a special case that is only made by NextZXOS.
 
 bnotfd:
         djnz    bnotfe                  ; on if not call $fe

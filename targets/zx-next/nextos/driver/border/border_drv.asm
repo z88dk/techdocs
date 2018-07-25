@@ -1,5 +1,5 @@
 ; ***************************************************************************
-; * Simple example NextOS driver file                                       *
+; * Simple example NextZXOS driver file                                     *
 ; ***************************************************************************
 ;
 ; This file generates the actual border.drv file which can be installed or
