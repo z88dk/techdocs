@@ -1,0 +1,1001 @@
+
+ v.0.1c 31st August 2018                                      Core v.2.00.00
+
+
+
+
+                      Z X   S P E C T R U M   N E X T
+                      -------------------------------
+
+                                C O P P E R
+                                -----------
+
+                                   A N D
+                                   -----
+
+                        D I S P L A Y   T I M I N G
+                        ---------------------------
+
+
+
+
+ 1 Introduction
+
+ The ZX Spectrum Next includes a co-processor named "COPPER". It functions in
+ a similar way to the Copper found in the Commodore Amiga Agnus custom chip.
+
+ It's role is to free the Z80 of tasks that require the writing of hardware
+ registers at precise pixel co-ordinates.
+
+ This guide provides technical information about the COPPER and display
+ timing across the various machines and video modes of the ZX Spectrum Next.
+
+
+
+
+
+ 2 Overview
+
+ The ZX Spectrum Next COPPER has three instructions: NOOP, MOVE, WAIT.
+
+ NOOP is used to fine tune timing. MOVE writes data to a specific range of 
+ hardware registers. WAIT waits for a pixel position on the video display.
+
+
+ These instructions are stored in 2K (2048 BYTES) of dedicated write-only
+ program RAM also known as a "Copper list".
+
+ Each instruction is 16 bits (WORD) in size allowing for a maximum of 1024
+ instructions to be stored in the program RAM. The COPPER uses an internal
+ 10 bit program counter (PC) which wraps to zero at the end of the list. The
+ PC can be reset to zero, this is the default value after a hard/soft reset.
+
+
+ The instructions are stored in big endian format and transferred to the 2K
+ program RAM using the Z80 or DMA (bits 15..8 followed by bits 7..0).
+
+ Three write-only hardware registers control access to the program RAM as
+ well as the operating modes.
+
+
+ System performance is not affected when the COPPER is executing instructions.
+
+ The hardware registers and COPPER program RAM are not connected to the main
+ memory BUS. The overall design of this system together with the use of
+ alternate clock edges means that contention between the COPPER, Z80 and DMA
+ has been eliminated.
+
+
+ The COPPER has a base clock speed of 13.5Mhz for HDMI and 14Mhz for VGA.
+
+ The bandwidth is around 14 million single cycle NOOP/WAIT instructions and
+ 7 million two cycle MOVE instructions per second.
+
+
+
+
+
+ 3 Timing
+
+ To fully understand the COPPER, you must first understand the display timing
+ for each of the machines and video modes found in the ZX Spectrum Next.
+
+ There are several display timing configurations due to the four machine
+ types, two refresh rates, two video systems (VGA/HDMI) and Timex HIRES mode.
+
+ Details of these timings are outlined in this guide.
+
+
+
+ 3.1 Machines
+
+ The ZX Spectrum Next has four machine types. The machine timing and HDMI
+ determine the number of T-states per line which determines the base dot
+ clock frequency and Z80/DMA clock speed.
+
+ This guide groups machine types by their timing for convenience. The HDMI
+ video mode overrides the default machine timing so it is included as an
+ extra machine type which does not exist in the official documentation.
+
+ Here are the four types used in this guide: 48K, 128K, PENTAGON, HDMI.
+
+
+
+ 3.2 Display
+
+ The ZX Spectrum Next doesn't have video modes based on resolution that you
+ would expect to find on graphics card based hardware. There is one fixed
+ resolution of 256x192 which can be doubled to 512x192 in Timex HIRES mode.
+ What it does have is the ability to set the refresh rate from 50Hz to 60Hz
+ and horizontal dot clock. This in turn together with the VGA and HDMI timing
+ affects the vertical line count giving several combinations in total.
+
+ VGA modes 0..6 are included as one single VGA mode as the internal machine
+ timing is constant across those seven refresh rate steps.
+
+ More details can be found in section 6.2 Video modes.
+
+
+
+ 3.3 Resolution
+
+ There are two main horizontal resolutions: standard 256x192 and Timex HIRES
+ 512x192. Details of LORES 128x96 are not included to simplify this guide.
+ 
+ The frame buffer height is fixed at 192 pixels and surrounded by a large
+ border and overscan as well as horizontal and vertical blanking periods.
+
+ There are five vertical line counts: 261, 262, 311, 312, 320. Several pixels
+ are hidden in the overscan and blanking periods beyond the visible border.
+
+ The result is 256x192 and 512x192 pixel resolutions with a large border.
+
+ The color of the visible border beyond the frame buffer can be manipulated.
+ Visual changes will not show during the overscan and blanking periods.
+
+
+
+ 3.4 Dot clock
+
+ The dot clock on the ZX Spectrum Next runs at 13.5Mhz for HDMI and around
+ 14Mhz for VGA. The COPPER clock runs at the same frequency as the dot clock.
+
+
+ The number of dot clocks per line is calculated by multiplying the number of
+ 3.5Mhz Z80 T-states per line by four. Example: 228Ts * 4 = 912 dot clocks.
+
+ The number of dot clocks per second is calculated by the following:
+
+            T-states per line * 4 * line count * refresh rate
+
+
+ In standard 256x192 resolution the duration of one pixel is two dot clocks.
+ In Timex HIRES 512x192 resolution the duration of one pixel is one dot clock.
+
+ Details of the dot clock counts can be found in the following two tables:
+
+
+ Table 3.1: Vertical line counts and dot clock combinations
+
+           48K VGA 50Hz   312 lines   224.0 * 4 = 896 dot clocks
+          128K VGA 50Hz   311 lines   228.0 * 4 = 912 dot clocks
+      PENTAGON VGA 50Hz   320 lines   224.0 * 4 = 896 dot clocks
+
+           48K VGA 60Hz   262 lines   224.0 * 4 = 896 dot clocks
+          128K VGA 60Hz   261 lines   228.0 * 4 = 912 dot clocks
+
+              HDMI 50Hz   312 lines   216.0 * 4 = 864 dot clocks
+              HDMI 60Hz   262 lines   214.5 * 4 = 858 dot clocks
+
+
+
+ Table 3.2: Dot clocks per second
+
+           48K VGA 50Hz   312 lines   13,977,600 clocks   14.0Mhz (28Mhz)
+          128K VGA 50Hz   311 lines   14,181,600 clocks   14.2Mhz (28Mhz)
+      PENTAGON VGA 50Hz   320 lines   14,336,000 clocks   14.3Mhz (28Mhz)
+
+           48K VGA 60Hz   262 lines   14,085,120 clocks   14.1Mhz (28Mhz)
+          128K VGA 60Hz   261 lines   14,281,920 clocks   14.3Mhz (28Mhz)
+
+              HDMI 50Hz   312 lines   13,478,400 clocks   13.5Mhz (27Mhz)
+              HDMI 60Hz   262 lines   13,487,760 clocks   13.5Mhz (27Mhz)
+
+
+
+ 3.5 Co-ordinates
+
+ The top left pixel of the frame buffer is line 0 and horizontal dot clock 0.
+ The is also known as "0,0".
+
+ The bottom right pixel of the frame buffer in standard 256x192 resolution is
+ line 191 and horizontal dot clocks 510+511.
+
+ The bottom right pixel of the frame buffer in Timex HIRES 512x192 resolution
+ is line 191 and horizontal dot clock 511.
+
+
+ The line one pixel above the frame buffer is the last line of the video
+ frame and equal to the total line count minus one (312-1 for example).
+
+ The line one pixel below the frame buffer is line 192.
+
+
+ The COPPER horizontal dot clock compare is locked to every eight pixels in
+ standard 256x192 resolution and every sixteen pixels in Timex HIRES 512x192
+ resolution. The NOOP instruction can be used to fine tune timing in single
+ dot clock steps.
+
+
+
+ 3.6 Compare
+
+ The COPPER uses a 9 bit vertical line compare allowing it to handle the
+ various line counts.
+
+ The COPPER horizontal compare is 6 bits meaning that it can wait for 64
+ positions across each line. The range of this value is limited by the
+ machine timing as that determines the number of dot clocks per line.
+
+ The following table provides these values:
+
+
+ Table 3.3: Maximum horizontal COPPER compare
+
+                HDMI = 52
+            PENTAGON = 54
+                 48K = 54
+                128K = 55
+
+
+
+ Each horizontal compare is in steps of 16 dot clocks to cover the full range
+ across a raster line.
+
+
+ Table 3.4: Number of pixels between each horizontal compare
+
+          16 dot clocks =  8 pixels in standard 256x192 resolution
+          16 dot clocks = 16 pixels in Timex HIRES 512x192 resolution
+
+
+
+ There is some slack to consider after the maximum horizontal compare value.
+ The slack is calculated using the following:
+
+          dot clocks per line - maximum horizontal compare * 16
+
+
+
+ Table 3.5: Slack dot clocks after maximum line compare
+
+       858 dot clocks per line   (52 * 16 = 832)   SLACK = 26 dot clocks
+       864 dot clocks per line   (52 * 16 = 832)   SLACK = 32 dot clocks
+       896 dot clocks per line   (54 * 16 = 864)   SLACK = 32 dot clocks
+       912 dot clocks per line   (55 * 16 = 880)   SLACK = 32 dot clocks
+
+
+
+ The following table provides details of the horizontal display, left/right
+ border, blanking and COPPER dot clock/pixel position compare values:
+
+
+ Table 3.6: Horizontal timing
+
+ COMPARE STANDARD TIMEX    HDMI        48K       128K     PENTAGON
+ -----------------------------------------------------------------
+     0       0       0    DISPLAY    DISPLAY    DISPLAY    DISPLAY
+     1       8      16      ""         ""         ""         ""
+     2      16      32      ""         ""         ""         ""
+     3      24      48      ""         ""         ""         ""
+     4      32      64      ""         ""         ""         ""
+     5      40      80      ""         ""         ""         ""
+     6      48      96      ""         ""         ""         ""
+     7      56     112      ""         ""         ""         ""
+     8      64     128      ""         ""         ""         ""
+     9      72     144      ""         ""         ""         ""
+    10      80     160      ""         ""         ""         ""
+    11      88     176      ""         ""         ""         ""
+    12      96     192      ""         ""         ""         ""
+    13     104     208      ""         ""         ""         ""
+    14     112     224      ""         ""         ""         ""
+    15     120     240      ""         ""         ""         ""
+    16     128     256      ""         ""         ""         ""
+    17     136     272      ""         ""         ""         ""
+    18     144     288      ""         ""         ""         ""
+    19     152     304      ""         ""         ""         ""
+    20     160     320      ""         ""         ""         ""
+    21     168     336      ""         ""         ""         ""
+    22     176     352      ""         ""         ""         ""
+    23     184     368      ""         ""         ""         ""
+    24     192     384      ""         ""         ""         ""
+    25     200     400      ""         ""         ""         ""
+    26     208     416      ""         ""         ""         ""
+    27     216     432      ""         ""         ""         ""
+    28     224     448      ""         ""         ""         ""
+    29     232     464      ""         ""         ""         ""
+    30     240     480      ""         ""         ""         ""
+    31     248     496      ""         ""         ""         ""
+    32     256     512   R-BORDER   R-BORDER   R-BORDER   R-BORDER
+    33     264     528   R-BORDER   R-BORDER   R-BORDER   R-BORDER
+    34     272     544   R-BORDER   R-BORDER   R-BORDER   R-BORDER
+    35     280     560   R-BORDER   R-BORDER   R-BORDER   R-BORDER
+    36     288     576   R-BORDER   R-BORDER   R-BORDER   R-BORDER
+    37     296     592   R-BORDER   R-BORDER   BLANKING   BLANKING
+    38     304     608   BLANKING   BLANKING   BLANKING   BLANKING
+    39     312     624   BLANKING   BLANKING   BLANKING   BLANKING
+    40     320     640   BLANKING   BLANKING   BLANKING   BLANKING
+    41     328     656   BLANKING   BLANKING   BLANKING   BLANKING
+    42     336     672   BLANKING   BLANKING   BLANKING   BLANKING
+    43     344     688   BLANKING   BLANKING   BLANKING   BLANKING
+    44     352     704   BLANKING   BLANKING   BLANKING   BLANKING
+    45     360     720   BLANKING   BLANKING   BLANKING   BLANKING
+    46     368     736   BLANKING   BLANKING   BLANKING   BLANKING
+    47     376     752   BLANKING   BLANKING   BLANKING   BLANKING
+    48     384     768   BLANKING   BLANKING   BLANKING   BLANKING
+    49     392     784   L-BORDER   BLANKING   BLANKING   L-BORDER
+    50     400     800   L-BORDER   L-BORDER   L-BORDER   L-BORDER
+    51     408     816   L-BORDER   L-BORDER   L-BORDER   L-BORDER
+    52     416     832   L-BORDER   L-BORDER   L-BORDER   L-BORDER
+    53     424     848      --      L-BORDER   L-BORDER   L-BORDER
+    54     432     864      --      L-BORDER   L-BORDER   L-BORDER
+    55     440     880      --         --      L-BORDER       --  
+
+ -- Dot clock compare is out of range.
+
+
+
+ The following table provides a detailed list of vertical display, top/bottom
+ border and blanking as well as maximum COPPER line compare. It also provides
+ the ULA VBLANK interrupt line number.
+
+
+ Table 3.7: Vertical timing
+
+ LINE  HDMI 50Hz HDMI 60Hz  48K 50Hz  48K 60Hz 128K 50Hz 128K 60Hz PENTAGON
+ --------------------------------------------------------------------------
+   0    DISPLAY   DISPLAY   DISPLAY   DISPLAY   DISPLAY   DISPLAY   DISPLAY
+ 191    DISPLAY   DISPLAY   DISPLAY   DISPLAY   DISPLAY   DISPLAY   DISPLAY
+
+ 192   B-BORDER  B-BORDER  B-BORDER  B-BORDER  B-BORDER  B-BORDER  B-BORDER
+ 193      ""        ""        ""        ""        ""        ""        ""
+ 194      ""        ""        ""        ""        ""        ""        ""
+ 195      ""        ""        ""        ""        ""        ""        ""
+ 196      ""        ""        ""        ""        ""        ""        ""
+ 197      ""        ""        ""        ""        ""        ""        ""
+ 198      ""        ""        ""        ""        ""        ""        ""
+ 199      ""        ""        ""        ""        ""        ""        ""
+ 200      ""        ""        ""        ""        ""        ""        ""
+ 201      ""        ""        ""        ""        ""        ""        ""
+ 202      ""        ""        ""        ""        ""        ""        ""
+ 203      ""        ""        ""        ""        ""        ""        ""
+ 204      ""        ""        ""        ""        ""        ""        ""
+ 205      ""        ""        ""        ""        ""        ""        ""
+ 206      ""        ""        ""        ""        ""        ""        ""
+ 207      ""        ""        ""        ""        ""        ""        ""
+ 208      ""        ""        ""        ""        ""        ""        ""
+ 209      ""        ""        ""        ""        ""        ""        ""
+ 210      ""        ""        ""        ""        ""        ""        ""
+ 211      ""        ""        ""        ""        ""        ""        ""
+ 212      ""     BLANKING     ""        ""        ""        ""        ""
+ 213      ""     BLANKING     ""        ""        ""        ""        ""
+ 214      ""     BLANKING     ""        ""        ""        ""        ""
+ 215      ""     BLANKING     ""        ""        ""        ""        ""
+ 216      ""     BLANKING     ""        ""        ""        ""        ""
+ 217      ""     BLANKING     ""        ""        ""        ""        ""
+ 218      ""     BLANKING     ""        ""        ""        ""        ""
+ 219      ""     BLANKING     ""        ""        ""        ""        ""
+ 220      ""     BLANKING     ""        ""        ""        ""        ""
+ 221      ""     BLANKING     ""        ""        ""        ""        ""
+ 222      ""     BLANKING     ""        ""        ""        ""        ""
+ 223      ""     BLANKING     ""        ""        ""        ""        ""
+ 224      ""     BLANKING     ""        ""   *    ""        ""   *    ""
+ 225      ""     BLANKING     ""     BLANKING     ""     BLANKING     ""
+ 226      ""     BLANKING     ""     BLANKING     ""     BLANKING     ""
+ 227      ""     BLANKING     ""     BLANKING     ""     BLANKING     ""
+ 228      ""     BLANKING     ""     BLANKING     ""     BLANKING     ""
+ 229      ""     BLANKING     ""     BLANKING     ""     BLANKING     ""
+ 230      ""     BLANKING     ""     BLANKING     ""     BLANKING     ""
+ 231      ""     BLANKING     ""     BLANKING     ""     BLANKING     ""
+ 232   BLANKING  BLANKING     ""     BLANKING     ""     BLANKING     ""
+ 233   BLANKING  BLANKING     ""     BLANKING     ""     BLANKING     ""
+ 234   BLANKING  BLANKING     ""     BLANKING     ""     BLANKING     ""
+ 235   BLANKING  BLANKING*    ""     BLANKING     ""     BLANKING     ""
+ 236   BLANKING  BLANKING     ""     BLANKING     ""     BLANKING     ""
+ 237   BLANKING  BLANKING     ""     BLANKING     ""     BLANKING     ""
+ 238   BLANKING  BLANKING     ""     BLANKING     ""     BLANKING     ""
+ 239   BLANKING  BLANKING     ""     T-BORDER     ""     T-BORDER     ""   *
+ 240   BLANKING  BLANKING     ""     T-BORDER     ""     T-BORDER     ""
+ 241   BLANKING  BLANKING     ""     T-BORDER     ""     T-BORDER  BLANKING
+ 242   BLANKING  BLANKING     ""     T-BORDER     ""     T-BORDER  BLANKING
+ 243   BLANKING  BLANKING     ""     T-BORDER     ""     T-BORDER  BLANKING
+ 244   BLANKING  BLANKING     ""     T-BORDER     ""     T-BORDER  BLANKING
+ 245   BLANKING  T-BOEDER     ""     T-BORDER     ""     T-BORDER  BLANKING
+ 246   BLANKING  T-BORDER     ""     T-BORDER     ""     T-BORDER  BLANKING
+ 247   BLANKING  T-BORDER     ""     T-BORDER     ""     T-BORDER  BLANKING
+ 248   BLANKING  T-BORDER     ""   * T-BORDER     ""   * T-BORDER  BLANKING
+ 249   BLANKING  T-BORDER  BLANKING  T-BORDER  BLANKING  T-BORDER  BLANKING
+ 250   BLANKING  T-BORDER  BLANKING  T-BORDER  BLANKING  T-BORDER  BLANKING
+ 251   BLANKING  T-BORDER  BLANKING  T-BORDER  BLANKING  T-BORDER  BLANKING
+ 252   BLANKING  T-BORDER  BLANKING  T-BORDER  BLANKING  T-BORDER  BLANKING
+ 253   BLANKING  T-BORDER  BLANKING  T-BORDER  BLANKING  T-BORDER  BLANKING
+ 254   BLANKING  T-BORDER  BLANKING  T-BORDER  BLANKING  T-BORDER  BLANKING
+ 255   BLANKING  T-BORDER  BLANKING  T-BORDER  BLANKING  T-BORDER  T-BORDER
+ 256   BLANKING* T-BORDER  BLANKING  T-BORDER  BLANKING  T-BORDER  T-BORDER
+ 257   BLANKING  T-BORDER  BLANKING  T-BORDER  BLANKING  T-BORDER  T-BORDER
+ 258   BLANKING  T-BORDER  BLANKING  T-BORDER  BLANKING  T-BORDER  T-BORDER
+ 259   BLANKING  T-BORDER  BLANKING  T-BORDER  BLANKING  T-BORDER  T-BORDER
+ 260   BLANKING  T-BORDER  BLANKING  T-BORDER  BLANKING  T-BORDER  T-BORDER
+ 261   BLANKING  T-BORDER  BLANKING  T-BORDER  BLANKING     --     T-BORDER
+ 262   BLANKING     --     BLANKING     --     BLANKING     --     T-BORDER
+ 263   BLANKING     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 264   BLANKING     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 265   BLANKING     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 266   BLANKING     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 267   BLANKING     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 268   BLANKING     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 269   BLANKING     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 270   BLANKING     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 271   BLANKING     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 272   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 273   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 274   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 275   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 276   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 277   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 278   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 279   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 280   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 281   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 282   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 283   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 284   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 285   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 286   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 287   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 288   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 289   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 290   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 291   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 292   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 293   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 294   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 295   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 296   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 297   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 298   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 299   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 300   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 301   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 302   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 303   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 304   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 305   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 306   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 307   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 308   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 309   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 310   T-BORDER     --     T-BORDER     --     T-BORDER     --     T-BORDER
+ 311   T-BORDER     --     T-BORDER     --        --        --     T-BORDER
+ 312      --        --        --        --        --        --     T-BORDER
+ 313      --        --        --        --        --        --     T-BORDER
+ 314      --        --        --        --        --        --     T-BORDER
+ 315      --        --        --        --        --        --     T-BORDER
+ 316      --        --        --        --        --        --     T-BORDER
+ 317      --        --        --        --        --        --     T-BORDER
+ 318      --        --        --        --        --        --     T-BORDER
+ 319      --        --        --        --        --        --     T-BORDER
+
+ -- Line compare is out of range.
+
+  * ULA VBLANK interrupt.
+
+
+ Note: The HDMI overscan and blanking period is larger than that of a VGA
+       monitor which can auto-adjust alignment. The following data is based
+       on visible results from various monitors thus subject to refinement.
+
+       Pixels are visible during DISPLAY/BORDER and hidden during BLANKING.
+
+
+
+ 3.7 Overscan
+
+ The visible area of the display can extend to resolutions exceeding 256x192.
+
+ The 50/60 Hz refresh rate mode dictates the vertical limit.
+
+ VGA and HDMI differ with VGA providing more visible pixels beyond the range
+ of HDMI. The following two tables provide maximum and ideal extended pixel
+ resolutions:
+
+
+ Table 3.8: Maximum extended VGA resolutions
+
+                  50Hz = 352x288 (standard 256 resolution)
+                  60Hz = 352x240 (standard 256 resolution)
+
+
+
+ Table 3.9: Ideal extended resolutions for both VGA and HDMI
+
+                  50Hz = 336x288 (standard 256 resolution)
+ 
+            TOP BORDER = 32 pixels (50Hz)
+         BOTTOM BORDER = 32 pixels (50Hz)
+           LEFT BORDER = 40 pixels (50Hz)
+          RIGHT BORDER = 40 pixels (50Hz)
+
+                  60Hz = 336x240 (standard 256 resolution)
+
+            TOP BORDER = 24 pixels (60Hz)
+         BOTTOM BORDER = 24 pixels (60Hz)
+           LEFT BORDER = 40 pixels (60Hz)
+          RIGHT BORDER = 40 pixels (60Hz)
+
+
+
+ The following table provides COPPER horizontal position and vertical line
+ compare parameters for ideal extended resolutions:
+
+
+ Table 3.10: Ideal extended resolution display parameters
+
+    TIMING    VIDEO REFRESH LINES TOP BOTTOM LEFT  RIGHT EXTENDED RESOLUTION
+ ---------------------------------------------------------------------------
+
+ 0/1   48K     VGA   50Hz    312  280  223   51.1  36.15  80x64    336x256
+ 0/1   48K     VGA   60Hz    262  246  207   51.1  36.15  80x48    336x240
+
+ 2/3  128K     VGA   50Hz    311  279  223   52.1  36.15  80x64    336x256
+ 2/3  128K     VGA   60Hz    261  245  207   52.1  36.15  80x48    336x240
+
+ 4  PENTAGON   VGA   50Hz    320  288  223   51.1  36.15  80x64    336x256
+
+
+ 0/1   48K    HDMI   50Hz    312  280  223   49.1  36.15  80x64    336x256
+ 0/1   48K    HDMI   60Hz    262  246  207   48.11 36.15  80x48    336x240
+
+ 2/3  128K    HDMI   50Hz    312  280  223   49.1  36.15  80x64    336x256
+ 2/3  128K    HDMI   60Hz    262  246  207   48.11 36.15  80x48    336x240
+
+ 4  PENTAGON  HDMI   50Hz    312  280  223   49.1  36.15  80x64    336x256
+ 4  PENTAGON  HDMI   60Hz    262  246  207   48.11 36.15  80x48    336x240
+
+
+    TOP: Initial line of the extended top border area - see notes below*
+ BOTTOM: Last line of the extended bottom border area - see notes below*
+
+   LEFT: First pixel of the extended left border area - see notes below**
+  RIGHT: Last pixel of the extended right border area - see notes below**
+
+
+       * Line compare value for MOVE (bits 8..0).
+
+      ** The integer part is the horizontal value for MOVE (bits 14..9).
+      ** The fractional part is specified in dot clocks (NOOP instructions).
+
+
+
+
+
+ 4 Instructions
+
+ This section describes the behaviour of the COPPER instructions as well as
+ the bit definitions and execution time.
+
+ The three 16 bit COPPER instructions are comprised of the following bit
+ definitions:
+
+
+ Table 4.1: Instruction bit definition
+
+            NAME   15     8 7      0           CLOCKS
+            -----------------------------------------
+            NOOP   00000000 00000000             1
+            MOVE   0RRRRRRR DDDDDDDD             2
+            WAIT   1HHHHHHV VVVVVVVV             1
+
+               H   6 bit horizontal dot clock compare
+               V   9 bit vertical line compare
+               R   7 bit Next register 0x00..0x7F
+               D   8 bit data
+
+
+
+ 4.1 NOOP
+
+ NOOP (no-operation) executes in one dot clock. It is useful for fine tuning
+ timing, initialising COPPER RAM and 'NOP' out COPPER program instructions.
+
+ It can be used to align color and display changes to half pixel positions in
+ standard 256x192 resolution. Its duration is equal to one Timex HIRES pixel.
+
+ This guide uses the name 'NOOP' to avoid confusion with the Z80 opcode NOP.
+
+
+
+ 4.2 MOVE
+
+ MOVE executes in two dot clocks. It moves 8 bits of data into any of the
+ Next hardware registers in the range 0x00 (0) .. 0x7F (127).
+
+ The WORD value 0x0000 is reserved for the NOOP instruction so no register
+ access is carried out for that special case. Register 0x00 is read-only so
+ not affected by the restriction of not being able to write zero to it.
+
+ This instruction can perform 7 million register writes per second for VGA
+ and 6.75 million register writes per second for HDMI.
+
+
+
+ 4.3 WAIT
+
+ WAIT executes in one dot clock. It performs a compare with the current
+ vertical line number and the current horizontal dot clock.
+
+ WAIT will hold until the current raster line matches the 9 bit value
+ stored in bits 8..0. When the line compare matches, WAIT will still hold if
+ the current horizontal dot clock is less than the value in bits 14..9.
+ 
+ This compare logic means that out of order vertical line compares will cause
+ the COPPER to wait until the next video frame as the test is for an exact
+ match of the line number. The COPPER will continue to the next instruction
+ after an out of order horizontal pixel position compare as the test checks
+ for the current dot clock being greater than or equal to the compare value.
+
+
+ WAIT will stop the COPPER when a compare is made against an out of range
+ vertical line or horizontal dot clock position as they will never occur.
+
+ A standard way to terminate a COPPER program is to wait for line 511 and
+ horizontal position 63. This encodes into the instruction WORD 0xFFFF. 
+
+
+ The horizontal dot clock position compare includes an adjustment meaning
+ that the compare completes three dot clocks early in standard 256x192
+ resolution and two dot clocks early in Timex HIRES 512x192 resolution. In
+ practice, a pixel position can be specified with clocks to spare to write a
+ register value before the pixel is displayed. This saves software having to
+ auto-adjust positions to arrive early. It also means that a wait for 0,0 can
+ affect the first pixel of the frame buffer before it is displayed and set
+ the scroll registers without visual artefacts.
+
+
+
+ 4.4 Example
+
+ The following example provides a simple COPPER program to move data to a
+ hardware register at two specific pixel positions. The BYTES for the program
+ are listed in the left column:
+
+
+            PAL8    equ    0x41           ; 8 bit palette hardware register
+
+ 0x80,0x00          WAIT   0,0            ; wait for pixel position 0,0 (H,V)
+ 0x00,0x00          NOOP                  ; fine tune timing by one dot clock
+ 0x41,0xE0          MOVE   PAL8,11100000b ; write RED to palette register
+
+ 0xC0,0xBF          WAIT   32,191         ; wait for pixel position 256,191
+ 0x00,0x00          NOOP                  ; fine tune timing by one dot clock
+ 0x41,0x00          MOVE   PAL8,00000000b ; write BLACK to palette register
+
+ 0xFF,0xFF          WAIT   63,511         ; wait for an out of range position
+
+
+
+
+
+ 5 Control
+
+ The COPPER is controlled by the following three write-only registers:
+
+                 0x60 (96)   Copper data
+                 0x61 (97)   Copper control LO BYTE
+                 0x62 (98)   Copper control HI BYTE
+
+
+ The COPPER instructions are written one BYTE at a time to the program RAM
+ using register 0x60 (Copper data).
+
+ An index system is used to select the destination write address within the
+ 2K program RAM. Eleven bits are needed to represent the index. Registers
+ 0x61 and 0x62 hold this 11 bit index. 
+
+ The index increments each time one BYTE is written to register 0x60.
+ The index wraps to zero when the last BYTE of program RAM is written.
+
+ The instruction data is normally written in big endian format although there
+ is no rule stating that partial instruction BYTES cannot be written. It is
+ safe to write to the COPPER program RAM while the COPPER is executing as
+ long the instruction data written does not create a mall formed instruction
+ which comprises of one half of the current executing instruction and one
+ half the new instruction - this could result in unexpected behaviour.
+
+ The Z80 and DMA can be used to write the instruction data.
+
+
+ Writing to program RAM while the COPPER is running has no impact on system
+ performance as the RAM is contention free. COPPER timing is not affected by
+ the Z80 or DMA writing to the program RAM. Program RAM is write-only.
+
+ The contents of the 2K program RAM are preserved during a hard/soft reset.
+
+
+ Register 0x61 holds the lower 8 bits of the index. Register 0x62 holds the
+ upper 3 bits of the index as well as two control bits which set the COPPER
+ operating mode.
+
+
+ Table 5.1: Register bit definitions
+
+             REG   7      0   Description
+            ----------------------------------------------------------
+            0x60   DDDDDDDD   BYTE data to write to COPPER program RAM
+            0x61   IIIIIIII   Program RAM index 7..0
+            0x62   CC000III   Program RAM index 10..8 and control bits
+
+               D    8 bit data
+               I   11 bit index 
+               C    2 bit control
+
+
+
+ The COPPER has an internal 10 bit program counter (PC). Each instruction
+ advances the program counter by one after completion. The program counter
+ wraps to zero after the last instruction at location 1023. This causes the
+ copper list to loop.
+
+ The program counter defaults to zero during a hard/soft reset.
+
+
+ The control bits require a change to update the operating mode. This feature
+ preserves COPPER operation when setting the program RAM index address.
+
+
+ The program counter is preserved when stopping the COPPER. Two of the four
+ control settings reset the internal PC to zero.
+
+ The following table describes the control bits:
+
+
+ Table 5.2: Control mode definition
+
+    Name   CC   Description
+   ------------------------------------------------------------------------
+    STOP   00 = STOP COPPER
+   RESET   01 = RESET PC and start COPPER
+   START   10 = START COPPER
+   FRAME   11 = Reset PC and start COPPER, reset PC each video FRAME at 0,0
+
+
+ * The control mode names used in this guide differ from the official names.
+
+ Here is a detailed description of the control bits:
+
+
+
+ 5.1 STOP
+
+ This is the default operating mode set during a hard/soft reset. The COPPER
+ is idle in this state and will STOP if currently executing when entering
+ this mode. It is safe to write to any location within the 2K program RAM
+ when the COPPER is stopped.
+
+ Entering STOP mode preserves the internal program counter so that the COPPER
+ may continue when restarted.
+
+ 
+
+ 5.2 RESET
+
+ The program counter is RESET to zero when entering this mode. The COPPER is
+ started if idle otherwise entering this mode acts as a jump to location zero
+ when the COPPER is running.
+
+
+
+ 5.3 START
+
+ Entering this mode causes an idle COPPER to start executing instructions
+ from the current program counter. Entering this mode while the COPPER is
+ running has no effect other than to disable FRAME mode if active.
+
+
+
+ 5.4 FRAME
+
+ The program counter is RESET to zero when entering this mode. The COPPER is
+ started if idle otherwise entering this mode acts as a jump to location zero
+ when the COPPER is running.
+
+ Entering this state enables FRAME mode. The program counter will be reset to
+ zero each frame at 0,0.
+
+
+
+
+
+ 6 Configuration
+
+ Hardware registers provide timing and configuration data allowing software
+ to build and configure COPPER programs that function correctly across the
+ various video modes and machine types. It is not essential to detect the
+ machine type but it should be noted that software should not assume that it
+ is running on a specific machine as the COPPER hardware is available across
+ all four machine types.
+
+ Three registers can be read to determine the machine configuration for Ts
+ per line, dot clocks, refresh rate, line count and maximum horizontal dot
+ clock/pixel position compare.
+
+
+
+ 6.1 Refresh rate
+
+ The refresh rate must be taken into account and can change real-time so
+ should be monitored and auto-configured when the COPPER is active as the
+ line count will change with the refresh rate. This could lead to the COPPER
+ waiting for lines that never occur.
+
+
+ Peripheral 1 setting register 0x05 (5)
+
+    bit 2 = 50/60 Hz mode
+
+        0 = 50Hz
+        1 = 60Hz * PENTAGON 60Hz is not supported in VGA mode so always 50Hz
+
+
+
+ 6.2 Video modes
+
+ The video mode can only be changed during the boot process so one initial
+ read is required of this register during software start up phase.
+ 
+ The machine timing is identical for the seven VGA modes although the physical
+ refresh rate of the video output speeds up for each mode in turn by roughly
+ 1Hz. The internal timing of the machine remains constant and as close to the
+ original hardware as possible. VGA is a perfect Amstrad ZX Spectrum 128K +3
+ for example as far as timing is concerned across the seven VGA modes.
+
+ The effect of this speed up means that mode 0 will execute in one second of
+ time whereas mode 6 will execute in a shorter time period. Mode 0 is as close
+ to 50/60 Hz as possible where mode 6 is closer to 60/70 Hz. That would mean
+ that one second of machine time for mode 6 will execute in 0.83 seconds of
+ human time when running 50 frames per second at 60Hz.
+
+
+ The eighth mode (mode 7) is used for HDMI timing. Machine configuration is
+ forced for this mode. Line counts, Ts and various other settings are set to
+ meet the rigid HDMI timing specification. For mode 7, 50/60 Hz are rock
+ solid but the original hardware timing loses Ts across all machines to meet
+ HDMI display requirements.
+
+ Software that was previously written for specific hardware with hard-coded
+ software timing loops may fail. This is one of the risks of coding timing
+ loops counting Ts. We saw evidence of this with the release of the 1985
+ Sinclair ZX Spectrum 128K+ and the later Amstrad models as previous software
+ written for the ZX Spectrum 48K/48K+ would fail when trying to display color
+ attribute and border effects as the number of Ts per line was changed from
+ 224Ts (1982 original 48K) to 228Ts (128K models). The ZX Spectrum Next runs
+ slower in HDMI mode. Demos may fail to display correctly and games may slow
+ down although setting the Z80 to 7Mhz can solve the game slow down, demos
+ should be run in VGA mode for maximum compatibility.
+
+ Video timing also affects audio output as the sample rate can vary depending
+ on the output timing method.
+
+ The following undocumented register allows software to read the video timing
+ mode:
+
+
+ Video timing register 0x11 (17)
+
+ bits 2-0 = Timing:
+
+      000 = Mode 0 (VGA)
+      001 = Mode 1 (VGA)
+      010 = Mode 2 (VGA)
+      011 = Mode 3 (VGA)
+      100 = Mode 4 (VGA)
+      101 = Mode 5 (VGA)
+      110 = Mode 6 (VGA)
+      111 = Mode 7 (HDMI) * Timing is forced to 216Ts 50Hz / 214.5Ts 60Hz
+
+
+
+ 6.3 Machine type
+
+ The machine type register can be used to provide the number of Ts per line,
+ line count, dot clock and maximum horizontal COPPER wait.
+ 
+ The dot clock (DC) is the number of Ts per line * 4.
+
+ The maximum horizontal COPPER wait (H) is in multiples of 16 clocks.
+
+ Video mode 7 (HMDI) overrides the timing.
+
+ The following list shows the various parameters that can be gained from
+ reading the machine register combined with the refresh register and video
+ mode bits:
+
+
+ Machine type register 0x03 (3)
+
+ bits 6-4 = Timing:
+
+      000 = 224.0Ts per line (312 lines) (DC=896) (H=54) VGA 50Hz (48K)
+      001 = 224.0Ts per line (312 lines) (DC=896) (H=54) VGA 50Hz (48K)
+      010 = 228.0Ts per line (311 lines) (DC=912) (H=55) VGA 50Hz (128K)
+      011 = 228.0Ts per line (311 lines) (DC=912) (H=55) VGA 50Hz (128K)
+      100 = 224.0Ts per line (320 lines) (DC=896) (H=54) VGA 50Hz (PENTAGON)
+      101 = RESERVED
+      110 = RESERVED
+      111 = RESERVED
+
+      000 = 224.0Ts per line (262 lines) (DC=896) (H=54) VGA 60Hz (48K)
+      001 = 224.0Ts per line (262 lines) (DC=896) (H=54) VGA 60Hz (48K)
+      010 = 228.0Ts per line (261 lines) (DC=912) (H=55) VGA 60Hz (128K)
+      011 = 228.0Ts per line (261 lines) (DC=912) (H=55) VGA 60Hz (128K)
+      100 = 224.0Ts per line (320 lines) (DC=896) (H=54) VGA 50Hz (PENTAGON)*
+      101 = RESERVED
+      110 = RESERVED
+      111 = RESERVED
+
+      000 = 216.0Ts per line (312 lines) (DC=864) (H=52) HDMI 50Hz (48K)
+      001 = 216.0Ts per line (312 lines) (DC=864) (H=52) HDMI 50Hz (48K)
+      010 = 216.0Ts per line (312 lines) (DC=864) (H=52) HDMI 50Hz (128K)
+      011 = 216.0Ts per line (312 lines) (DC=864) (H=52) HDMI 50Hz (128K)
+      100 = 216.0Ts per line (312 lines) (DC=864) (H=52) HDMI 50Hz (PENTAGON)
+      101 = RESERVED
+      110 = RESERVED
+      111 = RESERVED
+
+      000 = 214.5Ts per line (262 lines) (DC=858) (H=52) HDMI 60Hz (48K)
+      001 = 214.5Ts per line (262 lines) (DC=858) (H=52) HDMI 60Hz (48K)
+      010 = 214.5Ts per line (262 lines) (DC=858) (H=52) HDMI 60Hz (128K)
+      011 = 214.5Ts per line (262 lines) (DC=858) (H=52) HDMI 60Hz (128K)
+      100 = 214.5Ts per line (262 lines) (DC=858) (H=52) HDMI 60Hz (PENTAGON)
+      101 = RESERVED
+      110 = RESERVED
+      111 = RESERVED
+
+ * PENTAGON 60Hz is not supported in VGA mode so always 50Hz
+
+
+
+ 6.5 Summary
+
+ The following table provides a full list of video timing configuration data:
+
+
+ Table 6.1: Summary of video modes
+
+    TIMING    VIDEO REFRESH T-STATES CLOCKS LINES WIDTH HRZ MAX SLACK ADJUST
+ ---------------------------------------------------------------------------
+
+ 0/1   48K     VGA   50Hz     224     896    312   256  448  54   32    -3
+ 0/1   48K     VGA   50Hz     224     896    312   512  448  54   32    -2
+ 0/1   48K     VGA   60Hz     224     896    262   256  448  54   32    -3
+ 0/1   48K     VGA   60Hz     224     896    262   512  448  54   32    -2
+
+ 2/3  128K     VGA   50Hz     228     912    311   256  456  55   32    -3
+ 2/3  128K     VGA   50Hz     228     912    311   512  456  55   32    -2
+ 2/3  128K     VGA   60Hz     228     912    261   256  456  55   32    -3
+ 2/3  128K     VGA   60Hz     228     912    261   512  456  55   32    -2
+
+ 4  PENTAGON   VGA   50Hz     224     896    320   256  448  55   32    -3
+ 4  PENTAGON   VGA   50Hz     224     896    320   512  448  55   32    -2
+
+ 0/1   48K    HDMI   50Hz     216     864    312   256  432  52   32    -3
+ 0/1   48K    HDMI   50Hz     216     864    312   512  432  52   32    -2
+ 0/1   48K    HDMI   60Hz     214.5   858    262   256  429  52   26    -3
+ 0/1   48K    HDMI   60Hz     214.5   858    262   512  429  52   26    -2
+
+ 2/3  128K    HDMI   50Hz     216     864    312   256  432  52   32    -3
+ 2/3  128K    HDMI   50Hz     216     864    312   512  432  52   32    -2
+ 2/3  128K    HDMI   60Hz     214.5   858    262   256  439  52   26    -3
+ 2/3  128K    HDMI   60Hz     214.5   858    262   512  439  52   26    -2
+
+ 4  PENTAGON  HDMI   50Hz     216     864    312   256  432  52   32    -3
+ 4  PENTAGON  HDMI   50Hz     216     864    312   512  432  52   32    -2
+ 4  PENTAGON  HDMI   60Hz     214.5   858    262   256  439  52   26    -3
+ 4  PENTAGON  HDMI   60Hz     214.5   858    262   512  439  52   26    -2
+
+
+
+
+
+ 7 Disclaimer
+
+ Care has been taken to make sure that the information in this document is
+ correct at the time of writing. This guide was created from observation and
+ detailed analysis and of the ZX Spectrum Next COPPER and inspection of the
+ VHDL source code.
+
+ I'd like to thank the ZX Spectrum Next team for their help and support.
+
+
+
+ KevB (aka 9bitcolor)
