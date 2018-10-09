@@ -1,0 +1,409 @@
+# File size: 114688
+
+# Specific Z80 CPU code detected
+
+
+# Microsoft 8080/Z80 BASIC found
+#  Extended BASIC detected
+#  Double precision maths detected
+#  Microsoft signature found
+
+
+BASTXT  = $EB54   ; BASIC program start ptr (aka TXTTAB)
+
+
+#    CPDEHL (compare DE and HL), code found at $001F
+#    (Detected position for ORG:  0)
+
+INPORT  = $EA39   ; Current port for 'INP' function
+OTPORT  = $EA01   ; Current port for 'OUT' statement
+SEED    = $E612   ; Seed for RND numbers
+LSTRND2         = $E633   ; Last RND number
+BUFFER  = $E879   ; Start of input buffer
+TMSTPT  = $EACE   ; Temporary string pool pointer
+TMPSTR  = $EAEE   ; Temporary string
+NXTOPR  = $EF9A   ; Address ptr to next operator
+CURPOS  = $ED99   ; Character position on line (TTYPOS on Ext. Basic)
+LPTPOS  = $EB48   ; Character position on printer
+PROGND  = $EB16   ; BASIC program end ptr (aka VARTAB)
+VAREND  = $EB1D   ; End of variables
+ARREND  = $EB1F   ; End of arrays (lowest free mem)
+SGNRES  = $EC45   ; Sign of result
+TEMPST  = $EAD0   ; (word), temporary descriptors
+TEMPPT  = $EACE   ; (word), start of free area of temporary descriptor
+PRMLEN  = $EB3F   ; (word), number of bytes of obj table
+NOFUNS  = $EC10   ; (byte), 0 if no function active
+PRMLN2  = $EBA7   ; (word), size of parameter block
+FUNACT  = $EC13   ; (word), active functions counter
+PRMSTK  = $EB3D   ; (word), previous block definition on stack
+SUBFLG  = $EAFB   ; (byte), flag for USR fn. array
+TEMP    = $EAFD   ; (word) temp. reservation for st.code
+DIMFLG  = $EF44   ; (word), aka LCRFLG (Locate/Create and Type
+VALTYP  = $EABD   ; (word) type indicator
+PRITAB  = $008A   ; Arithmetic precedence table
+TEMP2   = $EB10   ; (word) temp. storage used by EVAL
+TEMP3   = $EAF3   ; (word) used for garbage collection or by USR function
+SAVTXT  = $EB05   ; (word), prg pointer for resume
+TEMPST  = $EAD0   ; (word), temporary descriptors
+TEMPPT  = $EACE   ; (word), start of free area of temporary descriptor
+CURLIN  = $E656   ; (word), line number being interpreted
+OLDLIN  = $EB12   ; (word), old line number set up ^C ...
+SAVTXT  = $EB05   ; (word), prg pointer for resume
+OLDTXT  = $EB14   ; (word), prg pointer for CONT
+
+HALFPI  = $3340   ; Half PI constant ptr
+HALF    = $30F0   ; Constant ptr for 0.5 in FP
+UNITY   = $24F2   ; Constant ptr for number 1 in FP
+LOGTAB  = $24F6   ; Table used by LOG
+
+FPREG   = $EC41   ; Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+LAST_FPREG      = $EC43   ; Last byte in Single Precision FP Register (+sign bit)
+FPEXP   = $EC44   ; Floating Point Exponent
+DBL_FPREG       = $EC41   ; Double Precision Floating Point Register (aka FACLOW)
+DBL_LAST_FPREG  = $EC50   ; Last byte in Double Precision FP register (+sign bit)
+
+CPDEHL  = $0020   ; compare DE and HL (aka DCOMPR)
+FNDNUM  = $18A2   ; Load 'A' with the next number in BASIC program
+GETINT  = $56FA   ; Get a number to 'A'
+DEPINT  = $1899   ; Get integer variable to DE, error if negative
+FPSINT  = $1895   ; Get subscript
+SBSCPT  = $1AF56   ; Sort out subscript
+SCPTLP  = $1AF5C   ; SBSCPT loop
+POSINT  = $1896   ; Get positive integer
+GETVAR  = $4E3C   ; Get variable address to DE
+DIM     = $5AC5   ; DIM command
+CHKSTK  = $3B9D   ; Check for C levels of stack
+OPRND   = $1350   ; Get next expression value
+SYNCHR  = $409B   ; Check syntax, 1 byte follows to be compared
+LFRGNM  = $57CF   ; number in program listing and check for ending ')'
+HLPASS  = $2235   ; Get back from function passing an INT value HL
+MIDNUM  = $57D2   ; Get number in program listing
+INT_RESULT_A    = $20B6   ; Get back from function, result in A (signed)
+INT_RESULT_HL   = $279C   ; Get back from function, result in HL
+UNSIGNED_RES_A  = $1B07C   ; Get back from function, result in A
+
+GETYPR  = $0030   ; Test number FAC type (Precision mode, etc..)
+TSTSGN  = $1864F   ; Test sign of FPREG
+_TSTSGN         = $20BD   ; Test sign in number
+INVSGN  = $20AB   ; Invert number sign
+STAKFP  = $20CD   ; Put FP value on stack
+NEGAFT  = $2E00   ; Negate number
+LOG     = $18503   ; LOG
+SQR     = $191A1   ; SQR
+POWER   = $191AC   ; POWER
+EXP     = $2E6B   ; EXP
+COS     = $192F6   ; COS
+SIN     = $192FC   ; SIN
+TAN     = $302C   ; TAN
+ATN     = $10554   ; ATN
+ABS     = $20A0   ; ATN
+DBL_ABS         = $23F7   ; ABS (double precision BASIC variant)
+RND     = $2F1A   ; RND
+SUBCDE  = $1DE6   ; Subtract BCDE from FP reg
+FPADD   = $1DE9   ; Add BCDE to FP reg
+SCALE   = $1EBB   ; Scale number in BCDE for A exponent (bits)
+PLUCDE  = $1E9B   ; Add number pointed by HL to CDE
+COMPL   = $1EA7   ; Convert a negative number to positive
+PHLTFP  = $20DA   ; Number at HL to BCDE
+FPBCDE  = $20DD   ; Move BCDE to FPREG
+ADDPHL  = $2407   ; ADD number at HL to BCDE
+SUBPHL  = $240C   ; SUBTRACT number at HL from BCDE
+MLSP10  = $206C   ; Multiply number in FPREG by 10
+FPMULT  = $1F53   ; Multiply BCDE to FP reg
+DIV10   = $18591   ; Divide FP by 10
+DIV     = $1FB5   ; Divide FP by number on stack
+DVBCDE  = $259C   ; Divide FP by BCDE
+DCBCDE  = $227F   ; Decrement FP value in BCDE
+BCDEFP  = $20E8   ; Load FP reg to BCDE
+LOADFP  = $20EB   ; Load FP value pointed by HL to BCDE
+SHRITE  = $184DE   ; Shift right number in BCDE
+CMPNUM  = $2134   ; Compare FP reg to BCDE
+FPINT   = $225B   ; Floating Point to Integer
+FLGREL  = $208D   ; CY and A to FP, & normalise
+SUMSER  = $3254   ; Evaluate sum of series
+INT     = $229F   ; INT
+DBL_SUB         = $241D   ; Double precision SUB (formerly SUBCDE)
+DBL_ADD         = $2424   ; Double precision ADD (formerly FPADD)
+DBL_DIV         = $18B37   ; Double precision DIVIDE
+FIX     = $2286   ; Double Precision to Integer conversion
+INT_MUL         = $235A   ; Integer MULTIPLY
+MLDEBC  = $2312   ; Multiply DE by BC
+_ASCTFP         = $26D8   ; ASCII to FP number
+H_ASCTFP        = $26D3   ; ASCII to FP number (also '&' prefixes)
+ASCTFP  = $18BBE   ; ASCII to FP number (New version)
+DBL_ASCTFP      = $18BB7   ; ASCII to Double precision FP number
+PRNUMS  = $1B2EC   ; Print number string
+PRS     = $1B2ED   ; Create string entry and print it
+PRS1    = $1B2F0   ; Print string at HL
+STR     = $54CB   ; STR BASIC function entry
+SAVSTR  = $54D4   ; Save string in string area
+MKTMST  = $529B   ; Make temporary string
+CRTMST  = $529E   ; Create temporary string entry
+SSTSA   = $56B8   ; Move string on stack to string area
+TOSTRA  = $56C0   ; Move string in BC, (len in L) to string area
+TSALP   = $56C1   ; TOSTRA loop
+FOR     = $1A159   ; 'FOR' BASIC instruction
+FDTLP   = $1A9E8   ; Find next DATA statement
+DATA    = $45BE   ; DATA statement: find next DATA program line..
+RESTOR  = $1A302   ; 'RESTORE' stmt, init ptr to DATA program line..
+CHR     = $1B4A8   ; CHR$ BASIC function
+MAKINT  = $56FD   ; Convert tmp string to int in A register
+CONCAT  = $5680   ; String concatenation
+TESTR   = $5572   ; Test if enough room for string
+TOPOOL  = $571E   ; Save in string pool
+TSTOPL  = $552C   ; Temporary string to pool
+OPNPAR  = $1AA8B   ; Chk Syntax, make sure '(' follows
+EVAL    = $1AA8F   ; a.k.a. GETNUM, evaluate expression
+EVAL1   = $1AA92   ; Save precedence and eval until precedence break
+EVAL2   = $1AA9B   ; Evaluate expression until precedence break
+EVAL3   = $1AA9E   ; Evaluate expression until precedence break
+EVAL    = $11D4   ; (a.k.a. GETNUM, evaluate expression (GETNUM)
+EVAL1   = $11D7   ; Save precedence and eval until precedence break
+EVAL3   = $11EC   ; Evaluate expression until precedence break
+CRTST   = $54FC   ; Create String
+QTSTR   = $54FD   ; Create quote terminated String
+DTSTR   = $5500   ; Create String, termination char in D
+GETSTR  = $56C9   ; Get string pointed by FPREG 'Type Error' if it is not
+GSTRCU  = $56CC   ; Get string pointed by FPREG
+GSTRHL  = $56CF   ; Get string pointed by HL
+GSTRDE  = $56D0   ; Get string pointed by DE
+TSTSTR  = $2256   ; Test a string, 'Type Error' if it is not
+ATOH    = $1A4C6   ; ASCII to Integer, result in DE
+
+LNUM_RANGE      = $05E9   ; Read numeric range function parameters
+LNUM_PARM       = $0B0B   ; Read numeric function parameter
+_CHRGTB         = $0A0D   ; Pick next char from program
+UCASE_HL        = $1414   ; Get char from (HL) and make upper case
+UCASE   = $1415   ; Make char in 'A' upper case
+RINPUT  = $1B8A   ; Line input
+OUTC    = $0018   ; Output char in 'A' to console
+
+DATSNR  = $038D   ; 'SN err' entry for Input STMT
+SNERR   = $0393   ; entry for '?SN ERROR'
+FCERR   = $44A5   ; entry for '?FC ERROR'
+ULERR   = $0C3C   ; entry for '?UL ERROR'
+
+
+
+# JP table relocated in ram, ptr in $EA52
+
+# First byte of moved block: $EA00
+
+# Original JP table ptr in ROM to be copied: $3A57, getting JP table address
+
+# JP table for statements = $C2B7
+
+
+# TOKEN table position = $6B8A, word list in 'extended BASIC' mode.
+#       Token range: 89
+
+# -- STATEMENTS --
+
+#       USING           [231]   - $6642
+#       TAB(            [222]   - $0F1B
+#       SPC(            [226]   - same as TAB(
+#       = assignment            [241]
+#       + operand               [243]   - $135E
+#       - operand               [244]   - $13F8
+#       " string                [34]    - $54FD
+#       NOT             [227]   - $1512
+#       & specifier             [38]    - $1423
+#       ERR             [229]   - $1394
+#       ERL             [228]   - $13A2
+#       VARPTR          [234]   - $13B0
+#       USR             [224]   - $158F
+#       INSTR           [232]   - $57D7
+#       TOKEN_?         [239]   - $5AA3
+#       TOKEN_?         [230]   - $5722
+#       TOKEN_?         [133]   - $4BAC
+#       TOKEN_?         [225]   - $1600
+
+#       ELSE            [159]
+
+#       AUTO            [168]   - $0021
+#       AND             [248]
+#       ABS             [6]     - $62C3
+#       ATN             [14]    - $332A
+#       ASC             [21]    - $CDC9
+#       ATTR$           [235]
+#       BSAVE           [213]   - $20A3
+#       BLOAD           [212]   - $7904
+#       BEEP            [215]   - $B2A3
+#       CONSOLE         [157]   - $F562
+#       COPY            [205]   - $67B4
+#       CLOSE           [192]   - $327B
+#       CONT            [153]   - $C9D1
+#       CLEAR           [146]   - $A0AE
+#       CSRLIN          [84]    - $E120
+#       CINT            [28]    - $32F0
+#       CSNG            [29]    - $F048
+#       CDBL            [30]    - $E1B7
+#       CVI             [32]    - $2AEB
+#       CVS             [33]    - $F0CC
+#       CVD             [34]    - $3FE7
+#       COS             [12]    - $F049
+#       CHR$            [22]    - $66C5
+#       CALL            [177]   - $E1FB
+#       COMMON          [182]   - $A379
+#       CHAIN           [183]   - $1E28
+#       COM             [90]    - $29EB
+#       CIRCLE          [204]   - $0F0F
+#       COLOR           [203]   - $5CD6
+#       CLS             [206]   - $4C22
+#       CMD             [100]   - $2AD1
+#       DELETE          [167]   - $4D44
+#       DATA            [132]   - $3AE1
+#       DIM             [134]   - $C94F
+#       DEFSTR          [170]   - $1AE3
+#       DEFINT          [171]   - $79ED
+#       DEFSNG          [172]   - $13AE
+#       DEFDBL          [173]   - $D30C
+#       DSKO$           [186]   - $28E3
+#       DEF             [151]   - $F020
+#       DSKI$           [236]
+#       DSKF            [80]    - $1F78
+#       DATE$           [89]    - $F818
+#       ELSE            [159]   - $CDF0
+#       END             [129]   - $3532
+#       ERASE           [163]   - $16D1
+#       EDIT            [164]   - $C900
+#       ERROR           [165]   - $2AE5
+#       ERL             [228]
+#       ERR             [229]
+#       EXP             [11]    - $3AD1
+#       EOF             [35]    - $D1EB
+#       EQV             [251]
+#       FOR             [130]   - $CDF0
+#       FIELD           [188]   - $627B
+#       FILES           [195]   - $0000
+#       FN              [225]
+#       FRE             [15]    - $AFF0
+#       FIX             [31]    - $D5C9
+#       FPOS            [38]    - $BBF0
+#       GOTO            [137]   - $B0F0
+#       GO TO           [137]   - $B0F0
+#       GOSUB           [141]   - $2AE5
+#       GET             [189]   - $21D2
+#       HEX$            [26]    - $66B8
+#       HELP            [217]   - $E323
+#       INPUT           [133]   - $F049
+#       ISET            [96]    - $2AEB
+#       IEEE            [97]    - $F0C6
+#       IRESET          [98]    - $2219
+#       IF              [139]   - $11F0
+#       INSTR           [232]
+#       INT             [5]     - $CD62
+#       INP             [16]    - $4932
+#       IMP             [252]
+#       INKEY$          [239]
+#       KEY             [91]    - $2929
+#       KILL            [197]   - $0E00
+#       KANJI           [219]
+#       LOCATE          [214]   - $7810
+#       LPRINT          [155]   - $F036
+#       LLIST           [156]   - $FFCD
+#       LPOS            [27]    - $4622
+#       LET             [136]   - $493A
+#       LINE            [174]   - $E35F
+#       LOAD            [193]   - $F035
+#       LSET            [198]   - $C900
+#       LIST            [147]   - $77AE
+#       LFILES          [201]   - $3A67
+#       LOG             [10]    - $E1F0
+#       LOC             [36]    - $C0D0
+#       LEN             [18]    - $F035
+#       LEFT$           [1]     - $7BCD
+#       LOF             [37]    - $CA3A
+#       MOTOR           [87]    - $1BDA
+#       MERGE           [194]   - $21E1
+#       MOD             [253]
+#       MKI$            [39]    - $D5C9
+#       MKS$            [40]    - $2AEB
+#       MKD$            [41]    - $F0CE
+#       MID$            [3]     - $635E
+#       MON             [202]   - $F089
+#       MAP             [85]    - $7DD1
+#       NEXT            [131]   - $62C3
+#       NAME            [196]   - $0011
+#       NEW             [148]   - $5FD3
+#       NOT             [227]
+#       OPEN            [187]   - $CD06
+#       OUT             [154]   - $11D5
+#       ON              [149]   - $130C
+#       OR              [249]
+#       OCT$            [25]    - $CDE5
+#       OPTION          [184]   - $2BE3
+#       OFF             [238]
+#       PRINT           [145]   - $79ED
+#       PUT             [190]   - $2263
+#       POKE            [152]   - $E1FB
+#       POLL            [95]    - $E519
+#       POS             [17]    - $3AF0
+#       PEEK            [23]    - $32D8
+#       PSET            [207]   - $7BF0
+#       PRESET          [208]   - $4E32
+#       POINT           [83]    - $3DF1
+#       PAINT           [209]   - $21F0
+#       PEN             [88]    - $1364
+#       RETURN          [142]   - $F089
+#       READ            [135]   - $42D5
+#       RUN             [138]   - $4932
+#       RESTORE         [140]   - $F036
+#       RBYTE           [94]    - $1919
+#       REM             [143]   - $F34D
+#       RESUME          [166]   - $F089
+#       RSET            [199]   - $7CE5
+#       RIGHT$          [2]     - $D262
+#       RND             [8]     - $7BF0
+#       RENUM           [169]   - $F300
+#       RANDOMIZE       [185]   - $B57C
+#       ROLL            [216]   - $E357
+#       SCREEN          [211]   - $18E3
+#       SEARCH          [86]    - $05D6
+#       STOP            [144]   - $1AE3
+#       SWAP            [162]   - $47F1
+#       SET             [191]   - $F033
+#       SRQ             [237]
+#       STATUS          [99]    - $F0CC
+#       SAVE            [200]   - $3FE6
+#       SPC(            [226]
+#       STEP            [223]
+#       SGN             [4]     - $6ACD
+#       SQR             [7]     - $3322
+#       SIN             [9]     - $3532
+#       STR$            [19]    - $CD5F
+#       STRING$         [230]
+#       SPACE$          [24]    - $F045
+#       THEN            [221]
+#       TRON            [160]   - $62FF
+#       TROFF           [161]   - $4F2F
+#       TAB(            [222]
+#       TO              [220]
+#       TAN             [13]    - $C94F
+#       TERM            [210]   - $0000
+#       TIME$           [92]    - $E529
+#       USING           [231]
+#       USR             [224]
+#       VAL             [20]    - $62E9
+#       VIEW            [81]    - $7947
+#       VARPTR          [234]
+#       WIDTH           [158]   - $4611
+#       WINDOW          [82]    - $4F1F
+#       WAIT            [150]   - $25E3
+#       WHILE           [175]   - $67B4
+#       WEND            [176]   - $F210
+#       WRITE           [181]   - $6383
+#       WBYTE           [93]    - $19D1
+#       XOR             [250]
+#       Z
+#       [+              [243]
+#       [-              [244]
+#       [*              [245]
+#       [/              [246]
+#       [^              [247]
+#       [\              [254]
+#       ['              [233]
+#       [>              [240]
+#       [=              [241]
+#       [<              [242]
+
