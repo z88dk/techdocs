@@ -1019,7 +1019,7 @@
 000005F0:       CALL 0B0Bh					; LNUM_PARM - Read numeric function parameter
 000005F3:       PUSH DE
 000005F4:       JR Z,+0Bh
-000005F6:       RST 08h
+000005F6:       RST 08h				; Check syntax, 1 byte follows to be compared
 000005F7:       CALL P,FA11h
 000005FA:       RST 38h
 000005FB:       CALL NZ,0B0Bh				; LNUM_PARM - Read numeric function parameter
@@ -1369,9 +1369,10 @@
 00000853:       CALL 0861h
 00000856:       PUSH DE
 00000857:       PUSH BC
-00000858:       CALL 1423h
+00000858:       CALL 1423h			; '&' specifier
 0000085B:       POP BC
 0000085C:       JP 07D9h
+
 0000085F:       LD A,3Ah
 00000861:       LD (DE),A
 00000862:       INC DE
@@ -1428,7 +1429,7 @@
 000008BF:       LD A,64h
 000008C1:       LD (EAFBh),A		; SUBFLG - flag for USR fn. array
 000008C4:       CALL 5ACAh
-000008C7:       RST 08h
+000008C7:       RST 08h				; Check syntax, 1 byte follows to be compared
 000008C8:       POP AF
 000008C9:       PUSH DE
 000008CA:       EX DE,HL
@@ -1480,7 +1481,7 @@
 0000091A:       PUSH HL
 0000091B:       LD HL,(E656h)			; CURLIN - line number being interpreted
 0000091E:       EX HL,(SP)
-0000091F:       RST 08h
+0000091F:       RST 08h				; Check syntax, 1 byte follows to be compared
 00000920:       CALL C,CAF7h
 00000923:       OR C
 00000924:       INC BC
@@ -1579,7 +1580,7 @@
 000009CE:       LD D,(HL)
 000009CF:       EX DE,HL
 000009D0:       LD (E656h),HL			; CURLIN - line number being interpreted
-000009D3:       LD A,(EC3Bh)
+000009D3:       LD A,(EC3Bh)			; FLAG for 'TRACE' status
 000009D6:       OR A
 000009D7:       JR Z,+0Bh
 000009D9:       PUSH DE
@@ -1988,7 +1989,7 @@
 00000C98:       ADD 03h
 00000C9A:       JR +13h
 00000C9C:       CALL 5ACAh
-00000C9F:       RST 08h
+00000C9F:       RST 08h				; Check syntax, 1 byte follows to be compared
 00000CA0:       POP AF
 00000CA1:       EX DE,HL
 00000CA2:       LD (EAFDh),HL		; TEMP - temp. reservation for st.code
@@ -2045,7 +2046,7 @@
 00000D01:       CP A5h
 00000D03:       JR NZ,+2Fh
 00000D05:       RST 10h
-00000D06:       RST 08h
+00000D06:       RST 08h				; Check syntax, 1 byte follows to be compared
 00000D07:       ADC C
 00000D08:       CALL 0B0Bh				; LNUM_PARM - Read numeric function parameter
 00000D0B:       LD A,D
@@ -2074,7 +2075,7 @@
 00000D37:       JR C,+3Ah
 00000D39:       PUSH BC
 00000D3A:       RST 10h
-00000D3B:       RST 08h
+00000D3B:       RST 08h				; Check syntax, 1 byte follows to be compared
 00000D3C:       ADC L
 00000D3D:       XOR A
 00000D3E:       POP BC
@@ -2107,8 +2108,8 @@
 00000D6A:       RET Z
 00000D6B:       PUSH BC
 00000D6C:       PUSH DE
-00000D6D:       RST 08h
-00000D6E:       INC L
+00000D6D:       RST 08h				; Check syntax, 1 byte follows to be compared
+00000D6E:       DEFB ','
 00000D6F:       POP AF
 00000D70:       INC A
 00000D71:       JR -35h
@@ -2117,7 +2118,7 @@
 00000D77:       LD B,A
 00000D78:       CP 8Dh
 00000D7A:       JR Z,+03h
-00000D7C:       RST 08h
+00000D7C:       RST 08h				; Check syntax, 1 byte follows to be compared
 00000D7D:       ADC C
 00000D7E:       DEC HL
 00000D7F:       LD C,E
@@ -2170,6 +2171,8 @@
 00000DCE:       OR A
 00000DCF:       JP Z,0B06h
 00000DD2:       JP 03B3h
+
+_AUTO:
 00000DD5:       CALL 39E4h
 00000DD8:       CP B
 00000DD9:       LD H,H
@@ -2178,6 +2181,7 @@
 00000DDD:       LD BC,0000h
 00000DE0:       CALL 7A96h
 00000DE3:       JP 7ABDh
+
 00000DE6:       PUSH DE
 00000DE7:       LD E,C
 00000DE8:       XOR A
@@ -2201,7 +2205,7 @@
 00000E0B:       CALL Z,0A0Dh			; _CHRGTB - Pick next char from program
 00000E0E:       CP 89h
 00000E10:       JR Z,+03h
-00000E12:       RST 08h
+00000E12:       RST 08h				; Check syntax, 1 byte follows to be compared
 00000E13:       DEC IX
 00000E15:       PUSH HL
 00000E16:       CALL 20BDh			; _TSTSGN - Test sign in number
@@ -2242,7 +2246,7 @@
 00000E5C:       CALL Z,5A69h
 00000E5F:       JP Z,0F8Bh
 00000E62:       CP E7h
-00000E64:       JP Z,6642h
+00000E64:       JP Z,6642h		; __USING
 00000E67:       CP DEh
 00000E69:       JP Z,0F1Bh		; __TAB(
 00000E6C:       CP E2h
@@ -2361,7 +2365,7 @@
 00000F46:       CALL 240Ch				; SUBPHL - SUBTRACT number at HL from BCDE
 00000F49:       EX DE,HL
 00000F4A:       POP HL
-00000F4B:       RST 08h
+00000F4B:       RST 08h				; Check syntax, 1 byte follows to be compared
 00000F4C:       ADD HL,HL
 00000F4D:       DEC HL
 00000F4E:       POP AF
@@ -2417,7 +2421,7 @@
 00000FAA:       CP 85h
 00000FAC:       JP NZ,6EAEh
 00000FAF:       CALL EDD5h
-00000FB2:       RST 08h
+00000FB2:       RST 08h				; Check syntax, 1 byte follows to be compared
 00000FB3:       ADD L
 00000FB4:       CP 23h
 00000FB6:       JP Z,4CC1h
@@ -2507,8 +2511,8 @@
 00001056:       LD (EC22h),A
 00001059:       RST 10h
 0000105A:       JR +02h
-0000105C:       RST 08h
-0000105D:       DEC SP
+0000105C:       RST 08h				; Check syntax, 1 byte follows to be compared
+0000105D:       DEFB ';'
 0000105E:       PUSH HL
 0000105F:       CALL 5553h
 00001062:       POP HL
@@ -2707,7 +2711,7 @@
 000011C7:       CP 84h
 000011C9:       JR NZ,-25h
 000011CB:       JP 1132h
-000011CE:       RST 08h
+000011CE:       RST 08h				; Check syntax, 1 byte follows to be compared
 000011CF:       POP AF
 000011D0:       LD BC,28CFh
 000011D3:       DEC HL
@@ -2793,7 +2797,7 @@
 00001256:       LD BC,12ABh
 00001259:       PUSH BC
 0000125A:       LD HL,(EAF3h)		; TEMP3 - used for garbage collection or by USR function
-0000125D:       JP 11D6h
+0000125D:       JP 11D6h			; EVAL + 2
 
 00001260:       LD D,00h
 00001262:       SUB F0h
@@ -2930,11 +2934,12 @@
 00001352:       PUSH AF
 00001353:       LD A,FFh
 00001355:       OUTA (71h)				; bank switching
-00001357:       CALL 135Eh
+00001357:       CALL 135Eh			; + operand
 0000135A:       POP AF
 0000135B:       OUTA (71h)			; restore bank status
 0000135D:       RET
 
+; + operand
 0000135E:       RST 10h
 0000135F:       JP Z,03AEh
 00001362:       JP C,26BCh
@@ -2949,33 +2954,41 @@
 00001378:       CP F3h
 0000137A:       JR Z,-1Eh
 0000137C:       CP F4h
-0000137E:       JP Z,13F8h
+0000137E:       JP Z,13F8h				; '-' operand
 00001381:       CP 22h
 00001383:       JP Z,54FDh				; QTSTR - Create quote terminated String
 00001386:       CP E3h
-00001388:       JP Z,1512h
+00001388:       JP Z,1512h				; 'NOT' operand
 0000138B:       CP 26h
-0000138D:       JP Z,1423h
+0000138D:       JP Z,1423h				; '&' specifier
 00001390:       CP E5h
 00001392:       JR NZ,+0Ah
+
+; 'ERR'
 00001394:       RST 10h
 00001395:       LD A,(E649h)
 00001398:       PUSH HL
 00001399:       CALL 1589h
 0000139C:       POP HL
 0000139D:       RET
+
 0000139E:       CP E4h
 000013A0:       JR NZ,+0Ah
+
+; 'ERL'
 000013A2:       RST 10h
 000013A3:       PUSH HL
 000013A4:       LD HL,(EB09h)
 000013A7:       CALL 2402h
 000013AA:       POP HL
 000013AB:       RET
+
 000013AC:       CP EAh
 000013AE:       JR NZ,+24h
+
+; 'VARPTR'
 000013B0:       RST 10h
-000013B1:       RST 08h
+000013B1:       RST 08h				; Check syntax, 1 byte follows to be compared
 000013B2:       JR Z,-02h
 000013B4:       INC HL
 000013B5:       JR NZ,+0Ch
@@ -2986,7 +2999,7 @@
 000013BF:       POP HL
 000013C0:       JP 13C6h
 000013C3:       CALL 5BB8h
-000013C6:       RST 08h
+000013C6:       RST 08h				; Check syntax, 1 byte follows to be compared
 000013C7:       ADD HL,HL
 000013C8:       PUSH HL
 000013C9:       EX DE,HL
@@ -2996,10 +3009,11 @@
 000013CF:       CALL 21FDh
 000013D2:       POP HL
 000013D3:       RET
+
 000013D4:       CP E0h
-000013D6:       JP Z,158Fh
+000013D6:       JP Z,158Fh			; 'USR'
 000013D9:       CP E8h
-000013DB:       JP Z,57D7h
+000013DB:       JP Z,57D7h			; 'INSTR'
 000013DE:       CP EFh
 000013E0:       JP Z,5AA3h
 000013E3:       CP E6h
@@ -3009,14 +3023,16 @@
 000013ED:       CP E1h
 000013EF:       JP Z,1600h
 000013F2:       CALL 11D1h
-000013F5:       RST 08h
+000013F5:       RST 08h				; Check syntax, 1 byte follows to be compared
 000013F6:       ADD HL,HL
 000013F7:       RET
+
+; '-' operand
 000013F8:       LD D,7Dh
-000013FA:       CALL 11D6h
+000013FA:       CALL 11D6h			; EVAL + 2
 000013FD:       LD HL,(EB10h)		; TEMP2 - temp. storage used by EVAL
 00001400:       PUSH HL
-00001401:       CALL 20A4h
+00001401:       CALL 20A4h			; INVSGN2 - Invert number sign
 00001404:       POP HL
 00001405:       RET
 
@@ -3040,6 +3056,8 @@
 0000141D:       RET
 0000141E:       CP 26h
 00001420:       JP NZ,0B34h
+
+; '&' specifier
 00001423:       LD DE,0000h
 00001426:       RST 10h
 00001427:       CALL 1415h			; UCASE - Make char in 'A' upper case
@@ -3134,8 +3152,8 @@
 000014B4:       CP 05h
 000014B6:       JR NC,+16h
 000014B8:       CALL 11D1h
-000014BB:       RST 08h
-000014BC:       INC L
+000014BB:       RST 08h				; Check syntax, 1 byte follows to be compared
+000014BC:       DEFB ','
 000014BD:       CALL 2256h				; TSTSTR - Test a string, 'Type Error' if it is not
 000014C0:       EX DE,HL
 000014C1:       LD HL,(EC41h)			; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
@@ -3189,8 +3207,10 @@
 0000150C:       SBC A
 0000150D:       CALL 20B6h		; INT_RESULT_A - Get back from function, result in A (signed)
 00001510:       JR +12h
+
+; 'NOT' operand
 00001512:       LD D,5Ah
-00001514:       CALL 11D6h
+00001514:       CALL 11D6h			; EVAL + 2
 00001517:       CALL 21A0h
 0000151A:       LD A,L
 0000151B:       CPL
@@ -3277,6 +3297,8 @@
 0000158A:       XOR A
 0000158B:       LD H,A
 0000158C:       JP 21FDh
+
+; 'USR'
 0000158F:       CALL 15AEh
 00001592:       PUSH DE
 00001593:       CALL 13F2h
@@ -3311,9 +3333,10 @@
 000015C5:       ADD HL,BC
 000015C6:       EX DE,HL
 000015C7:       RET
+
 000015C8:       CALL 15AEh
 000015CB:       PUSH DE
-000015CC:       RST 08h
+000015CC:       RST 08h				; Check syntax, 1 byte follows to be compared
 000015CD:       POP AF
 000015CE:       CALL 1B93h
 000015D1:       EX HL,(SP)
@@ -3322,6 +3345,7 @@
 000015D4:       LD (HL),D
 000015D5:       POP HL
 000015D6:       RET
+
 000015D7:       CP E0h
 000015D9:       JR Z,-13h
 000015DB:       CALL 17BDh
@@ -3341,8 +3365,8 @@
 000015F6:       LD A,(HL)
 000015F7:       CP 29h
 000015F9:       JP Z,0C77h
-000015FC:       RST 08h
-000015FD:       INC L
+000015FC:       RST 08h				; Check syntax, 1 byte follows to be compared
+000015FD:       DEFB ','
 000015FE:       JR -0Dh
 00001600:       CALL 17BDh
 00001603:       LD A,(EABDh)		; VALTYP - type indicator
@@ -3368,7 +3392,7 @@
 00001628:       EX DE,HL
 00001629:       LD HL,(EB10h)		; TEMP2 - temp. storage used by EVAL
 0000162C:       CALL 44A4h
-0000162F:       RST 08h
+0000162F:       RST 08h				; Check syntax, 1 byte follows to be compared
 00001630:       JR Z,-51h
 00001632:       PUSH AF
 00001633:       CALL 44D5h
@@ -3415,8 +3439,8 @@
 0000168E:       LD A,(HL)
 0000168F:       CP 29h
 00001691:       JR Z,+1Dh
-00001693:       RST 08h
-00001694:       INC L
+00001693:       RST 08h				; Check syntax, 1 byte follows to be compared
+00001694:       DEFB ','
 00001695:       CALL 44D5h
 00001698:       PUSH HL
 00001699:       LD HL,(EAC0h)
@@ -3424,8 +3448,8 @@
 0000169F:       LD (EAC0h),HL
 000016A2:       LD HL,(EAF3h)		; TEMP3 - used for garbage collection or by USR function
 000016A5:       CALL 44A4h
-000016A8:       RST 08h
-000016A9:       INC L
+000016A8:       RST 08h				; Check syntax, 1 byte follows to be compared
+000016A9:       DEFB ','
 000016AA:       JR -66h
 000016AC:       POP AF
 000016AD:       LD (EBA7h),A		; PRMLN2 - size of parameter block
@@ -3475,7 +3499,7 @@
 000016FD:       PUSH HL
 000016FE:       LD HL,(EAF3h)		; TEMP3 - used for garbage collection or by USR function
 00001701:       CALL 44A4h
-00001704:       RST 08h
+00001704:       RST 08h				; Check syntax, 1 byte follows to be compared
 00001705:       ADD HL,HL
 00001706:       LD A,D5h
 00001708:       CALL 44D5h
@@ -3581,7 +3605,7 @@
 000017B7:       RET NZ
 000017B8:       LD E,0Ch
 000017BA:       JP 03B3h
-000017BD:       RST 08h
+000017BD:       RST 08h				; Check syntax, 1 byte follows to be compared
 000017BE:       POP HL
 000017BF:       LD A,80h
 000017C1:       LD (EAFBh),A		; SUBFLG - flag for USR fn. array
@@ -3608,14 +3632,16 @@
 000017EC:       JP 1589h
 000017EF:       CALL 1B93h
 000017F2:       PUSH DE
-000017F3:       RST 08h
-000017F4:       INC L
+000017F3:       RST 08h				; Check syntax, 1 byte follows to be compared
+000017F4:       DEFB ','
 000017F5:       CALL 18A3h
 000017F8:       POP BC
 000017F9:       RET
 000017FA:       CALL 17EFh
 000017FD:       OUT (C),A
 000017FF:       RET
+
+_WAIT:
 00001800:       CALL 17EFh
 00001803:       PUSH BC
 00001804:       PUSH AF
@@ -3623,8 +3649,8 @@
 00001807:       DEC HL
 00001808:       RST 10h
 00001809:       JR Z,+05h
-0000180B:       RST 08h
-0000180C:       INC L
+0000180B:       RST 08h				; Check syntax, 1 byte follows to be compared
+0000180C:       DEFB ','
 0000180D:       CALL 18A3h
 00001810:       POP AF
 00001811:       LD D,A
@@ -3634,6 +3660,8 @@
 00001816:       AND D
 00001817:       JR Z,-06h
 00001819:       RET
+
+_WIDTH:
 0000181A:       CP 23h
 0000181C:       JR Z,+29h
 0000181E:       CP 9Bh
@@ -3649,8 +3677,8 @@
 00001830:       JP M,0B06h
 00001833:       LD E,A
 00001834:       PUSH DE
-00001835:       RST 08h
-00001836:       INC L
+00001835:       RST 08h				; Check syntax, 1 byte follows to be compared
+00001836:       DEFB ','
 00001837:       CALL 18A3h
 0000183A:       POP DE
 0000183B:       PUSH AF
@@ -3667,8 +3695,8 @@
 0000184B:       OR A
 0000184C:       JP Z,0B06h
 0000184F:       PUSH AF
-00001850:       RST 08h
-00001851:       INC L
+00001850:       RST 08h				; Check syntax, 1 byte follows to be compared
+00001851:       DEFB ','
 00001852:       CALL 18A3h
 00001855:       POP AF
 00001856:       PUSH HL
@@ -4151,8 +4179,8 @@
 00001B84:       CALL 1B93h
 00001B87:       PUSH DE
 00001B88:       CALL ED9Fh
-00001B8B:       RST 08h
-00001B8C:       INC L
+00001B8B:       RST 08h				; Check syntax, 1 byte follows to be compared
+00001B8C:       DEFB ','
 00001B8D:       CALL 18A3h
 00001B90:       POP DE
 00001B91:       LD (DE),A
@@ -4300,13 +4328,13 @@
 00001C84:       OR A
 00001C85:       RET Z
 00001C86:       JP 1BBBh
-00001C89:       RST 08h
+00001C89:       RST 08h				; Check syntax, 1 byte follows to be compared
 00001C8A:       LD B,D
-00001C8B:       RST 08h
+00001C8B:       RST 08h				; Check syntax, 1 byte follows to be compared
 00001C8C:       LD B,C
-00001C8D:       RST 08h
+00001C8D:       RST 08h				; Check syntax, 1 byte follows to be compared
 00001C8E:       LD D,E
-00001C8F:       RST 08h
+00001C8F:       RST 08h				; Check syntax, 1 byte follows to be compared
 00001C90:       LD B,L
 00001C91:       LD A,(EC20h)
 00001C94:       OR A
@@ -4486,8 +4514,8 @@
 00001DB9:       RST 10h
 00001DBA:       LD DE,1D4Dh
 00001DBD:       JR Z,+06h
-00001DBF:       RST 08h
-00001DC0:       INC L
+00001DBF:       RST 08h				; Check syntax, 1 byte follows to be compared
+00001DC0:       DEFB ','
 00001DC1:       DEC HL
 00001DC2:       LD DE,1DA2h
 00001DC5:       EX HL,(SP)
@@ -4996,6 +5024,7 @@
 ; ABS
 000020A0:       CALL 20BDh			; _TSTSGN - Test sign in number
 000020A3:       RET P
+; INVSGN2 - Invert number sign
 000020A4:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
 000020A5:       JP M,23F7h			; DBL_ABS - ABS (double precision BASIC variant)
 000020A8:       JP Z,03B1h
@@ -5317,7 +5346,7 @@
 00002289:       JP P,2295h
 0000228C:       CALL 20ABh			; INVSGN - Invert number sign
 0000228F:       CALL 2295h
-00002292:       JP 20A4h
+00002292:       JP 20A4h			; INVSGN2 - Invert number sign
 
 00002295:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
 00002296:       RET M
@@ -5991,7 +6020,7 @@
 
 ; H_ASCTFP - ASCII to FP number (also '&' prefixes)
 000026D3:       CP 26h
-000026D5:       JP Z,1423h
+000026D5:       JP Z,1423h			; '&' specifier
 
 ; _ASCTFP - ASCII to FP number
 000026D8:       CP 2Dh
@@ -6056,7 +6085,7 @@
 00002743:       POP HL
 00002744:       POP AF
 00002745:       PUSH HL
-00002746:       CALL Z,20A4h
+00002746:       CALL Z,20A4h		; INVSGN2 - Invert number sign
 00002749:       POP HL
 0000274A:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
 0000274B:       RET PE
@@ -6309,7 +6338,7 @@
 000028E2:       LD (HL),2Dh
 000028E4:       PUSH BC
 000028E5:       PUSH HL
-000028E6:       CALL 20A4h
+000028E6:       CALL 20A4h			; INVSGN2 - Invert number sign
 000028E9:       POP HL
 000028EA:       POP BC
 000028EB:       OR H
@@ -7831,9 +7860,11 @@
 000032E7:       INC A
 000032E8:       LD A,00h
 000032EA:       RET
+
 000032EB:       LD A,00h
 000032ED:       LD (EFFEh),A
 000032F0:       RET
+
 000032F1:       LD B,00h
 000032F3:       IN A,(C)
 000032F5:       CPL
@@ -10029,7 +10060,8 @@
 000040CB:       CALL 40A7h
 000040CE:       OR B
 000040CF:       RET
-000040D0:       RST 08h
+
+000040D0:       RST 08h				; Check syntax, 1 byte follows to be compared
 000040D1:       POP AF
 000040D2:       CALL 11D3h
 000040D5:       PUSH HL
@@ -10037,11 +10069,11 @@
 000040D9:       CALL 40B4h
 000040DC:       CALL 40C3h
 000040DF:       LD (F00Fh),A
-000040E2:       RST 08h
+000040E2:       RST 08h				; Check syntax, 1 byte follows to be compared
 000040E3:       LD A,(C3CDh)
 000040E6:       LD B,B
 000040E7:       LD (F00Eh),A
-000040EA:       RST 08h
+000040EA:       RST 08h				; Check syntax, 1 byte follows to be compared
 000040EB:       LD A,(C3CDh)
 000040EE:       LD B,B
 000040EF:       LD (F00Dh),A
@@ -10084,8 +10116,9 @@
 0000413C:       EX DE,HL
 0000413D:       CALL 4250h
 00004140:       RST 08h
-00004141:       INC L
+00004141:       DEFB ','
 00004142:       RET
+
 00004143:       PUSH BC
 00004144:       PUSH DE
 00004145:       LD A,(E6C3h)
@@ -11165,44 +11198,45 @@
 000047B1:       CP 49h
 000047B3:       JR Z,+22h
 000047B5:       CALL ECC7h
-000047B8:       RST 08h
+000047B8:       RST 08h				; Check syntax, 1 byte follows to be compared
 000047B9:       LD B,C
-000047BA:       RST 08h
+000047BA:       RST 08h				; Check syntax, 1 byte follows to be compared
 000047BB:       LD D,B
-000047BC:       RST 08h
+000047BC:       RST 08h				; Check syntax, 1 byte follows to be compared
 000047BD:       LD D,B
-000047BE:       RST 08h
+000047BE:       RST 08h				; Check syntax, 1 byte follows to be compared
 000047BF:       LD B,L
-000047C0:       RST 08h
+000047C0:       RST 08h				; Check syntax, 1 byte follows to be compared
 000047C1:       LD C,(HL)
-000047C2:       RST 08h
+000047C2:       RST 08h				; Check syntax, 1 byte follows to be compared
 000047C3:       LD B,H
 000047C4:       LD E,08h
 000047C6:       JR +18h
+
 000047C8:       RST 10h
-000047C9:       RST 08h
+000047C9:       RST 08h				; Check syntax, 1 byte follows to be compared
 000047CA:       LD D,L
-000047CB:       RST 08h
+000047CB:       RST 08h				; Check syntax, 1 byte follows to be compared
 000047CC:       LD D,H
-000047CD:       RST 08h
+000047CD:       RST 08h				; Check syntax, 1 byte follows to be compared
 000047CE:       LD D,B
-000047CF:       RST 08h
+000047CF:       RST 08h				; Check syntax, 1 byte follows to be compared
 000047D0:       LD D,L
-000047D1:       RST 08h
+000047D1:       RST 08h				; Check syntax, 1 byte follows to be compared
 000047D2:       LD D,H
 000047D3:       LD E,02h
 000047D5:       JR +09h
 000047D7:       RST 10h
-000047D8:       RST 08h
+000047D8:       RST 08h				; Check syntax, 1 byte follows to be compared
 000047D9:       LD B,D
-000047DA:       RST 08h
+000047DA:       RST 08h				; Check syntax, 1 byte follows to be compared
 000047DB:       LD C,L
 000047DC:       LD E,20h
 000047DE:       DEC HL
 000047DF:       RST 10h
-000047E0:       RST 08h
+000047E0:       RST 08h				; Check syntax, 1 byte follows to be compared
 000047E1:       LD B,C
-000047E2:       RST 08h
+000047E2:       RST 08h				; Check syntax, 1 byte follows to be compared
 000047E3:       LD D,E
 000047E4:       PUSH DE
 000047E5:       LD A,(HL)
@@ -11281,7 +11315,7 @@
 0000486D:       OR A
 0000486E:       JR NZ,+06h
 00004870:       RST 10h
-00004871:       RST 08h
+00004871:       RST 08h				; Check syntax, 1 byte follows to be compared
 00004872:       LD D,D
 00004873:       POP AF
 00004874:       SCF
@@ -11318,15 +11352,15 @@
 000048AD:       SCF
 000048AE:       CALL Z,EDA8h
 000048B1:       JR Z,+11h
-000048B3:       RST 08h
-000048B4:       INC L
+000048B3:       RST 08h				; Check syntax, 1 byte follows to be compared
+000048B4:       DEFB ','
 000048B5:       CP 50h
 000048B7:       LD E,92h
 000048B9:       JR NZ,+04h
 000048BB:       RST 10h
 000048BC:       SCF
 000048BD:       JR +05h
-000048BF:       RST 08h
+000048BF:       RST 08h				; Check syntax, 1 byte follows to be compared
 000048C0:       LD B,C
 000048C1:       OR A
 000048C2:       LD E,02h
@@ -11449,7 +11483,7 @@
 000049AD:       CALL 5ACAh
 000049B0:       CALL 2256h				; TSTSTR - Test a string, 'Type Error' if it is not
 000049B3:       PUSH DE
-000049B4:       RST 08h
+000049B4:       RST 08h				; Check syntax, 1 byte follows to be compared
 000049B5:       POP AF
 000049B6:       CALL 11D3h
 000049B9:       POP BC
@@ -11594,9 +11628,9 @@
 00004A7B:       PUSH BC
 00004A7C:       CALL 18A2h				; FNDNUM - Load 'A' with the next number in BASIC program
 00004A7F:       PUSH AF
-00004A80:       RST 08h
+00004A80:       RST 08h				; Check syntax, 1 byte follows to be compared
 00004A81:       LD B,C
-00004A82:       RST 08h
+00004A82:       RST 08h				; Check syntax, 1 byte follows to be compared
 00004A83:       LD D,E
 00004A84:       CALL 5ACAh
 00004A87:       CALL 2256h				; TSTSTR - Test a string, 'Type Error' if it is not
@@ -11773,9 +11807,9 @@
 00004BA9:       POP AF
 00004BAA:       JR -2Eh
 00004BAC:       RST 10h
-00004BAD:       RST 08h
+00004BAD:       RST 08h				; Check syntax, 1 byte follows to be compared
 00004BAE:       INC H
-00004BAF:       RST 08h
+00004BAF:       RST 08h				; Check syntax, 1 byte follows to be compared
 00004BB0:       JR Z,-1Bh
 00004BB2:       LD HL,(EC88h)
 00004BB5:       PUSH HL
@@ -11797,7 +11831,7 @@
 00004BD4:       XOR A
 00004BD5:       LD A,(HL)
 00004BD6:       PUSH AF
-00004BD7:       RST 08h
+00004BD7:       RST 08h				; Check syntax, 1 byte follows to be compared
 00004BD8:       ADD HL,HL
 00004BD9:       POP AF
 00004BDA:       EX HL,(SP)
@@ -11882,8 +11916,8 @@
 00004C7D:       CP 23h
 00004C7F:       RET NZ
 00004C80:       CALL 18A2h				; FNDNUM - Load 'A' with the next number in BASIC program
-00004C83:       RST 08h
-00004C84:       INC L
+00004C83:       RST 08h				; Check syntax, 1 byte follows to be compared
+00004C84:       DEFB ','
 00004C85:       LD A,E
 00004C86:       PUSH HL
 00004C87:       CALL 4735h
@@ -12582,8 +12616,10 @@
 00005156:       EX DE,HL
 00005157:       RET
 
+_TRON:
 00005158:       LD A,AFh
-0000515A:       LD (EC3Bh),A
+_TROFF:
+0000515A:       LD (EC3Bh),A			; FLAG for 'TRACE' status
 0000515D:       RET
 
 0000515E:       CALL 5ACAh
@@ -12595,8 +12631,8 @@
 0000516C:       EX HL,(SP)
 0000516D:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
 0000516E:       PUSH AF
-0000516F:       RST 08h
-00005170:       INC L
+0000516F:       RST 08h				; Check syntax, 1 byte follows to be compared
+00005170:       DEFB ','
 00005171:       CALL 5ACAh
 00005174:       POP AF
 00005175:       LD B,A
@@ -12725,8 +12761,8 @@
 00005240:       DEC HL
 00005241:       RST 10h
 00005242:       JR Z,-27h
-00005244:       RST 08h
-00005245:       INC L
+00005244:       RST 08h				; Check syntax, 1 byte follows to be compared
+00005245:       DEFB ','
 00005246:       JR Z,-2Bh
 00005248:       LD DE,(E654h)
 0000524C:       CP 2Ch
@@ -12744,8 +12780,8 @@
 00005264:       RST 10h
 00005265:       PUSH DE
 00005266:       JR Z,+3Dh
-00005268:       RST 08h
-00005269:       INC L
+00005268:       RST 08h				; Check syntax, 1 byte follows to be compared
+00005269:       DEFB ','
 0000526A:       JR Z,+39h
 0000526C:       CALL 5299h
 0000526F:       DEC HL
@@ -13532,14 +13568,14 @@
 0000571F:       JP 552Ch				; TSTOPL - Temporary string to pool
 
 00005722:       RST 10h
-00005723:       RST 08h
+00005723:       RST 08h				; Check syntax, 1 byte follows to be compared
 00005724:       JR Z,-33h
 00005726:       AND E
 00005727:       JR -2Bh
-00005729:       RST 08h
-0000572A:       INC L
+00005729:       RST 08h				; Check syntax, 1 byte follows to be compared
+0000572A:       DEFB ','
 0000572B:       CALL 11D3h
-0000572E:       RST 08h
+0000572E:       RST 08h				; Check syntax, 1 byte follows to be compared
 0000572F:       ADD HL,HL
 00005730:       EX HL,(SP)
 00005731:       PUSH HL
@@ -13628,6 +13664,8 @@
 000057B1:       RET C
 000057B2:       LD B,E
 000057B3:       RET
+
+_VAL:
 000057B4:       CALL 56FCh
 000057B7:       JP Z,1589h
 000057BA:       LD E,A
@@ -13652,7 +13690,7 @@
 
 ; LFRGNM - number in program listing and check for ending ')'
 000057CF:       EX DE,HL
-000057D0:       RST 08h
+000057D0:       RST 08h				; Check syntax, 1 byte follows to be compared
 000057D1:       ADD HL,HL
 ; MIDNUM - Get number in program listing
 000057D2:       POP BC
@@ -13661,6 +13699,7 @@
 000057D5:       LD B,E
 000057D6:       RET
 
+; 'INSTR'
 000057D7:       RST 10h
 000057D8:       CALL 11D1h
 000057DB:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
@@ -13672,20 +13711,20 @@
 000057E5:       OR A
 000057E6:       JP Z,0B06h
 000057E9:       PUSH AF
-000057EA:       RST 08h
-000057EB:       INC L
+000057EA:       RST 08h				; Check syntax, 1 byte follows to be compared
+000057EB:       DEFB ','
 000057EC:       CALL 11D3h
-000057EF:       CALL 2256h				; TSTSTR - Test a string, 'Type Error' if it is not
-000057F2:       RST 08h
-000057F3:       INC L
+000057EF:       CALL 2256h			; TSTSTR - Test a string, 'Type Error' if it is not
+000057F2:       RST 08h				; Check syntax, 1 byte follows to be compared
+000057F3:       DEFB ','
 000057F4:       PUSH HL
-000057F5:       LD HL,(EC41h)			; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+000057F5:       LD HL,(EC41h)		; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 000057F8:       EX HL,(SP)
 000057F9:       CALL 11D3h
-000057FC:       RST 08h
+000057FC:       RST 08h				; Check syntax, 1 byte follows to be compared
 000057FD:       ADD HL,HL
 000057FE:       PUSH HL
-000057FF:       CALL 56C9h				; GETSTR - Get string pointed by FPREG 'Type Error' if it is not
+000057FF:       CALL 56C9h			; GETSTR - Get string pointed by FPREG 'Type Error' if it is not
 00005802:       EX DE,HL
 00005803:       POP BC
 00005804:       POP HL
@@ -13761,7 +13800,7 @@
 00005855:       INC HL
 00005856:       DJNZ -23h
 00005858:       JR -14h
-0000585A:       RST 08h
+0000585A:       RST 08h				; Check syntax, 1 byte follows to be compared
 0000585B:       JR Z,-33h
 0000585D:       JP Z,CD5Ah
 00005860:       LD D,(HL)
@@ -13788,8 +13827,8 @@
 00005882:       CALL 20FCh
 00005885:       POP HL
 00005886:       EX HL,(SP)
-00005887:       RST 08h
-00005888:       INC L
+00005887:       RST 08h				; Check syntax, 1 byte follows to be compared
+00005888:       DEFB ','
 00005889:       CALL 18A3h
 0000588C:       OR A
 0000588D:       JP Z,0B06h
@@ -13853,10 +13892,10 @@
 000058D6:       LD E,FFh
 000058D8:       CP 29h
 000058DA:       JR Z,+05h
-000058DC:       RST 08h
-000058DD:       INC L
+000058DC:       RST 08h				; Check syntax, 1 byte follows to be compared
+000058DD:       DEFB ','
 000058DE:       CALL 18A3h
-000058E1:       RST 08h
+000058E1:       RST 08h				; Check syntax, 1 byte follows to be compared
 000058E2:       ADD HL,HL
 000058E3:       RET
 000058E4:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
@@ -14117,8 +14156,8 @@
 00005AC0:       DEC HL
 00005AC1:       RST 10h
 00005AC2:       RET Z
-00005AC3:       RST 08h
-00005AC4:       INC L
+00005AC3:       RST 08h				; Check syntax, 1 byte follows to be compared
+00005AC4:       DEFB ','
 00005AC5:       LD BC,5AC0h
 00005AC8:       PUSH BC
 00005AC9:       OR AFh
@@ -15847,8 +15886,8 @@
 __USING:
 00006642:       CALL 11D4h				; EVAL 	- (a.k.a. GETNUM, evaluate expression (GETNUM)
 00006645:       CALL 2256h				; TSTSTR - Test a string, 'Type Error' if it is not
-00006648:       RST 08h
-00006649:       DEC SP
+00006648:       RST 08h					; Check syntax, 1 byte follows to be compared
+00006649:       DEFB ';'
 0000664A:       EX DE,HL
 0000664B:       LD HL,(EC41h)			; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 0000664E:       JR +08h
@@ -16037,8 +16076,8 @@ __USING:
 00006767:       LD (EAFCh),A
 0000676A:       CP 3Bh
 0000676C:       JR Z,+03h
-0000676E:       RST 08h
-0000676F:       INC L
+0000676E:       RST 08h				; Check syntax, 1 byte follows to be compared
+0000676F:       DEFB ','
 00006770:       LD B,D7h
 00006772:       POP BC
 00006773:       EX DE,HL
@@ -16278,9 +16317,10 @@ __USING:
 00006923:       OR D
 00006924:       JP NZ,0B06h
 00006927:       POP DE
-00006928:       RST 08h
-00006929:       INC L
+00006928:       RST 08h				; Check syntax, 1 byte follows to be compared
+00006929:       DEFB ','
 0000692A:       RET
+
 0000692B:       LD A,FFh
 0000692D:       LD (F007h),A
 00006930:       CALL 7F4Dh
@@ -16678,7 +16718,7 @@ __USING:
 00006B66:       AND H
 00006B67:       LD L,H
 00006B68:       ADC 6Ch
-00006B6A:       RST 08h
+00006B6A:       RST 08h				; Check syntax, 1 byte follows to be compared
 00006B6B:       LD L,H
 00006B6C:       CALL C,1C6Ch
 00006B6F:       LD L,L
@@ -16708,7 +16748,7 @@ __USING:
 00006B89:       LD L,(HL)
 00006B8A:       LD D,L
 00006B8B:       LD D,H
-00006B8C:       RST 08h
+00006B8C:       RST 08h				; Check syntax, 1 byte follows to be compared
 00006B8D:       XOR B
 00006B8E:       LD C,(HL)
 00006B8F:       CALL NZ,42F8h
@@ -16894,11 +16934,11 @@ __USING:
 00006C88:       NOP
 00006C89:       LD C,A
 00006C8A:       LD D,H
-00006C8B:       RST 08h
+00006C8B:       RST 08h				; Check syntax, 1 byte follows to be compared
 00006C8C:       ADC C
 00006C8D:       LD C,A
 00006C8E:       JR NZ,+54h
-00006C90:       RST 08h
+00006C90:       RST 08h				; Check syntax, 1 byte follows to be compared
 00006C91:       ADC C
 00006C92:       LD C,A
 00006C93:       LD D,E
@@ -17559,8 +17599,8 @@ __USING:
 00007088:       PUSH DE
 00007089:       DEC HL
 0000708A:       RST 10h
-0000708B:       RST 08h
-0000708C:       INC L
+0000708B:       RST 08h				; Check syntax, 1 byte follows to be compared
+0000708C:       DEFB ','
 0000708D:       CP 2Ch
 0000708F:       POP DE
 00007090:       JR Z,+10h
@@ -17580,8 +17620,8 @@ __USING:
 000070A8:       DEC HL
 000070A9:       RST 10h
 000070AA:       JR Z,+1Ch
-000070AC:       RST 08h
-000070AD:       INC L
+000070AC:       RST 08h				; Check syntax, 1 byte follows to be compared
+000070AD:       DEFB ','
 000070AE:       CP 2Ch
 000070B0:       JR Z,+16h
 000070B2:       CALL 18A3h
@@ -17599,8 +17639,8 @@ __USING:
 000070C8:       DEC HL
 000070C9:       RST 10h
 000070CA:       JR Z,+3Ah
-000070CC:       RST 08h
-000070CD:       INC L
+000070CC:       RST 08h				; Check syntax, 1 byte follows to be compared
+000070CD:       DEFB ','
 000070CE:       CALL 18A3h
 000070D1:       CP 01h
 000070D3:       CCF
@@ -17651,8 +17691,8 @@ __USING:
 00007125:       DEC HL
 00007126:       RST 10h
 00007127:       JR Z,+11h
-00007129:       RST 08h
-0000712A:       INC L
+00007129:       RST 08h				; Check syntax, 1 byte follows to be compared
+0000712A:       DEFB ','
 0000712B:       CALL 18A3h
 0000712E:       POP BC
 0000712F:       LD C,A
@@ -17691,8 +17731,8 @@ __USING:
 00007168:       DEC HL
 00007169:       RST 10h
 0000716A:       JR Z,+24h
-0000716C:       RST 08h
-0000716D:       INC L
+0000716C:       RST 08h				; Check syntax, 1 byte follows to be compared
+0000716D:       DEFB ','
 0000716E:       CP 2Ch
 00007170:       JR Z,+12h
 00007172:       CALL 18A3h
@@ -17707,8 +17747,8 @@ __USING:
 00007180:       DEC HL
 00007181:       RST 10h
 00007182:       JR Z,+0Ch
-00007184:       RST 08h
-00007185:       INC L
+00007184:       RST 08h				; Check syntax, 1 byte follows to be compared
+00007185:       DEFB ','
 00007186:       CALL 18A3h
 00007189:       CP 01h
 0000718B:       CCF
@@ -17792,7 +17832,8 @@ __USING:
 00007218:       POP AF
 00007219:       DJNZ -0Ah
 0000721B:       RET
-0000721C:       RST 08h
+
+0000721C:       RST 08h				; Check syntax, 1 byte follows to be compared
 0000721D:       POP AF
 0000721E:       CALL 11D3h
 00007221:       PUSH HL
@@ -17800,7 +17841,7 @@ __USING:
 00007225:       CALL 725Dh
 00007228:       CALL 726Ch
 0000722B:       LD (F012h),A
-0000722E:       RST 08h
+0000722E:       RST 08h				; Check syntax, 1 byte follows to be compared
 0000722F:       CPL
 00007230:       CALL 18A3h
 00007233:       AND A
@@ -17808,7 +17849,7 @@ __USING:
 00007237:       CP 0Dh
 00007239:       JP NC,0B06h
 0000723C:       LD (F011h),A
-0000723F:       RST 08h
+0000723F:       RST 08h				; Check syntax, 1 byte follows to be compared
 00007240:       CPL
 00007241:       CALL 726Ch
 00007244:       AND A
@@ -17976,8 +18017,8 @@ __USING:
 0000737C:       RST 10h
 0000737D:       LD A,00h
 0000737F:       JR Z,+1Ch
-00007381:       RST 08h
-00007382:       INC L
+00007381:       RST 08h				; Check syntax, 1 byte follows to be compared
+00007382:       DEFB ','
 00007383:       LD A,(HL)
 00007384:       CP 2Ch
 00007386:       LD C,A
@@ -18274,8 +18315,8 @@ __USING:
 00007600:       DEC HL
 00007601:       RST 10h
 00007602:       JR Z,+0Dh
-00007604:       RST 08h
-00007605:       INC L
+00007604:       RST 08h				; Check syntax, 1 byte follows to be compared
+00007605:       DEFB ','
 00007606:       CALL 1896h				; POSINT - Get positive integer
 00007609:       EX DE,HL
 0000760A:       LD (F0ACh),HL
