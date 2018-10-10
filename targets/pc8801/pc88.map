@@ -5,7 +5,7 @@
 #  Microsoft signature found
 
 
-BASTXT 	= $0001   ; BASIC program start ptr (aka TXTTAB)
+BASTXT 	= $E658   ; BASIC program start ptr (aka TXTTAB)
 
 SYNCHR 	= $0008   ; Check syntax, 1 byte follows to be compared
 
@@ -177,7 +177,7 @@ ULERR 	= $0C3C   ; entry for '?UL ERROR'
 #	CLOSE      	[192]	- $4B04
 #	CONT      	[153]	- $5140
 #	CLEAR      	[146]	- $522E
-#	CSRLIN      	[84]	- $6B8A
+#	CSRLIN      	[84]	- $6B8A (*)
 #	CINT      	[28]	- $21A0
 #	CSNG      	[29]	- $2214
 #	CDBL      	[30]	- $223E
@@ -189,7 +189,7 @@ ULERR 	= $0C3C   ; entry for '?UL ERROR'
 #	CALL      	[177]	- $EE89
 #	COMMON      	[182]	- $EEC5
 #	CHAIN      	[183]	- $EE7A
-#	COM      	[90]	- $6C89
+#	COM      	[90]	- $6C89 (*)
 #	CIRCLE      	[204]	- $6ECE
 #	COLOR      	[203]	- $6EC6
 #	CLS      	[206]	- $71B5
@@ -208,7 +208,7 @@ ULERR 	= $0C3C   ; entry for '?UL ERROR'
 #	DATE$      	[89]	- $6C6F
 #	ELSE      	[159]	- $0C79
 #	END      	[129]	- $50E5
-#	ERASE      	[163]	- $519C
+#	ERASE      	[163]	- $519C (*)
 #	EDIT      	[164]	- $657B
 #	ERROR      	[165]	- $0DCA
 #	ERL      	[228]
@@ -230,9 +230,9 @@ ULERR 	= $0C3C   ; entry for '?UL ERROR'
 #	HEX$      	[26]	- $54C6
 #	HELP      	[217]	- $72AB
 #	INPUT      	[133]	- $102D
-#	ISET      	[96]	- $6D1C
-#	IEEE      	[97]	- $6D40
-#	IRESET      	[98]	- $6D4F
+#	ISET      	[96]	- $6D1C (*)
+#	IEEE      	[97]	- $6D40 (*)
+#	IRESET      	[98]	- $6D4F (*)
 #	IF      	[139]	- $0E05
 #	INSTR      	[232]
 #	INT      	[5]	- $2295
@@ -257,7 +257,7 @@ ULERR 	= $0C3C   ; entry for '?UL ERROR'
 #	LEN      	[18]	- $56F8
 #	LEFT$      	[1]	- $575A
 #	LOF      	[37]	- $4C40
-#	MOTOR      	[87]	- $6C0E
+#	MOTOR      	[87]	- $6C0E (*)
 #	MERGE      	[194]	- $4855
 #	MOD      	[253]
 #	MKI$      	[39]	- $4AA1
@@ -265,7 +265,7 @@ ULERR 	= $0C3C   ; entry for '?UL ERROR'
 #	MKD$      	[41]	- $4AA7
 #	MID$      	[3]	- $5793
 #	MON      	[202]	- $E826
-#	MAP      	[85]	- $6BA0
+#	MAP      	[85]	- $6BA0 (*)
 #	NEXT      	[131]	- $52BD
 #	NAME      	[196]	- $EE8F
 #	NEW      	[148]	- $77DD
@@ -283,11 +283,11 @@ ULERR 	= $0C3C   ; entry for '?UL ERROR'
 #	POLL      	[95]	- $6CDC
 #	POS      	[17]	- $1586
 #	PEEK      	[23]	- $1B7A
-#	PSET      	[207]	- $6E9A
-#	PRESET      	[208]	- $6E96
+#	PSET      	[207]	- $6E9A  (**)
+#	PRESET      	[208]	- $6E96  (**)
 #	POINT      	[83]	- $EEB6
-#	PAINT      	[209]	- $6EDA
-#	PEN      	[88]	- $6C4A
+#	PAINT      	[209]	- $6EDA  (**)
+#	PEN      	[88]	- $6C4A  (**)
 #	RETURN      	[142]	- $0C41
 #	READ      	[135]	- $10F9
 #	RUN      	[138]	- $0B7C
@@ -324,7 +324,7 @@ ULERR 	= $0C3C   ; entry for '?UL ERROR'
 #	TO      	[220]
 #	TAN      	[13]	- $302C
 #	TERM      	[210]	- $7367
-#	TIME$      	[92]	- $6CA4
+#	TIME$      	[92]	- $6CA4 (*)
 #	USING      	[231]
 #	USR      	[224]
 #	VAL      	[20]	- $57B4
