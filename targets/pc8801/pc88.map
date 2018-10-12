@@ -173,7 +173,7 @@ ULERR 	= $0C3C   ; entry for '?UL ERROR'
 #	BLOAD      	[212]	- $EEBF
 #	BEEP      	[215]	- $3EB4
 #	CONSOLE      	[157]	- $7071
-#	COPY      	[205]	- $6EA6
+#	COPY      	[205]	- $6EA6		(**)
 #	CLOSE      	[192]	- $4B04
 #	CONT      	[153]	- $5140
 #	CLEAR      	[146]	- $522E
@@ -190,10 +190,10 @@ ULERR 	= $0C3C   ; entry for '?UL ERROR'
 #	COMMON      	[182]	- $EEC5
 #	CHAIN      	[183]	- $EE7A
 #	COM      	[90]	- $6C89 (*)
-#	CIRCLE      	[204]	- $6ECE
-#	COLOR      	[203]	- $6EC6
+#	CIRCLE      	[204]	- $6ECE (**)
+#	COLOR      	[203]	- $6EC6 (**)
 #	CLS      	[206]	- $71B5
-#	CMD      	[100]	- $6D97
+#	CMD      	[100]	- $6D97 (*)
 #	DELETE      	[167]	- $1B40
 #	DATA      	[132]	- $0C77
 #	DIM      	[134]	- $5AC5
@@ -205,7 +205,7 @@ ULERR 	= $0C3C   ; entry for '?UL ERROR'
 #	DEF      	[151]	- $15D7
 #	DSKI$      	[236]
 #	DSKF      	[80]	- $EEB3
-#	DATE$      	[89]	- $6C6F
+#	DATE$      	[89]	- $6C6F (*)
 #	ELSE      	[159]	- $0C79
 #	END      	[129]	- $50E5
 #	ERASE      	[163]	- $519C (*)
@@ -239,7 +239,7 @@ ULERR 	= $0C3C   ; entry for '?UL ERROR'
 #	INP      	[16]	- $17E5
 #	IMP      	[252]
 #	INKEY$      	[239]
-#	KEY      	[91]	- $6C9B
+#	KEY      	[91]	- $6C9B (*)
 #	KILL      	[197]	- $EE92
 #	KANJI      	[219]
 #	LOCATE      	[214]	- $714E
@@ -280,19 +280,19 @@ ULERR 	= $0C3C   ; entry for '?UL ERROR'
 #	PRINT      	[145]	- $0E54
 #	PUT      	[190]	- $71A6
 #	POKE      	[152]	- $1B84
-#	POLL      	[95]	- $6CDC
+#	POLL      	[95]	- $6CDC (*)
 #	POS      	[17]	- $1586
 #	PEEK      	[23]	- $1B7A
 #	PSET      	[207]	- $6E9A  (**)
 #	PRESET      	[208]	- $6E96  (**)
 #	POINT      	[83]	- $EEB6
 #	PAINT      	[209]	- $6EDA  (**)
-#	PEN      	[88]	- $6C4A  (**)
+#	PEN      	[88]	- $6C4A (*)
 #	RETURN      	[142]	- $0C41
 #	READ      	[135]	- $10F9
 #	RUN      	[138]	- $0B7C
 #	RESTORE      	[140]	- $50A5
-#	RBYTE      	[94]	- $6CCF
+#	RBYTE      	[94]	- $6CCF (*)
 #	REM      	[143]	- $0C79
 #	RESUME      	[166]	- $0D8D
 #	RSET      	[199]	- $49AA
@@ -300,9 +300,9 @@ ULERR 	= $0C3C   ; entry for '?UL ERROR'
 #	RND      	[8]	- $2F1A
 #	RENUM      	[169]	- $6F0E
 #	RANDOMIZE      	[185]	- $1CD1
-#	ROLL      	[216]	- $6ECA
-#	SCREEN      	[211]	- $6EDE
-#	SEARCH      	[86]	- $6BAF
+#	ROLL      	[216]	- $6ECA (**)
+#	SCREEN      	[211]	- $6EDE (**)
+#	SEARCH      	[86]	- $6BAF (*)
 #	STOP      	[144]	- $50CA
 #	SWAP      	[162]	- $515E
 #	SET      	[191]	- $EE8C
@@ -336,7 +336,7 @@ ULERR 	= $0C3C   ; entry for '?UL ERROR'
 #	WHILE      	[175]	- $EE80
 #	WEND      	[176]	- $EE83
 #	WRITE      	[181]	- $EE86
-#	WBYTE      	[93]	- $6CCE
+#	WBYTE      	[93]	- $6CCE (*)
 #	XOR      	[250]
 #	Z
 #	[+      	[243]
