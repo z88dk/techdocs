@@ -32,6 +32,7 @@ NOTE  -   to call machine code from BASIC:
 00000018:       PUSH AF
 00000019:       CALL ED42h
 0000001C:       JP 5925h
+
 0000001F:       NOP
 
 ; CPDEHL - compare DE and HL (aka DCOMPR)
@@ -619,27 +620,21 @@ NOTE  -   to call machine code from BASIC:
 0000030A:       EI
 0000030B:       JP 4DC1h		; 'Feature not available' error
 
-0000030E:       JR NZ,+45h
-00000310:       LD (HL),D
-00000311:       LD (HL),D
-00000312:       LD L,A
-00000313:       LD (HL),D
+0000030E:       DEFS " Error"
 00000314:       NOP
-00000315:       JR NZ,+69h
-00000317:       LD L,(HL)
-00000318:       JR NZ,+00h
-0000031A:       LD C,A
-0000031B:       LD L,E
-0000031C:       RST 38h
-0000031D:       DEC C
-0000031E:       LD A,(BC)
+
+00000315:       DEFS " in "
+00000318:       NOP
+
+0000031A:       DEFS "Ok"
+0000031C:       DEFB FFh
+0000031D:       DEFB 0Dh
+0000031E:       DEFB 0Ah
 0000031F:       NOP
-00000320:       LD B,D
-00000321:       LD (HL),D
-00000322:       LD H,L
-00000323:       LD H,C
-00000324:       LD L,E
+
+00000320:       "Break"
 00000325:       NOP
+
 00000326:       JP PE,08E7h
 00000329:       RET PE
 0000032A:       LD C,E8h
@@ -833,7 +828,7 @@ NOTE  -   to call machine code from BASIC:
 00000470:       LD A,H
 00000471:       AND L
 00000472:       INC A
-00000473:       CALL NZ,28BAh
+00000473:       CALL NZ,28BAh	; LNUM_MSG - Finalize (error) message by printing the current line number
 00000476:       LD A,FFh
 00000478:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
 00000479:       LD A,C1h
@@ -849,8 +844,8 @@ NOTE  -   to call machine code from BASIC:
 00000490:       CALL ED48h
 00000493:       CALL 0F8Bh			; FINPRT - finalize PRINT
 00000496:       CALL 5A58h
-00000499:       LD HL,031Ah
-0000049C:       CALL 5550h
+00000499:       LD HL,031Ah			; "Ok"
+0000049C:       CALL 5550h			; PRS - Print message pointed by HL
 0000049F:       LD A,(E649h)
 000004A2:       SUB 02h
 000004A4:       CALL Z,6568h
@@ -869,7 +864,7 @@ NOTE  -   to call machine code from BASIC:
 000004BF:       JR Z,+15h
 000004C1:       LD HL,(EB01h)		; AUTLIN - AUTO editor, number to begin with
 000004C4:       PUSH HL
-000004C5:       CALL 28C2h
+000004C5:       CALL 28C2h			; _PRNUM - PRINT number pointed by HL
 000004C8:       POP DE
 000004C9:       CALL 0605h			; FIRST_LNUM  -  Get first line number
 000004CC:       LD A,2Ah
@@ -1227,7 +1222,7 @@ NOTE  -   to call machine code from BASIC:
 00000718:       CP 28h		; '('
 0000071A:       JR Z,+18h
 0000071C:       LD A,(DE)
-0000071D:       CP E1h
+0000071D:       CP E1h		; TK_FN
 0000071F:       JR Z,+13h
 00000721:       CP E0h
 00000723:       JR Z,+0Fh
@@ -1587,6 +1582,7 @@ _FOR:
 0000098D:       PUSH AF
 0000098E:       PUSH AF
 0000098F:       JP 52BFh
+
 00000992:       LD B,82h
 00000994:       PUSH BC
 00000995:       INC SP
@@ -1629,7 +1625,7 @@ _FOR:
 000009D9:       PUSH DE
 000009DA:       LD A,5Bh
 000009DC:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
-000009DD:       CALL 28C2h
+000009DD:       CALL 28C2h			; _PRNUM - PRINT number pointed by HL
 000009E0:       LD A,5Dh
 000009E2:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
 000009E3:       POP DE
@@ -2525,11 +2521,11 @@ _LINE:
 00000FAF:       CALL EDD5h
 00000FB2:       RST 08h				; Check syntax, 1 byte follows to be compared
 00000FB3:       ADD L
-00000FB4:       CP 23h
+00000FB4:       CP 23h		;'#'
 00000FB6:       JP Z,4CC1h
 00000FB9:       CP 96h
 00000FBB:       CALL Z,4121h
-00000FBE:       CALL 603Ch
+00000FBE:       CALL 603Ch			; deal with semicolon, ';'
 00000FC1:       CALL 1040h
 00000FC4:       CALL 5ACAh			; GETVAR - get variable address to DE (AKA PTRGET)
 00000FC7:       CALL 2256h				; TSTSTR - Test a string, 'Type Error' if it is not
@@ -2581,7 +2577,7 @@ _LINE:
 0000100F:       JP NZ,038Dh
 00001012:       POP BC
 00001013:       LD HL,0FE4h
-00001016:       CALL 5550h
+00001016:       CALL 5550h			; PRS - Print message pointed by HL
 00001019:       LD HL,(EB05h)			; SAVTXT - prg pointer for resume
 0000101C:       CALL 44A4h			; bank switching pivot (write)
 0000101F:       RET
@@ -2594,11 +2590,11 @@ _LINE:
 
 _INPUT:
 0000102D:       CALL EDD8h
-00001030:       CP 23h
+00001030:       CP 23h		;'#'
 00001032:       JR Z,-14h
 00001034:       CP 96h
 00001036:       CALL Z,4121h
-00001039:       CALL 603Ch
+00001039:       CALL 603Ch			; deal with semicolon, ';'
 0000103C:       LD BC,1064h
 0000103F:       PUSH BC
 00001040:       CP 22h		; '"'
@@ -2991,7 +2987,7 @@ _READ:
 000012F4:       LD (EC3Dh),HL
 000012F7:       POP BC
 000012F8:       POP DE
-000012F9:       CALL 20DDh
+000012F9:       CALL 20DDh			; FPBCDE - Move BCDE to FPREG
 000012FC:       CALL 223Eh			; CDBL
 000012FF:       LD HL,00A0h
 00001302:       LD A,(EABEh)
@@ -3126,13 +3122,16 @@ _READ:
 000013D9:       CP E8h
 000013DB:       JP Z,57D7h			; 'INSTR'
 000013DE:       CP EFh
-000013E0:       JP Z,5AA3h
+000013E0:       JP Z,5AA3h			; 'INKEY$'
 000013E3:       CP E6h
-000013E5:       JP Z,5722h
+000013E5:       JP Z,5722h			; 'STRING$'
+
 000013E8:       CP 85h				; TK_INPUT - Token for INPUT
-000013EA:       JP Z,4BACh
-000013ED:       CP E1h
-000013EF:       JP Z,1600h
+000013EA:       JP Z,4BACh			; 'INPUT'
+
+000013ED:       CP E1h				; TK_FN
+000013EF:       JP Z,1600h			; 'FN'
+
 000013F2:       CALL 11D1h
 000013F5:       RST 08h				; Check syntax, 1 byte follows to be compared
 000013F6:       DEFB ')'
@@ -3419,7 +3418,7 @@ _POS:
 0000158B:       LD H,A
 0000158C:       JP 21FDh				; INT_RESULT_HL
 
-; 'USR'
+_USR:
 0000158F:       CALL 15AEh
 00001592:       PUSH DE
 00001593:       CALL 13F2h
@@ -3491,6 +3490,8 @@ _DEF:
 000015FC:       RST 08h				; Check syntax, 1 byte follows to be compared
 000015FD:       DEFB ','
 000015FE:       JR -0Dh
+
+_FN:
 00001600:       CALL 17BDh
 00001603:       LD A,(EABDh)		; VALTYP - type indicator
 00001606:       OR A
@@ -3793,7 +3794,7 @@ _WAIT:
 00001819:       RET
 
 _WIDTH:
-0000181A:       CP 23h
+0000181A:       CP 23h		;'#'
 0000181C:       JR Z,+29h
 0000181E:       CP 9Bh
 00001820:       JR Z,+44h
@@ -3949,7 +3950,7 @@ _LIST:
 00001914:       PUSH BC
 00001915:       EX DE,HL
 00001916:       LD (E6ABh),HL
-00001919:       CALL 28C2h
+00001919:       CALL 28C2h			; _PRNUM - PRINT number pointed by HL
 0000191C:       POP HL
 0000191D:       LD A,(HL)
 0000191E:       CP 09h
@@ -4147,7 +4148,7 @@ _LIST:
 00001A61:       EX DE,HL
 00001A62:       CP E0h
 00001A64:       JR Z,+02h
-00001A66:       CP E1h
+00001A66:       CP E1h		; TK_FN
 00001A68:       LD A,C
 00001A69:       POP DE
 00001A6A:       POP BC
@@ -4293,8 +4294,8 @@ _DELETE:
 00001B59:       PUSH HL
 00001B5A:       RST 20h			; CPDEHL - compare DE and HL (aka DCOMPR)
 00001B5B:       JP NC,0B06h			; FCERR, Err $05 - "Illegal function call"
-00001B5E:       LD HL,031Ah
-00001B61:       CALL 5550h
+00001B5E:       LD HL,031Ah			; "Ok"
+00001B61:       CALL 5550h			; PRS - Print message pointed by HL
 00001B64:       POP BC
 00001B65:       LD HL,05A1h
 00001B68:       EX HL,(SP)
@@ -4409,19 +4410,20 @@ _POKE:
 00001C1C:       CALL 5A58h
 00001C1F:       LD HL,1C39h
 00001C22:       PUSH DE
-00001C23:       CALL 5550h
+00001C23:       CALL 5550h			; PRS - Print message pointed by HL
 00001C26:       POP HL
-00001C27:       CALL 28C2h
+00001C27:       CALL 28C2h			; _PRNUM - PRINT number pointed by HL
 00001C2A:       POP BC
 00001C2B:       POP HL
 00001C2C:       PUSH HL
 00001C2D:       PUSH BC
-00001C2E:       CALL 28BAh
+00001C2E:       CALL 28BAh	; LNUM_MSG - Finalize (error) message by printing the current line number
 00001C31:       POP HL
 00001C32:       CALL 44A4h			; bank switching pivot (write)
 00001C35:       POP DE
 00001C36:       DEC HL
 00001C37:       JR -64h
+
 00001C39:       LD D,L
 00001C3A:       LD L,(HL)
 00001C3B:       LD H,H
@@ -4529,8 +4531,8 @@ _RANDOMIZE:
 00001CD7:       CALL 21A0h			; CINT
 00001CDA:       JR +1Bh
 00001CDC:       PUSH HL
-00001CDD:       LD HL,1CFFh
-00001CE0:       CALL 5550h
+00001CDD:       LD HL,1CFFh			; "Random number seed.." message
+00001CE0:       CALL 5550h			; PRS - Print message pointed by HL
 00001CE3:       CALL 5FC2h
 00001CE6:       POP DE
 00001CE7:       JP C,50F8h
@@ -4547,34 +4549,9 @@ _RANDOMIZE:
 00001CFD:       POP HL
 00001CFE:       RET
 
-00001CFF:       LD D,D
-00001D00:       LD H,C
-00001D01:       LD L,(HL)
-00001D02:       LD H,H
-00001D03:       LD L,A
-00001D04:       LD L,L
-00001D05:       JR NZ,+6Eh
-00001D07:       LD (HL),L
-00001D08:       LD L,L
-00001D09:       LD H,D
-00001D0A:       LD H,L
-00001D0B:       LD (HL),D
-00001D0C:       JR NZ,+73h
-00001D0E:       LD H,L
-00001D0F:       LD H,L
-00001D10:       LD H,H
-00001D11:       JR NZ,+28h
-00001D13:       DEC L
-00001D14:       INC SP
-00001D15:       LD (3637h),A
-00001D18:       JR C,+20h
-00001D1A:       LD (HL),H
-00001D1B:       LD L,A
-00001D1C:       JR NZ,+33h
-00001D1E:       LD (3637h),A
-00001D21:       SCF
-00001D22:       ADD HL,HL
+00001CFF:		DEFS "Random number seed (-32768 to 32767)
 00001D23:       NOP
+
 00001D24:       LD C,1Eh
 00001D26:       JR +02h
 00001D28:       LD C,1Ah
@@ -4700,7 +4677,7 @@ _RANDOMIZE:
 00001DEB:       RET Z
 00001DEC:       LD A,(EC44h)		; FPEXP - Floating Point Exponent
 00001DEF:       OR A
-00001DF0:       JP Z,20DDh
+00001DF0:       JP Z,20DDh			; FPBCDE - Move BCDE to FPREG
 00001DF3:       SUB B
 00001DF4:       CALL EDB4h
 00001DF7:       JR NC,+0Ch
@@ -4709,7 +4686,7 @@ _RANDOMIZE:
 00001DFB:       EX DE,HL
 00001DFC:       CALL 20CDh			; STAKFP - Put FP value on stack
 00001DFF:       EX DE,HL
-00001E00:       CALL 20DDh
+00001E00:       CALL 20DDh			; FPBCDE - Move BCDE to FPREG
 00001E03:       POP BC
 00001E04:       POP DE
 00001E05:       CP 19h
@@ -4806,7 +4783,8 @@ _RANDOMIZE:
 00001E87:       AND 80h
 00001E89:       XOR C
 00001E8A:       LD C,A
-00001E8B:       JP 20DDh
+00001E8B:       JP 20DDh			; FPBCDE - Move BCDE to FPREG
+
 00001E8E:       INC E
 00001E8F:       RET NZ
 00001E90:       INC D
@@ -4941,7 +4919,7 @@ _RANDOMIZE:
 00001F34:       POP HL
 00001F35:       CALL 20CDh			; STAKFP - Put FP value on stack
 00001F38:       EX DE,HL
-00001F39:       CALL 20DDh
+00001F39:       CALL 20DDh			; FPBCDE - Move BCDE to FPREG
 00001F3C:       LD HL,1EFFh
 00001F3F:       CALL 2EE7h
 00001F42:       POP BC
@@ -5225,7 +5203,8 @@ _SGN:
 
 ; PHLTFP - Number at HL to BCDE
 000020DA:       CALL 20EBh				; LOADFP - Load FP value pointed by HL to BCDE
-000020DD:       EX DE,HL
+; FPBCDE - Move BCDE to FPREG
+000020DD:       EX DE,HL			; FPBCDE - Move BCDE to FPREG
 000020DE:       LD (EC41h),HL			; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 000020E1:       LD H,B
 000020E2:       LD L,C
@@ -5238,6 +5217,7 @@ _SGN:
 ; LOADFP - Load FP value pointed by HL to BCDE
 000020EB:       LD E,(HL)
 000020EC:       INC HL
+; LOADFP_0
 000020ED:       LD D,(HL)
 000020EE:       INC HL
 000020EF:       LD C,(HL)
@@ -5249,6 +5229,7 @@ _SGN:
 
 ; DEC_FACCU2HL - copy number value from FPREG (FP accumulator) to HL
 000020F4:       LD DE,EC41h				; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+; DEC_DE2HL -  copy 4 byte FP number from DE to HL
 000020F7:       LD B,04h
 000020F9:       JR +05h
 000020FB:       EX DE,HL
@@ -6233,7 +6214,7 @@ _INT:
 00002710:       LD A,(HL)
 00002711:       CP 25h
 00002713:       JR Z,+4Ah
-00002715:       CP 23h
+00002715:       CP 23h		;'#'
 00002717:       JR Z,+54h
 00002719:       CP 21h
 0000271B:       JR Z,+51h
@@ -6469,12 +6450,12 @@ _INT:
 0000287E:       LD DE,28B2h
 00002881:       JR NC,+03h
 00002883:       LD DE,28B6h
-00002886:       CALL 20F7h
+00002886:       CALL 20F7h			; DEC_DE2HL -  copy 4 byte FP number from DE to HL
 00002889:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
 0000288A:       JR C,+09h
 0000288C:       LD HL,EC3Dh
 0000288F:       LD DE,28B6h
-00002892:       CALL 20F7h
+00002892:       CALL 20F7h			; DEC_DE2HL -  copy 4 byte FP number from DE to HL
 00002895:       LD HL,(EB0Dh)
 00002898:       LD A,H
 00002899:       OR L
@@ -6500,11 +6481,14 @@ _INT:
 000028B7:       RST 38h
 000028B8:       RST 38h
 000028B9:       RST 38h
+
+; LNUM_MSG - Finalize (error) message by printing the current line number
 000028BA:       PUSH HL
-000028BB:       LD HL,0315h
-000028BE:       CALL 5550h
+000028BB:       LD HL,0315h			; " in "
+000028BE:       CALL 5550h			; PRS - Print message pointed by HL
 000028C1:       POP HL
-000028C2:       LD BC,554Fh
+; _PRNUM - PRINT number pointed by HL
+000028C2:       LD BC,554Fh			; PRNUMS
 000028C5:       PUSH BC
 000028C6:       CALL 21FDh				; INT_RESULT_HL
 000028C9:       XOR A
@@ -6687,7 +6671,7 @@ _INT:
 000029E9:       EX DE,HL
 000029EA:       POP BC
 000029EB:       POP DE
-000029EC:       CALL 20DDh
+000029EC:       CALL 20DDh			; FPBCDE - Move BCDE to FPREG
 000029EF:       INC HL
 000029F0:       CP 05h
 000029F2:       PUSH HL
@@ -7130,7 +7114,7 @@ _INT:
 00002CC5:       CALL 1DDBh
 00002CC8:       LD A,01h
 00002CCA:       CALL 225Bh			; FPINT - Floating Point to Integer
-00002CCD:       CALL 20DDh
+00002CCD:       CALL 20DDh			; FPBCDE - Move BCDE to FPREG
 00002CD0:       POP HL
 00002CD1:       POP BC
 00002CD2:       XOR A
@@ -7161,7 +7145,7 @@ _INT:
 00002CF2:       JR NC,-10h
 00002CF4:       CALL 1E9Bh			; PLUCDE - Add number pointed by HL to CDE
 00002CF7:       INC HL
-00002CF8:       CALL 20DDh
+00002CF8:       CALL 20DDh			; FPBCDE - Move BCDE to FPREG
 00002CFB:       EX DE,HL
 00002CFC:       POP HL
 00002CFD:       LD (HL),B
@@ -7468,7 +7452,8 @@ _SQR:
 00002EAF:       JP 2833h
 00002EB2:       LD BC,8100h
 00002EB5:       LD DE,0000h
-00002EB8:       JP 20DDh
+00002EB8:       JP 20DDh			; FPBCDE - Move BCDE to FPREG
+
 00002EBB:       RLCA
 00002EBC:       LD A,H
 00002EBD:       ADC B
@@ -7691,15 +7676,15 @@ _SIN:
 0000302A:       LD C,C
 0000302B:       ADD E
 
-; TAN
+; TAN:
 0000302C:       CALL 20CDh			; STAKFP - Put FP value on stack
 0000302F:       CALL 2F91h			; _SIN
 00003032:       POP BC
 00003033:       POP HL
 00003034:       CALL 20CDh			; STAKFP - Put FP value on stack
 00003037:       EX DE,HL
-00003038:       CALL 20DDh
-0000303B:       CALL 2F8Bh
+00003038:       CALL 20DDh			; FPBCDE - Move BCDE to FPREG
+0000303B:       CALL 2F8Bh			; COS
 0000303E:       JP 1FB5h			; DIV - Divide FP by number on stack
 
 00003041:       DEC L
@@ -8502,7 +8487,7 @@ _SIN:
 00003599:       DI
 0000359A:       XOR A
 0000359B:       LD (E6CAh),A
-0000359E:       CALL 45F8h
+0000359E:       CALL 45F8h		; check keyboard input
 000035A1:       EI
 000035A2:       JR Z,-11h
 000035A4:       POP BC
@@ -8534,15 +8519,18 @@ _SIN:
 000035CA:       CP 03h
 000035CC:       CCF
 000035CD:       RET
+
+; CHGET - Get key from keyboard buffer.
 000035CE:       PUSH HL
 000035CF:       PUSH DE
 000035D0:       PUSH BC
 000035D1:       XOR A
-000035D2:       CALL 45F8h
+000035D2:       CALL 45F8h		; check keyboard input
 000035D5:       POP BC
 000035D6:       POP DE
 000035D7:       POP HL
 000035D8:       RET
+
 000035D9:       LD DE,EFD9h
 000035DC:       LD B,1Fh
 000035DE:       XOR A
@@ -9502,7 +9490,7 @@ _SIN:
 00003BB0:       LD (EC3Dh),HL
 00003BB3:       POP BC
 00003BB4:       POP DE
-00003BB5:       CALL 20DDh
+00003BB5:       CALL 20DDh			; FPBCDE - Move BCDE to FPREG
 
 00003BB8:       CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
 				DEFW 64D9h
@@ -9660,7 +9648,7 @@ _SIN:
 00003C86:       LD HL,79BEh
 00003C89:       JR +03h
 00003C8B:       LD HL,79D9h
-00003C8E:       CALL 5550h
+00003C8E:       CALL 5550h			; PRS - Print message pointed by HL
 00003C91:       RET
 
 00003C92:       NOP
@@ -11250,6 +11238,8 @@ EXEC_ROM0_RET:
 000045F5:       POP HL
 000045F6:       LD (HL),C
 000045F7:       RET
+
+; check keyboard input
 000045F8:       CALL 4676h
 000045FB:       LD (HL),00h
 000045FD:       RET NZ
@@ -11280,6 +11270,7 @@ EXEC_ROM0_RET:
 00004617:       INC A
 00004618:       LD A,00h
 0000461A:       RET
+
 0000461B:       CALL 4676h
 0000461E:       LD A,B
 0000461F:       CP C
@@ -11327,6 +11318,7 @@ EXEC_ROM0_RET:
 00004652:       INC HL
 00004653:       LD (HL),E
 00004654:       RET
+
 00004655:       CALL 4676h
 00004658:       SUB 01h
 0000465A:       SBC A
@@ -11341,6 +11333,7 @@ EXEC_ROM0_RET:
 00004664:       LD D,H
 00004665:       ADD HL,DE
 00004666:       RET
+
 00004667:       CALL 4676h
 0000466A:       LD A,B
 0000466B:       INC A
@@ -11353,6 +11346,7 @@ EXEC_ROM0_RET:
 00004672:       LD L,A
 00004673:       LD H,00h
 00004675:       RET
+
 00004676:       CALL 4680h
 00004679:       LD B,(HL)
 0000467A:       INC HL
@@ -11361,6 +11355,7 @@ EXEC_ROM0_RET:
 0000467D:       LD A,(HL)
 0000467E:       OR A
 0000467F:       RET
+
 00004680:       RLCA
 00004681:       LD B,A
 00004682:       RLCA
@@ -11478,7 +11473,7 @@ EXEC_ROM0_RET:
 00004728:       RET
 00004729:       DEC HL
 0000472A:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-0000472B:       CP 23h
+0000472B:       CP 23h		;'#'
 0000472D:       CALL Z,0A0Dh			; _CHRGTB - Pick next char from program
 00004730:       CALL 18A3h			; GETINT
 00004733:       EX HL,(SP)
@@ -11611,7 +11606,7 @@ _OPEN:
 000047E3:       DEFB 'S'
 000047E4:       PUSH DE
 000047E5:       LD A,(HL)
-000047E6:       CP 23h				; '#'
+000047E6:       CP 23h		;'#'				; '#'
 000047E8:       CALL Z,0A0Dh		; _CHRGTB - Pick next char from program
 000047EB:       CALL 18A3h			; GETINT
 000047EE:       OR A
@@ -11984,7 +11979,7 @@ _RSET:
 00004A4A:       JR NZ,+09h
 00004A4C:       PUSH BC
 00004A4D:       LD A,B
-00004A4E:       CALL 54EEh
+00004A4E:       CALL 54EEh			; MKTMST - Make temporary string
 00004A51:       CALL 552Ch			; TSTOPL - Temporary string to pool
 00004A54:       POP BC
 00004A55:       EX HL,(SP)
@@ -11996,7 +11991,7 @@ _RSET:
 _FIELD:
 00004A5C:       DEC HL
 00004A5D:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-00004A5E:       CP 23h
+00004A5E:       CP 23h		;'#'
 00004A60:       CALL Z,0A0Dh			; _CHRGTB - Pick next char from program
 00004A63:       CALL 18A3h			; GETINT
 00004A66:       PUSH HL
@@ -12049,7 +12044,7 @@ _MKI$:
 00004AA9:       PUSH AF
 00004AAA:       CALL 1796h
 00004AAD:       POP AF
-00004AAE:       CALL 54EEh
+00004AAE:       CALL 54EEh			; MKTMST - Make temporary string
 00004AB1:       LD HL,(EAEFh)
 00004AB4:       CALL 2127h
 00004AB7:       JP 571Eh				; TOPOOL - Save in string pool
@@ -12095,7 +12090,7 @@ _MKI$:
 00004AF1:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00004AF2:       PUSH BC
 00004AF3:       LD A,(HL)
-00004AF4:       CP 23h
+00004AF4:       CP 23h		;'#'
 00004AF6:       CALL Z,0A0Dh			; _CHRGTB - Pick next char from program
 00004AF9:       CALL 18A3h			; GETINT
 00004AFC:       EX HL,(SP)
@@ -12203,6 +12198,8 @@ _CLOSE:
 
 00004BA9:       POP AF
 00004BAA:       JR -2Eh
+
+_INPUT function (different than INPUT command):
 00004BAC:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00004BAD:       RST 08h				; Check syntax, 1 byte follows to be compared
 00004BAE:       DEFB '#'
@@ -12237,7 +12234,7 @@ _CLOSE:
 00004BDD:       OR A
 00004BDE:       JP Z,0B06h			; FCERR, Err $05 - "Illegal function call"
 00004BE1:       PUSH HL
-00004BE2:       CALL 54EEh
+00004BE2:       CALL 54EEh			; MKTMST - Make temporary string
 00004BE5:       EX DE,HL
 00004BE6:       POP BC
 00004BE7:       POP AF
@@ -12324,7 +12321,7 @@ _FPOS:
 00004C77:       CALL 481Dh
 00004C7A:       JP 4DA6h			; 'Direct statement in file' error
 
-00004C7D:       CP 23h
+00004C7D:       CP 23h		;'#'
 00004C7F:       RET NZ
 00004C80:       CALL 18A2h				; FNDNUM - Load 'A' with the next number in BASIC program
 00004C83:       RST 08h				; Check syntax, 1 byte follows to be compared
@@ -12764,7 +12761,7 @@ _FPOS:
 00004F59:       DJNZ -05h
 00004F5B:       LD DE,2F07h
 00004F5E:       LD HL,E631h
-00004F61:       CALL 20F7h
+00004F61:       CALL 20F7h			; DEC_DE2HL -  copy 4 byte FP number from DE to HL
 00004F64:       LD HL,E60Eh
 00004F67:       XOR A
 00004F68:       LD (HL),A
@@ -13025,9 +13022,10 @@ _END:
 00005119:       CALL 5989h
 0000511C:       CALL 5A58h
 0000511F:       POP AF
-00005120:       LD HL,0320h
+00005120:       LD HL,0320h			; "Break"
 00005123:       JP NZ,045Fh
 00005126:       JP 047Ah
+
 00005129:       LD A,0Fh
 0000512B:       PUSH AF
 0000512C:       SUB 03h
@@ -13388,6 +13386,7 @@ _NEXT:
 0000536B:       JP NZ,0996h			; NEW_STMT
 0000536E:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 0000536F:       CALL 52C7h
+
 00005372:       CALL ED99h
 00005375:       PUSH HL
 00005376:       LD HL,(EC88h)		; PTRFIL
@@ -13639,15 +13638,18 @@ _STR$:
 000054DF:       LD C,(HL)
 000054E0:       INC HL
 000054E1:       LD B,(HL)
-000054E2:       CALL 54F1h
+000054E2:       CALL 54F1h			; CRTMST - Create string entry
 000054E5:       PUSH HL
 000054E6:       LD L,A
 000054E7:       CALL 56C0h			; TOSTRA - Move string in BC, (len in L) to string area
 000054EA:       POP DE
 000054EB:       RET
 
+; MK_1BYTE_TMST - make 1 byte long temporary string
 000054EC:       LD A,01h
+; MKTMST - Make temporary string
 000054EE:       CALL 5572h			; TESTR - Test if enough room for string
+; CRTMST - Create string entry
 000054F1:       LD HL,EAEEh			; TMPSTR - Temporary string
 000054F4:       PUSH HL
 000054F5:       LD (HL),A
@@ -13693,7 +13695,7 @@ _STR$:
 00005526:       INC HL
 00005527:       EX DE,HL
 00005528:       LD A,C
-00005529:       CALL 54F1h
+00005529:       CALL 54F1h			; CRTMST - Create string entry
 
 ; TSTOPL - Temporary string to pool
 0000552C:       LD DE,EAEEh			; TMPSTR - Temporary string
@@ -13713,6 +13715,8 @@ _STR$:
 0000554C:       JP 03B3h				; ERROR, code in E
 
 0000554F:       INC HL
+
+; PRS - Print message pointed by HL
 00005550:       CALL 54FCh			; CRTST - Create String
 00005553:       CALL 56CCh			; GSTRCU - Get string pointed by FPREG
 00005556:       INA (71h)			; get bank status
@@ -13721,7 +13725,7 @@ _STR$:
 0000555A:       NOP
 0000555B:       NOP
 0000555C:       NOP
-0000555D:       CALL 20EDh
+0000555D:       CALL 20EDh			; LOADFP_0
 00005560:       INC D
 00005561:       DEC D
 00005562:       JR Z,+0Ah
@@ -13926,7 +13930,7 @@ _STR$:
 00005693:       ADD (HL)
 00005694:       LD DE,000Fh
 00005697:       JP C,03B3h				; ERROR, code in E
-0000569A:       CALL 54EEh
+0000569A:       CALL 54EEh			; MKTMST - Make temporary string
 0000569D:       POP DE
 0000569E:       CALL 56D0h				; GSTRDE - Get string pointed by DE
 000056A1:       EX HL,(SP)
@@ -14020,8 +14024,9 @@ _ASC:
 00005713:       RET
 
 _CHR$:
-00005714:       CALL 54ECh
+00005714:       CALL 54ECh		; MK_1BYTE_TMST - make 1 byte long temporary string
 00005717:       CALL 18A6h				; MAKINT
+; _CHR$_0:
 0000571A:       LD HL,(EAEFh)
 0000571D:       LD (HL),E
 
@@ -14029,6 +14034,7 @@ _CHR$:
 0000571E:       POP BC
 0000571F:       JP 552Ch				; TSTOPL - Temporary string to pool
 
+_STRING$:
 00005722:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00005723:       RST 08h				; Check syntax, 1 byte follows to be compared
 00005724:       JR Z,-33h
@@ -14054,7 +14060,7 @@ _SPACE$:
 00005744:       LD A,20h
 00005746:       PUSH AF
 00005747:       LD A,E
-00005748:       CALL 54EEh
+00005748:       CALL 54EEh			; MKTMST - Make temporary string
 0000574B:       LD B,A
 0000574C:       POP AF
 0000574D:       INC B
@@ -14092,7 +14098,7 @@ _LEFT$:
 00005779:       ADD HL,BC
 0000577A:       LD B,H
 0000577B:       LD C,L
-0000577C:       CALL 54F1h
+0000577C:       CALL 54F1h			; CRTMST - Create string entry
 0000577F:       LD L,A
 00005780:       CALL 56C0h			; TOSTRA - Move string in BC, (len in L) to string area
 00005783:       POP DE
@@ -14167,7 +14173,7 @@ _VAL:
 000057D5:       LD B,E
 000057D6:       RET
 
-; 'INSTR'
+_INSTR:
 000057D7:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 000057D8:       CALL 11D1h
 000057DB:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
@@ -14555,7 +14561,7 @@ _FRE:
 00005A33:       PUSH BC
 00005A34:       PUSH DE
 00005A35:       LD HL,031Ah
-00005A38:       CALL 5550h
+00005A38:       CALL 5550h			; PRS - Print message pointed by HL
 00005A3B:       POP DE
 00005A3C:       POP BC
 00005A3D:       LD A,0Dh
@@ -14594,6 +14600,7 @@ _FRE:
 00005A75:       JR Z,+02h
 00005A77:       XOR A
 00005A78:       RET
+
 00005A79:       LD A,(E64Ch)		; PRTFLG ("printer enabled" flag)
 00005A7C:       OR A
 00005A7D:       JR Z,-08h
@@ -14618,18 +14625,20 @@ _FRE:
 00005A9D:       CALL Z,512Bh
 00005AA0:       JP 50CDh
 
+_INKEY$:
 00005AA3:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00005AA4:       PUSH HL
-00005AA5:       CALL 35CEh
-00005AA8:       JR Z,+09h
+00005AA5:       CALL 35CEh		; CHGET - Get key from keyboard buffer.
+00005AA8:       JR Z,+09h		; _NO_KEY_FOUND
 00005AAA:       PUSH AF
-00005AAB:       CALL 54ECh
+00005AAB:       CALL 54ECh		; MK_1BYTE_TMST - make 1 byte long temporary string
 00005AAE:       POP AF
 00005AAF:       LD E,A
-00005AB0:       CALL 571Ah
-00005AB3:       LD HL,0319h
+00005AB0:       CALL 571Ah		; _CHR$_0:
+; _NO_KEY_FOUND
+00005AB3:       LD HL,0319h			; NULL value, internal constant
 00005AB6:       LD (EC41h),HL			; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
-00005AB9:       LD A,03h
+00005AB9:       LD A,03h			; string type
 00005ABB:       LD (EABDh),A		; VALTYP - type indicator
 00005ABE:       POP HL
 00005ABF:       RET
@@ -14701,7 +14710,7 @@ _DIM:
 00005B2E:       CP 21h
 00005B30:       RET Z
 00005B31:       LD D,08h
-00005B33:       CP 23h
+00005B33:       CP 23h		;'#'
 00005B35:       RET Z
 00005B36:       POP AF
 00005B37:       LD A,C
@@ -14860,7 +14869,7 @@ _DIM:
 00005C2A:       LD (EC41h),HL			; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 00005C2D:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
 00005C2E:       JR NZ,+06h
-00005C30:       LD HL,0319h
+00005C30:       LD HL,0319h			; NULL value, internal constant
 00005C33:       LD (EC41h),HL			; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 00005C36:       POP HL
 00005C37:       RET
@@ -15494,9 +15503,11 @@ _DIM:
 00006038:       LD HL,E9B8h
 0000603B:       RET
 
+; deal with semicolon
 0000603C:       CP 3Bh		; ';'
 0000603E:       RET NZ
 0000603F:       JP 0A0Dh			; _CHRGTB - Pick next char from program
+
 00006042:       DEC HL
 00006043:       INC HL
 00006044:       DEC C
@@ -16306,7 +16317,7 @@ _EDIT:
 000065AF:       PUSH HL
 000065B0:       CALL 5A69h	; OUTDO_CRLF
 000065B3:       EX DE,HL
-000065B4:       CALL 28C2h
+000065B4:       CALL 28C2h			; _PRNUM - PRINT number pointed by HL
 000065B7:       POP HL
 000065B8:       LD A,(HL)
 000065B9:       CP 09h
@@ -16430,7 +16441,7 @@ __USING:
 0000668E:       INC HL
 0000668F:       CP 21h
 00006691:       JP Z,67ABh
-00006694:       CP 23h
+00006694:       CP 23h		;'#'
 00006696:       JR Z,+41h
 00006698:       CP 40h
 0000669A:       JP Z,67A7h
@@ -16478,7 +16489,7 @@ __USING:
 000066E0:       INC HL
 000066E1:       CP 2Eh
 000066E3:       JR Z,+19h
-000066E5:       CP 23h
+000066E5:       CP 23h		;'#'
 000066E7:       JR Z,-10h
 000066E9:       CP 2Ch		; ','
 000066EB:       JR NZ,+1Bh
@@ -16487,7 +16498,7 @@ __USING:
 000066F0:       LD D,A
 000066F1:       JR -1Ah
 000066F3:       LD A,(HL)
-000066F4:       CP 23h
+000066F4:       CP 23h		;'#'
 000066F6:       LD A,2Eh
 000066F8:       JP NZ,6682h
 000066FB:       LD C,01h
@@ -16497,7 +16508,7 @@ __USING:
 00006700:       JR Z,+25h
 00006702:       LD A,(HL)
 00006703:       INC HL
-00006704:       CP 23h
+00006704:       CP 23h		;'#'
 00006706:       JR Z,-0Ah
 00006708:       PUSH DE
 00006709:       LD DE,6725h
@@ -16561,7 +16572,7 @@ __USING:
 00006758:       LD A,D
 00006759:       OR 80h
 0000675B:       CALL 28D1h
-0000675E:       CALL 5550h
+0000675E:       CALL 5550h			; PRS - Print message pointed by HL
 00006761:       POP HL
 00006762:       DEC HL
 00006763:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
@@ -16697,7 +16708,7 @@ __USING:
 0000684D:       JR NZ,+17h
 0000684F:       LD (EB18h),HL
 00006852:       LD HL,031Ah
-00006855:       CALL 5550h
+00006855:       CALL 5550h			; PRS - Print message pointed by HL
 00006858:       CALL 7F15h
 0000685B:       LD HL,(E658h)		; TXTTAB (aka BASTXT) - address of BASIC program start
 0000685E:       PUSH HL
@@ -16711,9 +16722,10 @@ __USING:
 0000686E:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
 0000686F:       JP C,6852h
 00006872:       LD HL,6891h
-00006875:       CALL 5550h
+00006875:       CALL 5550h			; PRS - Print message pointed by HL
 00006878:       CALL 7F15h
 0000687B:       JP 047Ah
+
 0000687E:       LD HL,68D0h
 00006881:       CALL 68D6h
 00006884:       LD B,0Ah
@@ -16770,7 +16782,7 @@ __USING:
 000068D3:       LD (HL),B
 000068D4:       LD A,(D500h)
 000068D7:       PUSH AF
-000068D8:       CALL 5550h
+000068D8:       CALL 5550h			; PRS - Print message pointed by HL
 000068DB:       LD HL,EC98h
 000068DE:       LD B,06h
 000068E0:       LD A,(HL)
@@ -17506,6 +17518,7 @@ _RENUM:
 00006F88:       CALL 1880h
 00006F8B:       POP AF
 00006F8C:       CP 29h		; ')'
+
 00006F8E:       DI
 00006F8F:       CALL 6FD1h
 00006F92:       EI
@@ -17519,6 +17532,7 @@ _RENUM:
 00006FA4:       CALL 5E49h
 00006FA7:       POP HL
 00006FA8:       RET
+
 00006FA9:       LD (E6B0h),HL
 00006FAC:       LD A,(EF88h)
 00006FAF:       LD C,A
@@ -18154,7 +18168,7 @@ _TERM:
 0000740C:       LD A,(EF71h)
 0000740F:       OR A
 00007410:       JP Z,73C2h
-00007413:       CALL 35CEh
+00007413:       CALL 35CEh		; CHGET - Get key from keyboard buffer.
 00007416:       LD B,A
 00007417:       JP Z,7463h
 0000741A:       LD A,(E6CAh)
@@ -18241,7 +18255,7 @@ _TERM:
 000074D4:       JP Z,7556h
 000074D7:       CP 22h		; '"'
 000074D9:       JR Z,+6Dh
-000074DB:       CP 23h
+000074DB:       CP 23h		;'#'
 000074DD:       JR Z,+70h
 000074DF:       CP 21h
 000074E1:       JR Z,+31h
@@ -18650,7 +18664,7 @@ _TERM:
 000077F0:       NOP
 
 000077F1:       LD HL,7999h
-000077F4:       CALL 5550h
+000077F4:       CALL 5550h			; PRS - Print message pointed by HL
 
 000077F7:       LD B,00h
 000077F9:       DJNZ -02h
@@ -18739,7 +18753,7 @@ _TERM:
 000078A5:       LD A,(EC7Dh)
 000078A8:       JR NZ,+25h
 000078AA:       LD HL,7984h
-000078AD:       CALL 5550h
+000078AD:       CALL 5550h			; PRS - Print message pointed by HL
 000078B0:       CALL 5FC2h
 000078B3:       JR C,-15h
 000078B5:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
@@ -18862,9 +18876,9 @@ _TERM:
 00007971:       DEC HL
 00007972:       DEC HL
 00007973:       DEC HL
-00007974:       CALL 28C2h
+00007974:       CALL 28C2h			; _PRNUM - PRINT number pointed by HL
 00007977:       LD HL,79B2h
-0000797A:       CALL 5550h
+0000797A:       CALL 5550h			; PRS - Print message pointed by HL
 0000797D:       CALL 5A69h	; OUTDO_CRLF
 00007980:       JP 4B1Ah
 
@@ -19375,7 +19389,7 @@ _TERM:
 00007C9F:       JR C,+2Ah
 00007CA1:       POP AF
 00007CA2:       PUSH AF
-00007CA3:       CALL 45F8h
+00007CA3:       CALL 45F8h		; check keyboard input
 00007CA6:       JR Z,-0Ch
 
 00007CA8:       POP BC
@@ -19787,7 +19801,7 @@ _TERM:
 00007F88:       PUSH DE
 00007F89:       PUSH BC
 00007F8A:       LD A,01h
-00007F8C:       CALL 45F8h
+00007F8C:       CALL 45F8h		; check keyboard input
 00007F8F:       JR NZ,+08h
 00007F91:       CALL 35C2h
 00007F94:       JP C,7FEDh
