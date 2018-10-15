@@ -56,7 +56,9 @@ NOTE  -   to call machine code from BASIC:
 00000033:       CP 08h
 00000035:       JP 1527h
 
+; KEYINT - interrupt handler
 00000038:       JP E669h
+
 0000003B:       NOP
 0000003C:       NOP
 0000003D:       NOP
@@ -84,7 +86,7 @@ NOTE  -   to call machine code from BASIC:
 00000059:       OUTA (71h)				; bank switching
 0000005B:       LD A,C
 0000005C:       POP BC
-0000005D:       JP 11E9h
+0000005D:       JP 11E9h			; EVAL3
 
 00000060:       CALL 05BDh
 00000063:       CALL 4F21h
@@ -694,34 +696,40 @@ NOTE  -   to call machine code from BASIC:
 0000036D:       JR -25h
 0000036F:       LD BC,047Ah
 00000372:       JP 03F3h
-00000375:       CALL ED45h
+
+; PRG_END
+00000375:       CALL ED45h				; ?HPRGE? - Hook for Program End event
 00000378:       LD HL,(E656h)			; CURLIN - line number being interpreted
 0000037B:       LD A,H
 0000037C:       AND L
 0000037D:       INC A
-0000037E:       JR Z,+08h
-00000380:       LD A,(EB0Fh)
+0000037E:       JR Z,+08h			; PRG_END_0
+00000380:       LD A,(EB0Fh)		; ONEFLG - flag for "ON ERROR"
 00000383:       OR A
 00000384:       LD E,13h
-00000386:       JR NZ,+2Bh
-00000388:       JP 50FBh
+00000386:       JR NZ,+2Bh			; "No RESUME" Error
+; PRG_END_0
+00000388:       JP 50FBh		; __END_1
+
 0000038B:       JR +26h
-0000038D:       LD HL,(EAF9h)
+
+; DATSNR:
+0000038D:       LD HL,(EAF9h)	; DATLIN
 00000390:       LD (E656h),HL			; CURLIN - line number being interpreted
 
 ; MS BASIC ERROR CODES
 ; SNERR - entry for '?SN ERROR'
 00000393:       LD E,02h
-00000395:       LD BC,1F1Eh
-00000398:       LD BC,201Eh
-0000039B:       LD BC,0B1Eh
-0000039E:       LD BC,011Eh
-000003A1:       LD BC,0A1Eh
-000003A4:       LD BC,121Eh
-000003A7:       LD BC,141Eh
-000003AA:       LD BC,061Eh
-000003AD:       LD BC,161Eh
-000003B0:       LD BC,0D1Eh
+00000395:       LD BC,1F1Eh		; 0396: - "Duplicate label" error
+00000398:       LD BC,201Eh		; 0398: - "Unprintable error" error
+0000039B:       LD BC,0B1Eh		; 039C: - "Division by zero" error
+0000039E:       LD BC,011Eh		; 039F: - "NEXT without FOR" error
+000003A1:       LD BC,0A1Eh		; 03A2: - "Duplicate definition" error
+000003A4:       LD BC,121Eh		; 03A4: - "Undefined user function" error
+000003A7:       LD BC,141Eh		; 03A8: - "RESUME without error on" error
+000003AA:       LD BC,061Eh		; 03AB: - "Overflow" error
+000003AD:       LD BC,161Eh		; 03AE: - "Missing operand" error
+000003B0:       LD BC,0D1Eh		; 03B1: - "Type mismatch" error
 ; -ERROR-
 000003B3:       LD A,FFh				; back to main ROM
 000003B5:       OUTA (71h)				; bank switching
@@ -772,7 +780,7 @@ NOTE  -   to call machine code from BASIC:
 00000418:       LD A,H
 00000419:       OR L
 0000041A:       EX DE,HL
-0000041B:       LD HL,EB0Fh
+0000041B:       LD HL,EB0Fh		; ONEFLG - flag for "ON ERROR"
 0000041E:       JR Z,+0Bh
 00000420:       AND (HL)
 00000421:       JR NZ,+08h
@@ -785,7 +793,7 @@ NOTE  -   to call machine code from BASIC:
 0000042C:       LD (HL),A
 0000042D:       LD E,C
 0000042E:       LD (E652h),A
-00000431:       CALL 5A58h
+00000431:       CALL 5A58h			; CONSOLE_CRLF
 00000434:       CALL ED66h
 
 ; Print error message, error code in E
@@ -807,7 +815,7 @@ NOTE  -   to call machine code from BASIC:
 0000044E:       JP 3AA6h
 
 00000451:       LD A,07h
-00000453:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
+00000453:       RST 20h		; (OUTDO??)  CPDEHL - compare DE and HL (aka DCOMPR)
 
 00000454:       CALL 39E4h		; jump to remote bank. follows address (word) and bank (byte)
 				DEFW 64B2h
@@ -834,7 +842,7 @@ NOTE  -   to call machine code from BASIC:
 00000479:       LD A,C1h
 0000047B:       LD A,FFh				; back to main ROM
 0000047D:       OUTA (71h)				; bank switching
-0000047F:       CALL 5989h
+0000047F:       CALL 5989h			; STOP_LPT -  Stop and reset line printer
 00000482:       XOR A
 00000483:       LD (E652h),A
 00000486:       LD A,(E69Fh)
@@ -843,7 +851,7 @@ NOTE  -   to call machine code from BASIC:
 0000048D:       CALL 4CABh
 00000490:       CALL ED48h
 00000493:       CALL 0F8Bh			; FINPRT - finalize PRINT
-00000496:       CALL 5A58h
+00000496:       CALL 5A58h			; CONSOLE_CRLF
 00000499:       LD HL,031Ah			; "Ok"
 0000049C:       CALL 5550h			; PRS - Print message pointed by HL
 0000049F:       LD A,(E649h)
@@ -867,17 +875,18 @@ NOTE  -   to call machine code from BASIC:
 000004C5:       CALL 28C2h			; _PRNUM - PRINT number pointed by HL
 000004C8:       POP DE
 000004C9:       CALL 0605h			; FIRST_LNUM  -  Get first line number
-000004CC:       LD A,2Ah
+000004CC:       LD A,2Ah	; '*'
 000004CE:       JR C,+02h
-000004D0:       LD A,20h
-000004D2:       RST 20h				; CPDEHL - compare DE and HL (aka DCOMPR)
+000004D0:       LD A,20h	; ' '
+000004D2:       RST 20h				; (OUTDO??)  CPDEHL - compare DE and HL (aka DCOMPR)
 000004D3:       LD (EB00h),A		; AUTFLG - enable flag for AUTO editor command
-000004D6:       CALL 5F92h
-000004D9:       JR NC,+07h
+000004D6:       CALL 5F92h		; PINLIN - Accepts a line from console until a CR or STOP
+000004D9:       JR NC,+07h		; INI_LIN
 000004DB:       XOR A
 000004DC:       LD (EB00h),A		; AUTFLG - enable flag for AUTO editor command
 000004DF:       JP 04A7h			; PROMPT
 
+; INI_LIN
 000004E2:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 000004E3:       INC A
 000004E4:       DEC A
@@ -1045,7 +1054,7 @@ NOTE  -   to call machine code from BASIC:
 000005F0:       CALL 0B0Bh					; LNUM_PARM - Read numeric function parameter
 000005F3:       PUSH DE
 000005F4:       JR Z,+0Bh
-000005F6:       RST 08h				; Check syntax, 1 byte follows to be compared
+000005F6:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000005F7:       CALL P,FA11h
 000005FA:       RST 38h
 000005FB:       CALL NZ,0B0Bh				; LNUM_PARM - Read numeric function parameter
@@ -1057,10 +1066,10 @@ NOTE  -   to call machine code from BASIC:
 
 ; FIRST_LNUM  -  Get first line number
 00000605:       LD HL,(E658h)		; TXTTAB (aka BASTXT) - address of BASIC program start
-00000608:       LD (EFB5h),HL
+00000608:       LD (EFB5h),HL		; 'remote bank read' result
 0000060B:       CALL 44A4h			; bank switching pivot (write)
 0000060E:       PUSH HL
-0000060F:       LD HL,(EFB5h)
+0000060F:       LD HL,(EFB5h)		; 'remote bank read' result
 00000612:       LD (EFB7h),HL
 00000615:       POP HL
 00000616:       CALL 44E3h
@@ -1086,9 +1095,10 @@ NOTE  -   to call machine code from BASIC:
 0000062E:       CCF
 0000062F:       RET NC
 00000630:       JR -24h
+
 00000632:       XOR A
-00000633:       LD (EABFh),A
-00000636:       LD (EABEh),A
+00000633:       LD (EABFh),A		; DONUM
+00000636:       LD (EABEh),A		; DORES - Indicates whether stored word can be crunched
 00000639:       CALL ED1Eh
 0000063C:       LD BC,013Bh
 0000063F:       LD DE,E87Ah
@@ -1115,7 +1125,7 @@ NOTE  -   to call machine code from BASIC:
 0000065B:       JP Z,068Eh
 0000065E:       CP 20h		; ' '
 00000660:       JR Z,+07h
-00000662:       LD A,(EABEh)
+00000662:       LD A,(EABEh)		; DORES - Indicates whether stored word can be crunched
 00000665:       OR A
 00000666:       LD A,(HL)
 00000667:       JR Z,+2Dh
@@ -1128,8 +1138,8 @@ NOTE  -   to call machine code from BASIC:
 00000673:       CP 4Ah
 00000675:       JR NZ,+08h
 00000677:       LD A,01h
-00000679:       LD (EABEh),A
-0000067C:       LD (EABFh),A
+00000679:       LD (EABEh),A		; DORES - Indicates whether stored word can be crunched
+0000067C:       LD (EABFh),A		; DONUM
 0000067F:       SUB 55h
 00000681:       JR NZ,-41h
 00000683:       PUSH AF
@@ -1151,13 +1161,13 @@ NOTE  -   to call machine code from BASIC:
 00000698:       JP M,0642h
 0000069B:       DEC HL
 0000069C:       CP 3Fh
-0000069E:       LD A,91h
+0000069E:       LD A,91h		; TK_PRINT - shortcut for PRINT command
 000006A0:       PUSH DE
 000006A1:       PUSH BC
-000006A2:       JP Z,075Eh
+000006A2:       JP Z,075Eh		; TOKEN_FOUND
 000006A5:       LD DE,6E81h
-000006A8:       CALL 1414h				; UCASE_HL - Get char from (HL) and make upper case
-000006AB:       CALL 5216h
+000006A8:       CALL 1414h			; UCASE_HL - Get char from (HL) and make upper case
+000006AB:       CALL 5216h			; IS_ALPHA_A - Check it is in the 'A'..'Z' range
 000006AE:       JP C,07ADh
 000006B1:       PUSH HL
 000006B2:       LD DE,06C9h
@@ -1183,7 +1193,7 @@ NOTE  -   to call machine code from BASIC:
 000006D4:       LD (EB1Bh),HL
 000006D7:       LD (EB1Dh),HL	; VAREND - End of variables
 000006DA:       LD (EB1Fh),HL	; ARREND - End of arrays
-000006DD:       JP Z,0396h
+000006DD:       JP Z,0396h			;  "Duplicate label" error
 000006E0:       JP 0393h			;  SNERR - entry for '?SN ERROR'
 
 000006E3:       LD HL,(EC43h)		; LAST_FPREG - Last byte in Single Precision FP Register (+sign bit)
@@ -1193,8 +1203,9 @@ NOTE  -   to call machine code from BASIC:
 000006EB:       POP HL
 000006EC:       CALL 1414h				; UCASE_HL - Get char from (HL) and make upper case
 000006EF:       PUSH HL
-000006F0:       CALL ED21h
-000006F3:       LD HL,6B56h
+000006F0:       CALL ED21h			; ?HCRUS? -	Hook 2 for Tokenise?
+
+000006F3:       LD HL,6B56h			; WORD_PTR
 000006F6:       SUB 41h
 000006F8:       ADD A
 000006F9:       LD C,A
@@ -1244,7 +1255,7 @@ NOTE  -   to call machine code from BASIC:
 00000742:       LD A,FFh
 00000744:       CALL 0861h
 00000747:       XOR A
-00000748:       LD (EABFh),A
+00000748:       LD (EABFh),A		; DONUM
 0000074B:       POP AF
 0000074C:       CALL 0861h
 0000074F:       JP 0642h
@@ -1257,8 +1268,9 @@ NOTE  -   to call machine code from BASIC:
 0000075A:       JP 0702h
 0000075D:       DEC HL
 0000075E:       PUSH AF
+TOKEN_FOUND:
 0000075F:       CALL ED57h
-00000762:       LD DE,0770h
+00000762:       LD DE,0770h		; LNUM_TOKENS
 00000765:       LD C,A
 00000766:       LD A,(DE)
 00000767:       OR A
@@ -1267,22 +1279,31 @@ NOTE  -   to call machine code from BASIC:
 0000076B:       CP C
 0000076C:       JR NZ,-08h
 0000076E:       JR +12h
-00000770:       ADC H
-00000771:       XOR B
-00000772:       XOR C
-00000773:       AND A
-00000774:       AND H
-00000775:       AND (HL)
-00000776:       CALL PO,8A9Fh
-00000779:       SUB E
-0000077A:       SBC H
-0000077B:       ADC C
-0000077C:       ADC (HL)
-0000077D:       ADC IXl
-0000077F:       NOP
+
+
+LNUM_TOKENS:
+00000770:    DEFB 8Ch	; TK_RESTORE
+00000771:    DEFB A8h	; TK_AUTO
+00000772:    DEFB A9h	; TK_RENUM
+00000773:    DEFB A7h	; TK_DELETE
+00000774:    DEFB A4h	; TK_EDIT
+00000775:    DEFB A6h	; TK_RESUME
+00000776:    DEFB E4h	; TK_ERL
+00000777:    DEFB 9Fh	; TK_ELSE
+00000778:    DEFB 8Ah	; TK_RUN
+00000779:    DEFB 93h	; TK_LIST
+0000077A:    DEFB 9Ch	; TK_LLIST
+0000077B:    DEFB 89h	; TK_GOTO
+0000077C:    DEFB 8Eh	; TK_RETURN
+0000077D:    DEFB DDh	; TK_THEN
+0000077E:    DEFB 8Dh	; TK_GOSUB
+0000077F:    DEFB $00
+
+
+
 00000780:       XOR A
 00000781:       JP NZ,013Eh
-00000784:       LD (EABFh),A
+00000784:       LD (EABFh),A		; DONUM
 00000787:       POP AF
 00000788:       POP BC
 00000789:       POP DE
@@ -1294,30 +1315,31 @@ NOTE  -   to call machine code from BASIC:
 00000793:       JR NZ,+05h
 00000795:       CALL 0861h
 00000798:       LD A,F3h
-0000079A:       CP E9h
+0000079A:       CP E9h		; TK_APOSTROPHE
 0000079C:       JP NZ,0840h
 0000079F:       PUSH AF
 000007A0:       CALL 085Fh
-000007A3:       LD A,8Fh
+000007A3:       LD A,8Fh	; TK_REM
 000007A5:       CALL 0861h
 000007A8:       POP AF
 000007A9:       PUSH AF
 000007AA:       JP 0690h
+
 000007AD:       LD A,(HL)
 000007AE:       CP 2Eh
-000007B0:       JR Z,+0Ah
-000007B2:       CP 3Ah		; ':'
+000007B0:       JR Z,+0Ah	; '.'
+000007B2:       CP 3Ah		; '9'+1
 000007B4:       JP NC,082Eh
-000007B7:       CP 30h
+000007B7:       CP 30h		; '0'
 000007B9:       JP C,082Eh
-000007BC:       LD A,(EABFh)
+000007BC:       LD A,(EABFh)		; DONUM
 000007BF:       OR A
 000007C0:       LD A,(HL)
 000007C1:       POP BC
 000007C2:       POP DE
 000007C3:       JP M,0669h
 000007C6:       JR Z,+1Fh
-000007C8:       CP 2Eh
+000007C8:       CP 2Eh		; '.'
 000007CA:       JP Z,0669h
 000007CD:       LD A,0Eh
 000007CF:       CALL 0861h
@@ -1336,13 +1358,13 @@ NOTE  -   to call machine code from BASIC:
 000007E7:       PUSH DE
 000007E8:       PUSH BC
 000007E9:       LD A,(HL)
-000007EA:       CALL 26BCh
+000007EA:       CALL 26BCh		; DBL_ASCTFP (a.k.a. FIN)
 000007ED:       CALL 08AFh
 000007F0:       POP BC
 000007F1:       POP DE
 000007F2:       PUSH HL
 000007F3:       LD A,(EABDh)		; VALTYP - type indicator
-000007F6:       CP 02h
+000007F6:       CP 02h		; Integer ?
 000007F8:       JR NZ,+15h
 000007FA:       LD HL,(EC41h)			; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 000007FD:       LD A,H
@@ -1403,7 +1425,7 @@ NOTE  -   to call machine code from BASIC:
 0000085B:       POP BC
 0000085C:       JP 07D9h
 
-0000085F:       LD A,3Ah
+0000085F:       LD A,3Ah	; ':'
 00000861:       LD (DE),A
 00000862:       INC DE
 00000863:       DEC BC
@@ -1417,14 +1439,14 @@ NOTE  -   to call machine code from BASIC:
 0000086F:       POP HL
 00000870:       DEC HL
 00000871:       DEC A
-00000872:       LD (EABFh),A
+00000872:       LD (EABFh),A		; DONUM
 00000875:       POP BC
 00000876:       POP DE
-00000877:       CALL 1414h				; UCASE_HL - Get char from (HL) and make upper case
+00000877:       CALL 1414h			; UCASE_HL - Get char from (HL) and make upper case
 0000087A:       CALL 0861h
 0000087D:       INC HL
-0000087E:       CALL 1414h				; UCASE_HL - Get char from (HL) and make upper case
-00000881:       CALL 5216h
+0000087E:       CALL 1414h			; UCASE_HL - Get char from (HL) and make upper case
+00000881:       CALL 5216h			; IS_ALPHA_A - Check it is in the 'A'..'Z' range
 00000884:       JR NC,-0Ch
 00000886:       CP 3Ah		; ':'
 00000888:       JR NC,+08h
@@ -1442,7 +1464,7 @@ NOTE  -   to call machine code from BASIC:
 000008A0:       JR Z,+02h
 000008A2:       LD A,20h
 000008A4:       PUSH AF
-000008A5:       LD A,(EABFh)
+000008A5:       LD A,(EABFh)		; DONUM
 000008A8:       INC A
 000008A9:       JR Z,+01h
 000008AB:       DEC A
@@ -1462,7 +1484,7 @@ _FOR:
 000008BF:       LD A,64h
 000008C1:       LD (EAFBh),A		; SUBFLG - flag for USR fn. array
 000008C4:       CALL 5ACAh			; GETVAR - get variable address to DE (AKA PTRGET)
-000008C7:       RST 08h				; Check syntax, 1 byte follows to be compared
+000008C7:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000008C8:       POP AF
 000008C9:       PUSH DE
 000008CA:       EX DE,HL
@@ -1516,11 +1538,11 @@ _FOR:
 0000091A:       PUSH HL
 0000091B:       LD HL,(E656h)			; CURLIN - line number being interpreted
 0000091E:       EX HL,(SP)
-0000091F:       RST 08h				; Check syntax, 1 byte follows to be compared
+0000091F:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00000920:       CALL C,CAF7h
 00000923:       OR C
 00000924:       INC BC
-00000925:       JP NC,03B1h
+00000925:       JP NC,03B1h		; TYPE_ERR, "Type mismatch" error
 00000928:       PUSH AF
 00000929:       CALL 11D3h			; EVAL - evaluate expression
 0000092C:       POP AF
@@ -1551,7 +1573,7 @@ _FOR:
 00000958:       CP DFh
 0000095A:       LD A,01h
 0000095C:       JR NZ,+0Ch
-0000095E:       CALL 11D4h			; EVAL 	- (a.k.a. GETNUM, evaluate expression (GETNUM)
+0000095E:       CALL 11D4h			; EVAL_0 	- (a.k.a. GETNUM, evaluate expression (GETNUM)
 00000961:       PUSH HL
 00000962:       CALL 2214h			; CSGN
 00000965:       CALL 20E8h			; BCDEFP - Load FP reg to BCDE
@@ -1594,7 +1616,7 @@ _FOR:
 0000099D:       OR A
 0000099E:       JP NZ,7CCDh
 000009A1:       CALL EDCCh
-000009A4:       LD A,(E6F1h)
+000009A4:       LD A,(E6F1h)		; ONGSBF - flag for "ON GOSUB"
 000009A7:       OR A
 000009A8:       CALL NZ,5059h
 000009AB:       CALL 5A86h
@@ -1611,7 +1633,7 @@ _FOR:
 000009C3:       INC HL
 ; NEW_STMT_1
 000009C4:       CALL 44E3h
-000009C7:       JP Z,0375h
+000009C7:       JP Z,0375h			; PRG_END
 000009CA:       INC HL
 000009CB:       INC HL
 000009CC:       LD E,(HL)
@@ -1620,15 +1642,17 @@ _FOR:
 000009CF:       EX DE,HL
 000009D0:       LD (E656h),HL			; CURLIN - line number being interpreted
 000009D3:       LD A,(EC3Bh)			; FLAG for 'TRACE' status
-000009D6:       OR A
-000009D7:       JR Z,+0Bh
+000009D6:       OR A					; 0 MEANS NO TRACE
+000009D7:       JR Z,+0Bh		; NEW_STMT_2
+
 000009D9:       PUSH DE
-000009DA:       LD A,5Bh
-000009DC:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
+000009DA:       LD A,5Bh	; '['
+000009DC:       RST 20h		; (OUTDO??)  CPDEHL - compare DE and HL (aka DCOMPR)
 000009DD:       CALL 28C2h			; _PRNUM - PRINT number pointed by HL
-000009E0:       LD A,5Dh
-000009E2:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
+000009E0:       LD A,5Dh	;']'
+000009E2:       RST 20h		; (OUTDO??)  CPDEHL - compare DE and HL (aka DCOMPR)
 000009E3:       POP DE
+; NEW_STMT_2
 000009E4:       EX DE,HL
 000009E5:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 000009E6:       LD DE,0996h		; NEW_STMT
@@ -1643,7 +1667,7 @@ _FOR:
 000009F5:       SUB 81h				; Normal Alphanum sequence ?
 000009F7:       JP C,0C9Ch			; _LET -  ...Ok, assume an implicit "LET" statement
 000009FA:       CP 59h
-000009FC:       JP NC,17C9h
+000009FC:       JP NC,17C9h			; check function tokens
 000009FF:       RLCA
 00000A00:       LD C,A
 00000A01:       LD B,00h
@@ -1984,7 +2008,7 @@ _GOTO:
 00000C29:       DEC BC
 00000C2A:       CALL 44B3h			; use bank pivot (read)
 00000C2D:       LD A,0Dh
-00000C2F:       LD (EAFFh),A
+00000C2F:       LD (EAFFh),A		; PTRFLG
 00000C32:       POP HL
 00000C33:       CALL 1C71h
 00000C36:       LD H,B
@@ -2060,7 +2084,7 @@ _RETURN:
 
 _LET:
 00000C9C:       CALL 5ACAh			; GETVAR - get variable address to DE (AKA PTRGET)
-00000C9F:       RST 08h				; Check syntax, 1 byte follows to be compared
+00000C9F:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00000CA0:       POP AF
 00000CA1:       EX DE,HL
 00000CA2:       LD (EAFDh),HL		; TEMP - temp. reservation for st.code
@@ -2122,7 +2146,7 @@ _ON:
 
 ; ON ERROR..
 00000D05:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-00000D06:       RST 08h				; Check syntax, 1 byte follows to be compared
+00000D06:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00000D07:       ADC C
 00000D08:       CALL 0B0Bh				; LNUM_PARM - Read numeric function parameter
 00000D0B:       LD A,D
@@ -2140,7 +2164,7 @@ _ON:
 00000D22:       LD (EB0Dh),HL
 00000D25:       EX DE,HL
 00000D26:       RET C
-00000D27:       LD A,(EB0Fh)
+00000D27:       LD A,(EB0Fh)		; ONEFLG - flag for "ON ERROR"
 00000D2A:       OR A
 00000D2B:       LD A,E
 00000D2C:       RET Z
@@ -2153,7 +2177,7 @@ _ON:
 00000D37:       JR C,+3Ah
 00000D39:       PUSH BC
 00000D3A:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-00000D3B:       RST 08h				; Check syntax, 1 byte follows to be compared
+00000D3B:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00000D3C:       ADC L
 00000D3D:       XOR A
 00000D3E:       POP BC
@@ -2186,7 +2210,7 @@ _ON:
 00000D6A:       RET Z
 00000D6B:       PUSH BC
 00000D6C:       PUSH DE
-00000D6D:       RST 08h				; Check syntax, 1 byte follows to be compared
+00000D6D:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00000D6E:       DEFB ','
 00000D6F:       POP AF
 00000D70:       INC A
@@ -2196,7 +2220,7 @@ _ON:
 00000D77:       LD B,A
 00000D78:       CP 8Dh
 00000D7A:       JR Z,+03h
-00000D7C:       RST 08h				; Check syntax, 1 byte follows to be compared
+00000D7C:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00000D7D:       ADC C
 00000D7E:       DEC HL
 00000D7F:       LD C,E
@@ -2209,10 +2233,10 @@ _ON:
 00000D8B:       JR -0Dh
 
 _RESUME:
-00000D8D:       LD DE,EB0Fh
+00000D8D:       LD DE,EB0Fh		; ONEFLG - flag for "ON ERROR"
 00000D90:       LD A,(DE)
 00000D91:       OR A
-00000D92:       JP Z,03A8h
+00000D92:       JP Z,03A8h			; "RESUME without error on" error
 00000D95:       INC A
 00000D96:       LD (E649h),A
 00000D99:       LD (DE),A
@@ -2291,7 +2315,7 @@ _IF:
 00000E0B:       CALL Z,0A0Dh			; _CHRGTB - Pick next char from program
 00000E0E:       CP 89h				; TK_GOTO (Token for GOTO)
 00000E10:       JR Z,+03h
-00000E12:       RST 08h				; Check syntax, 1 byte follows to be compared
+00000E12:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00000E13:       DEFB DDh			; TK_THEN
 00000E14:       DEC HL
 00000E15:       PUSH HL
@@ -2336,6 +2360,7 @@ _PRINT_
 00000E57:       CALL 4C7Dh
 00000E5A:       DEC HL
 00000E5B:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
+
 00000E5C:       CALL Z,5A69h	; OUTDO_CRLF
 00000E5F:       JP Z,0F8Bh			; FINPRT - finalize PRINT
 00000E62:       CP E7h			; TK_USING
@@ -2354,8 +2379,10 @@ _PRINT_
 00000E7F:       PUSH HL
 00000E80:       RST 30h					; GETYPR -  Test number FAC type (Precision mode, etc..)
 00000E81:       JR Z,+0Ch
-00000E83:       CALL 28D0h
+
+00000E83:       CALL 28D0h				; FOUT Convert number/expression to string (format not specified)
 00000E86:       CALL 54FCh				; CRTST - Create String
+
 00000E89:       LD (HL),20h
 00000E8B:       LD HL,(EC41h)			; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 00000E8E:       INC (HL)
@@ -2395,12 +2422,13 @@ _PRINT_
 00000ECB:       CALL 5553h
 00000ECE:       POP HL
 00000ECF:       JP 0E5Ah
+
 00000ED2:       CALL ED6Ch
 00000ED5:       LD A,(E6A9h)
 00000ED8:       OR A
 00000ED9:       JR Z,+06h
 00000EDB:       LD A,2Ch
-00000EDD:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
+00000EDD:       RST 20h		; (OUTDO??)  CPDEHL - compare DE and HL (aka DCOMPR)
 00000EDE:       JP 0F86h
 00000EE1:       LD BC,0008h
 00000EE4:       LD HL,(EC88h)		; PTRFIL
@@ -2458,7 +2486,7 @@ _PRINT_
 00000F46:       CALL 240Ch				; SUBPHL - SUBTRACT number at HL from BCDE
 00000F49:       EX DE,HL
 00000F4A:       POP HL
-00000F4B:       RST 08h				; Check syntax, 1 byte follows to be compared
+00000F4B:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00000F4C:       DEFB ')'
 00000F4D:       DEC HL
 00000F4E:       POP AF
@@ -2489,7 +2517,7 @@ _PRINT_
 00000F7F:       INC A
 00000F80:       LD B,A
 00000F81:       LD A,20h
-00000F83:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
+00000F83:       RST 20h		; (OUTDO??)  CPDEHL - compare DE and HL (aka DCOMPR)
 00000F84:       DJNZ -03h
 00000F86:       POP HL
 00000F87:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
@@ -2519,7 +2547,7 @@ _LINE:
 00000FAC:       JP NZ,6EAEh			; No, this is a real graphics command !
 
 00000FAF:       CALL EDD5h
-00000FB2:       RST 08h				; Check syntax, 1 byte follows to be compared
+00000FB2:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00000FB3:       ADD L
 00000FB4:       CP 23h		;'#'
 00000FB6:       JP Z,4CC1h
@@ -2531,7 +2559,7 @@ _LINE:
 00000FC7:       CALL 2256h				; TSTSTR - Test a string, 'Type Error' if it is not
 00000FCA:       PUSH DE
 00000FCB:       PUSH HL
-00000FCC:       CALL 5FC8h
+00000FCC:       CALL 5FC8h			; INLIN - Same as PINLIN,exept if AUTFLO if set.
 00000FCF:       POP DE
 00000FD0:       POP BC
 00000FD1:       JP C,50F8h
@@ -2543,23 +2571,13 @@ _LINE:
 00000FDE:       POP HL
 00000FDF:       LD A,03h
 00000FE1:       JP 0CAFh
-00000FE4:       CCF
-00000FE5:       LD D,D
-00000FE6:       LD H,L
-00000FE7:       LD H,H
-00000FE8:       LD L,A
-00000FE9:       JR NZ,+66h
-00000FEB:       LD (HL),D
-00000FEC:       LD L,A
-00000FED:       LD L,L
-00000FEE:       JR NZ,+73h
-00000FF0:       LD (HL),H
-00000FF1:       LD H,C
-00000FF2:       LD (HL),D
-00000FF3:       LD (HL),H
-00000FF4:       DEC C
-00000FF5:       LD A,(BC)
+
+00000FE4:       DEFM "?Redo from start"
+00000FE5:       DEFB 0Dh
+00000FE5:       DEFB 0Ah
 00000FF6:       NOP
+
+
 00000FF7:       INC HL
 00000FF8:       LD A,(HL)
 00000FF9:       OR A
@@ -2571,12 +2589,13 @@ _LINE:
 00001005:       POP HL
 00001006:       JR +0Ah
 
-00001008:       CALL ED63h
-0000100B:       LD A,(EAFCh)
+; ERR_INPUT
+00001008:       CALL ED63h		; ?HTRMN? - Hook for "READ/INPUT" error?
+0000100B:       LD A,(EAFCh)	; FLGINP
 0000100E:       OR A
-0000100F:       JP NZ,038Dh
+0000100F:       JP NZ,038Dh		; DATSNR
 00001012:       POP BC
-00001013:       LD HL,0FE4h
+00001013:       LD HL,0FE4h		; REDO_MSG	  "?Redo from start"
 00001016:       CALL 5550h			; PRS - Print message pointed by HL
 00001019:       LD HL,(EB05h)			; SAVTXT - prg pointer for resume
 0000101C:       CALL 44A4h			; bank switching pivot (write)
@@ -2611,7 +2630,7 @@ _INPUT:
 00001056:       LD (EC22h),A
 00001059:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 0000105A:       JR +02h
-0000105C:       RST 08h				; Check syntax, 1 byte follows to be compared
+0000105C:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 0000105D:       DEFB ';'
 0000105E:       PUSH HL
 0000105F:       CALL 5553h
@@ -2624,16 +2643,16 @@ _INPUT:
 0000106B:       OR A
 0000106C:       JR Z,+06h
 0000106E:       LD A,3Fh
-00001070:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
+00001070:       RST 20h		; (OUTDO??)  CPDEHL - compare DE and HL (aka DCOMPR)
 00001071:       LD A,20h
-00001073:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
-00001074:       CALL 5FC8h
+00001073:       RST 20h		; (OUTDO??)  CPDEHL - compare DE and HL (aka DCOMPR)
+00001074:       CALL 5FC8h			; INLIN - Same as PINLIN,exept if AUTFLO if set.
 00001077:       POP BC
 00001078:       JP C,50F8h
 0000107B:       CALL 4200h
 0000107E:       PUSH BC
 0000107F:       XOR A
-00001080:       LD (EAFCh),A
+00001080:       LD (EAFCh),A		; FLGINP
 00001083:       LD (HL),2Ch
 00001085:       EX DE,HL
 00001086:       POP HL
@@ -2704,14 +2723,17 @@ _INPUT:
 _READ:
 000010F9:       CALL 44D5h			; bank switching pivot (read)
 000010FC:       PUSH HL
-000010FD:       LD HL,(EB21h)
+000010FD:       LD HL,(EB21h)		; DATPTR
 00001100:       CALL 44A4h			; bank switching pivot (write)
 00001103:       OR AFh
-00001105:       LD (EAFCh),A
+00001105:       LD (EAFCh),A		; FLGINP
 00001108:       CALL 44D5h			; bank switching pivot (read)
 0000110B:       EX HL,(SP)
 0000110C:       CALL 44A4h			; bank switching pivot (write)
-0000110F:       LD BC,2CCFh
+0000110F:       DEFB $01	; "LD BC,nn" to jump over the next word without executing it
+; _READ_00
+00001110:		RST 08h
+00001111:		DEFB 2Ch	; ','
 00001112:       CALL 5ACAh			; GETVAR - get variable address to DE (AKA PTRGET)
 00001115:       CALL 44D5h			; bank switching pivot (read)
 00001118:       EX HL,(SP)
@@ -2720,7 +2742,7 @@ _READ:
 0000111D:       LD A,(HL)
 0000111E:       CP 2Ch		; ','
 00001120:       JR Z,+10h
-00001122:       LD A,(EAFCh)
+00001122:       LD A,(EAFCh)		; FLGINP
 00001125:       OR A
 00001126:       JP NZ,11A6h
 00001129:       LD A,(E6A3h)
@@ -2738,17 +2760,19 @@ _READ:
 00001142:       LD D,A
 00001143:       LD B,A
 00001144:       CP 22h		; '"'
-00001146:       JR Z,+0Ch
-00001148:       LD A,(EAFCh)
+00001146:       JR Z,+0Ch	; __READ_2
+00001148:       LD A,(EAFCh)		; FLGINP
 0000114B:       OR A
 0000114C:       LD D,A
-0000114D:       JR Z,+02h
-0000114F:       LD D,3Ah
-00001151:       LD B,2Ch
+0000114D:       JR Z,+02h	; __READ_1
+0000114F:       LD D,3Ah	; ':'
+; __READ_1
+00001151:       LD B,2Ch	; ','
 00001153:       DEC HL
+; __READ_2
 00001154:       CALL 5500h			; DTSTR - Create String, termination char in D
 00001157:       POP AF
-00001158:       ADD 03h
+00001158:       ADD 03h		; TK_MID$ ?
 0000115A:       LD C,A
 0000115B:       LD A,(EC15h)
 0000115E:       OR A
@@ -2767,25 +2791,26 @@ _READ:
 00001171:       PUSH AF
 00001172:       LD BC,1157h
 00001175:       PUSH BC
-00001176:       JP C,26BCh
+00001176:       JP C,26BCh		; DBL_ASCTFP (a.k.a. FIN)
 00001179:       JP 26B5h
+
 0000117C:       CALL 44A4h			; bank switching pivot (write)
 0000117F:       DEC HL
 00001180:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00001181:       JR Z,+05h
 00001183:       CP 2Ch		; ','
-00001185:       JP NZ,1008h
+00001185:       JP NZ,1008h		; ERR_INPUT
 00001188:       CALL 44D5h			; bank switching pivot (read)
 0000118B:       EX HL,(SP)
 0000118C:       CALL 44A4h			; bank switching pivot (write)
 0000118F:       DEC HL
 00001190:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-00001191:       JP NZ,1110h
+00001191:       JP NZ,1110h		; _READ_00
 00001194:       POP DE
-00001195:       LD A,(EAFCh)
+00001195:       LD A,(EAFCh)		; FLGINP
 00001198:       OR A
 00001199:       EX DE,HL
-0000119A:       JP NZ,50C5h
+0000119A:       JP NZ,50C5h		; __RESTORE_1
 0000119D:       PUSH DE
 0000119E:       CALL 44A4h			; bank switching pivot (write)
 000011A1:       XOR A
@@ -2805,7 +2830,7 @@ _READ:
 000011B8:       INC HL
 000011B9:       LD D,(HL)
 000011BA:       EX DE,HL
-000011BB:       LD (EAF9h),HL
+000011BB:       LD (EAF9h),HL		; DATLIN
 000011BE:       EX DE,HL
 000011BF:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 000011C0:       CP F5h
@@ -2815,12 +2840,13 @@ _READ:
 000011C7:       CP 84h
 000011C9:       JR NZ,-25h
 000011CB:       JP 1132h
-000011CE:       RST 08h				; Check syntax, 1 byte follows to be compared
+000011CE:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000011CF:       POP AF
 000011D0:       LD BC,28CFh
-000011D3:       DEC HL			; EVAL - evaluate expression
 
-; EVAL 	- (a.k.a. GETNUM, evaluate expression (GETNUM)
+; EVAL - evaluate expression
+000011D3:       DEC HL
+; EVAL_0 	- (a.k.a. GETNUM, evaluate expression (GETNUM)
 000011D4:       LD D,00h
 000011D6:       PUSH DE
 ; EVAL1 - Save precedence and eval until precedence break
@@ -2831,20 +2857,20 @@ _READ:
 000011E2:       XOR A
 000011E3:       LD (EC46h),A
 000011E6:       LD (EB10h),HL		; TEMP2 - temp. storage used by EVAL
-000011E9:       LD HL,(EB10h)		; TEMP2 - temp. storage used by EVAL
 ; EVAL3 - Evaluate expression until precedence break
+000011E9:       LD HL,(EB10h)		; TEMP2 - temp. storage used by EVAL
 000011EC:       POP BC
 000011ED:       LD A,(HL)
 000011EE:       LD (EAF3h),HL		; TEMP3 - used for garbage collection or by USR function
-000011F1:       CP F0h
+000011F1:       CP F0h		; TK_GREATER
 000011F3:       RET C
-000011F4:       CP F3h
+000011F4:       CP F3h		; TK_PLUS
 000011F6:       JR C,+68h
-000011F8:       SUB F3h
+000011F8:       SUB F3h		; TK_PLUS, ; Shifting token offset to '+'
 000011FA:       LD E,A
 000011FB:       JR NZ,+09h
 000011FD:       LD A,(EABDh)		; VALTYP - type indicator
-00001200:       CP 03h
+00001200:       CP 03h			; String type?
 00001202:       LD A,E
 00001203:       JP Z,5680h			; CONCAT - String concatenation
 00001206:       CP 0Ch
@@ -2857,21 +2883,21 @@ _READ:
 00001211:       CP D
 00001212:       RET NC
 00001213:       PUSH BC
-00001214:       LD BC,11E9h
+00001214:       LD BC,11E9h			; EVAL3
 00001217:       PUSH BC
 00001218:       LD A,D
-00001219:       CALL ED75h
+00001219:       CALL ED75h		; ?HNTPL?	- Hook 2 for Expression Evaluator?
 0000121C:       CP 7Fh
 0000121E:       JR Z,+59h
-00001220:       CP 51h
+00001220:       CP 51h		; 'Q'
 00001222:       JR C,+62h
 00001224:       AND FEh
-00001226:       CP 7Ah
+00001226:       CP 7Ah		; 'z'
 00001228:       JR Z,+5Ch
 0000122A:       LD HL,EC41h			; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 0000122D:       LD A,(EABDh)		; VALTYP - type indicator
-00001230:       SUB 03h
-00001232:       JP Z,03B1h
+00001230:       SUB 03h			; String type ?
+00001232:       JP Z,03B1h		; TYPE_ERR, "Type mismatch" error
 00001235:       OR A
 00001236:       LD C,(HL)
 00001237:       INC HL
@@ -2944,7 +2970,7 @@ _READ:
 000012A9:       JR -52h
 000012AB:       POP BC
 000012AC:       LD A,C
-000012AD:       LD (EABEh),A
+000012AD:       LD (EABEh),A		; DORES - Indicates whether stored word can be crunched
 000012B0:       LD A,(EABDh)		; VALTYP - type indicator
 000012B3:       CP B
 000012B4:       JR NZ,+0Bh
@@ -2965,7 +2991,7 @@ _READ:
 000012CF:       JR Z,+52h
 000012D1:       LD A,D
 000012D2:       CP 03h
-000012D4:       JP Z,03B1h
+000012D4:       JP Z,03B1h		; TYPE_ERR, "Type mismatch" error
 000012D7:       JR NC,+54h
 000012D9:       LD HL,00B4h
 000012DC:       LD B,00h
@@ -2990,7 +3016,7 @@ _READ:
 000012F9:       CALL 20DDh			; FPBCDE - Move BCDE to FPREG
 000012FC:       CALL 223Eh			; CDBL
 000012FF:       LD HL,00A0h
-00001302:       LD A,(EABEh)
+00001302:       LD A,(EABEh)		; DORES - Indicates whether stored word can be crunched
 00001305:       RLCA
 00001306:       ADD L
 00001307:       LD L,A
@@ -3047,9 +3073,9 @@ _READ:
 
 ; + operand
 0000135E:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-0000135F:       JP Z,03AEh
-00001362:       JP C,26BCh
-00001365:       CALL 5216h
+0000135F:       JP Z,03AEh		; "Missing operand" error
+00001362:       JP C,26BCh		; DBL_ASCTFP (a.k.a. FIN)
+00001365:       CALL 5216h		; IS_ALPHA_A - Check it is in the 'A'..'Z' range
 00001368:       JP NC,1406h
 0000136B:       CP 20h		; ' '
 0000136D:       JP C,0A5Fh
@@ -3094,7 +3120,7 @@ _READ:
 
 ; 'VARPTR'
 000013B0:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-000013B1:       RST 08h				; Check syntax, 1 byte follows to be compared
+000013B1:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000013B2:       JR Z,-02h
 000013B4:       INC HL
 000013B5:       JR NZ,+0Ch
@@ -3106,7 +3132,7 @@ _READ:
 000013C0:       JP 13C6h
 
 000013C3:       CALL 5BB8h
-000013C6:       RST 08h				; Check syntax, 1 byte follows to be compared
+000013C6:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000013C7:       DEFB ')'
 000013C8:       PUSH HL
 000013C9:       EX DE,HL
@@ -3133,7 +3159,7 @@ _READ:
 000013EF:       JP Z,1600h			; 'FN'
 
 000013F2:       CALL 11D1h
-000013F5:       RST 08h				; Check syntax, 1 byte follows to be compared
+000013F5:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000013F6:       DEFB ')'
 000013F7:       RET
 
@@ -3180,7 +3206,7 @@ _READ:
 00001434:       INC HL
 00001435:       LD A,(HL)
 00001436:       CALL 1415h			; UCASE - Make char in 'A' upper case
-00001439:       CALL 5216h
+00001439:       CALL 5216h			; IS_ALPHA_A - Check it is in the 'A'..'Z' range
 0000143C:       EX DE,HL
 0000143D:       JR NC,+0Ah
 0000143F:       CP 3Ah		; ':'
@@ -3199,14 +3225,15 @@ _READ:
 00001454:       LD L,A
 00001455:       EX DE,HL
 00001456:       DJNZ -24h
-00001458:       JP 03ABh
+00001458:       JP 03ABh		; "Overflow" error
+
 0000145B:       DEC HL
 0000145C:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 0000145D:       EX DE,HL
 0000145E:       JR NC,+19h
 00001460:       CP 38h
 00001462:       JP NC,0393h			;  SNERR - entry for '?SN ERROR'
-00001465:       LD BC,03ABh
+00001465:       LD BC,03ABh			; "Overflow" error
 00001468:       PUSH BC
 00001469:       ADD HL,HL
 0000146A:       RET C
@@ -3236,10 +3263,12 @@ _READ:
 0000148A:       POP HL
 0000148B:       JP NZ,2F0Bh
 0000148E:       LD A,07h
-00001490:       CP 4Fh
+00001490:       CP 4Fh			; token code < 4fh-81h ?
 00001492:       JR C,+19h
-00001494:       LD DE,6B02h
+
+00001494:       LD DE,6B02h		; jump table for extra functions-2
 00001497:       SUB 4Fh
+; map function number in A to JP table pointed by DE
 00001499:       EX DE,HL
 0000149A:       ADD A
 0000149B:       LD C,A
@@ -3255,6 +3284,7 @@ _READ:
 000014A6:       JP Z,0393h			;  SNERR - entry for '?SN ERROR'
 000014A9:       EX DE,HL
 000014AA:       JP 0A0Dh			; _CHRGTB - Pick next char from program
+; Eval token codes <4F
 000014AD:       LD B,00h
 000014AF:       RLCA
 000014B0:       LD C,A
@@ -3264,7 +3294,7 @@ _READ:
 000014B4:       CP 05h
 000014B6:       JR NC,+16h
 000014B8:       CALL 11D1h
-000014BB:       RST 08h				; Check syntax, 1 byte follows to be compared
+000014BB:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000014BC:       DEFB ','
 000014BD:       CALL 2256h				; TSTSTR - Test a string, 'Type Error' if it is not
 000014C0:       EX DE,HL
@@ -3334,7 +3364,7 @@ _READ:
 00001520:       JP 0052h		; FP operation on far memory bank
 
 00001523:       POP BC
-00001524:       JP 11E9h
+00001524:       JP 11E9h			; EVAL3
 
 00001527:       JR NC,+05h
 00001529:       SUB 03h
@@ -3457,7 +3487,7 @@ _USR:
 
 000015C8:       CALL 15AEh
 000015CB:       PUSH DE
-000015CC:       RST 08h				; Check syntax, 1 byte follows to be compared
+000015CC:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000015CD:       POP AF
 000015CE:       CALL 1B93h			; GETWORD
 000015D1:       EX HL,(SP)
@@ -3487,7 +3517,7 @@ _DEF:
 000015F6:       LD A,(HL)
 000015F7:       CP 29h		; ')'
 000015F9:       JP Z,0C77h			; _DATA (nothing to be executed, skip to next line)
-000015FC:       RST 08h				; Check syntax, 1 byte follows to be compared
+000015FC:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000015FD:       DEFB ','
 000015FE:       JR -0Dh
 
@@ -3516,7 +3546,7 @@ _FN:
 00001628:       EX DE,HL
 00001629:       LD HL,(EB10h)		; TEMP2 - temp. storage used by EVAL
 0000162C:       CALL 44A4h			; bank switching pivot (write)
-0000162F:       RST 08h				; Check syntax, 1 byte follows to be compared
+0000162F:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00001630:       JR Z,-51h
 00001632:       PUSH AF
 00001633:       CALL 44D5h			; bank switching pivot (read)
@@ -3563,7 +3593,7 @@ _FN:
 0000168E:       LD A,(HL)
 0000168F:       CP 29h		; ')'
 00001691:       JR Z,+1Dh
-00001693:       RST 08h				; Check syntax, 1 byte follows to be compared
+00001693:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00001694:       DEFB ','
 00001695:       CALL 44D5h			; bank switching pivot (read)
 00001698:       PUSH HL
@@ -3572,7 +3602,7 @@ _FN:
 0000169F:       LD (EAC0h),HL			; CONTXT - ptr to console buffer
 000016A2:       LD HL,(EAF3h)		; TEMP3 - used for garbage collection or by USR function
 000016A5:       CALL 44A4h			; bank switching pivot (write)
-000016A8:       RST 08h				; Check syntax, 1 byte follows to be compared
+000016A8:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000016A9:       DEFB ','
 000016AA:       JR -66h
 000016AC:       POP AF
@@ -3624,7 +3654,7 @@ _FN:
 000016FD:       PUSH HL
 000016FE:       LD HL,(EAF3h)		; TEMP3 - used for garbage collection or by USR function
 00001701:       CALL 44A4h			; bank switching pivot (write)
-00001704:       RST 08h				; Check syntax, 1 byte follows to be compared
+00001704:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00001705:       DEFB ')'
 00001706:       LD A,D5h
 00001708:       CALL 44D5h			; bank switching pivot (read)
@@ -3731,25 +3761,28 @@ _FN:
 000017B8:       LD E,0Ch
 000017BA:       JP 03B3h				; ERROR, code in E
 
-000017BD:       RST 08h				; Check syntax, 1 byte follows to be compared
+000017BD:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000017BE:       POP HL
 000017BF:       LD A,80h
 000017C1:       LD (EAFBh),A		; SUBFLG - flag for USR fn. array
 000017C4:       OR (HL)
 000017C5:       LD C,A
 000017C6:       JP 5ACFh
+
+; check function tokens
 000017C9:       CP 7Eh
 000017CB:       JP NZ,0393h			;  SNERR - entry for '?SN ERROR'
 000017CE:       INC HL
 000017CF:       LD A,(HL)
 000017D0:       INC HL
-000017D1:       CP 83h
+000017D1:       CP 83h			; TK_POINT ?
 000017D3:       JP Z,585Ah
 000017D6:       DEC HL
 000017D7:       SUB D0h
 000017D9:       JP C,0393h			;  SNERR - entry for '?SN ERROR'
-000017DC:       LD DE,6B04h
-000017DF:       JP 1499h
+000017DC:       LD DE,6B04h			; jump table for extra functions
+000017DF:       JP 1499h			; map function number in A to JP table pointed by DE
+
 000017E2:       JP 0393h			;  SNERR - entry for '?SN ERROR'
 
 _INP:
@@ -3762,7 +3795,7 @@ _INP:
 ; GTWORD_GTINT - Get "WORD,BYTE" paramenters
 000017EF:       CALL 1B93h			; GETWORD
 000017F2:       PUSH DE
-000017F3:       RST 08h				; Check syntax, 1 byte follows to be compared
+000017F3:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000017F4:       DEFB ','
 000017F5:       CALL 18A3h			; GETINT
 000017F8:       POP BC
@@ -3781,7 +3814,7 @@ _WAIT:
 00001807:       DEC HL
 00001808:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00001809:       JR Z,+05h
-0000180B:       RST 08h				; Check syntax, 1 byte follows to be compared
+0000180B:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 0000180C:       DEFB ','
 0000180D:       CALL 18A3h			; GETINT
 00001810:       POP AF
@@ -3809,7 +3842,7 @@ _WIDTH:
 00001830:       JP M,0B06h			; FCERR, Err $05 - "Illegal function call"
 00001833:       LD E,A
 00001834:       PUSH DE
-00001835:       RST 08h				; Check syntax, 1 byte follows to be compared
+00001835:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00001836:       DEFB ','
 00001837:       CALL 18A3h			; GETINT
 0000183A:       POP DE
@@ -3827,7 +3860,7 @@ _WIDTH:
 0000184B:       OR A
 0000184C:       JP Z,0B06h			; FCERR, Err $05 - "Illegal function call"
 0000184F:       PUSH AF
-00001850:       RST 08h				; Check syntax, 1 byte follows to be compared
+00001850:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00001851:       DEFB ','
 00001852:       CALL 18A3h			; GETINT
 00001855:       POP AF
@@ -3956,7 +3989,7 @@ _LIST:
 0000191E:       CP 09h
 00001920:       JR Z,+03h
 00001922:       LD A,20h
-00001924:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
+00001924:       RST 20h		; (OUTDO??)  CPDEHL - compare DE and HL (aka DCOMPR)
 00001925:       CALL 194Ch
 00001928:       LD HL,E9B9h
 0000192B:       CALL 1933h
@@ -3980,7 +4013,7 @@ _LIST:
 0000194C:       LD BC,E9B9h
 0000194F:       LD D,FFh
 00001951:       XOR A
-00001952:       LD (EABEh),A
+00001952:       LD (EABEh),A		; DORES - Indicates whether stored word can be crunched
 00001955:       XOR A
 00001956:       LD (EC21h),A
 00001959:       CALL EDA8h
@@ -4011,18 +4044,18 @@ _LIST:
 0000197E:       JR C,+31h
 00001980:       CP 22h		; '"'
 00001982:       JR NZ,+0Ah
-00001984:       LD A,(EABEh)
+00001984:       LD A,(EABEh)		; DORES - Indicates whether stored word can be crunched
 00001987:       XOR 01h
-00001989:       LD (EABEh),A
+00001989:       LD (EABEh),A		; DORES - Indicates whether stored word can be crunched
 0000198C:       LD A,22h
 0000198E:       CP 3Ah		; ':'
 00001990:       JR NZ,+0Eh
-00001992:       LD A,(EABEh)
+00001992:       LD A,(EABEh)		; DORES - Indicates whether stored word can be crunched
 00001995:       RRA
 00001996:       JR C,+06h
 00001998:       RLA
 00001999:       AND FDh
-0000199B:       LD (EABEh),A
+0000199B:       LD (EABEh),A		; DORES - Indicates whether stored word can be crunched
 0000199E:       LD A,3Ah
 000019A0:       OR A
 000019A1:       JP M,19D3h
@@ -4052,7 +4085,8 @@ _LIST:
 000019CC:       JP C,1ABFh
 000019CF:       LD (BC),A
 000019D0:       JP 195Eh
-000019D3:       LD A,(EABEh)
+
+000019D3:       LD A,(EABEh)		; DORES - Indicates whether stored word can be crunched
 000019D6:       RRA
 000019D7:       JR C,+2Eh
 000019D9:       RRA
@@ -4093,12 +4127,14 @@ _LIST:
 00001A05:       POP HL
 00001A06:       LD A,(HL)
 00001A07:       JP 195Eh
-00001A0A:       LD A,(EABEh)
+
+00001A0A:       LD A,(EABEh)		; DORES - Indicates whether stored word can be crunched
 00001A0D:       OR 02h
-00001A0F:       LD (EABEh),A
+00001A0F:       LD (EABEh),A		; DORES - Indicates whether stored word can be crunched
 00001A12:       XOR A
 00001A13:       RET
-00001A14:       LD A,(EABEh)
+
+00001A14:       LD A,(EABEh)		; DORES - Indicates whether stored word can be crunched
 00001A17:       OR 04h
 00001A19:       JR -0Ch
 00001A1B:       RLA
@@ -4192,7 +4228,8 @@ _LIST:
 00001AAD:       LD (EC21h),A
 00001AB0:       POP HL
 00001AB1:       JP 1962h
-00001AB4:       CALL 5216h
+
+00001AB4:       CALL 5216h			; IS_ALPHA_A - Check it is in the 'A'..'Z' range
 00001AB7:       RET NC
 00001AB8:       CP 30h
 00001ABA:       RET C
@@ -4213,7 +4250,8 @@ _LIST:
 00001AD1:       CP 0Ch
 00001AD3:       JP Z,2DBFh
 00001AD6:       LD HL,(EAC4h)
-00001AD9:       JP 28D0h
+00001AD9:       JP 28D0h				; FOUT Convert number/expression to string (format not specified)
+
 00001ADC:       POP BC
 00001ADD:       POP DE
 00001ADE:       LD A,(EAC2h)			; CONSAV
@@ -4323,7 +4361,7 @@ _POKE:
 00001B84:       CALL 1B93h			; GETWORD
 00001B87:       PUSH DE
 00001B88:       CALL ED9Fh
-00001B8B:       RST 08h				; Check syntax, 1 byte follows to be compared
+00001B8B:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00001B8C:       DEFB ','
 00001B8D:       CALL 18A3h			; GETINT
 00001B90:       POP DE
@@ -4355,7 +4393,7 @@ _POKE:
 00001BB7:       JP 1DE9h			; FPADD - Add BCDE to FP reg
 
 00001BBA:       OR AFh
-00001BBC:       LD (EAFFh),A
+00001BBC:       LD (EAFFh),A		; PTRFLG
 00001BBF:       LD HL,(E658h)		; TXTTAB (aka BASTXT) - address of BASIC program start
 00001BC2:       CALL 44A4h			; bank switching pivot (write)
 00001BC5:       DEC HL
@@ -4371,10 +4409,12 @@ _POKE:
 00001BD3:       INC HL
 00001BD4:       LD D,(HL)
 00001BD5:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
+
+; LINE2PTR
 00001BD6:       OR A
 00001BD7:       JR Z,-13h
 00001BD9:       LD C,A
-00001BDA:       LD A,(EAFFh)
+00001BDA:       LD A,(EAFFh)	; PTRFLG
 00001BDD:       OR A
 00001BDE:       LD A,C
 00001BDF:       JR Z,+68h
@@ -4382,18 +4422,18 @@ _POKE:
 00001BE4:       CP A5h			; TK_ERROR
 00001BE6:       JR NZ,+14h
 00001BE8:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-00001BE9:       CP 89h
-00001BEB:       JR NZ,-17h
+00001BE9:       CP 89h			; TK_GOTO
+00001BEB:       JR NZ,-17h		; LINE2PTR
 00001BED:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-00001BEE:       CP 0Eh
-00001BF0:       JR NZ,-1Ch
+00001BEE:       CP 0Eh				; TK_ATN ?  ..end of logical line ?
+00001BF0:       JR NZ,-1Ch		; LINE2PTR
 00001BF2:       PUSH DE
 00001BF3:       CALL 0B4Fh
 00001BF6:       LD A,D
 00001BF7:       OR E
 00001BF8:       JR NZ,+0Ah
 00001BFA:       JR +39h
-00001BFC:       CP 0Eh
+00001BFC:       CP 0Eh				; TK_ATN ?  ..end of logical line ?
 00001BFE:       JR NZ,-2Bh
 00001C00:       PUSH DE
 00001C01:       CALL 0B4Fh
@@ -4407,8 +4447,8 @@ _POKE:
 00001C15:       CALL 44B3h			; use bank pivot (read)
 00001C18:       LD A,0Dh
 00001C1A:       JR C,+4Eh
-00001C1C:       CALL 5A58h
-00001C1F:       LD HL,1C39h
+00001C1C:       CALL 5A58h			; CONSOLE_CRLF
+00001C1F:       LD HL,1C39h			; LINE_ERR_MSG, "Undefined line ..."
 00001C22:       PUSH DE
 00001C23:       CALL 5550h			; PRS - Print message pointed by HL
 00001C26:       POP HL
@@ -4424,20 +4464,9 @@ _POKE:
 00001C36:       DEC HL
 00001C37:       JR -64h
 
-00001C39:       LD D,L
-00001C3A:       LD L,(HL)
-00001C3B:       LD H,H
-00001C3C:       LD H,L
-00001C3D:       LD H,(HL)
-00001C3E:       LD L,C
-00001C3F:       LD L,(HL)
-00001C40:       LD H,L
-00001C41:       LD H,H
-00001C42:       JR NZ,+6Ch
-00001C44:       LD L,C
-00001C45:       LD L,(HL)
-00001C46:       LD H,L
-00001C47:       JR NZ,+00h
+00001C39:       DEFM "Undefined line "
+				NOP
+
 00001C49:       CP 0Dh
 00001C4B:       JR NZ,-16h
 00001C4D:       PUSH DE
@@ -4473,29 +4502,30 @@ _POKE:
 00001C7E:       LD (HL),A
 00001C7F:       POP HL
 00001C80:       RET
-00001C81:       LD A,(EAFFh)
+
+00001C81:       LD A,(EAFFh)		; PTRFLG
 00001C84:       OR A
 00001C85:       RET Z
 00001C86:       JP 1BBBh
 
 _OPTION:
-00001C89:       RST 08h				; Check syntax, 1 byte follows to be compared
+00001C89:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00001C8A:       DEFB 'B'
-00001C8B:       RST 08h				; Check syntax, 1 byte follows to be compared
+00001C8B:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00001C8C:       DEFB 'A'
-00001C8D:       RST 08h				; Check syntax, 1 byte follows to be compared
+00001C8D:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00001C8E:       DEFB 'S'
-00001C8F:       RST 08h				; Check syntax, 1 byte follows to be compared
+00001C8F:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00001C90:       DEFB 'E'
 00001C91:       LD A,(EC20h)
 00001C94:       OR A
-00001C95:       JP NZ,03A2h
+00001C95:       JP NZ,03A2h			;  "Duplicate definition" error
 00001C98:       PUSH HL
 00001C99:       LD HL,(EB1Dh)	; VAREND - End of variables
 00001C9C:       EX DE,HL
 00001C9D:       LD HL,(EB1Fh)	; ARREND - End of arrays
 00001CA0:       RST 20h			; CPDEHL - compare DE and HL (aka DCOMPR)
-00001CA1:       JP NZ,03A2h
+00001CA1:       JP NZ,03A2h			;  "Duplicate definition" error
 00001CA4:       POP HL
 00001CA5:       LD A,(HL)
 00001CA6:       SUB 30h
@@ -4539,7 +4569,7 @@ _RANDOMIZE:
 00001CEA:       PUSH DE
 00001CEB:       INC HL
 00001CEC:       LD A,(HL)
-00001CED:       CALL 26BCh
+00001CED:       CALL 26BCh		; DBL_ASCTFP (a.k.a. FIN)
 00001CF0:       LD A,(HL)
 00001CF1:       OR A
 00001CF2:       JR NZ,-17h
@@ -4644,7 +4674,7 @@ _RANDOMIZE:
 00001DB9:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00001DBA:       LD DE,1D4Dh
 00001DBD:       JR Z,+06h
-00001DBF:       RST 08h				; Check syntax, 1 byte follows to be compared
+00001DBF:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00001DC0:       DEFB ','
 00001DC1:       DEC HL
 00001DC2:       LD DE,1DA2h
@@ -4657,6 +4687,7 @@ _RANDOMIZE:
 00001DCD:       LD A,(EC46h)
 00001DD0:       LD (EC47h),A
 00001DD3:       POP AF
+
 00001DD4:       PUSH AF
 00001DD5:       XOR A
 00001DD6:       LD (EC46h),A
@@ -4839,6 +4870,8 @@ _RANDOMIZE:
 00001EC3:       LD D,C
 00001EC4:       LD C,00h
 00001EC6:       JR -0Bh
+
+
 00001EC8:       ADD 09h
 00001ECA:       LD L,A
 00001ECB:       LD A,D
@@ -5161,7 +5194,7 @@ _RANDOMIZE:
 ; INVSGN2 - Invert number sign
 000020A4:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
 000020A5:       JP M,23F7h			; DBL_ABS - ABS (double precision BASIC variant)
-000020A8:       JP Z,03B1h
+000020A8:       JP Z,03B1h		; TYPE_ERR, "Type mismatch" error
 
 ; INVSGN - Invert number sign
 000020AB:       LD HL,EC43h			; LAST_FPREG - Last byte in Single Precision FP Register (+sign bit)
@@ -5182,7 +5215,7 @@ _SGN:
 
 ; _TSTSGN - Test sign in number
 000020BD:       RST 30h					; GETYPR -  Test number FAC type (Precision mode, etc..)
-000020BE:       JP Z,03B1h
+000020BE:       JP Z,03B1h		; TYPE_ERR, "Type mismatch" error
 000020C1:       JP P,0028h				; SIGN - test FP number sign
 000020C4:       LD HL,(EC41h)			; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 000020C7:       LD A,H
@@ -5362,7 +5395,7 @@ CMPFP:
 000021A0:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
 000021A1:       LD HL,(EC41h)			; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 000021A4:       RET M
-000021A5:       JP Z,03B1h
+000021A5:       JP Z,03B1h		; TYPE_ERR, "Type mismatch" error
 000021A8:       JP PO,21BCh
 000021AB:       CALL 2124h
 000021AE:       LD HL,2D56h			; number constant ..
@@ -5378,7 +5411,7 @@ CMPFP:
 000021C6:       LD (EC43h),A		; LAST_FPREG - Last byte in Single Precision FP Register (+sign bit)
 000021C9:       LD A,(EC44h)		; FPEXP - Floating Point Exponent
 000021CC:       CP 90h		; 'Z'
-000021CE:       JP NC,03ABh
+000021CE:       JP NC,03ABh			; "Overflow" error
 000021D1:       CALL 225Bh			; FPINT - Floating Point to Integer
 000021D4:       LD A,(EC44h)		; FPEXP - Floating Point Exponent
 000021D7:       OR A
@@ -5397,7 +5430,7 @@ CMPFP:
 000021E9:       LD L,A
 000021EA:       JP 21FDh				; INT_RESULT_HL
 
-000021ED:       LD HL,03ABh
+000021ED:       LD HL,03ABh			; "Overflow" error
 000021F0:       PUSH HL
 000021F1:       LD A,(EC44h)		; FPEXP - Floating Point Exponent
 000021F4:       CP 90h		; 'Z'
@@ -5424,7 +5457,7 @@ CMPFP:
 00002214:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
 00002215:       RET PO
 00002216:       JP M,222Fh
-00002219:       JP Z,03B1h
+00002219:       JP Z,03B1h		; TYPE_ERR, "Type mismatch" error
 0000221C:       CALL 20E8h			; BCDEFP - Load FP reg to BCDE
 0000221F:       CALL 2252h
 00002222:       LD A,B
@@ -5446,7 +5479,7 @@ CMPFP:
 ; CDBL
 0000223E:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
 0000223F:       RET NC
-00002240:       JP Z,03B1h
+00002240:       JP Z,03B1h		; TYPE_ERR, "Type mismatch" error
 00002243:       CALL M,222Fh
 00002246:       LD HL,0000h
 00002249:       LD (EC3Dh),HL
@@ -5458,7 +5491,7 @@ CMPFP:
 ; TSTSTR - Test a string, 'Type Error' if it is not
 00002256:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
 00002257:       RET Z
-00002258:       JP 03B1h
+00002258:       JP 03B1h		; TYPE_ERR, "Type mismatch" error
 
 ; FPINT - Floating Point to Integer
 0000225B:       LD B,A
@@ -5507,7 +5540,7 @@ _INT:
 00002295:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
 00002296:       RET M
 00002297:       JR NC,+1Fh
-00002299:       JP Z,03B1h
+00002299:       JP Z,03B1h		; TYPE_ERR, "Type mismatch" error
 0000229C:       CALL 21F1h
 
 ; INT
@@ -5687,7 +5720,7 @@ _INT:
 
 000023AB:       LD A,H
 000023AC:       OR L
-000023AD:       JP Z,039Ch
+000023AD:       JP Z,039Ch			;  "Division by zero" error
 000023B0:       CALL 23E1h
 000023B3:       PUSH BC
 000023B4:       EX DE,HL
@@ -6465,8 +6498,8 @@ _INT:
 000028A1:       LD (E65Ah),HL
 000028A4:       JR Z,+07h
 000028A6:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
-000028A7:       JP Z,03ABh
-000028AA:       JP 039Ch
+000028A7:       JP Z,03ABh			; "Overflow" error
+000028AA:       JP 039Ch			;  "Division by zero" error
 
 000028AD:       POP AF
 000028AE:       POP DE
@@ -6495,16 +6528,19 @@ _INT:
 000028CA:       CALL 294Bh
 000028CD:       OR (HL)
 000028CE:       JR +1Ch
+
+; FOUT Convert number/expression to string (format not specified)
 000028D0:       XOR A
+; PUFOUT - Convert number/expression to string (format specified in 'A' register)
 000028D1:       CALL 294Bh
 000028D4:       AND 08h
 000028D6:       JR Z,+02h
-000028D8:       LD (HL),2Bh
+000028D8:       LD (HL),2Bh	; '+'
 000028DA:       EX DE,HL
 000028DB:       CALL 20BDh			; _TSTSGN - Test sign in number
 000028DE:       EX DE,HL
 000028DF:       JP P,28ECh
-000028E2:       LD (HL),2Dh
+000028E2:       LD (HL),2Dh ; '-'
 000028E4:       PUSH BC
 000028E5:       PUSH HL
 000028E6:       CALL 20A4h			; INVSGN2 - Invert number sign
@@ -6512,7 +6548,7 @@ _INT:
 000028EA:       POP BC
 000028EB:       OR H
 000028EC:       INC HL
-000028ED:       LD (HL),30h
+000028ED:       LD (HL),30h	; '0'
 000028EF:       LD A,(EAF3h)		; TEMP3 - used for garbage collection or by USR function
 000028F2:       LD D,A
 000028F3:       RLA
@@ -6532,7 +6568,7 @@ _INT:
 00002913:       JR Z,+0Ch
 00002915:       LD A,B
 00002916:       CP C
-00002917:       LD C,2Ah
+00002917:       LD C,2Ah	; '*'
 00002919:       JR NZ,+06h
 0000291B:       LD A,E
 0000291C:       AND 04h
@@ -6541,32 +6577,33 @@ _INT:
 00002921:       LD (HL),C
 00002922:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00002923:       JR Z,+14h
-00002925:       CP 45h
+00002925:       CP 45h		; 'E'
 00002927:       JR Z,+10h
-00002929:       CP 44h
+00002929:       CP 44h		; 'D'
 0000292B:       JR Z,+0Ch
-0000292D:       CP 30h
+0000292D:       CP 30h		; '0'
 0000292F:       JR Z,-10h
 00002931:       CP 2Ch		; ','
 00002933:       JR Z,-14h
-00002935:       CP 2Eh
+00002935:       CP 2Eh		; '.'
 00002937:       JR NZ,+03h
 00002939:       DEC HL
-0000293A:       LD (HL),30h
+0000293A:       LD (HL),30h	; '0'
 0000293C:       LD A,E
 0000293D:       AND 10h
 0000293F:       JR Z,+03h
 00002941:       DEC HL
-00002942:       LD (HL),5Ch
+00002942:       LD (HL),5Ch	; '$'
 00002944:       LD A,E
 00002945:       AND 04h
 00002947:       RET NZ
 00002948:       DEC HL
 00002949:       LD (HL),B
 0000294A:       RET
+
 0000294B:       LD (EAF3h),A		; TEMP3 - used for garbage collection or by USR function
 0000294E:       LD HL,EC53h
-00002951:       LD (HL),20h
+00002951:       LD (HL),20h	; ' '
 00002953:       RET
 
 00002954:       CALL 20CDh			; STAKFP - Put FP value on stack
@@ -6815,7 +6852,7 @@ _INT:
 00002AD6:       JP M,2AF0h
 00002AD9:       POP HL
 00002ADA:       POP BC
-00002ADB:       CALL 28D0h
+00002ADB:       CALL 28D0h			; FOUT Convert number/expression to string (format not specified)
 00002ADE:       DEC HL
 00002ADF:       LD (HL),25h
 00002AE1:       RET
@@ -7217,6 +7254,7 @@ _INT:
 00002D50:       INC BC
 00002D51:       CP A
 00002D52:       RET
+
 00002D53:       DEC DE
 00002D54:       LD C,B6h
 00002D56:       NOP
@@ -7508,6 +7546,7 @@ _SQR:
 00002F08:       RST 00h
 00002F09:       LD C,A
 00002F0A:       ADD B
+
 00002F0B:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00002F0C:       PUSH HL
 00002F0D:       LD HL,1EEAh
@@ -7830,6 +7869,7 @@ _SIN:
 00003146:       LD A,03h
 00003148:       JP NZ,311Ch
 0000314B:       RET
+
 0000314C:       LD A,00h
 0000314E:       CALL 4015h
 00003151:       AND 01h
@@ -7923,6 +7963,7 @@ _SIN:
 000031FF:       OUTA (E4h)
 00003201:       EI
 00003202:       RET
+
 00003203:       PUSH DE
 00003204:       PUSH AF
 00003205:       LD E,FFh
@@ -7945,7 +7986,7 @@ _SIN:
 00003225:       POP DE
 00003226:       PUSH AF
 00003227:       EI
-00003228:       CALL 35C2h
+00003228:       CALL 35C2h		; _BREAKX - Set CY if STOP is pressed
 0000322B:       DI
 0000322C:       JR C,+06h
 0000322E:       CALL 3C08h
@@ -8105,6 +8146,7 @@ _SIN:
 00003347:       LD A,E
 00003348:       RRCA
 00003349:       JR -09h
+
 0000334B:       LD (EFFBh),HL
 0000334E:       LD (EFFAh),A
 00003351:       LD A,C
@@ -8151,33 +8193,41 @@ _SIN:
 00003390:       EX DE,HL
 00003391:       LD PC,HL
 
-00003392:       LD A,1Bh
+00003392:       LD A,1Bh	; ESC
 00003394:       RET
-00003395:       LD A,20h
+
+00003395:       LD A,20h	; ' '
 00003397:       RET
-00003398:       LD A,03h
+
+00003398:       LD A,03h	; CTRL/C
 0000339A:       RET
+
 0000339B:       POP HL
 0000339C:       POP AF
 0000339D:       JR +54h
-0000339F:       CP 5Ah
+
+0000339F:       CP 5Ah		; ?TK_COM?
 000033A1:       JR NC,+50h
-000033A3:       CP 53h
+000033A3:       CP 53h		; ?TK_POINT?
 000033A5:       JR Z,+2Ch
-000033A7:       CP 54h
+000033A7:       CP 54h		; ?TK_CSRLIN?
 000033A9:       JR Z,+2Bh
-000033AB:       CP 59h
+000033AB:       CP 59h		; ?TK_DATE$?
 000033AD:       JR NZ,+05h
 000033AF:       PUSH AF
 000033B0:       LD A,12h
 000033B2:       JR +0Fh
-000033B4:       CP 58h
+
+000033B4:       CP 58h		; ?TK_PEN?
 000033B6:       JR Z,+08h
 000033B8:       LD HL,3682h
-000033BB:       SUB 50h
+000033BB:       SUB 50h		; sub 80: ?TK_DSKF?
 000033BD:       JP 34C9h
+
+;TK_PEN found:
 000033C0:       PUSH AF
 000033C1:       LD A,13h
+
 000033C3:       CALL 4015h
 000033C6:       AND 01h
 000033C8:       JR NZ,+03h
@@ -8186,8 +8236,10 @@ _SIN:
 000033CD:       CALL 5012h
 000033D0:       POP AF
 000033D1:       JR +20h
+;TK_POINT found:
 000033D3:       LD A,01h
 000033D5:       RET
+
 000033D6:       LD A,(F002h)
 000033D9:       CPL
 000033DA:       LD (E6BAh),A
@@ -8360,6 +8412,7 @@ _SIN:
 000034BA:       SUB C
 000034BB:       ADD B
 000034BC:       RET
+
 000034BD:       SUB C
 000034BE:       LD D,00h
 000034C0:       LD E,B
@@ -8369,6 +8422,7 @@ _SIN:
 000034C6:       INC HL
 000034C7:       LD H,(HL)
 000034C8:       LD L,E
+
 000034C9:       LD E,A
 000034CA:       LD D,00h
 000034CC:       ADD HL,DE
@@ -8377,6 +8431,7 @@ _SIN:
 000034CF:       RET NZ
 000034D0:       SCF
 000034D1:       RET
+
 000034D2:       CALL 34BAh
 000034D5:       LD (F00Ch),A
 000034D8:       LD H,00h
@@ -8385,7 +8440,7 @@ _SIN:
 000034DC:       ADD HL,HL
 000034DD:       ADD HL,HL
 000034DE:       ADD HL,HL
-000034DF:       LD DE,E6F2h
+000034DF:       LD DE,E6F2h		; FNKSTR - FUNCTION KEY AREA
 000034E2:       ADD HL,DE
 000034E3:       LD (F003h),HL
 000034E6:       XOR A
@@ -8511,6 +8566,7 @@ _SIN:
 000035BF:       LD (HL),00h
 000035C1:       RET
 
+; _BREAKX - Set CY if STOP is pressed
 000035C2:       LD A,(E6CAh)
 000035C5:       OR A
 000035C6:       RET Z
@@ -8520,7 +8576,7 @@ _SIN:
 000035CC:       CCF
 000035CD:       RET
 
-; CHGET - Get key from keyboard buffer.
+; CHSNS - Get key from keyboard buffer, don't wait for keypress.
 000035CE:       PUSH HL
 000035CF:       PUSH DE
 000035D0:       PUSH BC
@@ -8574,7 +8630,7 @@ _SIN:
 00003616:       ADD H
 00003617:       ADD D
 00003618:       AND E4h
-0000361A:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
+0000361A:       RST 20h		; (OUTDO??)  CPDEHL - compare DE and HL (aka DCOMPR)
 0000361B:       CALL PE,E8EDh
 0000361E:       JP PE,8EEBh
 00003621:       ADD (HL)
@@ -8596,7 +8652,7 @@ _SIN:
 00003631:       LD A,L
 00003632:       LD A,(HL)
 00003633:       DEC A
-00003634:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
+00003634:       RST 20h		; (OUTDO??)  CPDEHL - compare DE and HL (aka DCOMPR)
 00003635:       OR B
 00003636:       POP DE
 00003637:       CALL 00CEh
@@ -8652,6 +8708,7 @@ _SIN:
 0000367F:       RRA
 00003680:       DEC E
 00003681:       LD (DE),A
+
 00003682:       ADD HL,BC
 00003683:       RRA
 00003684:       DEC E
@@ -8662,7 +8719,7 @@ _SIN:
 00003689:       NOP
 0000368A:       RET M
 0000368B:       LD SP,HL
-0000368C:       CALL 35C2h
+0000368C:       CALL 35C2h		; _BREAKX - Set CY if STOP is pressed
 0000368F:       RET NC
 00003690:       LD A,FFh				; back to main ROM
 00003692:       OUTA (71h)				; bank switching
@@ -9288,7 +9345,7 @@ _SIN:
 00003A98:       LD A,FFh			; back to main ROM
 00003A9A:       OUTA (71h)			; bank switching
 00003A9C:       LD A,B
-00003A9D:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
+00003A9D:       RST 20h		; (OUTDO??)  CPDEHL - compare DE and HL (aka DCOMPR)
 00003A9E:       CP 0Dh
 00003AA0:       POP BC
 00003AA1:       LD A,B
@@ -9645,9 +9702,10 @@ _SIN:
 				DEFB 2			; ..will jump to 74C0h, bank 2
 00003C85:       RET
 
-00003C86:       LD HL,79BEh
+00003C86:       LD HL,79BEh		; "NEC N-88 BASIC Version 1.9..Copyright (C) 1981 by Microsoft.."
 00003C89:       JR +03h
-00003C8B:       LD HL,79D9h
+
+00003C8B:       LD HL,79D9h		; 0Ah,"Copyright (C) 1981 by Microsoft",0Dh,0Ah (portion of the above message)
 00003C8E:       CALL 5550h			; PRS - Print message pointed by HL
 00003C91:       RET
 
@@ -10053,8 +10111,9 @@ _BEEP:
 00003ED2:       EI
 00003ED3:       RET
 
+LPTOUT:
 00003ED4:       PUSH AF
-00003ED5:       CALL 35C2h
+00003ED5:       CALL 35C2h		; _BREAKX - Set CY if STOP is pressed
 00003ED8:       JR C,+17h
 00003EDA:       INA (40h)
 00003EDC:       AND 01h
@@ -10084,7 +10143,7 @@ _BEEP:
 00003F02:       JR Z,+1Ch
 00003F04:       INC HL
 00003F05:       XOR A
-00003F06:       CALL 3ED4h
+00003F06:       CALL 3ED4h		; LPTOUT
 00003F09:       DEC HL
 00003F0A:       LD A,H
 00003F0B:       OR L
@@ -10104,9 +10163,9 @@ _BEEP:
 
 00003F27:       PUSH AF
 00003F28:       LD A,1Bh
-00003F2A:       CALL 3ED4h
+00003F2A:       CALL 3ED4h		; LPTOUT
 00003F2D:       POP AF
-00003F2E:       JP 3ED4h
+00003F2E:       JP 3ED4h		; LPTOUT
 
 00003F31:       PUSH HL
 00003F32:       PUSH DE
@@ -10137,6 +10196,7 @@ _BEEP:
 00003F5B:       CALL 4015h
 00003F5E:       CALL 5012h
 00003F61:       RET
+
 00003F62:       LD A,60h
 00003F64:       DI
 00003F65:       OUTA (51h)
@@ -10259,6 +10319,7 @@ _BEEP:
 0000401E:       ADD HL,BC
 0000401F:       LD A,(HL)
 00004020:       RET
+
 00004021:       LD A,(EF88h)
 00004024:       PUSH HL
 00004025:       PUSH AF
@@ -10370,7 +10431,7 @@ _BEEP:
 000040CE:       OR B
 000040CF:       RET
 
-000040D0:       RST 08h				; Check syntax, 1 byte follows to be compared
+000040D0:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000040D1:       POP AF
 000040D2:       CALL 11D3h			; EVAL - evaluate expression
 000040D5:       PUSH HL
@@ -10378,11 +10439,11 @@ _BEEP:
 000040D9:       CALL 40B4h
 000040DC:       CALL 40C3h
 000040DF:       LD (F00Fh),A
-000040E2:       RST 08h				; Check syntax, 1 byte follows to be compared
+000040E2:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000040E3:       DEFB ':'
 000040E4:       CALL 40C3h
 000040E7:       LD (F00Eh),A
-000040EA:       RST 08h				; Check syntax, 1 byte follows to be compared
+000040EA:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000040EB:       DEFB ':'
 000040EC:       CALL 40C3h
 000040EF:       LD (F00Dh),A
@@ -10634,6 +10695,7 @@ _BEEP:
 00004288:       DEC BC
 00004289:       CP B
 0000428A:       DEC BC
+
 0000428B:       PUSH AF
 0000428C:       LD A,80h
 0000428E:       JR +08h
@@ -10644,6 +10706,7 @@ _BEEP:
 00004298:       LD (E6A8h),A
 0000429B:       POP AF
 0000429C:       RET
+
 0000429D:       PUSH DE
 0000429E:       PUSH HL
 0000429F:       CALL 431Eh
@@ -11048,7 +11111,7 @@ _BEEP:
 000044E2:       RET
 
 000044E3:       CALL 44D5h			; bank switching pivot (read)
-000044E6:       LD (EFB5h),HL
+000044E6:       LD (EFB5h),HL		; 'remote bank read' result
 000044E9:       CALL 44A4h			; bank switching pivot (write)
 000044EC:       LD A,(HL)
 000044ED:       INC HL
@@ -11562,47 +11625,47 @@ _OPEN:
 000047B3:       JR Z,+22h
 
 000047B5:       CALL ECC7h
-000047B8:       RST 08h				; Check syntax, 1 byte follows to be compared
+000047B8:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000047B9:       DEFB 'A'
-000047BA:       RST 08h				; Check syntax, 1 byte follows to be compared
+000047BA:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000047BB:       DEFB 'P'
-000047BC:       RST 08h				; Check syntax, 1 byte follows to be compared
+000047BC:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000047BD:       DEFB 'P'
-000047BE:       RST 08h				; Check syntax, 1 byte follows to be compared
+000047BE:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000047BF:       DEFB 'E'
-000047C0:       RST 08h				; Check syntax, 1 byte follows to be compared
+000047C0:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000047C1:       DEFB 'N'
-000047C2:       RST 08h				; Check syntax, 1 byte follows to be compared
+000047C2:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000047C3:       DEFB 'D'
 000047C4:       LD E,08h
 000047C6:       JR +18h
 
 000047C8:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-000047C9:       RST 08h				; Check syntax, 1 byte follows to be compared
+000047C9:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000047CA:       DEFB 'U'
-000047CB:       RST 08h				; Check syntax, 1 byte follows to be compared
+000047CB:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000047CC:       DEFB 'T'
-000047CD:       RST 08h				; Check syntax, 1 byte follows to be compared
+000047CD:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000047CE:       DEFB 'P'
-000047CF:       RST 08h				; Check syntax, 1 byte follows to be compared
+000047CF:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000047D0:       DEFB 'U'
-000047D1:       RST 08h				; Check syntax, 1 byte follows to be compared
+000047D1:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000047D2:       DEFB 'T'
 000047D3:       LD E,02h
 000047D5:       JR +09h
 
 000047D7:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-000047D8:       RST 08h				; Check syntax, 1 byte follows to be compared
+000047D8:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000047D9:       DEFB 'B'
-000047DA:       RST 08h				; Check syntax, 1 byte follows to be compared
+000047DA:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000047DB:       DEFB 'M'
 000047DC:       LD E,20h
 000047DE:       DEC HL
 
 000047DF:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-000047E0:       RST 08h				; Check syntax, 1 byte follows to be compared
+000047E0:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000047E1:       DEFB 'A'
-000047E2:       RST 08h				; Check syntax, 1 byte follows to be compared
+000047E2:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000047E3:       DEFB 'S'
 000047E4:       PUSH DE
 000047E5:       LD A,(HL)
@@ -11688,7 +11751,7 @@ _LOAD:
 0000486D:       OR A
 0000486E:       JR NZ,+06h
 00004870:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-00004871:       RST 08h				; Check syntax, 1 byte follows to be compared
+00004871:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00004872:       DEFB 'R'
 00004873:       POP AF
 00004874:       SCF
@@ -11728,7 +11791,7 @@ _SAVE:
 000048AD:       SCF
 000048AE:       CALL Z,EDA8h
 000048B1:       JR Z,+11h
-000048B3:       RST 08h				; Check syntax, 1 byte follows to be compared
+000048B3:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000048B4:       DEFB ','
 000048B5:       CP 50h
 000048B7:       LD E,92h
@@ -11736,7 +11799,7 @@ _SAVE:
 000048BB:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 000048BC:       SCF
 000048BD:       JR +05h
-000048BF:       RST 08h				; Check syntax, 1 byte follows to be compared
+000048BF:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000048C0:       DEFB 'A'
 000048C1:       OR A
 000048C2:       LD E,02h
@@ -11783,6 +11846,7 @@ _SAVE:
 00004911:       XOR A
 00004912:       LD (EC27h),A
 00004915:       JP 481Dh
+
 00004918:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
 00004919:       RET NC
 0000491A:       CALL 44A4h			; bank switching pivot (write)
@@ -11864,7 +11928,7 @@ _RSET:
 000049AD:       CALL 5ACAh			; GETVAR - get variable address to DE (AKA PTRGET)
 000049B0:       CALL 2256h				; TSTSTR - Test a string, 'Type Error' if it is not
 000049B3:       PUSH DE
-000049B4:       RST 08h				; Check syntax, 1 byte follows to be compared
+000049B4:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000049B5:       POP AF
 000049B6:       CALL 11D3h			; EVAL - evaluate expression
 000049B9:       POP BC
@@ -12011,9 +12075,9 @@ _FIELD:
 00004A7B:       PUSH BC
 00004A7C:       CALL 18A2h				; FNDNUM - Load 'A' with the next number in BASIC program
 00004A7F:       PUSH AF
-00004A80:       RST 08h				; Check syntax, 1 byte follows to be compared
+00004A80:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00004A81:       DEFB 'A'
-00004A82:       RST 08h				; Check syntax, 1 byte follows to be compared
+00004A82:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00004A83:       DEFB 'S'
 00004A84:       CALL 5ACAh			; GETVAR - get variable address to DE (AKA PTRGET)
 00004A87:       CALL 2256h				; TSTSTR - Test a string, 'Type Error' if it is not
@@ -12201,10 +12265,11 @@ _CLOSE:
 
 _INPUT function (different than INPUT command):
 00004BAC:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-00004BAD:       RST 08h				; Check syntax, 1 byte follows to be compared
-00004BAE:       DEFB '#'
-00004BAF:       RST 08h				; Check syntax, 1 byte follows to be compared
-00004BB0:       JR Z,-1Bh
+00004BAD:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
+00004BAE:       DEFB 24h	; '$'
+00004BAF:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
+00004BAE:       DEFB 24h	; '('
+00004BB1:       PUSH HL
 00004BB2:       LD HL,(EC88h)		; PTRFIL
 00004BB5:       PUSH HL
 00004BB6:       LD HL,0000h
@@ -12215,7 +12280,7 @@ _INPUT function (different than INPUT command):
 00004BC1:       PUSH DE
 00004BC2:       LD A,(HL)
 00004BC3:       CP 2Ch		; ','
-00004BC5:       JR NZ,+0Fh
+00004BC5:       JR NZ,+0Fh	; FN_INPUT_1
 00004BC7:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00004BC8:       CALL 4729h
 00004BCB:       CALL 499Dh
@@ -12224,8 +12289,9 @@ _INPUT function (different than INPUT command):
 00004BD3:       POP HL
 00004BD4:       XOR A
 00004BD5:       LD A,(HL)
+; FN_INPUT_1
 00004BD6:       PUSH AF
-00004BD7:       RST 08h				; Check syntax, 1 byte follows to be compared
+00004BD7:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00004BD8:       DEFB ')'
 00004BD9:       POP AF
 00004BDA:       EX HL,(SP)
@@ -12237,10 +12303,11 @@ _INPUT function (different than INPUT command):
 00004BE2:       CALL 54EEh			; MKTMST - Make temporary string
 00004BE5:       EX DE,HL
 00004BE6:       POP BC
+; FN_INPUT_2
 00004BE7:       POP AF
 00004BE8:       PUSH AF
-00004BE9:       JR Z,+21h
-00004BEB:       CALL 5A41h
+00004BE9:       JR Z,+21h	; FN_INPUT_4
+00004BEB:       CALL 5A41h			; CHGET - Waits for character being input and returns the character codes.
 00004BEE:       CP 03h
 00004BF0:       JR Z,+0Fh
 00004BF2:       LD (HL),A
@@ -12324,7 +12391,7 @@ _FPOS:
 00004C7D:       CP 23h		;'#'
 00004C7F:       RET NZ
 00004C80:       CALL 18A2h				; FNDNUM - Load 'A' with the next number in BASIC program
-00004C83:       RST 08h				; Check syntax, 1 byte follows to be compared
+00004C83:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00004C84:       DEFB ','
 00004C85:       LD A,E
 00004C86:       PUSH HL
@@ -12476,11 +12543,12 @@ _FPOS:
 00004D8B:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00004D8C:       POP AF
 00004D8D:       PUSH AF
-00004D8E:       CALL C,26BCh
+00004D8E:       CALL C,26BCh		; DBL_ASCTFP (a.k.a. FIN)
 00004D91:       POP AF
 00004D92:       CALL NC,26B5h
 00004D95:       POP HL
 00004D96:       RET
+
 00004D97:       OR A
 00004D98:       RET Z
 00004D99:       LD (HL),A
@@ -12728,7 +12796,7 @@ _FPOS:
 00004F0B:       CALL 5159h
 00004F0E:       LD (EC29h),A
 00004F11:       LD (EB00h),A		; AUTFLG - enable flag for AUTO editor command
-00004F14:       LD (EAFFh),A
+00004F14:       LD (EAFFh),A		; PTRFLG
 00004F17:       LD (HL),A
 00004F18:       INC HL
 00004F19:       LD (HL),A
@@ -12770,7 +12838,7 @@ _FPOS:
 00004F6B:       INC HL
 00004F6C:       LD (HL),A
 00004F6D:       XOR A
-00004F6E:       LD (EB0Fh),A
+00004F6E:       LD (EB0Fh),A		; ONEFLG - flag for "ON ERROR"
 00004F71:       LD L,A
 00004F72:       LD H,A
 00004F73:       LD (EB0Dh),HL
@@ -12806,7 +12874,7 @@ _FPOS:
 00004FB8:       LD HL,EAD0h			; TEMPST - temporary descriptors
 00004FBB:       LD (EACEh),HL		; TEMPPT - start of free area of temporary descriptor
 00004FBE:       CALL 1DD4h
-00004FC1:       CALL 5989h
+00004FC1:       CALL 5989h			; STOP_LPT -  Stop and reset line printer
 00004FC4:       CALL 0F8Bh			; FINPRT - finalize PRINT
 00004FC7:       XOR A
 00004FC8:       LD H,A
@@ -12869,12 +12937,14 @@ _FPOS:
 00005021:       JR Z,+03h
 00005023:       EI
 00005024:       RET
+
 00005025:       DI
-00005026:       LD A,(E6F1h)
+00005026:       LD A,(E6F1h)		; ONGSBF - flag for "ON GOSUB"
 00005029:       INC A
-0000502A:       LD (E6F1h),A
+0000502A:       LD (E6F1h),A		; ONGSBF - flag for "ON GOSUB"
 0000502D:       EI
 0000502E:       RET
+
 0000502F:       DI
 00005030:       LD A,(HL)
 00005031:       AND 03h
@@ -12883,10 +12953,11 @@ _FPOS:
 00005035:       JR NZ,+02h
 00005037:       EI
 00005038:       RET
-00005039:       LD A,(E6F1h)
+
+00005039:       LD A,(E6F1h)		; ONGSBF - flag for "ON GOSUB"
 0000503C:       SUB 01h
 0000503E:       JR C,-09h
-00005040:       LD (E6F1h),A
+00005040:       LD (E6F1h),A		; ONGSBF - flag for "ON GOSUB"
 00005043:       EI
 00005044:       RET
 
@@ -12901,10 +12972,10 @@ _FPOS:
 00005051:       LD (HL),A
 00005052:       INC HL
 00005053:       DJNZ -08h
-00005055:       LD (E6F1h),A
+00005055:       LD (E6F1h),A		; ONGSBF - flag for "ON GOSUB"
 00005058:       RET
 
-00005059:       LD A,(EB0Fh)
+00005059:       LD A,(EB0Fh)		; ONEFLG - flag for "ON ERROR"
 0000505C:       OR A
 0000505D:       RET NZ
 0000505E:       PUSH HL
@@ -12913,6 +12984,7 @@ _FPOS:
 00005063:       AND L
 00005064:       INC A
 00005065:       JR Z,+19h
+
 00005067:       LD HL,(E6EFh)
 0000506A:       LD A,(E6EEh)
 0000506D:       LD B,A
@@ -12929,6 +13001,7 @@ _FPOS:
 0000507E:       DJNZ -0Fh
 00005080:       POP HL
 00005081:       RET
+
 00005082:       PUSH DE
 00005083:       PUSH BC
 00005084:       INC HL
@@ -12973,7 +13046,8 @@ _RESTORE:
 000050C0:       CALL 44A4h			; bank switching pivot (write)
 000050C3:       EX DE,HL
 000050C4:       DEC HL
-000050C5:       LD (EB21h),HL
+; __RESTORE_1
+000050C5:       LD (EB21h),HL		; DATPTR
 000050C8:       EX DE,HL
 000050C9:       RET
 
@@ -13004,6 +13078,7 @@ _END:
 000050F4:       LD (EACEh),HL			; TEMPPT - start of free area of temporary descriptor
 000050F7:       LD HL,FFF6h
 000050FA:       POP BC
+; __END_1
 000050FB:       LD HL,(E656h)			; CURLIN - line number being interpreted
 000050FE:       PUSH HL
 000050FF:       PUSH AF
@@ -13019,8 +13094,8 @@ _END:
 00005112:       LD A,(E69Fh)
 00005115:       OR A
 00005116:       JP NZ,75D8h
-00005119:       CALL 5989h
-0000511C:       CALL 5A58h
+00005119:       CALL 5989h			; STOP_LPT -  Stop and reset line printer
+0000511C:       CALL 5A58h			; CONSOLE_CRLF
 0000511F:       POP AF
 00005120:       LD HL,0320h			; "Break"
 00005123:       JP NZ,045Fh
@@ -13033,10 +13108,10 @@ _END:
 00005130:       LD (E64Ch),A		; PRTFLG ("printer enabled" flag)
 00005133:       LD (E652h),A
 00005136:       LD A,5Eh
-00005138:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
+00005138:       RST 20h		; (OUTDO??)  CPDEHL - compare DE and HL (aka DCOMPR)
 00005139:       POP AF
 0000513A:       ADD 40h
-0000513C:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
+0000513C:       RST 20h		; (OUTDO??)  CPDEHL - compare DE and HL (aka DCOMPR)
 0000513D:       JP 5A69h	; OUTDO_CRLF
 
 _CONT:
@@ -13068,14 +13143,14 @@ _SWAP:
 0000516C:       EX HL,(SP)
 0000516D:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
 0000516E:       PUSH AF
-0000516F:       RST 08h				; Check syntax, 1 byte follows to be compared
+0000516F:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00005170:       DEFB ','
 00005171:       CALL 5ACAh			; GETVAR - get variable address to DE (AKA PTRGET)
 00005174:       POP AF
 00005175:       LD B,A
 00005176:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
 00005177:       CP B
-00005178:       JP NZ,03B1h
+00005178:       JP NZ,03B1h		; TYPE_ERR, "Type mismatch" error
 0000517B:       EX HL,(SP)
 0000517C:       EX DE,HL
 0000517D:       PUSH HL
@@ -13175,6 +13250,8 @@ _SWAP:
 00005213:       POP HL
 00005214:       RET
 00005215:       LD A,(HL)
+
+; IS_ALPHA_A - Check it is in the 'A'..'Z' range
 00005216:       CP 41h
 00005218:       RET C
 00005219:       CP 5Bh		; '['
@@ -13201,7 +13278,7 @@ _CLEAR:
 00005240:       DEC HL
 00005241:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00005242:       JR Z,-27h
-00005244:       RST 08h				; Check syntax, 1 byte follows to be compared
+00005244:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00005245:       DEFB ','
 00005246:       JR Z,-2Bh
 00005248:       LD DE,(E654h)		; STKTOP
@@ -13220,7 +13297,7 @@ _CLEAR:
 00005264:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00005265:       PUSH DE
 00005266:       JR Z,+3Dh
-00005268:       RST 08h				; Check syntax, 1 byte follows to be compared
+00005268:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00005269:       DEFB ','
 0000526A:       JR Z,+39h
 0000526C:       CALL 5299h
@@ -13289,7 +13366,7 @@ _NEXT:
 000052CF:       CALL NZ,5ACAh			; GETVAR - get variable address to DE (AKA PTRGET)
 000052D2:       LD (EAFDh),HL		; TEMP - temp. reservation for st.code
 000052D5:       CALL 0346h
-000052D8:       JP NZ,039Fh
+000052D8:       JP NZ,039Fh				; "NEXT without FOR" error
 000052DB:       LD SP,HL
 000052DC:       PUSH DE
 000052DD:       LD E,(HL)
@@ -13299,7 +13376,7 @@ _NEXT:
 000052E1:       PUSH HL
 000052E2:       LD HL,(EC16h)
 000052E5:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
-000052E6:       JP NZ,039Fh
+000052E6:       JP NZ,039Fh				; "NEXT without FOR" error
 000052E9:       POP HL
 000052EA:       POP DE
 000052EB:       PUSH DE
@@ -13352,7 +13429,7 @@ _NEXT:
 00005333:       CALL 233Ah
 00005336:       LD A,(EABDh)		; VALTYP - type indicator
 00005339:       CP 04h
-0000533B:       JP Z,03ABh
+0000533B:       JP Z,03ABh			; "Overflow" error
 0000533E:       EX DE,HL
 0000533F:       POP HL
 00005340:       LD (HL),D
@@ -13440,7 +13517,7 @@ _NEXT:
 000053B9:       JP C,53CBh
 000053BC:       CP 3Ah		; ':'
 000053BE:       JP C,53C7h
-000053C1:       CALL 5216h
+000053C1:       CALL 5216h			; IS_ALPHA_A - Check it is in the 'A'..'Z' range
 000053C4:       JP C,53CBh
 000053C7:       INC B
 000053C8:       INC HL
@@ -13450,6 +13527,7 @@ _NEXT:
 000053CD:       OR A
 000053CE:       JP Z,06CFh
 000053D1:       RET
+
 000053D2:       PUSH HL
 000053D3:       PUSH DE
 000053D4:       CALL 53AFh
@@ -13572,7 +13650,7 @@ _NEXT:
 00005489:       RET C
 0000548A:       CP 3Ah		; ':'
 0000548C:       JR C,-0Eh
-0000548E:       CALL 5216h
+0000548E:       CALL 5216h			; IS_ALPHA_A - Check it is in the 'A'..'Z' range
 00005491:       JR NC,-13h
 00005493:       RET
 
@@ -13623,7 +13701,7 @@ _HEX$:
 000054C9:       JR +03h
 
 _STR$:
-000054CB:       CALL 28D0h
+000054CB:       CALL 28D0h			; FOUT Convert number/expression to string (format not specified)
 000054CE:       CALL 54FCh			; CRTST - Create String
 000054D1:       CALL 56CCh			; GSTRCU - Get string pointed by FPREG
 
@@ -14036,14 +14114,14 @@ _CHR$:
 
 _STRING$:
 00005722:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-00005723:       RST 08h				; Check syntax, 1 byte follows to be compared
+00005723:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00005724:       JR Z,-33h
 00005726:       AND E
 00005727:       JR -2Bh
-00005729:       RST 08h				; Check syntax, 1 byte follows to be compared
+00005729:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 0000572A:       DEFB ','
 0000572B:       CALL 11D3h			; EVAL - evaluate expression
-0000572E:       RST 08h				; Check syntax, 1 byte follows to be compared
+0000572E:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 0000572F:       DEFB ')'
 00005730:       EX HL,(SP)
 00005731:       PUSH HL
@@ -14164,7 +14242,7 @@ _VAL:
 
 ; LFRGNM - number in program listing and check for ending ')'
 000057CF:       EX DE,HL
-000057D0:       RST 08h				; Check syntax, 1 byte follows to be compared
+000057D0:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000057D1:       DEFB ')'
 ; MIDNUM - Get number in program listing
 000057D2:       POP BC
@@ -14185,17 +14263,17 @@ _INSTR:
 000057E5:       OR A
 000057E6:       JP Z,0B06h			; FCERR, Err $05 - "Illegal function call"
 000057E9:       PUSH AF
-000057EA:       RST 08h				; Check syntax, 1 byte follows to be compared
+000057EA:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000057EB:       DEFB ','
 000057EC:       CALL 11D3h			; EVAL - evaluate expression
 000057EF:       CALL 2256h			; TSTSTR - Test a string, 'Type Error' if it is not
-000057F2:       RST 08h				; Check syntax, 1 byte follows to be compared
+000057F2:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000057F3:       DEFB ','
 000057F4:       PUSH HL
 000057F5:       LD HL,(EC41h)		; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 000057F8:       EX HL,(SP)
 000057F9:       CALL 11D3h			; EVAL - evaluate expression
-000057FC:       RST 08h				; Check syntax, 1 byte follows to be compared
+000057FC:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000057FD:       DEFB ')'
 000057FE:       PUSH HL
 000057FF:       CALL 56C9h			; GETSTR - Get string pointed by FPREG 'Type Error' if it is not
@@ -14274,7 +14352,9 @@ _INSTR:
 00005855:       INC HL
 00005856:       DJNZ -23h
 00005858:       JR -14h
-0000585A:       RST 08h				; Check syntax, 1 byte follows to be compared
+
+FN_POINT:
+0000585A:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 0000585B:       JR Z,-33h
 0000585D:       JP Z,CD5Ah
 00005860:       LD D,(HL)
@@ -14301,7 +14381,7 @@ _INSTR:
 00005882:       CALL 20FCh			; FP2HL - copy number value from DE to HL
 00005885:       POP HL
 00005886:       EX HL,(SP)
-00005887:       RST 08h				; Check syntax, 1 byte follows to be compared
+00005887:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00005888:       DEFB ','
 00005889:       CALL 18A3h			; GETINT
 0000588C:       OR A
@@ -14366,10 +14446,10 @@ _INSTR:
 000058D6:       LD E,FFh
 000058D8:       CP 29h		; ')'
 000058DA:       JR Z,+05h
-000058DC:       RST 08h				; Check syntax, 1 byte follows to be compared
+000058DC:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000058DD:       DEFB ','
 000058DE:       CALL 18A3h			; GETINT
-000058E1:       RST 08h				; Check syntax, 1 byte follows to be compared
+000058E1:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000058E2:       DEFB ')'
 000058E3:       RET
 
@@ -14459,7 +14539,11 @@ _FRE:
 00005981:       INC A
 00005982:       LD (E64Bh),A			; LPTPOS - printer cursor position
 00005985:       POP AF
-00005986:       JP 3ED4h
+
+; LPTOUT_SAFE
+00005986:       JP 3ED4h		; LPTOUT
+
+; STOP_LPT -  Stop and reset line printer
 00005989:       XOR A
 0000598A:       LD (E64Ch),A		; PRTFLG ("printer enabled" flag)
 0000598D:       CALL 3EF3h
@@ -14467,9 +14551,9 @@ _FRE:
 00005993:       OR A
 00005994:       RET Z
 00005995:       LD A,0Dh
-00005997:       CALL 5986h
+00005997:       CALL 5986h			; LPTOUT_SAFE
 0000599A:       LD A,0Ah
-0000599C:       CALL 5986h
+0000599C:       CALL 5986h			; LPTOUT_SAFE
 0000599F:       XOR A
 000059A0:       LD (E64Bh),A			; LPTPOS - printer cursor position
 000059A3:       RET
@@ -14568,6 +14652,7 @@ _FRE:
 00005A3F:       POP HL
 00005A40:       RET
 
+; CHGET - Waits for character being input and returns the character codes.
 00005A41:       CALL 3583h
 00005A44:       CP 0Fh
 00005A46:       RET NZ
@@ -14581,6 +14666,7 @@ _FRE:
 00005A56:       XOR A
 00005A57:       RET
 
+; CONSOLE_CRLF
 00005A58:       CALL 449Fh
 00005A5B:       OR A
 00005A5C:       RET Z
@@ -14593,9 +14679,9 @@ _FRE:
 ; OUTDO_CRLF
 00005A69:       CALL ED0Ch
 00005A6C:       LD A,0Dh
-00005A6E:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
+00005A6E:       RST 20h		; (OUTDO??) CPDEHL - compare DE and HL (aka DCOMPR)
 00005A6F:       LD A,0Ah
-00005A71:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
+00005A71:       RST 20h		; (OUTDO??) CPDEHL - compare DE and HL (aka DCOMPR)
 00005A72:       CALL 5372h
 00005A75:       JR Z,+02h
 00005A77:       XOR A
@@ -14615,12 +14701,12 @@ _FRE:
 00005A89:       LD A,(E6CAh)
 00005A8C:       OR A
 00005A8D:       RET Z
-00005A8E:       CALL 5A41h
+00005A8E:       CALL 5A41h			; CHGET - Waits for character being input and returns the character codes.
 00005A91:       CP 13h
 00005A93:       PUSH AF
 00005A94:       CALL NZ,5A44h
 00005A97:       POP AF
-00005A98:       CALL Z,5A41h
+00005A98:       CALL Z,5A41h		; CHGET - Waits for character being input and returns the character codes.
 00005A9B:       CP 03h
 00005A9D:       CALL Z,512Bh
 00005AA0:       JP 50CDh
@@ -14628,7 +14714,7 @@ _FRE:
 _INKEY$:
 00005AA3:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00005AA4:       PUSH HL
-00005AA5:       CALL 35CEh		; CHGET - Get key from keyboard buffer.
+00005AA5:       CALL 35CEh		; CHSNS - Get key from keyboard buffer, don't wait for keypress.
 00005AA8:       JR Z,+09h		; _NO_KEY_FOUND
 00005AAA:       PUSH AF
 00005AAB:       CALL 54ECh		; MK_1BYTE_TMST - make 1 byte long temporary string
@@ -14646,7 +14732,7 @@ _INKEY$:
 00005AC0:       DEC HL
 00005AC1:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00005AC2:       RET Z
-00005AC3:       RST 08h				; Check syntax, 1 byte follows to be compared
+00005AC3:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00005AC4:       DEFB ','
 
 _DIM:
@@ -14670,7 +14756,7 @@ _DIM:
 00005AE7:       JR NC,+04h
 00005AE9:       CP 30h
 00005AEB:       JR NC,+05h
-00005AED:       CALL 5216h
+00005AED:       CALL 5216h			; IS_ALPHA_A - Check it is in the 'A'..'Z' range
 00005AF0:       JR C,+2Ah
 00005AF2:       LD B,A
 00005AF3:       PUSH BC
@@ -14686,7 +14772,7 @@ _DIM:
 00005B02:       JR NC,+04h
 00005B04:       CP 30h
 00005B06:       JR NC,-0Fh
-00005B08:       CALL 5216h
+00005B08:       CALL 5216h			; IS_ALPHA_A - Check it is in the 'A'..'Z' range
 00005B0B:       JR NC,-14h
 00005B0D:       CP 2Eh
 00005B0F:       JR Z,-18h
@@ -14977,7 +15063,7 @@ _DIM:
 00005CD5:       JR NZ,-25h
 00005CD7:       LD A,(EABCh)
 00005CDA:       OR A
-00005CDB:       JP NZ,03A2h
+00005CDB:       JP NZ,03A2h			;  "Duplicate definition" error
 00005CDE:       POP AF
 00005CDF:       LD B,H
 00005CE0:       LD C,L
@@ -15390,6 +15476,7 @@ _DIM:
 00005F72:       RET Z
 00005F73:       PUSH AF
 00005F74:       JR -0Ch
+
 00005F76:       PUSH HL
 00005F77:       LD DE,EF9Ah		; NXTOPR - Address ptr to next operator
 00005F7A:       LD H,00h
@@ -15402,6 +15489,7 @@ _DIM:
 00005F83:       RET Z
 00005F84:       AND A
 00005F85:       RET
+
 00005F86:       PUSH HL
 00005F87:       LD DE,EF9Ah		; NXTOPR - Address ptr to next operator
 00005F8A:       LD H,00h
@@ -15411,6 +15499,8 @@ _DIM:
 00005F8F:       EX DE,HL
 00005F90:       POP HL
 00005F91:       RET
+
+; PINLIN - Accepts a line from console until a CR or STOP
 00005F92:       CALL ED18h
 00005F95:       CALL 60D8h
 00005F98:       XOR A
@@ -15433,10 +15523,14 @@ _DIM:
 00005FBC:       LD A,(EF89h)
 00005FBF:       INC A
 00005FC0:       JR +16h
-00005FC2:       LD A,3Fh
+
+;_QINLIN - Output a '?' mark and a space then falls into the INLIN routine.
+00005FC2:       LD A,3Fh	;'?'
 00005FC4:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
 00005FC5:       LD A,20h
 00005FC7:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
+
+; INLIN - Same as PINLIN,exept if AUTFLO if set.
 00005FC8:       CALL ED15h
 00005FCB:       CALL 60D8h
 00005FCE:       LD HL,(EF86h)
@@ -16389,21 +16483,21 @@ _EDIT:
 00006641:       RET
 
 __USING:
-00006642:       CALL 11D4h				; EVAL 	- (a.k.a. GETNUM, evaluate expression (GETNUM)
+00006642:       CALL 11D4h				; EVAL_0 	- (a.k.a. GETNUM, evaluate expression (GETNUM)
 00006645:       CALL 2256h				; TSTSTR - Test a string, 'Type Error' if it is not
-00006648:       RST 08h					; Check syntax, 1 byte follows to be compared
+00006648:       RST 08h					; SYNCHR - Check syntax, 1 byte follows to be compared
 00006649:       DEFB ';'
 0000664A:       EX DE,HL
 0000664B:       LD HL,(EC41h)			; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 0000664E:       JR +08h
-00006650:       LD A,(EAFCh)
+00006650:       LD A,(EAFCh)		; FLGINP
 00006653:       OR A
 00006654:       JR Z,+0Ch
 00006656:       POP DE
 00006657:       EX DE,HL
 00006658:       PUSH HL
 00006659:       XOR A
-0000665A:       LD (EAFCh),A
+0000665A:       LD (EAFCh),A		; FLGINP
 0000665D:       INC A
 0000665E:       PUSH AF
 0000665F:       PUSH DE
@@ -16515,7 +16609,7 @@ __USING:
 0000670C:       PUSH DE
 0000670D:       LD D,H
 0000670E:       LD E,L
-0000670F:       CP 5Eh
+0000670F:       CP 5Eh		; TK_RBYTE
 00006711:       RET NZ
 00006712:       CP (HL)
 00006713:       RET NZ
@@ -16570,18 +16664,19 @@ __USING:
 00006753:       CP 19h
 00006755:       JP NC,0B06h			; FCERR, Err $05 - "Illegal function call"
 00006758:       LD A,D
+
 00006759:       OR 80h
-0000675B:       CALL 28D1h
+0000675B:       CALL 28D1h			; PUFOUT - Convert number/expression to string (format specified in 'A' register)
 0000675E:       CALL 5550h			; PRS - Print message pointed by HL
 00006761:       POP HL
 00006762:       DEC HL
 00006763:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00006764:       SCF
 00006765:       JR Z,+0Bh
-00006767:       LD (EAFCh),A
+00006767:       LD (EAFCh),A		; FLGINP
 0000676A:       CP 3Bh		; ';'
 0000676C:       JR Z,+03h
-0000676E:       RST 08h				; Check syntax, 1 byte follows to be compared
+0000676E:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 0000676F:       DEFB ','
 00006770:       LD B,D7h
 00006772:       POP BC
@@ -16829,7 +16924,7 @@ __USING:
 00006923:       OR D
 00006924:       JP NZ,0B06h			; FCERR, Err $05 - "Illegal function call"
 00006927:       POP DE
-00006928:       RST 08h				; Check syntax, 1 byte follows to be compared
+00006928:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00006929:       DEFB ','
 0000692A:       RET
 
@@ -17159,115 +17254,86 @@ __USING:
 00006AFF:       LD C,D
 00006B00:       AND A
 00006B01:       LD C,D
-00006B02:       LD (HL),A
-00006B03:       XOR 00h
-00006B05:       NOP
-00006B06:       JP PO,BA6Eh
-00006B09:       LD L,(HL)
-00006B0A:       JP NC,D66Eh
-00006B0D:       LD L,(HL)
-00006B0E:       JP NZ,B26Eh
-00006B11:       LD L,(HL)
-00006B12:       LD SP,003Fh
-00006B15:       NOP
-00006B16:       SBC (HL)
-00006B17:       LD L,(HL)
-00006B18:       NOP
-00006B19:       NOP
-00006B1A:       LD A,L
-00006B1B:       XOR 00h
-00006B1D:       NOP
-00006B1E:       SUB E
-00006B1F:       INC BC
-00006B20:       JR NC,+7Fh
-00006B22:       JP P,C86Eh
-00006B25:       LD (HL),D
-00006B26:       LD (BC),A
-00006B27:       LD L,A
-00006B28:       INC E
-00006B29:       LD (HL),D
-00006B2A:       SUB E
-00006B2B:       INC BC
-00006B2C:       LD (HL),C
-00006B2D:       LD A,L
-00006B2E:       SUB E
-00006B2F:       INC BC
-00006B30:       JP M,FE6Eh
-00006B33:       LD L,(HL)
-00006B34:       LD A,C
-00006B35:       LD (HL),D
-00006B36:       NOP
-00006B37:       NOP
-00006B38:       AND C
-00006B39:       XOR 00h
-00006B3B:       NOP
-00006B3C:       AND H
-00006B3D:       XOR 00h
-00006B3F:       NOP
-00006B40:       AND A
-00006B41:       XOR 00h
-00006B43:       NOP
-00006B44:       XOR D
-00006B45:       XOR B9h
-00006B47:       XOR 00h
-00006B49:       NOP
-00006B4A:       NOP
-00006B4B:       NOP
-00006B4C:       XOR L
-00006B4D:       XOR B3h
-00006B4F:       XOR B0h
-00006B51:       XOR 00h
-00006B53:       NOP
-00006B54:       OR (HL)
-00006B55:       XOR 8Ah
-00006B57:       LD L,E
-00006B58:       AND B
-00006B59:       LD L,E
-00006B5A:       XOR A
-00006B5B:       LD L,E
-00006B5C:       LD C,6Ch
-00006B5E:       LD C,D
-00006B5F:       LD L,H
-00006B60:       LD L,A
-00006B61:       LD L,H
-00006B62:       ADC C
-00006B63:       LD L,H
-00006B64:       SBC E
-00006B65:       LD L,H
-00006B66:       AND H
-00006B67:       LD L,H
-00006B68:       ADC 6Ch
-00006B6A:       RST 08h				; (probably we're in a data area)
-00006B6B:       LD L,H
-00006B6C:       CALL C,1C6Ch
-00006B6F:       LD L,L
-00006B70:       LD B,B
-00006B71:       LD L,L
-00006B72:       LD C,A
-00006B73:       LD L,L
-00006B74:       LD L,B
-00006B75:       LD L,L
-00006B76:       SUB A
-00006B77:       LD L,L
-00006B78:       SBC B
-00006B79:       LD L,L
-00006B7A:       JP C,216Dh
-00006B7D:       LD L,(HL)
-00006B7E:       LD B,C
-00006B7F:       LD L,(HL)
-00006B80:       LD C,D
-00006B81:       LD L,(HL)
-00006B82:       LD E,B
-00006B83:       LD L,(HL)
-00006B84:       LD A,E
-00006B85:       LD L,(HL)
-00006B86:       LD A,A
-00006B87:       LD L,(HL)
-00006B88:       ADD B
-00006B89:       LD L,(HL)
 
 
-00006B8A:
+; jump table for extra functions -2
+00006B02:       DEFW EE77h
+; jump table for extra functions
+00006B04:       DEFW 0000h
+00006B06:       DEFW 6EE2h
+00006B08:       DEFW 6EBAh
+00006B0A:       DEFW 6ED2h
+00006B0C:       DEFW 6ED6h
+00006B0E:       DEFW 6EC2h
+00006B10:       DEFW 6EB2h
+00006B12:       DEFW 3F31h
+00006B14:       DEFW 0000h
+00006B16:       DEFW 6E9Eh
+00006B18:       DEFW 0000h
+00006B1A:       DEFW EE7Dh
+00006B1C:       DEFW 0000h
+00006B1E:       DEFW 0393h		;  
+00006B20:       DEFW 7F30h		;  
+00006B22:       DEFW 6EF2h		;  
+00006B24:       DEFW 72C8h		;  
+00006B26:       DEFW 6F02h		;  
+00006B28:       DEFW 721Ch		;  
+00006B2A:       DEFW 0393h		;  
+00006B2C:       DEFW 7D71h		;  
+00006B2E:       DEFW 0393h		;  
+00006B30:       DEFW 6EFAh		;  91: FN_KEY
+00006B32:       DEFW 6EFEh		;  
+00006B34:       DEFW 7279h		;  
+00006B36:       DEFW 0000h		;  
+00006B38:       DEFW EE1Ah		;  
+00006B3A:       DEFW 0000h		;  
+00006B3C:       DEFW EE4Ah		;  
+00006B3E:       DEFW 0000h		;  
+00006B40:       DEFW EEA7h		;  
+00006B42:       DEFW 0000h		; 
+00006B44:       DEFW EEAAh
+00006B46:       DEFW EEB9h
+00006B48:       DEFW 0000h
+00006B4A:       DEFW 0000h
+00006B4C:       DEFW EEADh
+00006B4E:       DEFW EEB3h
+00006B50:       DEFW EEB0h
+00006B52:       DEFW 0000h
+00006B54:       DEFW EEB6h
+
+
+
+; WORD_PTR
+00006B56:       DEFW	6B8Ah	; WORDS_A
+00006B58:       DEFW	6BA0h	; WORDS_B
+00006B5A:       DEFW	6BAFh	; WORDS_C
+00006B5C:       DEFW	6C0Eh	; WORDS_D
+00006B5E:       DEFW	6C4Ah	; WORDS_E
+00006B60:       DEFW	6C6Fh	; WORDS_F
+00006B62:       DEFW	6C89h	; WORDS_G
+00006B64:       DEFW	6C9Bh	; WORDS_H
+00006B66:       DEFW	6CA4h	; WORDS_I
+00006B68:       DEFW	6CCEh	; WORDS_J
+00006B6A:       DEFW	6CCFh	; WORDS_K
+00006B6C:       DEFW	6CDCh	; WORDS_L
+00006B6E:       DEFW	6D1Ch	; WORDS_M
+00006B70:       DEFW	6D40h	; WORDS_N
+00006B72:       DEFW	6D4Fh	; WORDS_O
+00006B74:       DEFW	6D68h	; WORDS_P
+00006B76:       DEFW	6D97h	; WORDS_Q
+00006B78:       DEFW	6D98h	; WORDS_R
+00006B7A:       DEFW	6DDAh	; WORDS_S
+00006B7C:       DEFW	6E21h	; WORDS_T
+00006B7E:       DEFW	6E41h	; WORDS_U
+00006B80:       DEFW	6E4Ah	; WORDS_V
+00006B82:       DEFW	6E58h	; WORDS_W
+00006B84:       DEFW	6E7Bh	; WORDS_X
+00006B86:       DEFW	6E7Fh	; WORDS_Y
+00006B88:       DEFW	6E80h	; WORDS_Z
+
+
+
+6B8A:  ; WORDS_A
 6B80                                55 54 CF A8 4E C4             UT..N.
 6B90  F8 42 D3 06 54 CE 0E 53-C3 15 54 54 52 A4 EB 00   .B..T..S..TTR...
 6BA0  53 41 56 C5 D5 4C 4F 41-C4 D4 45 45 D0 D7 00 4F   SAV..LOA..EE...O
@@ -17276,64 +17342,72 @@ __USING:
 6BD0  D4 1C 53 4E C7 1D 44 42-CC 1E 56 C9 20 56 D3 21   ..SN..DB..V. V.!
 6BE0  56 C4 22 4F D3 0C 48 52-A4 16 41 4C CC B1 4F 4D   V."O..HR..AL..OM
 6BF0  4D 4F CE B6 48 41 49 CE-B7 4F CD 5A 49 52 43 4C   MO..HAI..O.ZIRCL
-6C00  C5 CC 4F 4C 4F D2 CB 4C-D3 CE                     ..OLO..L..
-
-6C00                                4D C4 64 00 45 4C             M.d.EL
+6C00  C5 CC 4F 4C 4F D2 CB 4C-D3 CE 4D C4 64 00 45 4C   ..OLO..L..M.d.EL
 6C10  45 54 C5 A7 41 54 C1 84-49 CD 86 45 46 53 54 D2   ET..AT..I..EFST.
 6C20  AA 45 46 49 4E D4 AB 45-46 53 4E C7 AC 45 46 44   .EFIN..EFSN..EFD
 6C30  42 CC AD 53 4B 4F A4 BA-45 C6 97 53 4B 49 A4 EC   B..SKO..E..SKI..
 6C40  53 4B C6 50 41 54 45 A4-59 00 4C 53 C5 9F 4E C4   SK.PATE.Y.LS..N.
 6C50  81 52 41 53 C5 A3 44 49-D4 A4 52 52 4F D2 A5 52   .RAS..DI..RRO..R
-6C60  CC E4 52 D2 E5 58 D0 0B-4F C6 23 51 D6 FB 00 4F   ..R..X..O.#Q...O
-6C70  D2 82 49 45 4C C4 BC 49-4C 45 D3 C3 CE E1 52 C5   ..IEL..ILE....R.
-6C80  0F 49 D8 1F 50 4F D3 26-00 4F                     .I..PO.&.O
+6C60  CC E4 52 D2 E5 58 D0 0B-4F C6 23 51 D6 FB 00      ..R..X..O.#Q...
 
-6C80                                54 CF 89 4F 20 54             T..O T
+6C6F:   ; WORDS_F
+6C60                                               4F                  O
+6C70  D2 82 49 45 4C C4 BC 49-4C 45 D3 C3 CE E1 52 C5   ..IEL..ILE....R.
+6C80  0F 49 D8 1F 50 4F D3 26-00 4F 54 CF 89 4F 20 54   .I..PO.&.OT..O T
 6C90  CF 89 4F 53 55 C2 8D 45-D4 BD 00 45 58 A4 1A 45   ..OSU..E...EX..E
 6CA0  4C D0 D9 00 4E 50 55 D4-85 53 45 D4 60 45 45 C5   L...NPU..SE.`EE.
 6CB0  61 52 45 53 45 D4 62 C6-8B 4E 53 54 D2 E8 4E D4   aRESE.b..NST..N.
-6CC0  05 4E D0 10 4D D0 FC 4E-4B 45 59 A4 EF 00 00 45   .N..M..NKEY....E
+6CC0  05 4E D0 10 4D D0 FC 4E-4B 45 59 A4 EF 00 00      .N..M..NKEY....
+
+6CCF:   ; WORDS_K
+6CC0                                               45                  E 
 6CD0  D9 5B 49 4C CC C5 41 4E-4A C9 DB 00 4F 43 41 54   .[IL..ANJ...OCAT
 6CE0  C5 D6 50 52 49 4E D4 9B-4C 49 53 D4 9C 50 4F D3   ..PRIN..LIS..PO.
 6CF0  1B 45 D4 88 49 4E C5 AE-4F 41 C4 C1 53 45 D4 C6   .E..IN..OA..SE..
-6D00  49 53 D4 93 46 49 4C 45-D3 C9                     IS..FILE..
-
-6D00                                4F C7 0A 4F C3 24             O..O.$
+6D00  49 53 D4 93 46 49 4C 45-D3 C9 4F C7 0A 4F C3 24   IS..FILE..O..O.$
 6D10  45 CE 12 45 46 54 A4 01-4F C6 25 00 4F 54 4F D2   E..EFT..O.%.OTO.
 6D20  57 45 52 47 C5 C2 4F C4-FD 4B 49 A4 27 4B 53 A4   WERG..O..KI.'KS.
 6D30  28 4B 44 A4 29 49 44 A4-03 4F CE CA 41 D0 55 00   (KD.)ID..O..A.U.
+
+6D40:   ; WORDS_N
 6D40  45 58 D4 83 41 4D C5 C4-45 D7 94 4F D4 E3 00 50   EX..AM..E..O...P
 6D50  45 CE BB 55 D4 9A CE 95-D2 F9 43 54 A4 19 50 54   E..U......CT..PT
 6D60  49 4F CE B8 46 C6 EE 00-52 49 4E D4 91 55 D4 BE   IO..F...RIN..U..
 6D70  4F 4B C5 98 4F 4C CC 5F-4F D3 11 45 45 CB 17 53   OK..OL._O..EE..S
-6D80  45 D4 CF 52 45 53 45 D4-D0 4F                     E..RESE..O
-
-6D80                                49 4E D4 53 41 49             IN.SAI
+6D80  45 D4 CF 52 45 53 45 D4-D0 4F 49 4E D4 53 41 49   E..RESE..OIN.SAI
 6D90  4E D4 D1 45 CE 58 00 00-45 54 55 52 CE 8E 45 41   N..E.X..ETUR..EA
 6DA0  C4 87 55 CE 8A 45 53 54-4F 52 C5 8C 42 59 54 C5   ..U..ESTOR..BYT.
 6DB0  5E 45 CD 8F 45 53 55 4D-C5 A6 53 45 D4 C7 49 47   ^E..ESUM..SE..IG
 6DC0  48 54 A4 02 4E C4 08 45-4E 55 CD A9 41 4E 44 4F   HT..N..ENU..ANDO
-6DD0  4D 49 5A C5 B9 4F 4C CC-D8 00 43 52 45 45 CE D3   MIZ..OL...CREE..
+6DD0  4D 49 5A C5 B9 4F 4C CC-D8 00                     MIZ..OL...
+
+6DDA:   ; WORDS_S
+6DD0                                43 52 45 45 CE D3             CREE..
 6DE0  45 41 52 43 C8 56 54 4F-D0 90 57 41 D0 A2 45 D4   EARC.VTO..WA..E.
 6DF0  BF 52 D1 ED 54 41 54 55-D3 63 41 56 C5 C8 50 43   .R..TATU.cAV..PC
-6E00  A8 E2 54 45 D0 DF 47 CE-04 51                     ..TE..G..Q
-
-6E00                                D2 07 49 CE 09 54             ..I..T
+6E00  A8 E2 54 45 D0 DF 47 CE-04 51 D2 07 49 CE 09 54   ..TE..G..Q..I..T
 6E10  52 A4 13 54 52 49 4E 47-A4 E6 50 41 43 45 A4 18   R..TRING..PACE..
-6E20  00 48 45 CE DD 52 4F CE-A0 52 4F 46 C6 A1 41 42   .HE..RO..ROF..AB
+6E20  00                                                .
+
+6E20:   ; WORDS_T
+6E20     48 45 CE DD 52 4F CE-A0 52 4F 46 C6 A1 41 42    HE..RO..ROF..AB
 6E30  A8 DE CF DC 41 CE 0D 45-52 CD D2 49 4D 45 A4 5C   ....A..ER..IME.\
-6E40  00 53 49 4E C7 E7 53 D2-E0 00 41 CC 14 49 45 D7   .SIN..S...A..IE.
+6E40  00                                                .
+
+6E41:   ; WORDS_U
+6E40     53 49 4E C7 E7 53 D2-E0 00 41 CC 14 49 45 D7    SIN..S...A..IE.
 6E50  51 41 52 50 54 D2 EA 00-49 44 54 C8 9E 49 4E 44   QARPT...IDT..IND
 6E60  4F D7 52 41 49 D4 96 48-49 4C C5 AF 45 4E C4 B0   O.RAI..HIL..EN..
 6E70  52 49 54 C5 B5 42 59 54-C5 5D 00                  RIT..BYT.].
 
-
-
-
-00006E7B:       LD C,A
-00006E7C:       JP NC,00FAh
+; WORDS_Y
 00006E7F:       NOP
+
+; WORDS_Z
 00006E80:       NOP
+
+
+
 00006E81:       XOR E
 00006E82:       DI
 00006E83:       XOR L
@@ -17430,6 +17504,7 @@ _SCREEN:
 00006EF6:       CALL 4551h		; EXEC_ROM0 - run subprogram in ROM0 bank, next byte holds the subroutine number
 00006EF9:       DEFB 24
 
+_KEY
 00006EFA:       CALL 4551h		; EXEC_ROM0 - run subprogram in ROM0 bank, next byte holds the subroutine number
 00006EFD:       DEFB 25
 
@@ -17463,7 +17538,7 @@ _RENUM:
 00006F21:       JP NZ,0B06h			; FCERR, Err $05 - "Illegal function call"
 00006F24:       CALL 7AC0h
 00006F27:       LD B,C
-00006F28:       CALL 35C2h
+00006F28:       CALL 35C2h		; _BREAKX - Set CY if STOP is pressed
 00006F2B:       JR C,+07h
 00006F2D:       CALL 3583h
 00006F30:       LD (HL),A
@@ -17496,6 +17571,7 @@ _RENUM:
 00006F5B:       EX HL,(SP)
 00006F5C:       DJNZ -09h
 00006F5E:       JP 7BA0h
+
 00006F61:       CALL 59A4h
 00006F64:       LD A,(EF87h)
 00006F67:       DEC A
@@ -17662,7 +17738,7 @@ _CONSOLE:
 00007088:       PUSH DE
 00007089:       DEC HL
 0000708A:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-0000708B:       RST 08h				; Check syntax, 1 byte follows to be compared
+0000708B:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 0000708C:       DEFB ','
 0000708D:       CP 2Ch		; ','
 0000708F:       POP DE
@@ -17683,7 +17759,7 @@ _CONSOLE:
 000070A8:       DEC HL
 000070A9:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 000070AA:       JR Z,+1Ch
-000070AC:       RST 08h				; Check syntax, 1 byte follows to be compared
+000070AC:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000070AD:       DEFB ','
 000070AE:       CP 2Ch		; ','
 000070B0:       JR Z,+16h
@@ -17702,7 +17778,7 @@ _CONSOLE:
 000070C8:       DEC HL
 000070C9:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 000070CA:       JR Z,+3Ah
-000070CC:       RST 08h				; Check syntax, 1 byte follows to be compared
+000070CC:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000070CD:       DEFB ','
 000070CE:       CALL 18A3h			; GETINT
 000070D1:       CP 01h
@@ -17754,7 +17830,7 @@ _CONSOLE:
 00007125:       DEC HL
 00007126:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00007127:       JR Z,+11h
-00007129:       RST 08h				; Check syntax, 1 byte follows to be compared
+00007129:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 0000712A:       DEFB ','
 0000712B:       CALL 18A3h			; GETINT
 0000712E:       POP BC
@@ -17796,7 +17872,7 @@ _LOCATE:
 00007168:       DEC HL
 00007169:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 0000716A:       JR Z,+24h
-0000716C:       RST 08h				; Check syntax, 1 byte follows to be compared
+0000716C:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 0000716D:       DEFB ','
 0000716E:       CP 2Ch		; ','
 00007170:       JR Z,+12h
@@ -17812,7 +17888,7 @@ _LOCATE:
 00007180:       DEC HL
 00007181:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00007182:       JR Z,+0Ch
-00007184:       RST 08h				; Check syntax, 1 byte follows to be compared
+00007184:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00007185:       DEFB ','
 00007186:       CALL 18A3h			; GETINT
 00007189:       CP 01h
@@ -17904,7 +17980,8 @@ _CLS:
 00007219:       DJNZ -0Ah
 0000721B:       RET
 
-0000721C:       RST 08h				; Check syntax, 1 byte follows to be compared
+_MOTOR:
+0000721C:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 0000721D:       POP AF
 0000721E:       CALL 11D3h			; EVAL - evaluate expression
 00007221:       PUSH HL
@@ -17912,7 +17989,7 @@ _CLS:
 00007225:       CALL 725Dh
 00007228:       CALL 726Ch
 0000722B:       LD (F012h),A
-0000722E:       RST 08h				; Check syntax, 1 byte follows to be compared
+0000722E:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 0000722F:       DEFB '/'
 00007230:       CALL 18A3h			; GETINT
 00007233:       AND A
@@ -17920,7 +17997,7 @@ _CLS:
 00007237:       CP 0Dh
 00007239:       JP NC,0B06h			; FCERR, Err $05 - "Illegal function call"
 0000723C:       LD (F011h),A
-0000723F:       RST 08h				; Check syntax, 1 byte follows to be compared
+0000723F:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00007240:       DEFB '/'
 00007241:       CALL 726Ch
 00007244:       AND A
@@ -17958,6 +18035,8 @@ _CLS:
 00007274:       CALL 7250h
 00007277:       OR B
 00007278:       RET
+
+_WBYTE:
 00007279:       PUSH HL
 0000727A:       LD C,05h
 0000727C:       CP 95h			; '_'
@@ -18003,6 +18082,7 @@ _HELP:
 000072C3:       JP NZ,0393h			;  SNERR - entry for '?SN ERROR'
 000072C6:       JR -29h
 
+_MAP:
 000072C8:       PUSH HL
 000072C9:       LD C,04h
 000072CB:       JR -1Ah
@@ -18093,7 +18173,7 @@ _TERM:
 0000737C:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 0000737D:       LD A,00h
 0000737F:       JR Z,+1Ch
-00007381:       RST 08h				; Check syntax, 1 byte follows to be compared
+00007381:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00007382:       DEFB ','
 00007383:       LD A,(HL)
 00007384:       CP 2Ch		; ','
@@ -18168,7 +18248,7 @@ _TERM:
 0000740C:       LD A,(EF71h)
 0000740F:       OR A
 00007410:       JP Z,73C2h
-00007413:       CALL 35CEh		; CHGET - Get key from keyboard buffer.
+00007413:       CALL 35CEh		; CHSNS - Get key from keyboard buffer, don't wait for keypress.
 00007416:       LD B,A
 00007417:       JP Z,7463h
 0000741A:       LD A,(E6CAh)
@@ -18184,7 +18264,7 @@ _TERM:
 0000742E:       LD (E6A1h),A
 00007431:       LD HL,0000h
 00007434:       LD (EC88h),HL		; PTRFIL
-00007437:       CALL 5FC8h
+00007437:       CALL 5FC8h			; INLIN - Same as PINLIN,exept if AUTFLO if set.
 0000743A:       JP C,7497h
 0000743D:       XOR A
 0000743E:       LD (E6A1h),A
@@ -18398,7 +18478,7 @@ _TERM:
 00007600:       DEC HL
 00007601:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00007602:       JR Z,+0Dh
-00007604:       RST 08h				; Check syntax, 1 byte follows to be compared
+00007604:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00007605:       DEFB ','
 00007606:       CALL 1896h				; POSINT - Get positive integer
 00007609:       EX DE,HL
@@ -18577,18 +18657,20 @@ _TERM:
 00007751:       LD B,50h
 00007753:       DEC DE
 00007754:       RET
+
 00007755:       CALL 7747h
 00007758:       PUSH HL
 00007759:       LD A,(HL)
-0000775A:       CALL 3ED4h
+0000775A:       CALL 3ED4h		; LPTOUT
 0000775D:       ADD HL,DE
 0000775E:       DJNZ -07h
 00007760:       LD A,0Dh
-00007762:       CALL 3ED4h
+00007762:       CALL 3ED4h		; LPTOUT
 00007765:       LD A,0Ah
-00007767:       CALL 3ED4h
+00007767:       CALL 3ED4h		; LPTOUT
 0000776A:       POP HL
 0000776B:       RET
+
 0000776C:       LD DE,0050h
 0000776F:       ADD HL,DE
 00007770:       LD DE,(EF78h)
@@ -18605,9 +18687,9 @@ _TERM:
 00007785:       DEC A
 00007786:       JR NZ,+0Ch
 00007788:       LD A,0Dh
-0000778A:       CALL 3ED4h
+0000778A:       CALL 3ED4h		; LPTOUT
 0000778D:       LD A,0Ah
-0000778F:       CALL 3ED4h
+0000778F:       CALL 3ED4h		; LPTOUT
 00007792:       JR +03h
 00007794:       CALL 7716h
 00007797:       XOR A
@@ -18877,7 +18959,7 @@ _TERM:
 00007972:       DEC HL
 00007973:       DEC HL
 00007974:       CALL 28C2h			; _PRNUM - PRINT number pointed by HL
-00007977:       LD HL,79B2h
+00007977:       LD HL,79B2h			; " Bytes free"
 0000797A:       CALL 5550h			; PRS - Print message pointed by HL
 0000797D:       CALL 5A69h	; OUTDO_CRLF
 00007980:       JP 4B1Ah
@@ -18914,70 +18996,21 @@ _TERM:
 000079AB:       LD (EF7Fh),HL
 000079AE:       RET
 
-000079AF:       LD A,(BC)
+
+000079AF:       DEFB 0Ah	; LF
 000079B0:       NOP
 000079B1:       NOP
-000079B2:       JR NZ,+42h
-000079B4:       LD A,C
-000079B5:       LD (HL),H
-000079B6:       LD H,L
-000079B7:       LD (HL),E
-000079B8:       JR NZ,+66h
-000079BA:       LD (HL),D
-000079BB:       LD H,L
-000079BC:       LD H,L
+
+
+000079B2:       DEFM " Bytes free"
 000079BD:       NOP
-000079BE:       LD C,(HL)
-000079BF:       LD B,L
-000079C0:       LD B,E
-000079C1:       JR NZ,+4Eh
-000079C3:       DEC L
-000079C4:       JR C,+38h
-000079C6:       JR NZ,+42h
-000079C8:       LD B,C
-000079C9:       LD D,E
-000079CA:       LD C,C
-000079CB:       LD B,E
-000079CC:       JR NZ,+56h
-000079CE:       LD H,L
-000079CF:       LD (HL),D
-000079D0:       LD (HL),E
-000079D1:       LD L,C
-000079D2:       LD L,A
-000079D3:       LD L,(HL)
-000079D4:       JR NZ,+31h
-000079D6:       LD L,39h
-000079D8:       DEC C
-000079D9:       LD A,(BC)
-000079DA:       LD B,E
-000079DB:       LD L,A
-000079DC:       LD (HL),B
-000079DD:       LD A,C
-000079DE:       LD (HL),D
-000079DF:       LD L,C
-000079E0:       LD H,A
-000079E1:       LD L,B
-000079E2:       LD (HL),H
-000079E3:       JR NZ,+28h
-000079E5:       LD B,E
-000079E6:       ADD HL,HL
-000079E7:       JR NZ,+31h
-000079E9:       ADD HL,SP
-000079EA:       JR C,+31h
-000079EC:       JR NZ,+62h
-000079EE:       LD A,C
-000079EF:       JR NZ,+4Dh
-000079F1:       LD L,C
-000079F2:       LD H,E
-000079F3:       LD (HL),D
-000079F4:       LD L,A
-000079F5:       LD (HL),E
-000079F6:       LD L,A
-000079F7:       LD H,(HL)
-000079F8:       LD (HL),H
-000079F9:       DEC C
-000079FA:       LD A,(BC)
+
+000079BE:       DEFM "NEC N-88 BASIC Version 1.9"
+000079D8:		DEFB 0Dh,0Ah
+000079DA:		DEFM "Copyright (C) 1981 by Microsoft"
+000079F9:		DEFB 0Dh,0Ah
 000079FB:       NOP
+
 000079FC:       ADD HL,SP
 000079FD:       LD A,E
 000079FE:       LD E,C
@@ -19077,9 +19110,13 @@ _TERM:
 00007A93:       XOR 6Eh
 00007A95:       XOR A3h
 00007A97:       JP NZ,4DA0h			; 'Bad file name' error
+
 00007A9A:       LD (EC88h),HL		; PTRFIL
 00007A9D:       LD (HL),E
+
 00007A9E:       LD A,C
+
+; CHPUT
 00007A9F:       AND 80h
 00007AA1:       JR Z,+02h
 00007AA3:       OR (HL)
@@ -19103,6 +19140,7 @@ _TERM:
 00007ABA:       INC HL
 00007ABB:       LD (HL),A
 00007ABC:       RET
+
 00007ABD:       POP AF
 00007ABE:       POP HL
 00007ABF:       RET
@@ -19349,7 +19387,7 @@ _TERM:
 00007C51:       CALL 3203h
 00007C54:       JP 7B20h
 00007C57:       CALL 7DA6h
-00007C5A:       CALL 35C2h
+00007C5A:       CALL 35C2h		; _BREAKX - Set CY if STOP is pressed
 00007C5D:       JR C,+06h
 00007C5F:       CALL 3C08h
 00007C62:       NOP
@@ -19385,7 +19423,7 @@ _TERM:
 00007C97:       LD (E6ECh),A
 00007C9A:       RET
 00007C9B:       PUSH AF
-00007C9C:       CALL 35C2h
+00007C9C:       CALL 35C2h		; _BREAKX - Set CY if STOP is pressed
 00007C9F:       JR C,+2Ah
 00007CA1:       POP AF
 00007CA2:       PUSH AF
@@ -19509,6 +19547,8 @@ _TERM:
 
 00007D6F:       NOP
 00007D70:       NOP
+
+; _DATE$
 00007D71:       PUSH HL
 00007D72:       LD DE,4FE5h
 00007D75:       CP 95h		; '_'
@@ -19528,6 +19568,7 @@ _TERM:
 00007D90:       CALL 4015h
 00007D93:       PUSH DE
 00007D94:       RET
+
 00007D95:       LD A,01h
 00007D97:       DI
 00007D98:       CALL 463Dh
@@ -19713,7 +19754,7 @@ _TERM:
 00007EDF:       INA (40h)
 00007EE1:       AND 04h
 00007EE3:       JR NZ,+06h
-00007EE5:       CALL 35C2h
+00007EE5:       CALL 35C2h		; _BREAKX - Set CY if STOP is pressed
 00007EE8:       JP C,7FEDh
 00007EEB:       INA (40h)
 00007EED:       AND 04h
@@ -19751,19 +19792,24 @@ _TERM:
 00007F2D:       OUTA (30h)
 00007F2F:       RET
 
+
 00007F30:       JR Z,+14h
 00007F32:       CALL 18A3h			; GETINT
 00007F35:       OR A
 00007F36:       JR Z,+07h
+
 00007F38:       LD A,(E6C0h)
 00007F3B:       OR 08h
 00007F3D:       JR -15h
+
 00007F3F:       LD A,(E6C0h)
 00007F42:       AND F7h
 00007F44:       JR -1Ch
+
 00007F46:       LD A,(E6C0h)
 00007F49:       XOR 08h
 00007F4B:       JR -23h
+
 00007F4D:       LD B,04h
 00007F4F:       CALL 7EBAh
 00007F52:       CALL 3C42h
@@ -19803,7 +19849,7 @@ _TERM:
 00007F8A:       LD A,01h
 00007F8C:       CALL 45F8h		; check keyboard input
 00007F8F:       JR NZ,+08h
-00007F91:       CALL 35C2h
+00007F91:       CALL 35C2h		; _BREAKX - Set CY if STOP is pressed
 00007F94:       JP C,7FEDh
 00007F97:       JR -0Fh
 00007F99:       LD B,A
@@ -19844,7 +19890,7 @@ _TERM:
 00007FD1:       INA (21h)
 00007FD3:       AND 01h
 00007FD5:       JR NZ,+08h
-00007FD7:       CALL 35C2h
+00007FD7:       CALL 35C2h		; _BREAKX - Set CY if STOP is pressed
 00007FDA:       JR NC,-0Bh
 00007FDC:       JP 7FEDh
 00007FDF:       POP AF
