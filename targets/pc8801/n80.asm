@@ -2,10 +2,9 @@
 ; N-80 BASIC disassembly
 ;
 
-ORG $0000
+  ORG $0000
 
 ; Routine at 0000
-L0000:
   DI
   LD SP,$FFFF
   JP L003B
@@ -26,8 +25,10 @@ L000B:
 L000E:
   XOR E
   RET P
-L000E_0:
-  JP __FOR_12
+
+; Routine at 0010
+[$0010]CHRGTB:
+  JP [$4259]_CHRGTB
 
 ; Routine at 0013
 L0013:
@@ -46,7 +47,7 @@ L0016:
 
 ; Routine at 0020
 L0020:
-  JP $F1DA
+  JP [$f18f]ISFLIO_25
 
 ; Routine at 0023
 L0023:
@@ -56,19 +57,19 @@ L0023:
 L0026:
   ADC A,B
   INC C
-L0026_0:
-  JP $F1DD
+L0028:
+  JP [$f18f]ISFLIO_26
 
 ; Routine at 002B
 L002B:
-  JP L0D60
+  JP [$0d60]LPTOUT_SAFE
 
 ; Routine at 002E
 L002E:
   LD B,(HL)
   INC C
 L002E_0:
-  JP $F1E0
+  JP [$f18f]ISFLIO_27
 
 ; Routine at 0033
 L0033:
@@ -78,7 +79,7 @@ L0033:
 
 ; Routine at 0038
 L0038:
-  JP $F1E3
+  JP [$f18f]ISFLIO_28
 
 ; Routine at 003B
 L003B:
@@ -104,11 +105,11 @@ L006A:
   PUSH BC
   LD BC,$FF00
   PUSH BC
-  JP __CONSOLE_5
+  JP L08E9_1
 
 ; Routine at 0081
 L0081:
-  CALL $F1B0
+  CALL [$f18f]ISFLIO_10
   CALL L7AC1
   LD I,A
   LD A,$FF
@@ -117,14 +118,14 @@ L0081:
   IM 2
   EI
   LD BC,$3C81
-  JP [$3bdf]SNERR_2
+  JP [$3bf9]ERROR_1
 
 ; Routine at 0099
 [$0099]READ_TRK:
   PUSH BC
   PUSH DE
   PUSH AF
-  CALL $F1B3
+  CALL [$f18f]ISFLIO_11
   LD ($EDB9),A
   LD A,$01
   JR C,[$0099]READ_TRK_0
@@ -277,7 +278,7 @@ L015A_0:
   LD ($EDC5),A
   CP $0A
   RET C
-  CALL $F1A7
+  CALL [$f18f]ISFLIO_7
   POP AF
   POP HL
   SCF
@@ -293,7 +294,7 @@ L017C_0:
   PUSH BC
   PUSH DE
   PUSH AF
-  LD BC,L0000
+  LD BC,0
   LD A,($EDCB)
   LD D,A
 L017C_1:
@@ -316,7 +317,7 @@ L01A0:
   CALL L023E
   LD A,$09
   CALL L0229
-  LD BC,L0000
+  LD BC,0
   LD D,$04
 L01A0_0:
   CALL L0234
@@ -329,7 +330,7 @@ L01A0_0:
 L01C0:
   LD A,$08
   CALL L0229
-  LD BC,L0000
+  LD BC,0
   LD D,$04
 L01C0_0:
   CALL L0234
@@ -366,7 +367,7 @@ L01E9:
   PUSH BC
   PUSH DE
   PUSH AF
-  LD BC,L0000
+  LD BC,0
   LD D,$04
   LD A,$0B
   CALL L0229
@@ -386,7 +387,7 @@ L0202:
   PUSH AF
   LD A,$0D
   CALL L0229
-  LD BC,L0000
+  LD BC,0
   LD D,$04
 L0202_0:
   CALL L0234
@@ -864,7 +865,7 @@ L045A_1:
 
 ; Routine at 047A
 L047A:
-  LD HL,L0000
+  LD HL,0
   LD BC,$0078
 L047A_0:
   ADD HL,BC
@@ -1305,7 +1306,7 @@ L0676:
   RET P
   DI
   LD L,B
-  CALL P,$F4E0
+  CALL P,[$f18f]ISFLIO_40
   LD E,B
   PUSH AF
   RET NC
@@ -1327,13 +1328,13 @@ L0691:
   SUB B
   LD SP,HL
   EX AF,AF'
-  JP M,$FA80
+  JP M,[$f18f]ISFLIO_42
   RET M
-  JP M,$FB70
+  JP M,[$f18f]ISFLIO_43
   RET PE
   EI
   LD H,B
-  CALL M,$FCD8
+  CALL M,[$f18f]ISFLIO_45
   LD D,B
   DEFB $FD
   RET Z
@@ -1354,10 +1355,10 @@ L0691_0:
   RET
 
 ; __PSET BASIC command [$06b8]
-__PSET:
+L06B8:
   PUSH HL
   LD HL,$B02F
-__PSET_0:
+L06B8_0:
   LD ($EB1D),HL
   CALL L0BD2
   POP HL
@@ -1369,11 +1370,11 @@ __PSET_0:
   POP BC
   LD ($EDBA),A
   POP AF
-__PSET_1:
+L06B8_1:
   PUSH HL
-  JR NC,__PSET_2
+  JR NC,L06B8_2
   LD C,$00
-__PSET_2:
+L06B8_2:
   LD A,C
   CPL
   CALL $EB1C
@@ -1382,7 +1383,7 @@ __PSET_2:
   POP AF
   LD HL,($EDBE)
   LD (HL),A
-__PSET_3:
+L06B8_3:
   POP HL
   RET
 
@@ -1412,41 +1413,55 @@ L0702:
   RET
 
 ; __PRESET BASIC command [$0705]
-__PRESET:
+L0705:
   PUSH HL
   LD HL,$2FB0
-  JR __PSET_0
+  JR L06B8_0
 
 ; Routine at 070B
-L070B:
-  RST $10
+[$070B]FN_POINT:
+  RST $10     ; CHRGTB
   CALL L071D
   PUSH HL
   LD A,$00
-  JP C,L070B_0
-  JR Z,L070B_0
+  JP C,[$070B]FN_POINT_0
+  JR Z,[$070B]FN_POINT_0
   DEC A
-L070B_0:
+[$070B]FN_POINT_0:
   CALL [$2689]INT_RESULT_A
-  JR __PSET_3
+  JR L06B8_3
 
 ; Routine at 071D
 L071D:
   CALL [$409b]SYNCHR
-  JR Z,L06EF
-  JP M,$3A56
-  LD C,D
-  EX DE,HL
+
+; Data block at 0720
+L0720:
+  DEFB $28
+
+; Routine at 0721
+L0721:
+  CALL [$56fa]GETINT
+  LD A,($EB4A)
   RLCA
   INC E
-  JR Z,L071D_0
+  JR Z,L0721_0
   CP E
-  JR C,L071D_0
+  JR C,L0721_0
   LD A,E
-L071D_0:
+L0721_0:
   LD ($EDBC),A
+
+; Routine at 0732
+L0732:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 0735
+L0735:
+  DEFB $2C
+
+; Routine at 0736
+L0736:
   CALL [$56fa]GETINT
   LD A,($EA60)
   LD B,A
@@ -1455,11 +1470,11 @@ L071D_0:
   RLCA
   RLCA
   INC E
-  JR Z,L071D_1
+  JR Z,L0736_0
   CP E
-  JP C,L071D_1
+  JP C,L0736_0
   LD A,E
-L071D_1:
+L0736_0:
   LD ($EDBB),A
   LD A,(HL)
   CP $29
@@ -1470,15 +1485,23 @@ L071D_1:
 
 ; Routine at 075B
 L075B:
-  RST $10
+  RST $10     ; CHRGTB
   CALL [$56fa]GETINT
   CP $10
   JP NC,[$44a5]FCERR
 L075B_0:
   LD ($EDBD),A
+
+; Routine at 0767
+L0767:
   CALL [$409b]SYNCHR
-  ADD HL,HL
-L075B_1:
+
+; Data block at 076A
+L076A:
+  DEFB $29
+
+; Routine at 076B
+L076B:
   PUSH HL
   LD HL,($EDBB)
   CALL L0B92
@@ -1500,24 +1523,33 @@ L075B_1:
   RET
 
 ; __LOCATE BASIC command [$0792]
-__LOCATE:
+L0792:
   CALL [$56fa]GETINT
   LD A,($EB4A)
   INC E
   CP E
-  JR NC,__LOCATE_0
+  JR NC,L0792_0
   LD E,A
-__LOCATE_0:
+L0792_0:
   PUSH DE
+
+; Routine at 079E
+L079E:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 07A1
+L07A1:
+  DEFB $2C
+
+; Routine at 07A2
+L07A2:
   CALL [$56fa]GETINT
   LD A,($EA62)
   INC E
   CP E
-  JR NC,__LOCATE_1
+  JR NC,L07A2_0
   LD E,A
-__LOCATE_1:
+L07A2_0:
   POP BC
   LD B,C
   LD C,E
@@ -1525,10 +1557,10 @@ __LOCATE_1:
   LD A,(HL)
   CP $2C
   LD A,$FF
-  JR NZ,__LOCATE_2
-  RST $10
+  JR NZ,L07A2_1
+  RST $10     ; CHRGTB
   CALL [$56fa]GETINT
-__LOCATE_2:
+L07A2_1:
   EX (SP),HL
   LD ($EA5F),A
   CALL L03A6_0
@@ -1627,7 +1659,7 @@ L0834:
   RET
 
 ; __WIDTH BASIC command [$0843]
-__WIDTH:
+L0843:
   LD A,($EA62)
   LD C,A
   LD A,($EA65)
@@ -1635,46 +1667,54 @@ __WIDTH:
   PUSH BC
   LD A,(HL)
   CP $2C
-  JR Z,__WIDTH_1
+  JR Z,L086C
   CALL [$56fa]GETINT
   POP BC
   LD B,A
   PUSH BC
   CP $24
-  JR Z,__WIDTH_0
+  JR Z,L0843_0
   CP $28
-  JR Z,__WIDTH_0
+  JR Z,L0843_0
   CP $48
-  JR Z,__WIDTH_0
+  JR Z,L0843_0
   CP $50
   JP NZ,[$44a5]FCERR
-__WIDTH_0:
+L0843_0:
   DEC HL
-  RST $10
-  JR Z,__WIDTH_2
-__WIDTH_1:
+  RST $10     ; CHRGTB
+  JR Z,L0870_0
+
+; Routine at 086C
+L086C:
   CALL [$409b]SYNCHR
-  INC L
-  JR Z,__WIDTH_2
+
+; Data block at 086F
+L086F:
+  DEFB $2C
+
+; Routine at 0870
+L0870:
+  JR Z,L0870_0
   CALL [$56fa]GETINT
   POP BC
   LD C,A
   PUSH BC
   CP $14
-  JR Z,__WIDTH_2
+  JR Z,L0870_0
   CP $19
   JP NZ,[$44a5]FCERR
-__WIDTH_2:
+L0870_0:
   JP L0915_1
 
 ; __CONSOLE BASIC command [$0884]
-__CONSOLE:
+L0884:
   EX DE,HL
   LD HL,($EA5D)
   PUSH HL
   EX DE,HL
   CP $2C
-  JR Z,__CONSOLE_0
+  JR Z,L089F
   CALL [$56fa]GETINT
   CP $19
   JP NC,[$44a5]FCERR
@@ -1683,14 +1723,22 @@ __CONSOLE:
   INC D
   PUSH DE
   DEC HL
-  RST $10
+  RST $10     ; CHRGTB
   JP Z,L094B
-__CONSOLE_0:
+
+; Routine at 089F
+L089F:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 08A2
+L08A2:
+  DEFB $2C
+
+; Routine at 08A3
+L08A3:
   JP Z,L094B
   CP $2C
-  JR Z,__CONSOLE_1
+  JR Z,L08BF
   CALL [$56fa]GETINT
   CP $1A
   JP NC,[$44a5]FCERR
@@ -1701,11 +1749,19 @@ __CONSOLE_0:
   LD E,A
   PUSH DE
   DEC HL
-  RST $10
+  RST $10     ; CHRGTB
   JP Z,L094B
-__CONSOLE_1:
+
+; Routine at 08BF
+L08BF:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 08C2
+L08C2:
+  DEFB $2C
+
+; Routine at 08C3
+L08C3:
   LD BC,L094B
   PUSH BC
   RET Z
@@ -1716,48 +1772,56 @@ __CONSOLE_1:
   PUSH BC
   LD A,(HL)
   CP $2C
-  JR Z,__CONSOLE_3
+  JR Z,L08E5
   CALL [$56fa]GETINT
   POP BC
   AND A
-  JR Z,__CONSOLE_2
+  JR Z,L08C3_0
   XOR A
   DEC A
-__CONSOLE_2:
+L08C3_0:
   LD B,A
   PUSH BC
   DEC HL
-  RST $10
-  JR Z,__CONSOLE_5
-__CONSOLE_3:
+  RST $10     ; CHRGTB
+  JR Z,L08E9_1
+
+; Routine at 08E5
+L08E5:
   CALL [$409b]SYNCHR
-  INC L
-  JR Z,__CONSOLE_5
+
+; Data block at 08E8
+L08E8:
+  DEFB $2C
+
+; Routine at 08E9
+L08E9:
+  JR Z,L08E9_1
   CALL [$56fa]GETINT
   AND A
-  JR Z,__CONSOLE_4
+  JR Z,L08E9_0
   LD A,$FF
-__CONSOLE_4:
+L08E9_0:
   POP BC
   LD C,A
   PUSH BC
-__CONSOLE_5:
+L08E9_1:
   POP BC
   PUSH HL
   LD HL,$EA60
   LD A,(HL)
   CP B
-  JR Z,__CONSOLE_7
+  JR Z,L08E9_3
   LD (HL),B
   PUSH BC
   AND A
-  JR Z,__CONSOLE_6
+  JR Z,L08E9_2
   CALL L0B2E
-__CONSOLE_6:
+L08E9_2:
   XOR A
   CALL L07C9
   POP BC
-__CONSOLE_7:
+L08E9_3:
   LD HL,$EA61
   LD A,(HL)
   CP C
@@ -1810,14 +1874,14 @@ L094B:
   RET
 
 ; __COLOR BASIC command [$0951]
-__COLOR:
+L0951:
   EX DE,HL
   LD HL,($EA5A)
   PUSH HL
   EX DE,HL
   LD A,(HL)
   CP $2C
-  JR Z,__COLOR_0
+  JR Z,L0971
   CALL [$56fa]GETINT
   CP $10
   JP NC,[$44a5]FCERR
@@ -1827,24 +1891,40 @@ __COLOR:
   LD D,A
   PUSH DE
   DEC HL
-  RST $10
+  RST $10     ; CHRGTB
   JR Z,L0997_1
-__COLOR_0:
+
+; Routine at 0971
+L0971:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 0974
+L0974:
+  DEFB $2C
+
+; Routine at 0975
+L0975:
   JR Z,L0997_1
   CP $2C
-  JR Z,__COLOR_1
+  JR Z,L0985
   CALL [$56fa]GETINT
   POP DE
   LD E,A
   PUSH DE
   DEC HL
-  RST $10
+  RST $10     ; CHRGTB
   JR Z,L0997_1
-__COLOR_1:
+
+; Routine at 0985
+L0985:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 0988
+L0988:
+  DEFB $2C
+
+; Routine at 0989
+L0989:
   JR Z,L0997_1
   CALL [$56fa]GETINT
   AND A
@@ -2008,7 +2088,7 @@ L0A68:
   LD L,C
   CP (HL)
 L0A68_0:
-  RST $10
+  RST $10     ; CHRGTB
   PUSH HL
   CALL L0BD2
   LD HL,$EA7C
@@ -2033,7 +2113,7 @@ L0A68_1:
   ADD HL,DE
   CALL L0AAF
   POP HL
-  LD DE,L000E_0
+  LD DE,[$0010]CHRGTB
   ADD HL,DE
   POP DE
   POP AF
@@ -2082,7 +2162,7 @@ L0ACF:
   LD HL,L0AE9
   PUSH HL
   PUSH BC
-  JP __CONSOLE_5
+  JP L08E9_1
 
 ; Routine at 0AE9
 L0AE9:
@@ -2093,7 +2173,7 @@ L0AE9:
   LD ($EA60),A
   DEC A
   LD ($EA61),A
-  JP __CONSOLE_5
+  JP L08E9_1
 
 ; Routine at 0AF9
 L0AF9:
@@ -2136,8 +2216,8 @@ L0B2E:
   RET
 
 ; Routine at 0B3B
-L0B3B:
-  RST $10
+[$0B3B]FN_CSRLIN:
+  RST $10     ; CHRGTB
   PUSH HL
   LD A,($EA63)
   DEC A
@@ -2311,7 +2391,7 @@ L0BE2:
 
 ; Routine at 0BF3
 L0BF3:
-  CALL $F1B6
+  CALL [$f18f]ISFLIO_13
   LD A,($EA66)
   AND $0F
   OR $08
@@ -2331,7 +2411,7 @@ L0BF3_1:
   NOP
   NOP
   LD E,$1D
-  JP [$3bdf]SNERR_0
+  JP [$3bf9]ERROR
 
 ; Routine at 0C1C
 L0C1C:
@@ -2370,7 +2450,7 @@ L0C42:
 
 ; Routine at 0C46
 L0C46:
-  CALL $F1B9
+  CALL [$f18f]ISFLIO_14
   LD A,($EA66)
   AND $0F
   OR $0C
@@ -2388,7 +2468,7 @@ L0C46:
   PUSH HL
   LD E,$01
 L0C46_0:
-  LD HL,L0000
+  LD HL,0
 L0C46_1:
   DEC L
   JR NZ,L0C46_1
@@ -2416,7 +2496,7 @@ L0C82:
 
 ; Routine at 0C88
 L0C88:
-  CALL $F1A4
+  CALL [$f18f]ISFLIO_6
   IN A,($21)
   AND $02
   JR NZ,L0C99
@@ -2476,7 +2556,7 @@ L0CD3:
 L0CD7:
   CALL L0CD7_0
 L0CD7_0:
-  CALL $F20D
+  CALL [$f18f]ISFLIO_38
   PUSH AF
 L0CD7_1:
   IN A,($21)
@@ -2533,8 +2613,8 @@ L0D14:
   RET
 
 ; Routine at 0D1D
-L0D1D:
-  RST $10
+[$0D1D]FN_INKEY$:
+  RST $10     ; CHRGTB
   PUSH HL
   CALL L0FAC
   JR C,L0D34
@@ -2558,10 +2638,10 @@ L0D34:
   RET
 
 ; __BEEP BASIC command [$0d41]
-__BEEP:
+L0D41:
   JR NZ,L0D47
   LD A,$07
-  RST $18
+  RST $18     ; OUTC
   RET
 
 ; Routine at 0D47
@@ -2582,23 +2662,23 @@ L0D47_1:
   RET
 
 ; __MON BASIC command [$0d5d]
-__MON:
+L0D5D:
   JP L5C2C
 
 ; Routine at 0D60
-L0D60:
+[$0d60]LPTOUT_SAFE:
   PUSH AF
-  CALL $F1BC
-  LD A,($EB49)
+  CALL [$f18f]ISFLIO_15
+  LD A,([$eb48]PRTFLG)
   CP $5C
   JR Z,L0D8C_0
-L0D60_0:
+[$0d60]LPTOUT_SAFE_0:
   IN A,($40)
   AND $01
   JR Z,L0D78
   CALL L0CF1
   JR C,L0D8C
-  JR L0D60_0
+  JR [$0d60]LPTOUT_SAFE_0
 
 ; Routine at 0D78
 L0D78:
@@ -2618,17 +2698,17 @@ L0D8C:
   LD A,($EA75)
   AND $FE
   LD ($EA75),A
-  LD A,($EB49)
+  LD A,([$eb48]PRTFLG)
   AND A
   JR Z,L0D8C_0
   LD A,$5C
-  LD ($EB49),A
+  LD ([$eb48]PRTFLG),A
 L0D8C_0:
   POP AF
   RET
 
 ; __MOTOR BASIC command [$0da1]
-__MOTOR:
+L0DA1:
   JR NZ,L0DAB
   LD A,($EA66)
   XOR $08
@@ -2643,55 +2723,81 @@ L0DAB:
   JP L0C3E
 
 ; __TERM BASIC command [$0db8]
-__TERM:
-  CALL $F1BF
+L0DB8:
+  CALL [$f18f]ISFLIO_16
   LD B,$84
   CP $41
-  JR Z,__TERM_0
+  JR Z,L0DB8_0
   CP $4A
   JP NZ,[$44a5]FCERR
   LD B,$80
-__TERM_0:
+L0DB8_0:
   PUSH BC
-  RST $10
+  RST $10     ; CHRGTB
+
+; Routine at 0DCA
+L0DCA:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 0DCD
+L0DCD:
+  DEFB $2C
+
+; Routine at 0DCE
+L0DCE:
   CALL [$56fa]GETINT
   AND A
-  JR Z,__TERM_2
+  JR Z,L0DDE
   LD B,$10
   DEC A
-  JR Z,__TERM_1
+  JR Z,L0DCE_0
   LD B,$30
-__TERM_1:
+L0DCE_0:
   POP AF
   OR B
   PUSH AF
-__TERM_2:
+
+; Routine at 0DDE
+L0DDE:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 0DE1
+L0DE1:
+  DEFB $2C
+
+; Routine at 0DE2
+L0DE2:
   CALL [$56fa]GETINT
   POP BC
   AND A
   LD C,$02
-  JR Z,__TERM_3
+  JR Z,L0DE2_0
   DEC C
-__TERM_3:
+L0DE2_0:
   PUSH BC
   DEC HL
-  RST $10
+  RST $10     ; CHRGTB
   POP BC
   JR Z,L0E03_0
   PUSH BC
+
+; Routine at 0DF3
+L0DF3:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 0DF6
+L0DF6:
+  DEFB $2C
+
+; Routine at 0DF7
+L0DF7:
   POP BC
   PUSH BC
   CALL [$56fa]GETINT
   AND A
-  JR Z,__TERM_4
+  JR Z,L0DF7_0
   LD A,$40
-__TERM_4:
+L0DF7_0:
   POP BC
   OR B
 
@@ -2729,7 +2835,7 @@ L0E23_0:
   LD A,$37
   OUT ($21),A
 L0E23_1:
-  CALL $F20A
+  CALL [$f18f]ISFLIO_37
   CALL L0FAC
   JR C,L0E23_4
   JR Z,L0E23_4
@@ -2862,7 +2968,7 @@ L0ED4:
   LD A,B
   CP $0D
   PUSH AF
-  CALL L0D60
+  CALL [$0d60]LPTOUT_SAFE
   POP AF
   RET NZ
   LD A,C
@@ -2970,7 +3076,7 @@ L0F7B_1:
 
 ; Routine at 0F9F
 L0F9F:
-  CALL $F19E
+  CALL [$f18f]ISFLIO_4
   CALL L0FAC
   PUSH AF
   XOR A
@@ -3424,7 +3530,7 @@ L121F:
   JR Z,L124A
 L121F_0:
   LD A,$0A
-  CALL L0D60
+  CALL [$0d60]LPTOUT_SAFE
   SCF
   RET
 
@@ -3451,13 +3557,13 @@ L124A_1:
   LD A,(DE)
   CP $20
   JR Z,L127E
-  CALL L0D60
+  CALL [$0d60]LPTOUT_SAFE
   CALL L129A
   DEC C
   JR NZ,L124A_1
 L124A_2:
   LD A,$0D
-  CALL L0D60
+  CALL [$0d60]LPTOUT_SAFE
   CALL L121F_0
   LD A,($EA65)
   LD C,A
@@ -3485,7 +3591,7 @@ L127E_0:
   JR Z,L127E_0
 L127E_1:
   LD A,$20
-  CALL L0D60
+  CALL [$0d60]LPTOUT_SAFE
   DEC H
   JR NZ,L127E_1
   JR L124A_1
@@ -3572,7 +3678,7 @@ L12DA:
 
 ; Routine at 12F5
 L12F5:
-  RST $18
+  RST $18     ; OUTC
   OR B
   POP DE
   CALL $00CE
@@ -3612,7 +3718,7 @@ L1313:
   NOP
   NOP
   NOP
-  JP P,$F4F3
+  JP P,[$f18f]ISFLIO_41
   PUSH AF
   OR $3A
 
@@ -3661,7 +3767,7 @@ L133B:
   LD (DE),A
 
 ; __KEY BASIC command [$1343]
-__KEY:
+L1343:
   CP $93
   JP Z,L0A68_0
   CALL [$56fa]GETINT
@@ -3681,16 +3787,25 @@ __KEY:
   ADD HL,BC
   PUSH HL
   EX DE,HL
+
+; Routine at 1363
+L1363:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 1366
+L1366:
+  DEFB $2C
+
+; Routine at 1367
+L1367:
   CALL [$4a8f]EVAL
   PUSH HL
   CALL [$5459]GETSTR
   LD A,(HL)
   CP $0F
-  JR C,__KEY_0
+  JR C,L1367_0
   LD A,$0F
-__KEY_0:
+L1367_0:
   INC HL
   LD E,(HL)
   INC HL
@@ -3700,11 +3815,11 @@ __KEY_0:
   LD C,A
   LD B,$00
   AND A
-  JR Z,__KEY_1
+  JR Z,L1367_1
   EX DE,HL
   LDIR
   EX DE,HL
-__KEY_1:
+L1367_1:
   LD (HL),B
   XOR A
   LD ($EA6A),A
@@ -3716,7 +3831,7 @@ __KEY_1:
 L138F:
   CP $40
   JR NZ,L138F_0
-  RST $10
+  RST $10     ; CHRGTB
 L138F_0:
   CP $28
   JR Z,L13C1
@@ -3732,8 +3847,17 @@ L138F_0:
   INC DE
   POP HL
   PUSH DE
+
+; Routine at 13AD
+L13AD:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 13B0
+L13B0:
+  DEFB $2C
+
+; Routine at 13B1
+L13B1:
   CALL [$56fa]GETINT
   LD A,E
   CP $08
@@ -3748,8 +3872,17 @@ L138F_0:
 ; Routine at 13C1
 L13C1:
   CALL L14C7
+
+; Routine at 13C4
+L13C4:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 13C7
+L13C7:
+  DEFB $2C
+
+; Routine at 13C8
+L13C8:
   CP $B1
   JP Z,L147C
   CP $B0
@@ -3782,7 +3915,7 @@ L13ED_0:
   POP BC
   DEC HL
 L13ED_1:
-  RST $10
+  RST $10     ; CHRGTB
   PUSH AF
   PUSH BC
   CALL L0BD2
@@ -3795,13 +3928,22 @@ L13ED_1:
   POP BC
   POP AF
   JP Z,L1476
+
+; Routine at 1414
+L1414:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 1417
+L1417:
+  DEFB $2C
+
+; Routine at 1418
+L1418:
   JP Z,L1476
   CP $42
-  JR Z,L13ED_3
+  JR Z,L1442
   CP $2C
-  JR Z,L13ED_2
+  JR Z,L143E
   PUSH BC
   PUSH DE
   CALL [$56fa]GETINT
@@ -3814,14 +3956,27 @@ L13ED_1:
   POP DE
   POP BC
   DEC HL
-  RST $10
+  RST $10     ; CHRGTB
   JP Z,L1476
-L13ED_2:
+
+; Routine at 143E
+L143E:
   CALL [$409b]SYNCHR
-  INC L
-L13ED_3:
+
+; Data block at 1441
+L1441:
+  DEFB $2C
+
+; Routine at 1442
+L1442:
   CALL [$409b]SYNCHR
-  LD B,D
+
+; Data block at 1445
+L1445:
+  DEFB $42
+
+; Routine at 1446
+L1446:
   JP NZ,L1460
   PUSH HL
   PUSH DE
@@ -3836,29 +3991,35 @@ L13ED_3:
   CALL L1503_0
   POP DE
   CALL L14F7_0
-L13ED_4:
+L1446_0:
   POP HL
   RET
 
 ; Routine at 1460
 L1460:
   CALL [$409b]SYNCHR
-  LD B,(HL)
+
+; Data block at 1463
+L1463:
+  DEFB $46
+
+; Routine at 1464
+L1464:
   RET NZ
   PUSH HL
   INC E
-L1460_0:
+L1464_0:
   DEC E
-L1460_1:
+L1464_1:
   PUSH DE
   CALL L14F7_0
   POP DE
   LD A,C
   CP E
-  JR Z,L13ED_4
-  JR C,L1460_0
+  JR Z,L1446_0
+  JR C,L1464_0
   INC E
-  JR L1460_1
+  JR L1464_1
 
 ; Routine at 1476
 L1476:
@@ -3928,24 +4089,58 @@ L14AA_3:
 L14C7:
   CALL L14D4
   PUSH DE
+
+; Routine at 14CB
+L14CB:
   CALL [$409b]SYNCHR
   CALL P,$D4CD
-  INC D
-  POP BC
+
+; Data block at 14CF
+L14CF:
+  DEFB $CD
+
+; Routine at 14D0
+L14D0:
+  CALL NC,$C114
   RET
 
 ; Routine at 14D4
 L14D4:
   CALL [$409b]SYNCHR
-  JR Z,$14A6
-  JP PE,$F514
+
+; Data block at 14D7
+L14D7:
+  DEFB $28
+
+; Routine at 14D8
+L14D8:
+  CALL L14EA
+  PUSH AF
+
+; Routine at 14DC
+L14DC:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 14DF
+L14DF:
+  DEFB $2C
+
+; Routine at 14E0
+L14E0:
   CALL L14EA
   POP DE
   LD E,A
+
+; Routine at 14E5
+L14E5:
   CALL [$409b]SYNCHR
-  ADD HL,HL
+
+; Data block at 14E8
+L14E8:
+  DEFB $29
+
+; Routine at 14E9
+L14E9:
   RET
 
 ; Routine at 14EA
@@ -4027,7 +4222,7 @@ L1535:
   LD A,C
 L1535_0:
   LD D,A
-  LD HL,L0000
+  LD HL,0
   LD E,D
   INC E
 L1535_1:
@@ -4080,8 +4275,8 @@ L1584:
   PUSH DE
   EX DE,HL
   LD ($EDBB),HL
-  CALL L075B_1
-  CALL __PSET_1
+  CALL L076B
+  CALL L06B8_1
   POP DE
   POP BC
   RET
@@ -4096,8 +4291,8 @@ L1593:
   JP L14AA_0
 
 ; Routine at 159F
-L159F:
-  RST $10
+[$159F]FN_DATE$:
+  RST $10     ; CHRGTB
   PUSH HL
   CALL L1602
   JR C,L1600
@@ -4140,8 +4335,8 @@ L15D8:
   JR L15C6_0
 
 ; Routine at 15DC
-L15DC:
-  RST $10
+[$15dc]FN_DATE$:
+  RST $10     ; CHRGTB
   PUSH HL
   CALL L1602
   JR C,L1600
@@ -4163,13 +4358,25 @@ L1600:
   POP HL
   RET
 
-; Data block at 1602
+; Routine at 1602
 L1602:
-  DEFB $3E,$03,$CD,$75,$16,$3E,$01,$CD
-  DEFB $75,$16,$21,$76,$EA,$CD,$2B,$16
-  DEFB $3E,$03,$CD,$75,$16,$3A,$7A,$EA
-  DEFB $0F,$0F,$0F,$0F,$E6,$0F,$32,$7A
-  DEFB $EA,$A7,$C9
+  LD A,$03
+  CALL L1652_0
+  LD A,$01
+  CALL L1652_0
+  LD HL,$EA76
+  CALL L162B
+  LD A,$03
+  CALL L1652_0
+  LD A,($EA7A)
+  RRCA
+  RRCA
+  RRCA
+  RRCA
+  AND $0F
+  LD ($EA7A),A
+  AND A
+  RET
 
 ; Routine at 1625
 L1625:
@@ -4187,11 +4394,24 @@ L162B_0:
   JR NZ,L162B_0
   RET
 
-; Data block at 1635
+; Routine at 1635
 L1635:
-  DEFB $01,$04,$08,$1E,$00,$DB,$40,$0F
-  DEFB $0F,$0F,$0F,$E6,$01,$B3,$0F,$5F
-  DEFB $CD,$79,$16,$10,$F0,$73,$C9
+  LD BC,$0804
+  LD E,$00
+L1635_0:
+  IN A,($40)
+  RRCA
+  RRCA
+  RRCA
+  RRCA
+  AND $01
+  OR E
+  RRCA
+  LD E,A
+  CALL L1652_1
+  DJNZ L1635_0
+  LD (HL),E
+  RET
 
 ; Routine at 164C
 L164C:
@@ -4225,48 +4445,89 @@ L1652:
 L1652_0:
   OUT ($10),A
   LD C,$02
+L1652_1:
   LD A,($EA67)
   AND $F9
   OR C
   OUT ($40),A
   PUSH AF
   LD A,$2D
-L1652_1:
+L1652_2:
   DEC A
-  JR NZ,L1652_1
+  JR NZ,L1652_2
   POP AF
   AND $F9
   OUT ($40),A
   LD ($EA67),A
   RET
 
-; Data block at 1690
+; Routine at 1690
 L1690:
-  DEFB $16,$05,$CD,$9C,$16,$CD,$A7,$16
-  DEFB $23,$15,$20,$F9,$3A,$7A,$EA,$0F
-  DEFB $0F,$0F,$0F,$32,$7A,$EA,$C9,$01
-  DEFB $04,$08,$7E,$0F,$0F,$0F,$0F,$0F
-  DEFB $D3,$10,$F5,$CD,$79,$16,$F1,$10
-  DEFB $F6,$C9,$C6,$81,$FE,$EA,$28,$46
-  DEFB $FE,$EB,$CD,$07,$F2,$CD,$D7,$F1
-  DEFB $C2,$DF,$3B,$D7,$CD,$9B,$40,$F1
-  DEFB $CD,$8F,$4A,$E5,$CD,$02,$16,$CD
-  DEFB $3B,$17,$CD,$4A,$17,$32,$7B,$EA
-  DEFB $CD,$9B,$40,$2F,$CD,$FA,$56,$A7
-  DEFB $CA,$A5,$44,$FE,$0D,$D2,$A5
+  LD D,$05
+  CALL L1690_1
+L1690_0:
+  CALL L1690_2
+  INC HL
+  DEC D
+  JR NZ,L1690_0
+L1690_1:
+  LD A,($EA7A)
+  RRCA
+  RRCA
+  RRCA
+  RRCA
+  LD ($EA7A),A
+  RET
+L1690_2:
+  LD BC,$0804
+  LD A,(HL)
+  RRCA
+  RRCA
+  RRCA
+  RRCA
+L1690_3:
+  RRCA
+  OUT ($10),A
+  PUSH AF
+  CALL L1652_1
+  POP AF
+  DJNZ L1690_3
+  RET
+L1690_4:
+  ADD A,$81
+  CP $EA
+  JR Z,L1706
+  CP $EB
+  CALL [$f18f]ISFLIO_36
+  CALL [$f18f]ISFLIO_24
+  JP NZ,[$3bdf]SNERR
+  RST $10     ; CHRGTB
+  CALL [$409b]SYNCHR
+  POP AF
+  CALL [$4a8f]EVAL
+  PUSH HL
+  CALL L1602
+  CALL L173B
+  CALL L174A
+  LD ($EA7B),A
+  CALL [$409b]SYNCHR
+  CPL
+  CALL [$56fa]GETINT
+  AND A
+  JP Z,[$44a5]FCERR
+  CP $0D
+  JP NC,[$44a5]FCERR
+  LD ($EA7A),A
 
-; Message at 16EF
-L16EF:
-  DEFM "D2z"
-
-; Data block at 16F2
+; Routine at 16F2
 L16F2:
-  DEFB $EA,$CD,$9B,$40,$2F,$CD,$4A,$17
-  DEFB $A7,$CA,$A5
-
-; Message at 16FD
-L16FD:
-  DEFM "D2y"
+  JP PE,$9BCD
+  LD B,B
+  CPL
+  CALL L174A
+  AND A
+  JP Z,[$44a5]FCERR
+  LD ($EA79),A
 
 ; Routine at 1700
 L1700:
@@ -4276,21 +4537,49 @@ L1700:
 
 ; Routine at 1706
 L1706:
-  RST $10
+  RST $10     ; CHRGTB
+
+; Routine at 1707
+L1707:
   CALL [$409b]SYNCHR
-  POP AF
+
+; Data block at 170A
+L170A:
+  DEFB $F1
+
+; Routine at 170B
+L170B:
   CALL [$4a8f]EVAL
   PUSH HL
   CALL L7FAE
   CALL L174A
   LD ($EA78),A
+
+; Routine at 1718
+L1718:
   CALL [$409b]SYNCHR
+
+; Data block at 171A
+L171A:
+  DEFB $40
+
+; Routine at 171B
+L171B:
   LD A,($4ACD)
   RLA
   LD ($EA77),A
+
+; Routine at 1722
+L1722:
   CALL [$409b]SYNCHR
-  LD A,($4ACD)
-  RLA
+
+; Data block at 1725
+L1725:
+  DEFB $3A
+
+; Routine at 1726
+L1726:
+  CALL L174A
   LD ($EA76),A
   JR $1701
 
@@ -4317,10 +4606,17 @@ L173B:
   EX DE,HL
   RET
 
-; Data block at 174A
+; Routine at 174A
 L174A:
-  DEFB $CD,$2E,$17,$0F,$0F,$0F,$0F,$47
-  DEFB $CD,$2E,$17,$B0,$C9
+  CALL L172E
+  RRCA
+  RRCA
+  RRCA
+  RRCA
+  LD B,A
+  CALL L172E
+  OR B
+  RET
 
 ; Routine at 1757
 L1757:
@@ -4335,8 +4631,8 @@ L1757:
   LD BC,$0157
   LDIR
   LD HL,$ECEA
-  LD ($EB50),HL
-  LD ($EF8F),HL
+  LD ([$eb50]STKTOP),HL
+  LD ([$ef8f]SAVSTK),HL
   LD SP,HL
   LD HL,$EC93
   LD (HL),$3A
@@ -4347,60 +4643,62 @@ L1757:
   INC HL
   LD DE,$1875
   LD B,$2E
-  LD HL,__CVI
-L1757_0:
+  LD HL,LF0E1
+
+; Routine at 178C
+[$178C]SETJP:
   LD (HL),$C3
   INC HL
   LD (HL),E
   INC HL
   LD (HL),D
   INC HL
-  DJNZ L1757_0
+  DJNZ [$178C]SETJP
   LD B,$39
-L1757_1:
+[$178C]SETJP_0:
   LD (HL),$C9
   INC HL
   INC HL
   INC HL
-  DJNZ L1757_1
+  DJNZ [$178C]SETJP_0
   CALL L7F00
   LD HL,L6000
   LD A,(HL)
   CP $41
-  JR NZ,L1757_2
+  JR NZ,[$178C]SETJP_1
   CALL L5FED
   CALL Z,L6000_0
-L1757_2:
+[$178C]SETJP_1:
   XOR A
   LD ($EB4D),A
   LD ($ED98),A
-  LD ($EB46),A
+  LD ([$EB46]ERRFLG),A
   LD HL,[$ef58]TEMPST
   LD ([$ef56]TEMPPT),HL
   LD HL,[$efc2]PRMSTK
   LD ($F02A),HL
   LD HL,$EA00
   DEC HL
-  LD ($EF54),HL
+  LD ([$ef54]MEMSIZ),HL
   LD DE,$FED5
   ADD HL,DE
   DEC HL
   LD SP,HL
-  LD ($EB50),HL
-  LD ($EF8F),HL
+  LD ([$eb50]STKTOP),HL
+  LD ([$ef8f]SAVSTK),HL
   LD HL,$8000
   XOR A
   LD (HL),A
   CP (HL)
-  JR NZ,L1757_3
+  JR NZ,[$178C]SETJP_2
   CPL
   LD (HL),A
   CP (HL)
-  JR Z,L1757_4
-L1757_3:
+  JR Z,[$178C]SETJP_3
+[$178C]SETJP_2:
   LD BC,$4000
   ADD HL,BC
-L1757_4:
+[$178C]SETJP_3:
   EX DE,HL
   LD A,D
   LD I,A
@@ -4410,29 +4708,29 @@ L1757_4:
   LD B,$0A
   EX DE,HL
   LD DE,$7FA5
-L1757_5:
+[$178C]SETJP_4:
   LD (HL),E
   INC HL
   LD (HL),D
   INC HL
-L1757_6:
-  DJNZ L1757_5
+[$178C]SETJP_5:
+  DJNZ [$178C]SETJP_4
   LD (HL),$00
   INC HL
   LD ([$eb54]BASTXT),HL
   LD HL,L1838
   CALL [$52ed]PRS
-  CALL L47D0_0
-  CALL __NEW_0
+  CALL [$47dd]RESTART
+  CALL L3DE1
   LD HL,L1832
   LD C,$06
-L1757_7:
+[$178C]SETJP_6:
   LD A,(HL)
   INC HL
   OUT ($C1),A
   OUT ($C3),A
   DEC C
-  JP NZ,L1757_7
+  JP NZ,[$178C]SETJP_6
   LD A,$FF
   OUT ($C8),A
   OUT ($CA),A
@@ -4440,9 +4738,9 @@ L1757_7:
   OUT ($E4),A
   IM 2
   EI
-  JP L3C4A_2
+  JP [$3C82]READY
 
-; Data block at 1832
+; data (6 bytes) for OUT to port $c1 and $c3
 L1832:
   DEFB $00,$00,$00,$40,$4E,$10
 
@@ -4459,7 +4757,7 @@ L1872:
   LD A,(BC)
   NOP
   LD E,$1A
-  JP [$3bdf]SNERR_0
+  JP [$3bf9]ERROR
 
 ; Routine at 187A
 L187A:
@@ -4476,38 +4774,56 @@ L187A:
   INC HL
 
 ; __GET BASIC command [$1886]
-__GET:
+L1886:
   CP $23
-  JP Z,__LFILES_0
+  JP Z,LF126_0
   PUSH AF
   LD A,$FF
-  JP __PUT_0
+  JP L1891_0
 
 ; __PUT BASIC command [$1891]
-__PUT:
+L1891:
   CP $23
-  JP Z,__FORMAT_0
+  JP Z,LF12F_0
   PUSH AF
   XOR A
-__PUT_0:
+L1891_0:
   LD ($EF2C),A
   CALL L0BD2
   POP AF
+
+; Routine at 189F
+L189F:
   CALL [$409b]SYNCHR
-  LD B,B
+
+; Data block at 18A2
+L18A2:
+  DEFB $40
+
+; Routine at 18A3
+L18A3:
   INC HL
   SUB $41
-  JR Z,__PUT_1
+  JR Z,L18A3_0
   DEC HL
   LD A,$01
-__PUT_1:
+L18A3_0:
   DEC A
   LD ($EF34),A
   CALL L14C7
   PUSH BC
   PUSH DE
+
+; Routine at 18B4
+L18B4:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 18B7
+L18B7:
+  DEFB $2C
+
+; Routine at 18B8
+L18B8:
   CALL L1B02
   LD A,($EA5B)
   CALL L02CB
@@ -4516,10 +4832,19 @@ __PUT_1:
   LD ($EDBD),A
   LD HL,($EF32)
   DEC HL
-  RST $10
+  RST $10     ; CHRGTB
   JR Z,L191D_0
+
+; Routine at 18D1
+L18D1:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 18D4
+L18D4:
+  DEFB $2C
+
+; Routine at 18D5
+L18D5:
   LD B,A
   LD A,($EF2C)
   AND A
@@ -4663,7 +4988,7 @@ L1979_2:
 
 ; Routine at 19A4
 L19A4:
-  CALL L075B_1
+  CALL L076B
   PUSH AF
   CALL L1AE3
   POP AF
@@ -4704,7 +5029,7 @@ L19C9:
   OR B
   LD ($EDBA),A
   POP HL
-  RST $10
+  RST $10     ; CHRGTB
   JP NZ,[$3bdf]SNERR
   LD ($EF32),HL
   POP DE
@@ -5665,55 +5990,55 @@ L1EB6:
   RET
 
 ; __CSAVE BASIC command [$1ec0]
-__CSAVE:
+L1EC0:
   CALL L0C46
   CALL L1FCC_0
   PUSH HL
   LD A,$D3
   LD B,$0A
-__CSAVE_0:
+L1EC0_0:
   CALL L0CD7_0
-  DJNZ __CSAVE_0
+  DJNZ L1EC0_0
   LD B,$06
   LD HL,$EF36
-__CSAVE_1:
+L1EC0_1:
   LD A,(HL)
   INC HL
   CALL L0CD7_0
-  DJNZ __CSAVE_1
+  DJNZ L1EC0_1
   LD BC,$4E20
-__CSAVE_2:
+L1EC0_2:
   DEC BC
   LD A,B
   OR C
-  JP NZ,__CSAVE_2
+  JP NZ,L1EC0_2
   CALL L5C24
   LD HL,([$eb54]BASTXT)
   EX DE,HL
   LD HL,([$efa0]PROGND)
-__CSAVE_3:
+L1EC0_3:
   LD A,(DE)
   INC DE
   CALL L0CD7_0
   CALL [$4095]CPDEHL
-  JR NZ,__CSAVE_3
+  JR NZ,L1EC0_3
   LD L,$09
-__CSAVE_4:
+L1EC0_4:
   CALL L0CD7_0
   DEC L
-  JP NZ,__CSAVE_4
+  JP NZ,L1EC0_4
   LD BC,$1F40
-__CSAVE_5:
+L1EC0_5:
   DEC BC
   LD A,B
   OR C
-  JP NZ,__CSAVE_5
+  JP NZ,L1EC0_5
   CALL L0C2E
   POP HL
   RET
 
 ; __CLOAD BASIC command [$1f10]
-__CLOAD:
+L1F10:
   SUB $91
   JR Z,$1F16
   XOR A
@@ -5725,49 +6050,49 @@ __CLOAD:
   OR A
   LD H,A
   LD ([$f0a8]DBL_FPREG),HL
-  CALL Z,__NEW_0
+  CALL Z,L3DE1
   CALL L5C24
   LD HL,([$f0a8]DBL_FPREG)
   EX DE,HL
-__CLOAD_0:
+L1F10_0:
   LD A,$FF
   LD ($EF3C),A
   PUSH DE
   CALL L0BF3
   POP DE
-__CLOAD_1:
+L1F10_1:
   LD B,$0A
-__CLOAD_2:
+L1F10_2:
   CALL L0C88
   SUB $D3
-  JR NZ,__CLOAD_1
-  DJNZ __CLOAD_2
+  JR NZ,L1F10_1
+  DJNZ L1F10_2
   XOR A
   LD ($EF3C),A
   LD HL,$EF3E
   LD B,$06
-__CLOAD_3:
+L1F10_3:
   CALL L0C88
   LD (HL),A
   INC HL
-  DJNZ __CLOAD_3
+  DJNZ L1F10_3
   LD HL,$EF3E
   LD BC,$EF36
   LD E,$06
-__CLOAD_4:
+L1F10_4:
   LD A,(BC)
   CP (HL)
   INC HL
   INC BC
   JP NZ,L1FB6
   DEC E
-  JR NZ,__CLOAD_4
+  JR NZ,L1F10_4
   LD HL,L1FEF
   CALL L1FFC
   LD HL,([$eb54]BASTXT)
-__CLOAD_5:
+L1F10_5:
   LD B,$0A
-__CLOAD_6:
+L1F10_6:
   CALL L0C88
   LD E,A
   SUB (HL)
@@ -5778,13 +6103,13 @@ __CLOAD_6:
   LD A,(HL)
   OR A
   INC HL
-  JR NZ,__CLOAD_5
+  JR NZ,L1F10_5
   CALL L0CB3
-  DJNZ __CLOAD_6
+  DJNZ L1F10_6
   LD BC,$FFFA
   ADD HL,BC
   LD ([$efa0]PROGND),HL
-__CLOAD_7:
+L1F10_7:
   LD HL,L3B60
   CALL [$52ed]PRS
   CALL L0C2E_0
@@ -5800,7 +6125,7 @@ L1FA2:
   EX DE,HL
   LD HL,([$efa0]PROGND)
   CALL [$4095]CPDEHL
-  JP C,__CLOAD_7
+  JP C,L1F10_7
   LD HL,L1FC9
   CALL [$52ed]PRS
   JP $3C81
@@ -5816,7 +6141,7 @@ L1FB6_1:
   OR A
   JR NZ,L1FB6_0
   DJNZ L1FB6_1
-  JP __CLOAD_0
+  JP L1F10_0
 
 ; Message at 1FC9
 L1FC9:
@@ -5830,7 +6155,7 @@ L1FCC:
 L1FCC_0:
   CALL [$4a8f]EVAL
   PUSH HL
-  CALL __ASC_0
+  CALL L5498_0
   DEC HL
   DEC HL
   LD B,(HL)
@@ -5873,9 +6198,9 @@ L1FFC:
 L1FFC_0:
   LD A,(HL)
   INC HL
-  RST $18
+  RST $18     ; OUTC
   DJNZ L1FFC_0
-  CALL L47D0_0
+  CALL [$47dd]RESTART
   POP AF
   POP DE
   RET
@@ -5921,15 +6246,24 @@ L2036_0:
 ; Routine at 204A
 L204A:
   PUSH DE
-  RST $10
+  RST $10     ; CHRGTB
   CALL [$56dd]FPSINT_0
   INC DE
   LD A,E
   OR D
   JP NZ,[$44a5]FCERR
   POP DE
+
+; Routine at 2056
+L2056:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 2059
+L2059:
+  DEFB $2C
+
+; Routine at 205A
+L205A:
   RET
 
 ; Routine at 205B
@@ -6017,7 +6351,7 @@ L209B:
   JP C,L209B_0
   INC A
 L209B_0:
-  RST $18
+  RST $18     ; OUTC
 L209B_1:
   POP AF
   LD ($EECE),A
@@ -6059,11 +6393,11 @@ L20EC:
   RET
 
 ; __PORT BASIC command [$20f9]
-__PORT:
+L20F9:
   CALL [$56fd]MAKINT
   DEC A
   CP $02
-__PORT_0:
+L20F9_0:
   JP NC,[$44a5]FCERR
   RLCA
   RLCA
@@ -6090,12 +6424,12 @@ __PORT_0:
   LD D,A
   EX DE,HL
   EI
-  JR NC,__PORT_1
+  JR NC,L20F9_1
   EX DE,HL
   LD HL,($EB31)
   EX DE,HL
   ADD HL,DE
-__PORT_1:
+L20F9_1:
   JP [$279c]INT_RESULT_HL
 
 ; Routine at 212A
@@ -6103,7 +6437,7 @@ L212A:
   DEC DE
   DEC DE
   EX DE,HL
-  JP __PORT_1
+  JP L20F9_1
 
 ; Routine at 2130
 L2130:
@@ -6133,7 +6467,7 @@ L2130:
   CALL L2075
   OR A
   LD E,$1C
-  JP Z,[$3bdf]SNERR_0
+  JP Z,[$3bf9]ERROR
   LD A,C
   LD ($EB2D),A
   POP DE
@@ -6143,8 +6477,17 @@ L2130:
 ; Routine at 2164
 L2164:
   CALL L2130
+
+; Routine at 2167
+L2167:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 216A
+L216A:
+  DEFB $2C
+
+; Routine at 216B
+L216B:
   RET
 
 ; Routine at 216C
@@ -6271,7 +6614,7 @@ L21F0:
   XOR A
   LD ($EA54),A
   LD E,$1B
-  JP [$3bdf]SNERR_0
+  JP [$3bf9]ERROR
 
 ; Routine at 21F9
 L21F9:
@@ -6342,27 +6685,42 @@ L224F:
   CALL L221B
   POP BC
   POP DE
-  JP __LINE_0
+  JP L4883_0
 
 ; __INIT BASIC command [$2262]
-__INIT:
+L2262:
   CALL [$409b]SYNCHR
-  DEC H
+
+; Data block at 2265
+L2265:
+  DEFB $25
+
+; Routine at 2266
+L2266:
   CALL [$56fa]GETINT
   PUSH AF
   CALL L22E1
   XOR A
-  CALL __INIT_1
+  CALL L22A1_1
   XOR A
-  CALL __INIT_1
+  CALL L22A1_1
   XOR A
-  CALL __INIT_1
+  CALL L22A1_1
   LD A,$50
-  CALL __INIT_1
+  CALL L22A1_1
+
+; Routine at 227E
+L227E:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 2281
+L2281:
+  DEFB $2C
+
+; Routine at 2282
+L2282:
   CALL [$56fa]GETINT
-  CALL __INIT_1
+  CALL L22A1_1
   POP BC
   PUSH BC
   PUSH HL
@@ -6377,8 +6735,17 @@ __INIT:
   ADD HL,BC
   LD (HL),A
   POP HL
+
+; Routine at 229D
+L229D:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 22A0
+L22A0:
+  DEFB $2C
+
+; Routine at 22A1
+L22A1:
   CALL [$56fa]GETINT
   POP BC
   PUSH HL
@@ -6404,12 +6771,12 @@ __INIT:
   LD A,C
   DEC A
   OR B
-  JP NZ,__INIT_0
+  JP NZ,L22A1_0
   LD C,A
   POP AF
   AND $FB
   PUSH AF
-__INIT_0:
+L22A1_0:
   LD (HL),C
   INC HL
   LD (HL),B
@@ -6418,7 +6785,7 @@ __INIT_0:
   EI
   POP AF
   POP HL
-__INIT_1:
+L22A1_1:
   JP $EA00
 
 ; Routine at 22D5
@@ -6456,14 +6823,30 @@ L22EC:
 
 ; Routine at 22F8
 L22F8:
-  RST $10
+  RST $10     ; CHRGTB
+
+; Routine at 22F9
+L22F9:
   CALL [$409b]SYNCHR
-  INC H
+
+; Data block at 22FC
+L22FC:
+  DEFB $24
+
+; Routine at 22FD
+L22FD:
   CALL [$409b]SYNCHR
-  JR Z,$22E7
+
+; Data block at 2300
+L2300:
+  DEFB $28
+
+; Routine at 2301
+L2301:
+  PUSH HL
   LD HL,($EB4E)
   PUSH HL
-  LD HL,L0000
+  LD HL,0
   LD ($EB4E),HL
   POP HL
   EX (SP),HL
@@ -6476,18 +6859,27 @@ L22F8:
   LD A,(HL)
   CP $2C
   CCF
-  JP NC,L22F8_0
-  RST $10
+  JP NC,L2301_0
+  RST $10     ; CHRGTB
   CP $25
   JP Z,L236F
-  CALL __DSKF_2
+  CALL [$F15F]FN_ATTR$_0
   POP HL
   XOR A
   LD A,(HL)
-L22F8_0:
+L2301_0:
   PUSH AF
+
+; Routine at 232E
+L232E:
   CALL [$409b]SYNCHR
-  ADD HL,HL
+
+; Data block at 2331
+L2331:
+  DEFB $29
+
+; Routine at 2332
+L2332:
   POP AF
   EX (SP),HL
   PUSH AF
@@ -6498,19 +6890,19 @@ L22F8_0:
   CALL [$529b]MKTMST
   EX DE,HL
   POP BC
-L22F8_1:
+L2332_0:
   POP AF
   PUSH AF
   JP C,L2376
-  JP Z,__DSKF_3
+  JP Z,[$F15F]FN_ATTR$_1
   CALL L0F75
   CP $03
   JP Z,L2364
-L22F8_2:
+L2332_1:
   LD (HL),A
   INC HL
   DEC C
-  JP NZ,L22F8_1
+  JP NZ,L2332_0
   POP AF
   POP BC
   POP AF
@@ -6524,7 +6916,7 @@ L22F8_2:
 L2364:
   POP AF
   LD HL,([$eb52]CURLIN)
-  LD ($EF91),HL
+  LD ([$EF91]ERRLIN),HL
   POP HL
   JP L3BC0
 
@@ -6532,13 +6924,13 @@ L2364:
 L236F:
   CALL L2130
   SCF
-  JP L22F8_0
+  JP L2301_0
 
 ; Routine at 2376
 L2376:
   CALL L22EC
   JP C,L2376
-  JP L22F8_2
+  JP L2332_1
 
 ; Routine at 237F
 L237F:
@@ -6632,7 +7024,7 @@ L23FF:
 
 ; Routine at 2404
 L2404:
-  LD HL,[$30f0]HALF
+  LD HL,HALF
 
 ; ADD number at HL to BCDE
 [$2407]ADDPHL:
@@ -6680,7 +7072,7 @@ L2404:
   JP NC,L2479_1
   INC HL
   INC (HL)
-  JP Z,$3BF1
+  JP Z,OVERFLOW_ERR
   LD L,$01
   CALL [$24de]SHRITE_1
   JR L2479_1
@@ -6776,7 +7168,7 @@ L24A4:
   LD C,$80
   INC (HL)
   RET NZ
-  JP $3BF1
+  JP OVERFLOW_ERR
 
 ; Add number pointed by HL to CDE
 [$24b1]PLUCDE:
@@ -6852,21 +7244,21 @@ L24DA:
   LD B,A
   JR [$24de]SHRITE_0
 
-; label=[$24f2]UNITY
+; label=UNITY
 ;
 ; Constant ptr for number 1 in FP
-[$24f2]UNITY:
+UNITY:
   DEFB $00,$00,$00,$81
 
-; label=[$24f6]LOGTAB
+; label=LOGTAB
 ;
 ; Table used by LOG
-[$24f6]LOGTAB:
+LOGTAB:
   DEFB $03,$AA,$56,$19,$80,$F1,$22,$76
   DEFB $80,$45,$AA,$38,$82
 
 ; __LOG BASIC command [$2503]
-__LOG:
+[$2503]LOG:
   CALL [$264f]TSTSGN
   OR A
   JP PE,[$44a5]FCERR
@@ -6884,16 +7276,16 @@ __LOG:
   POP DE
   INC B
   CALL [$259c]DVBCDE
-  LD HL,[$24f2]UNITY
+  LD HL,UNITY
   CALL [$240c]SUBPHL
-  LD HL,[$24f6]LOGTAB
+  LD HL,LOGTAB
   CALL [$3254]SUMSER
   LD BC,$8080
-  LD DE,L0000
+  LD DE,0
   CALL [$2412]FPADD
   POP AF
   CALL L2CED
-__LOG_0:
+[$2503]LOG_0:
   LD BC,$8031
   LD DE,$7218
 
@@ -6907,21 +7299,29 @@ __LOG_0:
   LD ($F0DE),A
   EX DE,HL
   LD ($F0DF),HL
-  LD BC,L0000
+  LD BC,0
   LD D,B
   LD E,B
   LD HL,L2450_1
   PUSH HL
-  LD HL,[$2563]CONSTANT_00
+  LD HL,[$2563]MULT_SUB
   PUSH HL
   PUSH HL
   LD HL,[$f0a8]DBL_FPREG
 
-; label=[$2563]CONSTANT_00
-[$2563]CONSTANT_00:
-  DEFB $7E,$23,$B7,$28,$24,$E5,$2E,$08
-[$2563]CONSTANT_00_0:
-  DEFB $1F,$67,$79,$30
+; label=[$2563]MULT_SUB
+[$2563]MULT_SUB:
+  LD A,(HL)
+  INC HL
+  OR A
+  JR Z,L258C
+  PUSH HL
+  LD L,$08
+[$2563]MULT_SUB_0:
+  RRA
+  LD H,A
+  LD A,C
+  JR NC,L256F_0
 
 ; Routine at 256F
 L256F:
@@ -6933,6 +7333,7 @@ L256F:
   POP HL
   LD A,($F0DE)
   ADC A,C
+L256F_0:
   RRA
   LD C,A
   LD A,D
@@ -6946,8 +7347,8 @@ L256F:
   LD B,A
   DEC L
   LD A,H
-  JR NZ,[$2563]CONSTANT_00_0
-L256F_0:
+  JR NZ,[$2563]MULT_SUB_0
+L256F_1:
   POP HL
   RET
 
@@ -6973,7 +7374,7 @@ L258C:
 ; Divide FP by BCDE
 [$259c]DVBCDE:
   CALL [$264f]TSTSGN
-  JP Z,$3BE2
+  JP Z,DIV0_ERR
   LD L,$FF
   CALL L2601_0
   INC (HL)
@@ -7038,7 +7439,7 @@ L258C:
   DEC (HL)
   POP HL
   JR NZ,[$259c]DVBCDE_0
-  JP $3BF1
+  JP OVERFLOW_ERR
 
 ; Routine at 2601
 L2601:
@@ -7065,7 +7466,7 @@ L2601_0:
   JP P,L262B_0
   ADD A,$80
   LD (HL),A
-  JP Z,L256F_0
+  JP Z,L256F_1
   CALL L26DD
   LD (HL),A
 L2601_1:
@@ -7082,7 +7483,7 @@ L262B_0:
 L262B_1:
   POP HL
   JP P,L246E_0
-  JP $3BF1
+  JP OVERFLOW_ERR
 
 ; Multiply number in FPREG by 10
 [$2638]MLSP10:
@@ -7091,20 +7492,20 @@ L262B_1:
   OR A
   RET Z
   ADD A,$02
-  JP C,$3BF1
+  JP C,OVERFLOW_ERR
   LD B,A
   CALL [$2412]FPADD
   LD HL,[$f0ab]FPEXP
   INC (HL)
   RET NZ
-  JP $3BF1
+  JP OVERFLOW_ERR
 
 ; Test sign of FPREG
 [$264f]TSTSGN:
   LD A,([$f0ab]FPEXP)
   OR A
   RET Z
-  LD A,($F0AA)
+  LD A,([$f0AA]FACCU)
   CP $2F
 [$264f]TSTSGN_0:
   RLA
@@ -7117,7 +7518,7 @@ L262B_1:
 ; CY and A to FP, & normalise
 [$265e]FLGREL:
   LD B,$88
-  LD DE,L0000
+  LD DE,0
 [$265e]FLGREL_0:
   LD HL,[$f0ab]FPEXP
   LD C,A
@@ -7129,24 +7530,26 @@ L262B_1:
   JP L2450_0
 
 ; __ABS BASIC command [$2671]
-__ABS:
+L2671:
   CALL [$2690]_TSTSGN
   RET P
-__ABS_0:
+
+; Routine at 2675
+[$2675]INVSGN:
   CALL [$4dd8]GETYPR
   JP M,[$299d]DBL_ABS
-  JP Z,$3BF7
+  JP Z,TYPE_ERR
 
 ; Invert number sign
 [$267e]INVSGN:
-  LD HL,$F0AA
+  LD HL,[$f0AA]FACCU
   LD A,(HL)
   XOR $80
   LD (HL),A
   RET
 
 ; __SGN BASIC command [$2686]
-__SGN:
+L2686:
   CALL [$2690]_TSTSGN
 
 ; Get back from function, result in A (signed)
@@ -7160,7 +7563,7 @@ __SGN:
 ; Test sign in number
 [$2690]_TSTSGN:
   CALL [$4dd8]GETYPR
-  JP Z,$3BF7
+  JP Z,TYPE_ERR
   JP P,[$264f]TSTSGN
   LD HL,([$f0a8]DBL_FPREG)
 [$2690]_TSTSGN_0:
@@ -7176,7 +7579,7 @@ __SGN:
   LD HL,([$f0a8]DBL_FPREG)
   EX (SP),HL
   PUSH HL
-  LD HL,($F0AA)
+  LD HL,([$f0AA]FACCU)
   EX (SP),HL
   PUSH HL
   EX DE,HL
@@ -7192,7 +7595,7 @@ __SGN:
   LD ([$f0a8]DBL_FPREG),HL
   LD H,B
   LD L,C
-  LD ($F0AA),HL
+  LD ([$f0AA]FACCU),HL
   EX DE,HL
   RET
 
@@ -7218,26 +7621,28 @@ __SGN:
 L26C9:
   LD DE,[$f0a8]DBL_FPREG
   LD B,$04
-  JR L26D0_1
+  JR [$26D1]FP2HL_0
 
 ; Routine at 26D0
 L26D0:
   EX DE,HL
-L26D0_0:
+
+; Routine at 26D1
+[$26D1]FP2HL:
   LD A,($EF45)
   LD B,A
-L26D0_1:
+[$26D1]FP2HL_0:
   LD A,(DE)
   LD (HL),A
   INC DE
   INC HL
   DEC B
-  JR NZ,L26D0_1
+  JR NZ,[$26D1]FP2HL_0
   RET
 
 ; Routine at 26DD
 L26DD:
-  LD HL,$F0AA
+  LD HL,[$f0AA]FACCU
   LD A,(HL)
   RLCA
   SCF
@@ -7268,7 +7673,7 @@ L26F2_0:
 L26FA:
   LD HL,$F0AE
 L26FA_0:
-  LD DE,L26D0_0
+  LD DE,[$26D1]FP2HL
 L26FA_1:
   PUSH DE
 L26FA_2:
@@ -7288,7 +7693,7 @@ L26FA_2:
   CALL [$264f]TSTSGN
   LD A,C
   RET Z
-  LD HL,$F0AA
+  LD HL,[$f0AA]FACCU
   XOR (HL)
   LD A,C
   RET M
@@ -7336,9 +7741,11 @@ L2739:
 ; Routine at 2749
 L2749:
   LD HL,$F0AE
-  CALL L26D0_0
-L2749_0:
-  LD DE,$F0B5
+  CALL [$26D1]FP2HL
+
+; Routine at 274F
+[$274F]XDCOMP:
+  LD DE,[$f0b5]ARG
   LD A,(DE)
   OR A
   JP Z,[$264f]TSTSGN
@@ -7349,72 +7756,74 @@ L2749_0:
   LD A,(DE)
   LD C,A
   RET Z
-  LD HL,$F0AA
+  LD HL,[$f0AA]FACCU
   XOR (HL)
   LD A,C
   RET M
   INC DE
   INC HL
   LD B,$08
-L2749_1:
+[$274F]XDCOMP_0:
   LD A,(DE)
   SUB (HL)
   JP NZ,[$270c]CMPNUM_0
   DEC DE
   DEC HL
   DEC B
-  JR NZ,L2749_1
+  JR NZ,[$274F]XDCOMP_0
   POP BC
   RET
 
 ; Routine at 2778
-L2778:
-  CALL L2749_0
+[$2778]DECCOMP:
+  CALL [$274F]XDCOMP
   JP NZ,$2658
   RET
 
 ; __CINT BASIC command [$277f]
-__CINT:
+L277F:
   CALL [$4dd8]GETYPR
   LD HL,([$f0a8]DBL_FPREG)
   RET M
-  JP Z,$3BF7
-  CALL NC,__CSNG_0
-  LD HL,$3BF1
+  JP Z,TYPE_ERR
+  CALL NC,L27B3_0
+  LD HL,OVERFLOW_ERR
   PUSH HL
-__CINT_0:
+L277F_0:
   LD A,([$f0ab]FPEXP)
   CP $90
-  JR NC,[$279c]INT_RESULT_HL_2
+  JR NC,[$279F]SETTYPE_INT_1
   CALL [$2801]FPINT
   EX DE,HL
-__CINT_1:
+L277F_1:
   POP DE
 
 ; Get back from function, result in HL
 [$279c]INT_RESULT_HL:
   LD ([$f0a8]DBL_FPREG),HL
-[$279c]INT_RESULT_HL_0:
+
+; Routine at 279F
+[$279F]SETTYPE_INT:
   LD A,$02
-[$279c]INT_RESULT_HL_1:
+[$279F]SETTYPE_INT_0:
   LD ($EF45),A
   RET
-[$279c]INT_RESULT_HL_2:
+[$279F]SETTYPE_INT_1:
   LD BC,$9080
-  LD DE,L0000
+  LD DE,0
   CALL [$270c]CMPNUM
   RET NZ
   LD H,C
   LD L,D
-  JR __CINT_1
+  JR L277F_1
 
 ; __CSNG BASIC command [$27b3]
-__CSNG:
+L27B3:
   CALL [$4dd8]GETYPR
   RET PO
-  JP M,__CSNG_1
-  JP Z,$3BF7
-__CSNG_0:
+  JP M,L27B3_1
+  JP Z,TYPE_ERR
+L27B3_0:
   CALL [$26bd]BCDEFP
   CALL $27F5
   LD A,B
@@ -7424,9 +7833,9 @@ __CSNG_0:
   LD HL,$F0A7
   LD B,(HL)
   JP L2479_1
-__CSNG_1:
+L27B3_1:
   LD HL,([$f0a8]DBL_FPREG)
-__CSNG_2:
+L27B3_2:
   CALL $27F5
 
 ; Get back from function passing an INT value HL
@@ -7438,25 +7847,25 @@ __CSNG_2:
   JP [$265e]FLGREL_0
 
 ; __CDBL BASIC command [$27df]
-__CDBL:
+L27DF:
   CALL [$4dd8]GETYPR
   RET NC
-  JP Z,$3BF7
-  CALL M,__CSNG_1
-__CDBL_0:
-  LD HL,L0000
+  JP Z,TYPE_ERR
+  CALL M,L27B3_1
+L27DF_0:
+  LD HL,0
   LD ($F0A4),HL
   LD ($F0A6),HL
-__CDBL_1:
+L27DF_1:
   LD A,$08
   LD BC,$043E
-  JP [$279c]INT_RESULT_HL_1
+  JP [$279F]SETTYPE_INT_0
 
 ; Test a string, 'Type Error' if it is not
 [$27fa]TSTSTR:
   CALL [$4dd8]GETYPR
   RET Z
-  JP $3BF7
+  JP TYPE_ERR
 
 ; Floating Point to Integer
 [$2801]FPINT:
@@ -7498,22 +7907,22 @@ L2804:
   RET
 
 ; __FIX BASIC command [$282c]
-__FIX:
+[$282c]FIX:
   CALL [$4dd8]GETYPR
   RET M
   CALL [$264f]TSTSGN
-  JP P,__INT
+  JP P,L283F
   CALL [$267e]INVSGN
-  CALL __INT
-  JP __ABS_0
+  CALL L283F
+  JP [$2675]INVSGN
 
 ; __INT BASIC command [$283f]
-__INT:
+L283F:
   CALL [$4dd8]GETYPR
   RET M
   JR NC,[$284b]INT_0
-  JP Z,$3BF7
-  CALL __CINT_0
+  JP Z,TYPE_ERR
+  CALL L277F_0
 
 ; INT
 [$284b]INT:
@@ -7536,7 +7945,7 @@ __INT:
   LD HL,[$f0ab]FPEXP
   LD A,(HL)
   CP $90
-  JP C,__CINT
+  JP C,L277F
   JR NZ,[$284b]INT_2
   LD C,A
   DEC HL
@@ -7564,7 +7973,7 @@ __INT:
   LD (HL),$B8
   PUSH AF
   CALL M,L28AB
-  LD HL,$F0AA
+  LD HL,[$f0AA]FACCU
   LD A,$B8
   SUB B
   CALL L2ABC
@@ -7590,20 +7999,20 @@ L28AB_0:
 ; Multiply DE by BC
 [$28b5]MLDEBC:
   PUSH HL
-  LD HL,L0000
+  LD HL,0
   LD A,B
   OR C
   JR Z,[$28b5]MLDEBC_2
   LD A,$10
 [$28b5]MLDEBC_0:
   ADD HL,HL
-  JP C,[$4f5c]SCPTLP_3
+  JP C,[$4FBD]SBSCT_ERR
   EX DE,HL
   ADD HL,HL
   EX DE,HL
   JR NC,[$28b5]MLDEBC_1
   ADD HL,BC
-  JP C,[$4f5c]SCPTLP_3
+  JP C,[$4FBD]SBSCT_ERR
 [$28b5]MLDEBC_1:
   DEC A
   JR NZ,[$28b5]MLDEBC_0
@@ -7613,7 +8022,7 @@ L28AB_0:
   RET
 
 ; Routine at 28D2
-L28D2:
+[$28D2]ISUB:
   LD A,H
   RLA
   SBC A,A
@@ -7621,14 +8030,14 @@ L28D2:
   CALL L2987_2
   LD A,C
   SBC A,B
-  JR L28DD_0
+  JR [$28DD]IADD_0
 
 ; Routine at 28DD
-L28DD:
+[$28DD]IADD:
   LD A,H
   RLA
   SBC A,A
-L28DD_0:
+[$28DD]IADD_0:
   LD B,A
   PUSH HL
   LD A,D
@@ -7638,10 +8047,10 @@ L28DD_0:
   ADC A,B
   RRCA
   XOR H
-  JP P,__CINT_1
+  JP P,L277F_1
   PUSH BC
   EX DE,HL
-  CALL __CSNG_2
+  CALL L27B3_2
   POP AF
   POP HL
   CALL [$26a2]STAKFP
@@ -7661,7 +8070,7 @@ L28DD_0:
   PUSH BC
   LD B,H
   LD C,L
-  LD HL,L0000
+  LD HL,0
   LD A,$10
 [$28fd]INT_MUL_1:
   ADD HL,HL
@@ -7690,10 +8099,10 @@ L28DD_0:
   JR Z,[$28fd]INT_MUL_5
   EX DE,HL
   LD BC,$E1C1
-  CALL __CSNG_2
+  CALL L27B3_2
   POP HL
   CALL [$26a2]STAKFP
-  CALL __CSNG_2
+  CALL L27B3_2
   POP BC
   POP DE
   JP [$2541]FPMULT
@@ -7703,7 +8112,7 @@ L28DD_0:
   POP BC
   JP M,[$279c]INT_RESULT_HL
   PUSH DE
-  CALL __CSNG_2
+  CALL L27B3_2
   POP DE
   JP [$267e]INVSGN
 
@@ -7711,14 +8120,14 @@ L28DD_0:
 L2950:
   LD A,H
   OR L
-  JP Z,$3BE2
+  JP Z,DIV0_ERR
   CALL L2987
   PUSH BC
   EX DE,HL
   CALL L2987_2
   LD B,H
   LD C,L
-  LD HL,L0000
+  LD HL,0
   LD A,$11
   PUSH AF
   OR A
@@ -7793,7 +8202,7 @@ L2987_2:
   JP [$265e]FLGREL_0
 
 ; Routine at 29B2
-L29B2:
+[$29B2]IMOD:
   PUSH DE
   CALL L2950
   XOR A
@@ -7803,7 +8212,7 @@ L29B2:
   LD A,E
   RRA
   LD L,A
-  CALL [$279c]INT_RESULT_HL_0
+  CALL [$279F]SETTYPE_INT
   POP AF
   JR L2987_1
 
@@ -7816,7 +8225,7 @@ L29B2:
 
 ; Double precision ADD (formerly FPADD)
 [$29ca]DBL_ADD:
-  LD HL,$F0B5
+  LD HL,[$f0b5]ARG
   LD A,(HL)
   OR A
   RET Z
@@ -7876,7 +8285,7 @@ L29E9_0:
   JP NC,L2A49_1
   EX DE,HL
   INC (HL)
-  JP Z,$3BF1
+  JP Z,OVERFLOW_ERR
   CALL L2AE3
   JP L2A49_1
 L29E9_1:
@@ -7887,21 +8296,21 @@ L29E9_2:
   XOR A
 L29E9_3:
   LD B,A
-  LD A,($F0AA)
+  LD A,([$f0AA]FACCU)
   OR A
   JR NZ,L2A49_0
   LD HL,$F0A3
   LD C,$08
-
-; Message at 2A38
-L2A38:
-  DEFM "Vwz"
+L29E9_4:
+  LD D,(HL)
+  LD (HL),A
+  LD A,D
 
 ; Routine at 2A3B
 L2A3B:
   INC HL
   DEC C
-  JR NZ,L2A38
+  JR NZ,L29E9_4
   LD A,B
   SUB $08
   CP $C0
@@ -7949,7 +8358,7 @@ L2A73_0:
   DEC B
   JR NZ,L2A73_0
   INC (HL)
-  JP Z,$3BF1
+  JP Z,OVERFLOW_ERR
   DEC HL
   LD (HL),$80
   RET
@@ -8020,16 +8429,16 @@ L2ABC_0:
 L2ABC_1:
   PUSH HL
   LD DE,$0800
-
-; Message at 2AC7
-L2AC7:
-  DEFM "NsY"
+L2ABC_2:
+  LD C,(HL)
+  LD (HL),E
+  LD E,C
 
 ; Routine at 2ACA
 L2ACA:
   DEC HL
   DEC D
-  JR NZ,L2AC7
+  JR NZ,L2ABC_2
   JR L2ABC_0
 L2ACA_0:
   ADD A,$09
@@ -8053,7 +8462,7 @@ L2ACA_3:
 
 ; Routine at 2AE3
 L2AE3:
-  LD HL,$F0AA
+  LD HL,[$f0AA]FACCU
   LD D,$01
   JR L2ACA_2
 
@@ -8100,7 +8509,7 @@ L2AF4_2:
   JR NZ,L2AF4_0
   JP L29E9_2
 L2AF4_3:
-  LD HL,$F0AA
+  LD HL,[$f0AA]FACCU
   CALL L2ABC_1
   JR L2AF4_2
 
@@ -8114,13 +8523,13 @@ L2B2C:
 L2B2C_0:
   LD DE,L2B26
   LD HL,$F0AE
-  CALL L26D0_0
+  CALL [$26D1]FP2HL
 
 ; Double precision DIVIDE
 [$2b37]DBL_DIV:
-  LD A,($F0B5)
+  LD A,([$f0b5]ARG)
   OR A
-  JP Z,$3BE2
+  JP Z,DIV0_ERR
   CALL L2601
   INC (HL)
   INC (HL)
@@ -8141,7 +8550,7 @@ L2B2C_0:
   CALL L2A86_1
   XOR A
   JP C,L0401_0
-  LD A,($F0AA)
+  LD A,([$f0AA]FACCU)
   INC A
   DEC A
   RRA
@@ -8158,7 +8567,7 @@ L2B2C_0:
   LD HL,[$f0ab]FPEXP
   DEC (HL)
   JR NZ,[$2b37]DBL_DIV_0
-  JP $3BF1
+  JP OVERFLOW_ERR
 
 ; Routine at 2B8B
 L2B8B:
@@ -8186,19 +8595,19 @@ L2B9F:
   OR A
   RET Z
   ADD A,$02
-  JP C,$3BF1
+  JP C,OVERFLOW_ERR
   LD (HL),A
   PUSH HL
   CALL [$29ca]DBL_ADD
   POP HL
   INC (HL)
   RET NZ
-  JP $3BF1
+  JP OVERFLOW_ERR
 
 ; ASCII to Double precision FP number
 [$2bb7]DBL_ASCTFP:
   CALL L246E_0
-  CALL __CDBL_1
+  CALL L27DF_1
   OR $AF
 
 ; ASCII to FP number (New version)
@@ -8212,7 +8621,7 @@ L2B9F:
   EX DE,HL
   LD A,(HL)
   CP $26
-  JP Z,__HEXTFP
+  JP Z,L4CDA
   CP $2D
   PUSH AF
   JP Z,[$2bbe]ASCTFP_0
@@ -8220,14 +8629,14 @@ L2B9F:
   JR Z,[$2bbe]ASCTFP_0
   DEC HL
 [$2bbe]ASCTFP_0:
-  RST $10
+  RST $10     ; CHRGTB
   JP C,L2C89
   CP $2E
   JP Z,[$2bbe]ASCTFP_7
   CP $45
   JP NZ,[$2bbe]ASCTFP_2
   PUSH HL
-  RST $10
+  RST $10     ; CHRGTB
   CP $4C
   JP Z,[$2bbe]ASCTFP_1
   CP $51
@@ -8248,10 +8657,10 @@ L2B9F:
 [$2bbe]ASCTFP_3:
   OR A
   CALL L2C57
-  RST $10
-  CALL L4D36_4
+  RST $10     ; CHRGTB
+  CALL L4D4D_4
 [$2bbe]ASCTFP_4:
-  RST $10
+  RST $10     ; CHRGTB
   JP C,L2CF8
   INC D
   JR NZ,[$2bbe]ASCTFP_5
@@ -8269,14 +8678,14 @@ L2B9F:
   POP HL
   POP AF
   PUSH HL
-  CALL Z,__ABS_0
+  CALL Z,[$2675]INVSGN
   POP HL
   CALL [$4dd8]GETYPR
   RET PE
   PUSH HL
-  LD HL,L256F_0
+  LD HL,L256F_1
   PUSH HL
-  CALL [$279c]INT_RESULT_HL_2
+  CALL [$279F]SETTYPE_INT_1
   RET
 [$2bbe]ASCTFP_7:
   CALL [$4dd8]GETYPR
@@ -8302,9 +8711,9 @@ L2C57:
   PUSH DE
   PUSH BC
   PUSH AF
-  CALL Z,__CSNG
+  CALL Z,L27B3
   POP AF
-  CALL NZ,__CDBL
+  CALL NZ,L27DF
   POP BC
   POP DE
   POP HL
@@ -8380,7 +8789,7 @@ L2C89_1:
   LD A,C
   PUSH AF
 L2C89_2:
-  CALL __CSNG_1
+  CALL L27B3_1
   SCF
 L2C89_3:
   JR NC,L2C89_5
@@ -8393,13 +8802,13 @@ L2C89_3:
   CALL L2CED
   JR L2C89_0
 L2C89_4:
-  CALL __CDBL_0
+  CALL L27DF_0
 L2C89_5:
   CALL L2B9F
   CALL L26FA
   POP AF
   CALL [$265e]FLGREL
-  CALL __CDBL_0
+  CALL L27DF_0
   CALL [$29ca]DBL_ADD
   JR L2C89_0
 
@@ -8424,7 +8833,7 @@ L2CF8:
   ADD A,(HL)
   SUB $30
   LD E,A
-  JP M,__EXP_0
+  JP M,[$31f3]EXP_0
   JP [$2bbe]ASCTFP_4
 
 ; Routine at 2D0B
@@ -8458,7 +8867,7 @@ L2D22_1:
   LD (HL),$2D
   PUSH BC
   PUSH HL
-  CALL __ABS_0
+  CALL [$2675]INVSGN
   POP HL
   POP BC
   OR H
@@ -8473,7 +8882,7 @@ L2D22_2:
   JP Z,L2DA2_5
   CP $04
   JP NC,L2DA2
-  LD BC,L0000
+  LD BC,0
   CALL L309F
 L2D22_3:
   LD HL,$F0B7
@@ -8490,7 +8899,7 @@ L2D22_3:
   LD B,C
 L2D22_4:
   LD (HL),C
-  RST $10
+  RST $10     ; CHRGTB
   JR Z,L2D22_5
   CP $45
   JR Z,L2D22_5
@@ -8642,7 +9051,7 @@ L2E01_4:
   PUSH AF
   LD BC,$2E46
   PUSH BC
-  RST $10
+  RST $10     ; CHRGTB
   CP $2D
   RET Z
   CP $2B
@@ -8653,7 +9062,7 @@ L2E01_4:
   CP $30
   JR NZ,L2E01_5
   INC HL
-  RST $10
+  RST $10     ; CHRGTB
   JR NC,L2E01_5
   DEC HL
   LD BC,$772B
@@ -8764,7 +9173,7 @@ L2E01_15:
 L2E01_16:
   PUSH HL
   PUSH DE
-  CALL __CSNG_1
+  CALL L27B3_1
   POP DE
   XOR A
 L2E01_17:
@@ -8841,7 +9250,7 @@ L2F68_0:
   JP NC,L2F68_1
   LD DE,L30D4
   LD HL,$F0AE
-  CALL L26D0_0
+  CALL [$26D1]FP2HL
   CALL L2AF4
   POP AF
   SUB $0A
@@ -9119,10 +9528,10 @@ L30D8:
 L30E9:
   DEFB $1B,$0E,$B6,$00,$00,$00,$00
 
-; label=[$30f0]HALF
+; label=HALF
 ;
 ; Constant ptr for 0.5 in FP
-[$30f0]HALF:
+HALF:
   DEFB $00,$00,$00,$80,$00,$00,$04,$BF
   DEFB $C9,$1B,$0E,$B6,$00,$80,$C6,$A4
   DEFB $7E,$8D,$03,$00,$40,$7A,$10,$F3
@@ -9205,24 +9614,24 @@ L3150_6:
   JP (HL)
 
 ; __SQR BASIC command [$31a1]
-__SQR:
+[$31a1]SQR:
   CALL [$26a2]STAKFP
-  LD HL,[$30f0]HALF
+  LD HL,HALF
   CALL [$26af]PHLTFP
   JR [$31ac]POWER_0
 
 ; POWER
 [$31ac]POWER:
-  CALL __CSNG
+  CALL L27B3
 [$31ac]POWER_0:
   POP BC
   POP DE
   CALL [$264f]TSTSGN
   LD A,B
-  JR Z,__EXP
+  JR Z,[$31f3]EXP
   JP P,[$31ac]POWER_1
   OR A
-  JP Z,$3BE2
+  JP Z,DIV0_ERR
 [$31ac]POWER_1:
   OR A
   JP Z,L246E_1
@@ -9244,20 +9653,20 @@ __SQR:
   RRA
 [$31ac]POWER_2:
   POP HL
-  LD ($F0AA),HL
+  LD ([$f0AA]FACCU),HL
   POP HL
   LD ([$f0a8]DBL_FPREG),HL
   CALL C,[$319c]NEGAFT
   CALL Z,[$267e]INVSGN
   PUSH DE
   PUSH BC
-  CALL __LOG
+  CALL [$2503]LOG
   POP BC
   POP DE
   CALL [$2541]FPMULT
 
 ; __EXP BASIC command [$31f3]
-__EXP:
+[$31f3]EXP:
   CALL [$26a2]STAKFP
   LD BC,$8138
   LD DE,$AA3B
@@ -9270,19 +9679,19 @@ __EXP:
   ADD A,$02
   JP C,L262B
   PUSH AF
-  LD HL,[$24f2]UNITY
+  LD HL,UNITY
   CALL [$2407]ADDPHL
-  CALL __LOG_0
+  CALL [$2503]LOG_0
   POP AF
   POP BC
   POP DE
-__EXP_0:
+[$31f3]EXP_0:
   PUSH AF
   CALL [$240f]SUBCDE
   CALL [$267e]INVSGN
   LD HL,L3233
   CALL [$3254]SUMSER_0
-  LD DE,L0000
+  LD DE,0
   POP BC
   LD C,D
   JP [$2541]FPMULT
@@ -9333,7 +9742,7 @@ L323D:
   JR $326C
 
 ; __RND BASIC command [$3283]
-__RND:
+[$3283]RND:
   CALL [$264f]TSTSGN
   LD HL,$EA13
   JP M,L32C8_1
@@ -9365,7 +9774,7 @@ __RND:
   LD C,A
   ADD HL,BC
   CALL [$2407]ADDPHL
-__RND_0:
+[$3283]RND_0:
   CALL [$26bd]BCDEFP
   LD A,E
   LD E,C
@@ -9402,7 +9811,7 @@ L32C8_1:
   LD (HL),A
   DEC HL
   LD (HL),A
-  JR __RND_0
+  JR [$3283]RND_0
 
 ; Routine at 32EA
 L32EA:
@@ -9419,12 +9828,12 @@ L32EA:
   LD L,B
 
 ; __COS BASIC command [$32f6]
-__COS:
-  LD HL,[$3340]HALFPI
+[$32f6]COS:
+  LD HL,HALFPI
   CALL [$2407]ADDPHL
 
 ; __SIN BASIC command [$32fc]
-__SIN:
+[$32fc]SIN:
   CALL [$26a2]STAKFP
   LD BC,$8349
   LD DE,$0FDB
@@ -9441,11 +9850,11 @@ __SIN:
   CALL [$240c]SUBPHL
   CALL [$264f]TSTSGN
   SCF
-  JP P,__SIN_0
+  JP P,[$32fc]SIN_0
   CALL L2404
   CALL [$264f]TSTSGN
   OR A
-__SIN_0:
+[$32fc]SIN_0:
   PUSH AF
   CALL P,[$267e]INVSGN
   LD HL,$3344
@@ -9455,231 +9864,299 @@ __SIN_0:
   LD HL,$3348
   JP [$3254]SUMSER
 
-; label=[$3340]HALFPI
+; label=HALFPI
 ;
 ; Half PI constant ptr
-[$3340]HALFPI:
+HALFPI:
   DEFB $DB,$0F,$49,$81,$00,$00,$00,$7F
   DEFB $05,$BA,$D7,$1E,$86,$64,$26,$99
   DEFB $87,$58,$34,$23,$87,$E0,$5D,$A5
   DEFB $86,$DA,$0F,$49,$83
 
 ; __TAN BASIC command [$335d]
-__TAN:
+[$335d]TAN:
   CALL [$26a2]STAKFP
-  CALL __SIN
+  CALL [$32fc]SIN
   POP BC
   POP HL
   CALL [$26a2]STAKFP
   EX DE,HL
   CALL [$26b2]FPBCDE
-  CALL __COS
+  CALL [$32f6]COS
   JP [$259a]DIV
 
 ; __ATN BASIC command [$3372]
-__ATN:
+[$3372]ATN:
   CALL [$264f]TSTSGN
   CALL M,[$319c]NEGAFT
   CALL M,[$267e]INVSGN
   LD A,([$f0ab]FPEXP)
   CP $81
-  JR C,__ATN_0
+  JR C,[$3372]ATN_0
   LD BC,$8100
   LD D,C
   LD E,C
   CALL [$259c]DVBCDE
   LD HL,[$240c]SUBPHL
   PUSH HL
-__ATN_0:
-  LD HL,L3398
+[$3372]ATN_0:
+  LD HL,FP_ATNTAB
   CALL [$3254]SUMSER
-  LD HL,[$3340]HALFPI
+  LD HL,HALFPI
   RET
 
 ; Data block at 3398
-L3398:
-  DEFW $4A09
-  DEFW $3BD7
-  DEFW $0278
-  DEFW $846E
-  DEFW $FE7B
-  DEFW $2FC1
-  DEFW L746F_0
-  DEFW $9A31
-  DEFW $847D
-  DEFW $5A3D
-  DEFW $C87D
-  DEFW $917F
-  DEFW $E47E
-  DEFW __SUB_OPRND_0
-  DEFW $6C7E
-  DEFW $AAAA
-  DEFW $007F
-  DEFW L0000
-  DEFW $2F81
+FP_ATNTAB:
+  DEFB $09,$4A,$D7,$3B,$78,$02,$6E,$84
+  DEFB $7B,$FE,$C1,$2F,$7C,$74,$31,$9A
+  DEFB $7D,$84,$3D,$5A,$7D,$C8,$7F,$91
+  DEFB $7E,$E4,$BB,$4C,$7E,$6C,$AA,$AA
+  DEFB $7F,$00,$00,$00,$81
 
 ; Jump table for statements and functions
 FNCTAB:
-  DEFW __END
-  DEFW __FOR
-  DEFW __NEXT
-  DEFW __DATA
-  DEFW __INPUT
-  DEFW __DIM
-  DEFW __READ
-  DEFW __LET
-  DEFW __GO TO
-  DEFW __RUN
-  DEFW __IF
-  DEFW __RESTORE
-  DEFW __GOSUB
-  DEFW __RETURN
-  DEFW __REM
-  DEFW __STOP
-  DEFW __PRINT
-  DEFW __CLEAR
-  DEFW __LIST
-  DEFW __NEW
-  DEFW __ON
-  DEFW __WAIT
-  DEFW __DEF
-  DEFW __POKE
-  DEFW __CONT
-  DEFW __CSAVE
-  DEFW __CLOAD
-  DEFW __OUT
-  DEFW __LPRINT
-  DEFW __LLIST
-  DEFW __CONSOLE
-  DEFW __WIDTH
-  DEFW __REM
-  DEFW __TRON
-  DEFW __TROFF
-  DEFW __SWAP
-  DEFW __ERASE
-  DEFW __ERROR
-  DEFW __RESUME
-  DEFW __DELETE
-  DEFW __AUTO
-  DEFW __RENUM
-  DEFW __DEFSTR
-  DEFW __DEFINT
-  DEFW __DEFSNG
-  DEFW __DEFDBL
-  DEFW __LINE
-  DEFW __PRESET
-  DEFW __PSET
-  DEFW __BEEP
-  DEFW __FORMAT
-  DEFW __KEY
-  DEFW __COLOR
-  DEFW __TERM
-  DEFW __MON
-  DEFW __CMD
-  DEFW __MOTOR
-  DEFW __POLL
-  DEFW __RBYTE
-  DEFW __WBYTE
-  DEFW __ISET
-  DEFW __IRESET
-  DEFW __TALK
-  DEFW __MAT
-  DEFW __LISTEN
-  DEFW __DSKO_S
-  DEFW __REMOVE
-  DEFW __MOUNT
-  DEFW __OPEN
-  DEFW __FIELD
-  DEFW __GET
-  DEFW __PUT
-  DEFW __SET
-  DEFW __CLOSE
-  DEFW __LOAD
-  DEFW __MERGE
-  DEFW __FILES
-  DEFW __NAME
-  DEFW __KILL
-  DEFW __LSET
-  DEFW __RSET
-  DEFW __SAVE
-  DEFW __LFILES
-  DEFW __INIT
-  DEFW __LOCATE
-  DEFW __LEFT_S
-  DEFW __RIGHT_S
-  DEFW __MID_S
-  DEFW __SGN
-  DEFW __INT
-  DEFW __ABS
-  DEFW __SQR
-  DEFW __RND
-  DEFW __SIN
-  DEFW __LOG
-  DEFW __EXP
-  DEFW __COS
-  DEFW __TAN
-  DEFW __ATN
-  DEFW __FRE
-  DEFW __INP
-  DEFW __POS
-  DEFW __LEN
-  DEFW __STR_S
-  DEFW __VAL
-  DEFW __ASC
-  DEFW __CHR_S
-  DEFW __PEEK
-  DEFW __SPACE_S
-  DEFW __OCT_S
-  DEFW __HEX_S
-  DEFW __LPOS
-  DEFW __PORT
-  DEFW __DEC
-  DEFW __BCD_S
-  DEFW __CINT
-  DEFW __CSNG
-  DEFW __CDBL
-  DEFW __FIX
-  DEFW __CVI
-  DEFW __CVS
-  DEFW __CVD
-  DEFW __DSKF
-  DEFW __EOF
-  DEFW __LOC
-  DEFW __LOF
-  DEFW __FPOS
-  DEFW __MKI_S
-  DEFW __MKS_S
-  DEFW __MKD_S
-  DEFW $34F5
-  DEFW $350B
-  DEFW $3514
-  DEFW $355E
-  DEFW $359D
-  DEFW $35BE
-  DEFW $35DE
-  DEFW $35F0
-  DEFW $35F5
-  DEFW $3623
-  DEFW $3624
-  DEFW $362C
-  DEFW $3672
-  DEFW $369B
-  DEFW $36AA
-  DEFW $36BA
-  DEFW $36E5
-  DEFW $36E6
-  DEFW $3721
+  DEFW L432F
+  DEFW [$4159]FOR
+  DEFW L4A08
+  DEFW [$45be]DATA
+  DEFW L48DA
+  DEFW L4E37
+  DEFW L4939
+  DEFW L45DE
+  DEFW L456D
+  DEFW L453D
+  DEFW L4702
+  DEFW [$4302]RESTOR
+  DEFW L4555
+  DEFW L45A3
+  DEFW L45C0
+  DEFW L432A
+  DEFW L4742
+  DEFW L44E8
+  DEFW L570C
+  DEFW L3DE0
+  DEFW L4642
+  DEFW L56B3
+  DEFW L50CC
+  DEFW L5918
+  DEFW L4383
+  DEFW L1EC0
+  DEFW L1F10
+  DEFW L56AD
+  DEFW L473A
+  DEFW L5707
+  DEFW L0884
+  DEFW L0843
+  DEFW L45C0
+  DEFW L4396
+  DEFW L4397
+  DEFW L439C
+  DEFW L43DF
+  DEFW L46C4
+  DEFW L468C
+  DEFW L58D9
+  DEFW L46CF
+  DEFW L5AED
+  DEFW L445B
+  DEFW L445E
+  DEFW L4461
+  DEFW L4464
+  DEFW L4877
+  DEFW L0705
+  DEFW L06B8
+  DEFW L0D41
+  DEFW LF12F
+  DEFW L1343
+  DEFW L0951
+  DEFW L0DB8
+  DEFW L0D5D
+  DEFW LF0FC
+  DEFW L0DA1
+  DEFW LF114
+  DEFW LF11A
+  DEFW LF117
+  DEFW LF105
+  DEFW LF108
+  DEFW LF10B
+  DEFW LF111
+  DEFW LF10E
+  DEFW LF12C
+  DEFW LF150
+  DEFW LF153
+  DEFW LF0FF
+  DEFW LF102
+  DEFW L1886
+  DEFW L1891
+  DEFW LF156
+  DEFW LF135
+  DEFW LF138
+  DEFW LF13B
+  DEFW LF14D
+  DEFW LF13E
+  DEFW LF141
+  DEFW LF144
+  DEFW LF147
+  DEFW LF14A
+  DEFW LF126
+  DEFW L2262
+  DEFW L0792
+  DEFW L54F9
+  DEFW L5529
+  DEFW L5532
+  DEFW L2686
+  DEFW L283F
+  DEFW L2671
+  DEFW [$31a1]SQR
+  DEFW [$3283]RND
+  DEFW [$32fc]SIN
+  DEFW [$2503]LOG
+  DEFW [$31f3]EXP
+  DEFW [$32f6]COS
+  DEFW [$335d]TAN
+  DEFW [$3372]ATN
+  DEFW L5051
+  DEFW L56A1
+  DEFW L5079
+  DEFW L548C
+  DEFW [$527a]STR
+  DEFW L5553
+  DEFW L5498
+  DEFW [$54a8]CHR
+  DEFW L5911
+  DEFW L54DF
+  DEFW L5270
+  DEFW L5275
+  DEFW L5074
+  DEFW L20F9
+  DEFW LF123
+  DEFW LF120
+  DEFW L277F
+  DEFW L27B3
+  DEFW L27DF
+  DEFW [$282c]FIX
+  DEFW LF0E1
+  DEFW LF0E4
+  DEFW LF0E7
+  DEFW LF159
+  DEFW LF0EA
+  DEFW LF0ED
+  DEFW LF0F0
+  DEFW LF168
+  DEFW LF0F3
+  DEFW LF0F6
+  DEFW LF0F9
+
+; WORDS_A
+L34C1:
+  DEFW L34F5
+
+; WORDS_B
+L34C3:
+  DEFW L350B
+
+; WORDS_C
+L34C5:
+  DEFW L3514
+
+; WORDS_D
+L34C7:
+  DEFW L355E
+
+; WORDS_E
+L34C9:
+  DEFW L359D
+
+; WORDS_F
+L34CB:
+  DEFW L35BE
+
+; WORDS_G
+L34CD:
+  DEFW L35DE
+
+; WORDS_H
+L34CF:
+  DEFW L35F0
+
+; WORDS_I
+L34D1:
+  DEFW L35F5
+
+; WORDS_J
+L34D3:
+  DEFW L3623
+
+; WORDS_K
+L34D5:
+  DEFW L3624
+
+; WORDS_L
+L34D7:
+  DEFW L362C
+
+; WORDS_M
+L34D9:
+  DEFW L3672
+
+; WORDS_N
+L34DB:
+  DEFW L369B
+
+; WORDS_O
+L34DD:
+  DEFW L36AA
+
+; WORDS_P
+L34DF:
+  DEFW L36BA
+
+; WORDS_Q
+L34E1:
+  DEFW L36E5
+
+; WORDS_R
+L34E3:
+  DEFW L36E6
+
+; WORDS_S
+L34E5:
+  DEFW L3721
+
+; WORDS_T
+L34E7:
   DEFW $375C
-  DEFW $3780
-  DEFW $3789
-  DEFW $3793
-  DEFW $37A2
-  DEFW $37A6
+
+; WORDS_U
+L34E9:
+  DEFW L3780
+
+; WORDS_V
+L34EB:
+  DEFW L3789
+
+; WORDS_W
+L34ED:
+  DEFW L3793
+
+; WORDS_X
+L34EF:
+  DEFW L37A2
+
+; WORDS_Y
+L34F1:
+  DEFW L37A6
+
+; WORDS_Z
+L34F3:
   DEFW L37A7
 
 ; BASIC keyword list
 WORDS:
-  DEFM "7N"
+  DEFM "7"
+
+; label=WORDS_A
+L34F5:
+  DEFM "N"
   DEFB $C4
   DEFB $F8
   DEFM "B"
@@ -9698,6 +10175,9 @@ WORDS:
   DEFB $A4
   DEFB $E7
   DEFB $00
+
+; label=WORDS_B
+L350B:
   DEFM "CD"
   DEFB $A4
   DEFB $1E
@@ -9705,6 +10185,9 @@ WORDS:
   DEFB $D0
   DEFB $B2
   DEFB $00
+
+; label=WORDS_C
+L3514:
   DEFM "ONSOL"
   DEFB $C5
   DEFB $9F
@@ -9752,6 +10235,9 @@ WORDS:
   DEFB $D2
   DEFB $B5
   DEFB $00
+
+; label=WORDS_D
+L355E:
   DEFM "AT"
   DEFB $C1
   DEFB $84
@@ -9791,6 +10277,9 @@ WORDS:
   DEFB $A4
   DEFB $EB
   DEFB $00
+
+; label=WORDS_E
+L359D:
   DEFM "N"
   DEFB $C4
   DEFB $81
@@ -9818,6 +10307,9 @@ WORDS:
   DEFB $D6
   DEFB $FB
   DEFB $00
+
+; label=WORDS_F
+L35BE:
   DEFM "ORMA"
   DEFB $D4
   DEFB $B3
@@ -9841,6 +10333,9 @@ WORDS:
   DEFB $D3
   DEFM "*"
   DEFB $00
+
+; label=WORDS_G
+L35DE:
   DEFM "OT"
   DEFB $CF
   DEFB $89
@@ -9854,10 +10349,16 @@ WORDS:
   DEFB $D4
   DEFB $C7
   DEFB $00
+
+; label=WORDS_H
+L35F0:
   DEFM "EX"
   DEFB $A4
   DEFB $1A
   DEFB $00
+
+; label=WORDS_I
+L35F5:
   DEFM "NPU"
   DEFB $D4
   DEFB $85
@@ -9891,7 +10392,13 @@ WORDS:
   DEFB $C5
   DEFM "l"
   DEFB $00
+
+; label=WORDS_J
+L3623:
   DEFB $00
+
+; label=WORDS_K
+L3624:
   DEFM "IL"
   DEFB $CC
   DEFB $CF
@@ -9899,6 +10406,9 @@ WORDS:
   DEFB $D9
   DEFB $B4
   DEFB $00
+
+; label=WORDS_L
+L362C:
   DEFM "E"
   DEFB $D4
   DEFB $88
@@ -9947,6 +10457,9 @@ WORDS:
   DEFB $C6
   DEFM ")"
   DEFB $00
+
+; label=WORDS_M
+L3672:
   DEFM "OUN"
   DEFB $D4
   DEFB $C4
@@ -9975,6 +10488,9 @@ WORDS:
   DEFB $D4
   DEFB $C0
   DEFB $00
+
+; label=WORDS_N
+L369B:
   DEFM "EX"
   DEFB $D4
   DEFB $83
@@ -9988,6 +10504,9 @@ WORDS:
   DEFB $D4
   DEFB $DE
   DEFB $00
+
+; label=WORDS_O
+L36AA:
   DEFM "U"
   DEFB $D4
   DEFB $9C
@@ -10002,6 +10521,9 @@ WORDS:
   DEFB $A4
   DEFB $19
   DEFB $00
+
+; label=WORDS_P
+L36BA:
   DEFM "U"
   DEFB $D4
   DEFB $C8
@@ -10033,7 +10555,13 @@ WORDS:
   DEFB $D4
   DEFB $EF
   DEFB $00
+
+; label=WORDS_Q
+L36E5:
   DEFB $00
+
+; label=WORDS_R
+L36E6:
   DEFM "EA"
   DEFB $C4
   DEFB $87
@@ -10071,6 +10599,9 @@ WORDS:
   DEFB $C5
   DEFB $BB
   DEFB $00
+
+; label=WORDS_S
+L3721:
   DEFM "TO"
   DEFB $D0
   DEFB $90
@@ -10141,6 +10672,9 @@ WORDS:
   DEFB $A4
   DEFB $EA
   DEFB $00
+
+; label=WORDS_U
+L3780:
   DEFM "SIN"
   DEFB $C7
   DEFB $E2
@@ -10148,6 +10682,9 @@ WORDS:
   DEFB $D2
   DEFB $DB
   DEFB $00
+
+; label=WORDS_V
+L3789:
   DEFM "A"
   DEFB $CC
   DEFB $14
@@ -10155,6 +10692,9 @@ WORDS:
   DEFB $D2
   DEFB $E5
   DEFB $00
+
+; label=WORDS_W
+L3793:
   DEFM "IDT"
   DEFB $C8
   DEFB $A0
@@ -10165,26 +10705,81 @@ WORDS:
   DEFB $C5
   DEFB $BC
   DEFB $00
+
+; label=WORDS_X
+L37A2:
   DEFM "O"
   DEFB $D2
   DEFB $FA
 
 ; Data block at 37A5
 L37A5:
-  DEFW L0000
+  DEFW 0
 
-; Data block at 37A7
+; label=WORDS_Y
+L37A6:
+  DEFB $00
+
+; label=WORDS_Z
 L37A7:
-  DEFB $00,$AB,$F3,$AD,$F4,$AA,$F5,$AF
-  DEFB $F6,$DE,$F7,$DC,$FE,$A7,$E4,$BE
-  DEFB $F0,$BD,$F1,$BC,$F2,$00,$79,$79
-  DEFB $7C,$7C,$7F,$50,$46,$3C,$32,$28
-  DEFB $7A,$7B,$DF,$27,$00,$00,$7F,$27
-  DEFB $FA,$27,$B3,$27,$CA,$29,$C3,$29
-  DEFB $F4,$2A,$37,$2B,$78,$27,$12,$24
-  DEFB $0F,$24,$41,$25,$9C,$25,$0C,$27
-  DEFB $DD,$28,$D2,$28,$FD,$28,$EA,$4B
-  DEFB $39,$27,$00
+  DEFB $00
+  DEFB $AB
+  DEFB $F3
+  DEFB $AD
+  DEFB $F4
+  DEFB $AA
+  DEFB $F5
+  DEFB $AF
+  DEFB $F6
+  DEFB $DE
+  DEFB $F7
+  DEFB $DC
+  DEFB $FE
+  DEFB $A7
+  DEFB $E4
+  DEFB $BE
+  DEFB $F0
+  DEFB $BD
+  DEFB $F1
+  DEFB $BC
+  DEFB $F2
+  DEFB $00
+  DEFM "yy||"
+  DEFB $7F
+  DEFM "PF<2(z{"
+  DEFB $DF
+  DEFM "'"
+  DEFB $00
+  DEFB $00
+  DEFB $7F
+  DEFM "'"
+  DEFB $FA
+  DEFM "'"
+  DEFB $B3
+  DEFM "'"
+  DEFB $CA
+  DEFM ")"
+  DEFB $C3
+  DEFM ")"
+  DEFB $F4
+  DEFM "*7+x'"
+  DEFB $12
+  DEFM "$"
+  DEFB $0F
+  DEFM "$A%"
+  DEFB $9C
+  DEFM "%"
+  DEFB $0C
+  DEFM "'"
+  DEFB $DD
+  DEFM "("
+  DEFB $D2
+  DEFM "("
+  DEFB $FD
+  DEFM "("
+  DEFB $EA
+  DEFM "K9'"
+  DEFB $00
 
 ; Message at 37F2
 L37F2:
@@ -10308,17 +10903,47 @@ L3A19:
 
 ; Data block at 3A40
 L3A40:
-  DEFB $A5,$44,$A5,$44,$A5,$44,$A5,$44
-  DEFB $A5,$44,$A5,$44,$A5,$44,$A5,$44
-  DEFB $A5,$44,$A5,$44,$01,$FF,$E9,$BD
-  DEFB $33,$00,$FF,$00,$00,$00,$00,$00
-  DEFB $00,$50,$19,$01,$FF,$00,$FF,$14
-  DEFB $01,$01,$28,$22,$00,$00,$00,$00
-  DEFB $40,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$01,$01
-  DEFB $84,$09,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00
+  DEFW [$44a5]FCERR
+  DEFW [$44a5]FCERR
+  DEFW [$44a5]FCERR
+  DEFW [$44a5]FCERR
+  DEFW [$44a5]FCERR
+  DEFW [$44a5]FCERR
+  DEFW [$44a5]FCERR
+  DEFW [$44a5]FCERR
+  DEFW [$44a5]FCERR
+  DEFW [$44a5]FCERR
+  DEFW $FF01
+  DEFW $BDE9
+  DEFW L0033
+  DEFW L00FF
+  DEFW 0
+  DEFW 0
+  DEFW [$4FBD]SBSCT_ERR_3
+  DEFW $0119
+  DEFW L00FF
+  DEFW $14FF
+  DEFW $0101
+  DEFW $2228
+  DEFW 0
+  DEFW 0
+  DEFW $0040
+  DEFW 0
+  DEFW 0
+  DEFW 0
+  DEFW 0
+  DEFW 0
+  DEFW 0
+  DEFW $0101
+  DEFW $0984
+  DEFW 0
+  DEFW 0
+  DEFW 0
+  DEFW 0
+  DEFW 0
+  DEFW 0
+  DEFW 0
+  DEFW $6100
 
 ; Message at 3A91
 L3A91:
@@ -10430,11 +11055,11 @@ L3B27:
 
 ; Routine at 3B29
 L3B29:
-  JP L0000
+  JP 0
 
 ; Routine at 3B2C
 L3B2C:
-  JP L0000
+  JP 0
 
 ; Data block at 3B2F
 L3B2F:
@@ -10528,30 +11153,30 @@ L3B8D_1:
   RET C
 [$3b9d]CHKSTK_0:
   LD E,$07
-  LD HL,($EB50)
+  LD HL,([$eb50]STKTOP)
   DEC HL
   DEC HL
-  LD ($EF8F),HL
-  JR [$3bdf]SNERR_0
+  LD ([$ef8f]SAVSTK),HL
+  JR [$3bf9]ERROR
 
 ; Routine at 3BC0
 L3BC0:
   LD BC,$3C81
-  JP [$3bdf]SNERR_2
+  JP [$3bf9]ERROR_1
 
 ; Routine at 3BC6
-L3BC6:
+[$3BC6]FP_ATNTAB:
   LD HL,([$eb52]CURLIN)
   LD A,H
   AND L
   INC A
-  JR Z,L3BC6_0
-  LD A,($EF99)
+  JR Z,[$3BC6]FP_ATNTAB_0
+  LD A,([$ef99]ONEFLG)
   OR A
   LD E,$13
-  JR NZ,[$3bdf]SNERR_0
-L3BC6_0:
-  JP __END_1
+  JR NZ,[$3bf9]ERROR
+[$3BC6]FP_ATNTAB_0:
+  JP L432F_1
 
 ; 'SN err' entry for Input STMT
 [$3bd9]DATSNR:
@@ -10562,39 +11187,53 @@ L3BC6_0:
 [$3bdf]SNERR:
   LD E,$02
   LD BC,$0B1E
+
+; Routine at 3BE2
+DIV0_ERR:
+  LD E,$0B
   LD BC,$011E
   LD BC,$0A1E
   LD BC,$121E
   LD BC,$141E
   LD BC,$061E
+
+; Routine at 3BF1
+OVERFLOW_ERR:
+  LD E,$06
   LD BC,$161E
   LD BC,$0D1E
-[$3bdf]SNERR_0:
-  CALL $F1C8
+
+; Routine at 3BF7
+TYPE_ERR:
+  LD E,$0D
+
+; Routine at 3BF9
+[$3bf9]ERROR:
+  CALL [$f18f]ISFLIO_19
   LD HL,([$eb52]CURLIN)
-  LD ($EF91),HL
+  LD ([$EF91]ERRLIN),HL
   LD A,H
   AND L
   INC A
-  JR Z,[$3bdf]SNERR_1
+  JR Z,[$3bf9]ERROR_0
   LD ($EF93),HL
-[$3bdf]SNERR_1:
+[$3bf9]ERROR_0:
   LD BC,L3C16
-  CALL $F1AD
-[$3bdf]SNERR_2:
-  LD HL,($EF8F)
-  JP __NEW_4
+  CALL [$f18f]ISFLIO_9
+[$3bf9]ERROR_1:
+  LD HL,([$ef8f]SAVSTK)
+  JP _CLREG_1
 
 ; Routine at 3C16
 L3C16:
   POP BC
   LD A,E
   LD C,E
-  LD ($EB46),A
+  LD ([$EB46]ERRFLG),A
   LD HL,([$ef8d]SAVTXT)
-  LD ($EF95),HL
+  LD ([$EF95]ERRTXT),HL
   EX DE,HL
-  LD HL,($EF91)
+  LD HL,([$EF91]ERRLIN)
   LD A,H
   AND L
   INC A
@@ -10603,17 +11242,17 @@ L3C16:
   EX DE,HL
   LD ([$ef9e]OLDTXT),HL
 L3C16_0:
-  LD HL,($EF97)
+  LD HL,([$ef97]ONELIN)
   LD A,H
   OR L
   EX DE,HL
-  LD HL,$EF99
+  LD HL,[$ef99]ONEFLG
   JR Z,L3C16_1
   AND (HL)
   JR NZ,L3C16_1
   DEC (HL)
   EX DE,HL
-  JP __FOR_7
+  JP L419F_5
 L3C16_1:
   XOR A
   LD (HL),A
@@ -10623,20 +11262,20 @@ L3C16_1:
 ; Routine at 3C4A
 L3C4A:
   EX DE,HL
-  CALL L47C9
+  CALL [$3c9f]CONSOLE_CRLF
   LD HL,$37F1
-  CALL __FPOS_0
+  CALL LF168_0
   LD A,E
   CP $1E
   JR C,L3C4A_0
   LD E,$15
 L3C4A_0:
-  CALL __REM
+  CALL L45C0
   DEC E
   INC HL
   JR NZ,L3C4A_0
   PUSH HL
-  LD HL,($EF91)
+  LD HL,([$EF91]ERRLIN)
   EX (SP),HL
 L3C4A_1:
   CALL [$52ed]PRS
@@ -10649,55 +11288,59 @@ L3C4A_1:
   INC A
   CALL NZ,L2D0B
   LD A,$07
-  RST $18
+  RST $18     ; OUTC
   LD A,$FC
-  RST $18
+  RST $18     ; OUTC
   LD A,$C1
-L3C4A_2:
-  CALL L40EA
+
+; Routine at 3C82
+[$3C82]READY:
+  CALL [$40ea]STOP_LPT
   CALL L205B
   XOR A
   LD ($EB4D),A
-  CALL __FPOS_2
-  LD A,($EB49)
+  CALL LF168_2
+  LD A,([$eb48]PRTFLG)
   OR A
   CALL M,L0C2E_0
-  CALL L47C9
+  CALL [$3c9f]CONSOLE_CRLF
   LD HL,L3B60
   CALL [$52ed]PRS
-L3C4A_3:
+
+; Routine at 3C9F
+[$3c9f]PROMPT:
   LD HL,$FFFF
   LD ([$eb52]CURLIN),HL
   LD A,($EA54)
   OR A
   JP NZ,L21F0
-  LD A,($EF88)
+  LD A,([$ef88]AUTFLG)
   OR A
   JR Z,L3CEC
-  LD HL,($EF89)
+  LD HL,([$EF89]AUTLIN)
   PUSH HL
   CALL L2D0B_0
   POP DE
   PUSH DE
-  CALL [$3d9c]LNUM_RANGE_3
+  CALL [$3DC1]FIRST_LNUM
   LD A,$20
-  RST $18
+  RST $18     ; OUTC
   CALL L1B7E
   POP DE
   JR NC,L3CD4
   XOR A
-  LD ($EF88),A
-  JR L3C4A_2
+  LD ([$ef88]AUTFLG),A
+  JR [$3C82]READY
 
 ; Routine at 3CCD
 L3CCD:
   XOR A
-  LD ($EF88),A
+  LD ([$ef88]AUTFLG),A
   JP L3CD4_0
 
 ; Routine at 3CD4
 L3CD4:
-  LD HL,($EF8B)
+  LD HL,([$EF8B]AUTINC)
   ADD HL,DE
   JR C,L3CCD
   PUSH DE
@@ -10705,7 +11348,7 @@ L3CD4:
   CALL [$4095]CPDEHL
   POP DE
   JR NC,L3CCD
-  LD ($EF89),HL
+  LD ([$EF89]AUTLIN),HL
 L3CD4_0:
   OR $FF
   JP L5AD8
@@ -10713,11 +11356,11 @@ L3CD4_0:
 ; Routine at 3CEC
 L3CEC:
   CALL L1B7E
-  JP C,L3C4A_3
-  RST $10
+  JP C,[$3c9f]PROMPT
+  RST $10     ; CHRGTB
   INC A
   DEC A
-  JP Z,L3C4A_3
+  JP Z,[$3c9f]PROMPT
   PUSH AF
   CALL [$44aa]LNUM_PARM_0
   CALL L4082
@@ -10730,17 +11373,17 @@ L3CEC_0:
   POP DE
   POP AF
   LD ([$ef8d]SAVTXT),HL
-  CALL $F174
-  JP NC,__FOR_9
+  CALL LF168_3
+  JP NC,L419F_7
   PUSH DE
   PUSH BC
-  RST $10
+  RST $10     ; CHRGTB
   OR A
   PUSH AF
   EX DE,HL
   LD ($EF93),HL
   EX DE,HL
-  CALL [$3d9c]LNUM_RANGE_3
+  CALL [$3DC1]FIRST_LNUM
   JR C,L3CEC_1
   POP AF
   PUSH AF
@@ -10755,7 +11398,7 @@ L3CEC_1:
   POP AF
   POP BC
   PUSH BC
-  CALL C,__DELETE_1
+  CALL C,L58D9_1
   POP DE
   POP AF
   PUSH DE
@@ -10798,10 +11441,10 @@ L3CEC_2:
 L3CEC_3:
   POP DE
   CALL L3D76_0
-  CALL $F177
-  CALL __NEW_1
-  CALL $F17A
-  JP L3C4A_3
+  CALL LF168_5
+  CALL [$3DF4]RUN_FST
+  CALL LF168_6
+  JP [$3c9f]PROMPT
 
 ; Routine at 3D76
 L3D76:
@@ -10826,8 +11469,8 @@ L3D76_2:
   JR NC,L3D76_1
   CP $0B
   JR C,L3D76_1
-  CALL __FOR_13
-  RST $10
+  CALL [$4259]_CHRGTB_0
+  RST $10     ; CHRGTB
   JR L3D76_2
 L3D76_3:
   INC HL
@@ -10839,32 +11482,44 @@ L3D76_3:
 
 ; Read numeric range function parameters
 [$3d9c]LNUM_RANGE:
-  LD DE,L0000
+  LD DE,0
   PUSH DE
-  JR Z,$3DB4
+  JR Z,L3DB4
   POP DE
   CALL [$44aa]LNUM_PARM
   PUSH DE
-  JR Z,[$3d9c]LNUM_RANGE_1
+  JR Z,L3DB4_0
   CP $2C
-  JR NZ,[$3d9c]LNUM_RANGE_0
-  RST $10
-  JR $3DB4
-[$3d9c]LNUM_RANGE_0:
+  JR NZ,L3DB0
+  RST $10     ; CHRGTB
+  JR L3DB4
+
+; Routine at 3DB0
+L3DB0:
   CALL [$409b]SYNCHR
-  CALL P,$FA11
-  RST $38
+
+; Data block at 3DB3
+L3DB3:
+  DEFB $F4
+
+; Routine at 3DB4
+L3DB4:
+  LD DE,$FFFA
   CALL NZ,[$44aa]LNUM_PARM
   JP NZ,[$3bdf]SNERR
-[$3d9c]LNUM_RANGE_1:
+L3DB4_0:
   EX DE,HL
   POP DE
-[$3d9c]LNUM_RANGE_2:
+L3DB4_1:
   EX (SP),HL
   PUSH HL
-[$3d9c]LNUM_RANGE_3:
+
+; Get first line number
+[$3DC1]FIRST_LNUM:
   LD HL,([$eb54]BASTXT)
-[$3d9c]LNUM_RANGE_4:
+
+; Get current line number
+[$3DC4]CURRENT_LNUM:
   LD B,H
   LD C,L
   LD A,(HL)
@@ -10889,57 +11544,63 @@ L3D76_3:
   RET Z
   CCF
   RET NC
-  JR [$3d9c]LNUM_RANGE_4
+  JR [$3DC4]CURRENT_LNUM
 
 ; __NEW BASIC command [$3de0]
-__NEW:
+L3DE0:
   RET NZ
-__NEW_0:
+
+; [$3de1]CLRPTR
+L3DE1:
   LD HL,([$eb54]BASTXT)
-  CALL __TROFF
-  LD ($EF88),A
-  LD ($EF87),A
+  CALL L4397
+  LD ([$ef88]AUTFLG),A
+  LD ([$ef87]PTRFLG),A
   LD (HL),A
   INC HL
   LD (HL),A
   INC HL
   LD ([$efa0]PROGND),HL
-__NEW_1:
+
+; Routine at 3DF4
+[$3DF4]RUN_FST:
   LD HL,([$eb54]BASTXT)
   DEC HL
-__NEW_2:
+
+; Clear registers
+_CLREG:
   LD ([$ef85]TEMP),HL
   LD B,$1A
   LD HL,$EFA8
-__NEW_3:
+_CLREG_0:
   LD (HL),$04
   INC HL
-  DJNZ __NEW_3
+  DJNZ _CLREG_0
   XOR A
-  LD ($EF99),A
+  LD ([$ef99]ONEFLG),A
   LD L,A
   LD H,A
-  LD ($EF97),HL
+  LD ([$ef97]ONELIN),HL
   LD ([$ef9e]OLDTXT),HL
-  LD HL,($EF54)
-  LD ($EF79),HL
-  CALL __RESTORE
+  LD HL,([$ef54]MEMSIZ)
+  LD ([$ef79]FRETOP),HL
+  CALL [$4302]RESTOR
   LD HL,([$efa0]PROGND)
   LD ([$efa2]VAREND),HL
   LD ([$efa4]ARREND),HL
-  CALL $F17D
+  CALL [$f17d]CLSALL
   POP BC
-  LD HL,($EB50)
+  LD HL,([$eb50]STKTOP)
   DEC HL
   DEC HL
-  LD ($EF8F),HL
+  LD ([$ef8f]SAVSTK),HL
   INC HL
   INC HL
-__NEW_4:
+_CLREG_1:
   LD SP,HL
   LD HL,[$ef58]TEMPST
   LD ([$ef56]TEMPPT),HL
-  CALL L40EA
+  CALL [$40ea]STOP_LPT
   CALL L205B
   CALL L4865
   XOR A
@@ -10959,16 +11620,16 @@ __NEW_4:
 ; Routine at 3E5C
 L3E5C:
   LD A,$3F
-  RST $18
+  RST $18     ; OUTC
   LD A,$20
-  RST $18
+  RST $18     ; OUTC
   JP [$1b8a]RINPUT
 
 ; Routine at 3E65
 L3E65:
   XOR A
-  LD ($EF47),A
-  LD ($EF46),A
+  LD ([$EF47]DONUM),A
+  LD ([$EF46]DONUM),A
   LD BC,$013B
   LD DE,$EB57
 L3E65_0:
@@ -10979,7 +11640,7 @@ L3E65_0:
   JP Z,L3E65_21
   OR A
   JP Z,L3E65_27
-  LD A,($EF46)
+  LD A,([$EF46]DONUM)
   OR A
   LD A,(HL)
   JP NZ,L3E65_21
@@ -10997,8 +11658,8 @@ L3E65_0:
   CALL L4498_0
   JP C,L3E65_8
   PUSH HL
-  LD HL,$34C1
-  CALL $F1CB
+  LD HL,L34C1
+  CALL [$f18f]ISFLIO_20
   SUB $41
   ADD A,A
   LD C,A
@@ -11035,7 +11696,7 @@ L3E65_2:
   LD A,$FF
   CALL L404B_0
   XOR A
-  LD ($EF47),A
+  LD ([$EF47]DONUM),A
   POP AF
   CALL L404B_0
   JP L3E65_0
@@ -11083,7 +11744,7 @@ L3E65_5:
   XOR A
   JP NZ,L0139_0
 L3E65_6:
-  LD ($EF47),A
+  LD ([$EF47]DONUM),A
   POP AF
 L3E65_7:
   POP BC
@@ -11110,7 +11771,7 @@ L3E65_8:
   CP $30
   JP C,L3E65_17
 L3E65_9:
-  LD A,($EF47)
+  LD A,([$EF47]DONUM)
   OR A
   LD A,(HL)
   POP BC
@@ -11196,7 +11857,7 @@ L3E65_19:
   CP $26
   JP NZ,L3E65_21
   PUSH HL
-  RST $10
+  RST $10     ; CHRGTB
   POP HL
   CALL [$4ccc]UCASE
   CP $48
@@ -11207,7 +11868,7 @@ L3E65_20:
   CALL L404B_0
   PUSH DE
   PUSH BC
-  CALL __HEXTFP
+  CALL L4CDA
   POP BC
   JP L3E65_10
 L3E65_21:
@@ -11221,8 +11882,8 @@ L3E65_21:
   JP NZ,L3E65_23
   LD A,$01
 L3E65_22:
-  LD ($EF46),A
-  LD ($EF47),A
+  LD ([$EF46]DONUM),A
+  LD ([$EF47]DONUM),A
 L3E65_23:
   SUB $55
   JP NZ,L3E65_0
@@ -11271,14 +11932,14 @@ L404B_0:
   OR B
   RET NZ
   LD E,$17
-  JP [$3bdf]SNERR_0
+  JP [$3bf9]ERROR
 
 ; Routine at 4058
 L4058:
   POP HL
   DEC HL
   DEC A
-  LD ($EF47),A
+  LD ([$EF47]DONUM),A
   CALL [$4ccb]UCASE_HL
   JP L3E65_7
 
@@ -11294,7 +11955,7 @@ L4064:
   LD A,$20
 L4064_0:
   PUSH AF
-  LD A,($EF47)
+  LD A,([$EF47]DONUM)
   INC A
   JP Z,L3E65_6
   DEC A
@@ -11329,20 +11990,20 @@ L4082:
   CP (HL)
   INC HL
   EX (SP),HL
-  JP Z,__FOR_12
+  JP Z,[$4259]_CHRGTB
   JP [$3bdf]SNERR
 
 ; Routine at 40A6
 [$40A6]OUTCHAR:
   PUSH AF
-  CALL $F183
+  CALL [$f17d]CLSALL_1
   LD A,($EB2D)
   OR A
   JP NZ,L209B
-  LD A,($EB49)
+  LD A,([$eb48]PRTFLG)
   OR A
   JP M,L0CD3
-  LD A,($EB49)
+  LD A,([$eb48]PRTFLG)
   OR A
   JP Z,L4102
   POP AF
@@ -11351,7 +12012,7 @@ L4082:
   JP NZ,[$40A6]OUTCHAR_1
 [$40A6]OUTCHAR_0:
   LD A,$20
-  RST $18
+  RST $18     ; OUTC
   LD A,([$eb48]LPTPOS)
   AND $07
   JP NZ,[$40A6]OUTCHAR_0
@@ -11361,34 +12022,32 @@ L4082:
   POP AF
   PUSH AF
   SUB $0D
-  JP Z,$40E3
+  JP Z,[$40A6]OUTCHAR_2
   JP C,L40E5_0
   LD A,([$eb48]LPTPOS)
   INC A
   CP $50
-
-; Message at 40E2
-L40E2:
-  DEFM "P2H"
+[$40A6]OUTCHAR_2:
+  LD ([$eb48]LPTPOS),A
 
 ; Routine at 40E5
 L40E5:
   EX DE,HL
 L40E5_0:
   POP AF
-  JP L0D60
+  JP [$0d60]LPTOUT_SAFE
 
 ; Routine at 40EA
-L40EA:
+[$40ea]STOP_LPT:
   XOR A
-  LD ($EB49),A
+  LD ([$eb48]PRTFLG),A
   LD A,([$eb48]LPTPOS)
   OR A
   RET Z
   LD A,$0D
-  CALL L0D60
+  CALL [$0d60]LPTOUT_SAFE
   LD A,$0A
-  CALL L0D60
+  CALL [$0d60]LPTOUT_SAFE
   XOR A
   LD ([$eb48]LPTPOS),A
   RET
@@ -11405,7 +12064,7 @@ L4102:
   JR NZ,L4102_1
 L4102_0:
   LD A,$20
-  RST $18
+  RST $18     ; OUTC
   LD A,([$ed99]CURPOS)
   AND $07
   JR NZ,L4102_0
@@ -11437,7 +12096,7 @@ L4102_3:
 
 ; Routine at 413F
 L413F:
-  CALL $F186
+  CALL [$f17d]CLSALL_2
 L413F_0:
   CALL L0F75
   CP $0F
@@ -11453,20 +12112,20 @@ L413F_0:
   RET
 
 ; __FOR BASIC command [$4159]
-__FOR:
+[$4159]FOR:
   LD A,$64
   LD ([$ef83]SUBFLG),A
-  CALL __LET
+  CALL L45DE
   POP BC
   PUSH HL
-  CALL __DATA
-  LD ($EF7F),HL
+  CALL [$45be]DATA
+  LD ([$ef7f]CURLIN),HL
   LD HL,$0002
   ADD HL,SP
-__FOR_0:
+[$4159]FOR_0:
   CALL L3B6C_0
   POP DE
-  JR NZ,__FOR_1
+  JR NZ,[$4159]FOR_1
   ADD HL,BC
   PUSH DE
   DEC HL
@@ -11476,34 +12135,43 @@ __FOR_0:
   INC HL
   INC HL
   PUSH HL
-  LD HL,($EF7F)
+  LD HL,([$ef7f]CURLIN)
   CALL [$4095]CPDEHL
   POP HL
-  JP NZ,__FOR_0
+  JP NZ,[$4159]FOR_0
   POP DE
   LD SP,HL
-  LD ($EF8F),HL
-__FOR_1:
+  LD ([$ef8f]SAVSTK),HL
+[$4159]FOR_1:
   EX DE,HL
   LD C,$08
   CALL [$3b9d]CHKSTK
   PUSH HL
-  LD HL,($EF7F)
+  LD HL,([$ef7f]CURLIN)
   EX (SP),HL
   PUSH HL
   LD HL,([$eb52]CURLIN)
   EX (SP),HL
+
+; Routine at 419B
+L419B:
   CALL [$409b]SYNCHR
-  RST $10
+
+; Data block at 419E
+L419E:
+  DEFB $D7
+
+; Routine at 419F
+L419F:
   CALL [$4dd8]GETYPR
-  JP Z,$3BF7
-  JP NC,$3BF7
+  JP Z,TYPE_ERR
+  JP NC,TYPE_ERR
   PUSH AF
   CALL [$4a8f]EVAL
   POP AF
   PUSH HL
-  JP P,__FOR_2
-  CALL __CINT
+  JP P,L419F_0
+  CALL L277F
   EX (SP),HL
   LD DE,$0001
   LD A,(HL)
@@ -11513,9 +12181,9 @@ __FOR_1:
   PUSH HL
   EX DE,HL
   CALL [$2690]_TSTSGN_0
-  JR __FOR_3
-__FOR_2:
-  CALL __CSNG
+  JR L419F_1
+L419F_0:
+  CALL L27B3
   CALL [$26bd]BCDEFP
   POP HL
   PUSH BC
@@ -11526,15 +12194,15 @@ __FOR_2:
   LD A,(HL)
   CP $DA
   LD A,$01
-  JR NZ,__FOR_4
+  JR NZ,L419F_2
   CALL [$4a90]EVAL
   PUSH HL
-  CALL __CSNG
+  CALL L27B3
   CALL [$26bd]BCDEFP
   CALL [$264f]TSTSGN
-__FOR_3:
+L419F_1:
   POP HL
-__FOR_4:
+L419F_2:
   PUSH BC
   PUSH DE
   LD C,A
@@ -11544,57 +12212,57 @@ __FOR_4:
   PUSH HL
   LD HL,([$ef85]TEMP)
   EX (SP),HL
-__FOR_5:
+L419F_3:
   LD B,$82
   PUSH BC
   INC SP
-__FOR_6:
-  CALL $F204
+L419F_4:
+  CALL [$f18f]ISFLIO_35
   LD A,($EA54)
   OR A
   JP NZ,L21F0
   CALL L0CF1
   CALL NZ,L431C_0
   LD ([$ef8d]SAVTXT),HL
-  LD ($EF8F),SP
+  LD ([$ef8f]SAVSTK),SP
   LD A,(HL)
   CP $3A
-  JR Z,__FOR_9
+  JR Z,L419F_7
   OR A
   JP NZ,[$3bdf]SNERR
   INC HL
-__FOR_7:
+L419F_5:
   LD A,(HL)
   INC HL
   OR (HL)
-  JP Z,L3BC6
+  JP Z,[$3BC6]FP_ATNTAB
   INC HL
   LD E,(HL)
   INC HL
   LD D,(HL)
   EX DE,HL
   LD ([$eb52]CURLIN),HL
-  LD A,($F0A2)
+  LD A,([$f0a2]TRCFLG)
   OR A
-  JR Z,__FOR_8
+  JR Z,L419F_6
   PUSH DE
   LD A,$5B
-  RST $18
+  RST $18     ; OUTC
   CALL L2D0B_0
   LD A,$5D
-  RST $18
+  RST $18     ; OUTC
   POP DE
-__FOR_8:
+L419F_6:
   EX DE,HL
-__FOR_9:
-  RST $10
-  LD DE,__FOR_6
+L419F_7:
+  RST $10     ; CHRGTB
+  LD DE,L419F_4
   PUSH DE
-__FOR_10:
+L419F_8:
   RET Z
-__FOR_11:
+L419F_9:
   SUB $81
-  JP C,__LET
+  JP C,L45DE
   CP $55
   JP NC,L5604
   RLCA
@@ -11608,41 +12276,43 @@ __FOR_11:
   LD B,(HL)
   PUSH BC
   EX DE,HL
-__FOR_12:
+
+; Routine at 4259
+[$4259]_CHRGTB:
   INC HL
-__FOR_13:
+[$4259]_CHRGTB_0:
   LD A,(HL)
   CP $3A
   RET NC
   CP $20
-  JP Z,__FOR_12
-  JP NC,__FOR_22
+  JP Z,[$4259]_CHRGTB
+  JP NC,[$4259]_CHRGTB_9
   CP $0B
-  JP C,__FOR_21
+  JP C,[$4259]_CHRGTB_8
   CP $1E
-  JP NZ,__FOR_14
-  LD A,($EF4A)
+  JP NZ,[$4259]_CHRGTB_1
+  LD A,([$ef4a]CONSAV)
   OR A
   RET
-__FOR_14:
+[$4259]_CHRGTB_1:
   CP $10
-  JP NZ,__FOR_16
-__FOR_15:
-  LD HL,($EF48)
-  JP __FOR_13
-__FOR_16:
+  JP NZ,[$4259]_CHRGTB_3
+[$4259]_CHRGTB_2:
+  LD HL,([$ef48]CONTXT)
+  JP [$4259]_CHRGTB_0
+[$4259]_CHRGTB_3:
   PUSH AF
   INC HL
-  LD ($EF4A),A
+  LD ([$ef4a]CONSAV),A
   SUB $1C
-  JP NC,__FOR_19
+  JP NC,[$4259]_CHRGTB_6
   SUB $F5
-  JP NC,__FOR_17
+  JP NC,[$4259]_CHRGTB_4
   CP $FE
-  JP NZ,__FOR_18
+  JP NZ,[$4259]_CHRGTB_5
   LD A,(HL)
   INC HL
-__FOR_17:
+[$4259]_CHRGTB_4:
   PUSH HL
   LD L,A
   LD H,$00
@@ -11650,10 +12320,10 @@ __FOR_17:
   LD A,$02
   LD ($EF4B),A
   POP HL
-  JP __FOR_20
-__FOR_18:
+  JP [$4259]_CHRGTB_7
+[$4259]_CHRGTB_5:
   XOR A
-__FOR_19:
+[$4259]_CHRGTB_6:
   INC A
   RLCA
   LD ($EF4B),A
@@ -11662,22 +12332,22 @@ __FOR_19:
   LD DE,$EF4C
   EX DE,HL
   LD B,A
-  CALL L26D0_1
+  CALL [$26D1]FP2HL_0
   EX DE,HL
   POP BC
   POP DE
-__FOR_20:
-  LD ($EF48),HL
+[$4259]_CHRGTB_7:
+  LD ([$ef48]CONTXT),HL
   POP AF
   LD HL,L42D1
   OR A
   RET
-__FOR_21:
+[$4259]_CHRGTB_8:
   CP $0B
-  JR NC,__FOR_22
+  JR NC,[$4259]_CHRGTB_9
   CP $09
-  JP NC,__FOR_12
-__FOR_22:
+  JP NC,[$4259]_CHRGTB
+[$4259]_CHRGTB_9:
   CP $30
   CCF
   INC A
@@ -11688,7 +12358,7 @@ __FOR_22:
 L42D1:
   LD E,$10
 L42D1_0:
-  LD A,($EF4A)
+  LD A,([$ef4a]CONSAV)
   CP $0F
   JP NC,L42D1_2
   CP $0D
@@ -11704,30 +12374,30 @@ L42D1_0:
   EX DE,HL
 L42D1_1:
   CALL [$299d]DBL_ABS_0
-  JP __FOR_15
+  JP [$4259]_CHRGTB_2
 L42D1_2:
   LD HL,$EF4C
   LD A,($EF4B)
   LD ($EF45),A
   CALL L26F2_0
-  JP __FOR_15
+  JP [$4259]_CHRGTB_2
 
 ; __RESTORE BASIC command [$4302]
-__RESTORE:
+[$4302]RESTOR:
   EX DE,HL
   LD HL,([$eb54]BASTXT)
-  JR Z,__RESTORE_0
+  JR Z,[$4302]RESTOR_0
   EX DE,HL
   CALL [$44aa]LNUM_PARM_0
   PUSH HL
-  CALL [$3d9c]LNUM_RANGE_3
+  CALL [$3DC1]FIRST_LNUM
   LD H,B
   LD L,C
   POP DE
   JP NC,[$459e]ULERR
-__RESTORE_0:
+[$4302]RESTOR_0:
   DEC HL
-__RESTORE_1:
+[$4302]RESTOR_1:
   LD ($EFA6),HL
   EX DE,HL
   RET
@@ -11743,40 +12413,40 @@ L431C_0:
   CALL Z,L436C_0
 
 ; __STOP BASIC command [$432a]
-__STOP:
+L432A:
   RET NZ
   INC A
-  JP __END_0
+  JP L432F_0
 
 ; __END BASIC command [$432f]
-__END:
+L432F:
   RET NZ
   PUSH AF
-  CALL Z,$F17D
+  CALL Z,[$f17d]CLSALL
   POP AF
-__END_0:
+L432F_0:
   LD ([$ef8d]SAVTXT),HL
   LD HL,[$ef58]TEMPST
   LD ([$ef56]TEMPPT),HL
   LD HL,$FFF6
   POP BC
-__END_1:
+L432F_1:
   LD HL,([$eb52]CURLIN)
   PUSH HL
   PUSH AF
   LD A,L
   AND H
   INC A
-  JR Z,__END_2
+  JR Z,L432F_2
   LD ([$ef9c]OLDLIN),HL
   LD HL,([$ef8d]SAVTXT)
   LD ([$ef9e]OLDTXT),HL
-__END_2:
+L432F_2:
   XOR A
   LD ($EB4D),A
-  CALL L40EA
+  CALL [$40ea]STOP_LPT
   CALL L205B
-  CALL L47C9
+  CALL [$3c9f]CONSOLE_CRLF
   POP AF
   LD HL,$3B66
   JP NZ,L3C4A_1
@@ -11789,23 +12459,23 @@ L436C_0:
   PUSH AF
   SUB $03
   JR NZ,L436C_1
-  LD ($EB49),A
+  LD ([$eb48]PRTFLG),A
   LD ($EB4D),A
 L436C_1:
   LD A,$5E
-  RST $18
+  RST $18     ; OUTC
   POP AF
   ADD A,$40
-  RST $18
-  JP L47D0_0
+  RST $18     ; OUTC
+  JP [$47dd]RESTART
 
 ; __CONT BASIC command [$4383]
-__CONT:
+L4383:
   LD HL,([$ef9e]OLDTXT)
   LD A,H
   OR L
   LD E,$11
-  JP Z,[$3bdf]SNERR_0
+  JP Z,[$3bf9]ERROR
   EX DE,HL
   LD HL,([$ef9c]OLDLIN)
   LD ([$eb52]CURLIN),HL
@@ -11813,33 +12483,42 @@ __CONT:
   RET
 
 ; __TRON BASIC command [$4396]
-__TRON:
+L4396:
   LD A,$AF
 
 ; __TROFF BASIC command [$4397]
-__TROFF:
+L4397:
   XOR A
-  LD ($F0A2),A
+  LD ([$f0a2]TRCFLG),A
   RET
 
 ; __SWAP BASIC command [$439c]
-__SWAP:
+L439C:
   CALL [$4e3c]GETVAR
   PUSH DE
   PUSH HL
-  LD HL,$F09A
-  CALL L26D0_0
+  LD HL,[$f09A]SWPTMP
+  CALL [$26D1]FP2HL
   LD HL,([$efa2]VAREND)
   EX (SP),HL
   CALL [$4dd8]GETYPR
   PUSH AF
+
+; Routine at 43AF
+L43AF:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 43B2
+L43B2:
+  DEFB $2C
+
+; Routine at 43B3
+L43B3:
   CALL [$4e3c]GETVAR
   POP BC
   CALL [$4dd8]GETYPR
   CP B
-  JP NZ,$3BF7
+  JP NZ,TYPE_ERR
   EX (SP),HL
   EX DE,HL
   PUSH HL
@@ -11850,10 +12529,10 @@ __SWAP:
   POP HL
   EX (SP),HL
   PUSH DE
-  CALL L26D0_0
+  CALL [$26D1]FP2HL
   POP HL
-  LD DE,$F09A
-  CALL L26D0_0
+  LD DE,[$f09A]SWPTMP
+  CALL [$26D1]FP2HL
   POP HL
   RET
 
@@ -11862,7 +12541,7 @@ L43DA:
   DEFB $06,$FF,$D7,$78,$FE
 
 ; __ERASE BASIC command [$43df]
-__ERASE:
+L43DF:
   XOR A
   LD ([$ef85]TEMP),A
   LD A,$01
@@ -11881,17 +12560,17 @@ __ERASE:
   NOP
   NOP
   OR A
-  JR NZ,__ERASE_1
+  JR NZ,L43DF_1
   ADD HL,DE
   EX DE,HL
   LD HL,([$efa4]ARREND)
-__ERASE_0:
+L43DF_0:
   CALL [$4095]CPDEHL
   LD A,(DE)
   LD (BC),A
   INC DE
   INC BC
-  JR NZ,__ERASE_0
+  JR NZ,L43DF_0
   DEC BC
   LD H,B
   LD L,C
@@ -11900,9 +12579,9 @@ __ERASE_0:
   LD A,(HL)
   CP $2C
   RET NZ
-  RST $10
-  JR __ERASE
-__ERASE_1:
+  RST $10     ; CHRGTB
+  JR L43DF
+L43DF_1:
   CP C
   JP NZ,L11A1
   LD A,$30
@@ -11948,7 +12627,7 @@ L4430_2:
 
 ; Routine at 444B
 L444B:
-  JP C,$FC0C
+  JP C,[$f18f]ISFLIO_44
   ADC A,B
   INC C
   LD (HL),A
@@ -11963,24 +12642,24 @@ L4455:
   RET
 
 ; __DEFSTR BASIC command [$445b]
-__DEFSTR:
+L445B:
   LD E,$03
   LD BC,$021E
 
 ; __DEFINT BASIC command [$445e]
-__DEFINT:
+L445E:
   LD E,$02
   LD BC,$041E
 
 ; __DEFSNG BASIC command [$4461]
-__DEFSNG:
+L4461:
   LD E,$04
   LD BC,$081E
 
 ; __DEFDBL BASIC command [$4464]
-__DEFDBL:
+L4464:
   LD E,$08
-__DEFDBL_0:
+L4464_0:
   CALL L4498
   LD BC,[$3bdf]SNERR
   PUSH BC
@@ -11991,15 +12670,15 @@ __DEFDBL_0:
 
 ; Routine at 4472
 L4472:
-  RST $10
+  RST $10     ; CHRGTB
   CP $F4
   JR NZ,L4472_0
-  RST $10
+  RST $10     ; CHRGTB
   CALL L4498
   RET C
   SUB $41
   LD B,A
-  RST $10
+  RST $10     ; CHRGTB
 L4472_0:
   LD A,B
   SUB C
@@ -12018,8 +12697,8 @@ L4472_1:
   LD A,(HL)
   CP $2C
   RET NZ
-  RST $10
-  JR __DEFDBL_0
+  RST $10     ; CHRGTB
+  JR L4464_0
 
 ; Routine at 4498
 L4498:
@@ -12033,7 +12712,7 @@ L4498_0:
 
 ; Routine at 44A0
 L44A0:
-  RST $10
+  RST $10     ; CHRGTB
 L44A0_0:
   CALL [$56dd]FPSINT_0
   RET P
@@ -12041,7 +12720,7 @@ L44A0_0:
 ; entry for '?FC ERROR'
 [$44a5]FCERR:
   LD E,$05
-  JP [$3bdf]SNERR_0
+  JP [$3bf9]ERROR
 
 ; Routine at 44AA
 ;
@@ -12052,11 +12731,11 @@ L44A0_0:
   EX DE,HL
   LD HL,($EF93)
   EX DE,HL
-  JP Z,__FOR_12
+  JP Z,[$4259]_CHRGTB
 [$44aa]LNUM_PARM_0:
   DEC HL
 [$44aa]LNUM_PARM_1:
-  RST $10
+  RST $10     ; CHRGTB
   CP $0E
   JP Z,[$44aa]LNUM_PARM_2
   CP $0D
@@ -12064,14 +12743,14 @@ L44A0_0:
   EX DE,HL
   LD HL,($EF4C)
   EX DE,HL
-  JP Z,__FOR_12
+  JP Z,[$4259]_CHRGTB
 
 ; ASCII to Integer, result in DE
 [$44c6]ATOH:
   DEC HL
-  LD DE,L0000
+  LD DE,0
 [$44c6]ATOH_0:
-  RST $10
+  RST $10     ; CHRGTB
   RET NC
   PUSH HL
   PUSH AF
@@ -12094,17 +12773,26 @@ L44A0_0:
   JR [$44c6]ATOH_0
 
 ; __CLEAR BASIC command [$44e8]
-__CLEAR:
-  JP Z,__NEW_2
+L44E8:
+  JP Z,_CLREG
   CALL L44A0_0
   DEC HL
-  RST $10
+  RST $10     ; CHRGTB
   PUSH HL
-  LD HL,($EF54)
-  JP Z,__CLEAR_0
+  LD HL,([$ef54]MEMSIZ)
+  JP Z,L44FC_0
   POP HL
+
+; Routine at 44F8
+L44F8:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 44FB
+L44FB:
+  DEFB $2C
+
+; Routine at 44FC
+L44FC:
   PUSH DE
   CALL [$4a8f]EVAL
   PUSH HL
@@ -12112,7 +12800,7 @@ __CLEAR:
   EX DE,HL
   POP HL
   DEC HL
-  RST $10
+  RST $10     ; CHRGTB
   JP NZ,[$3bdf]SNERR
   EX (SP),HL
   EX DE,HL
@@ -12123,7 +12811,7 @@ __CLEAR:
   CALL [$4095]CPDEHL
   JP NC,[$3b9d]CHKSTK_0
   POP DE
-__CLEAR_0:
+L44FC_0:
   LD A,L
   SUB E
   LD E,A
@@ -12133,32 +12821,32 @@ __CLEAR_0:
   JP C,[$3b9d]CHKSTK_0
   PUSH HL
   LD HL,([$efa0]PROGND)
-  LD BC,L0026_0
+  LD BC,$28
   ADD HL,BC
   CALL [$4095]CPDEHL
   JP NC,[$3b9d]CHKSTK_0
   EX DE,HL
-  LD ($EB50),HL
+  LD ([$eb50]STKTOP),HL
   POP HL
-  LD ($EF54),HL
+  LD ([$ef54]MEMSIZ),HL
   POP HL
-  JP __NEW_2
+  JP _CLREG
 
 ; __RUN BASIC command [$453d]
-__RUN:
-  JP Z,__NEW_1
-  CALL $F189
+L453D:
+  JP Z,[$3DF4]RUN_FST
+  CALL [$f17d]CLSALL_3
   CP $0E
-  JP Z,__RUN_0
+  JP Z,L453D_0
   CP $0D
   JP NZ,[$3bdf]SNERR
-__RUN_0:
-  CALL __NEW_2
-  LD BC,__FOR_6
+L453D_0:
+  CALL _CLREG
+  LD BC,L419F_4
   JR L456C
 
 ; __GOSUB BASIC command [$4555]
-__GOSUB:
+L4555:
   LD C,$03
   CALL [$3b9d]CHKSTK
   CALL [$44aa]LNUM_PARM_0
@@ -12171,36 +12859,36 @@ __GOSUB:
   PUSH AF
   INC SP
   PUSH BC
-  JP __GO TO_0
+  JP L456D_0
 
 ; Routine at 456C
 L456C:
   PUSH BC
 
 ; __GO TO BASIC command [$456d]
-__GO TO:
+L456D:
   CALL [$44aa]LNUM_PARM_0
-__GO TO_0:
-  LD A,($EF4A)
+L456D_0:
+  LD A,([$ef4a]CONSAV)
   CP $0D
   EX DE,HL
   RET Z
   EX DE,HL
   PUSH HL
-  LD HL,($EF48)
+  LD HL,([$ef48]CONTXT)
   EX (SP),HL
-  CALL __REM
+  CALL L45C0
   PUSH HL
   LD HL,([$eb52]CURLIN)
   CALL [$4095]CPDEHL
   POP HL
   INC HL
-  CALL C,[$3d9c]LNUM_RANGE_4
-  CALL NC,[$3d9c]LNUM_RANGE_3
+  CALL C,[$3DC4]CURRENT_LNUM
+  CALL NC,[$3DC1]FIRST_LNUM
   JR NC,[$459e]ULERR
   DEC BC
   LD A,$0D
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
   POP HL
   CALL L5C00_1
   LD H,B
@@ -12210,33 +12898,33 @@ __GO TO_0:
 ; entry for '?UL ERROR'
 [$459e]ULERR:
   LD E,$08
-  JP [$3bdf]SNERR_0
+  JP [$3bf9]ERROR
 
 ; __RETURN BASIC command [$45a3]
-__RETURN:
+L45A3:
   RET NZ
   LD D,$FF
   CALL L3B6C
   LD SP,HL
-  LD ($EF8F),HL
+  LD ([$ef8f]SAVSTK),HL
   CP $8D
   LD E,$03
-  JP NZ,[$3bdf]SNERR_0
+  JP NZ,[$3bf9]ERROR
   POP HL
   LD ([$eb52]CURLIN),HL
-  LD HL,__FOR_6
+  LD HL,L419F_4
   EX (SP),HL
   LD A,$E1
 
 ; __DATA BASIC command [$45be]
-__DATA:
+[$45be]DATA:
   LD BC,$0E3A
 
 ; __REM BASIC command [$45c0]
-__REM:
+L45C0:
   LD C,$00
   LD B,$00
-__REM_0:
+L45C0_0:
   LD A,C
   LD C,B
   LD B,A
@@ -12245,14 +12933,14 @@ __REM_0:
 L45C7:
   DEC HL
 L45C7_0:
-  RST $10
+  RST $10     ; CHRGTB
   OR A
   RET Z
   CP B
   RET Z
   INC HL
   CP $22
-  JR Z,__REM_0
+  JR Z,L45C0_0
   INC A
   JR Z,L45C7_0
   SUB $8C
@@ -12263,13 +12951,22 @@ L45C7_0:
   JR L45C7
 
 ; __LET BASIC command [$45de]
-__LET:
+L45DE:
   CALL [$4e3c]GETVAR
   PUSH DE
   CALL [$4dd8]GETYPR
   PUSH AF
+
+; Routine at 45E6
+L45E6:
   CALL [$409b]SYNCHR
-  POP AF
+
+; Data block at 45E9
+L45E9:
+  DEFB $F1
+
+; Routine at 45EA
+L45EA:
   EX DE,HL
   LD ([$ef85]TEMP),HL
   EX DE,HL
@@ -12287,7 +12984,7 @@ L45F1_1:
   EX (SP),HL
 L45F1_2:
   ADD A,$03
-  CALL L5160_3
+  CALL L51AD_1
 L45F1_3:
   CALL L26FA_2
   PUSH HL
@@ -12301,10 +12998,10 @@ L45F1_3:
   LD HL,([$eb54]BASTXT)
   CALL [$4095]CPDEHL
   JR NC,$4630
-  LD HL,($EF54)
+  LD HL,([$ef54]MEMSIZ)
   CALL [$4095]CPDEHL
   JR C,$4630
-  LD HL,($EB50)
+  LD HL,([$eb50]STKTOP)
   CALL [$4095]CPDEHL
   POP DE
   JR NC,L45F1_4
@@ -12312,215 +13009,251 @@ L45F1_3:
   CALL [$4095]CPDEHL
   JR C,L45F1_4
   LD A,$D1
-  CALL L5479
+  CALL [$5479]BAKTMP
   EX DE,HL
   CALL [$5283]SAVSTR_0
 L45F1_4:
-  CALL L5479
+  CALL [$5479]BAKTMP
   EX (SP),HL
 L45F1_5:
-  CALL L26D0_0
+  CALL [$26D1]FP2HL
   POP DE
   POP HL
   RET
 
 ; __ON BASIC command [$4642]
-__ON:
-  CALL $F201
+L4642:
+  CALL [$f18f]ISFLIO_34
   CP $A6
-  JR NZ,__ON_1
-  RST $10
+  JR NZ,L464E_1
+  RST $10     ; CHRGTB
+
+; Routine at 464A
+L464A:
   CALL [$409b]SYNCHR
-  ADC A,C
+
+; Data block at 464D
+L464D:
+  DEFB $89
+
+; Routine at 464E
+L464E:
   CALL [$44aa]LNUM_PARM_0
   LD A,D
   OR E
-  JR Z,__ON_0
-  CALL [$3d9c]LNUM_RANGE_2
+  JR Z,L464E_0
+  CALL L3DB4_1
   LD D,B
   LD E,C
   POP HL
   JP NC,[$459e]ULERR
-__ON_0:
+L464E_0:
   EX DE,HL
-  LD ($EF97),HL
+  LD ([$ef97]ONELIN),HL
   EX DE,HL
   RET C
-  LD A,($EF99)
+  LD A,([$ef99]ONEFLG)
   OR A
   RET Z
-  LD A,($EB46)
+  LD A,([$EB46]ERRFLG)
   LD E,A
-  JP [$3bdf]SNERR_1
-__ON_1:
+  JP [$3bf9]ERROR_0
+L464E_1:
   CALL [$56fa]GETINT
   LD A,(HL)
   LD B,A
   CP $8D
-  JR Z,__ON_2
+  JR Z,L467D_0
+
+; Routine at 4679
+L4679:
   CALL [$409b]SYNCHR
-  ADC A,C
+
+; Data block at 467C
+L467C:
+  DEFB $89
+
+; Routine at 467D
+L467D:
   DEC HL
-__ON_2:
+L467D_0:
   LD C,E
-__ON_3:
+L467D_1:
   DEC C
   LD A,B
-  JP Z,__FOR_11
+  JP Z,L419F_9
   CALL [$44aa]LNUM_PARM_1
   CP $2C
   RET NZ
-  JR __ON_3
+  JR L467D_1
 
 ; __RESUME BASIC command [$468c]
-__RESUME:
-  LD DE,$EF99
+L468C:
+  LD DE,[$ef99]ONEFLG
   LD A,(DE)
   OR A
   JP Z,$3BEE
   INC A
-  LD ($EB46),A
+  LD ([$EB46]ERRFLG),A
   LD (DE),A
   LD A,(HL)
   CP $83
-  JR Z,__RESUME_0
+  JR Z,L468C_0
   CALL [$44aa]LNUM_PARM_0
   RET NZ
   LD A,D
   OR E
-  JP NZ,__GO TO_0
+  JP NZ,L456D_0
   INC A
-  JR __RESUME_1
-__RESUME_0:
-  RST $10
+  JR L468C_1
+L468C_0:
+  RST $10     ; CHRGTB
   RET NZ
-__RESUME_1:
-  LD HL,($EF95)
+L468C_1:
+  LD HL,([$EF95]ERRTXT)
   EX DE,HL
-  LD HL,($EF91)
+  LD HL,([$EF91]ERRLIN)
   LD ([$eb52]CURLIN),HL
   EX DE,HL
   RET NZ
   LD A,(HL)
   OR A
-  JR NZ,__RESUME_2
+  JR NZ,L468C_2
   INC HL
   INC HL
   INC HL
   INC HL
-__RESUME_2:
+L468C_2:
   INC HL
-  JP __DATA
+  JP [$45be]DATA
 
 ; __ERROR BASIC command [$46c4]
-__ERROR:
+L46C4:
   CALL [$56fa]GETINT
   RET NZ
   OR A
   JP Z,[$44a5]FCERR
-  JP [$3bdf]SNERR_0
+  JP [$3bf9]ERROR
 
 ; __AUTO BASIC command [$46cf]
-__AUTO:
+L46CF:
   LD DE,$000A
   PUSH DE
-  JR Z,__AUTO_0
+  JR Z,L46E1_0
   CALL [$44aa]LNUM_PARM
   EX DE,HL
   EX (SP),HL
-  JR Z,__AUTO_1
+  JR Z,L46E1_1
   EX DE,HL
+
+; Routine at 46DD
+L46DD:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 46E0
+L46E0:
+  DEFB $2C
+
+; Routine at 46E1
+L46E1:
   EX DE,HL
-  LD HL,($EF8B)
+  LD HL,([$EF8B]AUTINC)
   EX DE,HL
-  JR Z,__AUTO_0
+  JR Z,L46E1_0
   CALL [$44aa]LNUM_PARM_0
   JP NZ,[$3bdf]SNERR
-__AUTO_0:
+L46E1_0:
   EX DE,HL
-__AUTO_1:
+L46E1_1:
   LD A,H
   OR L
   JP Z,[$44a5]FCERR
-  LD ($EF8B),HL
-  LD ($EF88),A
+  LD ([$EF8B]AUTINC),HL
+  LD ([$ef88]AUTFLG),A
   POP HL
-  LD ($EF89),HL
+  LD ([$EF89]AUTLIN),HL
   POP BC
-  JP L3C4A_3
+  JP [$3c9f]PROMPT
 
 ; __IF BASIC command [$4702]
-__IF:
+L4702:
   CALL [$4a8f]EVAL
   LD A,(HL)
   CP $2C
-  CALL Z,__FOR_12
+  CALL Z,[$4259]_CHRGTB
   CP $89
-  JR Z,__IF_0
+  JR Z,L4713_0
+
+; Routine at 470F
+L470F:
   CALL [$409b]SYNCHR
-  RET C
+
+; Data block at 4712
+L4712:
+  DEFB $D8
+
+; Routine at 4713
+L4713:
   DEC HL
-__IF_0:
+L4713_0:
   PUSH HL
   CALL [$2690]_TSTSGN
   POP HL
-  JR Z,__IF_2
-__IF_1:
-  RST $10
+  JR Z,L4713_2
+L4713_1:
+  RST $10     ; CHRGTB
   CP $0E
-  JP Z,__GO TO
+  JP Z,L456D
   CP $0D
-  JP Z,__GO TO
-  JP __FOR_10
-__IF_2:
+  JP Z,L456D
+  JP L419F_8
+L4713_2:
   LD D,$01
-__IF_3:
-  CALL __DATA
+L4713_3:
+  CALL [$45be]DATA
   OR A
   RET Z
-  RST $10
+  RST $10     ; CHRGTB
   CP $A1
-  JR NZ,__IF_3
+  JR NZ,L4713_3
   DEC D
-  JR NZ,__IF_3
-  JR __IF_1
+  JR NZ,L4713_3
+  JR L4713_1
 
 ; __LPRINT BASIC command [$473a]
-__LPRINT:
+L473A:
   LD A,$01
-  LD ($EB49),A
-  JP __PRINT_0
+  LD ([$eb48]PRTFLG),A
+  JP L4742_0
 
 ; __PRINT BASIC command [$4742]
-__PRINT:
-  CALL $F1F2
-  CALL $F18C
+L4742:
+  CALL [$f18f]ISFLIO_29
+  CALL [$f17d]CLSALL_5
   CP $25
   CALL Z,L2164
   CP $23
-  JR NZ,__PRINT_0
+  JR NZ,L4742_0
   CALL L2036
   LD A,$80
-  LD ($EB49),A
-__PRINT_0:
+  LD ([$eb48]PRTFLG),A
+L4742_0:
   DEC HL
-  RST $10
-  CALL Z,L47D0_0
-__PRINT_1:
+  RST $10     ; CHRGTB
+  CALL Z,[$47dd]RESTART
+L4742_1:
   JP Z,L4865
   CP $E2
-  JP Z,__USING
+  JP Z,L5946
   CP $D9
-  JP Z,__TAB(
+  JP Z,L4829
   CP $DD
-  JP Z,__TAB(
+  JP Z,L4829
   PUSH HL
   CP $2C
   JP Z,L47EF
   CP $3B
-  JP Z,__TAB(_5
+  JP Z,L4832_5
   POP BC
   CALL [$4a8f]EVAL
   PUSH HL
@@ -12534,12 +13267,12 @@ __PRINT_1:
 L478D:
   LD HL,([$f0a8]DBL_FPREG)
   INC (HL)
-  CALL $F18F
+  CALL [$f18f]ISFLIO
   LD HL,([$f0a8]DBL_FPREG)
   LD A,($EB2D)
   OR A
   JP NZ,L478D_2
-  LD A,($EB49)
+  LD A,([$eb48]PRTFLG)
   OR A
   JR Z,L478D_0
   LD A,([$eb48]LPTPOS)
@@ -12557,21 +13290,21 @@ L478D_0:
   DEC A
   CP B
 L478D_1:
-  CALL NC,L47D0_0
+  CALL NC,[$47dd]RESTART
 L478D_2:
   CALL [$52f0]PRS1
   OR A
 L478D_3:
   CALL Z,[$52f0]PRS1
   POP HL
-  JP __PRINT_0
+  JP L4742_0
 
 ; Routine at 47C9
-L47C9:
+[$3c9f]CONSOLE_CRLF:
   LD A,([$ed99]CURPOS)
   OR A
   RET Z
-  JR L47D0_0
+  JR [$47dd]RESTART
 
 ; Routine at 47D0
 L47D0:
@@ -12580,35 +13313,37 @@ L47D0:
   LD A,H
   OR L
   LD HL,$EC95
-  JP NZ,L47D0_1
-L47D0_0:
+  JP NZ,[$47dd]RESTART_0
+
+; Routine at 47DD
+[$47dd]RESTART:
   LD A,$0D
-  RST $18
+  RST $18     ; OUTC
   LD A,$0A
-  RST $18
-L47D0_1:
+  RST $18     ; OUTC
+[$47dd]RESTART_0:
   LD A,($EB2D)
   OR A
   CALL NZ,L2093
-  CALL $F192
+  CALL [$f18f]ISFLIO_0
   XOR A
   RET
 
 ; Routine at 47EF
 L47EF:
-  CALL $F195
+  CALL [$f18f]ISFLIO_1
   LD A,($EB2D)
   OR A
   JP Z,L47EF_0
   CALL L2062
   JP L47EF_4
 L47EF_0:
-  LD A,($EB49)
+  LD A,([$eb48]PRTFLG)
   OR A
   JP P,L47EF_1
   LD A,$2C
-  RST $18
-  JR __TAB(_5
+  RST $18     ; OUTC
+  JR L4832_5
 L47EF_1:
   JR Z,L47EF_2
   LD A,([$eb48]LPTPOS)
@@ -12620,79 +13355,97 @@ L47EF_2:
   LD A,([$ed99]CURPOS)
   CP B
 L47EF_3:
-  CALL NC,L47D0_0
-  JR NC,__TAB(_5
+  CALL NC,[$47dd]RESTART
+  JR NC,L4832_5
 L47EF_4:
   SUB $0E
   JR NC,L47EF_4
   CPL
-  JR __TAB(_3
+  JR L4832_3
 
 ; PRINT TAB(
-__TAB(:
+L4829:
   PUSH AF
   CALL [$56f9]FNDNUM
+
+; Routine at 482D
+L482D:
   CALL [$409b]SYNCHR
+
+; Routine at 4830
+L4830:
   ADD HL,HL
   DEC HL
+
+; Routine at 4832
+L4832:
   POP AF
   SUB $DD
   PUSH HL
-  JR Z,__TAB(_2
-  CALL $F195
+  JR Z,L4832_2
+  CALL [$f18f]ISFLIO_1
   LD A,($EB2D)
   OR A
-  JR Z,__TAB(_0
+  JR Z,L4832_0
   CALL L2062
-  JR __TAB(_2
-__TAB(_0:
-  LD A,($EB49)
+  JR L4832_2
+L4832_0:
+  LD A,([$eb48]PRTFLG)
   OR A
-  JR Z,__TAB(_1
+  JR Z,L4832_1
   LD A,([$eb48]LPTPOS)
-  JR __TAB(_2
-__TAB(_1:
+  JR L4832_2
+L4832_1:
   LD A,([$ed99]CURPOS)
-__TAB(_2:
+L4832_2:
   CPL
   ADD A,E
-  JR NC,__TAB(_5
-__TAB(_3:
+  JR NC,L4832_5
+L4832_3:
   INC A
   LD B,A
   LD A,$20
-__TAB(_4:
-  RST $18
+L4832_4:
+  RST $18     ; OUTC
   DEC B
-  JR NZ,__TAB(_4
-__TAB(_5:
+  JR NZ,L4832_4
+L4832_5:
   POP HL
-  RST $10
-  JP __PRINT_1
+  RST $10     ; CHRGTB
+  JP L4742_1
 
 ; Routine at 4865
 L4865:
-  LD A,($EB49)
+  LD A,([$eb48]PRTFLG)
   OR A
   CALL M,L0C2E
   XOR A
   LD ($EB2D),A
-  LD ($EB49),A
-  CALL $F180
+  LD ([$eb48]PRTFLG),A
+  CALL [$f17d]CLSALL_0
   RET
 
 ; __LINE BASIC command [$4877]
-__LINE:
-  CALL $F1F8
+L4877:
+  CALL [$f18f]ISFLIO_31
   CP $85
   JP NZ,L138F
+
+; Routine at 487F
+L487F:
   CALL [$409b]SYNCHR
-  ADD A,L
+
+; Data block at 4882
+L4882:
+  DEFB $85
+
+; Routine at 4883
+L4883:
   CP $23
-  CALL Z,$F1A1
+  CALL Z,[$f18f]ISFLIO_5
   CP $25
   JP Z,L224F
-  CALL __INPUT_3
+  CALL L48DA_3
   CALL [$4e3c]GETVAR
   CALL [$27fa]TSTSTR
   PUSH DE
@@ -12701,11 +13454,11 @@ __LINE:
   POP DE
   POP BC
   JP C,$433F
-__LINE_0:
+L4883_0:
   PUSH BC
   PUSH DE
   LD B,$00
-  CALL __QTSTR_0
+  CALL [$52aa]QTSTR_0
   POP HL
   XOR A
   JP L45F1_1
@@ -12724,13 +13477,13 @@ L48BC:
   LD A,(BC)
   NOP
 L48BC_0:
-  LD A,($EF84)
+  LD A,([$ef84]FLGINP)
   OR A
   JP NZ,[$3bd9]DATSNR
   LD A,($EDB3)
   OR A
   LD E,$19
-  JP Z,[$3bdf]SNERR_0
+  JP Z,[$3bf9]ERROR
   POP BC
   LD HL,L48AC
   CALL [$52ed]PRS
@@ -12738,43 +13491,52 @@ L48BC_0:
   RET
 
 ; __INPUT BASIC command [$48da]
-__INPUT:
-  CALL $F1F5
+L48DA:
+  CALL [$f18f]ISFLIO_30
   CP $25
   JP Z,L2245
-  CALL $F198
+  CALL [$f18f]ISFLIO_2
   SUB $23
   LD ($EDB3),A
   LD A,(HL)
-  JR NZ,__INPUT_2
+  JR NZ,L48DA_2
   CALL L2011
   PUSH HL
   LD B,$FA
   LD HL,$EC96
-__INPUT_0:
+L48DA_0:
   CALL L0C88
   LD (HL),A
   INC HL
   CP $0D
-  JR Z,__INPUT_1
-  DJNZ __INPUT_0
-__INPUT_1:
+  JR Z,L48DA_1
+  DJNZ L48DA_0
+L48DA_1:
   DEC HL
   LD (HL),$00
   CALL L0C2E_0
   LD HL,$EC95
   JR L4925_0
-__INPUT_2:
+L48DA_2:
   LD BC,L4925
   PUSH BC
-__INPUT_3:
+L48DA_3:
   CP $22
   LD A,$00
   LD ($EB4D),A
   RET NZ
-  CALL __QTSTR
+  CALL [$52aa]QTSTR
+
+; Routine at 491B
+L491B:
   CALL [$409b]SYNCHR
-  DEC SP
+
+; Data block at 491E
+L491E:
+  DEFB $3B
+
+; Routine at 491F
+L491F:
   PUSH HL
   CALL [$52f0]PRS1
   POP HL
@@ -12797,35 +13559,40 @@ L4925_0:
   JR $4941
 
 ; __READ BASIC command [$4939]
-__READ:
-  CALL $F1FB
+L4939:
+  CALL [$f18f]ISFLIO_32
   PUSH HL
   LD HL,($EFA6)
   OR $AF
-  LD ($EF84),A
+  LD ([$ef84]FLGINP),A
   EX (SP),HL
-  JR L4948_0
+  JR L494C
 
 ; Routine at 4948
 L4948:
   CALL [$409b]SYNCHR
-  INC L
-L4948_0:
+
+; Data block at 494B
+L494B:
+  DEFB $2C
+
+; Routine at 494C
+L494C:
   CALL [$4e3c]GETVAR
   EX (SP),HL
   PUSH DE
   LD A,(HL)
   CP $2C
-  JR Z,L4948_1
-  LD A,($EF84)
+  JR Z,L494C_0
+  LD A,([$ef84]FLGINP)
   OR A
   JP NZ,[$49e8]FDTLP
   LD A,($EDB3)
   OR A
   LD E,$04
-  JP Z,[$3bdf]SNERR_0
+  JP Z,[$3bf9]ERROR
   LD A,$3F
-  RST $18
+  RST $18     ; OUTC
   CALL L3E5C
   POP DE
   POP BC
@@ -12837,25 +13604,25 @@ L4948_0:
   PUSH BC
   JP Z,$45BD
   PUSH DE
-L4948_1:
-  CALL $F19B
+L494C_0:
+  CALL [$f18f]ISFLIO_3
   CALL [$4dd8]GETYPR
   PUSH AF
-  JR NZ,L4948_4
-  RST $10
+  JR NZ,L494C_3
+  RST $10     ; CHRGTB
   LD D,A
   LD B,A
   CP $22
-  JR Z,L4948_3
-  LD A,($EF84)
+  JR Z,L494C_2
+  LD A,([$ef84]FLGINP)
   OR A
   LD D,A
-  JR Z,L4948_2
+  JR Z,L494C_1
   LD D,$3A
-L4948_2:
+L494C_1:
   LD B,$2C
   DEC HL
-L4948_3:
+L494C_2:
   CALL [$52ad]DTSTR
   POP AF
   EX DE,HL
@@ -12863,8 +13630,8 @@ L4948_3:
   EX (SP),HL
   PUSH DE
   JP L45F1_2
-L4948_4:
-  RST $10
+L494C_3:
+  RST $10     ; CHRGTB
   POP AF
   PUSH AF
   LD BC,$4999
@@ -12872,22 +13639,22 @@ L4948_4:
   JP C,[$2bbe]ASCTFP
   JP NC,[$2bb7]DBL_ASCTFP
   DEC HL
-  RST $10
-  JR Z,L4948_5
+  RST $10     ; CHRGTB
+  JR Z,L494C_4
   CP $2C
   JP NZ,L48BC_0
-L4948_5:
+L494C_4:
   EX (SP),HL
   DEC HL
-  RST $10
+  RST $10     ; CHRGTB
   JP NZ,L4948
   POP DE
-  LD A,($EF84)
+  LD A,([$ef84]FLGINP)
   OR A
   EX DE,HL
-  JP NZ,__RESTORE_1
+  JP NZ,[$4302]RESTOR_1
   PUSH DE
-  CALL $F210
+  CALL [$f18f]ISFLIO_39
   OR (HL)
   LD HL,L49D7
   CALL NZ,[$52ed]PRS
@@ -12910,7 +13677,7 @@ L49E5:
 
 ; Find next DATA statement
 [$49e8]FDTLP:
-  CALL __DATA
+  CALL [$45be]DATA
   OR A
   JR NZ,[$49e8]FDTLP_0
   INC HL
@@ -12918,7 +13685,7 @@ L49E5:
   INC HL
   OR (HL)
   LD E,$04
-  JP Z,[$3bdf]SNERR_0
+  JP Z,[$3bf9]ERROR
   INC HL
   LD E,(HL)
   INC HL
@@ -12927,15 +13694,15 @@ L49E5:
   LD ($EF81),HL
   EX DE,HL
 [$49e8]FDTLP_0:
-  RST $10
+  RST $10     ; CHRGTB
   CP $84
   JR NZ,[$49e8]FDTLP
-  JP L4948_1
+  JP L494C_0
 
 ; __NEXT BASIC command [$4a08]
-__NEXT:
-  LD DE,L0000
-__NEXT_0:
+L4A08:
+  LD DE,0
+L4A08_0:
   CALL NZ,[$4e3c]GETVAR
   LD ([$ef85]TEMP),HL
   CALL L3B6C
@@ -12949,7 +13716,7 @@ __NEXT_0:
   LD A,(HL)
   INC HL
   OR A
-  JP M,__NEXT_1
+  JP M,L4A08_1
   CALL [$26af]PHLTFP
   EX (SP),HL
   PUSH HL
@@ -12960,8 +13727,8 @@ __NEXT_0:
   CALL [$26c0]LOADFP
   PUSH HL
   CALL [$270c]CMPNUM
-  JR __NEXT_2
-__NEXT_1:
+  JR L4A08_2
+L4A08_1:
   INC HL
   INC HL
   INC HL
@@ -12977,10 +13744,10 @@ __NEXT_1:
   PUSH HL
   LD L,C
   LD H,B
-  CALL L28DD
+  CALL [$28DD]IADD
   LD A,($EF45)
   CP $04
-  JP Z,$3BF1
+  JP Z,OVERFLOW_ERR
   EX DE,HL
   POP HL
   LD (HL),D
@@ -12994,35 +13761,46 @@ __NEXT_1:
   INC HL
   EX (SP),HL
   CALL L2739
-__NEXT_2:
+L4A08_2:
   POP HL
   POP BC
   SUB B
   CALL [$26c0]LOADFP
-  JR Z,__NEXT_3
+  JR Z,L4A08_3
   EX DE,HL
   LD ([$eb52]CURLIN),HL
   LD L,C
   LD H,B
-  JP __FOR_5
-__NEXT_3:
+  JP L419F_3
+L4A08_3:
   LD SP,HL
-  LD ($EF8F),HL
+  LD ([$ef8f]SAVSTK),HL
   LD HL,([$ef85]TEMP)
   LD A,(HL)
   CP $2C
-  JP NZ,__FOR_6
-  RST $10
-  CALL __NEXT_0
-__NEXT_4:
+  JP NZ,L419F_4
+  RST $10     ; CHRGTB
+  CALL L4A08_0
+
+; Routine at 4A84
+L4A84:
   CALL [$409b]SYNCHR
-  POP AF
+
+; Data block at 4A87
+L4A87:
+  DEFB $F1
+
+; Routine at 4A88
+L4A88:
   JP [$4a8f]EVAL
 
 ; Chk Syntax, make sure '(' follows
 [$4a8b]OPNPAR:
   CALL [$409b]SYNCHR
-  JR Z,$4ABB
+
+; Data block at 4A8E
+L4A8E:
+  DEFB $28
 
 ; a.k.a. GETNUM, evaluate expression
 [$4a8f]EVAL:
@@ -13040,7 +13818,7 @@ __NEXT_4:
 [$4a93]EVAL1:
   LD C,$01
   CALL [$3b9d]CHKSTK
-  CALL __OPRND
+  CALL [$4bf9]OPRND
 
 ; Evaluate expression until precedence break
 [$4a9b]EVAL2:
@@ -13064,7 +13842,7 @@ __NEXT_4:
   LD D,A
   JP C,[$3bdf]SNERR
   LD ($EF7B),HL
-  RST $10
+  RST $10     ; CHRGTB
   JR [$4a9e]EVAL3_0
 [$4a9e]EVAL3_1:
   LD A,D
@@ -13104,7 +13882,7 @@ __NEXT_4:
   DEC A
   DEC A
   DEC A
-  JP Z,$3BF7
+  JP Z,TYPE_ERR
   OR A
   LD C,(HL)
   INC HL
@@ -13139,14 +13917,14 @@ __NEXT_4:
   LD HL,($EF7B)
   JP [$4a92]EVAL1
 [$4a9e]EVAL3_5:
-  CALL __CSNG
+  CALL L27B3
   CALL [$26a2]STAKFP
   LD BC,[$31ac]POWER
   LD D,$7F
   JR [$4a9e]EVAL3_4
 [$4a9e]EVAL3_6:
   PUSH DE
-  CALL __CINT
+  CALL L277F
   POP DE
   PUSH HL
   LD BC,L4DE8
@@ -13171,7 +13949,7 @@ __NEXT_4:
 L4B60:
   POP BC
   LD A,C
-  LD ($EF46),A
+  LD ([$EF46]DONUM),A
   LD A,B
   CP $08
   JR Z,L4B74_0
@@ -13187,7 +13965,7 @@ L4B74:
   JP Z,L4B74_5
   LD A,D
   CP $03
-  JP Z,$3BF7
+  JP Z,TYPE_ERR
   JP NC,L4B74_7
   LD HL,$37E7
   LD B,$00
@@ -13201,7 +13979,7 @@ L4B74:
   PUSH BC
   RET
 L4B74_0:
-  CALL __CDBL
+  CALL L27DF
   CALL L26FA
   POP HL
   LD ($F0A6),HL
@@ -13212,10 +13990,10 @@ L4B74_1:
   POP DE
   CALL [$26b2]FPBCDE
 L4B74_2:
-  CALL __CDBL
+  CALL L27DF
   LD HL,$37D3
 L4B74_3:
-  LD A,($EF46)
+  LD A,([$EF46]DONUM)
   RLCA
   PUSH BC
   LD C,A
@@ -13238,7 +14016,7 @@ L4B74_4:
   LD ([$f0a8]DBL_FPREG),HL
   JR L4B74_2
 L4B74_5:
-  CALL __CSNG
+  CALL L27B3
   POP BC
   POP DE
 L4B74_6:
@@ -13247,10 +14025,10 @@ L4B74_6:
 L4B74_7:
   POP HL
   CALL [$26a2]STAKFP
-  CALL __CSNG_2
+  CALL L27B3_2
   CALL [$26bd]BCDEFP
   POP HL
-  LD ($F0AA),HL
+  LD ([$f0AA]FACCU),HL
   POP HL
   LD ([$f0a8]DBL_FPREG),HL
   JR L4B74_6
@@ -13259,74 +14037,90 @@ L4B74_7:
 L4BEA:
   PUSH HL
   EX DE,HL
-  CALL __CSNG_2
+  CALL L27B3_2
   POP HL
   CALL [$26a2]STAKFP
-  CALL __CSNG_2
+  CALL L27B3_2
   JP [$259a]DIV
 
 ; '+' operand evaluation
-__OPRND:
-  CALL $F1C2
-  CALL $F1FE
-  RST $10
+[$4bf9]OPRND:
+  CALL [$f18f]ISFLIO_17
+  CALL [$f18f]ISFLIO_33
+  RST $10     ; CHRGTB
   JP Z,$3BF4
   JP C,[$2bbe]ASCTFP
   CALL L4498_0
-  JP NC,__SUB_OPRND_0
+  JP NC,L4CAD_0
   CP $20
   JP C,L42D1_0
   INC A
   JP Z,L4D36
   DEC A
   CP $F3
-  JR Z,__OPRND
+  JR Z,[$4bf9]OPRND
   CP $F4
-  JP Z,__SUB_OPRND
+  JP Z,L4CAD
   CP $22
-__OPRND_0:
-  JP Z,__QTSTR
+  JP Z,[$52aa]QTSTR
   CP $DE
-  JP Z,__NOT
+  JP Z,L4DC3
   CP $26
-  JP Z,__HEXTFP
+  JP Z,L4CDA
   CP $E0
-  JR NZ,__ERR_0
+  JR NZ,L4C32_0
 
 ; ERR function evaluation
-__ERR:
-  RST $10
-  LD A,($EB46)
+L4C32:
+  RST $10     ; CHRGTB
+  LD A,([$EB46]ERRFLG)
   PUSH HL
   CALL [$507c]UNSIGNED_RES_A
   POP HL
   RET
-__ERR_0:
+L4C32_0:
   CP $DF
-  JR NZ,__ERL_0
+  JR NZ,L4C40_0
 
 ; ERL function evaluation
-__ERL:
-  RST $10
+L4C40:
+  RST $10     ; CHRGTB
   PUSH HL
-  LD HL,($EF91)
+  LD HL,([$EF91]ERRLIN)
   CALL [$299d]DBL_ABS_0
   POP HL
   RET
-__ERL_0:
+L4C40_0:
   CP $E5
-  JR NZ,__VARPTR_0
+  JR NZ,L4C5D_0
 
 ; VARPTR function evaluation
-__VARPTR:
-  RST $10
+L4C4E:
+  RST $10     ; CHRGTB
+
+; Routine at 4C4F
+L4C4F:
   CALL [$409b]SYNCHR
-  JR Z,__OPRND_0
-  XOR D
-  POP AF
+
+; Data block at 4C52
+L4C52:
+  DEFB $28
+
+; Routine at 4C53
+L4C53:
+  CALL [$f18f]ISFLIO_8
   CALL [$4e3c]GETVAR
+
+; Routine at 4C59
+L4C59:
   CALL [$409b]SYNCHR
-  ADD HL,HL
+
+; Data block at 4C5C
+L4C5C:
+  DEFB $29
+
+; Routine at 4C5D
+L4C5D:
   PUSH HL
   EX DE,HL
   LD A,H
@@ -13335,47 +14129,58 @@ __VARPTR:
   CALL [$279c]INT_RESULT_HL
   POP HL
   RET
-__VARPTR_0:
+L4C5D_0:
   CP $DB
-  JP Z,__USR
+  JP Z,L5082
   CP $E3
-  JP Z,__INSTR
+  JP Z,L5577
   CP $EB
-  JP Z,L159F
+  JP Z,[$159F]FN_DATE$
   CP $E9
-  JP Z,L0D1D
+  JP Z,[$0D1D]FN_INKEY$
   CP $EF
-  JP Z,L070B
+  JP Z,[$070B]FN_POINT
   CP $EA
-  JP Z,L15DC
+  JP Z,[$15dc]FN_DATE$
   CP $E1
-  JP Z,L54B8
+  JP Z,[$54B8]FN_STRING$
   CP $85
   JP Z,L22F8
   CP $E6
-  JP Z,L0B3B
+  JP Z,[$0B3B]FN_CSRLIN
   CP $E7
-  JP Z,__DSKF_1
+  JP Z,[$F15F]FN_ATTR$
   CP $E8
-  JP Z,__DSKF_0
+  JP Z,[$50F2]F15C$
   CP $DC
-  JP Z,L50F2
-__VARPTR_1:
+  JP Z,[$50F2]FN_FN
+
+; check for ')'
+L4CA5:
   CALL [$4a8b]OPNPAR
+
+; Routine at 4CA8
+L4CA8:
   CALL [$409b]SYNCHR
-  ADD HL,HL
+
+; Data block at 4CAB
+L4CAB:
+  DEFB $29
+
+; Routine at 4CAC
+L4CAC:
   RET
 
 ; '-' operand evaluation
-__SUB_OPRND:
+L4CAD:
   LD D,$7D
   CALL [$4a92]EVAL1
   LD HL,([$ef9a]NXTOPR)
   PUSH HL
-  CALL __ABS_0
+  CALL [$2675]INVSGN
   POP HL
   RET
-__SUB_OPRND_0:
+L4CAD_0:
   CALL [$4e3c]GETVAR
   PUSH HL
   EX DE,HL
@@ -13404,32 +14209,32 @@ L4CD5:
   JP NZ,[$44aa]LNUM_PARM_0
 
 ; Convert HEX to FP
-__HEXTFP:
-  LD DE,L0000
-  RST $10
+L4CDA:
+  LD DE,0
+  RST $10     ; CHRGTB
   CALL [$4ccc]UCASE
   CP $4F
-  JR Z,__HEXTFP_4
+  JR Z,L4CDA_4
   CP $48
-  JR NZ,__HEXTFP_3
+  JR NZ,L4CDA_3
   LD B,$05
-__HEXTFP_0:
+L4CDA_0:
   INC HL
   LD A,(HL)
   CALL [$4ccc]UCASE
   CALL L4498_0
   EX DE,HL
-  JR NC,__HEXTFP_1
+  JR NC,L4CDA_1
   CP $3A
-  JR NC,__HEXTFP_5
+  JR NC,L4CDA_5
   SUB $30
-  JR C,__HEXTFP_5
-  JR __HEXTFP_2
-__HEXTFP_1:
+  JR C,L4CDA_5
+  JR L4CDA_2
+L4CDA_1:
   CP $47
-  JR NC,__HEXTFP_5
+  JR NC,L4CDA_5
   SUB $37
-__HEXTFP_2:
+L4CDA_2:
   ADD HL,HL
   ADD HL,HL
   ADD HL,HL
@@ -13437,18 +14242,18 @@ __HEXTFP_2:
   OR L
   LD L,A
   DEC B
-  JP Z,$3BF1
+  JP Z,OVERFLOW_ERR
   EX DE,HL
-  JR __HEXTFP_0
-__HEXTFP_3:
+  JR L4CDA_0
+L4CDA_3:
   DEC HL
-__HEXTFP_4:
-  RST $10
+L4CDA_4:
+  RST $10     ; CHRGTB
   EX DE,HL
-  JR NC,__HEXTFP_5
+  JR NC,L4CDA_5
   CP $38
   JP NC,[$3bdf]SNERR
-  LD BC,$3BF1
+  LD BC,OVERFLOW_ERR
   PUSH BC
   ADD HL,HL
   RET C
@@ -13462,8 +14267,8 @@ __HEXTFP_4:
   LD C,A
   ADD HL,BC
   EX DE,HL
-  JR __HEXTFP_4
-__HEXTFP_5:
+  JR L4CDA_4
+L4CDA_5:
   CALL [$279c]INT_RESULT_HL
   EX DE,HL
   RET
@@ -13477,13 +14282,22 @@ L4D36:
   RLCA
   LD C,A
   PUSH BC
-  RST $10
+  RST $10     ; CHRGTB
   LD A,C
   CP $05
-  JP NC,L4D36_0
+  JP NC,L4D4D_0
   CALL [$4a8b]OPNPAR
+
+; Routine at 4D49
+L4D49:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 4D4C
+L4D4C:
+  DEFB $2C
+
+; Routine at 4D4D
+L4D4D:
   CALL [$27fa]TSTSTR
   EX DE,HL
   LD HL,([$f0a8]DBL_FPREG)
@@ -13493,30 +14307,30 @@ L4D36:
   CALL [$56fa]GETINT
   EX DE,HL
   EX (SP),HL
-  JR L4D36_2
-L4D36_0:
-  CALL __VARPTR_1
+  JR L4D4D_2
+L4D4D_0:
+  CALL L4CA5
   EX (SP),HL
   LD A,L
   CP $0C
-  JR C,L4D36_1
+  JR C,L4D4D_1
   CP $1B
   PUSH HL
-  CALL C,__CSNG
+  CALL C,L27B3
   POP HL
-L4D36_1:
+L4D4D_1:
   LD DE,$4CB9
   PUSH DE
-L4D36_2:
+L4D4D_2:
   LD BC,$3467
-L4D36_3:
+L4D4D_3:
   ADD HL,BC
   LD C,(HL)
   INC HL
   LD H,(HL)
   LD L,C
   JP (HL)
-L4D36_4:
+L4D4D_4:
   DEC D
   CP $F4
   RET Z
@@ -13579,13 +14393,13 @@ L4DB7:
   ADD A,$FF
   SBC A,A
   CALL [$2689]INT_RESULT_A
-  JR __NOT_0
+  JR L4DC3_0
 
 ; eval NOT boolean operation
-__NOT:
+L4DC3:
   LD D,$5A
   CALL [$4a92]EVAL1
-  CALL __CINT
+  CALL L277F
   LD A,L
   CPL
   LD L,A
@@ -13594,7 +14408,7 @@ __NOT:
   LD H,A
   LD ([$f0a8]DBL_FPREG),HL
   POP BC
-__NOT_0:
+L4DC3_0:
   JP [$4a9e]EVAL3
 
 ; Test number FAC type (Precision mode, etc..)
@@ -13614,11 +14428,11 @@ __NOT_0:
 ; Routine at 4DE8
 L4DE8:
   PUSH BC
-  CALL __CINT
+  CALL L277F
   POP AF
   POP DE
   CP $7A
-  JP Z,L29B2
+  JP Z,[$29B2]IMOD
   CP $7B
   JP Z,L2950
   LD BC,[$507c]UNSIGNED_RES_A_0
@@ -13675,13 +14489,19 @@ L4DE8_3:
 ; Routine at 4E30
 L4E30:
   DEC HL
-  RST $10
+  RST $10     ; CHRGTB
   RET Z
+
+; Routine at 4E33
+L4E33:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 4E36
+L4E36:
+  DEFB $2C
 
 ; __DIM BASIC command [$4e37]
-__DIM:
+L4E37:
   LD BC,L4E30
   PUSH BC
   OR $AF
@@ -13694,25 +14514,25 @@ __DIM:
 [$4e3c]GETVAR_0:
   CALL L4498
   JP C,[$3bdf]SNERR
-  CALL $F1C5
+  CALL [$f18f]ISFLIO_18
   XOR A
   LD C,A
-  RST $10
-  JR C,__IEEE_0
+  RST $10     ; CHRGTB
+  JR C,L4E53_0
   CALL L4498_0
-  JR C,__IEEE_2
+  JR C,L4E53_2
 
 ; __IEEE BASIC command [$4e53]
-__IEEE:
+L4E53:
   ADD HL,BC
-__IEEE_0:
+L4E53_0:
   LD C,A
-__IEEE_1:
-  RST $10
-  JR C,__IEEE_1
+L4E53_1:
+  RST $10     ; CHRGTB
+  JR C,L4E53_1
   CALL L4498_0
-  JR NC,__IEEE_1
-__IEEE_2:
+  JR NC,L4E53_1
+L4E53_2:
   LD DE,$4E84
   PUSH DE
   LD D,$02
@@ -13741,17 +14561,17 @@ __IEEE_2:
   RET
   LD A,D
   LD ($EF45),A
-  RST $10
+  RST $10     ; CHRGTB
   LD A,([$ef83]SUBFLG)
   DEC A
   JP Z,$4F84
-  JP P,__IEEE_3
+  JP P,L4E53_3
   LD A,(HL)
   SUB $28
   JP Z,[$4f56]SBSCPT
   SUB $33
   JP Z,[$4f56]SBSCPT
-__IEEE_3:
+L4E53_3:
   XOR A
   LD ([$ef83]SUBFLG),A
   PUSH HL
@@ -13759,17 +14579,17 @@ __IEEE_3:
   LD A,([$f095]NOFUNS)
   OR A
   LD ($F092),A
-  JP Z,__IEEE_6
+  JP Z,L4E53_6
   LD HL,([$efc4]PRMLEN)
   LD DE,$EFC6
   ADD HL,DE
   LD ($F093),HL
   EX DE,HL
-__IEEE_4:
+L4E53_4:
   EX DE,HL
   LD HL,($F093)
   CALL [$4095]CPDEHL
-  JR Z,__IEEE_5
+  JR Z,L4E53_5
   POP HL
   LD A,(DE)
   LD L,A
@@ -13782,37 +14602,37 @@ __IEEE_4:
   INC DE
   LD A,(DE)
   CP B
-  JP Z,__IEEE_9
+  JP Z,L4E53_9
   LD A,$13
   INC DE
   PUSH HL
   LD H,$00
   ADD HL,DE
-  JR __IEEE_4
-__IEEE_5:
+  JR L4E53_4
+L4E53_5:
   LD A,($F092)
   OR A
-  JP Z,__IEEE_7
+  JP Z,L4E53_7
   XOR A
   LD ($F092),A
-__IEEE_6:
+L4E53_6:
   LD HL,([$efa2]VAREND)
   LD ($F093),HL
   LD HL,([$efa0]PROGND)
-  JP __IEEE_4
-__IEEE_7:
+  JP L4E53_4
+L4E53_7:
   POP AF
   POP HL
   EX (SP),HL
   PUSH AF
   PUSH DE
-  LD DE,$4C59
+  LD DE,L4C59
   CALL [$4095]CPDEHL
-  JR Z,__IEEE_10
+  JR Z,L4E53_10
   LD DE,$4CBE
   CALL [$4095]CPDEHL
   POP DE
-  JR Z,__IEEE_11
+  JR Z,L4E53_11
   POP AF
   EX (SP),HL
   PUSH HL
@@ -13834,11 +14654,11 @@ __IEEE_7:
   LD H,B
   LD L,C
   LD ([$efa2]VAREND),HL
-__IEEE_8:
+L4E53_8:
   DEC HL
   LD (HL),$00
   CALL [$4095]CPDEHL
-  JR NZ,__IEEE_8
+  JR NZ,L4E53_8
   POP DE
   LD (HL),E
   INC HL
@@ -13847,18 +14667,18 @@ __IEEE_8:
   INC HL
   LD (HL),D
   EX DE,HL
-__IEEE_9:
+L4E53_9:
   INC DE
   POP HL
   RET
-__IEEE_10:
+L4E53_10:
   LD D,A
   LD E,A
   POP AF
   POP AF
   EX (SP),HL
   RET
-__IEEE_11:
+L4E53_11:
   LD ([$f0ab]FPEXP),A
   POP BC
   LD H,A
@@ -13901,13 +14721,20 @@ L4F4D_0:
   CP $2C
   JR Z,[$4f5c]SCPTLP
   CP $5D
-  JR NZ,[$4f5c]SCPTLP_0
-  RST $10
-  JR [$4f5c]SCPTLP_1
-[$4f5c]SCPTLP_0:
+  JR NZ,L4F75
+  RST $10     ; CHRGTB
+  JR L4F79
+
+; Routine at 4F75
+L4F75:
   CALL [$409b]SYNCHR
-  ADD HL,HL
-[$4f5c]SCPTLP_1:
+
+; Data block at 4F78
+L4F78:
+  DEFB $29
+
+; Routine at 4F79
+L4F79:
   LD ([$ef9a]NXTOPR),HL
   POP HL
   LD ([$ef44]DIMFLG),HL
@@ -13921,18 +14748,18 @@ L4F4D_0:
   EX DE,HL
   CALL [$4095]CPDEHL
   LD A,($EF45)
-  JR Z,[$4f5c]SCPTLP_4
+  JR Z,[$4FBD]SBSCT_ERR_0
   CP (HL)
   INC HL
   JR NZ,$4FA4
   LD A,(HL)
   CP C
   INC HL
-  JR NZ,[$4f5c]SCPTLP_2
+  JR NZ,L4F79_0
   LD A,(HL)
   CP B
   LD A,$23
-[$4f5c]SCPTLP_2:
+L4F79_0:
   INC HL
   LD E,(HL)
   INC HL
@@ -13945,13 +14772,15 @@ L4F4D_0:
   POP AF
   LD B,H
   LD C,L
-  JP Z,L256F_0
+  JP Z,L256F_1
   SUB (HL)
-  JP Z,[$4f5c]SCPTLP_8
-[$4f5c]SCPTLP_3:
+  JP Z,[$4FBD]SBSCT_ERR_4
+
+; Routine at 4FBD
+[$4FBD]SBSCT_ERR:
   LD E,$09
-  JP [$3bdf]SNERR_0
-[$4f5c]SCPTLP_4:
+  JP [$3bf9]ERROR
+[$4FBD]SBSCT_ERR_0:
   LD (HL),A
   INC HL
   LD E,A
@@ -13972,12 +14801,12 @@ L4F4D_0:
   LD A,([$ef44]DIMFLG)
   RLA
   LD A,C
-[$4f5c]SCPTLP_5:
+[$4FBD]SBSCT_ERR_1:
   LD BC,L000B
-  JR NC,[$4f5c]SCPTLP_6
+  JR NC,[$4FBD]SBSCT_ERR_2
   POP BC
   INC BC
-[$4f5c]SCPTLP_6:
+[$4FBD]SBSCT_ERR_2:
   LD (HL),C
   INC HL
   LD (HL),B
@@ -13986,7 +14815,7 @@ L4F4D_0:
   CALL [$28b5]MLDEBC
   POP AF
   DEC A
-  JR NZ,[$4f5c]SCPTLP_5
+  JR NZ,[$4FBD]SBSCT_ERR_1
   PUSH AF
   LD B,D
   LD C,E
@@ -13995,11 +14824,11 @@ L4F4D_0:
   JP C,[$3b9d]CHKSTK_0
   CALL $3BA6
   LD ([$efa4]ARREND),HL
-[$4f5c]SCPTLP_7:
+[$4FBD]SBSCT_ERR_3:
   DEC HL
   LD (HL),$00
   CALL [$4095]CPDEHL
-  JR NZ,[$4f5c]SCPTLP_7
+  JR NZ,[$4FBD]SBSCT_ERR_3
   INC BC
   LD D,A
   LD HL,($EF7B)
@@ -14016,7 +14845,7 @@ L4F4D_0:
   INC HL
   POP AF
   JR C,L5036_2
-[$4f5c]SCPTLP_8:
+[$4FBD]SBSCT_ERR_4:
   LD B,A
   LD C,A
 
@@ -14032,7 +14861,7 @@ L501D:
   EX (SP),HL
   PUSH AF
   CALL [$4095]CPDEHL
-  JP NC,[$4f5c]SCPTLP_3
+  JP NC,[$4FBD]SBSCT_ERR
   CALL [$28b5]MLDEBC
   ADD HL,DE
   POP AF
@@ -14066,19 +14895,19 @@ L5036_2:
   RET
 
 ; __FRE BASIC command [$5051]
-__FRE:
+L5051:
   LD HL,([$efa4]ARREND)
   EX DE,HL
-  LD HL,L0000
+  LD HL,0
   ADD HL,SP
   CALL [$4dd8]GETYPR
-  JR NZ,__FRE_0
+  JR NZ,L5051_0
   CALL [$545c]GSTRCU
   CALL [$5303]TESTR_2
-  LD HL,($EB50)
+  LD HL,([$eb50]STKTOP)
   EX DE,HL
-  LD HL,($EF79)
-__FRE_0:
+  LD HL,([$ef79]FRETOP)
+L5051_0:
   LD A,L
   SUB E
   LD L,A
@@ -14088,12 +14917,12 @@ __FRE_0:
   JP [$299d]DBL_ABS_0
 
 ; __LPOS BASIC command [$5074]
-__LPOS:
+L5074:
   LD A,([$eb48]LPTPOS)
   JR [$507c]UNSIGNED_RES_A
 
 ; __POS BASIC command [$5079]
-__POS:
+L5079:
   LD A,([$ed99]CURPOS)
 
 ; Get back from function, result in A
@@ -14105,15 +14934,15 @@ __POS:
   JP [$279c]INT_RESULT_HL
 
 ; eval user M/C functions
-__USR:
+L5082:
   CALL L50A1
   PUSH DE
-  CALL __VARPTR_1
+  CALL L4CA5
   EX (SP),HL
   LD C,(HL)
   INC HL
   LD B,(HL)
-  LD HL,L256F_0
+  LD HL,L256F_1
   PUSH HL
   PUSH BC
   LD A,($EF45)
@@ -14127,13 +14956,13 @@ __USR:
 
 ; Routine at 50A1
 L50A1:
-  RST $10
-  LD BC,L0000
+  RST $10     ; CHRGTB
+  LD BC,0
   CP $1B
   JR NC,L50A1_0
   CP $11
   JR C,L50A1_0
-  RST $10
+  RST $10     ; CHRGTB
   LD A,($EF4C)
   OR A
   RLA
@@ -14149,19 +14978,27 @@ L50A1_0:
 L50BB:
   CALL L50A1
   PUSH DE
+
+; Routine at 50BF
+L50BF:
   CALL [$409b]SYNCHR
-  POP AF
+
+; Data block at 50C2
+L50C2:
+  DEFB $F1
+
+; Routine at 50C3
+L50C3:
   CALL [$56dd]FPSINT_0
   EX (SP),HL
   LD (HL),E
-L50BB_0:
   INC HL
   LD (HL),D
   POP HL
   RET
 
 ; __DEF BASIC command [$50cc]
-__DEF:
+L50CC:
   CP $DB
   JR Z,L50BB
   CALL L5262
@@ -14173,19 +15010,28 @@ __DEF:
   EX DE,HL
   LD A,(HL)
   CP $28
-  JP NZ,__DATA
-  RST $10
-__DEF_0:
+  JP NZ,[$45be]DATA
+  RST $10     ; CHRGTB
+L50CC_0:
   CALL [$4e3c]GETVAR
   LD A,(HL)
   CP $29
-  JP Z,__DATA
+  JP Z,[$45be]DATA
+
+; Routine at 50EB
+L50EB:
   CALL [$409b]SYNCHR
-  INC L
-  JP __DEF_0
+
+; Data block at 50EE
+L50EE:
+  DEFB $2C
+
+; Routine at 50EF
+L50EF:
+  JP L50CC_0
 
 ; Routine at 50F2
-L50F2:
+[$50F2]FN_FN:
   CALL L5262
   LD A,($EF45)
   OR A
@@ -14201,16 +15047,26 @@ L50F2:
   LD A,(HL)
   CP $28
   JP NZ,$51AE
-  RST $10
+  RST $10     ; CHRGTB
   LD ($EF7B),HL
   EX DE,HL
   LD HL,([$ef9a]NXTOPR)
+
+; Routine at 5114
+L5114:
   CALL [$409b]SYNCHR
-  JR Z,L50BB_0
+
+; Data block at 5117
+L5117:
+  DEFB $28
+
+; Routine at 5118
+L5118:
+  XOR A
   PUSH AF
   PUSH HL
   EX DE,HL
-L50F2_0:
+L5118_0:
   LD A,$80
   LD ([$ef83]SUBFLG),A
   CALL [$4e3c]GETVAR
@@ -14224,7 +15080,7 @@ L50F2_0:
   POP HL
   LD ($EF7B),HL
   POP AF
-  CALL L5160_3
+  CALL L51AD_1
   LD C,$04
   CALL [$3b9d]CHKSTK
   LD HL,$FFF8
@@ -14237,13 +15093,31 @@ L50F2_0:
   LD A,(HL)
   CP $29
   JR Z,L5160_0
+
+; Routine at 5152
+L5152:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 5155
+L5155:
+  DEFB $2C
+
+; Routine at 5156
+L5156:
   PUSH HL
   LD HL,($EF7B)
+
+; Routine at 515A
+L515A:
   CALL [$409b]SYNCHR
-  INC L
-  JR L50F2_0
+
+; Data block at 515D
+L515D:
+  DEFB $2C
+
+; Routine at 515E
+L515E:
+  JR L5118_0
 
 ; Routine at 5160
 L5160:
@@ -14254,7 +15128,7 @@ L5160_0:
   OR A
   JP Z,L5160_1
   LD ($EF45),A
-  LD HL,L0000
+  LD HL,0
   ADD HL,SP
   CALL L26F2_0
   LD HL,L0008
@@ -14286,11 +15160,20 @@ L5160_0:
   JP L45F1_3
 L5160_1:
   LD HL,([$ef9a]NXTOPR)
-  RST $10
+  RST $10     ; CHRGTB
   PUSH HL
   LD HL,($EF7B)
+
+; Routine at 51A9
+L51A9:
   CALL [$409b]SYNCHR
-  ADD HL,HL
+
+; Data block at 51AC
+L51AC:
+  DEFB $29
+
+; Routine at 51AD
+L51AD:
   LD A,$D5
   LD ($EF7B),HL
   LD A,([$efc4]PRMLEN)
@@ -14329,19 +15212,19 @@ L5160_1:
   OR L
   LD ([$f095]NOFUNS),A
   LD HL,($EF7B)
-  CALL __NEXT_4
+  CALL L4A84
   DEC HL
-  RST $10
+  RST $10     ; CHRGTB
   JP NZ,[$3bdf]SNERR
   CALL [$4dd8]GETYPR
-  JP NZ,L5160_2
+  JP NZ,L51AD_0
   LD DE,[$ef76]TMPSTR
   LD HL,([$f0a8]DBL_FPREG)
   CALL [$4095]CPDEHL
-  JP C,L5160_2
+  JP C,L51AD_0
   CALL [$5283]SAVSTR_0
   CALL $52CC
-L5160_2:
+L51AD_0:
   LD HL,([$efc2]PRMSTK)
   LD D,H
   LD E,L
@@ -14366,14 +15249,14 @@ L5160_2:
   LD ([$f095]NOFUNS),A
   POP HL
   POP AF
-L5160_3:
+L51AD_1:
   PUSH HL
   AND $07
   LD HL,$37C9
   LD C,A
   LD B,$00
   ADD HL,BC
-  CALL L4D36_3
+  CALL L4D4D_3
   POP HL
   RET
 
@@ -14400,31 +15283,38 @@ L5254:
   POP HL
   RET NZ
   LD E,$0C
-  JP [$3bdf]SNERR_0
+  JP [$3bf9]ERROR
 
 ; Routine at 5262
 L5262:
   CALL [$409b]SYNCHR
-  CALL C,$803E
+
+; Data block at 5265
+L5265:
+  DEFB $DC
+
+; Routine at 5266
+L5266:
+  LD A,$80
   LD ([$ef83]SUBFLG),A
   OR (HL)
   LD B,A
   JP [$4e3c]GETVAR_0
 
 ; __OCT_S BASIC command [$5270]
-__OCT_S:
+L5270:
   CALL $3152
-  JR __STR_S_0
+  JR [$527a]STR_0
 
 ; __HEX_S BASIC command [$5275]
-__HEX_S:
+L5275:
   CALL $3155
-  JR __STR_S_0
+  JR [$527a]STR_0
 
 ; __STR_S BASIC command [$527a]
-__STR_S:
+[$527a]STR:
   CALL L2D22
-__STR_S_0:
+[$527a]STR_0:
   CALL [$52a9]CRTST
   CALL [$545c]GSTRCU
 
@@ -14469,9 +15359,9 @@ __STR_S_0:
   DEC HL
 
 ; quoted string evaluation
-__QTSTR:
+[$52aa]QTSTR:
   LD B,$22
-__QTSTR_0:
+[$52aa]QTSTR_0:
   LD D,B
 
 ; Create String, termination char in D
@@ -14490,7 +15380,7 @@ __QTSTR_0:
   JR NZ,[$52ad]DTSTR_0
 [$52ad]DTSTR_1:
   CP $22
-  CALL Z,__FOR_12
+  CALL Z,[$4259]_CHRGTB
   EX (SP),HL
   INC HL
   EX DE,HL
@@ -14505,15 +15395,15 @@ __QTSTR_0:
   LD ([$f0a8]DBL_FPREG),HL
   LD A,$03
   LD ($EF45),A
-  CALL L26D0_0
-  LD DE,$EF79
+  CALL [$26D1]FP2HL
+  LD DE,[$ef79]FRETOP
   CALL [$4095]CPDEHL
   LD ([$ef56]TEMPPT),HL
   POP HL
   LD A,(HL)
   RET NZ
   LD E,$10
-  JP [$3bdf]SNERR_0
+  JP [$3bf9]ERROR
 
 ; Print number string
 [$52ec]PRNUMS:
@@ -14532,9 +15422,9 @@ __QTSTR_0:
   DEC D
   RET Z
   LD A,(BC)
-  RST $18
+  RST $18     ; OUTC
   CP $0D
-  CALL Z,L47D0_1
+  CALL Z,[$47dd]RESTART_0
   INC BC
   JR [$52f0]PRS1_0
 
@@ -14542,11 +15432,11 @@ __QTSTR_0:
 [$5303]TESTR:
   OR A
   LD C,$F1
-  CALL $F1D4
+  CALL [$f18f]ISFLIO_23
   PUSH AF
-  LD HL,($EB50)
+  LD HL,([$eb50]STKTOP)
   EX DE,HL
-  LD HL,($EF79)
+  LD HL,([$ef79]FRETOP)
   CPL
   LD C,A
   LD B,$FF
@@ -14554,7 +15444,7 @@ __QTSTR_0:
   INC HL
   CALL [$4095]CPDEHL
   JR C,[$5303]TESTR_1
-  LD ($EF79),HL
+  LD ([$ef79]FRETOP),HL
   INC HL
   EX DE,HL
 [$5303]TESTR_0:
@@ -14563,18 +15453,18 @@ __QTSTR_0:
 [$5303]TESTR_1:
   POP AF
   LD E,$0E
-  JP Z,[$3bdf]SNERR_0
+  JP Z,[$3bf9]ERROR
   CP A
   PUSH AF
   LD BC,$5305
   PUSH BC
 [$5303]TESTR_2:
-  LD HL,($EF54)
+  LD HL,([$ef54]MEMSIZ)
 [$5303]TESTR_3:
-  LD ($EF79),HL
-  LD HL,L0000
+  LD ([$ef79]FRETOP),HL
+  LD HL,0
   PUSH HL
-  LD HL,($EB50)
+  LD HL,([$eb50]STKTOP)
   PUSH HL
   LD HL,[$ef58]TEMPST
   EX DE,HL
@@ -14673,7 +15563,7 @@ L539A_2:
   RET Z
   LD B,H
   LD C,L
-  LD HL,($EF79)
+  LD HL,([$ef79]FRETOP)
   CALL [$4095]CPDEHL
   LD H,B
   LD L,C
@@ -14713,7 +15603,7 @@ L539A_3:
   DEC HL
   LD B,H
   LD C,L
-  LD HL,($EF79)
+  LD HL,([$ef79]FRETOP)
   CALL L3B8D_0
   POP HL
   LD (HL),C
@@ -14730,7 +15620,7 @@ L539A_3:
   PUSH HL
   LD HL,([$f0a8]DBL_FPREG)
   EX (SP),HL
-  CALL __OPRND
+  CALL [$4bf9]OPRND
   EX (SP),HL
   CALL [$27fa]TSTSTR
   LD A,(HL)
@@ -14739,7 +15629,7 @@ L539A_3:
   PUSH HL
   ADD A,(HL)
   LD E,$0F
-  JP C,[$3bdf]SNERR_0
+  JP C,[$3bf9]ERROR
   CALL [$529b]MKTMST
   POP DE
   CALL [$5460]GSTRDE
@@ -14794,7 +15684,7 @@ L539A_3:
 
 ; Get string pointed by DE
 [$5460]GSTRDE:
-  CALL L5479
+  CALL [$5479]BAKTMP
   EX DE,HL
   RET NZ
   PUSH DE
@@ -14802,20 +15692,20 @@ L539A_3:
   LD E,C
   DEC DE
   LD C,(HL)
-  LD HL,($EF79)
+  LD HL,([$ef79]FRETOP)
   CALL [$4095]CPDEHL
   JR NZ,[$5460]GSTRDE_0
   LD B,A
   ADD HL,BC
-  LD ($EF79),HL
+  LD ([$ef79]FRETOP),HL
 [$5460]GSTRDE_0:
   POP HL
   RET
 
-; Routine at 5479
-L5479:
+; Back to last tmp-str entry
+[$5479]BAKTMP:
   LD HL,([$ef56]TEMPPT)
-  CALL $F1D1
+  CALL [$f18f]ISFLIO_22
   DEC HL
   LD B,(HL)
   DEC HL
@@ -14824,14 +15714,13 @@ L5479:
   CALL [$4095]CPDEHL
   RET NZ
   LD ([$ef56]TEMPPT),HL
-L5479_0:
   RET
 
 ; __LEN BASIC command [$548c]
-__LEN:
+L548C:
   LD BC,[$507c]UNSIGNED_RES_A
   PUSH BC
-__LEN_0:
+L548C_0:
   CALL [$5459]GETSTR
   XOR A
   LD D,A
@@ -14840,11 +15729,11 @@ __LEN_0:
   RET
 
 ; __ASC BASIC command [$5498]
-__ASC:
+L5498:
   LD BC,[$507c]UNSIGNED_RES_A
   PUSH BC
-__ASC_0:
-  CALL __LEN_0
+L5498_0:
+  CALL L548C_0
   JP Z,[$44a5]FCERR
   INC HL
   LD E,(HL)
@@ -14854,7 +15743,7 @@ __ASC_0:
   RET
 
 ; __CHR_S BASIC command [$54a8]
-__CHR_S:
+[$54a8]CHR:
   LD A,$01
   CALL [$529b]MKTMST
   CALL [$56fd]MAKINT
@@ -14867,33 +15756,61 @@ __CHR_S:
   JP [$52c8]TSTOPL
 
 ; Routine at 54B8
-L54B8:
-  RST $10
+[$54B8]FN_STRING$:
+  RST $10     ; CHRGTB
+
+; Routine at 54B9
+L54B9:
   CALL [$409b]SYNCHR
-  JR Z,L5479_0
-  JP M,$D556
+
+; Data block at 54BC
+L54BC:
+  DEFB $28
+
+; Routine at 54BD
+L54BD:
+  CALL [$56fa]GETINT
+  PUSH DE
+
+; Routine at 54C1
+L54C1:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 54C4
+L54C4:
+  DEFB $2C
+
+; Routine at 54C5
+L54C5:
   CALL [$4a8f]EVAL
+
+; Routine at 54C8
+L54C8:
   CALL [$409b]SYNCHR
-  ADD HL,HL
+
+; Data block at 54CB
+L54CB:
+  DEFB $29
+
+; Routine at 54CC
+L54CC:
   EX (SP),HL
   PUSH HL
   CALL [$4dd8]GETYPR
-  JR Z,L54B8_0
+  JR Z,L54CC_0
   CALL [$56fd]MAKINT
-  JR L54B8_1
-L54B8_0:
-  CALL __ASC_0
-L54B8_1:
+  JR L54CC_1
+L54CC_0:
+  CALL L5498_0
+L54CC_1:
   POP DE
-  CALL __SPACE_S_0
+  CALL L54DF_0
 
 ; __SPACE_S BASIC command [$54df]
-__SPACE_S:
+L54DF:
   CALL [$56fd]MAKINT
   LD A,$20
-__SPACE_S_0:
+L54DF_0:
   PUSH AF
   LD A,E
   CALL [$529b]MKTMST
@@ -14903,18 +15820,18 @@ __SPACE_S_0:
   DEC E
   JR Z,[$54b4]TOPOOL
   LD HL,($EF77)
-__SPACE_S_1:
+L54DF_1:
   LD (HL),A
   INC HL
   DEC E
-  JR NZ,__SPACE_S_1
+  JR NZ,L54DF_1
   JR [$54b4]TOPOOL
 
 ; __LEFT_S BASIC command [$54f9]
-__LEFT_S:
+L54F9:
   CALL [$556d]LFRGNM
   XOR A
-__LEFT_S_0:
+L54F9_0:
   EX (SP),HL
   LD C,A
   LD A,$E5
@@ -14946,16 +15863,16 @@ __LEFT_S_0:
   JP [$52c8]TSTOPL
 
 ; __RIGHT_S BASIC command [$5529]
-__RIGHT_S:
+L5529:
   CALL [$556d]LFRGNM
   POP DE
   PUSH DE
   LD A,(DE)
   SUB B
-  JR __LEFT_S_0
+  JR L54F9_0
 
 ; __MID_S BASIC command [$5532]
-__MID_S:
+L5532:
   EX DE,HL
   LD A,(HL)
   CALL [$5572]MIDNUM
@@ -14982,8 +15899,8 @@ __MID_S:
   RET
 
 ; __VAL BASIC command [$5553]
-__VAL:
-  CALL __LEN_0
+L5553:
+  CALL L548C_0
   JP Z,[$507c]UNSIGNED_RES_A
   LD E,A
   INC HL
@@ -15007,8 +15924,14 @@ __VAL:
 ; number in program listing and check for ending ')'
 [$556d]LFRGNM:
   EX DE,HL
+
+; Routine at 556E
+L556E:
   CALL [$409b]SYNCHR
-  ADD HL,HL
+
+; Data block at 5571
+L5571:
+  DEFB $29
 
 ; Get number in program listing
 [$5572]MIDNUM:
@@ -15019,31 +15942,57 @@ __VAL:
   RET
 
 ; INSTR function
-__INSTR:
-  RST $10
+L5577:
+  RST $10     ; CHRGTB
   CALL [$4a8b]OPNPAR
   CALL [$4dd8]GETYPR
   LD A,$01
   PUSH AF
-  JR Z,__INSTR_0
+  JR Z,L5596
   POP AF
   CALL [$56fd]MAKINT
   OR A
   JP Z,[$44a5]FCERR
   PUSH AF
+
+; Routine at 558C
+L558C:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 558F
+L558F:
+  DEFB $2C
+
+; Routine at 5590
+L5590:
   CALL [$4a8f]EVAL
   CALL [$27fa]TSTSTR
-__INSTR_0:
+
+; Routine at 5596
+L5596:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 5599
+L5599:
+  DEFB $2C
+
+; Routine at 559A
+L559A:
   PUSH HL
   LD HL,([$f0a8]DBL_FPREG)
   EX (SP),HL
   CALL [$4a8f]EVAL
+
+; Routine at 55A2
+L55A2:
   CALL [$409b]SYNCHR
-  ADD HL,HL
+
+; Data block at 55A5
+L55A5:
+  DEFB $29
+
+; Routine at 55A6
+L55A6:
   PUSH HL
   CALL [$5459]GETSTR
   EX DE,HL
@@ -15051,7 +16000,7 @@ __INSTR_0:
   POP HL
   POP AF
   PUSH BC
-  LD BC,L256F_0
+  LD BC,L256F_1
   PUSH BC
   LD BC,[$507c]UNSIGNED_RES_A
   PUSH BC
@@ -15089,28 +16038,28 @@ __INSTR_0:
   INC HL
   LD D,(HL)
   POP HL
-__INSTR_1:
+L55A6_0:
   PUSH HL
   PUSH DE
   PUSH BC
-__INSTR_2:
+L55A6_1:
   LD A,(DE)
   CP (HL)
-  JR NZ,__INSTR_5
+  JR NZ,L55A6_4
   INC DE
   DEC C
-  JR Z,__INSTR_4
+  JR Z,L55A6_3
   INC HL
   DEC B
-  JR NZ,__INSTR_2
+  JR NZ,L55A6_1
   POP DE
   POP DE
   POP BC
-__INSTR_3:
+L55A6_2:
   POP DE
   XOR A
   RET
-__INSTR_4:
+L55A6_3:
   POP HL
   POP DE
   POP DE
@@ -15120,19 +16069,19 @@ __INSTR_4:
   ADD A,C
   INC A
   RET
-__INSTR_5:
+L55A6_4:
   POP BC
   POP DE
   POP HL
   INC HL
   DEC B
-  JR Z,__INSTR_3
-  JR __INSTR_1
+  JR Z,L55A6_2
+  JR L55A6_0
 
 ; Routine at 5604
 L5604:
   CP $7E
-  JP NZ,$16BA
+  JP NZ,L1690_4
   INC HL
   LD A,(HL)
   CP $83
@@ -15150,10 +16099,10 @@ L5604:
   LD E,(HL)
   INC HL
   LD D,(HL)
-  LD HL,($EF54)
+  LD HL,([$ef54]MEMSIZ)
   CALL [$4095]CPDEHL
   JR C,L5604_0
-  LD HL,($EB50)
+  LD HL,([$eb50]STKTOP)
   CALL [$4095]CPDEHL
   JR C,L5604_1
 L5604_0:
@@ -15162,12 +16111,21 @@ L5604_0:
   CALL [$5283]SAVSTR_0
   POP HL
   PUSH HL
-  CALL L26D0_0
+  CALL [$26D1]FP2HL
 L5604_1:
   POP HL
   EX (SP),HL
+
+; Routine at 563E
+L563E:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 5641
+L5641:
+  DEFB $2C
+
+; Routine at 5642
+L5642:
   CALL [$56fa]GETINT
   OR A
   JP Z,[$44a5]FCERR
@@ -15175,7 +16133,7 @@ L5604_1:
   LD A,(HL)
   CALL L568F
   PUSH DE
-  CALL __NEXT_4
+  CALL L4A84
   PUSH HL
   CALL [$5459]GETSTR
   EX DE,HL
@@ -15185,7 +16143,7 @@ L5604_1:
   LD B,A
   EX (SP),HL
   PUSH HL
-  LD HL,L256F_0
+  LD HL,L256F_1
   EX (SP),HL
   LD A,C
   OR A
@@ -15195,9 +16153,9 @@ L5604_1:
   JP C,[$44a5]FCERR
   INC A
   CP C
-  JR C,L5604_2
+  JR C,L5642_0
   LD A,C
-L5604_2:
+L5642_0:
   LD C,B
   DEC C
   LD B,$00
@@ -15221,59 +16179,85 @@ L5604_2:
   LD A,C
   OR A
   RET Z
-L5604_3:
+L5642_1:
   LD A,(DE)
   LD (HL),A
   INC DE
   INC HL
   DEC C
   RET Z
-  DJNZ L5604_3
+  DJNZ L5642_1
   RET
 
 ; Routine at 568F
 L568F:
   LD E,$FF
   CP $29
-  JR Z,L568F_0
+  JR Z,L569C
+
+; Routine at 5695
+L5695:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 5698
+L5698:
+  DEFB $2C
+
+; Routine at 5699
+L5699:
   CALL [$56fa]GETINT
-L568F_0:
+
+; Routine at 569C
+L569C:
   CALL [$409b]SYNCHR
-  ADD HL,HL
+
+; Data block at 569F
+L569F:
+  DEFB $29
+
+; Routine at 56A0
+L56A0:
   RET
 
 ; __INP BASIC command [$56a1]
-__INP:
+L56A1:
   CALL [$56fd]MAKINT
   LD ([$ea39]INPORT),A
   CALL $EA38
   JP [$507c]UNSIGNED_RES_A
 
 ; __OUT BASIC command [$56ad]
-__OUT:
+L56AD:
   CALL L56EA
   JP $EA00
 
 ; __WAIT BASIC command [$56b3]
-__WAIT:
+L56B3:
   CALL L56EA
   PUSH AF
   LD E,$00
   DEC HL
-  RST $10
-  JR Z,__WAIT_0
+  RST $10     ; CHRGTB
+  JR Z,L56C1_0
+
+; Routine at 56BD
+L56BD:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 56C0
+L56C0:
+  DEFB $2C
+
+; Routine at 56C1
+L56C1:
   CALL [$56fa]GETINT
-__WAIT_0:
+L56C1_0:
   POP BC
-__WAIT_1:
+L56C1_1:
   CALL $EA38
   XOR E
   AND B
-  JR Z,__WAIT_1
+  JR Z,L56C1_1
   RET
 
 ; Routine at 56CD
@@ -15291,14 +16275,14 @@ L56CD_0:
 
 ; Get subscript
 [$56dd]FPSINT:
-  RST $10
+  RST $10     ; CHRGTB
 [$56dd]FPSINT_0:
   CALL [$4a8f]EVAL
 
 ; Get integer variable to DE, error if negative
 [$56e1]DEPINT:
   PUSH HL
-  CALL __CINT
+  CALL L277F
   EX DE,HL
   POP HL
   LD A,D
@@ -15320,7 +16304,7 @@ L56EF:
 
 ; Load 'A' with the next number in BASIC program
 [$56f9]FNDNUM:
-  RST $10
+  RST $10     ; CHRGTB
 
 ; Get a number to 'A'
 [$56fa]GETINT:
@@ -15331,21 +16315,21 @@ L56EF:
   CALL [$56e1]DEPINT
   JP NZ,[$44a5]FCERR
   DEC HL
-  RST $10
+  RST $10     ; CHRGTB
   LD A,E
   RET
 
 ; __LLIST BASIC command [$5707]
-__LLIST:
+L5707:
   LD A,$01
-  LD ($EB49),A
+  LD ([$eb48]PRTFLG),A
 
 ; __LIST BASIC command [$570c]
-__LIST:
+L570C:
   POP BC
   CALL [$3d9c]LNUM_RANGE
   PUSH BC
-__LIST_0:
+L570C_0:
   LD HL,$FFFF
   LD ([$eb52]CURLIN),HL
   POP HL
@@ -15356,8 +16340,8 @@ __LIST_0:
   INC HL
   LD A,B
   OR C
-  JP Z,L3C4A_2
-  CALL $F210
+  JP Z,[$3C82]READY
+  CALL [$f18f]ISFLIO_39
   CALL L431C
   PUSH BC
   LD C,(HL)
@@ -15379,15 +16363,15 @@ __LIST_0:
   POP HL
   LD A,(HL)
   CP $09
-  JP Z,__LIST_1
+  JP Z,L570C_1
   LD A,$20
-  RST $18
-__LIST_1:
+  RST $18     ; OUTC
+L570C_1:
   CALL L5762
   LD HL,$EC96
   CALL L5759
-  CALL L47D0_0
-  JR __LIST_0
+  CALL [$47dd]RESTART
+  JR L570C_0
 
 ; Routine at 5759
 L5759:
@@ -15403,7 +16387,7 @@ L5762:
   LD BC,$EC96
   LD D,$FF
   XOR A
-  LD ($EF46),A
+  LD ([$EF46]DONUM),A
   JP L576E_0
 
 ; Routine at 576E
@@ -15423,25 +16407,25 @@ L576E_0:
   JP C,L584C
   CP $22
   JP NZ,L576E_1
-  LD A,($EF46)
+  LD A,([$EF46]DONUM)
   XOR $01
-  LD ($EF46),A
+  LD ([$EF46]DONUM),A
   LD A,$22
 L576E_1:
   CP $3A
   JP NZ,L576E_3
-  LD A,($EF46)
+  LD A,([$EF46]DONUM)
   RRA
   JP C,L576E_2
   RLA
   AND $FD
-  LD ($EF46),A
+  LD ([$EF46]DONUM),A
 L576E_2:
   LD A,$3A
 L576E_3:
   OR A
   JP P,L576E
-  LD A,($EF46)
+  LD A,([$EF46]DONUM)
   RRA
   JP C,L576E
   RRA
@@ -15488,16 +16472,16 @@ L57DB:
 
 ; Routine at 57E1
 L57E1:
-  LD A,($EF46)
+  LD A,([$EF46]DONUM)
   OR $02
 L57E1_0:
-  LD ($EF46),A
+  LD ([$EF46]DONUM),A
   XOR A
   RET
 
 ; Routine at 57EB
 L57EB:
-  LD A,($EF46)
+  LD A,([$EF46]DONUM)
   OR $04
   JP L57E1_0
 
@@ -15526,7 +16510,7 @@ L57F3_1:
   PUSH BC
   PUSH DE
   LD HL,WORDS
-  CALL $F1CE
+  CALL [$f18f]ISFLIO_21
   LD B,A
   LD C,$40
 L57F3_2:
@@ -15568,7 +16552,7 @@ L57F3_6:
 ; Routine at 584C
 L584C:
   DEC HL
-  RST $10
+  RST $10     ; CHRGTB
   PUSH DE
   PUSH BC
   PUSH AF
@@ -15587,7 +16571,7 @@ L584C:
 L5869:
   POP BC
   POP DE
-  LD A,($EF4A)
+  LD A,([$ef4a]CONSAV)
   LD E,$4F
   CP $0B
   JP Z,L5869_0
@@ -15652,11 +16636,11 @@ L5869_6:
   DEC D
   RET Z
 L5869_7:
-  LD HL,($EF48)
+  LD HL,([$ef48]CONTXT)
   JP L576E_0
 
 ; __DELETE BASIC command [$58d9]
-__DELETE:
+L58D9:
   CALL [$3d9c]LNUM_RANGE
   PUSH BC
   CALL L5C24
@@ -15664,49 +16648,58 @@ __DELETE:
   POP DE
   PUSH BC
   PUSH BC
-  CALL [$3d9c]LNUM_RANGE_3
-  JR NC,__DELETE_0
+  CALL [$3DC1]FIRST_LNUM
+  JR NC,L58D9_0
   LD D,H
   LD E,L
   EX (SP),HL
   PUSH HL
   CALL [$4095]CPDEHL
-__DELETE_0:
+L58D9_0:
   JP NC,[$44a5]FCERR
   LD HL,L3B60
   CALL [$52ed]PRS
   POP BC
   LD HL,L3CEC_3
   EX (SP),HL
-__DELETE_1:
+L58D9_1:
   EX DE,HL
   LD HL,([$efa0]PROGND)
-__DELETE_2:
+L58D9_2:
   LD A,(DE)
   LD (BC),A
   INC BC
   INC DE
   CALL [$4095]CPDEHL
-  JR NZ,__DELETE_2
+  JR NZ,L58D9_2
   LD H,B
   LD L,C
   LD ([$efa0]PROGND),HL
   RET
 
 ; __PEEK BASIC command [$5911]
-__PEEK:
+L5911:
   CALL L592A
   LD A,(HL)
   JP [$507c]UNSIGNED_RES_A
 
 ; __POKE BASIC command [$5918]
-__POKE:
+L5918:
   CALL [$4a8f]EVAL
   PUSH HL
   CALL L592A
   EX (SP),HL
+
+; Routine at 5920
+L5920:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 5923
+L5923:
+  DEFB $2C
+
+; Routine at 5924
+L5924:
   CALL [$56fa]GETINT
   POP DE
   LD (DE),A
@@ -15714,33 +16707,42 @@ __POKE:
 
 ; Routine at 592A
 L592A:
-  LD BC,__CINT
+  LD BC,L277F
   PUSH BC
   CALL [$4dd8]GETYPR
   RET M
   LD A,([$f0ab]FPEXP)
   CP $90
   RET NZ
-  LD A,($F0AA)
+  LD A,([$f0AA]FACCU)
   OR A
   RET M
   LD BC,$9180
-  LD DE,L0000
+  LD DE,0
   JP [$2412]FPADD
 
 ; PRINT USING
-__USING:
+L5946:
   CALL [$4a90]EVAL
   CALL [$27fa]TSTSTR
+
+; Routine at 594C
+L594C:
   CALL [$409b]SYNCHR
-  DEC SP
+
+; Data block at 594F
+L594F:
+  DEFB $3B
+
+; Routine at 5950
+L5950:
   EX DE,HL
   LD HL,([$f0a8]DBL_FPREG)
   JR L5956_0
 
 ; Routine at 5956
 L5956:
-  LD A,($EF84)
+  LD A,([$ef84]FLGINP)
   OR A
   JR Z,L5956_1
   POP DE
@@ -15748,7 +16750,7 @@ L5956:
 L5956_0:
   PUSH HL
   XOR A
-  LD ($EF84),A
+  LD ([$ef84]FLGINP),A
   CP D
   PUSH AF
   PUSH DE
@@ -15783,7 +16785,7 @@ L5972_1:
   LD A,$26
 L5972_2:
   CALL L5ACE
-  RST $18
+  RST $18     ; OUTC
 L5972_3:
   XOR A
   LD E,A
@@ -15935,16 +16937,16 @@ L5972_13:
 L5972_14:
   POP HL
   DEC HL
-  RST $10
+  RST $10     ; CHRGTB
   SCF
   JR Z,L5972_16
-  LD ($EF84),A
+  LD ([$ef84]FLGINP),A
   CP $3B
   JR Z,L5972_15
   CP $2C
   JP NZ,[$3bdf]SNERR
 L5972_15:
-  RST $10
+  RST $10     ; CHRGTB
 L5972_16:
   POP BC
   EX DE,HL
@@ -15968,13 +16970,13 @@ L5972_16:
   JR L5972_18
 L5972_17:
   CALL L5ACE
-  RST $18
+  RST $18     ; OUTC
 L5972_18:
   POP HL
   POP AF
   JP NZ,L5956
 L5972_19:
-  CALL C,L47D0_0
+  CALL C,[$47dd]RESTART
   EX (SP),HL
   CALL [$545f]GSTRHL
   POP HL
@@ -16008,7 +17010,7 @@ L5972_20:
 L5972_21:
   DEC B
   JP Z,L5972_14
-  RST $18
+  RST $18     ; OUTC
   JR L5972_21
 
 ; Routine at 5ACE
@@ -16032,7 +17034,7 @@ L5AD8:
 
 ; Routine at 5AE2
 L5AE2:
-  RST $18
+  RST $18     ; OUTC
   CP $0A
   RET NZ
   LD A,$0D
@@ -16044,14 +17046,14 @@ L5AEB:
   RET
 
 ; __RENUM BASIC command [$5aed]
-__RENUM:
+L5AED:
   LD BC,$000A
   PUSH BC
   LD D,B
   LD E,B
-  JP Z,L5B01_1
+  JP Z,L5B14_0
   CP $2C
-  JP Z,L5B01_0
+  JP Z,L5B05
   PUSH DE
   CALL [$44aa]LNUM_PARM
   LD B,D
@@ -16060,15 +17062,32 @@ __RENUM:
 ; Routine at 5B01
 L5B01:
   POP DE
-  JP Z,L5B01_1
-L5B01_0:
+  JP Z,L5B14_0
+
+; Routine at 5B05
+L5B05:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 5B08
+L5B08:
+  DEFB $2C
+
+; Routine at 5B09
+L5B09:
   CALL [$44aa]LNUM_PARM
-  JP Z,L5B01_1
+  JP Z,L5B14_0
   POP AF
+
+; Routine at 5B10
+L5B10:
   CALL [$409b]SYNCHR
-  INC L
+
+; Data block at 5B13
+L5B13:
+  DEFB $2C
+
+; Routine at 5B14
+L5B14:
   PUSH DE
   CALL [$44aa]LNUM_PARM_0
   JP NZ,[$3bdf]SNERR
@@ -16078,13 +17097,13 @@ L5B01_0:
   EX DE,HL
   EX (SP),HL
   EX DE,HL
-L5B01_1:
+L5B14_0:
   PUSH BC
-  CALL [$3d9c]LNUM_RANGE_3
+  CALL [$3DC1]FIRST_LNUM
   POP DE
   PUSH DE
   PUSH BC
-  CALL [$3d9c]LNUM_RANGE_3
+  CALL [$3DC1]FIRST_LNUM
   LD H,B
   LD L,C
   POP DE
@@ -16156,7 +17175,7 @@ L5B3F_3:
   CP $F6
 L5B3F_4:
   XOR A
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
   LD HL,([$eb54]BASTXT)
   DEC HL
 L5B3F_5:
@@ -16170,21 +17189,21 @@ L5B3F_5:
   INC HL
   LD D,(HL)
 L5B3F_6:
-  RST $10
+  RST $10     ; CHRGTB
 L5B3F_7:
   OR A
   JP Z,L5B3F_5
   LD C,A
-  LD A,($EF87)
+  LD A,([$ef87]PTRFLG)
   OR A
   LD A,C
   JP Z,L5C00
   CP $A6
   JP NZ,L5B3F_8
-  RST $10
+  RST $10     ; CHRGTB
   CP $89
   JP NZ,L5B3F_7
-  RST $10
+  RST $10     ; CHRGTB
   CP $0E
   JP NZ,L5B3F_7
   PUSH DE
@@ -16200,11 +17219,11 @@ L5B3F_8:
   CALL [$44aa]LNUM_PARM_2
 L5B3F_9:
   PUSH HL
-  CALL [$3d9c]LNUM_RANGE_3
+  CALL [$3DC1]FIRST_LNUM
   DEC BC
   LD A,$0D
   JP C,L5C00_0
-  CALL L47C9
+  CALL [$3c9f]CONSOLE_CRLF
   LD HL,L5BF0
   PUSH DE
   CALL [$52ed]PRS
@@ -16248,7 +17267,7 @@ L5C00:
 L5C00_0:
   LD HL,$5BEA
   PUSH HL
-  LD HL,($EF48)
+  LD HL,([$ef48]CONTXT)
 L5C00_1:
   PUSH HL
   DEC HL
@@ -16262,7 +17281,7 @@ L5C00_1:
 
 ; Routine at 5C24
 L5C24:
-  LD A,($EF87)
+  LD A,([$ef87]PTRFLG)
   OR A
   RET Z
   JP L5B3F_4
@@ -16405,7 +17424,7 @@ L5CE2_6:
 L5D16:
   LD A,$FF
   LD ($FF38),A
-  LD HL,L0000
+  LD HL,0
   LD D,H
   LD E,H
   CALL L5DE6_3
@@ -16452,13 +17471,13 @@ L5D26_4:
 
 ; Routine at 5D68
 L5D68:
-  LD HL,L0000
+  LD HL,0
   CALL L5DE6_3
   RET NZ
   CALL L5FCA
   POP BC
   JP (HL)
-  LD HL,L0000
+  LD HL,0
   LD D,H
   LD E,H
   CALL L5DE6_3
@@ -16545,7 +17564,7 @@ L5DE6_1:
   CP H
   JR C,L5DE6_0
   JR Z,L5DE6_0
-  JP L0000
+  JP 0
 L5DE6_2:
   LD ($FF3C),A
   LD A,C
@@ -16956,7 +17975,7 @@ L6006_0:
   LDIR
   CALL $E66C
   LD A,$48
-  LD ($F1CE),A
+  LD ([$f18f]ISFLIO_21),A
   XOR A
   LD ($F1CF),A
   LD ($F1F4),A
@@ -16985,18 +18004,18 @@ L6006_1:
   PUSH IX
   PUSH IY
   LD A,I
-  LD ($F201),A
+  LD ([$f18f]ISFLIO_34),A
   LD SP,($F1F7)
   LD A,($F1CF)
   RRCA
   JR NC,L6006_2
-  LD HL,($F1D1)
+  LD HL,([$f18f]ISFLIO_22)
   LD A,($F1D0)
   LD (HL),A
   LD A,($F1CF)
   AND $02
   JR Z,L6006_2
-  LD HL,($F1D4)
+  LD HL,([$f18f]ISFLIO_23)
   LD A,($F1D3)
   LD (HL),A
 L6006_2:
@@ -17007,7 +18026,7 @@ L6006_4:
   LD SP,($F1F7)
   LD HL,L6006_6
   PUSH HL
-  LD A,($F1CE)
+  LD A,([$f18f]ISFLIO_21)
   ADD A,$20
   CALL L7126_0
   LD A,($F1F4)
@@ -17145,9 +18164,9 @@ L6135_7:
   CP $0D
   JP Z,L6006_3
   INC HL
-  LD A,($EF87)
+  LD A,([$ef87]PTRFLG)
   LD B,A
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   SUB B
   CP $07
   JR NC,L6135_4
@@ -17198,19 +18217,19 @@ L61A9_3:
 ; Routine at 61E2
 L61E2:
   PUSH HL
-  LD HL,L0000
-  LD ($F1F2),HL
+  LD HL,0
+  LD ([$f18f]ISFLIO_29),HL
   POP HL
 L61E2_0:
   LD BC,L081F
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   CP $29
   JR C,L61E2_1
   LD BC,$103C
 L61E2_1:
   EX DE,HL
   PUSH HL
-  LD HL,($F1F2)
+  LD HL,([$f18f]ISFLIO_29)
   ADD HL,DE
   CALL L6F9A
   POP HL
@@ -17219,13 +18238,13 @@ L61E2_2:
   CALL L7044
   CALL L7E94
   CALL L6F80
-  LD A,($F1CE)
+  LD A,([$f18f]ISFLIO_21)
   CP $48
   JR NZ,L61E2_3
-  LD A,($EF87)
+  LD A,([$ef87]PTRFLG)
   PUSH AF
   LD A,C
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
   PUSH HL
   CALL L7E94
   PUSH AF
@@ -17234,7 +18253,7 @@ L61E2_2:
   LD (HL),A
   POP HL
   POP AF
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
   INC C
 L61E2_3:
   INC HL
@@ -17355,9 +18374,9 @@ L6254_9:
   POP AF
   JP M,L6006_3
   CALL L7044
-  LD A,($EF87)
+  LD A,([$ef87]PTRFLG)
   LD H,A
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   SUB H
   CP $0A
   PUSH AF
@@ -17568,7 +18587,7 @@ L6406_0:
   LD A,(HL)
   LD ($F1D3),A
   LD (HL),$FF
-  LD ($F1D4),HL
+  LD ([$f18f]ISFLIO_23),HL
   EX DE,HL
 L6406_1:
   LD A,($F1CF)
@@ -17577,10 +18596,10 @@ L6406_1:
   LD A,(HL)
   LD ($F1D0),A
   LD (HL),$FF
-  LD ($F1D1),HL
+  LD ([$f18f]ISFLIO_22),HL
 L6406_2:
   DI
-  LD A,($F201)
+  LD A,([$f18f]ISFLIO_34)
   LD I,A
   LD SP,$F203
   POP IY
@@ -17689,7 +18708,7 @@ L64D8_0:
   LD A,L
   AND $F0
   LD L,A
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   LD DE,$FF80
   CP $29
   JR C,L64D8_1
@@ -17774,7 +18793,7 @@ L6572:
   JR Z,L6572_2
 L6572_0:
   PUSH AF
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   CP $29
   JR NC,L6572_1
   DEC HL
@@ -17793,12 +18812,12 @@ L6572_2:
   POP HL
   LD A,C
   CALL L7E9D
-  LD A,($F1CE)
+  LD A,([$f18f]ISFLIO_21)
   CP $48
   JR NZ,L65B5_0
-  LD A,($EF87)
+  LD A,([$ef87]PTRFLG)
   PUSH AF
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   CP $29
   LD A,L
   JR C,L6572_3
@@ -17809,7 +18828,7 @@ L6572_3:
   AND $07
   ADD A,$1F
 L6572_4:
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
   PUSH HL
   CALL L716E
   LD (HL),C
@@ -17818,7 +18837,7 @@ L6572_4:
 L65B5:
   POP HL
   POP AF
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
 L65B5_0:
   JP L661B
 
@@ -17842,11 +18861,11 @@ L65C4:
 L65CB:
   PUSH HL
   PUSH BC
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   CP $29
   LD BC,L0008
   JR C,L65CB_0
-  LD BC,L000E_0
+  LD BC,[$0010]CHRGTB
 L65CB_0:
   AND A
   SBC HL,BC
@@ -17866,13 +18885,13 @@ L65EC:
   PUSH BC
   PUSH DE
   PUSH HL
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   CP $29
   LD HL,$007F
   LD BC,L0008
   JR C,L65EC_0
   LD HL,L00FF
-  LD BC,L000E_0
+  LD BC,[$0010]CHRGTB
 L65EC_0:
   ADD HL,DE
   EX DE,HL
@@ -17897,7 +18916,7 @@ L65EC_1:
 
 ; Routine at 661B
 L661B:
-  LD A,($F1CE)
+  LD A,([$f18f]ISFLIO_21)
   CP $48
   LD C,$01
   JR Z,L661B_0
@@ -17923,7 +18942,7 @@ L662F_1:
   CALL L65C4
   RET C
   CALL L661B
-  LD A,($F1CE)
+  LD A,([$f18f]ISFLIO_21)
   CP $48
   RET Z
   JP L661B
@@ -17932,7 +18951,7 @@ L662F_1:
 L6649:
   PUSH DE
   PUSH HL
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   CP $29
   LD HL,$0087
   JR C,L6649_0
@@ -17955,13 +18974,13 @@ L6649_0:
   PUSH HL
   LD HL,$0110
   LD ($EF86),HL
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   CP $29
   LD HL,$0080
   LD BC,L0008
   JR C,L6649_1
   LD HL,$0100
-  LD BC,L000E_0
+  LD BC,[$0010]CHRGTB
 L6649_1:
   PUSH BC
   ADD HL,DE
@@ -17983,7 +19002,7 @@ L6649_1:
 L669C:
   PUSH DE
   PUSH HL
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   CP $29
   LD HL,$FFF8
   JR C,L669C_0
@@ -18006,13 +19025,13 @@ L669C_0:
   PUSH HL
   LD A,$0B
   CALL L7126_0
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   CP $29
   LD HL,$FFF8
   LD BC,L0008
   JR C,L669C_1
   LD HL,$FFF0
-  LD BC,L000E_0
+  LD BC,[$0010]CHRGTB
 L669C_1:
   PUSH HL
   ADD HL,DE
@@ -18043,7 +19062,7 @@ L66F6:
   AND A
   SBC HL,DE
   JR C,L66F6_4
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   CP $29
   LD BC,$0307
   JR C,L66F6_0
@@ -18064,7 +19083,7 @@ L66F6_1:
   LD A,L
   AND C
   LD C,A
-  LD A,($F1CE)
+  LD A,([$f18f]ISFLIO_21)
   CP $48
   JR NZ,L66F6_2
   LD A,C
@@ -18079,7 +19098,7 @@ L66F6_2:
   ADD A,$07
 L66F6_3:
   INC A
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
   AND A
 L66F6_4:
   POP HL
@@ -18093,7 +19112,7 @@ L673D:
   PUSH BC
   PUSH DE
   PUSH HL
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   CP $29
   LD DE,$0080
   JR C,L673D_0
@@ -18368,7 +19387,7 @@ L68F2_0:
   LD B,$06
   LD A,$FB
   LD ($F009),A
-  LD DE,L0000
+  LD DE,0
   CALL L6FDD
   LD E,A
   CP $31
@@ -18382,7 +19401,7 @@ L68F2_0:
   LD A,E
   ADD A,$CA
   LD ($F009),A
-  LD DE,L0000
+  LD DE,0
 L68F2_1:
   LD A,E
   LD E,$00
@@ -18441,7 +19460,7 @@ L695E_0:
   CP $0D
   RET NZ
   LD A,C
-  LD ($F1CE),A
+  LD ([$f18f]ISFLIO_21),A
   JP L6006_3
 
 ; Routine at 6976
@@ -18457,7 +19476,7 @@ L697C:
 L697C_0:
   CALL NC,$6EEE
   JR NC,L697C_1
-  LD HL,($F1DA)
+  LD HL,([$f18f]ISFLIO_25)
 L697C_1:
   EX DE,HL
   LD HL,$000F
@@ -18486,7 +19505,7 @@ L697C_3:
   POP HL
   LD B,$00
   ADD HL,BC
-  LD ($F1DA),HL
+  LD ([$f18f]ISFLIO_25),HL
   EX DE,HL
   POP HL
   JP C,L6006_3
@@ -18512,13 +19531,13 @@ L69DC:
   CALL L6F9A
   EX DE,HL
   LD A,$08
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
   EX DE,HL
   CALL L7E94
   EX DE,HL
   CALL L6F80
   LD A,$14
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
   LD HL,$6B05
 L69DC_0:
   LD A,(HL)
@@ -18646,11 +19665,11 @@ L6A1B_7:
   DEC DE
   CALL L6F9A
 L6A1B_8:
-  LD A,($F1CE)
+  LD A,([$f18f]ISFLIO_21)
   SUB $51
   SBC A,A
   ADD A,$0C
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
   EX DE,HL
   CALL L7E94
   EX DE,HL
@@ -18666,11 +19685,11 @@ L6A1B_9:
   LD D,A
   EX DE,HL
   CALL L6F9A
-  LD A,($F1CE)
+  LD A,([$f18f]ISFLIO_21)
   SUB $51
   SBC A,A
   ADD A,$0C
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
   JP L6F9A
 
 ; Routine at 6ACB
@@ -18709,7 +19728,7 @@ L6AE7:
   JP NZ,$C8C4
   LD D,B
   LD D,E
-  RST $10
+  RST $10     ; CHRGTB
   NOP
   OR B
   OR C
@@ -18735,7 +19754,7 @@ L6B0D:
 L6B0E:
   LD D,D
   LD D,D
-  JP L1757_6
+  JP [$178C]SETJP_5
 
 ; Unused
 L6B13:
@@ -18818,7 +19837,7 @@ L6B65:
 
 ; Routine at 6B68
 L6B68:
-  JP __PORT_0
+  JP L20F9_0
 
 ; Data block at 6B6B
 L6B6B:
@@ -19274,7 +20293,7 @@ L6D02_1:
   LD HL,($F1DC)
   CALL L6F9A
   LD A,$14
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
   PUSH HL
   CALL L71C3
   JP C,L6006_3
@@ -19298,7 +20317,7 @@ L6D02_2:
   LD A,C
   CALL L7E9D
   LD A,$08
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
   LD A,C
   CALL L6F80
   CALL L7044
@@ -19515,7 +20534,7 @@ L6E5F:
   LDIR
   DI
   LD SP,($F1F7)
-  LD HL,($F1F5)
+  LD HL,([$f18f]ISFLIO_30)
   LD A,($F1F9)
   OUT ($70),A
   JP L7E8B
@@ -19542,12 +20561,12 @@ L6E8A:
   PUSH BC
   PUSH DE
   PUSH HL
-  LD A,($EF87)
+  LD A,([$ef87]PTRFLG)
   PUSH AF
   LD A,$01
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
   CALL L716E
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   CP $29
   LD B,$28
   LD DE,$0002
@@ -19568,7 +20587,7 @@ L6E8A_1:
   LD A,$0A
   CALL L6ED4
   POP AF
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
   POP HL
   POP DE
   POP BC
@@ -19595,7 +20614,7 @@ L6ED9_0:
 ; Routine at 6EE8
 L6EE8:
   OR $AF
-  LD ($F1E0),A
+  LD ([$f18f]ISFLIO_27),A
   OR $AF
   LD ($F1F1),A
   CALL $E681
@@ -19630,7 +20649,7 @@ L6EE8_2:
 ; Routine at 6F1E
 L6F1E:
   PUSH BC
-  LD HL,L0000
+  LD HL,0
   LD B,H
   SCF
 L6F1E_0:
@@ -19641,13 +20660,13 @@ L6F1E_0:
   CALL L6FDD
   JR L6F1E_2
 L6F1E_1:
-  LD A,($F1E0)
+  LD A,([$f18f]ISFLIO_27)
   AND A
   LD A,(DE)
   INC DE
   JR Z,L6F1E_2
   DEC DE
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   CP $29
   LD A,(DE)
   INC DE
@@ -19663,7 +20682,7 @@ L6F48:
   DJNZ L6F5D_0
   ADD HL,HL
   ADD HL,HL
-  LD A,($F1CE)
+  LD A,([$f18f]ISFLIO_21)
   CP $48
   JR NZ,L6F48_0
   ADD HL,HL
@@ -19681,7 +20700,7 @@ L6F48_1:
 ; Routine at 6F5D
 L6F5D:
   PUSH AF
-  LD A,($F1CE)
+  LD A,([$f18f]ISFLIO_21)
   CP $48
   JR Z,$6F6B
   POP AF
@@ -19715,7 +20734,7 @@ L6F80:
   CALL L6FA7
   INC HL
   INC HL
-  LD A,($F1CE)
+  LD A,([$f18f]ISFLIO_21)
   CP $48
   JR Z,L6F80_0
   INC HL
@@ -19741,7 +20760,7 @@ L6F9A:
 ; Routine at 6FA7
 L6FA7:
   EX DE,HL
-  LD A,($F1CE)
+  LD A,([$f18f]ISFLIO_21)
   CP $48
   LD HL,$F21B
   LD BC,$040F
@@ -19887,11 +20906,11 @@ L7126_0:
   LD A,$C9
 L7126_1:
   LD A,$01
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
   LD A,$0D
   RET
 L7126_2:
-  LD A,($EF87)
+  LD A,([$ef87]PTRFLG)
   DEC A
   AND $07
   PUSH BC
@@ -20056,9 +21075,9 @@ L71F4:
   EX DE,HL
   POP DE
   EX (SP),HL
-  CALL $F175
-  CALL L0000
-  CALL __FPOS_1
+  CALL LF168_4
+  CALL 0
+  CALL LF168_1
   RET
 
 ; Routine at 720B
@@ -20099,9 +21118,9 @@ L7229:
   RRCA
   JR C,L7229_0
   POP AF
-  CALL $F175
+  CALL LF168_4
   LD A,(HL)
-  JP __FPOS_1
+  JP LF168_1
 L7229_0:
   RRCA
   JR C,L7229_1
@@ -20111,7 +21130,7 @@ L7229_0:
 L7229_1:
   POP AF
   PUSH BC
-  CALL $F175
+  CALL LF168_4
   DI
   IN A,($71)
   PUSH AF
@@ -20122,27 +21141,27 @@ L7229_1:
   OUT ($71),A
   LD A,B
   POP BC
-  JP __FPOS_1
+  JP LF168_1
 
 ; Routine at 7254
 L7254:
-  CALL $F175
+  CALL LF168_4
   LD (HL),A
-  JP __FPOS_1
+  JP LF168_1
 
 ; Routine at 725B
 L725B:
-  CALL __FPOS_1
+  CALL LF168_1
   JP L6006_6
 
 ; Routine at 7261
 L7261:
-  CALL $F175
-  JP L0000
+  CALL LF168_4
+  JP 0
 
 ; Routine at 7267
 L7267:
-  CALL __FPOS_1
+  CALL LF168_1
   JP L6006_1
 
 ; Routine at 726D
@@ -20217,7 +21236,7 @@ L72A0_2:
   INC HL
   INC B
   JP P,L72A0_3
-  LD DE,L0026_0
+  LD DE,$28
   ADD HL,DE
   LD B,D
 L72A0_3:
@@ -20345,7 +21364,7 @@ L72A0_16:
   HALT
   LD A,$02
   OUT ($31),A
-  LD HL,L0000
+  LD HL,0
   LD B,H
 L72A0_17:
   LD (HL),B
@@ -20433,11 +21452,11 @@ L7484:
 L7484_0:
   CALL L7037
   CALL L704C
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   CP $29
   JR C,L7484_1
   LD A,$1F
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
   CALL L704C
   JR L746F_0
 L7484_1:
@@ -20448,7 +21467,7 @@ L7484_1:
   JR L746F_0
 L7484_2:
   CALL $E67E
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   CP $29
   RET NC
   JP L704C
@@ -20550,7 +21569,7 @@ L77E7_0:
   CALL L7037
   CALL L704C
   LD A,$0E
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
   CALL L704C
   JR L77E7_0
 L77E7_1:
@@ -20634,7 +21653,7 @@ L7972_1:
   LD HL,L7993
   CALL $E67E
   CALL L704C
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   CP $29
   CALL C,L7037
   CALL L704C
@@ -20685,7 +21704,7 @@ L7A2C:
 
 ; Routine at 7A31
 L7A31:
-  LD ($F1F5),HL
+  LD ([$f18f]ISFLIO_30),HL
   EXX
   POP HL
   PUSH HL
@@ -20805,7 +21824,7 @@ L7AC1_0:
 ; Routine at 7ADC
 L7ADC:
   CALL L7AA0
-  JP L3C4A_2
+  JP [$3C82]READY
 
 ; Routine at 7AE2
 L7AE2:
@@ -20819,7 +21838,7 @@ L7AE2:
 L7AF0:
   XOR A
   OUT ($31),A
-  JP L0000
+  JP 0
 
 ; Unused
 L7AF6:
@@ -20832,7 +21851,7 @@ L7B00:
   LD A,$C3
   LD ($E66F),A
   CALL L7EDF
-  LD DE,__MOUNT_0
+  LD DE,LF153_0
   RET C
   POP HL
   LD A,($EC7D)
@@ -20936,11 +21955,11 @@ L7BB8_0:
   PUSH DE
   LD HL,($EC83)
   EX DE,HL
-  LD HL,L0000
+  LD HL,0
   AND A
   SBC HL,DE
   POP DE
-  LD ($F1F2),HL
+  LD ([$f18f]ISFLIO_29),HL
   PUSH DE
   LD HL,($EC83)
   LD DE,$0100
@@ -21220,11 +22239,11 @@ L7D5D:
 L7D5D_0:
   CALL L7037
   CALL L7DE6
-  LD A,($EF89)
+  LD A,([$EF89]AUTLIN)
   CP $29
   JR C,L7D5D_1
   LD A,$1F
-  LD ($EF87),A
+  LD ([$ef87]PTRFLG),A
   CALL L7DE6
   JR L7D42_0
 L7D5D_1:
@@ -21298,7 +22317,7 @@ L7DBD:
   RET
 L7DBD_0:
   LD E,$46
-  JP __NOT
+  JP L4DC3
 
 ; Routine at 7DE6
 L7DE6:
@@ -21334,7 +22353,7 @@ L7DFE:
   POP DE
   EX (SP),HL
   CALL $8420
-  CALL L0000
+  CALL 0
   CALL $8417
   RET
 
@@ -21415,7 +22434,7 @@ L7E67:
 ; Routine at 7E6D
 L7E6D:
   CALL $8420
-  JP L0000
+  JP 0
 
 ; Routine at 7E73
 L7E73:
@@ -21425,49 +22444,49 @@ L7E73:
 ; Routine at 7E79
 L7E79:
   CALL L7EDF
-  JP C,__MOUNT_0
+  JP C,LF153_0
   JP $8400
 
 ; Routine at 7E82
 L7E82:
   CALL L7EDF
-  JP C,__FPOS_1
+  JP C,LF168_1
   JP $8417
 
 ; Routine at 7E8B
 L7E8B:
   CALL L7EDF
-  JP C,$F175
+  JP C,LF168_4
   JP $8420
 
 ; Routine at 7E94
 L7E94:
   CALL L7EDF
-  JP C,$F18A
+  JP C,[$f17d]CLSALL_4
   JP $8435
 
 ; Routine at 7E9D
 L7E9D:
   CALL L7EDF
-  JP C,$F1B5
+  JP C,[$f18f]ISFLIO_12
   JP $8460
 
 ; Routine at 7EA6
 L7EA6:
   CALL L7EDF
-  JP C,$F1BC
+  JP C,[$f18f]ISFLIO_15
   JP $8467
 
 ; Routine at 7EAF
 L7EAF:
   CALL L7EDF
-  JP C,$F1C2
+  JP C,[$f18f]ISFLIO_17
   JP $846D
 
 ; Routine at 7EB8
 L7EB8:
   CALL L7EDF
-  LD HL,$F1C8
+  LD HL,[$f18f]ISFLIO_19
   RET C
   LD HL,$8473
   RET
@@ -21667,9 +22686,15 @@ L7FF6:
 [$ea36]LSTRND2:
   DEFS $03
 [$ea39]INPORT:
-  DEFS $010F
+  DEFS $010D
+[$EB46]ERRFLG:
+  DEFS $02
 [$eb48]LPTPOS:
-  DEFS $0A
+  DEFS $01
+[$eb48]PRTFLG:
+  DEFS $07
+[$eb50]STKTOP:
+  DEFS $02
 [$eb52]CURLIN:
   DEFS $02
 [$eb54]BASTXT:
@@ -21679,19 +22704,53 @@ L7FF6:
 [$ed99]CURPOS:
   DEFS $01AB
 [$ef44]DIMFLG:
-  DEFS $12
+  DEFS $02
+[$EF46]DONUM:
+  DEFS $01
+[$EF47]DONUM:
+  DEFS $01
+[$ef48]CONTXT:
+  DEFS $02
+[$ef4a]CONSAV:
+  DEFS $0A
+[$ef54]MEMSIZ:
+  DEFS $02
 [$ef56]TEMPPT:
   DEFS $02
 [$ef58]TEMPST:
   DEFS $1E
 [$ef76]TMPSTR:
-  DEFS $0D
+  DEFS $03
+[$ef79]FRETOP:
+  DEFS $06
+[$ef7f]CURLIN:
+  DEFS $04
 [$ef83]SUBFLG:
-  DEFS $02
+  DEFS $01
+[$ef84]FLGINP:
+  DEFS $01
 [$ef85]TEMP:
-  DEFS $08
+  DEFS $02
+[$ef87]PTRFLG:
+  DEFS $01
+[$ef88]AUTFLG:
+  DEFS $01
+[$EF89]AUTLIN:
+  DEFS $02
+[$EF8B]AUTINC:
+  DEFS $02
 [$ef8d]SAVTXT:
-  DEFS $0D
+  DEFS $02
+[$ef8f]SAVSTK:
+  DEFS $02
+[$EF91]ERRLIN:
+  DEFS $04
+[$EF95]ERRTXT:
+  DEFS $02
+[$ef97]ONELIN:
+  DEFS $02
+[$ef99]ONEFLG:
+  DEFS $01
 [$ef9a]NXTOPR:
   DEFS $02
 [$ef9c]OLDLIN:
@@ -21707,138 +22766,149 @@ L7FF6:
 [$efc2]PRMSTK:
   DEFS $02
 [$efc4]PRMLEN:
-  DEFS $68
+  DEFS $3C
+
+LF000:
+  
 [$f02c]PRMLN2:
-  DEFS $69
+  
 [$f095]NOFUNS:
-  DEFS $03
+  
 [$f098]FUNACT:
-  DEFS $10
+  
+[$f09A]SWPTMP:
+  
+[$f0a2]TRCFLG:
+  
 [$f0a8]DBL_FPREG:
-  DEFS $03
+  
+[$f0AA]FACCU:
+  
 [$f0ab]FPEXP:
-  DEFS $01
+  
 [$f0ac]SGNRES:
-  DEFS $08
+  
 [$f0b4]DBL_LAST_FPREG:
-  DEFS $2D
+  
+[$f0b5]ARG:
+  
 
 ; __CVI BASIC command [$f0e1]
-__CVI:
+LF0E1:
   NOP
   NOP
   NOP
 
 ; __CVS BASIC command [$f0e4]
-__CVS:
+LF0E4:
   NOP
   NOP
   NOP
 
 ; __CVD BASIC command [$f0e7]
-__CVD:
+LF0E7:
   NOP
   NOP
   NOP
 
 ; __EOF BASIC command [$f0ea]
-__EOF:
+LF0EA:
   NOP
   NOP
   NOP
 
 ; __LOC BASIC command [$f0ed]
-__LOC:
+LF0ED:
   NOP
   NOP
   NOP
 
 ; __LOF BASIC command [$f0f0]
-__LOF:
+LF0F0:
   NOP
   NOP
   NOP
 
 ; __MKI_S BASIC command [$f0f3]
-__MKI_S:
+LF0F3:
   NOP
   NOP
   NOP
 
 ; __MKS_S BASIC command [$f0f6]
-__MKS_S:
+LF0F6:
   NOP
   NOP
   NOP
 
 ; __MKD_S BASIC command [$f0f9]
-__MKD_S:
+LF0F9:
   NOP
   NOP
   NOP
 
 ; __CMD BASIC command [$f0fc]
-__CMD:
+LF0FC:
   NOP
   NOP
   NOP
 
 ; __OPEN BASIC command [$f0ff]
-__OPEN:
+LF0FF:
   NOP
   NOP
   NOP
 
 ; __FIELD BASIC command [$f102]
-__FIELD:
+LF102:
   NOP
   NOP
   NOP
 
 ; __ISET BASIC command [$f105]
-__ISET:
+LF105:
   NOP
   NOP
   NOP
 
 ; __IRESET BASIC command [$f108]
-__IRESET:
+LF108:
   NOP
   NOP
   NOP
 
 ; __TALK BASIC command [$f10b]
-__TALK:
+LF10B:
   NOP
   NOP
   NOP
 
 ; __LISTEN BASIC command [$f10e]
-__LISTEN:
+LF10E:
   NOP
   NOP
   NOP
 
 ; __MAT BASIC command [$f111]
-__MAT:
+LF111:
   NOP
   NOP
   NOP
 
 ; __POLL BASIC command [$f114]
-__POLL:
+LF114:
   NOP
   NOP
   NOP
 
 ; __WBYTE BASIC command [$f117]
-__WBYTE:
+LF117:
   NOP
   NOP
   NOP
 
 ; __RBYTE BASIC command [$f11a]
-__RBYTE:
+LF11A:
   NOP
   NOP
   NOP
@@ -21847,149 +22917,371 @@ __RBYTE:
   NOP
 
 ; __BCD_S BASIC command [$f120]
-__BCD_S:
+LF120:
   NOP
   NOP
   NOP
 
 ; __DEC BASIC command [$f123]
-__DEC:
+LF123:
   NOP
   NOP
   NOP
 
 ; __LFILES BASIC command [$f126]
-__LFILES:
+LF126:
   NOP
   NOP
   NOP
-__LFILES_0:
+LF126_0:
   NOP
   NOP
   NOP
 
 ; __DSKO_S BASIC command [$f12c]
-__DSKO_S:
+LF12C:
   NOP
   NOP
   NOP
 
 ; __FORMAT BASIC command [$f12f]
-__FORMAT:
+LF12F:
   NOP
   NOP
   NOP
-__FORMAT_0:
+LF12F_0:
   NOP
   NOP
   NOP
 
 ; __CLOSE BASIC command [$f135]
-__CLOSE:
+LF135:
   NOP
   NOP
   NOP
 
 ; __LOAD BASIC command [$f138]
-__LOAD:
+LF138:
   NOP
   NOP
   NOP
 
 ; __MERGE BASIC command [$f13b]
-__MERGE:
+LF13B:
   NOP
   NOP
   NOP
 
 ; __NAME BASIC command [$f13e]
-__NAME:
+LF13E:
   NOP
   NOP
   NOP
 
 ; __KILL BASIC command [$f141]
-__KILL:
+LF141:
   NOP
   NOP
   NOP
 
 ; __LSET BASIC command [$f144]
-__LSET:
+LF144:
   NOP
   NOP
   NOP
 
 ; __RSET BASIC command [$f147]
-__RSET:
+LF147:
   NOP
   NOP
   NOP
 
 ; __SAVE BASIC command [$f14a]
-__SAVE:
+LF14A:
   NOP
   NOP
   NOP
 
 ; __FILES BASIC command [$f14d]
-__FILES:
+LF14D:
   NOP
   NOP
   NOP
 
 ; __REMOVE BASIC command [$f150]
-__REMOVE:
+LF150:
   NOP
   NOP
   NOP
 
 ; __MOUNT BASIC command [$f153]
-__MOUNT:
+LF153:
   NOP
   NOP
-__MOUNT_0:
+LF153_0:
   NOP
 
 ; __SET BASIC command [$f156]
-__SET:
+LF156:
   NOP
   NOP
   NOP
 
 ; __DSKF BASIC command [$f159]
-__DSKF:
+LF159:
   NOP
   NOP
   NOP
-__DSKF_0:
+
+; Routine at F15C
+[$50F2]F15C$:
   NOP
   NOP
   NOP
-__DSKF_1:
+
+; Routine at F15F
+[$F15F]FN_ATTR$:
   NOP
   NOP
   NOP
-__DSKF_2:
+[$F15F]FN_ATTR$_0:
   NOP
   NOP
   NOP
-__DSKF_3:
+[$F15F]FN_ATTR$_1:
   NOP
   NOP
   NOP
 
 ; __FPOS BASIC command [$f168]
-__FPOS:
+LF168:
   NOP
   NOP
   NOP
-__FPOS_0:
+LF168_0:
   NOP
-__FPOS_1:
+LF168_1:
   NOP
   NOP
-__FPOS_2:
+LF168_2:
+  NOP
+  NOP
+  NOP
+  NOP
+  NOP
+  NOP
+LF168_3:
+  NOP
+LF168_4:
+  NOP
+  NOP
+LF168_5:
+  NOP
+  NOP
+  NOP
+LF168_6:
+  NOP
   NOP
   NOP
 
+; Close all files
+[$f17d]CLSALL:
+  NOP
+  NOP
+  NOP
+[$f17d]CLSALL_0:
+  NOP
+  NOP
+  NOP
+[$f17d]CLSALL_1:
+  NOP
+  NOP
+  NOP
+[$f17d]CLSALL_2:
+  NOP
+  NOP
+  NOP
+[$f17d]CLSALL_3:
+  NOP
+[$f17d]CLSALL_4:
+  NOP
+  NOP
+[$f17d]CLSALL_5:
+  NOP
+  NOP
+  NOP
+
+; test output redirection status
+[$f18f]ISFLIO:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_0:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_1:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_2:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_3:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_4:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_5:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_6:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_7:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_8:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_9:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_10:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_11:
+  NOP
+  NOP
+[$f18f]ISFLIO_12:
+  NOP
+[$f18f]ISFLIO_13:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_14:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_15:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_16:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_17:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_18:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_19:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_20:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_21:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_22:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_23:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_24:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_25:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_26:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_27:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_28:
+  NOP
+  NOP
+  NOP
+  NOP
+  NOP
+  NOP
+  NOP
+  NOP
+  NOP
+  NOP
+  NOP
+  NOP
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_29:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_30:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_31:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_32:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_33:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_34:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_35:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_36:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_37:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_38:
+  NOP
+  NOP
+  NOP
+[$f18f]ISFLIO_39:
+  NOP
+  NOP
+  NOP
