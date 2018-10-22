@@ -99,7 +99,7 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 
 00000069:       CALL ED9Fh
 0000006C:       DI
-0000006D:       LD A,(E6C2h)
+0000006D:       LD A,(E6C2h)	; Value being sent to port 31h (bank switching)
 00000070:       RET
 
 00000071:       NOP
@@ -117,48 +117,111 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 00000086:       DEC D
 00000087:       POP AF
 00000088:       RET
+
 00000089:       NOP
 
 ; PRITAB - Arithmetic precedence table
-0000008A:       LD A,C
-0000008B:       LD A,C
-0000008C:       LD A,H
-0000008D:       LD A,H
-0000008E:       LD A,A
-0000008F:       LD D,B
-00000090:       LD B,(HL)
-00000091:       INC A
-00000092:       LD (7A28h),A
-00000095:       LD A,E
-00000096:       LD A,22h
-00000098:       NOP
-00000099:       NOP
-0000009A:       AND B
-0000009B:       LD HL,2256h				; TSTSTR - Test a string, 'Type Error' if it is not
-0000009E:       INC D
-0000009F:       LD (2424h),HL			; ?DBL_ADD? - Double precision ADD (formerly FPADD)
-000000A2:       DEC E
-000000A3:       INC H
-000000A4:       LD D,E
-000000A5:       DEC H
-000000A6:       ADD HL,HL
-000000A7:       LD H,99h
-000000A9:       LD HL,1DE9h				; FPADD - Add BCDE to FP reg
-000000AC:       AND 1Dh
-000000AE:       LD D,E
-000000AF:       RRA
-000000B0:       OR A
-000000B1:       RRA
-000000B2:       INC (HL)
-000000B3:       LD HL,233Ah
-000000B6:       CPL
-000000B7:       INC HL
-000000B8:       LD E,D
-000000B9:       INC HL
-000000BA:       LD B,C
-000000BB:       INC DE
-000000BC:       LD E,A
-000000BD:       LD HL,00D6h
+0000008A:  DEFB $79  ; +   (Token code $F1)
+0000008B:  DEFB $79  ; -
+0000008C:  DEFB $7c  ; *
+0000008D:  DEFB $7c  ; /
+0000008E:  DEFB $7f  ; ^
+0000008F:  DEFB $50  ; AND 
+00000090:  DEFB $46  ; OR
+00000091:  DEFB $3c  ; XOR
+00000092:  DEFB $32  ; EQU
+00000093:  DEFB $28  ; IMP
+00000094:  DEFB $7a  ; MOD
+00000095:  DEFB $7b  ; \   (Token code $FC)
+
+
+; TYPE_OPR - NUMBER TYPE CONVERSION OPERATIONS TABLE  
+00000096:	DEFW	223Eh	; CDBL
+00000098:	DEFW	0
+0000009A:	DEFW	21A0h	; CINT
+0000009C:	DEFW	2256h	; TSTSTR - Test a string, 'Type Error' if it is not
+0000009E:	DEFW	2214h	; CSNG - Convert number to single precision
+
+
+; DEC_OPR - ARITHMETIC OPERATIONS TABLE  
+000000A0: DEFW	2424h	; DBL_ADD - Double precision ADD (formerly DECADD, FPADD)
+000000A2: DEFW	241Dh	; DBL_SUB Double precision SUB (formerly DECSUB, SUBCDE)
+000000A4: DEFW	2553h	; DBL_MUL Double precision MUL (formerly DECMUL)
+000000A6: DEFW	2629h	; DBL_DIV Double precision DIV (formerly DECDIV)
+000000A8: DEFW	2199h	; DECCOMP - Double precision compare
+
+; FLT_OPR - FP SINGLE PRECISION OPERATIONS TABLE
+000000AA: DEFW	1DE9h	; FPADD - Add BCDE to FP reg (a.k.a. FADD)
+000000AC: DEFW	1DE6h	; SUBCDE - Subtract BCDE from FP reg (a.k.a. FSUB)
+000000AE: DEFW	1F53h	; FPMULT - Multiply BCDE to FP reg (a.k.a. FMULT)
+000000B0: DEFW	1FB7h	; FDIV - FP reg division
+000000B2: DEFW	2134h	; CMPNUM - Compare FP reg to BCDE
+
+; INT_OPR - INTEGER ARITHMETIC OPERATIONS TABLE  
+000000B4: DEFW	233Ah	; IADD - Integer ADD
+000000B6: DEFW	232Fh	; ISUB - Integer SUB
+000000B8: DEFW	235Ah	; INT_MUL - Integer MULTIPLY (aka IMULT)
+000000BA: DEFW	1341h	; INT_DIV - Integer DIVISION (aka IDIV)
+000000BC: DEFW	215Fh	; ICOMP - INTEGER COMPARE
+
+
+
+
+;0000782E:       LD BC,0253h
+;00007831:       LD HL,00BEh
+;00007834:       LD DE,E600h
+;00007837:       LD (EACCh),HL			; STREND (aka STRTOP) - string area top address
+;0000783A:       LDIR
+
+; Data to be copied on bottom of RAM (system variables, service routines, etc..)
+; 
+; 00BE -> E600
+
+;E600  D6 00 6F 7C DE 00 67 78-DE 00 47 3E 00 C9 00 00   ..o|..gx..G>....
+;E610  00 35 4A CA 99 39 1C 76-98 22 95 B3 98 0A DD 47   .5J..9.v.".....G
+;E620  98 53 D1 99 99 0A 1A 9F-98 65 BC CD 98 D6 77 3E   .S.......e....w>
+;E630  98 52 C7 4F 80 06 0B 06-0B 06 0B 06 0B 06 0B 06   .R.O............
+;E640  0B 06 0B 06 0B 06 0B 06-0B 00 00 00 00 EE FF 28   ...............(
+;E650  0E 00 00 00 B9 F2 FE FF-56 F2 56 60 4E 45 43 30   ........V.V`NEC0
+;E660  30 30 30 30 30 30 31 0D-0A C3 00 00 C9 00 00 C9   0000001.........
+;E670  00 00 C3 CE 60 C3 CE 60-C3 CE 60 C9 00 00 C9 00   ....`..`..`.....
+;E680  00 C9 00 00 D3 71 E5 21-54 01 E3 7E FE 52 C0 23   .....q.!T..~.R.#
+;E690  7E FE 34 C0 23 E9 3E FF-D3 71 C9 C9 1E 10 FF 00   ~.4.#.>..q......
+;E6A0  FF 00 FF FF 01 00 00 01-81 00 01 FF FF 00 06 36   ...............6
+;E6B0  01 13 01 19 00 20 00 00-FF 00 00 00 00 00 00 00   ..... ..........
+;E6C0  22 11 00 FF C8 F3 00 00-00 00 00 CD EF 00 00 1C   "...............
+;E6D0  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00   ................
+;E6E0  00 00 00 00 00 00 00 00-00 00 00 00 FF 00 15 CB   ................
+;E6F0  EE 00 6C 6F 61 64 20 22-00 00 00 00 00 00 00 00   ..load "........
+;E700  00 00 61 75 74 6F 20 00-00 00 00 00 00 00 00 00   ..auto .........
+;E710  00 00 67 6F 20 74 6F 20-00 00 00 00 00 00 00 00   ..go to ........
+;E720  00 00 6C 69 73 74 20 00-00 00 00 00 00 00 00 00   ..list .........
+;E730  00 00 72 75 6E 0D 00 00-00 00 00 00 00 00 00 00   ..run...........
+;E740  00 00 73 61 76 65 20 22-00 00 00 00 00 00 00 00   ..save "........
+;E750  00 00 6B 65 79 20 00 00-00 00 00 00 00 00 00 00   ..key ..........
+;E760  00 00 70 72 69 6E 74 20-00 00 00 00 00 00 00 00   ..print ........
+;E770  00 00 65 64 69 74 20 2E-0D 00 00 00 00 00 00 00   ..edit .........
+;E780  00 00 63 6F 6E 74 0D 00-00 00 00 00 00 00 00 00   ..cont..........
+;E790  00 00 6C 69 74 65 72 61-6C 00 00 00 00 00 00 00   ..literal.......
+;E7A0  00 00 68 61 6C 66 2F 66-75 6C 6C 00 00 00 00 00   ..half/full.....
+;E7B0  00 00 4C 50 54 20 65 6E-61 62 6C 65 00 00 00 00   ..LPT enable....
+;E7C0  00 00 63 6F 70 79 20 62-75 66 66 65 72 00 00 00   ..copy buffer...
+;E7D0  00 00 4C 50 54 20 66 65-65 64 00 00 00 00 00 00   ..LPT feed......
+;E7E0  00 00 C3 00 00 C3 00 00-FF E5 E5 21 67 31 F5 3A   ...........!g1.:
+;E7F0  C2 E6 F5 E6 FB D3 31 32-C2 E6 CD 91 33 F3 F1 D3   ......12....3...
+;E800  31 32 C2 E6 F1 E1 FB C9-E5 21 80 30 18 E0 E5 21   12.......!.0...!
+;E810  43 41 18 DA E5 21 79 30-18 D4 E5 21 B9 3C 18 CE   CA...!y0...!.<..
+;E820  E5 21 AC 3C 18 C8 CD 69-00 00 F6 04 D3 31 32 C2   .!.<...i.....12.
+;E830  E6 FB 3A 00 60 FE 44 20-08 3A 01 60 FE 42 CA 02   ..:.`.D .:.`.B..
+;E840  60 F3 3A C2 E6 E6 FB D3-31 32 C2 E6 FB C3 C1 4D   `.:.....12.....M
+;E850  20 45 72 72 6F 72 00 20-69 6E 20 00 4F 6B FF 0D    Error. in .Ok..
+
+; Data to be copied on bottom of RAM (system variables, service routines, etc..)
+; 
+; 00BE -> E600
+000000BE:       DEFB D6h
+000000BF:       NOP
+; E602
 000000C0:       LD L,A
 000000C1:       LD A,H
 000000C2:       SBC 00h
@@ -169,8 +232,10 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 000000C9:       LD A,00h
 000000CB:       RET
 
+; E60E
 000000CC:       NOP
 000000CD:       NOP
+; E610 - RNDX
 000000CE:       NOP
 000000CF:       DEC (HL)
 000000D0:       LD C,D
@@ -200,6 +265,7 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 000000F0:       RST 00h
 000000F1:       LD C,A
 000000F2:       ADD B
+; E635	-  USR0
 000000F3:       LD B,0Bh
 000000F5:       LD B,0Bh
 000000F7:       LD B,0Bh
@@ -209,6 +275,7 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 000000FF:       LD B,0Bh
 00000101:       LD B,0Bh
 00000103:       LD B,0Bh
+; E647	-  USR9
 00000105:       LD B,0Bh
 00000107:       NOP
 00000108:       NOP
@@ -219,6 +286,8 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 0000010F:       NOP
 00000110:       NOP
 00000111:       NOP
+
+; E654 - STKTOP
 00000112:       CP C
 00000113:       JP P,FFFEh
 00000116:       LD D,(HL)
@@ -577,16 +646,16 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 000002A8:       PUSH HL
 000002A9:       LD HL,3167h
 000002AC:       PUSH AF
-000002AD:       LD A,(E6C2h)
+000002AD:       LD A,(E6C2h)	; Value being sent to port 31h (bank switching)
 000002B0:       PUSH AF
 000002B1:       AND FBh
 000002B3:       OUTA (31h)
-000002B5:       LD (E6C2h),A
+000002B5:       LD (E6C2h),A	; Value being sent to port 31h (bank switching)
 000002B8:       CALL 3391h
 000002BB:       DI
 000002BC:       POP AF
 000002BD:       OUTA (31h)
-000002BF:       LD (E6C2h),A
+000002BF:       LD (E6C2h),A	; Value being sent to port 31h (bank switching)
 000002C2:       POP AF
 000002C3:       POP HL
 000002C4:       EI
@@ -612,7 +681,7 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 000002E7:       NOP
 000002E8:       OR 04h
 000002EA:       OUTA (31h)
-000002EC:       LD (E6C2h),A
+000002EC:       LD (E6C2h),A	; Value being sent to port 31h (bank switching)
 000002EF:       EI
 000002F0:       LD A,(6000h)
 000002F3:       CP 44h
@@ -621,10 +690,10 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 000002FA:       CP 42h
 000002FC:       JP Z,6002h
 000002FF:       DI
-00000300:       LD A,(E6C2h)
+00000300:       LD A,(E6C2h)	; Value being sent to port 31h (bank switching)
 00000303:       AND FBh
 00000305:       OUTA (31h)
-00000307:       LD (E6C2h),A
+00000307:       LD (E6C2h),A	; Value being sent to port 31h (bank switching)
 0000030A:       EI
 0000030B:       JP 4DC1h		; 'Feature not available' error
 
@@ -642,6 +711,23 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 
 00000320:       "Break"
 00000325:       NOP
+
+
+;000069D1:       LD DE,F300h
+;000069D4:       DI
+;000069D5:       LD A,D
+;000069D6:       LD I,A
+;000069D8:       LD HL,0326h
+;000069DB:       LD BC,0020h
+;000069DE:       LDIR
+;000069E0:       RET
+
+; Data to be copied on bottom of RAM (system variables, service routines, etc..)
+; 
+; 0326 -> F300
+
+;F300  EA E7 08 E8 0E E8 14 E8-14 E8 14 E8 1A E8 20 E8
+;F310  14 E8 14 E8 14 E8 14 E8-14 E8 14 E8 14 E8 14 E8
 
 00000326:       JP PE,08E7h
 00000329:       RET PE
@@ -744,7 +830,7 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 000003BB:       LD HL,(EFBAh)
 000003BE:       CALL 44D5h				; bank switching pivot (read)
 000003C1:       LD (EFBCh),HL
-000003C4:       CALL EDC9h
+000003C4:       CALL EDC9h			; ?HERRO? - Hook for Error handler ?
 000003C7:       XOR A
 000003C8:       DEC A
 000003C9:       LD (E6A0h),A
@@ -971,7 +1057,7 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 00000565:       JR Z,+3Ah
 
 00000567:       POP DE
-00000568:       LD HL,(EACCh)			; STREND
+00000568:       LD HL,(EACCh)			; STREND (aka STRTOP) - string area top address
 0000056B:       LD (EAF1h),HL			; FRETOP - Starting address of unused area of string area
 0000056E:       LD HL,(EB18h)			; ARYTAB - Pointer to begin of array table
 00000571:       EX HL,(SP)
@@ -1198,7 +1284,7 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 000006CE:       LD B,D
 000006CF:       OR AFh
 000006D1:       LD HL,(EB16h)	; PROGND - BASIC program end ptr (aka VARTAB)
-000006D4:       LD (EB1Bh),HL
+000006D4:       LD (EB1Bh),HL	; VARTAB
 000006D7:       LD (EB1Dh),HL	; VAREND - End of variables
 000006DA:       LD (EB1Fh),HL	; ARREND - End of arrays
 000006DD:       JP Z,0396h			;  "Duplicate label" error
@@ -1568,7 +1654,7 @@ _FOR:
 00000941:       CALL 20C7h
 00000944:       JR +23h
 
-00000946:       CALL 2214h			; CSGN
+00000946:       CALL 2214h			; CSNG - Convert number to single precision
 00000949:       CALL 20E8h			; BCDEFP - Load FP reg to BCDE
 0000094C:       POP HL
 0000094D:       PUSH BC
@@ -1583,7 +1669,7 @@ _FOR:
 0000095C:       JR NZ,+0Ch
 0000095E:       CALL 11D4h			; EVAL_0 	- (a.k.a. GETNUM, evaluate expression (GETNUM)
 00000961:       PUSH HL
-00000962:       CALL 2214h			; CSGN
+00000962:       CALL 2214h			; CSNG - Convert number to single precision
 00000965:       CALL 20E8h			; BCDEFP - Load FP reg to BCDE
 00000968:       RST 28h				; SIGN - test FP number sign
 00000969:       POP HL
@@ -1697,6 +1783,7 @@ _FOR:
 ; _CHRCKB - Gets current character (or token) from BASIC text.
 00000A12:       CP 3Ah		; ':'
 00000A14:       RET NC
+; continued also from
 00000A15:       CP 20h		; ' '
 00000A17:       JR Z,-0Ch
 00000A19:       JR NC,+6Ch
@@ -1983,7 +2070,6 @@ _GOSUB:
 00000BEF:       LD (EB05h),HL			; SAVTXT - prg pointer for resume
 00000BF2:       CALL 44A4h			; bank switching pivot (write)
 00000BF5:       JP 09C4h			; NEW_STMT_1
-
 
 GO_TO:
 00000BF8:       PUSH BC
@@ -2317,7 +2403,7 @@ _AUTO:
 00000DFD:       ADD HL,DE
 00000DFE:       CALL 6F61h
 00000E01:       POP HL
-00000E02:       JP 7B20h
+00000E02:       JP 7B20h		; POPALL
 
 _IF:
 00000E05:       CALL 11D3h			; EVAL - evaluate expression
@@ -2368,7 +2454,7 @@ _LPRINT:
 
 _PRINT_
 00000E54:       CALL EDCFh
-00000E57:       CALL 4C7Dh
+00000E57:       CALL 4C7Dh		; deal with '#' argument
 00000E5A:       DEC HL
 00000E5B:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 
@@ -2564,7 +2650,7 @@ _LINE:
 00000FB3:       ADD L
 00000FB4:       CP 23h		;'#'
 00000FB6:       JP Z,4CC1h
-00000FB9:       CP 96h
+00000FB9:       CP 96h		; ..150
 00000FBB:       CALL Z,4121h
 00000FBE:       CALL 603Ch			; deal with semicolon, ';'
 00000FC1:       CALL 1040h
@@ -2614,7 +2700,8 @@ _LINE:
 0000101C:       CALL 44A4h			; bank switching pivot (write)
 0000101F:       RET
 
-00001020:       CALL 4C7Dh
+; jumps here if "INPUT #"
+00001020:       CALL 4C7Dh		; deal with '#' argument
 00001023:       CALL 44D5h			; bank switching pivot (read)
 00001026:       PUSH HL
 00001027:       LD HL,E9B8h
@@ -2960,7 +3047,7 @@ _READ:
 00001273:       LD (EAF3h),HL		; TEMP3 - used for garbage collection or by USR function
 00001276:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00001277:       JR -17h
-00001279:       CALL 2214h			; CSGN
+00001279:       CALL 2214h			; CSNG - Convert number to single precision
 0000127C:       CALL 20CDh			; STAKFP - Put FP value on stack
 0000127F:       LD BC,2E10h
 00001282:       LD D,7Fh
@@ -3023,7 +3110,7 @@ _READ:
 000012E8:       RET
 
 000012E9:       CALL 223Eh			; CDBL
-000012EC:       CALL 2124h
+000012EC:       CALL 2124h			; FP_ARG2HL
 000012EF:       POP HL
 000012F0:       LD (EC3Fh),HL
 000012F3:       POP HL
@@ -3032,7 +3119,8 @@ _READ:
 000012F8:       POP DE
 000012F9:       CALL 20DDh			; FPBCDE - Move BCDE to FPREG
 000012FC:       CALL 223Eh			; CDBL
-000012FF:       LD HL,00A0h
+000012FF:       LD HL,00A0h			; DEC_OPR - ARITHMETIC OPERATIONS TABLE  
+
 00001302:       LD A,(EABEh)		; DORES - Indicates whether stored word can be crunched
 00001305:       RLCA
 00001306:       ADD L
@@ -3048,19 +3136,22 @@ _READ:
 
 00001310:       LD A,B
 00001311:       PUSH AF
-00001312:       CALL 2124h
+00001312:       CALL 2124h			; FP_ARG2HL
 00001315:       POP AF
 00001316:       LD (EABDh),A		; VALTYP - type indicator
 00001319:       CP 04h
 0000131B:       JR Z,-26h
+
 0000131D:       POP HL
 0000131E:       LD (EC41h),HL		; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 00001321:       JR -27h
-00001323:       CALL 2214h			; CSGN
+
+00001323:       CALL 2214h			; CSNG - Convert number to single precision
 00001326:       POP BC
 00001327:       POP DE
-00001328:       LD HL,00AAh
+00001328:       LD HL,00AAh			; FLT_OPR - FP operations table
 0000132B:       JR -2Bh
+
 0000132D:       POP HL
 0000132E:       CALL 20CDh			; STAKFP - Put FP value on stack
 00001331:       CALL 2232h
@@ -3070,6 +3161,8 @@ _READ:
 0000133B:       POP HL
 0000133C:       LD (EC41h),HL		; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 0000133F:       JR -19h
+
+; INT_DIV - Integer DIVISION (aka IDIV)
 00001341:       PUSH HL
 00001342:       EX DE,HL
 00001343:       CALL 2232h
@@ -3138,17 +3231,19 @@ _READ:
 ; 'VARPTR'
 000013B0:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 000013B1:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
-000013B2:       JR Z,-02h
-000013B4:       INC HL
-000013B5:       JR NZ,+0Ch
+000013B2:       DEFB '('
+000013B3:       CP '#'
+000013B5:       JR NZ,+0Ch	; VARPTR_0
 000013B7:       CALL 18A2h				; FNDNUM - Load 'A' with the next number in BASIC program
 000013BA:       PUSH HL
-000013BB:       CALL 46F8h
+000013BB:       CALL 46F8h				; GETPTR
 000013BE:       EX DE,HL
 000013BF:       POP HL
-000013C0:       JP 13C6h
+000013C0:       JP 13C6h	; VARPTR_1
 
 000013C3:       CALL 5BB8h
+
+; VARPTR_1
 000013C6:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 000013C7:       DEFB ')'
 000013C8:       PUSH HL
@@ -3332,7 +3427,7 @@ _READ:
 000014D7:       CP 1Bh
 000014D9:       CALL ED5Ah
 000014DC:       PUSH HL
-000014DD:       CALL C,2214h			; CSGN
+000014DD:       CALL C,2214h			; CSNG - Convert number to single precision
 000014E0:       POP HL
 000014E1:       LD DE,1404h
 000014E4:       PUSH DE
@@ -3754,13 +3849,14 @@ _FN:
 00001795:       POP AF
 00001796:       PUSH HL
 00001797:       AND 07h
-00001799:       LD HL,0096h
+00001799:       LD HL,0096h			; TYPE_OPR - NUMBER TYPE CONVERSION OPERATIONS TABLE  
 0000179C:       LD C,A
 0000179D:       LD B,00h
 0000179F:       ADD HL,BC
 000017A0:       CALL 14F0h
 000017A3:       POP HL
 000017A4:       RET
+
 000017A5:       LD A,(DE)
 000017A6:       LD (HL),A
 000017A7:       INC HL
@@ -3885,7 +3981,7 @@ _WIDTH:
 00001855:       POP AF
 00001856:       PUSH HL
 00001857:       PUSH DE
-00001858:       CALL 46F8h
+00001858:       CALL 46F8h			; GETPTR
 0000185B:       JP NC,0B06h			; FCERR, Err $05 - "Illegal function call"
 0000185E:       LD DE,0005h
 00001861:       ADD HL,DE
@@ -4409,10 +4505,10 @@ _POKE:
 00001BAB:       RET NZ
 00001BAC:       RST 28h				; SIGN - test FP number sign
 00001BAD:       RET M
-00001BAE:       CALL 2214h			; CSGN
+00001BAE:       CALL 2214h			; CSNG - Convert number to single precision
 00001BB1:       LD BC,9180h
 00001BB4:       LD DE,0000h
-00001BB7:       JP 1DE9h			; FPADD - Add BCDE to FP reg
+00001BB7:       JP 1DE9h			; FPADD - Add BCDE to FP reg (a.k.a. FADD)
 
 00001BBA:       OR AFh
 00001BBC:       LD (EAFFh),A		; PTRFLG
@@ -4722,9 +4818,9 @@ _RANDOMIZE:
 
 00001DE3:       CALL 20EBh			; LOADFP - Load FP value pointed by HL to BCDE
 
-; SUBCDE - Subtract BCDE from FP reg
+; SUBCDE - Subtract BCDE from FP reg (a.k.a. FSUB)
 00001DE6:       CALL 20ABh			; INVSGN - Invert number sign
-; FPADD - Add BCDE to FP reg
+; FPADD - Add BCDE to FP reg (a.k.a. FADD)
 00001DE9:       LD A,B
 00001DEA:       OR A
 00001DEB:       RET Z
@@ -4979,15 +5075,15 @@ _RANDOMIZE:
 00001F3F:       CALL 2EE7h
 00001F42:       POP BC
 00001F43:       POP DE
-00001F44:       CALL 1FB7h
+00001F44:       CALL 1FB7h			; FDIV - FP reg division
 00001F47:       POP AF
 00001F48:       CALL 20CDh			; STAKFP - Put FP value on stack
 00001F4B:       CALL 208Dh			; FLGREL - CY and A to FP, & normalise
 00001F4E:       POP BC
 00001F4F:       POP DE
-00001F50:       JP 1DE9h			; FPADD - Add BCDE to FP reg
+00001F50:       JP 1DE9h			; FPADD - Add BCDE to FP reg (a.k.a. FADD)
 
-; FPMULT - Multiply BCDE to FP reg
+; FPMULT - Multiply BCDE to FP reg (a.k.a. FMULT)
 00001F53:       RST 28h				; SIGN - test FP number sign
 00001F54:       RET Z
 00001F55:       CALL EDBAh
@@ -5059,7 +5155,7 @@ _RANDOMIZE:
 ; DIV - Divide FP by number on stack
 00001FB5:       POP BC
 00001FB6:       POP DE
-; FDIV
+; FDIV - FP reg division
 00001FB7:       RST 28h				; SIGN - test FP number sign
 00001FB8:       JP Z,2843h
 00001FBB:       CALL EDC0h
@@ -5186,11 +5282,12 @@ _RANDOMIZE:
 00002072:       ADD 02h
 00002074:       JP C,2835h
 00002077:       LD B,A
-00002078:       CALL 1DE9h			; FPADD - Add BCDE to FP reg
+00002078:       CALL 1DE9h			; FPADD - Add BCDE to FP reg (a.k.a. FADD)
 0000207B:       LD HL,EC44h			; FPEXP - Floating Point Exponent
 0000207E:       INC (HL)
 0000207F:       RET NZ
 00002080:       JP 2835h
+
 00002083:       LD A,(EC43h)		; LAST_FPREG - Last byte in Single Precision FP Register (+sign bit)
 00002086:       CP 2Fh
 00002088:       RLA
@@ -5247,7 +5344,8 @@ _SGN:
 000020CA:       LD A,H
 000020CB:       JR -45h
 
-000020CD:       EX DE,HL				; STAKFP - Put FP value on stack
+; STAKFP - Put FP value on stack  (STAKI on MSX)
+000020CD:       EX DE,HL
 000020CE:       LD HL,(EC41h)			; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 000020D1:       EX HL,(SP)
 000020D2:       PUSH HL
@@ -5324,6 +5422,8 @@ _SGN:
 0000211C:       LD HL,EC4Ah
 0000211F:       LD DE,20FBh
 00002122:       JR +06h
+
+; FP_ARG2HL
 00002124:       LD HL,EC4Ah
 00002127:       LD DE,20FCh			; FP2HL - copy number value from DE to HL
 0000212A:       PUSH DE
@@ -5372,6 +5472,7 @@ CMPFP:
 0000215D:       POP HL
 0000215E:       RET
 
+; ICOMP - INTEGER COMPARE
 0000215F:       LD A,D
 00002160:       XOR H
 00002161:       LD A,H
@@ -5384,7 +5485,9 @@ CMPFP:
 0000216B:       JP 2089h
 0000216E:       LD HL,EC4Ah
 00002171:       CALL 20FCh		; FP2HL - copy number value from DE to HL
-00002174:       LD DE,EC51h
+
+; XDCOMP
+00002174:       LD DE,EC51h		; ARG
 00002177:       LD A,(DE)
 00002178:       OR A
 00002179:       JP Z,0028h				; SIGN - test FP number sign
@@ -5410,7 +5513,9 @@ CMPFP:
 00002195:       DJNZ -08h
 00002197:       POP BC
 00002198:       RET
-00002199:       CALL 2174h
+
+; DECCOMP - Double precision compare
+00002199:       CALL 2174h		; XDCOMP
 0000219C:       JP NZ,2087h
 0000219F:       RET
 
@@ -5420,10 +5525,10 @@ CMPFP:
 000021A4:       RET M
 000021A5:       JP Z,03B1h		; TYPE_ERR, "Type mismatch" error
 000021A8:       JP PO,21BCh
-000021AB:       CALL 2124h
+000021AB:       CALL 2124h			; FP_ARG2HL
 000021AE:       LD HL,2D56h			; number constant ..
 000021B1:       CALL 211Fh
-000021B4:       CALL 2424h			; DBL_ADD - Double precision ADD (formerly FPADD)
+000021B4:       CALL 2424h			; DBL_ADD - Double precision ADD (formerly DECADD, FPADD)
 000021B7:       CALL 221Ch
 000021BA:       JR +03h
 000021BC:       CALL 1DDBh
@@ -5476,7 +5581,7 @@ CMPFP:
 00002211:       LD L,D
 00002212:       JR -18h
 
-; CSGN
+; CSNG - Convert number to single precision
 00002214:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
 00002215:       RET PO
 00002216:       JP M,222Fh
@@ -5658,6 +5763,7 @@ _INT:
 0000232D:       POP HL
 0000232E:       RET
 
+; ISUB - Integer SUB
 0000232F:       LD A,H
 00002330:       RLA
 00002331:       SBC A
@@ -5666,6 +5772,8 @@ _INT:
 00002336:       LD A,C
 00002337:       SBC B
 00002338:       JR +03h
+
+; IADD - Integer ADD
 0000233A:       LD A,H
 0000233B:       RLA
 0000233C:       SBC A
@@ -5687,7 +5795,7 @@ _INT:
 00002350:       CALL 20CDh			; STAKFP - Put FP value on stack
 00002353:       EX DE,HL
 00002354:       CALL 2407h			; ADDPHL - ADD number at HL to BCDE
-00002357:       JP 2808h
+00002357:       JP 2808h			; FADD (FPADD-2)
 
 ; INT_MUL - Integer MULTIPLY (aka IMULT)
 0000235A:       LD A,H
@@ -5730,7 +5838,7 @@ _INT:
 00002395:       CALL 2232h
 00002398:       POP BC
 00002399:       POP DE
-0000239A:       JP 1F53h			; FPMULT - Multiply BCDE to FP reg
+0000239A:       JP 1F53h			; FPMULT - Multiply BCDE to FP reg (a.k.a. FMULT)
 
 0000239D:       LD A,B
 0000239E:       OR A
@@ -5826,13 +5934,13 @@ _INT:
 0000241A:       POP AF
 0000241B:       JR -34h
 
-; DBL_SUB Double precision SUB (formerly SUBCDE)
+; DBL_SUB Double precision SUB (formerly DECSUB, SUBCDE)
 0000241D:       LD HL,EC50h		; DBL_LAST_FPREG - Last byte in Double Precision FP register (+sign bit)
 00002420:       LD A,(HL)
 00002421:       XOR 80h				; invert FP number sign
 00002423:       LD (HL),A
-; DBL_ADD  Double precision ADD (formerly FPADD)
-00002424:       LD HL,EC51h
+; DBL_ADD  Double precision ADD (formerly DECADD, FPADD)
+00002424:       LD HL,EC51h		; ARG
 00002427:       LD A,(HL)
 00002428:       OR A
 00002429:       RET Z
@@ -6025,9 +6133,10 @@ _INT:
 00002550:       JR NZ,-07h
 00002552:       RET
 
+; DBL_MUL Double precision MUL (formerly DECMUL)
 00002553:       RST 28h				; SIGN - test FP number sign
 00002554:       RET Z
-00002555:       LD A,(EC51h)
+00002555:       LD A,(EC51h)		; ARG
 00002558:       OR A
 00002559:       JP Z,1E4Eh
 0000255C:       CALL EDBDh
@@ -6089,7 +6198,7 @@ _INT:
 000025C5:       LD HL,EC4Ah
 000025C8:       CALL 20FCh			; FP2HL - copy number value from DE to HL
 000025CB:       CALL 25F6h
-000025CE:       CALL 2424h			; DBL_ADD - Double precision ADD (formerly FPADD)
+000025CE:       CALL 2424h			; DBL_ADD - Double precision ADD (formerly DECADD, FPADD)
 000025D1:       LD DE,EC3Dh
 000025D4:       LD HL,EC4Ah
 000025D7:       CALL 20FCh			; FP2HL - copy number value from DE to HL
@@ -6097,7 +6206,7 @@ _INT:
 000025DC:       PUSH AF
 000025DD:       CALL 25FEh
 000025E0:       CALL 2609h
-000025E3:       CALL 2424h			; DBL_ADD - Double precision ADD (formerly FPADD)
+000025E3:       CALL 2424h			; DBL_ADD - Double precision ADD (formerly DECADD, FPADD)
 000025E6:       LD HL,EC50h			; DBL_LAST_FPREG - Last byte in Double Precision FP register (+sign bit)
 000025E9:       CALL 2619h
 000025EC:       POP AF
@@ -6110,7 +6219,7 @@ _INT:
 000025FA:       RET NZ
 000025FB:       JP 1E4Eh
 
-000025FE:       LD HL,EC51h
+000025FE:       LD HL,EC51h		; ARG
 00002601:       LD A,04h
 00002603:       DEC (HL)
 00002604:       RET Z
@@ -6133,7 +6242,7 @@ _INT:
 
 00002619:       POP DE
 0000261A:       LD A,04h
-0000261C:       LD HL,EC51h
+0000261C:       LD HL,EC51h		; ARG
 0000261F:       POP BC
 00002620:       LD (HL),B
 00002621:       DEC HL
@@ -6144,9 +6253,10 @@ _INT:
 00002627:       PUSH DE
 00002628:       RET
 
-00002629:       LD A,(EC51h)
+; DBL_DIV Double precision DIV (formerly DECDIV)
+00002629:       LD A,(EC51h)		; ARG
 0000262C:       OR A
-0000262D:       JP Z,2849h
+0000262D:       JP Z,2849h			; ?"Division by zero"?
 00002630:       LD A,(EC44h)		; FPEXP - Floating Point Exponent
 00002633:       OR A
 00002634:       JP Z,1E4Eh
@@ -6201,7 +6311,8 @@ _INT:
 00002699:       DEC HL
 0000269A:       DJNZ -07h
 0000269C:       RET
-0000269D:       CALL 2124h
+
+0000269D:       CALL 2124h			; FP_ARG2HL
 000026A0:       EX DE,HL
 000026A1:       DEC HL
 000026A2:       LD A,(HL)
@@ -6211,7 +6322,7 @@ _INT:
 000026A7:       JP C,283Ch
 000026AA:       LD (HL),A
 000026AB:       PUSH HL
-000026AC:       CALL 2424h			; DBL_ADD - Double precision ADD (formerly FPADD)
+000026AC:       CALL 2424h			; DBL_ADD - Double precision ADD (formerly DECADD, FPADD)
 000026AF:       POP HL
 000026B0:       INC (HL)
 000026B1:       RET NZ
@@ -6335,7 +6446,7 @@ _INT:
 00002775:       PUSH DE
 00002776:       PUSH BC
 00002777:       PUSH AF
-00002778:       CALL Z,2214h		; CSGN
+00002778:       CALL Z,2214h		; CSNG - Convert number to single precision
 0000277B:       POP AF
 0000277C:       CALL NZ,223Eh		; CDBL
 0000277F:       POP BC
@@ -6416,22 +6527,25 @@ _INT:
 000027EB:       JR -23h
 000027ED:       CALL 2246h
 000027F0:       CALL 269Dh
-000027F3:       CALL 2124h
+000027F3:       CALL 2124h			; FP_ARG2HL
 000027F6:       POP AF
 000027F7:       CALL 208Dh			; FLGREL - CY and A to FP, & normalise
 000027FA:       CALL 2246h
-000027FD:       CALL 2424h			; DBL_ADD - Double precision ADD (formerly FPADD)
+000027FD:       CALL 2424h			; DBL_ADD - Double precision ADD (formerly DECADD, FPADD)
 00002800:       JR -38h
 
 00002802:       CALL 20CDh			; STAKFP - Put FP value on stack
 00002805:       CALL 208Dh			; FLGREL - CY and A to FP, & normalise
+
+; FADD
 00002808:       POP BC
 00002809:       POP DE
-0000280A:       JP 1DE9h			; FPADD - Add BCDE to FP reg
+0000280A:       JP 1DE9h			; FPADD - Add BCDE to FP reg (a.k.a. FADD)
 
 0000280D:       LD A,E
 0000280E:       CP 0Ah
 00002810:       JR NC,+09h
+
 00002812:       RLCA
 00002813:       RLCA
 00002814:       ADD E
@@ -7032,7 +7146,7 @@ _INT:
 00002BD6:       LD DE,2D3Eh			; number constant ..
 00002BD9:       LD HL,EC4Ah
 00002BDC:       CALL 20FCh			; FP2HL - copy number value from DE to HL
-00002BDF:       CALL 2553h
+00002BDF:       CALL 2553h			; DBL_MUL Double precision MUL (formerly DECMUL)
 00002BE2:       POP AF
 00002BE3:       SUB 0Ah
 00002BE5:       PUSH AF
@@ -7136,10 +7250,10 @@ _INT:
 00002C7F:       JP PO,2CC3h
 00002C82:       PUSH BC
 00002C83:       PUSH HL
-00002C84:       CALL 2124h
+00002C84:       CALL 2124h			; FP_ARG2HL
 00002C87:       LD HL,2D56h			; number constant ..
 00002C8A:       CALL 211Fh
-00002C8D:       CALL 2424h			; DBL_ADD - Double precision ADD (formerly FPADD)
+00002C8D:       CALL 2424h			; DBL_ADD - Double precision ADD (formerly DECADD, FPADD)
 00002C90:       XOR A
 00002C91:       CALL 22DDh
 00002C94:       POP HL
@@ -7429,7 +7543,7 @@ _SQR:
 00002E08:       LD HL,2D5Ah			; number constant ..
 00002E0B:       CALL 20DAh			; PHLTFP - Number at HL to BCDE
 00002E0E:       JR +03h
-00002E10:       CALL 2214h			; CSGN
+00002E10:       CALL 2214h			; CSNG - Convert number to single precision
 00002E13:       POP BC
 00002E14:       POP DE
 00002E15:       CALL EDC6h
@@ -7480,12 +7594,12 @@ _SQR:
 00002E66:       CALL 1F10h
 00002E69:       POP BC
 00002E6A:       POP DE
-00002E6B:       CALL 1F53h			; FPMULT - Multiply BCDE to FP reg
+00002E6B:       CALL 1F53h			; FPMULT - Multiply BCDE to FP reg (a.k.a. FMULT)
 
 ; _EXP
 00002E6E:       LD BC,8138h
 00002E71:       LD DE,AA3Bh
-00002E74:       CALL 1F53h			; FPMULT - Multiply BCDE to FP reg
+00002E74:       CALL 1F53h			; FPMULT - Multiply BCDE to FP reg (a.k.a. FMULT)
 00002E77:       LD A,(EC44h)		; FPEXP - Floating Point Exponent
 00002E7A:       CP 88h
 00002E7C:       JR NC,+22h
@@ -7498,13 +7612,13 @@ _SQR:
 00002E8C:       POP BC
 00002E8D:       POP DE
 00002E8E:       PUSH AF
-00002E8F:       CALL 1DE6h		; SUBCDE - Subtract BCDE from FP reg
+00002E8F:       CALL 1DE6h		; SUBCDE - Subtract BCDE from FP reg (a.k.a. FSUB)
 00002E92:       LD HL,2EBBh
 00002E95:       CALL 2EE7h
 00002E98:       POP BC
 00002E99:       LD DE,0000h
 00002E9C:       LD C,D
-00002E9D:       JP 1F53h		; FPMULT - Multiply BCDE to FP reg
+00002E9D:       JP 1F53h		; FPMULT - Multiply BCDE to FP reg (a.k.a. FMULT)
 
 00002EA0:       CALL 20CDh			; STAKFP - Put FP value on stack
 00002EA3:       LD A,(EC43h)		; LAST_FPREG - Last byte in Single Precision FP Register (+sign bit)
@@ -7545,7 +7659,7 @@ _SQR:
 00002EDE:       PUSH DE
 00002EDF:       PUSH HL
 00002EE0:       CALL 20E8h			; BCDEFP - Load FP reg to BCDE
-00002EE3:       CALL 1F53h			; FPMULT - Multiply BCDE to FP reg
+00002EE3:       CALL 1F53h			; FPMULT - Multiply BCDE to FP reg (a.k.a. FMULT)
 00002EE6:       POP HL
 00002EE7:       CALL 20CDh			; STAKFP - Put FP value on stack
 00002EEA:       LD A,(HL)
@@ -7560,11 +7674,11 @@ _SQR:
 00002EF6:       PUSH BC
 00002EF7:       PUSH AF
 00002EF8:       PUSH HL
-00002EF9:       CALL 1F53h			; FPMULT - Multiply BCDE to FP reg
+00002EF9:       CALL 1F53h			; FPMULT - Multiply BCDE to FP reg (a.k.a. FMULT)
 00002EFC:       POP HL
 00002EFD:       CALL 20EBh			; LOADFP - Load FP value pointed by HL to BCDE
 00002F00:       PUSH HL
-00002F01:       CALL 1DE9h			; FPADD - Add BCDE to FP reg
+00002F01:       CALL 1DE9h			; FPADD - Add BCDE to FP reg (a.k.a. FADD)
 00002F04:       POP HL
 00002F05:       JR -17h
 
@@ -7599,7 +7713,7 @@ _SQR:
 00002F34:       LD C,A
 00002F35:       ADD HL,BC
 00002F36:       CALL 20EBh			; LOADFP - Load FP value pointed by HL to BCDE
-00002F39:       CALL 1F53h			; FPMULT - Multiply BCDE to FP reg
+00002F39:       CALL 1F53h			; FPMULT - Multiply BCDE to FP reg (a.k.a. FMULT)
 00002F3C:       LD A,(E60Fh)
 00002F3F:       INC A
 00002F40:       AND 03h
@@ -7671,27 +7785,27 @@ _SIN:
 00002FA6:       PUSH DE
 00002FA7:       LD BC,7E22h
 00002FAA:       LD DE,F983h
-00002FAD:       CALL 1F53h			; FPMULT - Multiply BCDE to FP reg
+00002FAD:       CALL 1F53h			; FPMULT - Multiply BCDE to FP reg (a.k.a. FMULT)
 00002FB0:       CALL 20CDh			; STAKFP - Put FP value on stack
 00002FB3:       CALL 229Fh			; INT
 00002FB6:       POP BC
 00002FB7:       POP DE
-00002FB8:       CALL 1DE6h			; SUBCDE - Subtract BCDE from FP reg
+00002FB8:       CALL 1DE6h			; SUBCDE - Subtract BCDE from FP reg (a.k.a. FSUB)
 00002FBB:       LD BC,7F00h
 00002FBE:       LD DE,0000h
 00002FC1:       CALL 2134h			;  CMPNUM - Compare FP reg to BCDE
 00002FC4:       JP M,2FE9h
 00002FC7:       LD BC,7F80h
 00002FCA:       LD DE,0000h
-00002FCD:       CALL 1DE9h			; FPADD - Add BCDE to FP reg
+00002FCD:       CALL 1DE9h			; FPADD - Add BCDE to FP reg (a.k.a. FADD)
 00002FD0:       LD BC,8080h
 00002FD3:       LD DE,0000h
-00002FD6:       CALL 1DE9h			; FPADD - Add BCDE to FP reg
+00002FD6:       CALL 1DE9h			; FPADD - Add BCDE to FP reg (a.k.a. FADD)
 00002FD9:       RST 28h				; SIGN - test FP number sign
 00002FDA:       CALL P,20ABh		; INVSGN - Invert number sign
 00002FDD:       LD BC,7F00h
 00002FE0:       LD DE,0000h
-00002FE3:       CALL 1DE9h			; FPADD - Add BCDE to FP reg
+00002FE3:       CALL 1DE9h			; FPADD - Add BCDE to FP reg (a.k.a. FADD)
 00002FE6:       CALL 20ABh			; INVSGN - Invert number sign
 00002FE9:       LD A,(EC43h)		; LAST_FPREG - Last byte in Single Precision FP Register (+sign bit)
 00002FEC:       OR A				; test FP number sign
@@ -7802,17 +7916,17 @@ _SIN:
 0000308A:       LD E,7Fh
 0000308C:       LD (E6C3h),A
 0000308F:       LD A,(E6A8h)
-00003092:       OUTA (51h)
+00003092:       OUTA (51h)		; CRTC
 00003094:       LD A,(EF89h)
 00003097:       CP 29h		; ')'
 00003099:       LD A,(EF87h)			; TTYPOS
 0000309C:       DEC A
 0000309D:       JR NC,+01h
 0000309F:       ADD A
-000030A0:       OUTA (50h)
+000030A0:       OUTA (50h)		; CRTC
 000030A2:       LD A,(EF86h)
 000030A5:       DEC A
-000030A6:       OUTA (50h)
+000030A6:       OUTA (50h)		; CRTC
 000030A8:       EI
 000030A9:       CALL 3F3Fh
 000030AC:       LD A,(E6CDh)
@@ -7853,6 +7967,7 @@ _SIN:
 000030F6:       POP DE
 000030F7:       EI
 000030F8:       RET
+
 000030F9:       LD E,A
 000030FA:       LD HL,(EFC4h)
 000030FD:       LD (EFC6h),HL
@@ -8022,21 +8137,24 @@ _SIN:
 00003235:       OUTA (20h)
 00003237:       EI
 00003238:       RET
+
 00003239:       LD A,D
 0000323A:       OR A
 0000323B:       JP P,3223h
 0000323E:       LD A,0Eh
 00003240:       JR -25h
+
 00003242:       LD A,03h
 00003244:       LD (EFF9h),A
-00003247:       LD BC,000Bh
+00003247:       LD BC,000Bh		; bottom keyboard row 
 0000324A:       LD HL,E6DBh
 0000324D:       LD DE,E6E7h
-00003250:       CALL 32F1h
+; RE-SCAN
+00003250:       CALL 32F1h		; scan keyboard
 00003253:       DEC HL
 00003254:       DEC DE
-00003255:       DEC C
-00003256:       JP P,3250h
+00003255:       DEC C			; previous row
+00003256:       JP P,3250h		; RE-SCAN
 00003259:       LD A,(EFFFh)
 0000325C:       LD HL,F000h
 0000325F:       CP (HL)
@@ -8183,6 +8301,7 @@ _SIN:
 00003356:       POP DE
 00003357:       LD (EFFDh),A
 0000335A:       JR -2Fh
+
 0000335C:       CP 50h
 0000335E:       JR NC,+3Fh
 00003360:       CP 4Fh
@@ -8285,6 +8404,7 @@ _SIN:
 000033F3:       XOR A
 000033F4:       SCF
 000033F5:       RET
+
 000033F6:       LD A,(BC)
 000033F7:       CP D
 000033F8:       INC (HL)
@@ -8519,6 +8639,7 @@ _SIN:
 00003530:       RET
 00003531:       LD A,A2h
 00003533:       RET
+
 00003534:       LD (F0ACh),A
 00003537:       LD A,(E69Fh)
 0000353A:       OR A
@@ -8557,6 +8678,7 @@ _SIN:
 00003581:       SCF
 00003582:       RET
 
+; INICHR
 00003583:       PUSH HL
 00003584:       PUSH DE
 00003585:       PUSH BC
@@ -8754,7 +8876,7 @@ _SIN:
 0000368F:       RET NC
 00003690:       LD A,FFh				; back to main ROM
 00003692:       OUTA (71h)				; bank switching
-00003694:       CALL 3583h
+00003694:       CALL 3583h			; INICHR
 00003697:       JP 036Fh
 
 0000369A:       LD A,01h
@@ -8931,6 +9053,7 @@ _SIN:
 000037C6:       POP AF
 000037C7:       SCF
 000037C8:       RET
+
 000037C9:       CALL 3DE9h
 000037CC:       PUSH AF
 000037CD:       LD A,0Fh
@@ -9571,7 +9694,7 @@ _SIN:
 00003BA2:       JP 1259h
 
 00003BA5:       CALL 223Eh			; CDBL
-00003BA8:       CALL 2124h
+00003BA8:       CALL 2124h			; FP_ARG2HL
 00003BAB:       POP HL
 00003BAC:       LD (EC3Fh),HL
 00003BAF:       POP HL
@@ -9586,7 +9709,7 @@ _SIN:
 00003BBE:       RET
 
 00003BBF:       PUSH DE
-00003BC0:       CALL 2214h			; CSGN
+00003BC0:       CALL 2214h		; CSNG - Convert number to single precision
 00003BC3:       JP 132Dh
 
 00003BC6:       LD DE,1404h
@@ -10223,7 +10346,7 @@ LPTOUT:
 00003F41:       CALL 4015h
 00003F44:       AND 01h
 00003F46:       RET Z
-00003F47:       INA (51h)
+00003F47:       INA (51h)		; CRTC
 00003F49:       AND 01h
 00003F4B:       RET Z
 00003F4C:       CALL 3F62h
@@ -10240,15 +10363,15 @@ LPTOUT:
 
 00003F62:       LD A,60h
 00003F64:       DI
-00003F65:       OUTA (51h)
-00003F67:       INA (50h)
+00003F65:       OUTA (51h)		; CRTC
+00003F67:       INA (50h)		; CRTC
 00003F69:       LD HL,E6AEh
 00003F6C:       OR A
 00003F6D:       JP P,3F71h
 00003F70:       INC HL
 00003F71:       SUB (HL)
 00003F72:       LD H,A
-00003F73:       INA (50h)
+00003F73:       INA (50h)		; CRTC
 00003F75:       EI
 00003F76:       LD L,A
 00003F77:       OR A
@@ -10361,7 +10484,7 @@ LPTOUT:
 0000401F:       LD A,(HL)
 00004020:       RET
 
-00004021:       LD A,(EF88h)
+00004021:       LD A,(EF88h)	; WIDTH
 00004024:       PUSH HL
 00004025:       PUSH AF
 00004026:       LD L,A
@@ -10688,55 +10811,41 @@ LPTOUT:
 0000424A:       LD (EF0Eh),A
 0000424D:       OUTA (E6h)
 0000424F:       RET
+
 00004250:       LD A,(EF0Eh)
 00004253:       OR 01h
 00004255:       JR -0Dh
-00004257:       NOP
-00004258:       NOP
-00004259:       LD A,B
-0000425A:       NOP
-0000425B:       RET P
-0000425C:       NOP
-0000425D:       LD L,B
-0000425E:       LD BC,01E0h
-00004261:       LD E,B
-00004262:       LD (BC),A
-00004263:       RET NC
-00004264:       LD (BC),A
-00004265:       LD C,B
-00004266:       INC BC
-00004267:       RET NZ
-00004268:       INC BC
-00004269:       JR C,+04h
-0000426B:       OR B
-0000426C:       INC B
-0000426D:       JR Z,+05h
-0000426F:       AND B
-00004270:       DEC B
-00004271:       JR +06h
-00004273:       SUB B
-00004274:       LD B,08h
-00004276:       RLCA
-00004277:       ADD B
-00004278:       RLCA
-00004279:       RET M
-0000427A:       RLCA
-0000427B:       LD (HL),B
-0000427C:       EX AF,AF'
-0000427D:       RET PE
-0000427E:       EX AF,AF'
-0000427F:       LD H,B
-00004280:       ADD HL,BC
-00004281:       RET C
-00004282:       ADD HL,BC
-00004283:       LD D,B
-00004284:       LD A,(BC)
-00004285:       RET Z
-00004286:       LD A,(BC)
-00004287:       LD B,B
-00004288:       DEC BC
-00004289:       CP B
-0000428A:       DEC BC
+
+
+; offset table
+00004257:       DEFW $0000
+00004259:       DEFW $0078		; 120
+0000425B:       DEFW $00F0		; 240
+0000425D:       DEFW $0168		; 360
+0000425F:       DEFW $01E0		; 480
+00004261:       DEFW $0258		; 600
+00004263:       DEFW $02D0		; 720
+00004265:       DEFW $0348		; 840
+00004267:       DEFW $03C0		; 960
+00004269:       DEFW $0438		; 1080
+0000426B:       DEFW $04B0		; 1200
+0000426D:       DEFW $0528		; 1320
+0000426F:       DEFW $05A0		; 1440
+00004271:       DEFW $0618		; 1560
+00004273:       DEFW $0690		; 1680
+00004275:       DEFW $0708		; 1800
+00004277:       DEFW $0780		; 1920
+00004279:       DEFW $07F8		; 2040
+0000427B:       DEFW $0870		; 2160
+0000427D:       DEFW $08E8		; 2280
+0000427F:       DEFW $0960		; 2400
+00004281:       DEFW $09D8		; 2520
+00004283:       DEFW $0A50		; 2640
+00004285:       DEFW $0AC8		; 2760
+00004287:       DEFW $0B40		; 2880
+00004289:       DEFW $0BB8		; 3000
+
+
 
 0000428B:       PUSH AF
 0000428C:       LD A,80h
@@ -10790,7 +10899,7 @@ LPTOUT:
 000042D5:       SUB H
 000042D6:       JR Z,+21h
 000042D8:       PUSH HL
-000042D9:       CALL 4333h
+000042D9:       CALL 4333h		; DE=offset value for A
 000042DC:       LD B,D
 000042DD:       LD C,E
 000042DE:       POP HL
@@ -10815,7 +10924,7 @@ LPTOUT:
 000042FF:       SUB L
 00004300:       JR Z,+17h
 00004302:       PUSH HL
-00004303:       CALL 4333h
+00004303:       CALL 4333h		; DE=offset value for A
 00004306:       LD B,D
 00004307:       LD C,E
 00004308:       POP HL
@@ -10837,16 +10946,18 @@ LPTOUT:
 00004322:       JP NC,0B06h			; FCERR, Err $05 - "Illegal function call"
 00004325:       DEC A
 00004326:       JP M,0B06h			; FCERR, Err $05 - "Illegal function call"
-00004329:       CALL 4333h
+00004329:       CALL 4333h			; DE=offset value for A
 0000432C:       LD HL,(E6C4h)
 0000432F:       ADD HL,DE
 00004330:       EX DE,HL
 00004331:       POP HL
 00004332:       RET
+
+; DE=offset value for A
 00004333:       RLCA
 00004334:       LD L,A
 00004335:       LD H,00h
-00004337:       LD DE,4257h
+00004337:       LD DE,4257h		; offset table
 0000433A:       ADD HL,DE
 0000433B:       LD E,(HL)
 0000433C:       INC HL
@@ -11321,6 +11432,7 @@ EXEC_ROM0_RET:
 000045DA:       POP BC
 000045DB:       POP DE
 000045DC:       RET
+
 000045DD:       CALL 4676h
 000045E0:       LD A,B
 000045E1:       INC A
@@ -11386,6 +11498,7 @@ EXEC_ROM0_RET:
 00004623:       LD (HL),00h
 00004625:       OR A
 00004626:       RET
+
 00004627:       PUSH AF
 00004628:       DEC A
 00004629:       INC HL
@@ -11544,8 +11657,9 @@ EXEC_ROM0_RET:
 000046F2:       INC HL
 000046F3:       DEC E
 000046F4:       RET
-000046F5:       CALL 18A6h				; MAKINT
-000046F8:       LD L,A
+
+000046F5:       CALL 18A6h			; MAKINT
+000046F8:       LD L,A				; GETPTR
 000046F9:       LD A,(EC7Eh)		; MAXFIL
 000046FC:       CP L
 000046FD:       JP C,4DB2h				; 'Bad file number' error
@@ -11587,7 +11701,7 @@ EXEC_ROM0_RET:
 00004734:       PUSH HL
 
 ; SETFIL
-00004735:       CALL 46F8h
+00004735:       CALL 46F8h			; GETPTR
 00004738:       JP Z,4DACh			; 'File not open' error
 0000473B:       LD (EC88h),HL		; PTRFIL
 0000473E:       CALL EDFFh
@@ -11730,7 +11844,7 @@ _OPEN:
 000047FE:       LD A,E
 000047FF:       PUSH AF
 00004800:       PUSH HL
-00004801:       CALL 46F8h
+00004801:       CALL 46F8h			; GETPTR
 00004804:       JP NZ,4DA3h			; 'File already open' error
 00004807:       POP DE
 00004808:       LD A,D
@@ -11752,7 +11866,7 @@ _OPEN:
 00004821:       LD A,(ECA3h)		; NLONLY
 00004824:       AND 01h
 00004826:       JP NZ,4C1Dh
-00004829:       CALL 46F8h
+00004829:       CALL 46F8h			; GETPTR
 0000482C:       JR Z,+13h
 0000482E:       LD (EC88h),HL		; PTRFIL
 00004831:       PUSH HL
@@ -11929,7 +12043,7 @@ _SAVE:
 00004952:       LD (EC29h),A
 00004955:       CALL 4B0Ch			; CLSALL - Close all files/streams
 00004958:       XOR A
-00004959:       CALL 46F8h
+00004959:       CALL 46F8h			; GETPTR
 0000495C:       LD (HL),80h
 0000495E:       LD (EC88h),HL		; PTRFIL
 00004961:       CALL ECD9h
@@ -12006,7 +12120,7 @@ _RSET:
 000049DB:       LD HL,(EB16h)	; PROGND - BASIC program end ptr (aka VARTAB)
 000049DE:       RST 20h			; CPDEHL - compare DE and HL (aka DCOMPR)
 000049DF:       JR NC,+2Ch
-000049E1:       LD HL,(EB1Bh)
+000049E1:       LD HL,(EB1Bh)	; VARTAB
 000049E4:       RST 20h			; CPDEHL - compare DE and HL (aka DCOMPR)
 000049E5:       JR C,+26h
 000049E7:       LD E,C
@@ -12103,11 +12217,11 @@ _RSET:
 _FIELD:
 00004A5C:       DEC HL
 00004A5D:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-00004A5E:       CP 23h		;'#'
-00004A60:       CALL Z,0A0Dh			; _CHRGTB - Pick next char from program
+00004A5E:       CP '#'
+00004A60:       CALL Z,0A0Dh		; _CHRGTB - Pick next char from program
 00004A63:       CALL 18A3h			; GETINT
 00004A66:       PUSH HL
-00004A67:       CALL 46F8h
+00004A67:       CALL 46F8h			; GETPTR
 00004A6A:       CALL 4C28h
 00004A6D:       POP DE
 00004A6E:       XOR A
@@ -12230,10 +12344,11 @@ _CLOSE:
 00004B15:       LD A,(EC7Eh)		; MAXFIL
 00004B18:       JR -43h
 
+; BASICH
 00004B1A:       XOR A
 00004B1B:       LD B,A
 00004B1C:       LD A,B
-00004B1D:       CALL 46F8h
+00004B1D:       CALL 46F8h			; GETPTR
 00004B20:       LD (HL),00h
 00004B22:       LD A,(EC7Eh)		; MAXFIL
 00004B25:       INC B
@@ -12260,6 +12375,7 @@ _CLOSE:
 
 00004B52:       POP HL
 00004B53:       POP AF
+
 00004B54:       PUSH HL
 00004B55:       PUSH DE
 00004B56:       PUSH BC
@@ -12443,6 +12559,7 @@ _FPOS:
 00004C77:       CALL 481Dh			; CLOSE
 00004C7A:       JP 4DA6h			; 'Direct statement in file' error
 
+; deal with '#' argument
 00004C7D:       CP 23h		;'#'
 00004C7F:       RET NZ
 00004C80:       CALL 18A2h				; FNDNUM - Load 'A' with the next number in BASIC program
@@ -12484,7 +12601,7 @@ _FPOS:
 
 00004CC1:       LD BC,0F8Bh			; FINPRT - finalize PRINT
 00004CC4:       PUSH BC
-00004CC5:       CALL 4C7Dh
+00004CC5:       CALL 4C7Dh		; deal with '#' argument
 00004CC8:       CALL 5ACAh			; GETVAR - get variable address to DE (AKA PTRGET)
 00004CCB:       CALL 2256h				; TSTSTR - Test a string, 'Type Error' if it is not
 00004CCE:       PUSH DE
@@ -12629,7 +12746,7 @@ _FPOS:
 00004DC0:       LD BC,211Eh		; 4DC1: 'Feature not available' error
 00004DC3:       XOR A
 00004DC4:       LD (ECA3h),A		; NLONLY
-00004DC7:       CALL ECC1h
+00004DC7:       CALL ECC1h			; Hook for Error handler ?
 00004DCA:       LD (ECA4h),A
 00004DCD:       LD (E653h),A
 00004DD0:       LD (EC27h),A
@@ -12799,7 +12916,7 @@ _FPOS:
 
 ; CHKSTK:
 00004EC1:       PUSH HL
-00004EC2:       LD HL,(EACCh)			; STREND
+00004EC2:       LD HL,(EACCh)			; STREND (aka STRTOP) - string area top address
 00004EC5:       LD B,00h
 00004EC7:       ADD HL,BC
 00004EC8:       ADD HL,BC
@@ -12899,7 +13016,7 @@ _FPOS:
 00004F72:       LD H,A
 00004F73:       LD (EB0Dh),HL		; ONELIN - LINE to go when error
 00004F76:       LD (EB14h),HL			; OLDTXT - prg pointer for CONT
-00004F79:       LD HL,(EACCh)			; STREND
+00004F79:       LD HL,(EACCh)			; STREND (aka STRTOP) - string area top address
 00004F7C:       LD A,(EC30h)
 00004F7F:       OR A
 00004F80:       JR NZ,+03h
@@ -12907,7 +13024,7 @@ _FPOS:
 00004F85:       XOR A
 00004F86:       CALL 50A5h		; _RESTORE
 00004F89:       LD HL,(EB16h)	; PROGND - BASIC program end ptr (aka VARTAB)
-00004F8C:       LD (EB1Bh),HL
+00004F8C:       LD (EB1Bh),HL	; VARTAB
 00004F8F:       LD (EB1Ah),A
 00004F92:       LD (EB1Dh),HL	; VAREND - End of variables
 00004F95:       LD (EB1Fh),HL	; ARREND - End of arrays
@@ -13379,7 +13496,7 @@ _CLEAR:
 0000528A:       RST 20h			; CPDEHL - compare DE and HL (aka DCOMPR)
 0000528B:       JR NC,+15h
 0000528D:       EX DE,HL
-0000528E:       LD (EACCh),HL			; STREND
+0000528E:       LD (EACCh),HL			; STREND (aka STRTOP) - string area top address
 00005291:       POP HL
 00005292:       LD (E654h),HL		; STKTOP
 00005295:       POP HL
@@ -13396,7 +13513,7 @@ _CLEAR:
 000052A5:       PUSH HL
 000052A6:       LD HL,(E654h)		; STKTOP
 000052A9:       EX DE,HL
-000052AA:       LD HL,(EACCh)			; STREND
+000052AA:       LD HL,(EACCh)			; STREND (aka STRTOP) - string area top address
 000052AD:       LD A,E
 000052AE:       SUB L
 000052AF:       LD E,A
@@ -13487,7 +13604,8 @@ _NEXT:
 0000532C:       JR NZ,+05h
 0000532E:       LD HL,(EC19h)
 00005331:       JR +0Bh
-00005333:       CALL 233Ah
+
+00005333:       CALL 233Ah			; IADD - Integer ADD
 00005336:       LD A,(EABDh)		; VALTYP - type indicator
 00005339:       CP 04h
 0000533B:       JP Z,03ABh			; "Overflow" error
@@ -13503,7 +13621,7 @@ _NEXT:
 00005347:       LD D,(HL)
 00005348:       INC HL
 00005349:       EX HL,(SP)
-0000534A:       CALL 215Fh
+0000534A:       CALL 215Fh			; ICOMP - INTEGER COMPARE
 0000534D:       POP HL
 0000534E:       POP BC
 0000534F:       SUB B
@@ -13538,7 +13656,7 @@ _NEXT:
 0000537E:       EX DE,HL
 0000537F:       LD HL,(EB16h)	; PROGND - BASIC program end ptr (aka VARTAB)
 00005382:       PUSH DE
-00005383:       LD DE,(EB1Bh)
+00005383:       LD DE,(EB1Bh)	; VARTAB
 00005387:       RST 20h			; CPDEHL - compare DE and HL (aka DCOMPR)
 00005388:       JR Z,+20h
 0000538A:       POP DE
@@ -13595,7 +13713,7 @@ _NEXT:
 000053D4:       CALL 53AFh
 000053D7:       CALL 537Dh
 000053DA:       JP Z,06D0h
-000053DD:       LD DE,(EB1Bh)
+000053DD:       LD DE,(EB1Bh)		; VARTAB
 000053E1:       LD A,B
 000053E2:       LD (DE),A
 000053E3:       INC DE
@@ -13609,10 +13727,11 @@ _NEXT:
 000053EB:       POP HL
 000053EC:       CALL 5479h
 000053EF:       EX DE,HL
-000053F0:       LD (EB1Bh),HL
+000053F0:       LD (EB1Bh),HL		; VARTAB
 000053F3:       EX DE,HL
 000053F4:       POP HL
 000053F5:       RET
+
 000053F6:       PUSH HL
 000053F7:       CALL EDE7h
 000053FA:       PUSH AF
@@ -13652,7 +13771,7 @@ _NEXT:
 0000542C:       INC HL
 0000542D:       OR (HL)
 0000542E:       JR NZ,-24h
-00005430:       LD HL,(EB1Bh)
+00005430:       LD HL,(EB1Bh)	; VARTAB
 00005433:       LD (EB1Dh),HL	; VAREND - End of variables
 00005436:       LD (EB1Fh),HL	; ARREND - End of arrays
 00005439:       LD A,01h
@@ -13904,7 +14023,7 @@ _STR$:
 00005595:       PUSH AF
 00005596:       LD BC,5574h
 00005599:       PUSH BC
-0000559A:       LD HL,(EACCh)			; STREND
+0000559A:       LD HL,(EACCh)			; STREND (aka STRTOP) - string area top address
 0000559D:       LD A,(E69Fh)
 000055A0:       OR A
 000055A1:       JP NZ,0B06h			; FCERR, Err $05 - "Illegal function call"
@@ -13922,7 +14041,7 @@ _STR$:
 000055C0:       LD (EC11h),HL	; TEMP9
 000055C3:       LD HL,(EB1Dh)	; VAREND - End of variables
 000055C6:       LD (EC0Eh),HL		; ARYTA2
-000055C9:       LD HL,(EB1Bh)
+000055C9:       LD HL,(EB1Bh)		; VARTAB
 000055CC:       LD DE,(EC0Eh)		; ARYTA2
 000055D0:       RST 20h			; CPDEHL - compare DE and HL (aka DCOMPR)
 000055D1:       JR Z,+17h
@@ -14144,6 +14263,7 @@ _STR$:
 _LEN:
 000056F8:       LD BC,1589h				; UNSIGNED_RESULT_A
 000056FB:       PUSH BC
+__LEN_0:
 000056FC:       CALL 56C9h				; GETSTR - Get string pointed by FPREG 'Type Error' if it is not
 000056FF:       XOR A
 00005700:       LD D,A
@@ -14154,7 +14274,7 @@ _LEN:
 _ASC:
 00005704:       LD BC,1589h				; UNSIGNED_RESULT_A
 00005707:       PUSH BC
-00005708:       CALL 56FCh
+00005708:       CALL 56FCh			; __LEN_0
 0000570B:       JP Z,0B06h			; FCERR, Err $05 - "Illegal function call"
 0000570E:       INC HL
 0000570F:       LD E,(HL)
@@ -14280,7 +14400,7 @@ _MID$:
 000057B3:       RET
 
 _VAL:
-000057B4:       CALL 56FCh
+000057B4:       CALL 56FCh			; __LEN_0
 000057B7:       JP Z,1589h			; UNSIGNED_RESULT_A
 000057BA:       LD E,A
 000057BB:       INC HL
@@ -14647,6 +14767,7 @@ _FRE:
 000059CD:       POP HL
 000059CE:       POP BC
 000059CF:       RET
+
 000059D0:       LD A,(E6A2h)
 000059D3:       OR A
 000059D4:       JR NZ,+05h
@@ -14716,7 +14837,7 @@ _FRE:
 00005A40:       RET
 
 ; CHGET - Waits for character being input and returns the character codes.
-00005A41:       CALL 3583h
+00005A41:       CALL 3583h			; INICHR
 00005A44:       CP 0Fh
 00005A46:       RET NZ
 00005A47:       LD A,(E652h)
@@ -14936,8 +15057,9 @@ GVAR:
 00005BAA:       LD (EC0Dh),A		; PRMFLG
 00005BAD:       LD HL,(EB1Dh)		; VAREND - End of variables
 00005BB0:       LD (EC0Eh),HL		; ARYTA2
-00005BB3:       LD HL,(EB1Bh)
+00005BB3:       LD HL,(EB1Bh)		; VARTAB
 00005BB6:       JR -23h
+
 00005BB8:       CALL 5ACAh			; GETVAR - get variable address to DE (AKA PTRGET)
 00005BBB:       RET
 
@@ -15480,6 +15602,7 @@ GVAR:
 00005F07:       INC A
 00005F08:       LD (EF83h),A
 00005F0B:       JP 42FEh
+
 00005F0E:       CALL 42B4h
 00005F11:       XOR A
 00005F12:       LD (EFB4h),A
@@ -15609,6 +15732,7 @@ GVAR:
 00005FD1:       LD (EF83h),HL
 00005FD4:       XOR A
 00005FD5:       JP 6144h
+
 00005FD8:       LD (EF85h),A
 00005FDB:       SBC A
 00005FDC:       LD (EFB9h),A
@@ -15635,7 +15759,7 @@ GVAR:
 
 ; listing of the main ROM bank follows (1st byte is kept in the previous instruction)
 
-00006001:       CALL 3583h
+00006001:       CALL 3583h			; INICHR
 00006004:       PUSH AF
 00006005:       LD HL,(EF83h)
 00006008:       EX DE,HL
@@ -15780,6 +15904,8 @@ GVAR:
 000060D5:       LD H,C
 000060D6:       LD SP,HL
 000060D7:       LD H,C
+
+; used by 'PINLIN' and 'QINLIN'
 000060D8:       LD A,(E69Fh)
 000060DB:       OR A
 000060DC:       JR Z,+05h
@@ -15843,6 +15969,8 @@ GVAR:
 0000613F:       LD (HL),01h
 00006141:       EX DE,HL
 00006142:       JR +10h
+
+; continues from 'INLIN'
 00006144:       PUSH AF
 00006145:       LD A,(E69Fh)
 00006148:       AND A
@@ -15896,6 +16024,7 @@ GVAR:
 000061A5:       POP AF
 000061A6:       SCF
 000061A7:       RET
+
 000061A8:       LD A,FEh
 000061AA:       SUB B
 000061AB:       LD D,A
@@ -16043,7 +16172,7 @@ GVAR:
 0000629D:       CP H
 0000629E:       JR NZ,+09h
 000062A0:       LD H,00h
-000062A2:       LD A,(EF88h)
+000062A2:       LD A,(EF88h)	; WIDTH
 000062A5:       CP L
 000062A6:       JR NZ,+00h
 000062A8:       INC L
@@ -16317,6 +16446,7 @@ GVAR:
 000064A4:       LD A,C
 000064A5:       AND A
 000064A6:       RET
+
 000064A7:       POP AF
 000064A8:       SCF
 000064A9:       RET
@@ -16397,8 +16527,10 @@ GVAR:
 00006522:       JR C,+02h
 00006524:       SCF
 00006525:       RET
+
 00006526:       AND A
 00006527:       RET
+
 00006528:       PUSH HL
 00006529:       LD H,01h
 0000652B:       CALL 429Dh
@@ -17102,6 +17234,7 @@ __USING:
 000069CD:       INC HL
 000069CE:       DJNZ -09h
 000069D0:       RET
+
 000069D1:       LD DE,F300h
 000069D4:       DI
 000069D5:       LD A,D
@@ -17110,6 +17243,7 @@ __USING:
 000069DB:       LD BC,0020h
 000069DE:       LDIR
 000069E0:       RET
+
 000069E1:       LD BC,2814h
 000069E4:       LD A,(EF7Fh)
 000069E7:       LD L,A
@@ -17308,7 +17442,7 @@ __USING:
 00006AE4:       ADD C
 00006AE5:       DEC D
 00006AE6:       AND B
-00006AE7:       LD HL,2214h			; CSGN
+00006AE7:       LD HL,2214h			; CSNG - Convert number to single precision
 00006AEA:       LD A,22h
 00006AEC:       ADD (HL)
 00006AED:       LD (4ABAh),HL
@@ -17603,7 +17737,7 @@ _RENUM:
 00006F12:       LD A,1
 00006F14:       PUSH HL
 00006F15:       PUSH DE
-00006F16:       CALL 3583h
+00006F16:       CALL 3583h			; INICHR
 00006F19:       POP DE
 00006F1A:       POP HL
 00006F1B:       JP 4B8Ch
@@ -17616,7 +17750,7 @@ _RENUM:
 00006F27:       LD B,C
 00006F28:       CALL 35C2h		; _BREAKX - Set CY if STOP is pressed
 00006F2B:       JR C,+07h
-00006F2D:       CALL 3583h
+00006F2D:       CALL 3583h			; INICHR
 00006F30:       LD (HL),A
 00006F31:       INC HL
 00006F32:       DJNZ -0Ch
@@ -17659,7 +17793,7 @@ _RENUM:
 00006F6F:       LD (E6B0h),HL
 00006F72:       CALL 6FB4h
 00006F75:       LD A,C
-00006F76:       LD (EF88h),A
+00006F76:       LD (EF88h),A	; WIDTH
 00006F79:       CP 14h
 00006F7B:       LD HL,705Bh
 00006F7E:       JR Z,+03h
@@ -17686,7 +17820,7 @@ _RENUM:
 00006FA8:       RET
 
 00006FA9:       LD (E6B0h),HL
-00006FAC:       LD A,(EF88h)
+00006FAC:       LD A,(EF88h)	; WIDTH
 00006FAF:       LD C,A
 00006FB0:       LD A,(EF89h)
 00006FB3:       LD B,A
@@ -17717,10 +17851,10 @@ _RENUM:
 00006FE0:       LD E,D
 00006FE1:       LD B,D
 00006FE2:       INC HL
-00006FE3:       LD A,(E6C2h)
+00006FE3:       LD A,(E6C2h)	; Value being sent to port 31h (bank switching)
 00006FE6:       AND DFh
 00006FE8:       OR B
-00006FE9:       LD (E6C2h),A
+00006FE9:       LD (E6C2h),A	; Value being sent to port 31h (bank switching)
 00006FEC:       OUTA (31h)
 00006FEE:       LD A,(E6C0h)
 00006FF1:       AND FCh
@@ -17738,7 +17872,7 @@ _RENUM:
 0000700A:       OUTA (40h)
 0000700C:       CALL 433Fh
 0000700F:       XOR A
-00007010:       OUTA (51h)
+00007010:       OUTA (51h)		; CRTC
 00007012:       LD A,A0h
 00007014:       OUTA (68h)
 00007016:       PUSH HL
@@ -17757,19 +17891,19 @@ _RENUM:
 00007029:       ADD HL,DE
 0000702A:       LD B,04h
 0000702C:       LD A,(HL)
-0000702D:       OUTA (50h)
+0000702D:       OUTA (50h)		; CRTC
 0000702F:       INC HL
 00007030:       DJNZ -06h
 00007032:       LD A,(E6B9h)
 00007035:       AND 40h
 00007037:       OR 13h
-00007039:       OUTA (50h)
+00007039:       OUTA (50h)		; CRTC
 0000703B:       LD A,43h
-0000703D:       OUTA (51h)
+0000703D:       OUTA (51h)		; CRTC
 0000703F:       LD A,E4h
 00007041:       OUTA (68h)
 00007043:       LD A,20h
-00007045:       OUTA (51h)
+00007045:       OUTA (51h)		; CRTC
 00007047:       CALL 433Fh
 0000704A:       INA (40h)
 0000704C:       AND 20h
@@ -17881,7 +18015,7 @@ _CONSOLE:
 000070F3:       XOR A
 000070F4:       CALL 445Bh
 000070F7:       LD (E6B4h),A
-000070FA:       LD A,(EF88h)
+000070FA:       LD A,(EF88h)	; WIDTH
 000070FD:       LD C,A
 000070FE:       LD A,(EF89h)
 00007101:       LD B,A
@@ -17900,7 +18034,7 @@ _CONSOLE:
 0000711B:       LD DE,714Ah
 0000711E:       PUSH DE
 0000711F:       LD B,A
-00007120:       LD A,(EF88h)
+00007120:       LD A,(EF88h)	; WIDTH
 00007123:       LD C,A
 00007124:       PUSH BC
 00007125:       DEC HL
@@ -17955,7 +18089,7 @@ _LOCATE:
 00007172:       CALL 18A3h			; GETINT
 00007175:       POP DE
 00007176:       LD E,A
-00007177:       LD A,(EF88h)
+00007177:       LD A,(EF88h)	; WIDTH
 0000717A:       DEC A
 0000717B:       CP E
 0000717C:       JR NC,+01h
@@ -18169,7 +18303,7 @@ _MAP:
 000072D4:       OUTA (30h)
 000072D6:       LD A,(E6C1h)		; enable/status FLAGS for port 40h
 000072D9:       OUTA (40h)
-000072DB:       LD A,(E6C2h)
+000072DB:       LD A,(E6C2h)	; Value being sent to port 31h (bank switching)
 000072DE:       OUTA (31h)
 000072E0:       OUTA (EBh)
 000072E2:       CALL 35D9h
@@ -18187,7 +18321,7 @@ _MAP:
 00007302:       LD C,06h
 00007304:       LD A,(HL)
 00007305:       INC HL
-00007306:       OUTA (C1h)
+00007306:       OUTA (C1h)	; RS232
 00007308:       OUTA (C3h)
 0000730A:       DEC C
 0000730B:       JP NZ,7304h
@@ -18354,11 +18488,13 @@ _TERM:
 0000744F:       CALL 4B54h
 00007452:       INC HL
 00007453:       JR -0Ah
+
 00007455:       LD A,0Dh
 00007457:       CALL 7705h
 0000745A:       JP Z,73C2h
 0000745D:       CALL 4B54h
 00007460:       JP 73C2h
+
 00007463:       LD HL,(EC88h)		; PTRFIL
 00007466:       LD BC,0004h
 00007469:       ADD HL,BC
@@ -18378,7 +18514,8 @@ _TERM:
 00007489:       LD A,(E6EDh)
 0000748C:       OUTA (21h)
 0000748E:       JP 51EBh
-00007491:       CALL 3583h
+
+00007491:       CALL 3583h			; INICHR
 00007494:       JR +01h
 00007496:       PUSH BC
 00007497:       XOR A
@@ -18437,8 +18574,9 @@ _TERM:
 0000750C:       JP 73C2h
 0000750F:       CALL 7348h
 00007512:       JR -50h
+
 00007514:       LD B,0Dh
-00007516:       LD DE,E65Ch
+00007516:       LD DE,E65Ch		; "NEC00000001", $0D, $0A
 00007519:       LD A,(DE)
 0000751A:       INC DE
 0000751B:       CALL 4B54h
@@ -18449,7 +18587,7 @@ _TERM:
 00007526:       CALL 7563h
 00007529:       SUB 20h
 0000752B:       JR C,-69h
-0000752D:       LD HL,EF88h
+0000752D:       LD HL,EF88h	; WIDTH
 00007530:       CP (HL)
 00007531:       JR NC,-6Fh
 00007533:       INC A
@@ -18547,6 +18685,7 @@ _TERM:
 000075EC:       LD A,FFh
 000075EE:       LD (E69Fh),A
 000075F1:       JP 74C4h
+
 000075F4:       CALL EDFCh
 000075F7:       LD HL,0400h
 000075FA:       LD (F0ACh),HL
@@ -18634,6 +18773,7 @@ _TERM:
 00007696:       EX DE,HL
 00007697:       LDIR
 00007699:       RET
+
 0000769A:       LD HL,(EF7Ch)
 0000769D:       CALL 76D3h
 000076A0:       PUSH HL
@@ -18789,7 +18929,7 @@ _TERM:
 000077B5:       LD HL,E931h
 000077B8:       LD (F0D1h),HL
 000077BB:       POP HL
-000077BC:       LD A,(E6C2h)
+000077BC:       LD A,(E6C2h)	; Value being sent to port 31h (bank switching)
 000077BF:       AND F1h
 000077C1:       OR 04h
 000077C3:       JP F0D0h
@@ -18860,7 +19000,7 @@ _TERM:
 0000782E:       LD BC,0253h
 00007831:       LD HL,00BEh
 00007834:       LD DE,E600h
-00007837:       LD (EACCh),HL			; STREND
+00007837:       LD (EACCh),HL			; STREND (aka STRTOP) - string area top address
 0000783A:       LDIR
 0000783C:       CALL 69B2h
 0000783F:       CALL 72CDh
@@ -18907,7 +19047,7 @@ _TERM:
 00007896:       EX DE,HL
 00007897:       JP C,4ED6h		; OMERR - handle stack pointer before issuing an 'out of memory error'
 0000789A:       DEC HL
-0000789B:       LD (EACCh),HL			; STREND
+0000789B:       LD (EACCh),HL			; STREND (aka STRTOP) - string area top address
 0000789E:       DEC HL
 0000789F:       PUSH HL
 000078A0:       LD A,(EF7Fh)
@@ -19008,7 +19148,7 @@ _TERM:
 0000793C:       SBC H
 0000793D:       LD H,A
 0000793E:       JP C,4ED6h		; OMERR - handle stack pointer before issuing an 'out of memory error'
-00007941:       LD (EACCh),HL			; STREND
+00007941:       LD (EACCh),HL			; STREND (aka STRTOP) - string area top address
 00007944:       EX DE,HL
 00007945:       LD (E654h),HL		; STKTOP
 00007948:       LD (EAF1h),HL			; FRETOP - Starting address of unused area of string area
@@ -19042,7 +19182,7 @@ _TERM:
 00007977:       LD HL,79B2h			; " Bytes free"
 0000797A:       CALL 5550h			; PRS - Print message pointed by HL
 0000797D:       CALL 5A69h	; OUTDO_CRLF
-00007980:       JP 4B1Ah
+00007980:       JP 4B1Ah	; BASICH
 
 00007983:       NOP
 
@@ -19187,6 +19327,7 @@ _TERM:
 ; CHPUT
 00007A9F:       AND 80h
 00007AA1:       JR Z,+02h
+
 00007AA3:       OR (HL)
 00007AA4:       LD (HL),A
 00007AA5:       LD DE,0007h
@@ -19265,6 +19406,7 @@ _TERM:
 00007B0C:       POP DE
 00007B0D:       POP HL
 00007B0E:       RET
+
 00007B0F:       POP HL
 00007B10:       LD A,01h
 00007B12:       JR -17h
@@ -19277,11 +19419,14 @@ _TERM:
 00007B1D:       ADD (HL)
 00007B1E:       LD (HL),A
 00007B1F:       RET
+
+; POPALL
 00007B20:       POP AF
 00007B21:       POP BC
 00007B22:       POP DE
 00007B23:       POP HL
 00007B24:       RET
+
 00007B25:       LD DE,0008h
 00007B28:       ADD HL,DE
 00007B29:       LD L,(HL)
@@ -19366,7 +19511,8 @@ _TERM:
 00007BB1:       POP AF
 00007BB2:       PUSH AF
 00007BB3:       CALL 5935h
-00007BB6:       JP 7B20h
+00007BB6:       JP 7B20h			; POPALL
+
 00007BB9:       POP AF
 00007BBA:       LD (E64Eh),A
 00007BBD:       RET
@@ -19457,7 +19603,8 @@ _TERM:
 00007C4F:       POP AF
 00007C50:       PUSH AF
 00007C51:       CALL 3203h
-00007C54:       JP 7B20h
+00007C54:       JP 7B20h			; POPALL
+
 00007C57:       CALL 7DA6h
 00007C5A:       CALL 35C2h		; _BREAKX - Set CY if STOP is pressed
 00007C5D:       JR C,+06h
@@ -19774,7 +19921,8 @@ _TERM:
 00007E82:       POP AF
 00007E83:       PUSH AF
 00007E84:       CALL 7FD0h
-00007E87:       JP 7B20h
+00007E87:       JP 7B20h			; POPALL
+
 00007E8A:       CALL 7E90h
 00007E8D:       JP 4B8Ch
 00007E90:       PUSH HL
