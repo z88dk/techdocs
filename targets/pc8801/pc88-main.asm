@@ -88,7 +88,7 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 00000056:       POP BC
 00000057:       LD C,A
 00000058:       LD A,B
-00000059:       OUTA (71h)				; bank switching
+00000059:       OUTA (71h)				; Extended ROM bank switching
 0000005B:       LD A,C
 0000005C:       POP BC
 0000005D:       JP 11E9h			; EVAL3
@@ -103,11 +103,11 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 00000070:       RET
 
 00000071:       NOP
-00000072:       LD A,(E6B9h)
+00000072:       LD A,(E6B9h)		; TextIsColor
 00000075:       AND A
 00000076:       SCF
 00000077:       CALL NZ,4021h
-0000007A:       JP 6F6Ah
+0000007A:       JP 6F6Ah			; CRTSET - on stack: columns, rows
 
 0000007D:       CALL 1896h				; POSINT - Get positive integer
 00000080:       PUSH AF
@@ -322,7 +322,7 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 00000140:       NOP
 00000141:       NOP
 
-00000142:       OUTA (71h)				; bank switching
+00000142:       OUTA (71h)				; Extended ROM bank switching
 00000144:       PUSH HL
 00000145:       LD HL,0154h
 00000148:       EX HL,(SP)
@@ -337,7 +337,7 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 00000153:       LD PC,HL
 
 00000154:       LD A,FFh				; back to main ROM
-00000156:       OUTA (71h)				; bank switching
+00000156:       OUTA (71h)				; Extended ROM bank switching
 00000158:       RET
 
 00000159:       RET
@@ -411,247 +411,52 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 000001AC:       DEC D
 000001AD:       SET 5,(HL)
 000001AF:       NOP
-000001B0:       LD L,H
-000001B1:       LD L,A
-000001B2:       LD H,C
-000001B3:       LD H,H
-000001B4:       JR NZ,+22h
-000001B6:       NOP
-000001B7:       NOP
-000001B8:       NOP
-000001B9:       NOP
-000001BA:       NOP
-000001BB:       NOP
-000001BC:       NOP
-000001BD:       NOP
-000001BE:       NOP
-000001BF:       NOP
-000001C0:       LD H,C
-000001C1:       LD (HL),L
-000001C2:       LD (HL),H
-000001C3:       LD L,A
-000001C4:       JR NZ,+00h
-000001C6:       NOP
-000001C7:       NOP
-000001C8:       NOP
-000001C9:       NOP
-000001CA:       NOP
-000001CB:       NOP
-000001CC:       NOP
-000001CD:       NOP
-000001CE:       NOP
-000001CF:       NOP
-000001D0:       LD H,A
-000001D1:       LD L,A
-000001D2:       JR NZ,+74h
-000001D4:       LD L,A
-000001D5:       JR NZ,+00h
-000001D7:       NOP
-000001D8:       NOP
-000001D9:       NOP
-000001DA:       NOP
-000001DB:       NOP
-000001DC:       NOP
-000001DD:       NOP
-000001DE:       NOP
-000001DF:       NOP
-000001E0:       LD L,H
-000001E1:       LD L,C
-000001E2:       LD (HL),E
-000001E3:       LD (HL),H
-000001E4:       JR NZ,+00h
-000001E6:       NOP
-000001E7:       NOP
-000001E8:       NOP
-000001E9:       NOP
-000001EA:       NOP
-000001EB:       NOP
-000001EC:       NOP
-000001ED:       NOP
-000001EE:       NOP
-000001EF:       NOP
-000001F0:       LD (HL),D
-000001F1:       LD (HL),L
-000001F2:       LD L,(HL)
-000001F3:       DEC C
-000001F4:       NOP
-000001F5:       NOP
-000001F6:       NOP
-000001F7:       NOP
-000001F8:       NOP
-000001F9:       NOP
-000001FA:       NOP
-000001FB:       NOP
-000001FC:       NOP
-000001FD:       NOP
-000001FE:       NOP
-000001FF:       NOP
-00000200:       LD (HL),E
-00000201:       LD H,C
-00000202:       HALT
-00000203:       LD H,L
-00000204:       JR NZ,+22h
-00000206:       NOP
-00000207:       NOP
-00000208:       NOP
-00000209:       NOP
-0000020A:       NOP
-0000020B:       NOP
-0000020C:       NOP
-0000020D:       NOP
-0000020E:       NOP
-0000020F:       NOP
-00000210:       LD L,E
-00000211:       LD H,L
-00000212:       LD A,C
-00000213:       JR NZ,+00h
-00000215:       NOP
-00000216:       NOP
-00000217:       NOP
-00000218:       NOP
-00000219:       NOP
-0000021A:       NOP
-0000021B:       NOP
-0000021C:       NOP
-0000021D:       NOP
-0000021E:       NOP
-0000021F:       NOP
-00000220:       LD (HL),B
-00000221:       LD (HL),D
-00000222:       LD L,C
-00000223:       LD L,(HL)
-00000224:       LD (HL),H
-00000225:       JR NZ,+00h
-00000227:       NOP
-00000228:       NOP
-00000229:       NOP
-0000022A:       NOP
-0000022B:       NOP
-0000022C:       NOP
-0000022D:       NOP
-0000022E:       NOP
-0000022F:       NOP
-00000230:       LD H,L
-00000231:       LD H,H
-00000232:       LD L,C
-00000233:       LD (HL),H
-00000234:       JR NZ,+2Eh
-00000236:       DEC C
-00000237:       NOP
-00000238:       NOP
-00000239:       NOP
-0000023A:       NOP
-0000023B:       NOP
-0000023C:       NOP
-0000023D:       NOP
-0000023E:       NOP
-0000023F:       NOP
-00000240:       LD H,E
-00000241:       LD L,A
-00000242:       LD L,(HL)
-00000243:       LD (HL),H
-00000244:       DEC C
-00000245:       NOP
-00000246:       NOP
-00000247:       NOP
-00000248:       NOP
-00000249:       NOP
-0000024A:       NOP
-0000024B:       NOP
-0000024C:       NOP
-0000024D:       NOP
-0000024E:       NOP
-0000024F:       NOP
-00000250:       LD L,H
-00000251:       LD L,C
-00000252:       LD (HL),H
-00000253:       LD H,L
-00000254:       LD (HL),D
-00000255:       LD H,C
-00000256:       LD L,H
-00000257:       NOP
-00000258:       NOP
-00000259:       NOP
-0000025A:       NOP
-0000025B:       NOP
-0000025C:       NOP
-0000025D:       NOP
-0000025E:       NOP
-0000025F:       NOP
-00000260:       LD L,B
-00000261:       LD H,C
-00000262:       LD L,H
-00000263:       LD H,(HL)
-00000264:       CPL
-00000265:       LD H,(HL)
-00000266:       LD (HL),L
-00000267:       LD L,H
-00000268:       LD L,H
-00000269:       NOP
-0000026A:       NOP
-0000026B:       NOP
-0000026C:       NOP
-0000026D:       NOP
-0000026E:       NOP
-0000026F:       NOP
-00000270:       LD C,H
-00000271:       LD D,B
-00000272:       LD D,H
-00000273:       JR NZ,+65h
-00000275:       LD L,(HL)
-00000276:       LD H,C
-00000277:       LD H,D
-00000278:       LD L,H
-00000279:       LD H,L
-0000027A:       NOP
-0000027B:       NOP
-0000027C:       NOP
-0000027D:       NOP
-0000027E:       NOP
-0000027F:       NOP
-00000280:       LD H,E
-00000281:       LD L,A
-00000282:       LD (HL),B
-00000283:       LD A,C
-00000284:       JR NZ,+62h
-00000286:       LD (HL),L
-00000287:       LD H,(HL)
-00000288:       LD H,(HL)
-00000289:       LD H,L
-0000028A:       LD (HL),D
-0000028B:       NOP
-0000028C:       NOP
-0000028D:       NOP
-0000028E:       NOP
-0000028F:       NOP
-00000290:       LD C,H
-00000291:       LD D,B
-00000292:       LD D,H
-00000293:       JR NZ,+66h
-00000295:       LD H,L
-00000296:       LD H,L
-00000297:       LD H,H
-00000298:       NOP
-00000299:       NOP
-0000029A:       NOP
-0000029B:       NOP
-0000029C:       NOP
-0000029D:       NOP
-0000029E:       NOP
-0000029F:       NOP
+
+
+; FNKSTR - FUNCTION KEY AREA
+; 01B0h -> E6F2h
+;E6F0  EE 00 6C 6F 61 64 20 22-00 00 00 00 00 00 00 00   ..load "........
+;E700  00 00 61 75 74 6F 20 00-00 00 00 00 00 00 00 00   ..auto .........
+;E710  00 00 67 6F 20 74 6F 20-00 00 00 00 00 00 00 00   ..go to ........
+;E720  00 00 6C 69 73 74 20 00-00 00 00 00 00 00 00 00   ..list .........
+;E730  00 00 72 75 6E 0D 00 00-00 00 00 00 00 00 00 00   ..run...........
+;E740  00 00 73 61 76 65 20 22-00 00 00 00 00 00 00 00   ..save "........
+;E750  00 00 6B 65 79 20 00 00-00 00 00 00 00 00 00 00   ..key ..........
+;E760  00 00 70 72 69 6E 74 20-00 00 00 00 00 00 00 00   ..print ........
+;E770  00 00 65 64 69 74 20 2E-0D 00 00 00 00 00 00 00   ..edit .........
+;E780  00 00 63 6F 6E 74 0D 00-00 00 00 00 00 00 00 00   ..cont..........
+;E790  00 00 6C 69 74 65 72 61-6C 00 00 00 00 00 00 00   ..literal.......
+;E7A0  00 00 68 61 6C 66 2F 66-75 6C 6C 00 00 00 00 00   ..half/full.....
+;E7B0  00 00 4C 50 54 20 65 6E-61 62 6C 65 00 00 00 00   ..LPT enable....
+;E7C0  00 00 63 6F 70 79 20 62-75 66 66 65 72 00 00 00   ..copy buffer...
+;E7D0  00 00 4C 50 54 20 66 65-65 64 00 00 00 00 00 00   ..LPT feed......
+;E7E0  00 00 C3 00 00 C3 00 00-FF E5 E5 21 67 31 F5 3A   ...........!g1.:
+
+
+
+; -> E7E2h
 000002A0:       JP 0000h
+
+; -> E7E5h
 000002A3:       JP 0000h
+
+; -> E7E8h
 000002A6:       RST 38h
+
+; -> E7E9h
 000002A7:       PUSH HL
+
+
+; -> E7EAh
 000002A8:       PUSH HL
-000002A9:       LD HL,3167h
+000002A9:       LD HL,3167h		; RXRDY - RS-232C receive interrupt handler
 000002AC:       PUSH AF
 000002AD:       LD A,(E6C2h)	; Value being sent to port 31h (bank switching)
 000002B0:       PUSH AF
 000002B1:       AND FBh
 000002B3:       OUTA (31h)
 000002B5:       LD (E6C2h),A	; Value being sent to port 31h (bank switching)
-000002B8:       CALL 3391h
+000002B8:       CALL 3391h		; JP (HL)
 000002BB:       DI
 000002BC:       POP AF
 000002BD:       OUTA (31h)
@@ -661,22 +466,32 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 000002C4:       EI
 000002C5:       RET
 
+; -> E808h
 000002C6:       PUSH HL
-000002C7:       LD HL,3080h
+000002C7:       LD HL,3080h		; VRTCHANDLER - screen interrupt handler
 000002CA:       JR -20h
+
+; -> E80Eh
 000002CC:       PUSH HL
-000002CD:       LD HL,4143h
+000002CD:       LD HL,4143h		; 1/600 second timer interrupt handler
 000002D0:       JR -26h
+
+; -> E814h
 000002D2:       PUSH HL
-000002D3:       LD HL,3079h
+000002D3:       LD HL,3079h		; default handler for user interrupts: (points to "exit from interrupt")
 000002D6:       JR -2Ch
+
+; -> EDC4h
 000002D8:       PUSH HL
-000002D9:       LD HL,3CB9h
+000002D9:       LD HL,3CB9h		; FDINT_1 handler
 000002DC:       JR -32h
+
+; -> E620h
 000002DE:       PUSH HL
-000002DF:       LD HL,3CACh
+000002DF:       LD HL,3CACh		; FDINT_2 handler
 000002E2:       JR -38h
 
+; -> E826h
 000002E4:       CALL 0069h
 000002E7:       NOP
 000002E8:       OR 04h
@@ -713,21 +528,30 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 00000325:       NOP
 
 
-;000069D1:       LD DE,F300h
-;000069D4:       DI
-;000069D5:       LD A,D
-;000069D6:       LD I,A
-;000069D8:       LD HL,0326h
-;000069DB:       LD BC,0020h
-;000069DE:       LDIR
-;000069E0:       RET
-
-; Data to be copied on bottom of RAM (system variables, service routines, etc..)
+; Interrupt table to be copied to bottom of RAM
 ; 
-; 0326 -> F300
+; $0326 -> $F300, 32 bytes
 
-;F300  EA E7 08 E8 0E E8 14 E8-14 E8 14 E8 1A E8 20 E8
-;F310  14 E8 14 E8 14 E8 14 E8-14 E8 14 E8 14 E8 14 E8
+
+;F300:
+;		DEFW E7EAh		; Lv.0 	$ F300 - $ F301 	RXRDY 	RS-232C receive interrupt
+;		DEFW E808h		; Lv.1 	$ F302 - $ F303 	VRTC 	Screen end interrupt 1/60 seconds
+;		DEFW E80Eh		; Lv.2 	$ F304 - $ F305 	CLOCK 	Real time clock 1/600 sec
+;		DEFW E814h		; Lv.3 	$ F306 - $ F307 	INT 4 	User interrupt (sound source)
+;		DEFW E814h		; Lv.4 	$ F308 - $ F309 	INT 3 	User interrupt (sound source)
+;		DEFW E814h		; Lv.5 	$ F30A - $ F30B 	INT 2 	User interrupt
+;		DEFW E81Ah		; Lv.6 	$ F30C - $ F30D 	FDINT 1 	Reserve for FDD
+;		DEFW E820h		; Lv.7 	$ F30E - $ F30F 	FDINT 0 	Reserve for FDD
+
+;		DEFW E814h
+;		DEFW E814h
+;		DEFW E814h
+;		DEFW E814h
+;		DEFW E814h
+;		DEFW E814h
+;		DEFW E814h
+;		DEFW E814h
+
 
 00000326:       JP PE,08E7h
 00000329:       RET PE
@@ -824,7 +648,7 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 000003B0:       LD BC,0D1Eh		; 03B1: - "Type mismatch" error
 ; -ERROR-
 000003B3:       LD A,FFh				; back to main ROM
-000003B5:       OUTA (71h)				; bank switching
+000003B5:       OUTA (71h)				; Extended ROM bank switching
 000003B7:       XOR A
 000003B8:       LD (E6ADh),A
 000003BB:       LD HL,(EFBAh)
@@ -934,7 +758,7 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 00000478:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
 00000479:       LD A,C1h
 0000047B:       LD A,FFh				; back to main ROM
-0000047D:       OUTA (71h)				; bank switching
+0000047D:       OUTA (71h)				; Extended ROM bank switching
 0000047F:       CALL 5989h			; STOP_LPT -  Stop and reset line printer
 00000482:       XOR A
 00000483:       LD (E652h),A
@@ -1705,7 +1529,7 @@ _FOR:
 
 ; NEW_STMT
 00000996:       LD A,FFh				; back to main ROM
-00000998:       OUTA (71h)				; bank switching
+00000998:       OUTA (71h)				; Extended ROM bank switching
 0000099A:       LD A,(E6C9h)
 0000099D:       OR A
 0000099E:       JP NZ,7CCDh
@@ -2507,7 +2331,7 @@ _PRINT_
 00000EB8:       LD B,A
 00000EB9:       INC A
 00000EBA:       JR Z,+0Fh
-00000EBC:       CALL 449Fh		; DECrement TTYPOS
+00000EBC:       CALL 449Fh		; DECrement TTYPOS, (a.k.a. CSRX or CursorPos+1)
 00000EBF:       OR A
 00000EC0:       JR Z,+09h
 00000EC2:       ADD (HL)
@@ -2547,7 +2371,7 @@ _PRINT_
 
 00000F02:       LD A,(E650h)	; CLMLST
 00000F05:       LD B,A
-00000F06:       CALL 449Fh		; DECrement TTYPOS
+00000F06:       CALL 449Fh		; DECrement TTYPOS, (a.k.a. CSRX or CursorPos+1)
 00000F09:       CP FFh
 00000F0B:       JR Z,+07h
 00000F0D:       CP B
@@ -2603,7 +2427,7 @@ _PRINT_
 00000F65:       JP Z,0F6Dh
 00000F68:       LD A,(E64Bh)			; LPTPOS - printer cursor position
 00000F6B:       JR +03h
-00000F6D:       CALL 449Fh		; DECrement TTYPOS
+00000F6D:       CALL 449Fh		; DECrement TTYPOS, (a.k.a. CSRX or CursorPos+1)
 00000F70:       CPL
 00000F71:       ADD E
 00000F72:       JR C,+0Bh
@@ -3172,13 +2996,13 @@ _READ:
 0000134D:       JP 1FB5h			; DIV - Divide FP by number on stack
 
 ; OPRND - Get next expression value
-00001350:       INA (71h)			; save bank status
+00001350:       INA (71h)			; save Extended ROM bank status
 00001352:       PUSH AF
 00001353:       LD A,FFh				; back to main ROM
-00001355:       OUTA (71h)				; bank switching
+00001355:       OUTA (71h)				; Extended ROM bank switching
 00001357:       CALL 135Eh			; + operand
 0000135A:       POP AF
-0000135B:       OUTA (71h)			; restore bank status
+0000135B:       OUTA (71h)			; restore Extended ROM bank status
 0000135D:       RET
 
 ; + operand
@@ -3553,7 +3377,7 @@ _LPOS:
 00001584:       JR +03h					; UNSIGNED_RESULT_A
 
 _POS:
-00001586:       CALL 449Fh		; DECrement TTYPOS
+00001586:       CALL 449Fh		; DECrement TTYPOS, (a.k.a. CSRX or CursorPos+1)
 
 ; UNSIGNED_RESULT_A
 00001589:       LD L,A
@@ -3975,6 +3799,7 @@ _WIDTH:
 0000184B:       OR A
 0000184C:       JP Z,0B06h			; FCERR, Err $05 - "Illegal function call"
 0000184F:       PUSH AF
+; 00001850:   RST 08h = DEFB 0CFh, also used to test the ROM ID
 00001850:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
 00001851:       DEFB ','
 00001852:       CALL 18A3h			; GETINT
@@ -4119,7 +3944,7 @@ _LIST:
 00001938:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
 00001939:       JR NZ,+08h
 0000193B:       PUSH HL
-0000193C:       LD HL,(EF86h)
+0000193C:       LD HL,(EF86h)		; CSRY (CursorPos) - current text position
 0000193F:       LD (EFC2h),HL
 00001942:       POP HL
 00001943:       LD A,(HL)
@@ -4656,21 +4481,22 @@ _OPTION:
 00001CB7:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00001CB8:       RET
 
-00001CB9:       INA (71h)			; save bank status
+00001CB9:       INA (71h)			; save Extended ROM bank status
 00001CBB:       PUSH AF
 00001CBC:       LD A,FFh				; back to main ROM
-00001CBE:       OUTA (71h)				; bank switching
+00001CBE:       OUTA (71h)				; Extended ROM bank switching
 00001CC0:       LD A,(HL)
-00001CC1:       CALL 1CCDh
+00001CC1:       CALL 1CCDh			; display
 00001CC4:       INC HL
 00001CC5:       LD A,(HL)
-00001CC6:       CALL 1CCDh
+00001CC6:       CALL 1CCDh			; display
 00001CC9:       POP AF
-00001CCA:       OUTA (71h)			; restore bank status
+00001CCA:       OUTA (71h)			; restore Extended ROM bank status
 00001CCC:       RET
 
+; display
 00001CCD:       PUSH AF
-00001CCE:       JP 59A5h
+00001CCE:       JP 59A5h			; display sub
 
 _RANDOMIZE:
 00001CD1:       JR Z,+09h
@@ -7866,6 +7692,11 @@ _SIN:
 0000303B:       CALL 2F8Bh			; COS
 0000303E:       JP 1FB5h			; DIV - Divide FP by number on stack
 
+3040     2D EF F9 F8 F8 27 14-10 33 FA FB 10 DA 18 A5
+3050  60 60 01 35 EF F5 F4 F4-4C 26 1A 36 F6 F7 20 BA
+3060  42 A6 62 60 02 40 80 20-60 10 FF 7F 3F 1F 0F 07
+3070  03 01 80 C0 E0 F0 F8 FC-FE 3A C3 E6 D3 E4 FB C9
+
 00003041:       DEC L
 00003042:       RST 28h				; SIGN - test FP number sign
 00003043:       LD SP,HL
@@ -7892,47 +7723,65 @@ _SIN:
 00003064:       LD (BC),A
 00003065:       LD B,B
 00003066:       ADD B
-00003067:       JR NZ,+60h
-00003069:       DJNZ -01h
-0000306B:       LD A,A
-0000306C:       CCF
-0000306D:       RRA
-0000306E:       RRCA
-0000306F:       RLCA
-00003070:       INC BC
-00003071:       LD BC,C080h
-00003074:       RET PO
-00003075:       RET P
-00003076:       RET M
-00003077:       CALL M,3AFEh
+
+00003067:       DEFB $20
+00003068:       DEFB $60
+00003069:       DEFB $10
+
+0000306A:       DEFB $FF
+0000306B:       DEFB $7F
+0000306C:       DEFB $3F
+0000306D:       DEFB $1F
+0000306E:       DEFB $0F
+0000306F:       DEFB $07
+00003070:       DEFB $03
+00003071:       DEFB $01
+
+00003072:       DEFB $80
+00003073:       DEFB $C0
+00003074:       DEFB $E0
+00003075:       DEFB $F0
+00003076:       DEFB $F8
+00003077:       DEFB $FC
+00003078:       DEFB $FE
+
+; exit from interrupt
+00003079:		LD A,(E6C3h)	; Value being sent to port E4h
+0000307C:		OUTA (E4h)		; restore interrupt levels
+0000307E:		EI
+0000307F:		RET
+
 0000307A:       JP D3E6h
+
 0000307D:       CALL PO,C9FBh
+
+; VRTCHANDLER - screen interrupt handler
 00003080:       PUSH DE
 00003081:       PUSH BC
-00003082:       LD A,(E6C3h)
+00003082:       LD A,(E6C3h)	; Value being sent to port E4h
 00003085:       PUSH AF
-00003086:       LD A,01h
+00003086:       LD A,01h		; set interrupt levels to disable also the "VRTC interrupt"
 00003088:       OUTA (E4h)
 0000308A:       LD E,7Fh
-0000308C:       LD (E6C3h),A
-0000308F:       LD A,(E6A8h)
-00003092:       OUTA (51h)		; CRTC
-00003094:       LD A,(EF89h)
-00003097:       CP 29h		; ')'
-00003099:       LD A,(EF87h)			; TTYPOS
+0000308C:       LD (E6C3h),A	; Value being sent to port E4h
+0000308F:       LD A,(E6A8h)		; CursorCommand
+00003092:       OUTA (51h)			; CRTC
+00003094:       LD A,(EF89h)	; WIDTH
+00003097:       CP 29h		; 40+1
+00003099:       LD A,(EF87h)			; TTYPOS, (a.k.a. CSRX or CursorPos+1)
 0000309C:       DEC A
 0000309D:       JR NC,+01h
 0000309F:       ADD A
-000030A0:       OUTA (50h)		; CRTC
-000030A2:       LD A,(EF86h)
+000030A0:       OUTA (50h)			; CRTC
+000030A2:       LD A,(EF86h)		; CSRY (CursorPos) - current text position
 000030A5:       DEC A
-000030A6:       OUTA (50h)		; CRTC
+000030A6:       OUTA (50h)			; CRTC
 000030A8:       EI
 000030A9:       CALL 3F3Fh
 000030AC:       LD A,(E6CDh)
 000030AF:       OR A
 000030B0:       JR NZ,+3Ch
-000030B2:       CALL 3242h
+000030B2:       CALL 3242h		; ScanKey
 000030B5:       JR NC,+24h
 000030B7:       LD A,(E6CEh)
 000030BA:       OR A
@@ -7946,23 +7795,24 @@ _SIN:
 000030CB:       XOR A
 000030CC:       LD (E6CEh),A
 000030CF:       JR +1Dh
+
 000030D1:       CALL 34EAh
 000030D4:       JR C,+18h
 000030D6:       CALL 30F9h
 000030D9:       JR -0Ah
 000030DB:       JR NZ,+0Eh
-000030DD:       LD HL,E6CFh
+000030DD:       LD HL,E6CFh			; KeyRepeatCount
 000030E0:       DEC (HL)
 000030E1:       JR NZ,+0Bh
-000030E3:       LD A,(EFFEh)
+000030E3:       LD A,(EFFEh)		; row ? in the keymap
 000030E6:       OR A
 000030E7:       JR Z,+05h
 000030E9:       LD (HL),04h
 000030EB:       CALL 30F9h
 000030EE:       DI
 000030EF:       POP AF
-000030F0:       OUTA (E4h)
-000030F2:       LD (E6C3h),A
+000030F0:       OUTA (E4h)		; restore interrupt levels
+000030F2:       LD (E6C3h),A	; Value being sent to port E4h
 000030F5:       POP BC
 000030F6:       POP DE
 000030F7:       EI
@@ -7988,7 +7838,7 @@ _SIN:
 0000311C:       LD (E6CAh),A
 0000311F:       PUSH DE
 00003120:       DI
-00003121:       CALL 35D9h
+00003121:       CALL 35D9h		; InitQueue - initialize keyboard buffer
 00003124:       EI
 00003125:       POP DE
 00003126:       XOR A
@@ -8017,23 +7867,26 @@ _SIN:
 00003153:       LD A,03h
 00003155:       JR Z,-3Bh
 00003157:       JR +07h
+
 00003159:       LD A,06h
 0000315B:       CALL 4015h
 0000315E:       AND 01h
 00003160:       CALL NZ,5012h
 00003163:       LD E,01h
 00003165:       JR -4Bh
-00003167:       LD A,(E6C3h)
+
+; RXRDY - RS-232C receive interrupt handler
+00003167:       LD A,(E6C3h)	; Value being sent to port E4h
 0000316A:       PUSH AF
 0000316B:       XOR A
-0000316C:       OUTA (E4h)
-0000316E:       LD (E6C3h),A
-00003171:       INA (21h)
+0000316C:       OUTA (E4h)		; disable all interrupts
+0000316E:       LD (E6C3h),A	; Value being sent to port E4h
+00003171:       INA (21h)		; USART (µPD8251C) Control port
 00003173:       AND 02h
 00003175:       JP Z,31FBh
 00003178:       PUSH DE
 00003179:       PUSH BC
-0000317A:       INA (21h)
+0000317A:       INA (21h)		; USART (µPD8251C) Control port
 0000317C:       PUSH AF
 0000317D:       INA (20h)
 0000317F:       LD E,A
@@ -8072,7 +7925,7 @@ _SIN:
 000031BB:       CALL ECBEh
 000031BE:       LD A,(E6EDh)
 000031C1:       OR 10h
-000031C3:       OUTA (21h)
+000031C3:       OUTA (21h)		; USART (µPD8251C) Control port
 000031C5:       LD A,(F006h)
 000031C8:       CPL
 000031C9:       LD (E6BFh),A
@@ -8100,8 +7953,8 @@ _SIN:
 000031F9:       POP BC
 000031FA:       POP DE
 000031FB:       POP AF
-000031FC:       LD (E6C3h),A
-000031FF:       OUTA (E4h)
+000031FC:       LD (E6C3h),A	; Value being sent to port E4h
+000031FF:       OUTA (E4h)		; restore interrupt levels
 00003201:       EI
 00003202:       RET
 
@@ -8144,9 +7997,10 @@ _SIN:
 0000323E:       LD A,0Eh
 00003240:       JR -25h
 
+; ScanKey
 00003242:       LD A,03h
-00003244:       LD (EFF9h),A
-00003247:       LD BC,000Bh		; bottom keyboard row 
+00003244:       LD (EFF9h),A	; keymap row
+00003247:       LD BC,000Bh		; keyboard row count
 0000324A:       LD HL,E6DBh
 0000324D:       LD DE,E6E7h
 ; RE-SCAN
@@ -8155,8 +8009,8 @@ _SIN:
 00003254:       DEC DE
 00003255:       DEC C			; previous row
 00003256:       JP P,3250h		; RE-SCAN
-00003259:       LD A,(EFFFh)
-0000325C:       LD HL,F000h
+00003259:       LD A,(EFFFh)	; bottom keymap row
+0000325C:       LD HL,F000h		; CTRL key status
 0000325F:       CP (HL)
 00003260:       JR Z,+40h
 00003262:       PUSH HL
@@ -8172,12 +8026,12 @@ _SIN:
 00003272:       AND 80h
 00003274:       JR Z,+07h
 00003276:       LD A,03h
-00003278:       LD (EFF9h),A
+00003278:       LD (EFF9h),A	; keymap row
 0000327B:       JR +0Ch
 0000327D:       LD B,05h
-0000327F:       LD A,(EFFFh)
+0000327F:       LD A,(EFFFh)	; bottom keymap row
 00003282:       AND 10h
-00003284:       LD A,(EFFFh)
+00003284:       LD A,(EFFFh)	; bottom keymap row
 00003287:       JR NZ,+03h
 00003289:       POP HL
 0000328A:       JR +16h
@@ -8190,27 +8044,27 @@ _SIN:
 00003297:       POP DE
 00003298:       POP BC
 00003299:       LD A,B
-0000329A:       LD (F002h),A
+0000329A:       LD (F002h),A	
 0000329D:       POP HL
-0000329E:       LD A,(EFFFh)
+0000329E:       LD A,(EFFFh)	; bottom keymap row
 000032A1:       LD (HL),A
-000032A2:       LD A,(EFF9h)
+000032A2:       LD A,(EFF9h)	; keymap row
 000032A5:       CP FFh
 000032A7:       RET Z
 000032A8:       CP 02h
 000032AA:       SCF
 000032AB:       RET NZ
-000032AC:       LD HL,(EFFBh)
-000032AF:       LD A,(EFFAh)
+000032AC:       LD HL,(EFFBh)	; keymap row
+000032AF:       LD A,(EFFAh)	; keymap row
 000032B2:       OR (HL)
 000032B3:       LD (HL),A
 000032B4:       LD A,1Ch
-000032B6:       LD (E6CFh),A
-000032B9:       LD A,(EFFDh)
+000032B6:       LD (E6CFh),A			; KeyRepeatCount
+000032B9:       LD A,(EFFDh)	; keymap row
 000032BC:       CALL ECDFh
 000032BF:       CALL 335Ch
 000032C2:       JR C,+27h
-000032C4:       LD (EFFEh),A
+000032C4:       LD (EFFEh),A	; keymap row
 000032C7:       CP 41h
 000032C9:       JR C,+1Ah
 000032CB:       CP 5Bh		; '['
@@ -8219,12 +8073,12 @@ _SIN:
 000032D1:       JR C,+12h
 000032D3:       CP 7Bh
 000032D5:       JR NC,+0Eh
-000032D7:       LD A,(F001h)
+000032D7:       LD A,(F001h)	; CAPS-shift status
 000032DA:       OR A
-000032DB:       LD A,(EFFEh)
+000032DB:       LD A,(EFFEh)	; keymap row
 000032DE:       JR Z,+05h
 000032E0:       XOR 20h
-000032E2:       LD (EFFEh),A
+000032E2:       LD (EFFEh),A	; keymap row
 000032E5:       AND A
 000032E6:       RET NZ
 000032E7:       INC A
@@ -8232,7 +8086,7 @@ _SIN:
 000032EA:       RET
 
 000032EB:       LD A,00h
-000032ED:       LD (EFFEh),A
+000032ED:       LD (EFFEh),A	; keymap row
 000032F0:       RET
 
 000032F1:       LD B,00h
@@ -8252,7 +8106,7 @@ _SIN:
 00003302:       JR NZ,+0Ah
 00003304:       LD A,B
 00003305:       AND F0h
-00003307:       LD (EFFFh),A
+00003307:       LD (EFFFh),A	; bottom keymap row
 0000330A:       LD A,0Fh
 0000330C:       JR +0Eh
 0000330E:       CP 0Ah
@@ -8260,26 +8114,26 @@ _SIN:
 00003312:       JR NZ,+08h
 00003314:       LD A,B
 00003315:       AND 80h
-00003317:       LD (F001h),A
+00003317:       LD (F001h),A	; CAPS-shift status
 0000331A:       LD A,7Fh
 0000331C:       AND B
 0000331D:       JR Z,+0Eh
 0000331F:       XOR (HL)
 00003320:       JR NZ,+0Dh
-00003322:       LD A,(EFF9h)
+00003322:       LD A,(EFF9h)	; keymap row
 00003325:       SUB 03h
 00003327:       JR NZ,+04h
 00003329:       DEC A
-0000332A:       LD (EFF9h),A
+0000332A:       LD (EFF9h),A	; keymap row
 0000332D:       EX DE,HL
 0000332E:       RET
 0000332F:       LD B,A
-00003330:       LD A,(EFF9h)
+00003330:       LD A,(EFF9h)	; keymap row
 00003333:       AND 03h
 00003335:       CP 02h
 00003337:       JR Z,-0Ch
 00003339:       DEC A
-0000333A:       LD (EFF9h),A
+0000333A:       LD (EFF9h),A	; keymap row
 0000333D:       LD A,80h
 0000333F:       PUSH DE
 00003340:       LD D,08h
@@ -8291,15 +8145,15 @@ _SIN:
 00003348:       RRCA
 00003349:       JR -09h
 
-0000334B:       LD (EFFBh),HL
-0000334E:       LD (EFFAh),A
+0000334B:       LD (EFFBh),HL	; keymap row
+0000334E:       LD (EFFAh),A	; keymap row
 00003351:       LD A,C
 00003352:       RLCA
 00003353:       RLCA
 00003354:       RLCA
 00003355:       OR D
 00003356:       POP DE
-00003357:       LD (EFFDh),A
+00003357:       LD (EFFDh),A	; keymap row
 0000335A:       JR -2Fh
 
 0000335C:       CP 50h
@@ -8650,7 +8504,7 @@ _SIN:
 00003546:       JR NZ,+0Ch
 00003548:       LD A,(EF75h)
 0000354B:       CPL
-0000354C:       LD (E6B6h),A
+0000354C:       LD (E6B6h),A			; PrintCtrlCode
 0000354F:       LD (EF75h),A
 00003552:       JR +2Dh
 00003554:       DEC A
@@ -8678,14 +8532,14 @@ _SIN:
 00003581:       SCF
 00003582:       RET
 
-; INICHR
+; INICHR (aka GETCHAR)
 00003583:       PUSH HL
 00003584:       PUSH DE
 00003585:       PUSH BC
 00003586:       LD A,(E6CAh)
 00003589:       OR A
 0000358A:       JR NZ,+07h
-0000358C:       LD A,(E6A7h)
+0000358C:       LD A,(E6A7h)	; CursorMode
 0000358F:       OR A
 00003590:       CALL NZ,4290h
 00003593:       CALL 7780h
@@ -8738,11 +8592,13 @@ _SIN:
 000035D7:       POP HL
 000035D8:       RET
 
+; InitQueue - initialize keyboard buffer
 000035D9:       LD DE,EFD9h
 000035DC:       LD B,1Fh
 000035DE:       XOR A
 000035DF:       CALL 463Dh
 000035E2:       RET
+
 000035E3:       SBC D
 000035E4:       SUB E
 000035E5:       ADC A
@@ -8875,9 +8731,21 @@ _SIN:
 0000368C:       CALL 35C2h		; _BREAKX - Set CY if STOP is pressed
 0000368F:       RET NC
 00003690:       LD A,FFh				; back to main ROM
-00003692:       OUTA (71h)				; bank switching
-00003694:       CALL 3583h			; INICHR
+00003692:       OUTA (71h)				; Extended ROM bank switching
+00003694:       CALL 3583h			; INICHR (aka GETCHAR)
 00003697:       JP 036Fh
+
+
+; -----------------------------------------------------------------------------
+;	PHYDIO
+;	
+;	in:	drive number in ($EC85)
+;		HL	data addr
+;		A	num sectors
+;		B	track
+;		C	sector
+;		CY,Z	iomode (C-write, NC Z-check NC NZ-read)
+; 	saves:	HLBCA
 
 0000369A:       LD A,01h
 0000369C:       EX DE,HL
@@ -8914,16 +8782,19 @@ _SIN:
 000036D9:       OR A
 000036DA:       RET
 
-000036DB:       INA (40h)
-000036DD:       AND 08h
-000036DF:       XOR 08h
+; Test boot mode DIP switch
+000036DB:       INA (40h)		; System mode sense
+000036DD:       AND 08h			; Disk boot mode
+000036DF:       XOR 08h			; invert bit, now non-zero to boot from disk
 000036E1:       RET
 
 000036E2:       PUSH BC
 000036E3:       PUSH DE
 000036E4:       PUSH AF
-000036E5:       CALL 36DBh
-000036E8:       JR Z,+10h
+000036E5:       CALL 36DBh		; Test boot mode DIP switch
+000036E8:       JR Z,+10h		; jump not to boot from disk
+
+; boot from disk swith is set
 000036EA:       LD A,91h
 000036EC:       OUTA (FFh)
 000036EE:       XOR A
@@ -8932,10 +8803,13 @@ _SIN:
 000036F3:       LD (EF14h),A
 000036F6:       CALL 3700h
 000036F9:       AND A
+
 000036FA:       POP BC
 000036FB:       PUSH AF
 000036FC:       JR NZ,-2Bh
+
 000036FE:       JR -2Ah
+
 00003700:       LD A,00h
 00003702:       CALL 37C9h
 00003705:       LD A,05h
@@ -8992,6 +8866,7 @@ _SIN:
 00003762:       DEC B
 00003763:       JR NZ,-11h
 00003765:       RET
+
 00003766:       LD C,00h
 00003768:       LD A,(EF5Dh)
 0000376B:       CP 02h
@@ -9378,7 +9253,7 @@ _SIN:
 000039EE:       AND 03h			; limit to banks 0..
 000039F0:       LD B,A
 000039F1:       LD A,FEh				; select ROM bank 0 (IEROM)
-000039F3:       OUTA (71h)				; bank switching
+000039F3:       OUTA (71h)				; Extended ROM bank switching
 000039F5:       INA (32h)
 000039F7:       AND FCh				; Integrated expansion ROM bank selection (2 bits for EROMSL masked)
 000039F9:       OR B
@@ -9400,7 +9275,7 @@ _SIN:
 00003A09:       INC HL
 00003A0A:       LD D,(HL)
 00003A0B:       LD A,FFh				; select main ROM
-00003A0D:       OUTA (71h)				; bank switching
+00003A0D:       OUTA (71h)				; Extended ROM bank switching
 00003A0F:       INA (31h)
 00003A11:       CPL
 00003A12:       AND 80h
@@ -9435,7 +9310,7 @@ _SIN:
 00003A35:       EX AF,AF'
 00003A36:       INA (32h)
 00003A38:       LD C,A
-00003A39:       INA (71h)			; get bank status
+00003A39:       INA (71h)			; get Extended ROM bank status
 00003A3B:       LD (IY+13h),H
 00003A3E:       LD (IY+12h),L
 00003A41:       LD (IY+11h),C
@@ -9454,7 +9329,7 @@ _SIN:
 00003A5F:       OR B
 00003A60:       OUTA (32h)
 00003A62:       LD A,FEh			; select ROM bank 0 (IEROM)
-00003A64:       OUTA (71h)			; bank switching
+00003A64:       OUTA (71h)			; Extended ROM bank switching
 00003A66:       JP 3A7Bh
 
 00003A69:       EX AF,AF'
@@ -9468,7 +9343,7 @@ _SIN:
 00003A74:       OR B
 00003A75:       OUTA (32h)
 00003A77:       LD A,FFh			; select main ROM
-00003A79:       OUTA (71h)			; bank switching
+00003A79:       OUTA (71h)			; Extended ROM bank switching
 
 00003A7B:       POP IY
 00003A7D:       POP BC
@@ -9492,12 +9367,12 @@ _SIN:
 00003A8F:       LD A,(BC)
 00003A90:       PUSH BC
 00003A91:       LD B,A
-00003A92:       INA (71h)			; save bank status
+00003A92:       INA (71h)			; save Extended ROM bank status
 00003A94:       PUSH AF
 00003A95:       INA (32h)
 00003A97:       PUSH AF
 00003A98:       LD A,FFh			; back to main ROM
-00003A9A:       OUTA (71h)			; bank switching
+00003A9A:       OUTA (71h)			; Extended ROM bank switching
 00003A9C:       LD A,B
 00003A9D:       RST 20h		; (OUTDO??)  CPDEHL - compare DE and HL (aka DCOMPR)
 00003A9E:       CP 0Dh
@@ -9506,7 +9381,7 @@ _SIN:
 00003AA2:       OUTA (32h)
 00003AA4:       POP BC
 00003AA5:       LD A,B
-00003AA6:       OUTA (71h)			; restore bank status
+00003AA6:       OUTA (71h)			; restore Extended ROM bank status
 00003AA8:       POP BC
 00003AA9:       RET
 
@@ -9720,8 +9595,9 @@ _SIN:
 				DEFB 2			; ..will jump to 6AFDh, bank 2
 00003BD0:       RET
 
+; Boot in N88-BASIC mode
 00003BD1:       LD A,FFh
-00003BD3:       OUTA (53h)
+00003BD3:       OUTA (53h)		; Screen display control: hide all
 00003BD5:       JR +1Ch
 
 00003BD7:       CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
@@ -9739,19 +9615,21 @@ _SIN:
 ; START
 ;
 
-00003BE5:       INA (30h)
-00003BE7:       RRCA
-00003BE8:       JR NC,+09h
-00003BEA:       JR -1Bh
+00003BE5:       INA (30h)		; Mode select (dip switch state)
+00003BE7:       RRCA			; move to CY..  0: N-BASIC, 1: N88-BASIC
+00003BE8:       JR NC,+09h		; Boot in N-BASIC mode
+00003BEA:       JR -1Bh			; Boot in N88-BASIC mode
 
 00003BEC:       CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
 				DEFW 6503h
 				DEFB 2			; ..will jump to 7423h, bank 2
 00003BF2:       RET
 
+; Boot in N-BASIC mode
 00003BF3:       INA (31h)
 00003BF5:       RLCA
 00003BF6:       JP NC,3D7Bh		; Reset and init memory BANK paging
+
 00003BF9:       RLCA
 00003BFA:       JP NC,3D71h		; Init memory BANK paging (A=98h)
 00003BFD:       JP 3D6Eh		; Init memory BANK paging (A=88h)
@@ -9763,7 +9641,7 @@ _SIN:
 				DEFB 2			; ..will jump to 7438h, bank 2
 00003C07:       RET
 
-00003C08:       INA (21h)
+00003C08:       INA (21h)		; USART (µPD8251C) Control port
 00003C0A:       AND 05h
 00003C0C:       CP 05h
 00003C0E:       RET
@@ -9774,7 +9652,7 @@ _SIN:
 00003C14:       RLCA
 00003C15:       RLCA
 00003C16:       RRCA
-00003C17:       OUTA (10h)
+00003C17:       OUTA (10h)		; 
 00003C19:       PUSH AF
 00003C1A:       CALL 3C27h
 00003C1D:       POP AF
@@ -9786,10 +9664,10 @@ _SIN:
 
 00003C27:       DI
 00003C28:       LD A,(E6C1h)		; enable/status FLAGS for port 40h
-00003C2B:       AND F9h
+00003C2B:       AND F9h				; 11111001, calendar clock
 00003C2D:       OR C
 00003C2E:       OUTA (40h)
-00003C30:       AND F9h
+00003C30:       AND F9h				; 11111001, calendar clock
 00003C32:       OUTA (40h)
 00003C34:       LD (E6C1h),A		; enable/status FLAGS for port 40h
 00003C37:       EI
@@ -9803,11 +9681,11 @@ _SIN:
 
 00003C42:       XOR A
 00003C43:       LD B,03h
-00003C45:       OUTA (21h)
+00003C45:       OUTA (21h)		; USART (µPD8251C) Control port
 00003C47:       CALL 3C50h
 00003C4A:       DJNZ -07h
 00003C4C:       LD A,40h
-00003C4E:       OUTA (21h)
+00003C4E:       OUTA (21h)		; USART (µPD8251C) Control port
 00003C50:       RET
 
 
@@ -9895,6 +9773,7 @@ _SIN:
 00003CAB:       NOP
 
 
+; FDINT_2 handler
 00003CAC:       CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
 				DEFW 6509h
 				DEFB 2			; ..will jump to 74EDh, bank 2
@@ -9902,11 +9781,12 @@ _SIN:
 
 
 00003CB3:       LD A,11h
-00003CB5:       OUTA (21h)
+00003CB5:       OUTA (21h)		; USART (µPD8251C) Control port
 00003CB7:       RET
 
 00003CB8:       NOP
 
+; FDINT_1 handler
 00003CB9:       CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
 				DEFW 650Ch
 				DEFB 2			; ..will jump to 74FAh, bank 2
@@ -10107,7 +9987,7 @@ _SIN:
 00003DC1:       LD A,H
 00003DC2:       OUTA (32h)
 00003DC4:       LD A,L				; ROM bank mask ($FF or only one bit must be reset)
-00003DC5:       OUTA (71h)			; bank switching
+00003DC5:       OUTA (71h)			; Extended ROM bank switching
 00003DC7:       POP AF
 00003DC8:       POP HL
 00003DC9:       EI
@@ -10124,7 +10004,7 @@ _SIN:
 00003DD8:       RET
 
 00003DD9:       LD HL,EF60h
-00003DDC:       LD A,(EC85h)
+00003DDC:       LD A,(EC85h)		; current drive number
 00003DDF:       OR A
 00003DE0:       RET Z
 00003DE1:       CP (HL)
@@ -10161,17 +10041,17 @@ _SIN:
 00003E0E:       PUSH DE
 00003E0F:       PUSH HL
 00003E10:       PUSH AF
-00003E11:       CALL 428Bh
+00003E11:       CALL 428Bh		; deal with cursor
 00003E14:       LD B,A
-00003E15:       LD A,(E6B6h)
+00003E15:       LD A,(E6B6h)			; PrintCtrlCode
 00003E18:       OR A
 00003E19:       JR Z,+08h
 00003E1B:       XOR 19h
-00003E1D:       LD (E6B6h),A
+00003E1D:       LD (E6B6h),A			; PrintCtrlCode
 00003E20:       LD A,B
 00003E21:       JR +05h
 00003E23:       LD A,B
-00003E24:       CP 20h		; ' '		; ' '
+00003E24:       CP 20h		; ' '
 00003E26:       JR C,+27h
 00003E28:       CALL 6220h
 00003E2B:       CALL 447Dh
@@ -10179,14 +10059,14 @@ _SIN:
 00003E2F:       PUSH AF
 00003E30:       CP 0Ah
 00003E32:       JR NZ,+0Ah
-00003E34:       LD HL,(EF86h)
+00003E34:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 00003E37:       LD H,01h
-00003E39:       LD (EF86h),HL
+00003E39:       LD (EF86h),HL			; CSRY (CursorPos) - current text position
 00003E3C:       JR +11h
 
 00003E3E:       POP AF
 00003E3F:       LD B,A
-00003E40:       LD A,(E6B6h)
+00003E40:       LD A,(E6B6h)			; PrintCtrlCode
 00003E43:       CP 19h
 00003E45:       LD A,B
 00003E46:       JR Z,+03h
@@ -10204,6 +10084,7 @@ _SIN:
 00003E59:       JR NZ,+05h
 00003E5B:       CALL 3E9Bh		; CONSOLE BEEP SOUND
 00003E5E:       JR -22h
+
 00003E60:       CP 08h
 00003E62:       JR Z,+33h
 00003E64:       CP 0Ah
@@ -10229,10 +10110,10 @@ _SIN:
 00003E89:       LD BC,3E3Eh
 00003E8C:       PUSH BC
 00003E8D:       PUSH DE
-00003E8E:       LD HL,(EF86h)
+00003E8E:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 00003E91:       RET
 
-00003E92:       LD (E6B6h),A
+00003E92:       LD (E6B6h),A			; PrintCtrlCode
 00003E95:       JR -59h
 00003E97:       LD A,1Dh
 00003E99:       JR -1Dh
@@ -10240,7 +10121,7 @@ _SIN:
 ; CONSOLE BEEP SOUND
 00003E9B:       LD A,(E6C1h) 		; enable/status FLAGS for port 40h
 00003E9E:       AND 20h
-00003EA0:       XOR 20h			; turn beeper on if FLAGS permits it
+00003EA0:       XOR 20h			; turn beeper on
 00003EA2:       PUSH AF
 00003EA3:       CALL 3EC0h		; BEEPER control
 00003EA6:       LD HL,61A8h		; loop 25000 times to delay
@@ -10264,11 +10145,11 @@ _BEEP:
 ; BEEPER control
 00003EC0:       AND A
 00003EC1:       JR Z,+02h
-00003EC3:       LD A,20h
+00003EC3:       LD A,20h			; beeper bit
 00003EC5:       LD E,A
 00003EC6:       DI
 00003EC7:       LD A,(E6C1h)		; enable/status FLAGS for port 40h
-00003ECA:       AND DFh
+00003ECA:       AND DFh				; 11011111 - beeper
 00003ECC:       OR E
 00003ECD:       LD (E6C1h),A		; enable/status FLAGS for port 40h
 00003ED0:       OUTA (40h)
@@ -10280,16 +10161,16 @@ LPTOUT:
 00003ED5:       CALL 35C2h		; _BREAKX - Set CY if STOP is pressed
 00003ED8:       JR C,+17h
 00003EDA:       INA (40h)
-00003EDC:       AND 01h
+00003EDC:       AND 01h				; bit for printer strobe
 00003EDE:       JR NZ,-0Bh
 00003EE0:       POP AF
-00003EE1:       OUTA (10h)
+00003EE1:       OUTA (10h)			; Printer data output
 00003EE3:       PUSH AF
 00003EE4:       DI
 00003EE5:       LD A,(E6C1h)		; enable/status FLAGS for port 40h
-00003EE8:       AND FEh
+00003EE8:       AND FEh				; 11111110  mask for printer strobe
 00003EEA:       OUTA (40h)
-00003EEC:       OR 01h
+00003EEC:       OR 01h				; bit for printer strobe
 00003EEE:       OUTA (40h)
 00003EF0:       EI
 00003EF1:       POP AF
@@ -10334,9 +10215,9 @@ LPTOUT:
 00003F31:       PUSH HL
 00003F32:       PUSH DE
 00003F33:       PUSH BC
-00003F34:       LD A,(EF86h)
+00003F34:       LD A,(EF86h)			; CSRY (CursorPos) - current text position
 00003F37:       DEC A
-00003F38:       CALL 20B6h					; INT_RESULT_A - Get back from function, result in A (signed)
+00003F38:       CALL 20B6h				; INT_RESULT_A - Get back from function, result in A (signed)
 00003F3B:       POP BC
 00003F3C:       POP DE
 00003F3D:       POP HL
@@ -10407,8 +10288,8 @@ LPTOUT:
 00003FA7:       LD L,A
 00003FA8:       LD H,03h
 00003FAA:       LD BC,0106h
-00003FAD:       LD A,(EF89h)
-00003FB0:       CP 29h		; ')'
+00003FAD:       LD A,(EF89h)	; WIDTH
+00003FB0:       CP 29h		; 40+1
 00003FB2:       JR C,+05h
 00003FB4:       LD H,06h
 00003FB6:       LD BC,020Ch
@@ -10484,11 +10365,11 @@ LPTOUT:
 0000401F:       LD A,(HL)
 00004020:       RET
 
-00004021:       LD A,(EF88h)	; WIDTH
+00004021:       LD A,(EF88h)	; HEIGHT (TextHeight)
 00004024:       PUSH HL
 00004025:       PUSH AF
 00004026:       LD L,A
-00004027:       CALL 431Eh
+00004027:       CALL 431Eh		; Find text row address
 0000402A:       POP AF
 0000402B:       PUSH AF
 0000402C:       CALL C,4035h
@@ -10497,15 +10378,15 @@ LPTOUT:
 00004033:       POP HL
 00004034:       RET
 
-00004035:       LD A,(E6B4h)
+00004035:       LD A,(E6B4h)		; AttributeCode
 00004038:       PUSH AF
 00004039:       XOR A
-0000403A:       LD (E6B4h),A
+0000403A:       LD (E6B4h),A		; AttributeCode
 0000403D:       LD H,D
 0000403E:       LD L,E
 0000403F:       CALL 42BEh
 00004042:       POP AF
-00004043:       LD (E6B4h),A
+00004043:       LD (E6B4h),A		; AttributeCode
 00004046:       RET
 
 00004047:       LD A,03h
@@ -10539,7 +10420,7 @@ LPTOUT:
 0000407B:       RRCA
 0000407C:       RRCA
 0000407D:       RRCA
-0000407E:       AND 01h
+0000407E:       AND 01h			;  	CDI - Data from the calendar clock (µPD 1990AC)
 00004080:       OR E
 00004081:       RRCA
 00004082:       LD E,A
@@ -10552,7 +10433,7 @@ LPTOUT:
 0000408D:       NOP
 0000408E:       DI
 0000408F:       LD A,(E6C1h)		; enable/status FLAGS for port 40h
-00004092:       AND F9h
+00004092:       AND F9h				; 11111001, calendar clock
 00004094:       OR C
 00004095:       OUTA (40h)
 00004097:       PUSH AF
@@ -10560,7 +10441,7 @@ LPTOUT:
 0000409A:       DEC A
 0000409B:       JR NZ,-03h
 0000409D:       POP AF
-0000409E:       AND F9h
+0000409E:       AND F9h				; 11111001, calendar clock
 000040A0:       OUTA (40h)
 000040A2:       LD (E6C1h),A		; enable/status FLAGS for port 40h
 000040A5:       EI
@@ -10656,13 +10537,14 @@ LPTOUT:
 00004141:       DEFB ','
 00004142:       RET
 
+; 1/600 second timer interrupt handler
 00004143:       PUSH BC
 00004144:       PUSH DE
-00004145:       LD A,(E6C3h)
+00004145:       LD A,(E6C3h)	; Value being sent to port E4h
 00004148:       PUSH AF
 00004149:       LD A,02h
-0000414B:       OUTA (E4h)
-0000414D:       LD (E6C3h),A
+0000414B:       OUTA (E4h)		; set interrupt levels to disable also "the 1/600 second timer interrupt"
+0000414D:       LD (E6C3h),A	; Value being sent to port E4h
 00004150:       EI
 00004151:       LD A,(E6C6h)
 00004154:       OR A
@@ -10694,14 +10576,15 @@ LPTOUT:
 00004188:       LD A,H
 00004189:       OR L
 0000418A:       JR NZ,+1Ch
-0000418C:       LD HL,04B0h
+0000418C:       LD HL,04B0h		; 1200
 0000418F:       LD (EFC9h),HL
 00004192:       LD HL,(EFCBh)
 00004195:       DEC HL
 00004196:       LD (EFCBh),HL
 00004199:       LD A,H
 0000419A:       OR L
-0000419B:       JR NZ,+0Bh
+0000419B:       JR NZ,+0Bh		; 	..every 2 seconds ?
+
 0000419D:       LD (E6C7h),A
 000041A0:       LD A,05h
 000041A2:       CALL 4015h
@@ -10710,12 +10593,13 @@ LPTOUT:
 000041AB:       CALL 41E3h
 000041AE:       CALL Z,4242h
 000041B1:       POP AF
-000041B2:       LD (E6C3h),A
-000041B5:       OUTA (E4h)
+000041B2:       LD (E6C3h),A	; Value being sent to port E4h
+000041B5:       OUTA (E4h)		; restore interrupt levels
 000041B7:       POP DE
 000041B8:       POP BC
 000041B9:       EI
 000041BA:       RET
+
 000041BB:       LD A,F8h
 000041BD:       LD DE,EF1Eh
 000041C0:       LD C,A
@@ -10817,7 +10701,7 @@ LPTOUT:
 00004255:       JR -0Dh
 
 
-; offset table
+; offset table for 'mul120'
 00004257:       DEFW $0000
 00004259:       DEFW $0078		; 120
 0000425B:       DEFW $00F0		; 240
@@ -10846,28 +10730,32 @@ LPTOUT:
 00004289:       DEFW $0BB8		; 3000
 
 
-
+; deal with cursor
 0000428B:       PUSH AF
 0000428C:       LD A,80h
 0000428E:       JR +08h
 00004290:       PUSH AF
-00004291:       LD A,(E6A7h)
+00004291:       LD A,(E6A7h)		; CursorMode
 00004294:       AND 01h
 00004296:       OR 80h
-00004298:       LD (E6A8h),A
+00004298:       LD (E6A8h),A		; CursorCommand
 0000429B:       POP AF
 0000429C:       RET
 
+; Coordinate -> TVRAM address translation
+; H=column (1-80)
+; L=row (1-25)
+; LocateTVRAM - Coordinate(L,H) -> TVRAM address translation
 0000429D:       PUSH DE
 0000429E:       PUSH HL
-0000429F:       CALL 431Eh
+0000429F:       CALL 431Eh		; Find text row address
 000042A2:       POP HL
 000042A3:       LD L,H
 000042A4:       LD H,00h
 000042A6:       DEC L
 000042A7:       PUSH AF
-000042A8:       LD A,(EF89h)
-000042AB:       CP 29h		; ')'
+000042A8:       LD A,(EF89h)	; WIDTH
+000042AB:       CP 40+1
 000042AD:       JR NC,+01h
 000042AF:       ADD HL,HL
 000042B0:       POP AF
@@ -10877,7 +10765,7 @@ LPTOUT:
 
 000042B4:       LD HL,(4289h)
 000042B7:       EX DE,HL
-000042B8:       LD HL,(E6C4h)
+000042B8:       LD HL,(E6C4h)		; TVRAMTop
 000042BB:       ADD HL,DE
 000042BC:       LD D,H
 000042BD:       LD E,L
@@ -10887,7 +10775,7 @@ LPTOUT:
 000042C4:       LDIR
 000042C6:       LD (HL),80h
 000042C8:       INC HL
-000042C9:       LD A,(E6B4h)
+000042C9:       LD A,(E6B4h)		; AttributeCode
 000042CC:       LD (HL),A
 000042CD:       DEC HL
 000042CE:       LD C,26h
@@ -10899,12 +10787,12 @@ LPTOUT:
 000042D5:       SUB H
 000042D6:       JR Z,+21h
 000042D8:       PUSH HL
-000042D9:       CALL 4333h		; DE=offset value for A
+000042D9:       CALL 4333h		; mul120sub: DE=result A=input
 000042DC:       LD B,D
 000042DD:       LD C,E
 000042DE:       POP HL
 000042DF:       LD L,H
-000042E0:       CALL 431Eh
+000042E0:       CALL 431Eh			; Find text row address
 000042E3:       LD HL,0078h
 000042E6:       ADD HL,DE
 000042E7:       LDIR
@@ -10912,24 +10800,25 @@ LPTOUT:
 000042EC:       PUSH DE
 000042ED:       LD HL,(4289h)
 000042F0:       EX DE,HL
-000042F1:       LD HL,(E6C4h)
+000042F1:       LD HL,(E6C4h)		; TVRAMTop
 000042F4:       ADD HL,DE
 000042F5:       POP DE
 000042F6:       LDIR
 000042F8:       RET
 
-000042F9:       CALL 431Eh
+000042F9:       CALL 431Eh		; Find text row address
 000042FC:       JR -15h
+
 000042FE:       LD A,H
 000042FF:       SUB L
 00004300:       JR Z,+17h
 00004302:       PUSH HL
-00004303:       CALL 4333h		; DE=offset value for A
+00004303:       CALL 4333h		; mul120sub: DE=result A=input
 00004306:       LD B,D
 00004307:       LD C,E
 00004308:       POP HL
 00004309:       LD L,H
-0000430A:       CALL 431Eh
+0000430A:       CALL 431Eh		; Find text row address
 0000430D:       DEC DE
 0000430E:       LD HL,0078h
 00004311:       ADD HL,DE
@@ -10938,41 +10827,48 @@ LPTOUT:
 00004315:       INC HL
 00004316:       EX DE,HL
 00004317:       JR -30h
-00004319:       CALL 431Eh
+
+00004319:       CALL 431Eh		; Find text row address
 0000431C:       JR -35h
+
+; Find text row address
 0000431E:       PUSH HL
 0000431F:       LD A,L
-00004320:       CP 1Ah
+00004320:       CP 1Ah		; 25+1
 00004322:       JP NC,0B06h			; FCERR, Err $05 - "Illegal function call"
 00004325:       DEC A
 00004326:       JP M,0B06h			; FCERR, Err $05 - "Illegal function call"
-00004329:       CALL 4333h			; DE=offset value for A
-0000432C:       LD HL,(E6C4h)
+
+00004329:       CALL 4333h			; mul120sub: DE=result A=input
+0000432C:       LD HL,(E6C4h)		; TVRAMTop
 0000432F:       ADD HL,DE
 00004330:       EX DE,HL
 00004331:       POP HL
 00004332:       RET
 
-; DE=offset value for A
+; mul120sub: DE=result A=input
 00004333:       RLCA
 00004334:       LD L,A
 00004335:       LD H,00h
-00004337:       LD DE,4257h		; offset table
+00004337:       LD DE,4257h		; offset table for 'mul120'
 0000433A:       ADD HL,DE
 0000433B:       LD E,(HL)
 0000433C:       INC HL
 0000433D:       LD D,(HL)
 0000433E:       RET
 
+; WaitVSync
 0000433F:       INA (40h)
-00004341:       AND 20h
+00004341:       AND 20h				; Vertical retrace signal from CRTC (µPD3301AC)
 00004343:       JR NZ,-06h
 00004345:       INA (40h)
-00004347:       AND 20h
+00004347:       AND 20h				; Vertical retrace signal from CRTC (µPD3301AC)
 00004349:       JR Z,-06h
 0000434B:       RET
 
-0000434C:       LD A,(E6B4h)
+; Write byte in B to VRAM
+; WriteToText: VRAM (HL) <- B, with current attribute
+0000434C:       LD A,(E6B4h)		; AttributeCode
 0000434F:       LD C,A
 00004350:       LD (HL),B
 00004351:       PUSH HL
@@ -10993,8 +10889,8 @@ LPTOUT:
 00004368:       PUSH AF
 00004369:       LD A,(EF8Dh)
 0000436C:       LD C,A
-0000436D:       LD A,(EF89h)
-00004370:       CP 29h		; ')'
+0000436D:       LD A,(EF89h)	; WIDTH
+00004370:       CP 29h		; 40+1
 00004372:       RLA
 00004373:       AND 01h
 00004375:       INC A
@@ -11118,6 +11014,7 @@ LPTOUT:
 00004418:       INC HL
 00004419:       LD (HL),B
 0000441A:       RET
+
 0000441B:       LD (EF8Eh),A
 0000441E:       LD C,80h
 00004420:       JR -0Bh
@@ -11125,7 +11022,7 @@ LPTOUT:
 00004423:       PUSH DE
 00004424:       PUSH HL
 00004425:       EX DE,HL
-00004426:       LD HL,(E6C4h)
+00004426:       LD HL,(E6C4h)		; TVRAMTop
 00004429:       EX DE,HL
 0000442A:       OR A
 0000442B:       SBC HL,DE
@@ -11165,7 +11062,7 @@ LPTOUT:
 
 0000445B:       PUSH BC
 0000445C:       LD C,A
-0000445D:       LD A,(E6B9h)
+0000445D:       LD A,(E6B9h)		; TextIsColor
 00004460:       OR A
 00004461:       JR Z,+0Ah
 00004463:       LD A,C
@@ -11184,33 +11081,33 @@ LPTOUT:
 
 00004472:       PUSH HL
 00004473:       PUSH DE
-00004474:       CALL 429Dh
+00004474:       CALL 429Dh		; LocateTVRAM - Coordinate(L,H) -> TVRAM address translation
 00004477:       CALL 4452h
 0000447A:       POP DE
 0000447B:       POP HL
 0000447C:       RET
 
-0000447D:       LD HL,(EF86h)
+0000447D:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 00004480:       LD B,A
-00004481:       CALL 429Dh
-00004484:       CALL 434Ch
+00004481:       CALL 429Dh		; LocateTVRAM - Coordinate(L,H) -> TVRAM address translation
+00004484:       CALL 434Ch		; WriteToText: VRAM (HL) <- B, with current attribute
 00004487:       JP 5DE5h
 
 0000448A:       LD C,A
-0000448B:       CALL 429Dh
+0000448B:       CALL 429Dh		; LocateTVRAM - Coordinate(L,H) -> TVRAM address translation
 0000448E:       JP 4350h
 
-00004491:       LD HL,(EF86h)
+00004491:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 00004494:       PUSH AF
-00004495:       LD (EF86h),HL
+00004495:       LD (EF86h),HL			; CSRY (CursorPos) - current text position
 00004498:       PUSH HL
-00004499:       CALL 429Dh
+00004499:       CALL 429Dh		; LocateTVRAM - Coordinate(L,H) -> TVRAM address translation
 0000449C:       POP HL
 0000449D:       POP AF
 0000449E:       RET
 
-; DECrement TTYPOS
-0000449F:       LD A,(EF87h)		; TTYPOS
+; DECrement TTYPOS, (a.k.a. CSRX or CursorPos+1)
+0000449F:       LD A,(EF87h)		; TTYPOS, (a.k.a. CSRX or CursorPos+1)
 000044A2:       DEC A
 000044A3:       RET
 
@@ -11347,7 +11244,7 @@ LPTOUT:
 00004552:       LD (EF0Bh),HL
 00004555:       CALL EDF3h
 00004558:       LD (EF0Ah),A		; currently selected ROM bank
-0000455B:       INA (71h)			; get bank status
+0000455B:       INA (71h)			; get Extended ROM bank status
 0000455D:       POP HL
 0000455E:       PUSH AF
 0000455F:       LD A,(EF0Ah)		; currently selected ROM bank
@@ -11360,7 +11257,7 @@ LPTOUT:
 0000456A:       LD H,00h
 0000456C:       ADD HL,HL
 0000456D:       LD A,FEh			; Select ROM bank 0 (IEROM)
-0000456F:       OUTA (71h)			; bank switching
+0000456F:       OUTA (71h)			; Extended ROM bank switching
 00004571:       LD DE,600Dh			; point to JP table in ROM0
 00004574:       ADD HL,DE
 00004575:       LD E,(HL)
@@ -11380,7 +11277,7 @@ EXEC_ROM0_RET:
 00004582:       LD (EF0Ah),A		; currently selected ROM bank
 00004585:       EX HL,(SP)
 00004586:       LD A,H				; ROM bank mask ($FF or only one bit must be reset)
-00004587:       OUTA (71h)			; bank switching
+00004587:       OUTA (71h)			; Extended ROM bank switching
 00004589:       POP HL
 0000458A:       LD A,(EF0Ah)		; currently selected ROM bank
 0000458D:       EI
@@ -11394,7 +11291,7 @@ EXEC_ROM0_RET:
 00004598:       DEC A
 00004599:       LD E,00h
 0000459B:       LD A,E
-0000459C:       LD (EC85h),A
+0000459C:       LD (EC85h),A		; current drive number
 0000459F:       CALL 3DCBh
 000045A2:       CALL 45AEh
 000045A5:       RET NC
@@ -11410,7 +11307,7 @@ EXEC_ROM0_RET:
 000045B6:       OR A
 000045B7:       JR NZ,+02h
 000045B9:       LD B,02h
-000045BB:       LD HL,C000h
+000045BB:       LD HL,C000h		; perhaps used by IPL
 
 ; DATA - DATA statement: find next DATA program line..
 000045BE:       XOR A
@@ -11418,7 +11315,7 @@ EXEC_ROM0_RET:
 000045C2:       INC A
 000045C3:       PUSH BC
 000045C4:       PUSH HL
-000045C5:       CALL 369Ah
+000045C5:       CALL 369Ah		; PHYDIO - HL = addr, A=sect. cnt, B=trk, C=sect, CY-write, NC Z-check NC NZ-read)
 000045C8:       POP HL
 000045C9:       POP BC
 000045CA:       JR NC,+0Ah
@@ -11427,7 +11324,10 @@ EXEC_ROM0_RET:
 000045D1:       CCF
 000045D2:       JR Z,+06h
 000045D4:       JR -13h
+
+; perhaps used by IPL
 000045D6:       CALL C000h
+
 000045D9:       OR A
 000045DA:       POP BC
 000045DB:       POP DE
@@ -11711,7 +11611,7 @@ EXEC_ROM0_RET:
 00004743:       PUSH DE
 00004744:       PUSH BC
 00004745:       PUSH AF
-00004746:       LD (EC85h),A
+00004746:       LD (EC85h),A		; current drive number
 00004749:       LD DE,ECA5h
 0000474C:       LD BC,000Ch
 0000474F:       CALL ECBBh
@@ -13229,7 +13129,7 @@ _STOP:
 000050CD:       RET NZ
 000050CE:       PUSH AF
 000050CF:       LD A,FFh				; Select main ROM bank
-000050D1:       OUTA (71h)				; bank switching
+000050D1:       OUTA (71h)				; Extended ROM bank switching
 000050D3:       POP AF
 000050D4:       PUSH HL
 000050D5:       LD HL,(E656h)			; CURLIN - line number being interpreted
@@ -13399,7 +13299,8 @@ _SWAP:
 000051E3:       RET
 000051E4:       LD A,B
 000051E5:       LD (E64Fh),A
-000051E8:       JP 6F6Ah
+000051E8:       JP 6F6Ah			; CRTSET - on stack: columns, rows
+
 000051EB:       LD A,(F153h)
 000051EE:       OR A
 000051EF:       JR Z,+05h
@@ -13978,7 +13879,7 @@ _STR$:
 ; PRS - Print message pointed by HL
 00005550:       CALL 54FCh			; CRTST - Create String
 00005553:       CALL 56CCh			; GSTRCU - Get string pointed by FPREG
-00005556:       INA (71h)			; get bank status
+00005556:       INA (71h)			; get Extended ROM bank status
 00005558:       PUSH AF
 00005559:       NOP
 0000555A:       NOP
@@ -13994,7 +13895,7 @@ _STR$:
 0000556B:       INC BC
 0000556C:       JR -0Dh
 0000556E:       POP AF					; ROM bank mask ($FF or only one bit must be reset)
-0000556F:       OUTA (71h)				; bank switching
+0000556F:       OUTA (71h)				; Extended ROM bank switching
 00005571:       RET
 
 ; TESTR - Test if enough room for string
@@ -14625,6 +14526,7 @@ FN_POINT:
 000058D2:       RET Z
 000058D3:       DJNZ -08h
 000058D5:       RET
+
 000058D6:       LD E,FFh
 000058D8:       CP 29h		; ')'
 000058DA:       JR Z,+05h
@@ -14677,7 +14579,7 @@ _FRE:
 0000592C:       POP HL
 0000592D:       LD A,(E64Ch)		; PRTFLG ("printer enabled" flag)
 00005930:       OR A
-00005931:       JP Z,59A5h
+00005931:       JP Z,59A5h			; display sub
 00005934:       POP AF
 
 00005935:       PUSH AF
@@ -14742,6 +14644,7 @@ _FRE:
 000059A3:       RET
 
 000059A4:       PUSH AF
+; display sub
 000059A5:       LD A,(E652h)
 000059A8:       OR A
 000059A9:       JP NZ,558Bh
@@ -14774,7 +14677,7 @@ _FRE:
 000059D6:       POP AF
 000059D7:       PUSH AF
 000059D8:       CALL 5935h
-000059DB:       LD A,(E6B6h)
+000059DB:       LD A,(E6B6h)			; PrintCtrlCode
 000059DE:       OR A
 000059DF:       JR Z,+05h
 000059E1:       POP AF
@@ -14788,7 +14691,7 @@ _FRE:
 000059EB:       JR NZ,+13h
 000059ED:       LD A,20h
 000059EF:       CALL 59A4h
-000059F2:       CALL 449Fh		; DECrement TTYPOS
+000059F2:       CALL 449Fh		; DECrement TTYPOS, (a.k.a. CSRX or CursorPos+1)
 000059F5:       CP FFh
 000059F7:       JR Z,+04h
 000059F9:       AND 07h
@@ -14837,7 +14740,7 @@ _FRE:
 00005A40:       RET
 
 ; CHGET - Waits for character being input and returns the character codes.
-00005A41:       CALL 3583h			; INICHR
+00005A41:       CALL 3583h			; INICHR (aka GETCHAR)
 00005A44:       CP 0Fh
 00005A46:       RET NZ
 00005A47:       LD A,(E652h)
@@ -14851,7 +14754,7 @@ _FRE:
 00005A57:       RET
 
 ; CONSOLE_CRLF
-00005A58:       CALL 449Fh		; DECrement TTYPOS
+00005A58:       CALL 449Fh		; DECrement TTYPOS, (a.k.a. CSRX or CursorPos+1)
 00005A5B:       OR A
 00005A5C:       RET Z
 00005A5D:       JR +0Ah
@@ -15448,7 +15351,7 @@ GVAR:
 00005DE2:       LD E,(HL)
 00005DE3:       INC HL
 00005DE4:       LD E,(HL)
-00005DE5:       LD HL,(EF86h)
+00005DE5:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 00005DE8:       CALL 5E40h
 00005DEB:       RET NZ
 00005DEC:       LD H,01h
@@ -15469,7 +15372,7 @@ GVAR:
 00005E07:       JR Z,+07h
 00005E09:       INC L
 00005E0A:       CALL 64E2h
-00005E0D:       LD HL,(EF86h)
+00005E0D:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 00005E10:       LD A,0Ah
 00005E12:       CALL 5F86h
 00005E15:       LD H,01h
@@ -15480,7 +15383,7 @@ GVAR:
 00005E21:       XOR A
 00005E22:       RET
 
-00005E23:       LD A,(E6B1h)
+00005E23:       LD A,(E6B1h)		; scroll area end
 00005E26:       CP L
 00005E27:       RET Z
 00005E28:       JR NC,+05h
@@ -15489,7 +15392,7 @@ GVAR:
 00005E2C:       JP 4494h
 00005E2F:       INC L
 00005E30:       JP 4494h
-00005E33:       LD A,(E6B0h)
+00005E33:       LD A,(E6B0h)		; scroll area
 00005E36:       CP L
 00005E37:       RET Z
 00005E38:       LD A,01h
@@ -15497,19 +15400,20 @@ GVAR:
 00005E3B:       RET Z
 00005E3C:       DEC L
 00005E3D:       JP 4494h
-00005E40:       LD A,(EF89h)
+
+00005E40:       LD A,(EF89h)	; WIDTH
 00005E43:       CP H
 00005E44:       RET Z
 00005E45:       INC H
 00005E46:       JP 4494h
-00005E49:       LD HL,(E6B0h)
+00005E49:       LD HL,(E6B0h)		; scroll area
 00005E4C:       LD H,01h
 00005E4E:       LD (EF83h),HL
 00005E51:       JP 4494h
-00005E54:       LD HL,(EF86h)
+00005E54:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 00005E57:       CALL 5E61h
 00005E5A:       RET NZ
-00005E5B:       LD A,(EF89h)
+00005E5B:       LD A,(EF89h)	; WIDTH
 00005E5E:       LD H,A
 00005E5F:       JR -2Eh
 00005E61:       LD A,01h
@@ -15519,16 +15423,16 @@ GVAR:
 00005E66:       JP 4494h
 00005E69:       LD A,(E69Fh)
 00005E6C:       OR A
-00005E6D:       INA (71h)			; save bank status
+00005E6D:       INA (71h)			; save Extended ROM bank status
 00005E6F:       PUSH AF
 00005E70:       LD A,FFh
-00005E72:       OUTA (71h)				; bank switching
+00005E72:       OUTA (71h)				; Extended ROM bank switching
 00005E74:       CALL NZ,769Ah
 00005E77:       POP AF				; ROM bank mask ($FF or only one bit must be reset)
-00005E78:       OUTA (71h)			; restore bank status
-00005E7A:       LD A,(E6B0h)
+00005E78:       OUTA (71h)			; restore Extended ROM bank status
+00005E7A:       LD A,(E6B0h)		; scroll area
 00005E7D:       LD H,A
-00005E7E:       LD A,(E6B1h)
+00005E7E:       LD A,(E6B1h)		; scroll area end
 00005E81:       LD L,A
 00005E82:       SUB H
 00005E83:       RET C
@@ -15566,9 +15470,9 @@ GVAR:
 00005EBE:       DEC A
 00005EBF:       LD (EF83h),A
 00005EC2:       JP 42D4h
-00005EC5:       LD A,(E6B0h)
+00005EC5:       LD A,(E6B0h)		; scroll area
 00005EC8:       LD L,A
-00005EC9:       LD A,(E6B1h)
+00005EC9:       LD A,(E6B1h)		; scroll area end
 00005ECC:       LD H,A
 00005ECD:       SUB L
 00005ECE:       RET C
@@ -15606,7 +15510,7 @@ GVAR:
 00005F0E:       CALL 42B4h
 00005F11:       XOR A
 00005F12:       LD (EFB4h),A
-00005F15:       LD HL,(E6B0h)
+00005F15:       LD HL,(E6B0h)		; scroll area
 00005F18:       LD A,H
 00005F19:       LD H,00h
 00005F1B:       SUB L
@@ -15629,7 +15533,7 @@ GVAR:
 00005F32:       POP AF
 00005F33:       PUSH AF
 00005F34:       PUSH HL
-00005F35:       CALL 431Eh
+00005F35:       CALL 431Eh		; Find text row address
 00005F38:       CALL 42E9h
 00005F3B:       POP HL
 00005F3C:       INC L
@@ -15703,8 +15607,8 @@ GVAR:
 00005F9C:       LD A,00h
 00005F9E:       CALL 4015h
 00005FA1:       CALL 4FF5h
-00005FA4:       LD HL,(EF86h)
-00005FA7:       LD A,(EB00h)		; AUTFLG - enable flag for AUTO editor command
+00005FA4:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
+00005FA7:       LD A,(EB00h)			; AUTFLG - enable flag for AUTO editor command
 00005FAA:       OR A
 00005FAB:       JR Z,+02h
 00005FAD:       LD H,01h
@@ -15715,7 +15619,7 @@ GVAR:
 00005FB6:       LD H,01h
 00005FB8:       SCF
 00005FB9:       LD (EF83h),HL
-00005FBC:       LD A,(EF89h)
+00005FBC:       LD A,(EF89h)	; WIDTH
 00005FBF:       INC A
 00005FC0:       JR +16h
 
@@ -15728,7 +15632,7 @@ GVAR:
 ; INLIN - Same as PINLIN,exept if AUTFLO if set.
 00005FC8:       CALL ED15h
 00005FCB:       CALL 60D8h
-00005FCE:       LD HL,(EF86h)
+00005FCE:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 00005FD1:       LD (EF83h),HL
 00005FD4:       XOR A
 00005FD5:       JP 6144h
@@ -15736,7 +15640,7 @@ GVAR:
 00005FD8:       LD (EF85h),A
 00005FDB:       SBC A
 00005FDC:       LD (EFB9h),A
-00005FDF:       LD A,(EB00h)		; AUTFLG - enable flag for AUTO editor command
+00005FDF:       LD A,(EB00h)			; AUTFLG - enable flag for AUTO editor command
 00005FE2:       OR A
 00005FE3:       CALL Z,6528h
 00005FE6:       POP AF
@@ -15759,11 +15663,11 @@ GVAR:
 
 ; listing of the main ROM bank follows (1st byte is kept in the previous instruction)
 
-00006001:       CALL 3583h			; INICHR
+00006001:       CALL 3583h				; INICHR (aka GETCHAR)
 00006004:       PUSH AF
 00006005:       LD HL,(EF83h)
 00006008:       EX DE,HL
-00006009:       LD HL,(EF86h)
+00006009:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 0000600C:       LD A,L
 0000600D:       CP E
 0000600E:       JR NZ,+11h
@@ -15831,7 +15735,7 @@ GVAR:
 00006073:       LD D,(HL)
 00006074:       POP AF
 00006075:       PUSH DE
-00006076:       LD HL,(EF86h)
+00006076:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 00006079:       RET
 
 0000607A:       CP 20h		; ' '
@@ -15952,18 +15856,18 @@ GVAR:
 0000611F:       JR Z,+2Fh
 00006121:       CALL 5F76h
 00006124:       NOP
-00006125:       LD A,(EF89h)
+00006125:       LD A,(EF89h)	; WIDTH
 00006128:       SUB H
 00006129:       JR Z,+0Dh
 0000612B:       INC A
 0000612C:       PUSH AF
 0000612D:       CALL 6220h
-00006130:       LD HL,(EF86h)
+00006130:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 00006133:       INC H
 00006134:       POP AF
 00006135:       DEC A
 00006136:       JR NZ,-0Ch
-00006138:       LD HL,(EF86h)
+00006138:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 0000613B:       CALL 5F76h
 0000613E:       EX DE,HL
 0000613F:       LD (HL),01h
@@ -16009,7 +15913,7 @@ GVAR:
 00006185:       CALL Z,61C6h
 00006188:       LD H,01h
 0000618A:       INC L
-0000618B:       LD A,(EF89h)
+0000618B:       LD A,(EF89h)	; WIDTH
 0000618E:       JR -1Eh
 00006190:       EX DE,HL
 00006191:       CALL 61A8h
@@ -16035,7 +15939,7 @@ GVAR:
 000061B2:       CP 0Ah
 000061B4:       JR Z,+0Ah
 000061B6:       LD C,A
-000061B7:       LD A,(E6B5h)
+000061B7:       LD A,(E6B5h)		; NullChar
 000061BA:       CP C
 000061BB:       JR NZ,+07h
 000061BD:       DEC D
@@ -16070,7 +15974,7 @@ GVAR:
 000061ED:       CALL 5F76h
 000061F0:       RET NZ
 000061F1:       INC L
-000061F2:       LD A,(E6B1h)
+000061F2:       LD A,(E6B1h)		; scroll area end
 000061F5:       CP L
 000061F6:       RET Z
 000061F7:       JR -0Ch
@@ -16080,7 +15984,7 @@ GVAR:
 000061FD:       ADD 08h
 000061FF:       INC A
 00006200:       LD B,A
-00006201:       LD A,(EF89h)
+00006201:       LD A,(EF89h)	; WIDTH
 00006204:       CP B
 00006205:       JR NC,+01h
 00006207:       LD B,A
@@ -16088,19 +15992,21 @@ GVAR:
 00006209:       SUB H
 0000620A:       RET Z
 0000620B:       PUSH AF
-0000620C:       LD A,(E6B5h)
+0000620C:       LD A,(E6B5h)		; NullChar
 0000620F:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
 00006210:       POP AF
 00006211:       DEC A
 00006212:       JR NZ,-09h
 00006214:       RET
+
 00006215:       LD A,(E6ADh)
 00006218:       CPL
 00006219:       LD (E6ADh),A
 0000621C:       XOR A
 0000621D:       JP 4290h
+
 00006220:       PUSH HL
-00006221:       LD HL,(EF86h)
+00006221:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 00006224:       PUSH AF
 00006225:       LD A,(E6ADh)
 00006228:       OR A
@@ -16114,18 +16020,18 @@ GVAR:
 00006235:       PUSH HL
 00006236:       LD HL,EF85h
 00006239:       INC (HL)
-0000623A:       LD A,(EF89h)
+0000623A:       LD A,(EF89h)	; WIDTH
 0000623D:       CP (HL)
 0000623E:       JR NC,+01h
 00006240:       LD (HL),A
 00006241:       POP HL
-00006242:       LD A,(E6B5h)
+00006242:       LD A,(E6B5h)		; NullChar
 00006245:       LD C,A
 00006246:       CALL 6490h
 00006249:       JR C,+16h
 0000624B:       PUSH AF
 0000624C:       JR NZ,+08h
-0000624E:       LD A,(EF89h)
+0000624E:       LD A,(EF89h)	; WIDTH
 00006251:       CP H
 00006252:       JR Z,+02h
 00006254:       POP AF
@@ -16150,7 +16056,7 @@ GVAR:
 00006273:       CALL 5F76h
 00006276:       CP 0Ah
 00006278:       JR NZ,+12h
-0000627A:       LD A,(E6B1h)
+0000627A:       LD A,(E6B1h)		; scroll area end
 0000627D:       INC L
 0000627E:       CP L
 0000627F:       JR C,+13h
@@ -16168,11 +16074,11 @@ GVAR:
 00006294:       CALL 64E2h
 00006297:       JR -0Eh
 00006299:       PUSH HL
-0000629A:       LD A,(EF89h)
+0000629A:       LD A,(EF89h)	; WIDTH
 0000629D:       CP H
 0000629E:       JR NZ,+09h
 000062A0:       LD H,00h
-000062A2:       LD A,(EF88h)	; WIDTH
+000062A2:       LD A,(EF88h)	; HEIGHT (TextHeight)
 000062A5:       CP L
 000062A6:       JR NZ,+00h
 000062A8:       INC L
@@ -16184,6 +16090,7 @@ GVAR:
 000062B2:       XOR A
 000062B3:       POP HL
 000062B4:       RET
+
 000062B5:       LD A,01h
 000062B7:       CP H
 000062B8:       JR Z,+03h
@@ -16192,7 +16099,7 @@ GVAR:
 000062BD:       PUSH HL
 000062BE:       DEC L
 000062BF:       JR Z,+0Eh
-000062C1:       LD A,(EF89h)
+000062C1:       LD A,(EF89h)	; WIDTH
 000062C4:       LD H,A
 000062C5:       CALL 5F76h
 000062C8:       JR NZ,+05h
@@ -16220,6 +16127,7 @@ GVAR:
 000062F2:       CALL 654Dh
 000062F5:       POP HL
 000062F6:       JR -16h
+
 000062F8:       XOR A
 000062F9:       POP HL
 000062FA:       RET
@@ -16227,6 +16135,7 @@ GVAR:
 000062FC:       CALL 4491h
 000062FF:       XOR A
 00006300:       RET
+
 00006301:       LD A,07h
 00006303:       EX DE,HL
 00006304:       PUSH AF
@@ -16234,14 +16143,15 @@ GVAR:
 00006308:       POP AF
 00006309:       OR A
 0000630A:       RET
+
 0000630B:       CALL 61EDh
-0000630E:       LD A,(EF89h)
+0000630E:       LD A,(EF89h)	; WIDTH
 00006311:       LD H,A
-00006312:       LD A,(E6B5h)
+00006312:       LD A,(E6B5h)		; NullChar
 00006315:       LD C,A
 00006316:       PUSH BC
 00006317:       PUSH HL
-00006318:       CALL 429Dh
+00006318:       CALL 429Dh		; LocateTVRAM - Coordinate(L,H) -> TVRAM address translation
 0000631B:       CALL 4452h
 0000631E:       POP HL
 0000631F:       POP BC
@@ -16250,27 +16160,28 @@ GVAR:
 00006323:       CP C
 00006324:       JR Z,-10h
 00006326:       INC H
-00006327:       LD A,(EF89h)
+00006327:       LD A,(EF89h)	; WIDTH
 0000632A:       CP H
 0000632B:       JR NZ,+05h
 0000632D:       INC L
 0000632E:       CALL 64E2h
 00006331:       DEC L
-00006332:       LD (EF86h),HL
+00006332:       LD (EF86h),HL			; CSRY (CursorPos) - current text position
 00006335:       CALL 5DE5h
 00006338:       LD A,01h
 0000633A:       LD (E6ADh),A
 0000633D:       XOR A
 0000633E:       RET
+
 0000633F:       CALL 63E5h
 00006342:       LD H,01h
 00006344:       CALL 4494h
 00006347:       PUSH HL
-00006348:       LD A,(E6B5h)
+00006348:       LD A,(E6B5h)		; NullChar
 0000634B:       CALL 654Dh
 0000634E:       POP HL
 0000634F:       INC H
-00006350:       LD A,(EF89h)
+00006350:       LD A,(EF89h)	; WIDTH
 00006353:       INC A
 00006354:       CP H
 00006355:       JR NZ,-10h
@@ -16289,8 +16200,9 @@ GVAR:
 00006370:       CALL 4494h
 00006373:       XOR A
 00006374:       RET
+
 00006375:       XOR A
-00006376:       CALL 428Bh
+00006376:       CALL 428Bh		; deal with cursor
 00006379:       JR +08h
 0000637B:       CALL 4472h
 0000637E:       CALL 6508h
@@ -16307,8 +16219,9 @@ GVAR:
 0000639B:       CALL 4290h
 0000639E:       XOR A
 0000639F:       RET
+
 000063A0:       XOR A
-000063A1:       CALL 428Bh
+000063A1:       CALL 428Bh		; deal with cursor
 000063A4:       JR +08h
 000063A6:       CALL 4472h
 000063A9:       CALL 6508h
@@ -16324,18 +16237,19 @@ GVAR:
 000063C4:       JR -10h
 000063C6:       CALL 63CBh
 000063C9:       JR -30h
-000063CB:       LD HL,(EF86h)
+
+000063CB:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 000063CE:       CALL 5E40h
 000063D1:       RET NZ
 000063D2:       LD H,01h
 000063D4:       JP 5E23h
-000063D7:       LD HL,(EF86h)
+000063D7:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 000063DA:       CALL 5E61h
 000063DD:       RET NZ
-000063DE:       LD A,(EF89h)
+000063DE:       LD A,(EF89h)	; WIDTH
 000063E1:       LD H,A
 000063E2:       JP 5E33h
-000063E5:       LD A,(E6B0h)
+000063E5:       LD A,(E6B0h)		; scroll area
 000063E8:       CP L
 000063E9:       RET NC
 000063EA:       DEC L
@@ -16440,7 +16354,7 @@ GVAR:
 0000649B:       RET Z
 0000649C:       CP 20h		; ' '
 0000649E:       RET Z
-0000649F:       LD A,(E6B5h)
+0000649F:       LD A,(E6B5h)		; NullChar
 000064A2:       CP C
 000064A3:       RET Z
 000064A4:       LD A,C
@@ -16451,7 +16365,7 @@ GVAR:
 000064A8:       SCF
 000064A9:       RET
 
-000064AA:       LD A,(EF89h)
+000064AA:       LD A,(EF89h)	; WIDTH
 000064AD:       CP H
 000064AE:       JR Z,+13h
 000064B0:       INC H
@@ -16461,14 +16375,15 @@ GVAR:
 000064B6:       CALL 654Dh
 000064B9:       POP HL
 000064BA:       INC H
-000064BB:       LD A,(EF89h)
+000064BB:       LD A,(EF89h)	; WIDTH
 000064BE:       INC A
 000064BF:       CP H
 000064C0:       JR NZ,-11h
 000064C2:       DEC H
-000064C3:       LD A,(E6B5h)
+000064C3:       LD A,(E6B5h)		; NullChar
 000064C6:       CALL 654Dh
 000064C9:       RET
+
 000064CA:       PUSH HL
 000064CB:       PUSH BC
 000064CC:       CALL 655Dh
@@ -16478,7 +16393,7 @@ GVAR:
 000064D2:       CALL 654Dh
 000064D5:       POP AF
 000064D6:       LD C,A
-000064D7:       LD A,(EF89h)
+000064D7:       LD A,(EF89h)	; WIDTH
 000064DA:       INC A
 000064DB:       INC H
 000064DC:       CP H
@@ -16488,7 +16403,7 @@ GVAR:
 000064E1:       RET
 
 000064E2:       PUSH HL
-000064E3:       LD A,(E6B1h)
+000064E3:       LD A,(E6B1h)		; scroll area end
 000064E6:       SUB L
 000064E7:       JR C,+0Ah
 000064E9:       LD A,L
@@ -16497,8 +16412,8 @@ GVAR:
 000064EE:       LD A,01h
 000064F0:       JP 5F86h
 
-000064F3:       LD HL,(EF86h)
-000064F6:       LD A,(E6B0h)
+000064F3:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
+000064F6:       LD A,(E6B0h)		; scroll area
 000064F9:       CP L
 000064FA:       JR Z,+06h
 000064FC:       DEC L
@@ -16533,8 +16448,8 @@ GVAR:
 
 00006528:       PUSH HL
 00006529:       LD H,01h
-0000652B:       CALL 429Dh
-0000652E:       LD A,(EF89h)
+0000652B:       CALL 429Dh		; LocateTVRAM - Coordinate(L,H) -> TVRAM address translation
+0000652E:       LD A,(EF89h)	; WIDTH
 00006531:       LD B,A
 00006532:       PUSH BC
 00006533:       CALL 4452h
@@ -16549,7 +16464,7 @@ GVAR:
 00006540:       POP HL
 00006541:       PUSH HL
 00006542:       LD H,01h
-00006544:       CALL 429Dh
+00006544:       CALL 429Dh		; LocateTVRAM - Coordinate(L,H) -> TVRAM address translation
 00006547:       EX DE,HL
 00006548:       CALL 42E9h
 0000654B:       POP HL
@@ -16557,8 +16472,8 @@ GVAR:
 
 0000654D:       PUSH HL
 0000654E:       PUSH AF
-0000654F:       CALL 429Dh
-00006552:       LD A,(E6B4h)
+0000654F:       CALL 429Dh		; LocateTVRAM - Coordinate(L,H) -> TVRAM address translation
+00006552:       LD A,(E6B4h)		; AttributeCode
 00006555:       LD C,A
 00006556:       POP AF
 00006557:       LD B,A
@@ -16568,7 +16483,7 @@ GVAR:
 
 0000655D:       PUSH HL
 0000655E:       PUSH DE
-0000655F:       CALL 429Dh
+0000655F:       CALL 429Dh		; LocateTVRAM - Coordinate(L,H) -> TVRAM address translation
 00006562:       CALL 4452h
 00006565:       POP DE
 00006566:       POP HL
@@ -16645,14 +16560,14 @@ _EDIT:
 000065E5:       CALL 194Ch
 000065E8:       LD HL,E9B9h
 000065EB:       CALL 1933h
-000065EE:       LD HL,(EF86h)
+000065EE:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 000065F1:       LD A,01h
 000065F3:       CALL 5F86h
 000065F6:       LD HL,(EFC2h)
 000065F9:       LD A,H
 000065FA:       OR L
 000065FB:       JR NZ,+08h
-000065FD:       LD HL,(EF86h)
+000065FD:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 00006600:       LD H,01h
 00006602:       CALL 63E5h
 00006605:       CALL 4494h
@@ -17235,6 +17150,7 @@ __USING:
 000069CE:       DJNZ -09h
 000069D0:       RET
 
+;Interrupt table in N88-BASIC
 000069D1:       LD DE,F300h
 000069D4:       DI
 000069D5:       LD A,D
@@ -17255,7 +17171,7 @@ __USING:
 000069F1:       JR Z,+02h
 000069F3:       LD C,19h
 000069F5:       PUSH BC
-000069F6:       LD HL,6F6Ah
+000069F6:       LD HL,6F6Ah			; CRTSET - on stack: columns, rows
 000069F9:       PUSH HL
 000069FA:       PUSH BC
 000069FB:       JP 51E4h
@@ -17737,7 +17653,7 @@ _RENUM:
 00006F12:       LD A,1
 00006F14:       PUSH HL
 00006F15:       PUSH DE
-00006F16:       CALL 3583h			; INICHR
+00006F16:       CALL 3583h			; INICHR (aka GETCHAR)
 00006F19:       POP DE
 00006F1A:       POP HL
 00006F1B:       JP 4B8Ch
@@ -17750,7 +17666,7 @@ _RENUM:
 00006F27:       LD B,C
 00006F28:       CALL 35C2h		; _BREAKX - Set CY if STOP is pressed
 00006F2B:       JR C,+07h
-00006F2D:       CALL 3583h			; INICHR
+00006F2D:       CALL 3583h			; INICHR (aka GETCHAR)
 00006F30:       LD (HL),A
 00006F31:       INC HL
 00006F32:       DJNZ -0Ch
@@ -17783,68 +17699,72 @@ _RENUM:
 00006F5E:       JP 7BA0h
 
 00006F61:       CALL 59A4h
-00006F64:       LD A,(EF87h)			; TTYPOS
+00006F64:       LD A,(EF87h)			; TTYPOS, (a.k.a. CSRX or CursorPos+1)
 00006F67:       DEC A
 00006F68:       LD (HL),A
 00006F69:       RET
+
+; CRTSET - on stack: columns, rows
 00006F6A:       POP BC
+; CRTSET - B=columns, C=rows
 00006F6B:       PUSH HL
-00006F6C:       LD HL,(E6B2h)
-00006F6F:       LD (E6B0h),HL
+00006F6C:       LD HL,(E6B2h)		; scroll area ORG
+00006F6F:       LD (E6B0h),HL		; scroll area
 00006F72:       CALL 6FB4h
 00006F75:       LD A,C
-00006F76:       LD (EF88h),A	; WIDTH
-00006F79:       CP 14h
+00006F76:       LD (EF88h),A		; HEIGHT (TextHeight)
+00006F79:       CP 14h		; 20
 00006F7B:       LD HL,705Bh
 00006F7E:       JR Z,+03h
 00006F80:       LD HL,7066h
 00006F83:       LD A,B
-00006F84:       LD (EF89h),A
+00006F84:       LD (EF89h),A	; WIDTH
 00006F87:       PUSH AF
 00006F88:       CALL 1880h
 00006F8B:       POP AF
-00006F8C:       CP 29h		; ')'
+00006F8C:       CP 29h		; 40+1
 
 00006F8E:       DI
 00006F8F:       CALL 6FD1h
 00006F92:       EI
-00006F93:       LD HL,(E6B0h)
+00006F93:       LD HL,(E6B0h)		; scroll area
 00006F96:       PUSH HL
 00006F97:       LD HL,1901h
-00006F9A:       LD (E6B0h),HL
+00006F9A:       LD (E6B0h),HL		; scroll area
 00006F9D:       CALL 5F0Eh
 00006FA0:       POP HL
-00006FA1:       LD (E6B0h),HL
+00006FA1:       LD (E6B0h),HL		; scroll area
 00006FA4:       CALL 5E49h
 00006FA7:       POP HL
 00006FA8:       RET
 
-00006FA9:       LD (E6B0h),HL
-00006FAC:       LD A,(EF88h)	; WIDTH
+00006FA9:       LD (E6B0h),HL		; scroll area
+00006FAC:       LD A,(EF88h)		; HEIGHT (TextHeight)
 00006FAF:       LD C,A
-00006FB0:       LD A,(EF89h)
+00006FB0:       LD A,(EF89h)	; WIDTH
 00006FB3:       LD B,A
-00006FB4:       LD A,(EF86h)
+00006FB4:       LD A,(EF86h)			; CSRY (CursorPos) - current text position
 00006FB7:       LD L,A
 00006FB8:       LD A,(E6B8h)
 00006FBB:       ADD C
 00006FBC:       CP L
 00006FBD:       JR NC,+03h
-00006FBF:       LD (EF86h),A
-00006FC2:       LD HL,(E6B0h)
+00006FBF:       LD (EF86h),A			; CSRY (CursorPos) - current text position
+00006FC2:       LD HL,(E6B0h)		; scroll area
 00006FC5:       CP H
 00006FC6:       JR NC,+05h
 00006FC8:       LD H,A
 00006FC9:       CP L
 00006FCA:       JR NC,+01h
 00006FCC:       LD L,A
-00006FCD:       LD (E6B0h),HL
+00006FCD:       LD (E6B0h),HL		; scroll area
 00006FD0:       RET
+
 00006FD1:       LD C,01h
 00006FD3:       JR NC,+01h
 00006FD5:       DEC C
 00006FD6:       INA (40h)
-00006FD8:       AND 02h
+00006FD8:       AND 02h		;High Resolution CRT Mode, 0: High rez(24 kHz) - 1: Standard (15 kHz)
 00006FDA:       LD B,(HL)
 00006FDB:       LD DE,0004h
 00006FDE:       JR Z,+02h
@@ -17856,27 +17776,27 @@ _RENUM:
 00006FE8:       OR B
 00006FE9:       LD (E6C2h),A	; Value being sent to port 31h (bank switching)
 00006FEC:       OUTA (31h)
-00006FEE:       LD A,(E6C0h)
+00006FEE:       LD A,(E6C0h)	; Value being sent to port 30h
 00006FF1:       AND FCh
 00006FF3:       OR C
 00006FF4:       LD C,A
-00006FF5:       LD A,(E6B9h)
+00006FF5:       LD A,(E6B9h)		; TextIsColor
 00006FF8:       AND 02h
 00006FFA:       XOR 02h
 00006FFC:       OR C
 00006FFD:       OUTA (30h)
-00006FFF:       LD (E6C0h),A
+00006FFF:       LD (E6C0h),A		; Value being sent to port 30h
 00007002:       LD A,(E6C1h)		; enable/status FLAGS for port 40h
-00007005:       OR 08h
+00007005:       OR 08h				; CLDS:  enable CRT I/F synchronization control
 00007007:       LD (E6C1h),A		; enable/status FLAGS for port 40h
 0000700A:       OUTA (40h)
-0000700C:       CALL 433Fh
+0000700C:       CALL 433Fh			; WaitVSync
 0000700F:       XOR A
-00007010:       OUTA (51h)		; CRTC
+00007010:       OUTA (51h)			; CRTC
 00007012:       LD A,A0h
 00007014:       OUTA (68h)
 00007016:       PUSH HL
-00007017:       LD HL,(E6C4h)
+00007017:       LD HL,(E6C4h)		; TVRAMTop
 0000701A:       LD A,L
 0000701B:       OUTA (64h)
 0000701D:       LD A,H
@@ -17894,7 +17814,8 @@ _RENUM:
 0000702D:       OUTA (50h)		; CRTC
 0000702F:       INC HL
 00007030:       DJNZ -06h
-00007032:       LD A,(E6B9h)
+
+00007032:       LD A,(E6B9h)	; TextIsColor
 00007035:       AND 40h
 00007037:       OR 13h
 00007039:       OUTA (50h)		; CRTC
@@ -17904,12 +17825,12 @@ _RENUM:
 00007041:       OUTA (68h)
 00007043:       LD A,20h
 00007045:       OUTA (51h)		; CRTC
-00007047:       CALL 433Fh
-0000704A:       INA (40h)
+00007047:       CALL 433Fh			; WaitVSync
+0000704A:       INA (40h)			; Vertical retrace signal from CRTC (µPD3301AC)
 0000704C:       AND 20h
-0000704E:       JR NZ,-06h
+0000704E:       JR NZ,-06h			; ..wait more
 00007050:       LD A,(E6C1h)		; enable/status FLAGS for port 40h
-00007053:       AND F7h
+00007053:       AND F7h				; 11110111, set "boot from disk" mode
 00007055:       LD (E6C1h),A		; enable/status FLAGS for port 40h
 00007058:       OUTA (40h)
 0000705A:       RET
@@ -17933,7 +17854,7 @@ _RENUM:
 00007070:       LD E,B
 
 _CONSOLE:
-00007071:       LD A,(E6B2h)
+00007071:       LD A,(E6B2h)		; scroll area ORG
 00007074:       DEC A
 00007075:       LD E,A
 00007076:       LD A,(HL)
@@ -17964,7 +17885,7 @@ _CONSOLE:
 000070A1:       LD D,A
 000070A2:       INC E
 000070A3:       EX DE,HL
-000070A4:       LD (E6B2h),HL
+000070A4:       LD (E6B2h),HL		; scroll area ORG
 000070A7:       EX DE,HL
 000070A8:       DEC HL
 000070A9:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
@@ -17995,7 +17916,7 @@ _CONSOLE:
 000070D3:       CCF
 000070D4:       SBC A
 000070D5:       PUSH HL
-000070D6:       LD HL,E6B9h
+000070D6:       LD HL,E6B9h			; TextIsColor
 000070D9:       CP (HL)
 000070DA:       LD (HL),A
 000070DB:       POP HL
@@ -18004,25 +17925,26 @@ _CONSOLE:
 000070DF:       JR Z,+12h
 000070E1:       PUSH HL
 000070E2:       XOR A
-000070E3:       LD (E6B4h),A
+000070E3:       LD (E6B4h),A		; AttributeCode
 000070E6:       CALL 5F0Eh
 000070E9:       DI
-000070EA:       CALL 433Fh
+000070EA:       CALL 433Fh			; WaitVSync
 000070ED:       EI
 000070EE:       POP HL
 000070EF:       LD A,07h
 000070F1:       JR +01h
 000070F3:       XOR A
 000070F4:       CALL 445Bh
-000070F7:       LD (E6B4h),A
-000070FA:       LD A,(EF88h)	; WIDTH
+000070F7:       LD (E6B4h),A		; AttributeCode
+000070FA:       LD A,(EF88h)		; HEIGHT (TextHeight)
 000070FD:       LD C,A
-000070FE:       LD A,(EF89h)
+000070FE:       LD A,(EF89h)	; WIDTH
 00007101:       LD B,A
 00007102:       PUSH BC
 00007103:       JP 0072h
+
 00007106:       PUSH HL
-00007107:       LD HL,(E6B2h)
+00007107:       LD HL,(E6B2h)		; scroll area ORG
 0000710A:       CALL 6FA9h
 0000710D:       POP HL
 0000710E:       XOR A
@@ -18034,7 +17956,7 @@ _CONSOLE:
 0000711B:       LD DE,714Ah
 0000711E:       PUSH DE
 0000711F:       LD B,A
-00007120:       LD A,(EF88h)	; WIDTH
+00007120:       LD A,(EF88h)	; HEIGHT (TextHeight)
 00007123:       LD C,A
 00007124:       PUSH BC
 00007125:       DEC HL
@@ -18052,18 +17974,19 @@ _CONSOLE:
 00007137:       JP NZ,0B06h			; FCERR, Err $05 - "Illegal function call"
 0000713A:       PUSH HL
 0000713B:       LD HL,1901h
-0000713E:       LD (E6B2h),HL
+0000713E:       LD (E6B2h),HL		; scroll area ORG
 00007141:       POP HL
 00007142:       DEC HL
 00007143:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00007144:       JP NZ,0393h			;  SNERR - entry for '?SN ERROR'
-00007147:       JP 6F6Ah
-0000714A:       LD A,(EF89h)
+00007147:       JP 6F6Ah			; CRTSET - on stack: columns, rows
+
+0000714A:       LD A,(EF89h)	; WIDTH
 0000714D:       RET
 
 _LOCATE:
 0000714E:       EX DE,HL
-0000714F:       LD HL,(EF86h)
+0000714F:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 00007152:       DEC H
 00007153:       DEC L
 00007154:       PUSH HL
@@ -18073,7 +17996,7 @@ _LOCATE:
 0000715A:       CALL 18A3h			; GETINT
 0000715D:       POP DE
 0000715E:       LD D,A
-0000715F:       LD A,(EF89h)
+0000715F:       LD A,(EF89h)	; WIDTH
 00007162:       DEC A
 00007163:       CP D
 00007164:       JR NC,+01h
@@ -18089,7 +18012,7 @@ _LOCATE:
 00007172:       CALL 18A3h			; GETINT
 00007175:       POP DE
 00007176:       LD E,A
-00007177:       LD A,(EF88h)	; WIDTH
+00007177:       LD A,(EF88h)	; HEIGHT (TextHeight)
 0000717A:       DEC A
 0000717B:       CP E
 0000717C:       JR NC,+01h
@@ -18104,7 +18027,7 @@ _LOCATE:
 00007189:       CP 01h
 0000718B:       CCF
 0000718C:       SBC A
-0000718D:       LD (E6A7h),A
+0000718D:       LD (E6A7h),A	; CursorMode
 00007190:       EX HL,(SP)
 00007191:       INC H
 00007192:       INC L
@@ -18299,14 +18222,14 @@ _MAP:
 000072CD:       DI
 000072CE:       XOR A
 000072CF:       OUTA (E6h)
-000072D1:       LD A,(E6C0h)
+000072D1:       LD A,(E6C0h)	; Value being sent to port 30h
 000072D4:       OUTA (30h)
 000072D6:       LD A,(E6C1h)		; enable/status FLAGS for port 40h
 000072D9:       OUTA (40h)
 000072DB:       LD A,(E6C2h)	; Value being sent to port 31h (bank switching)
 000072DE:       OUTA (31h)
 000072E0:       OUTA (EBh)
-000072E2:       CALL 35D9h
+000072E2:       CALL 35D9h		; InitQueue - initialize keyboard buffer
 000072E5:       CALL 69D1h
 000072E8:       CALL 69E1h
 000072EB:       CALL 36E2h
@@ -18329,7 +18252,7 @@ _MAP:
 00007310:       OUTA (C8h)
 00007312:       OUTA (CAh)
 00007314:       LD A,FFh
-00007316:       LD (E6C3h),A
+00007316:       LD (E6C3h),A	; Value being sent to port E4h
 00007319:       LD A,FFh
 0000731B:       OUTA (E4h)
 0000731D:       IM 2
@@ -18350,6 +18273,8 @@ _MAP:
 0000733B:       CALL 38E9h
 0000733E:       CALL ED87h
 00007341:       RET
+
+
 00007342:       NOP
 00007343:       NOP
 00007344:       NOP
@@ -18357,6 +18282,8 @@ _MAP:
 00007346:       LD C,(HL)
 00007347:       DJNZ +3Eh
 00007349:       RST 38h
+
+
 0000734A:       LD (E69Fh),A
 0000734D:       LD (E6A0h),A
 00007350:       LD (EF71h),A
@@ -18364,7 +18291,7 @@ _MAP:
 00007356:       INC A
 00007357:       LD (E6A1h),A
 0000735A:       LD (EF75h),A
-0000735D:       LD (E6B6h),A
+0000735D:       LD (E6B6h),A			; PrintCtrlCode
 00007360:       LD (E6CDh),A
 00007363:       LD (E6A5h),A
 00007366:       RET
@@ -18417,7 +18344,7 @@ _TERM:
 000073B9:       CALL 7626h
 000073BC:       CALL 7348h
 000073BF:       CALL 7705h
-000073C2:       LD A,(E6A7h)
+000073C2:       LD A,(E6A7h)	; CursorMode
 000073C5:       OR A
 000073C6:       CALL NZ,4290h
 000073C9:       CALL 7780h
@@ -18451,7 +18378,7 @@ _TERM:
 000073FF:       PUSH AF
 00007400:       JP 59ACh
 
-00007403:       LD HL,(EF86h)
+00007403:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 00007406:       CALL 6347h
 00007409:       JP 73C2h
 
@@ -18509,20 +18436,20 @@ _TERM:
 0000747D:       JP Z,7489h
 00007480:       LD A,(E6EDh)
 00007483:       OR 08h
-00007485:       OUTA (21h)
+00007485:       OUTA (21h)		; USART (µPD8251C) Control port
 00007487:       JR -11h
 00007489:       LD A,(E6EDh)
-0000748C:       OUTA (21h)
+0000748C:       OUTA (21h)		; USART (µPD8251C) Control port
 0000748E:       JP 51EBh
 
-00007491:       CALL 3583h			; INICHR
+00007491:       CALL 3583h			; INICHR (aka GETCHAR)
 00007494:       JR +01h
 00007496:       PUSH BC
 00007497:       XOR A
 00007498:       LD (E6CAh),A
 0000749B:       LD (E6CDh),A
 0000749E:       LD (E69Fh),A
-000074A1:       LD (E6B6h),A
+000074A1:       LD (E6B6h),A			; PrintCtrlCode
 000074A4:       DEC A
 000074A5:       LD (E6A2h),A
 000074A8:       LD (E6A0h),A
@@ -18587,7 +18514,7 @@ _TERM:
 00007526:       CALL 7563h
 00007529:       SUB 20h
 0000752B:       JR C,-69h
-0000752D:       LD HL,EF88h	; WIDTH
+0000752D:       LD HL,EF88h		; HEIGHT (TextHeight)
 00007530:       CP (HL)
 00007531:       JR NC,-6Fh
 00007533:       INC A
@@ -18596,7 +18523,7 @@ _TERM:
 00007536:       SUB 20h
 00007538:       JR C,-76h
 0000753A:       LD H,A
-0000753B:       LD A,(EF89h)
+0000753B:       LD A,(EF89h)	; WIDTH
 0000753E:       INC H
 0000753F:       CP H
 00007540:       JR C,-7Eh
@@ -18633,24 +18560,25 @@ _TERM:
 00007581:       OR L
 00007582:       RET
 
-00007583:       LD HL,(EF86h)
+00007583:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 00007586:       PUSH HL
 00007587:       CALL 6347h
-0000758A:       LD A,(E6B0h)
+0000758A:       LD A,(E6B0h)		; scroll area
 0000758D:       PUSH AF
-0000758E:       LD A,(EF86h)
+0000758E:       LD A,(EF86h)			; CSRY (CursorPos) - current text position
 00007591:       INC A
-00007592:       LD (E6B0h),A
+00007592:       LD (E6B0h),A		; scroll area
 00007595:       DEC A
-00007596:       LD HL,E6B1h
+00007596:       LD HL,E6B1h			; scroll area end
 00007599:       CP (HL)
 0000759A:       LD A,0Ch
 0000759C:       CALL C,73FFh
 0000759F:       POP AF
-000075A0:       LD (E6B0h),A
+000075A0:       LD (E6B0h),A		; scroll area
 000075A3:       POP HL
-000075A4:       LD (EF86h),HL
+000075A4:       LD (EF86h),HL			; CSRY (CursorPos) - current text position
 000075A7:       JP 74C4h
+
 000075AA:       LD A,B
 000075AB:       LD (E6A0h),A
 000075AE:       LD B,FEh
@@ -18667,7 +18595,7 @@ _TERM:
 000075C3:       LD (EC88h),HL		; PTRFIL
 000075C6:       LD HL,E9B9h
 000075C9:       CALL 0632h
-000075CC:       CALL 428Bh
+000075CC:       CALL 428Bh			; deal with cursor
 000075CF:       LD A,01h
 000075D1:       LD (ECA3h),A		; NLONLY
 000075D4:       NOP
@@ -18763,9 +18691,9 @@ _TERM:
 00007684:       ADD HL,DE
 00007685:       CALL 76D3h
 00007688:       PUSH HL
-00007689:       LD A,(E6B1h)
+00007689:       LD A,(E6B1h)		; scroll area end
 0000768C:       LD L,A
-0000768D:       CALL 431Eh
+0000768D:       CALL 431Eh		; Find text row address
 00007690:       POP HL
 00007691:       POP BC
 00007692:       POP AF
@@ -18793,9 +18721,9 @@ _TERM:
 000076BC:       PUSH AF
 000076BD:       CALL 76FDh
 000076C0:       PUSH HL
-000076C1:       LD A,(E6B0h)
+000076C1:       LD A,(E6B0h)		; scroll area
 000076C4:       LD L,A
-000076C5:       CALL 431Eh
+000076C5:       CALL 431Eh		; Find text row address
 000076C8:       POP HL
 000076C9:       POP AF
 000076CA:       JR C,+01h
@@ -18803,6 +18731,7 @@ _TERM:
 000076CD:       LD BC,0050h
 000076D0:       LDIR
 000076D2:       RET
+
 000076D3:       LD DE,(EF78h)
 000076D7:       RST 20h		; CPDEHL - compare DE and HL (aka DCOMPR)
 000076D8:       RET NZ
@@ -18827,6 +18756,7 @@ _TERM:
 000076F9:       INC DE
 000076FA:       LDIR
 000076FC:       RET
+
 000076FD:       LD A,(EF7Eh)
 00007700:       OR A
 00007701:       RET NZ
@@ -18838,6 +18768,7 @@ _TERM:
 00007709:       CALL 63F2h
 0000770C:       XOR A
 0000770D:       RET
+
 0000770E:       CP F9h
 00007710:       RET NZ
 00007711:       CALL 6405h
@@ -18867,7 +18798,8 @@ _TERM:
 00007743:       DJNZ -08h
 00007745:       POP HL
 00007746:       RET
-00007747:       LD A,(EF89h)
+
+00007747:       LD A,(EF89h)	; WIDTH
 0000774A:       LD B,28h
 0000774C:       LD DE,0002h
 0000774F:       CP B
@@ -19581,13 +19513,13 @@ _TERM:
 00007C1F:       LD D,A
 00007C20:       LD B,00h
 00007C22:       LD A,E
-00007C23:       OUTA (21h)
+00007C23:       OUTA (21h)		; USART (µPD8251C) Control port
 00007C25:       CALL 7D66h
 00007C28:       LD (E6EDh),A
-00007C2B:       LD A,(E6C0h)
+00007C2B:       LD A,(E6C0h)	; Value being sent to port 30h
 00007C2E:       AND CFh
 00007C30:       OR 20h
-00007C32:       LD (E6C0h),A
+00007C32:       LD (E6C0h),A	; Value being sent to port 30h
 00007C35:       OUTA (30h)
 00007C37:       EI
 00007C38:       JP 7ABDh
@@ -19612,7 +19544,7 @@ _TERM:
 00007C62:       NOP
 00007C63:       JR NZ,-0Bh
 00007C65:       XOR A
-00007C66:       OUTA (21h)
+00007C66:       OUTA (21h)		; USART (µPD8251C) Control port
 00007C68:       LD (E6EDh),A
 00007C6B:       JP 483Dh
 
@@ -19757,11 +19689,13 @@ _TERM:
 00007D60:       LD A,FFh
 00007D62:       LD (F153h),A
 00007D65:       RET
+
 00007D66:       LD A,D
-00007D67:       OUTA (21h)
+00007D67:       OUTA (21h)		; USART (µPD8251C) Control port
 00007D69:       RET
+
 00007D6A:       LD A,14h
-00007D6C:       OUTA (21h)
+00007D6C:       OUTA (21h)		; USART (µPD8251C) Control port
 00007D6E:       RET
 
 00007D6F:       NOP
@@ -19960,11 +19894,12 @@ _TERM:
 00007EC2:       AND 10h
 00007EC4:       OR B
 00007EC5:       LD B,A
-00007EC6:       LD A,(E6C0h)
+00007EC6:       LD A,(E6C0h)	; Value being sent to port 30h
 00007EC9:       AND 0Fh
 00007ECB:       OR B
 00007ECC:       OR 08h
 00007ECE:       JR +5Ah
+
 00007ED0:       LD A,(EF0Eh)
 00007ED3:       AND 03h
 00007ED5:       OUTA (E6h)
@@ -19972,17 +19907,17 @@ _TERM:
 00007EDA:       LD B,00h
 00007EDC:       CALL 7EBAh
 00007EDF:       INA (40h)
-00007EE1:       AND 04h
+00007EE1:       AND 04h			; RS-232C Data Carrier Detect
 00007EE3:       JR NZ,+06h
 00007EE5:       CALL 35C2h		; _BREAKX - Set CY if STOP is pressed
 00007EE8:       JP C,7FEDh
 00007EEB:       INA (40h)
-00007EED:       AND 04h
+00007EED:       AND 04h			; RS-232C Data Carrier Detect
 00007EEF:       JR Z,-12h
 00007EF1:       DI
 00007EF2:       CALL 3C42h
 00007EF5:       LD A,4Eh
-00007EF7:       OUTA (21h)
+00007EF7:       OUTA (21h)		; USART (µPD8251C) Control port
 00007EF9:       CALL 7D6Ah
 00007EFC:       NOP
 00007EFD:       LD (E6EDh),A
@@ -20001,14 +19936,14 @@ _TERM:
 
 00007F15:       CALL 7DA6h
 00007F18:       JR +09h
-00007F1A:       LD A,(E6C0h)
+00007F1A:       LD A,(E6C0h)	; Value being sent to port 30h
 00007F1D:       AND 08h
 00007F1F:       RET Z
 00007F20:       CALL 7F81h
-00007F23:       LD A,(E6C0h)
+00007F23:       LD A,(E6C0h)	; Value being sent to port 30h
 00007F26:       AND F7h
 00007F28:       OR 04h
-00007F2A:       LD (E6C0h),A
+00007F2A:       LD (E6C0h),A	; Value being sent to port 30h
 00007F2D:       OUTA (30h)
 00007F2F:       RET
 
@@ -20018,15 +19953,15 @@ _TERM:
 00007F35:       OR A
 00007F36:       JR Z,+07h
 
-00007F38:       LD A,(E6C0h)
+00007F38:       LD A,(E6C0h)	; Value being sent to port 30h
 00007F3B:       OR 08h
 00007F3D:       JR -15h
 
-00007F3F:       LD A,(E6C0h)
+00007F3F:       LD A,(E6C0h)	; Value being sent to port 30h
 00007F42:       AND F7h
 00007F44:       JR -1Ch
 
-00007F46:       LD A,(E6C0h)
+00007F46:       LD A,(E6C0h)	; Value being sent to port 30h
 00007F49:       XOR 08h
 00007F4B:       JR -23h
 
@@ -20034,11 +19969,11 @@ _TERM:
 00007F4F:       CALL 7EBAh
 00007F52:       CALL 3C42h
 00007F55:       LD A,CEh
-00007F57:       OUTA (21h)
+00007F57:       OUTA (21h)		; USART (µPD8251C) Control port
 00007F59:       CALL 3CB3h
 00007F5C:       NOP
 00007F5D:       CALL 7F7Bh
-00007F60:       LD A,(E6C0h)
+00007F60:       LD A,(E6C0h)	; Value being sent to port 30h
 00007F63:       AND FBh
 00007F65:       CALL 7F2Ah
 00007F68:       PUSH DE
@@ -20091,7 +20026,7 @@ _TERM:
 
 00007FB4:       PUSH HL
 00007FB5:       PUSH DE
-00007FB6:       LD HL,(E6C4h)
+00007FB6:       LD HL,(E6C4h)		; TVRAMTop
 00007FB9:       LD DE,004Eh
 00007FBC:       ADD HL,DE
 00007FBD:       LD A,(HL)
@@ -20107,7 +20042,7 @@ _TERM:
 00007FCA:       JP 7FD0h
 00007FCD:       CALL 7FD0h
 00007FD0:       PUSH AF
-00007FD1:       INA (21h)
+00007FD1:       INA (21h)		; USART (µPD8251C) Control port
 00007FD3:       AND 01h
 00007FD5:       JR NZ,+08h
 00007FD7:       CALL 35C2h		; _BREAKX - Set CY if STOP is pressed
