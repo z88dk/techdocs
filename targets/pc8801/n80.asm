@@ -479,7 +479,7 @@ L0257_0:
   POP AF
   PUSH AF
 L0257_1:
-  LD HL,L02EA
+  LD HL,L02EA		; POPALL
   PUSH HL
   LD HL,L02EF
   LD BC,$0009
@@ -550,6 +550,7 @@ L02D7_1:
   RET
 
 ; Routine at 02EA
+; POPALL
 L02EA:
   POP AF
   POP BC
@@ -844,6 +845,7 @@ L0428_0:
   RET
 
 ; Routine at 045A
+; CLS
 L045A:
   CALL L0487
   LD A,$19
@@ -1843,7 +1845,7 @@ L0915:
 L0915_0:
   LD ($EA66),A
   LD ($EA5A),HL
-  CALL L045A
+  CALL L045A		; CLS
   LD A,($EA62)
   LD L,A
   LD A,($EA65)
@@ -1953,7 +1955,7 @@ L09A3:
   LD (HL),A
   JR Z,L09A3_0
   PUSH AF
-  CALL L045A
+  CALL L045A		; CLS
   POP AF
 L09A3_0:
   PUSH DE
@@ -2200,7 +2202,7 @@ L0AF9_1:
   LD ($EDC6),A
   INC A
   CALL [$0099]READ_TRK
-  JP NC,$C000
+  JP NC,$C000		; VTVRAM
   XOR A
   LD ($EDC7),A
   RET
@@ -2616,7 +2618,7 @@ L0D14:
 [$0D1D]FN_INKEY$:
   RST $10     ; CHRGTB
   PUSH HL
-  CALL L0FAC
+  CALL L0FAC ; CHSNS
   JR C,L0D34
   JR Z,L0D34
   PUSH AF
@@ -2836,7 +2838,7 @@ L0E23_0:
   OUT ($21),A
 L0E23_1:
   CALL [$f18f]ISFLIO_37
-  CALL L0FAC
+  CALL L0FAC	; CHSNS
   JR C,L0E23_4
   JR Z,L0E23_4
   CP $03
@@ -3060,7 +3062,7 @@ L0F7B:
   LD B,A
 L0F7B_0:
   PUSH BC
-  CALL L0FAC
+  CALL L0FAC	; CHSNS
   POP BC
   JP C,L0F7B_1
   JR NZ,L0F7B_1
@@ -3077,7 +3079,7 @@ L0F7B_1:
 ; Routine at 0F9F
 L0F9F:
   CALL [$f18f]ISFLIO_4
-  CALL L0FAC
+  CALL L0FAC	; CHSNS
   PUSH AF
   XOR A
   LD ($EA68),A
@@ -3085,6 +3087,7 @@ L0F9F:
   RET
 
 ; Routine at 0FAC
+; CHSNS test keyboard
 L0FAC:
   PUSH HL
   PUSH DE
@@ -4625,7 +4628,7 @@ L1757:
   OUT ($F8),A
   NOP
   LD A,($8000)
-  LD A,($C000)
+  LD A,($C000)		; VTVRAM
   LD DE,$EA00
   LD HL,L3A05
   LD BC,$0157
@@ -11555,7 +11558,7 @@ L3DE1:
   LD HL,([$eb54]BASTXT)
   CALL L4397
   LD ([$ef88]AUTFLG),A
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   LD (HL),A
   INC HL
   LD (HL),A
@@ -12888,7 +12891,7 @@ L456D_0:
   JR NC,[$459e]ULERR
   DEC BC
   LD A,$0D
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   POP HL
   CALL L5C00_1
   LD H,B
@@ -17175,7 +17178,7 @@ L5B3F_3:
   CP $F6
 L5B3F_4:
   XOR A
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   LD HL,([$eb54]BASTXT)
   DEC HL
 L5B3F_5:
@@ -17194,7 +17197,7 @@ L5B3F_7:
   OR A
   JP Z,L5B3F_5
   LD C,A
-  LD A,([$ef87]PTRFLG)
+  LD A,([$ef87]PTRFLG)		; X text coord
   OR A
   LD A,C
   JP Z,L5C00
@@ -17281,7 +17284,7 @@ L5C00_1:
 
 ; Routine at 5C24
 L5C24:
-  LD A,([$ef87]PTRFLG)
+  LD A,([$ef87]PTRFLG)		; X text coord
   OR A
   RET Z
   JP L5B3F_4
@@ -18131,7 +18134,7 @@ L6135_3:
 L6135_4:
   LD ($F1D8),HL
   CALL L7E94
-  CALL L6F80
+  CALL L6F80		; print a byte
   LD A,$2D
   CALL L7126_0
   EX DE,HL
@@ -18164,7 +18167,7 @@ L6135_7:
   CP $0D
   JP Z,L6006_3
   INC HL
-  LD A,([$ef87]PTRFLG)
+  LD A,([$ef87]PTRFLG)		; X text coord
   LD B,A
   LD A,([$EF89]AUTLIN)
   SUB B
@@ -18237,14 +18240,14 @@ L61E2_1:
 L61E2_2:
   CALL L7044
   CALL L7E94
-  CALL L6F80
+  CALL L6F80		; print a byte
   LD A,([$f18f]ISFLIO_21)
   CP $48
   JR NZ,L61E2_3
-  LD A,([$ef87]PTRFLG)
+  LD A,([$ef87]PTRFLG)		; X text coord
   PUSH AF
   LD A,C
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   PUSH HL
   CALL L7E94
   PUSH AF
@@ -18253,7 +18256,7 @@ L61E2_2:
   LD (HL),A
   POP HL
   POP AF
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   INC C
 L61E2_3:
   INC HL
@@ -18374,7 +18377,7 @@ L6254_9:
   POP AF
   JP M,L6006_3
   CALL L7044
-  LD A,([$ef87]PTRFLG)
+  LD A,([$ef87]PTRFLG)		; X text coord
   LD H,A
   LD A,([$EF89]AUTLIN)
   SUB H
@@ -18430,15 +18433,15 @@ L6330_0:
   LD A,C
   CP $02
   LD A,L
-  JP Z,L6F80
+  JP Z,L6F80		; print a byte
   LD A,C
   CP $0E
   LD A,H
-  JP Z,L6F80
+  JP Z,L6F80		; print a byte
   LD A,C
   CP $09
   LD A,H
-  JP Z,L6F80
+  JP Z,L6F80		; print a byte
   LD A,C
   CP $0D
   JP Z,L6330_1
@@ -18634,7 +18637,7 @@ L6479_0:
 ; Routine at 6489
 L6489:
   IN A,(C)
-  CALL L6F80
+  CALL L6F80		; print a byte
   JP L6006_3
 
 ; Routine at 6491
@@ -18815,7 +18818,7 @@ L6572_2:
   LD A,([$f18f]ISFLIO_21)
   CP $48
   JR NZ,L65B5_0
-  LD A,([$ef87]PTRFLG)
+  LD A,([$ef87]PTRFLG)		; X text coord
   PUSH AF
   LD A,([$EF89]AUTLIN)
   CP $29
@@ -18828,7 +18831,7 @@ L6572_3:
   AND $07
   ADD A,$1F
 L6572_4:
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   PUSH HL
   CALL L716E
   LD (HL),C
@@ -18837,7 +18840,7 @@ L6572_4:
 L65B5:
   POP HL
   POP AF
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
 L65B5_0:
   JP L661B
 
@@ -18964,16 +18967,16 @@ L6649_0:
   PUSH BC
   PUSH HL
   PUSH DE
-  LD DE,$F3C8
+  LD DE,$F3C8		; TVRAM
   LD HL,$F440
   LD BC,$0708
   LDIR
   POP DE
   PUSH DE
-  LD HL,($EF86)
+  LD HL,($EF86)		; Y,X text coord
   PUSH HL
   LD HL,$0110
-  LD ($EF86),HL
+  LD ($EF86),HL		; Y,X text coord
   LD A,([$EF89]AUTLIN)
   CP $29
   LD HL,$0080
@@ -18989,7 +18992,7 @@ L6649_1:
   CALL L61E2
   POP BC
   POP HL
-  LD ($EF86),HL
+  LD ($EF86),HL		; Y,X text coord
   POP HL
   ADD HL,BC
   EX DE,HL
@@ -19021,7 +19024,7 @@ L669C_0:
   LDDR
   POP DE
   PUSH DE
-  LD HL,($EF86)
+  LD HL,($EF86)		; Y,X text coord
   PUSH HL
   LD A,$0B
   CALL L7126_0
@@ -19040,7 +19043,7 @@ L669C_1:
   CALL L61E2
   POP BC
   POP HL
-  LD ($EF86),HL
+  LD ($EF86),HL		; Y,X text coord
   POP HL
   ADD HL,BC
   EX DE,HL
@@ -19052,7 +19055,7 @@ L669C_1:
 ; Routine at 66EE
 L66EE:
   LD A,$12
-  LD ($EF86),A
+  LD ($EF86),A		; Y,X text coord
   JP L6006_3
 
 ; Routine at 66F6
@@ -19079,7 +19082,7 @@ L66F6_1:
   CCF
   JR C,L66F6_4
   INC A
-  LD ($EF86),A
+  LD ($EF86),A		; Y,X text coord
   LD A,L
   AND C
   LD C,A
@@ -19098,7 +19101,7 @@ L66F6_2:
   ADD A,$07
 L66F6_3:
   INC A
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   AND A
 L66F6_4:
   POP HL
@@ -19531,13 +19534,13 @@ L69DC:
   CALL L6F9A
   EX DE,HL
   LD A,$08
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   EX DE,HL
   CALL L7E94
   EX DE,HL
-  CALL L6F80
+  CALL L6F80		; print a byte
   LD A,$14
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   LD HL,$6B05
 L69DC_0:
   LD A,(HL)
@@ -19645,7 +19648,7 @@ L6A1B_6:
   EX DE,HL
   CALL L7E94
   EX DE,HL
-  CALL L6F80
+  CALL L6F80		; print a byte
   JR L6A1B_8
 L6A1B_7:
   INC C
@@ -19669,11 +19672,11 @@ L6A1B_8:
   SUB $51
   SBC A,A
   ADD A,$0C
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   EX DE,HL
   CALL L7E94
   EX DE,HL
-  JP L6F80
+  JP L6F80		; print a byte
 L6A1B_9:
   INC DE
   INC C
@@ -19689,7 +19692,7 @@ L6A1B_9:
   SUB $51
   SBC A,A
   ADD A,$0C
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   JP L6F9A
 
 ; Routine at 6ACB
@@ -20293,7 +20296,7 @@ L6D02_1:
   LD HL,($F1DC)
   CALL L6F9A
   LD A,$14
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   PUSH HL
   CALL L71C3
   JP C,L6006_3
@@ -20317,9 +20320,9 @@ L6D02_2:
   LD A,C
   CALL L7E9D
   LD A,$08
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   LD A,C
-  CALL L6F80
+  CALL L6F80		; print a byte
   CALL L7044
   INC HL
   LD A,B
@@ -20335,7 +20338,7 @@ L6D02_2:
 L6D02_3:
   EX DE,HL
   PUSH AF
-  CALL Z,L6F80
+  CALL Z,L6F80		; print a byte
   POP AF
   CALL NZ,L6F9A
   EX DE,HL
@@ -20561,10 +20564,10 @@ L6E8A:
   PUSH BC
   PUSH DE
   PUSH HL
-  LD A,([$ef87]PTRFLG)
+  LD A,([$ef87]PTRFLG)		; X text coord
   PUSH AF
   LD A,$01
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   CALL L716E
   LD A,([$EF89]AUTLIN)
   CP $29
@@ -20587,7 +20590,7 @@ L6E8A_1:
   LD A,$0A
   CALL L6ED4
   POP AF
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   POP HL
   POP DE
   POP BC
@@ -20725,6 +20728,7 @@ L6F5D_1:
   RET
 
 ; Routine at 6F80
+; print a byte
 L6F80:
   PUSH BC
   PUSH HL
@@ -20906,11 +20910,12 @@ L7126_0:
   LD A,$C9
 L7126_1:
   LD A,$01
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   LD A,$0D
   RET
+  
 L7126_2:
-  LD A,([$ef87]PTRFLG)
+  LD A,([$ef87]PTRFLG)		; X text coord
   DEC A
   AND $07
   PUSH BC
@@ -20946,7 +20951,7 @@ L7162:
 L716E:
   PUSH BC
   PUSH DE
-  LD HL,($EF86)
+  LD HL,($EF86)		; Y,X text coord
   CALL L7E79
   SBC A,L
   LD B,D
@@ -21084,7 +21089,7 @@ L71F4:
 L720B:
   PUSH AF
   DI
-  LD A,($E6C2)
+  LD A,($E6C2)		; value sent to port 31h
   OR $04
   JR L7214_0
 
@@ -21092,11 +21097,11 @@ L720B:
 L7214:
   PUSH AF
   DI
-  LD A,($E6C2)
+  LD A,($E6C2)		; value sent to port 31h
   AND $FB
 L7214_0:
   OUT ($31),A
-  LD ($E6C2),A
+  LD ($E6C2),A		; value sent to port 31h
   EI
   POP AF
   RET
@@ -21296,7 +21301,7 @@ L72A0_7:
   LD A,C
   CP $60
   JR NZ,L72A0_11
-  LD HL,$F3C8
+  LD HL,$F3C8		; TVRAM
   LD B,$19
 L72A0_8:
   LD C,$52
@@ -21320,11 +21325,12 @@ L72A0_11:
 L72A0_12:
   EXX
   LD HL,$7389
-  LD DE,$C000
+  LD DE,$C000		; VTVRAM
   LD BC,$0054
   LDIR
   EXX
-  JP $C000
+  JP $C000		; VTVRAM
+  
 L72A0_13:
   LD A,C
   CP $60
@@ -21456,7 +21462,7 @@ L7484_0:
   CP $29
   JR C,L7484_1
   LD A,$1F
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   CALL L704C
   JR L746F_0
 L7484_1:
@@ -21569,7 +21575,7 @@ L77E7_0:
   CALL L7037
   CALL L704C
   LD A,$0E
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   CALL L704C
   JR L77E7_0
 L77E7_1:
@@ -21749,10 +21755,10 @@ L7A31_0:
 L7A6C:
   DI
   PUSH AF
-  LD A,($E6C2)
+  LD A,($E6C2)		; value sent to port 31h
   AND $FB
   OUT ($31),A
-  LD ($E6C2),A
+  LD ($E6C2),A		; value sent to port 31h
   POP AF
   EI
   RET
@@ -21802,7 +21808,7 @@ L7AA0_1:
 ; Routine at 7ABA
 L7ABA:
   CALL L7AA0
-  LD DE,$C000
+  LD DE,$C000		; VTVRAM
   RET
 
 ; Routine at 7AC1
@@ -21827,12 +21833,13 @@ L7ADC:
   JP [$3C82]READY
 
 ; Routine at 7AE2
+; Install memory bank paging routine at $c000
 L7AE2:
-  LD DE,$C000
+  LD DE,$C000		; VTVRAM
   LD HL,L7AF0
   LD BC,$0006
   LDIR
-  JP $C000
+  JP $C000		; VTVRAM
 
 ; Routine at 7AF0
 L7AF0:
@@ -21933,7 +21940,7 @@ L7B44_1:
   JR C,L7B44_2
   RRA
 L7B44_2:
-  CALL L6F80
+  CALL L6F80		; print a byte
   LD A,($8479)
   ADD A,A
   JR C,L7BB8_0
@@ -21944,12 +21951,12 @@ L7B44_2:
 ; Routine at 7BB8
 L7BB8:
   AND $01
-  CALL L6F80
+  CALL L6F80		; print a byte
 L7BB8_0:
   LD HL,$7C05
   CALL L704C
   LD A,E
-  CALL L6F80
+  CALL L6F80		; print a byte
   CALL L6E8A
   CALL L7037
   PUSH DE
@@ -22243,7 +22250,7 @@ L7D5D_0:
   CP $29
   JR C,L7D5D_1
   LD A,$1F
-  LD ([$ef87]PTRFLG),A
+  LD ([$ef87]PTRFLG),A		; X text coord
   CALL L7DE6
   JR L7D42_0
 L7D5D_1:
@@ -22361,7 +22368,7 @@ L7DFE:
 L7E17:
   PUSH AF
   DI
-  LD A,($E6C2)
+  LD A,($E6C2)		; value sent to port 31h
   OR $04
   JR L7E20_0
 
@@ -22369,11 +22376,11 @@ L7E17:
 L7E20:
   PUSH AF
   DI
-  LD A,($E6C2)
+  LD A,($E6C2)		; value sent to port 31h
   AND $FB
 L7E20_0:
   OUT ($31),A
-  LD ($E6C2),A
+  LD ($E6C2),A		; value sent to port 31h
   EI
   POP AF
   RET
@@ -22666,11 +22673,11 @@ L7FAE:
 
 ; Unused
 L7FB4:
-  DEFS $3C
+  DEFS $3C	; jp instruction ?
 
 ; Routine at 7FF0
 L7FF0:
-  JP L7AE2
+  JP L7AE2	; Install memory bank paging routine at $c000
 
 ; Routine at 7FF3
 L7FF3:
@@ -22731,7 +22738,7 @@ L7FF6:
   DEFS $01
 [$ef85]TEMP:
   DEFS $02
-[$ef87]PTRFLG:
+[$ef87]PTRFLG:		; X text coord
   DEFS $01
 [$ef88]AUTFLG:
   DEFS $01
