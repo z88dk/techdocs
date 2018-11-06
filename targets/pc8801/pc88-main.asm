@@ -103,10 +103,10 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 00000070:       RET
 
 00000071:       NOP
-00000072:       LD A,(E6B9h)		; TextIsColor
+00000072:       LD A,(E6B9h)		; TextIsColor, Color / monochrome switch
 00000075:       AND A
 00000076:       SCF
-00000077:       CALL NZ,4021h
+00000077:       CALL NZ,4021h		; Clean bottom text row
 0000007A:       JP 6F6Ah			; CRTSET - on stack: columns, rows
 
 0000007D:       CALL 1896h				; POSINT - Get positive integer
@@ -414,10 +414,11 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 ;E7E0  00 00 C3 00 00 C3 00 00-FF E5 E5 21 67 31 F5 3A   ...........!g1.:
 
 
-
+; MINUPD = JP nn for RIGHTC, LEFTC, UPC and DOWNC 
 ; -> E7E2h
 000002A0:       JP 0000h
 
+; MAXUPD = JP nn for RIGHTC, LEFTC, UPC and DOWNC 
 ; -> E7E5h
 000002A3:       JP 0000h
 
@@ -2295,7 +2296,7 @@ _PRINT_
 00000E9A:       LD A,(E64Ch)			; PRTFLG ("printer enabled" flag)
 00000E9D:       OR A
 00000E9E:       JR Z,+15h
-00000EA0:       LD A,(E64Eh)
+00000EA0:       LD A,(E64Eh)			; LPTPOS2
 00000EA3:       LD B,A
 00000EA4:       INC A
 00000EA5:       JR Z,+24h
@@ -2308,7 +2309,8 @@ _PRINT_
 00000EB1:       DEC A
 00000EB2:       CP B
 00000EB3:       JR +13h
-00000EB5:       LD A,(E64Fh)
+
+00000EB5:       LD A,(E64Fh)		; TTYPOS2
 00000EB8:       LD B,A
 00000EB9:       INC A
 00000EBA:       JR Z,+0Fh
@@ -2371,6 +2373,7 @@ _PRINT_
 00000F21:       PUSH AF
 00000F22:       CP E2h			; TK_SPC
 00000F24:       JR Z,+00h
+
 00000F26:       LD A,D
 00000F27:       OR A
 00000F28:       JP P,0F2Eh
@@ -2380,9 +2383,9 @@ _PRINT_
 00000F32:       JR NZ,+16h
 00000F34:       LD A,(E64Ch)		; PRTFLG ("printer enabled" flag)
 00000F37:       OR A
-00000F38:       LD A,(E64Eh)
+00000F38:       LD A,(E64Eh)		; LPTPOS2
 00000F3B:       JR NZ,+03h
-00000F3D:       LD A,(E64Fh)
+00000F3D:       LD A,(E64Fh)		; TTYPOS2
 00000F40:       LD L,A
 00000F41:       INC A
 00000F42:       JR Z,+06h
@@ -2397,6 +2400,7 @@ _PRINT_
 00000F4F:       SUB E2h
 00000F51:       PUSH HL
 00000F52:       JR Z,+1Ch
+
 00000F54:       LD BC,0008h
 00000F57:       LD HL,(EC88h)		; PTRFIL
 00000F5A:       ADD HL,BC
@@ -3798,17 +3802,17 @@ _WIDTH:
 
 00001866:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00001867:       CALL 18A3h			; GETINT
-0000186A:       LD (E64Eh),A
+0000186A:       LD (E64Eh),A		; LPTPOS2
 0000186D:       LD E,A
 0000186E:       CALL 188Bh
 00001871:       LD (E64Dh),A
 00001874:       RET
 
 00001875:       CP 2Ch		; ','
-00001877:       LD A,(E64Fh)
+00001877:       LD A,(E64Fh)		; TTYPOS2
 0000187A:       CALL NZ,18A6h			; MAKINT
 0000187D:       CALL 7112h
-00001880:       LD (E64Fh),A
+00001880:       LD (E64Fh),A		; TTYPOS2
 00001883:       LD E,A
 00001884:       CALL 188Bh
 00001887:       LD (E650h),A			; CLMLST
@@ -10175,18 +10179,19 @@ LPTOUT:
 00003F0B:       OR L
 00003F0C:       JR NZ,-09h
 00003F0E:       LD (E6E9h),HL
-00003F11:       LD A,4Eh
-00003F13:       CALL 3F27h
-00003F16:       LD A,41h
-00003F18:       CALL 3F27h
-00003F1B:       LD A,4Dh
-00003F1D:       CALL 3F27h
+00003F11:       LD A,4Eh		; 'N' - Select skip over perforation (n=1..127)
+00003F13:       CALL 3F27h		; Output ESC + value in A to LPT
+00003F16:       LD A,41h		; 'A'?  ..65???
+00003F18:       CALL 3F27h		; Output ESC + value in A to LPT ???
+00003F1B:       LD A,4Dh		; 'M', 
+00003F1D:       CALL 3F27h		; Output ESC + value in A to LPT
 00003F20:       POP HL
 00003F21:       POP AF
 00003F22:       LD (E6CAh),A
 00003F25:       POP AF
 00003F26:       RET
 
+; Output ESC + value in A to LPT
 00003F27:       PUSH AF
 00003F28:       LD A,1Bh
 00003F2A:       CALL 3ED4h		; LPTOUT
@@ -10249,7 +10254,7 @@ LPTOUT:
 00003F85:       RET Z
 00003F86:       LD A,B
 00003F87:       LD (EF90h),A
-00003F8A:       LD A,(E6B8h)
+00003F8A:       LD A,(E6B8h)		; Function key bottom bar enable flag
 00003F8D:       AND A
 00003F8E:       RET Z
 00003F8F:       LD A,FFh
@@ -10265,7 +10270,7 @@ LPTOUT:
 00003FA1:       LD A,B
 00003FA2:       PUSH AF
 00003FA3:       SCF
-00003FA4:       CALL 4021h
+00003FA4:       CALL 4021h		; Clean bottom text row
 00003FA7:       LD L,A
 00003FA8:       LD H,03h
 00003FAA:       LD BC,0106h
@@ -10346,6 +10351,7 @@ LPTOUT:
 0000401F:       LD A,(HL)
 00004020:       RET
 
+; Clean bottom text row
 00004021:       LD A,(EF88h)	; HEIGHT (TextHeight)
 00004024:       PUSH HL
 00004025:       PUSH AF
@@ -10353,19 +10359,20 @@ LPTOUT:
 00004027:       CALL 431Eh		; Find text row address
 0000402A:       POP AF
 0000402B:       PUSH AF
-0000402C:       CALL C,4035h
-0000402F:       CALL NC,42E9h
+0000402C:       CALL C,4035h		; Save 'AttributeCode' and Init text row pointed by HL=DE
+0000402F:       CALL NC,42E9h		; copy bottom text line (and attributes) to DE
 00004032:       POP AF
 00004033:       POP HL
 00004034:       RET
 
+; Save 'AttributeCode' and Init text row pointed by HL=DE
 00004035:       LD A,(E6B4h)		; AttributeCode
 00004038:       PUSH AF
 00004039:       XOR A
 0000403A:       LD (E6B4h),A		; AttributeCode
 0000403D:       LD H,D
 0000403E:       LD L,E
-0000403F:       CALL 42BEh
+0000403F:       CALL 42BEh			; Init text row pointed by HL=DE
 00004042:       POP AF
 00004043:       LD (E6B4h),A		; AttributeCode
 00004046:       RET
@@ -10683,6 +10690,7 @@ LPTOUT:
 
 
 ; offset table for 'mul120'
+; this table is used for text row addressing (80 text columns + 40 text attribute bytes)
 00004257:       DEFW $0000
 00004259:       DEFW $0078		; 120
 0000425B:       DEFW $00F0		; 240
@@ -10744,22 +10752,24 @@ LPTOUT:
 000042B2:       POP DE
 000042B3:       RET
 
-000042B4:       LD HL,(4289h)
+; Init bottom text row
+000042B4:       LD HL,(4289h)		; HL=3000 (last value in 'mul120' table)
 000042B7:       EX DE,HL
 000042B8:       LD HL,(E6C4h)		; TVRAMTop
 000042BB:       ADD HL,DE
 000042BC:       LD D,H
 000042BD:       LD E,L
+; Init text row pointed by HL=DE
 000042BE:       INC DE
-000042BF:       LD BC,0050h
-000042C2:       LD (HL),20h
+000042BF:       LD BC,0050h		; 80
+000042C2:       LD (HL),20h		; ' '
 000042C4:       LDIR
-000042C6:       LD (HL),80h
+000042C6:       LD (HL),80h		; 128
 000042C8:       INC HL
 000042C9:       LD A,(E6B4h)		; AttributeCode
 000042CC:       LD (HL),A
 000042CD:       DEC HL
-000042CE:       LD C,26h
+000042CE:       LD C,26h		; 38
 000042D0:       INC DE
 000042D1:       LDIR
 000042D3:       RET
@@ -10777,9 +10787,11 @@ LPTOUT:
 000042E3:       LD HL,0078h
 000042E6:       ADD HL,DE
 000042E7:       LDIR
-000042E9:       LD BC,0078h
+
+; copy bottom text line (and attributes) to DE
+000042E9:       LD BC,0078h		; 120
 000042EC:       PUSH DE
-000042ED:       LD HL,(4289h)
+000042ED:       LD HL,(4289h)		; HL=3000 (last value in 'mul120' table)
 000042F0:       EX DE,HL
 000042F1:       LD HL,(E6C4h)		; TVRAMTop
 000042F4:       ADD HL,DE
@@ -11043,7 +11055,7 @@ LPTOUT:
 
 0000445B:       PUSH BC
 0000445C:       LD C,A
-0000445D:       LD A,(E6B9h)		; TextIsColor
+0000445D:       LD A,(E6B9h)				; TextIsColor, Color / monochrome switch
 00004460:       OR A
 00004461:       JR Z,+0Ah
 00004463:       LD A,C
@@ -11098,7 +11110,7 @@ LPTOUT:
 000044A8:       LD A,H
 000044A9:       CP 84h
 000044AB:       JR NC,+04h
-000044AD:       OUTA (70h)			; write byte in remote page
+000044AD:       OUTA (70h)			; set text window offset address
 000044AF:       LD H,80h
 000044B1:       POP AF
 000044B2:       RET
@@ -11136,7 +11148,7 @@ LPTOUT:
 000044D6:       LD A,H
 000044D7:       CP 84h
 000044D9:       JR NC,+06h
-000044DB:       INA (70h)			; read data from remote page
+000044DB:       INA (70h)			; get text window offset address
 000044DD:       ADD H
 000044DE:       AND 7Fh
 000044E0:       LD H,A
@@ -13278,8 +13290,9 @@ _SWAP:
 000051DF:       CALL 4400h
 000051E2:       POP BC
 000051E3:       RET
+
 000051E4:       LD A,B
-000051E5:       LD (E64Fh),A
+000051E5:       LD (E64Fh),A		; TTYPOS2
 000051E8:       JP 6F6Ah			; CRTSET - on stack: columns, rows
 
 000051EB:       LD A,(F153h)
@@ -14574,7 +14587,7 @@ _FRE:
 00005945:       JR +3Fh
 00005947:       CP 09h
 00005949:       JR NZ,+18h
-0000594B:       LD A,(E64Eh)
+0000594B:       LD A,(E64Eh)		; LPTPOS2
 0000594E:       INC A
 0000594F:       JR Z,+12h
 00005951:       LD A,20h
@@ -14591,12 +14604,12 @@ _FRE:
 00005965:       SUB 0Dh
 00005967:       JR Z,+19h
 00005969:       JR C,+1Ah
-0000596B:       LD A,(E64Eh)
+0000596B:       LD A,(E64Eh)		; LPTPOS2
 0000596E:       INC A
 0000596F:       LD A,(E64Bh)			; LPTPOS - printer cursor position
 00005972:       JR Z,+09h
 00005974:       PUSH HL
-00005975:       LD HL,E64Eh
+00005975:       LD HL,E64Eh			; LPTPOS2
 00005978:       CP (HL)
 00005979:       POP HL
 0000597A:       CALL Z,5995h
@@ -15373,6 +15386,7 @@ GVAR:
 00005E2C:       JP 4494h
 00005E2F:       INC L
 00005E30:       JP 4494h
+
 00005E33:       LD A,(E6B0h)		; scroll area
 00005E36:       CP L
 00005E37:       RET Z
@@ -15488,7 +15502,8 @@ GVAR:
 00005F08:       LD (EF83h),A
 00005F0B:       JP 42FEh
 
-00005F0E:       CALL 42B4h
+; clear text page (text CLS)
+00005F0E:       CALL 42B4h			; Init bottom text row
 00005F11:       XOR A
 00005F12:       LD (EFB4h),A
 00005F15:       LD HL,(E6B0h)		; scroll area
@@ -15504,28 +15519,35 @@ GVAR:
 00005F24:       DEC E
 00005F25:       POP DE
 00005F26:       JR Z,+02h
-00005F28:       LD (HL),01h
+
+00005F28:       LD (HL),01h		; set default text attributes
 00005F2A:       INC HL
-00005F2B:       LD (HL),01h
+
+00005F2B:       LD (HL),01h		; set default text attributes
 00005F2D:       INC HL
 00005F2E:       DEC A
 00005F2F:       JR NZ,-06h
+
 00005F31:       EX DE,HL
 00005F32:       POP AF
+
 00005F33:       PUSH AF
 00005F34:       PUSH HL
 00005F35:       CALL 431Eh		; Find text row address
-00005F38:       CALL 42E9h
+
+00005F38:       CALL 42E9h		; copy bottom text line (and attributes) to DE
 00005F3B:       POP HL
 00005F3C:       INC L
 00005F3D:       POP AF
 00005F3E:       DEC A
 00005F3F:       JR NZ,-0Eh
+
 00005F41:       LD (EF83h),A
 00005F44:       LD (EF84h),A
 00005F47:       LD (EF85h),A
 00005F4A:       CALL 3F79h
 00005F4D:       JP 5E49h
+
 00005F50:       PUSH AF
 00005F51:       CALL 5F76h
 00005F54:       LD B,01h
@@ -16224,6 +16246,7 @@ GVAR:
 000063D1:       RET NZ
 000063D2:       LD H,01h
 000063D4:       JP 5E23h
+
 000063D7:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 000063DA:       CALL 5E61h
 000063DD:       RET NZ
@@ -16447,7 +16470,7 @@ GVAR:
 00006542:       LD H,01h
 00006544:       CALL 429Dh		; LocateTVRAM - Coordinate(L,H) -> TVRAM address translation
 00006547:       EX DE,HL
-00006548:       CALL 42E9h
+00006548:       CALL 42E9h		; copy bottom text line (and attributes) to DE
 0000654B:       POP HL
 0000654C:       RET
 
@@ -16485,7 +16508,7 @@ _EDIT:
 0000657B:       CALL 0B0Bh				; LNUM_PARM - Read numeric function parameter
 0000657E:       JP NZ,0B06h			; FCERR, Err $05 - "Illegal function call"
 00006581:       PUSH DE
-00006582:       CALL 5F0Eh
+00006582:       CALL 5F0Eh			; clear text page (text CLS)
 00006585:       POP DE
 00006586:       POP HL
 00006587:       EX DE,HL
@@ -17596,9 +17619,11 @@ _SCREEN:
 00006EE2:       CALL 4551h		; EXEC_ROM0 - run subprogram in ROM0 bank, next byte holds the subroutine number
 00006EE5:       DEFB 19
 
+; clear graphics page 1
 00006EE6:       CALL 4551h		; EXEC_ROM0 - run subprogram in ROM0 bank, next byte holds the subroutine number
 00006EE9:       DEFB 20
 
+; clear graphics page 2
 00006EEA:       CALL 4551h		; EXEC_ROM0 - run subprogram in ROM0 bank, next byte holds the subroutine number
 00006EED:       DEFB 21
 
@@ -17712,7 +17737,7 @@ _RENUM:
 00006F96:       PUSH HL
 00006F97:       LD HL,1901h
 00006F9A:       LD (E6B0h),HL		; scroll area
-00006F9D:       CALL 5F0Eh
+00006F9D:       CALL 5F0Eh			; clear text page (text CLS)
 00006FA0:       POP HL
 00006FA1:       LD (E6B0h),HL		; scroll area
 00006FA4:       CALL 5E49h
@@ -17726,7 +17751,7 @@ _RENUM:
 00006FB3:       LD B,A
 00006FB4:       LD A,(EF86h)			; CSRY (CursorPos) - current text position
 00006FB7:       LD L,A
-00006FB8:       LD A,(E6B8h)
+00006FB8:       LD A,(E6B8h)		; Function key bottom bar enable flag
 00006FBB:       ADD C
 00006FBC:       CP L
 00006FBD:       JR NC,+03h
@@ -17761,7 +17786,7 @@ _RENUM:
 00006FF1:       AND FCh
 00006FF3:       OR C
 00006FF4:       LD C,A
-00006FF5:       LD A,(E6B9h)		; TextIsColor
+00006FF5:       LD A,(E6B9h)				; TextIsColor, Color / monochrome switch
 00006FF8:       AND 02h
 00006FFA:       XOR 02h
 00006FFC:       OR C
@@ -17796,7 +17821,7 @@ _RENUM:
 0000702F:       INC HL
 00007030:       DJNZ -06h
 
-00007032:       LD A,(E6B9h)	; TextIsColor
+00007032:       LD A,(E6B9h)			; TextIsColor, Color / monochrome switch
 00007035:       AND 40h
 00007037:       OR 13h
 00007039:       OUTA (50h)		; CRTC
@@ -17876,17 +17901,17 @@ _CONSOLE:
 000070AE:       CP 2Ch		; ','
 000070B0:       JR Z,+16h
 000070B2:       CALL 18A3h			; GETINT
-000070B5:       LD A,(E6B8h)
+000070B5:       LD A,(E6B8h)		; Function key bottom bar enable flag
 000070B8:       LD D,A
 000070B9:       LD A,E
 000070BA:       CP 01h
 000070BC:       CCF
 000070BD:       SBC A
-000070BE:       LD (E6B8h),A
+000070BE:       LD (E6B8h),A		; Function key bottom bar enable flag
 000070C1:       CP D
 000070C2:       JR Z,+04h
 000070C4:       OR A
-000070C5:       CALL Z,4021h
+000070C5:       CALL Z,4021h		; Clean bottom text row
 000070C8:       DEC HL
 000070C9:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 000070CA:       JR Z,+3Ah
@@ -17897,7 +17922,7 @@ _CONSOLE:
 000070D3:       CCF
 000070D4:       SBC A
 000070D5:       PUSH HL
-000070D6:       LD HL,E6B9h			; TextIsColor
+000070D6:       LD HL,E6B9h					; TextIsColor, Color / monochrome switch
 000070D9:       CP (HL)
 000070DA:       LD (HL),A
 000070DB:       POP HL
@@ -17907,7 +17932,7 @@ _CONSOLE:
 000070E1:       PUSH HL
 000070E2:       XOR A
 000070E3:       LD (E6B4h),A		; AttributeCode
-000070E6:       CALL 5F0Eh
+000070E6:       CALL 5F0Eh			; clear text page (text CLS)
 000070E9:       DI
 000070EA:       CALL 433Fh			; WaitVSync
 000070ED:       EI
@@ -18033,27 +18058,29 @@ __PUT:
 000071B2:       JP 6EA2h
 
 _CLS:
-000071B5:       LD B,01h
+000071B5:       LD B,01h		; set default argument to 'CLS 1'
 000071B7:       DEC HL
 000071B8:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-000071B9:       JR Z,+0Bh
+000071B9:       JR Z,+0Bh		; to 71C6h if no arguments
+
 000071BB:       DEC HL
 000071BC:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 000071BD:       CALL 18A3h			; GETINT
 000071C0:       CP 04h
 000071C2:       JP NC,0B06h			; FCERR, Err $05 - "Illegal function call"
 000071C5:       LD B,A
+
 000071C6:       PUSH HL
-000071C7:       LD A,B
+000071C7:       LD A,B			; get argument
 000071C8:       RRCA
 000071C9:       PUSH AF
-000071CA:       CALL C,5F0Eh
+000071CA:       CALL C,5F0Eh	; clear text page (text CLS)
 000071CD:       POP AF
 000071CE:       RRCA
 000071CF:       PUSH AF
-000071D0:       CALL C,6EE6h
+000071D0:       CALL C,6EE6h	; clear graphics page 1
 000071D3:       POP AF
-000071D4:       CALL C,6EEAh
+000071D4:       CALL C,6EEAh	; clear graphics page 2
 000071D7:       POP HL
 000071D8:       RET
 
@@ -19356,7 +19383,7 @@ _TERM:
 00007B39:       LD A,(E6EBh)
 00007B3C:       OR A
 00007B3D:       JP NZ,4DA3h			; 'File already open' error
-00007B40:       LD A,(E64Eh)
+00007B40:       LD A,(E64Eh)		; LPTPOS2
 00007B43:       LD B,A
 00007B44:       LD C,00h
 00007B46:       LD A,E9h
@@ -19427,7 +19454,7 @@ _TERM:
 00007BB6:       JP 7B20h			; POPALL
 
 00007BB9:       POP AF
-00007BBA:       LD (E64Eh),A
+00007BBA:       LD (E64Eh),A		; LPTPOS2
 00007BBD:       RET
 
 00007BBE:       POP AF
