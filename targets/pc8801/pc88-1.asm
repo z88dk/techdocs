@@ -129,7 +129,7 @@
 000060C8:	LD DE,0200h
 000060CB:	RET
 
-000060CC:	LD HL,(F033h)			; pointer on paint address
+000060CC:	LD HL,(F033h)			; pointer to paint address
 000060CF:	XOR A
 000060D0:	LD (F049h),A
 000060D3:	LD A,(F035h)
@@ -183,7 +183,7 @@
 00006118:	LD B,01h
 0000611A:	RET
 
-0000611B:	LD DE,F036h
+0000611B:	LD DE,F036h		; Current value for BLUE plane
 0000611E:	LD B,03h
 00006120:	LD A,(HL)
 00006121:	LD (DE),A
@@ -310,13 +310,13 @@
 
 000061CA:	PUSH BC
 000061CB:	PUSH DE
-000061CC:	LD A,(F08Bh)
-000061CF:	LD (F089h),A
+000061CC:	LD A,(F08Bh)		; second GVRAM bank/plane to work on
+000061CF:	LD (F089h),A		; current GVRAM bank/plane to work on
 000061D2:	LD A,(E6A6h)
 000061D5:	OR A
 000061D6:	JP Z,61E9h
-000061D9:	LD A,5Ch
-000061DB:	LD (F089h),A
+000061D9:	LD A,5Ch		; GVRAM independent access mode bank selection - BLUE plane
+000061DB:	LD (F089h),A		; current GVRAM bank/plane to work on
 000061DE:	LD H,EEh
 000061E0:	LD A,(849Fh)
 000061E3:	OR H
@@ -355,7 +355,7 @@
 00006215:	SBC 00h
 00006217:	LD D,A
 00006218:	LD A,5Dh
-0000621A:	LD (F089h),A
+0000621A:	LD (F089h),A		; current GVRAM bank/plane to work on
 0000621D:	LD H,DDh
 0000621F:	LD A,(849Fh)
 00006222:	OR H
@@ -375,7 +375,7 @@
 00006233:	LD A,H
 00006234:	OR C0h
 00006236:	LD H,A
-00006237:	LD (F033h),HL			; pointer on paint address
+00006237:	LD (F033h),HL			; pointer to paint address
 0000623A:	POP DE
 0000623B:	POP BC
 0000623C:	RET
@@ -392,9 +392,9 @@
 00006249:	LD (F035h),A
 0000624C:	RET NC
 0000624D:	PUSH HL
-0000624E:	LD HL,(F033h)			; pointer on paint address
+0000624E:	LD HL,(F033h)			; pointer to paint address
 00006251:	INC HL
-00006252:	LD (F033h),HL			; pointer on paint address
+00006252:	LD (F033h),HL			; pointer to paint address
 00006255:	POP HL
 00006256:	RET
 
@@ -403,14 +403,14 @@
 0000625B:	LD (F035h),A
 0000625E:	RET NC
 0000625F:	PUSH HL
-00006260:	LD HL,(F033h)			; pointer on paint address
+00006260:	LD HL,(F033h)			; pointer to paint address
 00006263:	DEC HL
-00006264:	LD (F033h),HL			; pointer on paint address
+00006264:	LD (F033h),HL			; pointer to paint address
 00006267:	POP HL
 00006268:	RET
 
 00006269:	PUSH DE
-0000626A:	LD HL,(F033h)			; pointer on paint address
+0000626A:	LD HL,(F033h)			; pointer to paint address
 0000626D:	LD DE,FE30h
 00006270:	RST 20h			; CPDEHL - compare DE and HL (aka DCOMPR)
 00006271:	JP C,6295h
@@ -420,12 +420,12 @@
 00006278:	LD A,L
 00006279:	SUB 30h
 0000627B:	LD L,A
-0000627C:	LD (F033h),HL			; pointer on paint address
+0000627C:	LD (F033h),HL			; pointer to paint address
 0000627F:	LD A,(E6A6h)
 00006282:	OR A
 00006283:	JR Z,+0Eh
 00006285:	LD A,5Dh
-00006287:	LD (F089h),A
+00006287:	LD (F089h),A		; current GVRAM bank/plane to work on
 0000628A:	LD A,(849Dh)
 0000628D:	RLCA
 0000628E:	LD (849Dh),A
@@ -435,16 +435,16 @@
 
 00006295:	LD DE,0050h
 00006298:	ADD HL,DE
-00006299:	LD (F033h),HL			; pointer on paint address
+00006299:	LD (F033h),HL			; pointer to paint address
 0000629C:	POP DE
 0000629D:	RET
 
-0000629E:	LD HL,(F033h)			; pointer on paint address
+0000629E:	LD HL,(F033h)			; pointer to paint address
 000062A1:	LD A,H
 000062A2:	AND 3Fh
 000062A4:	LD H,A
-000062A5:	LD A,(F089h)
-000062A8:	SUB 5Ch
+000062A5:	LD A,(F089h)		; current GVRAM bank/plane to work on
+000062A8:	SUB 5Ch		; GVRAM independent access mode bank selection - BLUE plane (first port)
 000062AA:	RRCA
 000062AB:	RRCA
 000062AC:	OR H
@@ -457,12 +457,12 @@
 000062B6:	AND C0h
 000062B8:	RLCA
 000062B9:	RLCA
-000062BA:	ADD 5Ch
-000062BC:	LD (F089h),A
+000062BA:	ADD 5Ch		; GVRAM independent access mode bank selection - BLUE plane
+000062BC:	LD (F089h),A		; current GVRAM bank/plane to work on
 000062BF:	LD A,H
 000062C0:	OR C0h
 000062C2:	LD H,A
-000062C3:	LD (F033h),HL			; pointer on paint address
+000062C3:	LD (F033h),HL			; pointer to paint address
 000062C6:	RET
 
 ; =code @ 66B8 in bank 0
@@ -518,16 +518,17 @@
 00006318:	OUTA (54h)
 0000631A:	XOR A
 0000631B:	OUTA (53h)
-0000631D:	LD C,5Ch
+0000631D:	LD C,5Ch		; GVRAM independent access mode bank selection - BLUE plane
 0000631F:	CALL 6334h
-00006322:	LD C,5Dh
+00006322:	LD C,5Dh		; GVRAM independent access mode bank selection - RED plane
 00006324:	CALL 6334h
-00006327:	LD C,5Eh
+00006327:	LD C,5Eh		; GVRAM independent access mode bank selection - GREEN plane
 00006329:	CALL 6334h
 0000632C:	CALL 6375h
 0000632F:	XOR A
 00006330:	PUSH AF
 00006331:	JP 6481h
+
 00006334:	DI
 00006335:	LD B,00h
 00006337:	OUT (C),A
@@ -538,9 +539,10 @@
 00006340:	INC DE
 00006341:	LD BC,3FF8h
 00006344:	LDIR
-00006346:	OUTA (5Fh)
+00006346:	OUTA (5Fh)		; restore default GVRAM page to main RAM (no graphics plane anymore)
 00006348:	EI
 00006349:	RET
+
 0000634A:	LD HL,00C7h
 0000634D:	JR NZ,+03h
 0000634F:	LD HL,018Fh
@@ -568,10 +570,10 @@
 00006382:	LD A,07h
 00006384:	LD (F01Eh),A
 00006387:	LD (F08Ch),A
-0000638A:	LD HL,035Ch
-0000638D:	LD (F089h),HL
-00006390:	LD A,5Ch
-00006392:	LD (F08Bh),A
+0000638A:	LD HL,035Ch		; GVRAM independent access mode bank selection - BLUE plane + 03h
+0000638D:	LD (F089h),HL		; current GVRAM bank/plane to work on
+00006390:	LD A,5Ch		; GVRAM independent access mode bank selection - BLUE plane
+00006392:	LD (F08Bh),A		; second GVRAM bank/plane to work on
 00006395:	LD HL,00C7h
 00006398:	LD (F039h),HL
 0000639B:	LD A,01h
@@ -587,14 +589,14 @@
 000063AD:	LD HL,(F02Fh)
 000063B0:	EX DE,HL
 000063B1:	CALL 61CAh
-000063B4:	LD HL,(F033h)			; pointer on paint address
+000063B4:	LD HL,(F033h)			; pointer to paint address
 000063B7:	PUSH HL
 000063B8:	LD A,(F035h)
 000063BB:	PUSH AF
 000063BC:	LD DE,0050h
 000063BF:	ADD HL,DE
 000063C0:	LD (F0C0h),HL
-000063C3:	LD A,(F089h)
+000063C3:	LD A,(F089h)		; current GVRAM bank/plane to work on
 000063C6:	LD (F0C2h),A
 000063C9:	LD HL,(F02Dh)
 000063CC:	LD B,H
@@ -602,20 +604,20 @@
 000063CE:	LD HL,(F031h)
 000063D1:	EX DE,HL
 000063D2:	CALL 61CAh
-000063D5:	LD HL,(F033h)			; pointer on paint address
+000063D5:	LD HL,(F033h)			; pointer to paint address
 000063D8:	LD DE,0050h
 000063DB:	OR A
 000063DC:	SBC HL,DE
 000063DE:	INC HL
 000063DF:	LD (F0C3h),HL	; RTDWVW - view (x2,y2) address -4Fh
-000063E2:	LD A,(F089h)
+000063E2:	LD A,(F089h)		; current GVRAM bank/plane to work on
 000063E5:	LD (F0C5h),A	; LFVWPS - view (Lx,0) address
 000063E8:	LD HL,(F02Bh)
 000063EB:	LD B,H
 000063EC:	LD C,L
 000063ED:	LD DE,0000h
 000063F0:	CALL 61CAh
-000063F3:	LD HL,(F033h)			; pointer on paint address
+000063F3:	LD HL,(F033h)			; pointer to paint address
 000063F6:	LD (F0C6h),HL
 000063F9:	LD A,(F035h)
 000063FC:	LD (F0CAh),A	; VIEW2 - view position bit limit
@@ -624,14 +626,14 @@
 00006403:	LD C,L
 00006404:	LD DE,0000h
 00006407:	CALL 61CAh
-0000640A:	LD HL,(F033h)			; pointer on paint address
+0000640A:	LD HL,(F033h)			; pointer to paint address
 0000640D:	LD (F0C8h),HL	; RTVWPS - view (Rx,0) address
 00006410:	LD A,(F035h)
 00006413:	LD (F0CBh),A
 00006416:	POP AF
 00006417:	LD (F035h),A
 0000641A:	POP HL
-0000641B:	LD (F033h),HL			; pointer on paint address
+0000641B:	LD (F033h),HL			; pointer to paint address
 0000641E:	RET
 
 0000641F:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
@@ -678,9 +680,9 @@
 00006460:	CALL 18A3h			; GETINT
 00006463:	CP 03h
 00006465:	JP NC,0B06h			; FCERR, Err $05 - "Illegal function call"
-00006468:	ADD 5Ch
-0000646A:	LD (F089h),A
-0000646D:	LD (F08Bh),A
+00006468:	ADD 5Ch		; GVRAM independent access mode bank selection - BLUE plane
+0000646A:	LD (F089h),A		; current GVRAM bank/plane to work on
+0000646D:	LD (F08Bh),A		; second GVRAM bank/plane to work on
 00006470:	DEC HL
 00006471:	RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00006472:	JR Z,+0Dh
@@ -702,10 +704,10 @@
 00006492:	LD A,(F087h)		; SCREEN - screen mode
 00006495:	DEC A
 00006496:	JP P,64AFh
-00006499:	LD HL,035Ch
-0000649C:	LD (F089h),HL
-0000649F:	LD A,5Ch
-000064A1:	LD (F08Bh),A
+00006499:	LD HL,035Ch		; GVRAM independent access mode bank selection - BLUE plane + 03h
+0000649C:	LD (F089h),HL		; current GVRAM bank/plane to work on
+0000649F:	LD A,5Ch		; GVRAM independent access mode bank selection - BLUE plane
+000064A1:	LD (F08Bh),A		; second GVRAM bank/plane to work on
 000064A4:	LD A,07h
 000064A6:	LD (F08Ch),A
 000064A9:	LD A,B
@@ -720,7 +722,7 @@
 000064B8:	LD A,01h
 000064BA:	LD (F08Ah),A
 000064BD:	PUSH BC
-000064BE:	LD A,(F089h)
+000064BE:	LD A,(F089h)		; current GVRAM bank/plane to work on
 000064C1:	SUB 5Bh
 000064C3:	LD B,A
 000064C4:	LD A,EEh
@@ -733,8 +735,8 @@
 000064D0:	JR +21h
 000064D2:	LD A,EEh
 000064D4:	LD (849Eh),A
-000064D7:	LD A,5Ch
-000064D9:	LD (F089h),A
+000064D7:	LD A,5Ch		; GVRAM independent access mode bank selection - BLUE plane
+000064D9:	LD (F089h),A		; current GVRAM bank/plane to work on
 000064DC:	LD A,01h
 000064DE:	LD (E6A6h),A
 000064E1:	LD (F08Ah),A
@@ -923,9 +925,9 @@
 0000664E:	RET
 
 0000664F:	LD HL,(F090h)
-00006652:	CALL 21FDh
+00006652:	CALL 21FDh				; INT_RESULT_HL
 00006655:	CALL 2214h				; CSNG - Convert number to single precision
-00006658:	CALL 20CDh
+00006658:	CALL 20CDh				; STAKFP - Put FP value on stack
 0000665B:	LD HL,F094h
 0000665E:	CALL 20DAh				; PHLTFP - Number at HL to BCDE
 00006661:	POP BC
@@ -936,9 +938,9 @@
 0000666C:	RET
 
 0000666D:	LD HL,(F092h)
-00006670:	CALL 21FDh
+00006670:	CALL 21FDh				; INT_RESULT_HL
 00006673:	CALL 2214h				; CSNG - Convert number to single precision
-00006676:	CALL 20CDh
+00006676:	CALL 20CDh				; STAKFP - Put FP value on stack
 00006679:	LD HL,F098h
 0000667C:	CALL 20DAh				; PHLTFP - Number at HL to BCDE
 0000667F:	POP BC
@@ -1020,7 +1022,7 @@
 00006700:	LD HL,F0ACh
 00006703:	CALL 20DAh				; PHLTFP - Number at HL to BCDE
 00006706:	LD A,04h
-00006708:	LD (EABDh),A
+00006708:	LD (EABDh),A		; VALTYP - type indicator
 0000670B:	LD A,(F08Fh)
 0000670E:	OR A
 0000670F:	JR NZ,+06h
@@ -1079,7 +1081,7 @@
 00006775:	JP Z,78FCh
 00006778:	LD A,(HL)
 00006779:	CP 40h
-0000677B:	CALL Z,0A0Dh
+0000677B:	CALL Z,0A0Dh	; _CHRGTB - Pick next char from program
 0000677E:	CP F4h
 00006780:	JP Z,682Ch
 00006783:	LD A,(F08Fh)
@@ -1089,7 +1091,7 @@
 0000678D:	LD A,(HL)
 0000678E:	CP DFh
 00006790:	PUSH AF
-00006791:	CALL Z,0A0Dh
+00006791:	CALL Z,0A0Dh	; _CHRGTB - Pick next char from program
 00006794:	RST 08h				; Check syntax, 1 byte follows to be compared
 00006795:	JR Z,-33h
 00006797:	OUTA (11h)
@@ -1097,7 +1099,7 @@
 0000679A:	CALL 2214h				; CSNG - Convert number to single precision
 0000679D:	POP HL
 0000679E:	POP AF
-0000679F:	CALL 20CDh
+0000679F:	CALL 20CDh				; STAKFP - Put FP value on stack
 000067A2:	PUSH AF
 000067A3:	RST 08h				; Check syntax, 1 byte follows to be compared
 000067A4:	DEFB ','
@@ -1150,7 +1152,7 @@
 00006808:	LD HL,F0ACh
 0000680B:	CALL 20F4h			; DEC_FACCU2HL - copy number value from FPREG (FP accumulator) to HL
 0000680E:	LD A,04h
-00006810:	LD (EABDh),A
+00006810:	LD (EABDh),A		; VALTYP - type indicator
 00006813:	LD HL,F02Fh
 00006816:	LD DE,F0B8h
 00006819:	LD BC,F0A0h
@@ -1176,7 +1178,7 @@
 0000683F:	PUSH DE
 00006840:	PUSH HL
 00006841:	LD HL,(F027h)
-00006844:	CALL 21FDh
+00006844:	CALL 21FDh				; INT_RESULT_HL
 00006847:	CALL 2214h				; CSNG - Convert number to single precision
 0000684A:	LD HL,F0ACh
 0000684D:	CALL 20F4h			; DEC_FACCU2HL - copy number value from FPREG (FP accumulator) to HL
@@ -1185,7 +1187,7 @@
 00006855:	LD HL,F0A4h
 00006858:	CALL 20F4h			; DEC_FACCU2HL - copy number value from FPREG (FP accumulator) to HL
 0000685B:	LD HL,(F029h)
-0000685E:	CALL 21FDh
+0000685E:	CALL 21FDh				; INT_RESULT_HL
 00006861:	CALL 2214h				; CSNG - Convert number to single precision
 00006864:	LD HL,F0ACh
 00006867:	CALL 20F4h			; DEC_FACCU2HL - copy number value from FPREG (FP accumulator) to HL
@@ -1311,7 +1313,7 @@
 00006922:	SBC HL,DE
 00006924:	PUSH BC
 00006925:	PUSH DE
-00006926:	CALL 21FDh
+00006926:	CALL 21FDh				; INT_RESULT_HL
 00006929:	CALL 2214h				; CSNG - Convert number to single precision
 0000692C:	LD HL,F0ACh
 0000692F:	CALL 20F4h			; DEC_FACCU2HL - copy number value from FPREG (FP accumulator) to HL
@@ -1324,7 +1326,7 @@
 0000693A:	OR A
 0000693B:	SBC HL,DE
 0000693D:	PUSH BC
-0000693E:	CALL 21FDh
+0000693E:	CALL 21FDh				; INT_RESULT_HL
 00006941:	CALL 2214h				; CSNG - Convert number to single precision
 00006944:	LD HL,F0ACh
 00006947:	PUSH HL
@@ -1343,7 +1345,7 @@
 0000695A:	PUSH BC
 0000695B:	OR A
 0000695C:	SBC HL,DE
-0000695E:	CALL 21FDh
+0000695E:	CALL 21FDh				; INT_RESULT_HL
 00006961:	CALL 2214h				; CSNG - Convert number to single precision
 00006964:	LD HL,F0ACh
 00006967:	CALL 20EBh			; LOADFP - Load FP value pointed by HL to BCDE
@@ -1430,7 +1432,7 @@
 000069E8:	LD A,(HL)
 000069E9:	PUSH AF
 000069EA:	RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-000069EB:	JP NZ,0393h
+000069EB:	JP NZ,0393h			;  SNERR - entry for '?SN ERROR'
 000069EE:	POP AF
 000069EF:	POP DE
 000069F0:	PUSH HL
@@ -1493,7 +1495,7 @@
 00006A50:	RET
 
 00006A51:	PUSH BC
-00006A52:	LD HL,(F033h)			; pointer on paint address
+00006A52:	LD HL,(F033h)			; pointer to paint address
 00006A55:	LD A,(F035h)
 00006A58:	LD BC,8035h
 00006A5B:	DI
@@ -1542,6 +1544,7 @@
 00006A96:	CALL 0A0Eh
 00006A99:	POP BC
 00006A9A:	RET
+
 00006A9B:	LD SP,HL
 00006A9C:	RET M
 00006A9D:	RET NC
@@ -1553,7 +1556,8 @@
 00006AA7:	JR Z,+06h
 00006AA9:	DEC HL
 00006AAA:	DJNZ -06h
-00006AAC:	JP 0393h
+00006AAC:	JP 0393h			;  SNERR - entry for '?SN ERROR'
+
 00006AAF:	DEC B
 00006AB0:	POP HL
 00006AB1:	LD A,(84DDh)
@@ -1716,7 +1720,7 @@
 00006B84:	LD (F044h),A	; ATRBYT (aka PPALET)
 00006B87:	RRCA
 00006B88:	SBC A
-00006B89:	LD (F036h),A
+00006B89:	LD (F036h),A		; Current value for BLUE plane
 00006B8C:	OR A
 00006B8D:	RET
 
@@ -1760,8 +1764,8 @@
 00006BD9:	LD A,H
 00006BDA:	AND 3Fh
 00006BDC:	LD H,A
-00006BDD:	LD A,(F089h)
-00006BE0:	SUB 5Ch
+00006BDD:	LD A,(F089h)		; current GVRAM bank/plane to work on
+00006BE0:	SUB 5Ch		; GVRAM independent access mode bank selection - BLUE plane
 00006BE2:	RRCA
 00006BE3:	RRCA
 00006BE4:	OR H
@@ -1776,7 +1780,7 @@
 00006BF5:	LD A,(F0CBh)
 00006BF8:	CP D
 00006BF9:	JR NZ,+61h
-00006BFB:	LD (F033h),HL			; pointer on paint address
+00006BFB:	LD (F033h),HL			; pointer to paint address
 00006BFE:	LD A,D
 00006BFF:	LD (F035h),A
 00006C02:	LD (8486h),HL
@@ -1837,8 +1841,8 @@
 00006C74:	LD A,H
 00006C75:	AND 3Fh
 00006C77:	LD H,A
-00006C78:	LD A,(F089h)
-00006C7B:	SUB 5Ch
+00006C78:	LD A,(F089h)		; current GVRAM bank/plane to work on
+00006C7B:	SUB 5Ch		; GVRAM independent access mode bank selection - BLUE plane
 00006C7D:	RRCA
 00006C7E:	RRCA
 00006C7F:	OR H
@@ -1881,7 +1885,7 @@
 00006CC8:	OR A
 00006CC9:	JR NZ,-18h
 00006CCB:	JP 6C8Ch
-00006CCE:	LD (F033h),HL			; pointer on paint address
+00006CCE:	LD (F033h),HL			; pointer to paint address
 00006CD1:	LD A,D
 00006CD2:	LD (F035h),A
 00006CD5:	SLA A
@@ -1965,7 +1969,7 @@
 00006D76:	CP D
 00006D77:	JR NZ,-36h
 00006D79:	LD (8483h),HL
-00006D7C:	LD (F033h),HL			; pointer on paint address
+00006D7C:	LD (F033h),HL			; pointer to paint address
 00006D7F:	LD A,D
 00006D80:	LD (F035h),A
 00006D83:	DEC A
@@ -2004,83 +2008,89 @@
 00006DC6:	LD A,(8485h)
 00006DC9:	LD C,A
 00006DCA:	LD B,E
-00006DCB:	LD DE,(F037h)
+00006DCB:	LD DE,(F037h)		; Current value for RED (E) and GREEN (D) planes
 00006DCF:	JR Z,+66h
-00006DD1:	LD A,(F036h)
+00006DD1:	LD A,(F036h)		; Current value for BLUE plane
 00006DD4:	DI
-00006DD5:	OUTA (5Ch)
+00006DD5:	OUTA (5Ch)		; GVRAM independent access mode bank selection - BLUE plane
 00006DD7:	XOR (HL)
 00006DD8:	AND C
 00006DD9:	XOR (HL)
 00006DDA:	LD (HL),A
 00006DDB:	LD A,E
-00006DDC:	OUTA (5Dh)
+00006DDC:	OUTA (5Dh)		; GVRAM independent access mode bank selection - RED plane
 00006DDE:	XOR (HL)
 00006DDF:	AND C
 00006DE0:	XOR (HL)
 00006DE1:	LD (HL),A
 00006DE2:	LD A,D
-00006DE3:	OUTA (5Eh)
+00006DE3:	OUTA (5Eh)		; GVRAM independent access mode bank selection - GREEN plane
 00006DE5:	XOR (HL)
 00006DE6:	AND C
 00006DE7:	XOR (HL)
 00006DE8:	LD (HL),A
-00006DE9:	OUTA (5Fh)
+00006DE9:	OUTA (5Fh)		; restore default GVRAM page to main RAM (no graphics plane anymore)
 00006DEB:	EI
 00006DEC:	INC HL
 00006DED:	DEC B
 00006DEE:	JR Z,+27h
-00006DF0:	LD (849Bh),HL
+
+00006DF0:	LD (849Bh),HL		; current address for the graphics memory pages
 00006DF3:	LD C,B
-00006DF4:	LD A,(F036h)
+00006DF4:	LD A,(F036h)		; Current value for BLUE plane
 00006DF7:	DI
-00006DF8:	OUTA (5Ch)
+00006DF8:	OUTA (5Ch)		; GVRAM independent access mode bank selection - BLUE plane
 00006DFA:	LD (HL),A
 00006DFB:	INC HL
 00006DFC:	DJNZ -04h
+
 00006DFE:	LD A,E
-00006DFF:	OUTA (5Dh)
-00006E01:	LD HL,(849Bh)
+00006DFF:	OUTA (5Dh)		; GVRAM independent access mode bank selection - RED plane
+00006E01:	LD HL,(849Bh)		; current address for the graphics memory pages
 00006E04:	LD B,C
 00006E05:	LD (HL),A
 00006E06:	INC HL
 00006E07:	DJNZ -04h
+
 00006E09:	LD A,D
-00006E0A:	OUTA (5Eh)
+00006E0A:	OUTA (5Eh)		; GVRAM independent access mode bank selection - GREEN plane
 00006E0C:	LD B,C
-00006E0D:	LD HL,(849Bh)
+00006E0D:	LD HL,(849Bh)		; current address for the graphics memory pages
 00006E10:	LD (HL),A
 00006E11:	INC HL
 00006E12:	DJNZ -04h
-00006E14:	OUTA (5Fh)
+
+00006E14:	OUTA (5Fh)		; restore default GVRAM page to main RAM (no graphics plane anymore)
 00006E16:	EI
 00006E17:	LD A,(8488h)
 00006E1A:	LD C,A
-00006E1B:	LD A,(F036h)
+00006E1B:	LD A,(F036h)		; Current value for BLUE plane
 00006E1E:	DI
-00006E1F:	OUTA (5Ch)
+00006E1F:	OUTA (5Ch)		; GVRAM independent access mode bank selection - BLUE plane
 00006E21:	XOR (HL)
 00006E22:	AND C
 00006E23:	XOR (HL)
 00006E24:	LD (HL),A
 00006E25:	LD A,E
-00006E26:	OUTA (5Dh)
+00006E26:	OUTA (5Dh)		; GVRAM independent access mode bank selection - RED plane
 00006E28:	XOR (HL)
 00006E29:	AND C
 00006E2A:	XOR (HL)
 00006E2B:	LD (HL),A
 00006E2C:	LD A,D
-00006E2D:	OUTA (5Eh)
+00006E2D:	OUTA (5Eh)		; GVRAM independent access mode bank selection - GREEN plane
 00006E2F:	XOR (HL)
 00006E30:	AND C
 00006E31:	XOR (HL)
 00006E32:	LD (HL),A
-00006E33:	OUTA (5Fh)
+00006E33:	OUTA (5Fh)		; restore default GVRAM page to main RAM (no graphics plane anymore)
 00006E35:	EI
 00006E36:	RET
+
 00006E37:	LD A,(8488h)
 00006E3A:	AND C
 00006E3B:	JP 6E1Ah
+
 00006E3E:	LD HL,(8486h)
 00006E41:	LD DE,(8483h)
 00006E45:	OR A
@@ -2089,12 +2099,13 @@
 00006E49:	LD A,(8485h)
 00006E4C:	LD D,A
 00006E4D:	LD B,E
-00006E4E:	LD A,(F089h)
+00006E4E:	LD A,(F089h)		; current GVRAM bank/plane to work on
 00006E51:	LD C,A
-00006E52:	LD A,(F036h)
+00006E52:	LD A,(F036h)		; Current value for BLUE plane
 00006E55:	LD E,A
 00006E56:	LD A,(8488h)
 00006E59:	JR Z,+1Bh
+
 00006E5B:	DI
 00006E5C:	OUT (C),A
 00006E5E:	LD C,A
@@ -2115,7 +2126,7 @@
 00006E6F:	AND C
 00006E70:	XOR (HL)
 00006E71:	LD (HL),A
-00006E72:	OUTA (5Fh)
+00006E72:	OUTA (5Fh)		; restore default GVRAM page to main RAM (no graphics plane anymore)
 00006E74:	EI
 00006E75:	RET
 
@@ -2162,13 +2173,13 @@
 
 00006EBB:	BIT 0,E
 00006EBD:	RET NZ
-00006EBE:	LD A,(F089h)
+00006EBE:	LD A,(F089h)		; current GVRAM bank/plane to work on
 00006EC1:	LD B,A
 00006EC2:	LD A,5Fh
 00006EC4:	SUB B
 00006EC5:	LD B,A
 00006EC6:	LD A,08h
-00006EC8:	LD HL,F036h
+00006EC8:	LD HL,F036h		; Current value for BLUE plane
 00006ECB:	AND (HL)
 00006ECC:	OR F7h
 00006ECE:	LD C,7Fh
@@ -2178,6 +2189,7 @@
 00006ED5:	AND C
 00006ED6:	LD (849Ah),A
 00006ED9:	RET
+
 00006EDA:	JP 6F45h
 00006EDD:	JP 6F3Fh
 00006EE0:	JP 6F94h
@@ -2233,25 +2245,26 @@
 00006F58:	OUTA (35h)
 00006F5A:	LD A,C
 00006F5B:	RET
+
 00006F5C:	PUSH DE
-00006F5D:	LD DE,(F037h)
-00006F61:	LD A,(F036h)
+00006F5D:	LD DE,(F037h)		; Current value for RED (E) and GREEN (D) planes
+00006F61:	LD A,(F036h)	; Current value for BLUE plane
 00006F64:	LD B,00h
 00006F66:	DI
-00006F67:	OUTA (5Ch)
+00006F67:	OUTA (5Ch)		; GVRAM independent access mode bank selection - BLUE plane
 00006F69:	XOR (HL)
 00006F6A:	OR B
 00006F6B:	LD B,A
 00006F6C:	LD A,E
-00006F6D:	OUTA (5Dh)
+00006F6D:	OUTA (5Dh)		; GVRAM independent access mode bank selection - RED plane
 00006F6F:	XOR (HL)
 00006F70:	OR B
 00006F71:	LD B,A
 00006F72:	LD A,D
-00006F73:	OUTA (5Eh)
+00006F73:	OUTA (5Eh)		; GVRAM independent access mode bank selection - GREEN plane
 00006F75:	XOR (HL)
 00006F76:	OR B
-00006F77:	OUTA (5Fh)
+00006F77:	OUTA (5Fh)		; restore default GVRAM page to main RAM (no graphics plane anymore)
 00006F79:	EI
 00006F7A:	POP DE
 00006F7B:	CPL
@@ -2260,9 +2273,9 @@
 00006F7D:	LD A,(F046h)		; BORDER
 00006F80:	JR +03h
 
-00006F82:	LD A,(F036h)
+00006F82:	LD A,(F036h)		; Current value for BLUE plane
 00006F85:	LD B,A
-00006F86:	LD A,(F089h)
+00006F86:	LD A,(F089h)		; current GVRAM bank/plane to work on
 00006F89:	LD C,A
 00006F8A:	LD A,B
 00006F8B:	DI
@@ -2323,23 +2336,23 @@
 00006FDB:	JP 6FCBh
 
 00006FDE:	LD DE,(F0C0h)	; LFUPVW - view (x1,y1) address +50h
-00006FE2:	LD HL,(F033h)			; pointer on paint address
+00006FE2:	LD HL,(F033h)			; pointer to paint address
 00006FE5:	RST 20h			; CPDEHL - compare DE and HL (aka DCOMPR)
 00006FE6:	RET C
 00006FE7:	LD DE,FFB0h
 00006FEA:	ADD HL,DE
-00006FEB:	LD (F033h),HL			; pointer on paint address
+00006FEB:	LD (F033h),HL			; pointer to paint address
 00006FEE:	OR A
 00006FEF:	RET
 
 00006FF0:	LD DE,(F0C3h)	; RTDWVW - view (x2,y2) address -4Fh
-00006FF4:	LD HL,(F033h)			; pointer on paint address
+00006FF4:	LD HL,(F033h)			; pointer to paint address
 00006FF7:	RST 20h			; CPDEHL - compare DE and HL (aka DCOMPR)
 00006FF8:	CCF
 00006FF9:	RET C
 00006FFA:	LD DE,0050h
 00006FFD:	ADD HL,DE
-00006FFE:	LD (F033h),HL			; pointer on paint address
+00006FFE:	LD (F033h),HL			; pointer to paint address
 00007001:	OR A
 00007002:	RET
 
@@ -2358,24 +2371,24 @@
 0000701A:	RET
 
 0000701B:	LD DE,(F0C0h)	; LFUPVW - view (x1,y1) address +50h
-0000701F:	LD HL,(F033h)			; pointer on paint address
+0000701F:	LD HL,(F033h)			; pointer to paint address
 00007022:	RST 20h			; CPDEHL - compare DE and HL (aka DCOMPR)
 00007023:	JP NC,7032h
 00007026:	LD A,(F0C2h)
 00007029:	LD H,A
-0000702A:	LD A,(F089h)
+0000702A:	LD A,(F089h)		; current GVRAM bank/plane to work on
 0000702D:	SUB H
 0000702E:	JR NZ,+02h
 00007030:	SCF
 00007031:	RET
 
-00007032:	LD HL,(F033h)			; pointer on paint address
+00007032:	LD HL,(F033h)			; pointer to paint address
 00007035:	LD DE,C050h
 00007038:	RST 20h			; CPDEHL - compare DE and HL (aka DCOMPR)
 00007039:	JP C,7045h
 0000703C:	LD DE,FFB0h
 0000703F:	ADD HL,DE
-00007040:	LD (F033h),HL			; pointer on paint address
+00007040:	LD (F033h),HL			; pointer to paint address
 00007043:	OR A
 00007044:	RET
 
@@ -2385,25 +2398,25 @@
 00007049:	LD A,L
 0000704A:	ADD 30h
 0000704C:	LD L,A
-0000704D:	LD (F033h),HL			; pointer on paint address
-00007050:	LD A,5Ch
-00007052:	LD (F089h),A
+0000704D:	LD (F033h),HL			; pointer to paint address
+00007050:	LD A,5Ch		; GVRAM independent access mode bank selection - BLUE plane
+00007052:	LD (F089h),A		; current GVRAM bank/plane to work on
 00007055:	OR A
 00007056:	RET
 
 00007057:	LD DE,(F0C3h)	; RTDWVW - view (x2,y2) address -4Fh
-0000705B:	LD HL,(F033h)			; pointer on paint address
+0000705B:	LD HL,(F033h)			; pointer to paint address
 0000705E:	RST 20h			; CPDEHL - compare DE and HL (aka DCOMPR)
 0000705F:	JP C,706Eh
 00007062:	LD A,(F0C5h)	; LFVWPS - view (Lx,0) address
 00007065:	LD H,A
-00007066:	LD A,(F089h)
+00007066:	LD A,(F089h)		; current GVRAM bank/plane to work on
 00007069:	SUB H
 0000706A:	JR NZ,+02h
 0000706C:	SCF
 0000706D:	RET
 
-0000706E:	LD HL,(F033h)			; pointer on paint address
+0000706E:	LD HL,(F033h)			; pointer to paint address
 00007071:	LD DE,FE30h
 00007074:	RST 20h			; CPDEHL - compare DE and HL (aka DCOMPR)
 00007075:	JP C,708Ah
@@ -2413,15 +2426,15 @@
 0000707C:	LD A,L
 0000707D:	SUB 30h
 0000707F:	LD L,A
-00007080:	LD (F033h),HL			; pointer on paint address
+00007080:	LD (F033h),HL			; pointer to paint address
 00007083:	LD A,5Dh
-00007085:	LD (F089h),A
+00007085:	LD (F089h),A		; current GVRAM bank/plane to work on
 00007088:	OR A
 00007089:	RET
 
 0000708A:	LD DE,0050h
 0000708D:	ADD HL,DE
-0000708E:	LD (F033h),HL			; pointer on paint address
+0000708E:	LD (F033h),HL			; pointer to paint address
 00007091:	OR A
 00007092:	RET
 
@@ -2442,7 +2455,7 @@
 000070AB:	PUSH BC
 000070AC:	PUSH DE
 000070AD:	PUSH HL
-000070AE:	LD DE,(F033h)			; pointer on paint address
+000070AE:	LD DE,(F033h)			; pointer to paint address
 000070B2:	LD A,3Fh
 000070B4:	AND D
 000070B5:	LD D,A
@@ -2683,9 +2696,9 @@
 0000726C:	CP 2Ch
 0000726E:	JR Z,+0Bh
 00007270:	CALL 11D3h			; EVAL - evaluate expression
-00007273:	RST 30h
+00007273:	RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
 00007274:	PUSH HL
-00007275:	JR Z,+0Eh
+00007275:	JR Z,+0Eh			; JP if string type
 00007277:	CALL 18A6h
 0000727A:	POP HL
 0000727B:	LD A,E
@@ -2695,10 +2708,10 @@
 
 00007285:	LD A,01h
 00007287:	LD (F056h),A		; TILFLG - tile string flag
-0000728A:	LD HL,(EC41h)
+0000728A:	LD HL,(EC41h)		; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 0000728D:	EX DE,HL
-0000728E:	CALL 56E7h
-00007291:	LD HL,(EC41h)
+0000728E:	CALL 56E7h			; BAKTMP - Back to last tmp-str entry
+00007291:	LD HL,(EC41h)		; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 00007294:	LD C,(HL)
 00007295:	INC HL
 00007296:	LD E,(HL)
@@ -2813,7 +2826,7 @@
 0000733E:	LD D,00h
 00007340:	ADD HL,DE
 00007341:	PUSH HL
-00007342:	LD DE,F036h
+00007342:	LD DE,F036h		; Current value for BLUE plane
 00007345:	LD A,(HL)
 00007346:	LD (DE),A
 00007347:	INC HL
@@ -2861,11 +2874,11 @@
 00007388:	RST 08h				; Check syntax, 1 byte follows to be compared
 00007389:	DEFB ','
 0000738A:	CALL 11D3h			; EVAL - evaluate expression
-0000738D:	RST 30h
-0000738E:	JP NZ,0B06h			; FCERR, Err $05 - "Illegal function call"
+0000738D:	RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
+0000738E:	JP NZ,0B06h			; FCERR, Err $05 - "Illegal function call" if not string type
 00007391:	PUSH HL
 00007392:	CALL 56CCh
-00007395:	LD HL,(EC41h)
+00007395:	LD HL,(EC41h)		; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 00007398:	LD C,(HL)
 00007399:	INC HL
 0000739A:	LD E,(HL)
@@ -3023,7 +3036,7 @@
 00007496:	PUSH HL
 00007497:	EX DE,HL
 00007498:	LD (F01Ah),HL
-0000749B:	CALL 21FDh
+0000749B:	CALL 21FDh				; INT_RESULT_HL
 0000749E:	CALL 2214h				; CSNG - Convert number to single precision
 000074A1:	LD BC,8035h
 000074A4:	LD DE,04F3h
@@ -3550,12 +3563,12 @@
 000078BE:	CALL 1F53h
 000078C1:	CALL 78E1h
 000078C4:	JP Z,0B06h			; FCERR, Err $05 - "Illegal function call"
-000078C7:	CALL 20CDh
+000078C7:	CALL 20CDh				; STAKFP - Put FP value on stack
 000078CA:	LD HL,(F07Ch)
 000078CD:	ADD HL,HL
 000078CE:	ADD HL,HL
 000078CF:	ADD HL,HL
-000078D0:	CALL 21FDh
+000078D0:	CALL 21FDh				; INT_RESULT_HL
 000078D3:	CALL 2214h				; CSNG - Convert number to single precision
 000078D6:	POP BC
 000078D7:	POP DE
@@ -3585,7 +3598,7 @@
 
 000078FC:	LD A,(HL)
 000078FD:	CP 40h
-000078FF:	CALL Z,0A0Dh
+000078FF:	CALL Z,0A0Dh	; _CHRGTB - Pick next char from program
 00007902:	LD BC,0000h
 00007905:	LD D,B
 00007906:	LD E,C
@@ -3595,7 +3608,7 @@
 0000790C:	CALL EE05h
 0000790F:	CP DFh
 00007911:	PUSH AF
-00007912:	CALL Z,0A0Dh
+00007912:	CALL Z,0A0Dh	; _CHRGTB - Pick next char from program
 00007915:	RST 08h				; Check syntax, 1 byte follows to be compared
 00007916:	JR Z,-33h
 00007918:	SUB (HL)
@@ -3783,7 +3796,7 @@
 00007A4F:	POP BC
 00007A50:	PUSH BC
 00007A51:	LD DE,(F040h)
-00007A55:	LD HL,(F033h)			; pointer on paint address
+00007A55:	LD HL,(F033h)			; pointer to paint address
 00007A58:	LD A,(F03Dh)
 00007A5B:	CALL 7AAFh
 00007A5E:	CALL 6269h
@@ -3798,7 +3811,7 @@
 00007A6E:	POP HL
 00007A6F:	RET
 
-00007A70:	LD HL,(F033h)			; pointer on paint address
+00007A70:	LD HL,(F033h)			; pointer to paint address
 00007A73:	POP BC
 00007A74:	PUSH BC
 00007A75:	LD BC,8035h
@@ -4038,7 +4051,7 @@
 00007C19:	JR NC,+15h
 00007C1B:	INC IX
 00007C1D:	LD A,(F035h)
-00007C20:	LD HL,(F033h)			; pointer on paint address
+00007C20:	LD HL,(F033h)			; pointer to paint address
 00007C23:	PUSH BC
 00007C24:	LD BC,8035h
 00007C27:	DI
@@ -4072,9 +4085,9 @@
 
 00007C55:	PUSH DE
 00007C56:	LD DE,0050h
-00007C59:	LD HL,(F033h)			; pointer on paint address
+00007C59:	LD HL,(F033h)			; pointer to paint address
 00007C5C:	ADD HL,DE
-00007C5D:	LD (F033h),HL			; pointer on paint address
+00007C5D:	LD (F033h),HL			; pointer to paint address
 00007C60:	POP DE
 00007C61:	RET
 
@@ -4097,7 +4110,7 @@
 00007C81:	LD HL,7D1Ch
 00007C84:	JP 7C76h
 
-00007C87:	LD DE,(F033h)			; pointer on paint address
+00007C87:	LD DE,(F033h)			; pointer to paint address
 00007C8B:	LD A,(F035h)
 00007C8E:	OR A
 00007C8F:	JP M,7CACh
@@ -4108,7 +4121,7 @@
 00007C9A:	LD (F035h),A
 00007C9D:	JR NC,+05h
 00007C9F:	INC DE
-00007CA0:	LD (F033h),DE			; pointer on paint address
+00007CA0:	LD (F033h),DE			; pointer to paint address
 00007CA4:	POP HL
 00007CA5:	DEC HL
 00007CA6:	LD A,L
@@ -4131,7 +4144,7 @@
 00007CC0:	LD HL,(F025h)
 00007CC3:	EX DE,HL
 00007CC4:	CALL 7CDEh
-00007CC7:	LD (F033h),HL			; pointer on paint address
+00007CC7:	LD (F033h),HL			; pointer to paint address
 00007CCA:	EX DE,HL
 00007CCB:	POP AF
 00007CCC:	OR A
@@ -4184,7 +4197,7 @@
 00007D18:	LD E,A
 00007D19:	JP 7D10h
 
-00007D1C:	LD DE,(F033h)			; pointer on paint address
+00007D1C:	LD DE,(F033h)			; pointer to paint address
 00007D20:	LD A,(F035h)
 00007D23:	CP 01h
 00007D25:	JR Z,+1Ah
@@ -4195,7 +4208,7 @@
 00007D2F:	LD (F035h),A
 00007D32:	JR NC,+05h
 00007D34:	DEC DE
-00007D35:	LD (F033h),DE			; pointer on paint address
+00007D35:	LD (F033h),DE			; pointer to paint address
 00007D39:	POP HL
 00007D3A:	DEC HL
 00007D3B:	LD A,L
@@ -4228,7 +4241,7 @@
 00007D6A:	POP AF
 00007D6B:	EX DE,HL
 00007D6C:	CALL 7CFFh
-00007D6F:	LD (F033h),HL			; pointer on paint address
+00007D6F:	LD (F033h),HL			; pointer to paint address
 00007D72:	LD B,08h
 00007D74:	SLA D
 00007D76:	RRA
@@ -4261,7 +4274,7 @@
 00007DA3:	LD A,(E6A6h)
 00007DA6:	OR A
 00007DA7:	LD BC,8035h
-00007DAA:	LD DE,(F033h)			; pointer on paint address
+00007DAA:	LD DE,(F033h)			; pointer to paint address
 00007DAE:	JR NZ,+5Bh
 00007DB0:	PUSH HL
 00007DB1:	LD HL,(F025h)
@@ -4406,7 +4419,7 @@
 00007E92:	DEC HL
 00007E93:	RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00007E94:	RET Z
-00007E95:	JP 0393h
+00007E95:	JP 0393h			;  SNERR - entry for '?SN ERROR'
 
 00007E98:	PUSH HL
 00007E99:	CALL 7E60h
