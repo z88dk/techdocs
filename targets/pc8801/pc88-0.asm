@@ -30,7 +30,7 @@
 ; 6
 00006019:	DEFW 7E8Bh	; _LINE
 ; 7
-0000601B:	DEFW 6E25h
+0000601B:	DEFW 6E25h	; get coordinate parameter
 ; 8
 0000601D:	DEFW 6700h
 ; 9
@@ -219,7 +219,7 @@
 
 0000611F:	LD HL,(F03Bh)
 00006122:	EX DE,HL
-00006123:	LD HL,(F033h)			; pointer on paint address
+00006123:	LD HL,(F033h)			; pointer to paint address
 00006126:	LD A,(F03Fh)
 00006129:	LD B,A
 0000612A:	PUSH HL
@@ -273,7 +273,7 @@
 00006171:	DI
 00006172:	OUT (C),A
 00006174:	LD L,(HL)
-00006175:	OUTA (5Fh)			; GVRAM independent access mode bank selection - Main RAM
+00006175:	OUTA (5Fh)			; restore default GVRAM page to main RAM (no graphics plane anymore)
 00006177:	EI
 00006178:	LD H,00h
 0000617A:	LD A,B
@@ -287,7 +287,7 @@
 00006183:	LD A,(F013h)
 00006186:	OR A
 00006187:	CALL NZ,6211h
-0000618A:	LD HL,(F033h)			; pointer on paint address
+0000618A:	LD HL,(F033h)			; pointer to paint address
 0000618D:	EX DE,HL
 0000618E:	LD HL,(F03Bh)
 00006191:	LD A,(F03Fh)
@@ -424,7 +424,7 @@
 00006257:	XOR (HL)
 00006258:	LD (HL),A
 00006259:	JR +00h
-0000625B:	OUTA (5Fh)			; GVRAM independent access mode bank selection - Main RAM
+0000625B:	OUTA (5Fh)			; restore default GVRAM page to main RAM (no graphics plane anymore)
 0000625D:	EI
 0000625E:	POP BC
 0000625F:	RET
@@ -454,6 +454,7 @@
 00006284:	CALL 62E9h
 00006287:	CALL 63B6h
 0000628A:	RET
+
 0000628B:	CALL 6383h
 0000628E:	CALL EDF0h
 00006291:	CALL 626Ah
@@ -476,7 +477,7 @@
 000062AE:	JR -14h
 000062B0:	CALL 627Bh
 000062B3:	LD A,E
-000062B4:	LD (F033h),HL			; pointer on paint address
+000062B4:	LD (F033h),HL			; pointer to paint address
 000062B7:	LD (F035h),A
 000062BA:	CALL 62C3h
 000062BD:	POP HL
@@ -501,7 +502,7 @@
 000062DA:	AND B
 000062DB:	XOR (HL)
 000062DC:	LD (HL),A
-000062DD:	OUTA (5Fh)			; GVRAM independent access mode bank selection - Main RAM
+000062DD:	OUTA (5Fh)			; restore default GVRAM page to main RAM (no graphics plane anymore)
 000062DF:	INC C
 000062E0:	INC DE
 000062E1:	EX HL,(SP)
@@ -536,7 +537,7 @@
 0000630D:	XOR (HL)
 0000630E:	INC DE
 0000630F:	INC C
-00006310:	OUTA (5Fh)			; GVRAM independent access mode bank selection - Main RAM
+00006310:	OUTA (5Fh)			; restore default GVRAM page to main RAM (no graphics plane anymore)
 00006312:	EX HL,(SP)
 00006313:	OR H
 00006314:	LD H,A
@@ -558,7 +559,7 @@
 0000632A:	JR Z,+06h
 0000632C:	CALL 627Bh
 0000632F:	JP NC,6321h
-00006332:	LD (F033h),HL			; pointer on paint address
+00006332:	LD (F033h),HL			; pointer to paint address
 00006335:	LD A,E
 00006336:	LD (F035h),A
 00006339:	POP HL
@@ -597,7 +598,7 @@
 0000636C:	JP NC,635Eh
 0000636F:	CALL 626Ah
 00006372:	CALL 62C3h
-00006375:	LD (F033h),HL			; pointer on paint address
+00006375:	LD (F033h),HL			; pointer to paint address
 00006378:	LD A,E
 00006379:	LD (F035h),A
 0000637C:	POP HL
@@ -606,7 +607,7 @@
 00006381:	LD C,A
 00006382:	RET
 
-00006383:	LD HL,(F033h)			; pointer on paint address
+00006383:	LD HL,(F033h)			; pointer to paint address
 00006386:	XOR A
 00006387:	LD (F049h),A
 0000638A:	LD A,(F035h)
@@ -656,7 +657,7 @@
 000063C8:	PUSH BC
 000063C9:	PUSH DE
 000063CA:	PUSH HL
-000063CB:	LD HL,(F033h)			; pointer on paint address
+000063CB:	LD HL,(F033h)			; pointer to paint address
 000063CE:	LD A,L
 000063CF:	AND F0h
 000063D1:	RRCA
@@ -773,7 +774,7 @@
 
 0000646C:	LD HL,(F0C0h)	; LFUPVW - view (x1,y1) address +50h
 0000646F:	EX DE,HL
-00006470:	LD HL,(F033h)			; pointer on paint address
+00006470:	LD HL,(F033h)			; pointer to paint address
 00006473:	RST 20h			; CPDEHL - compare DE and HL (aka DCOMPR)
 00006474:	JP NC,647Dh
 00006477:	LD A,(F0C2h)
@@ -790,7 +791,7 @@
 
 0000648E:	LD HL,(F0C3h)	; RTDWVW - view (x2,y2) address -4Fh
 00006491:	EX DE,HL
-00006492:	LD HL,(F033h)			; pointer on paint address
+00006492:	LD HL,(F033h)			; pointer to paint address
 00006495:	RST 20h			; CPDEHL - compare DE and HL (aka DCOMPR)
 00006496:	JP C,649Fh
 00006499:	LD A,(F0C5h)	; LFVWPS - view (Lx,0) address
@@ -938,7 +939,7 @@
 0000656A:	LD A,H
 0000656B:	OR C0h
 0000656D:	LD H,A
-0000656E:	LD (F033h),HL			; pointer on paint address
+0000656E:	LD (F033h),HL			; pointer to paint address
 00006571:	POP DE
 00006572:	POP BC
 00006573:	RET
@@ -956,9 +957,9 @@
 00006580:	LD (F035h),A
 00006583:	RET NC
 00006584:	PUSH HL
-00006585:	LD HL,(F033h)			; pointer on paint address
+00006585:	LD HL,(F033h)			; pointer to paint address
 00006588:	INC HL
-00006589:	LD (F033h),HL			; pointer on paint address
+00006589:	LD (F033h),HL			; pointer to paint address
 0000658C:	POP HL
 0000658D:	RET
 
@@ -968,20 +969,20 @@
 00006592:	LD (F035h),A
 00006595:	RET NC
 00006596:	PUSH HL
-00006597:	LD HL,(F033h)			; pointer on paint address
+00006597:	LD HL,(F033h)			; pointer to paint address
 0000659A:	DEC HL
-0000659B:	LD (F033h),HL			; pointer on paint address
+0000659B:	LD (F033h),HL			; pointer to paint address
 0000659E:	POP HL
 0000659F:	RET
 
 000065A0:	PUSH DE
-000065A1:	LD HL,(F033h)			; pointer on paint address
+000065A1:	LD HL,(F033h)			; pointer to paint address
 000065A4:	LD DE,C050h
 000065A7:	RST 20h			; CPDEHL - compare DE and HL (aka DCOMPR)
 000065A8:	JP C,65B4h
 000065AB:	LD DE,FFB0h
 000065AE:	ADD HL,DE
-000065AF:	LD (F033h),HL			; pointer on paint address
+000065AF:	LD (F033h),HL			; pointer to paint address
 000065B2:	POP DE
 000065B3:	RET
 
@@ -991,7 +992,7 @@
 000065B8:	LD A,L
 000065B9:	ADD 30h
 000065BB:	LD L,A
-000065BC:	LD (F033h),HL			; pointer on paint address
+000065BC:	LD (F033h),HL			; pointer to paint address
 000065BF:	LD A,5Ch
 000065C1:	LD (F089h),A
 000065C4:	POP DE
@@ -999,7 +1000,7 @@
 
 ; DOWNC
 000065C6:	PUSH DE
-000065C7:	LD HL,(F033h)			; pointer on paint address
+000065C7:	LD HL,(F033h)			; pointer to paint address
 000065CA:	LD DE,FE30h
 000065CD:	RST 20h			; CPDEHL - compare DE and HL (aka DCOMPR)
 000065CE:	JP C,65E9h
@@ -1009,7 +1010,7 @@
 000065D5:	LD A,L
 000065D6:	SUB 30h
 000065D8:	LD L,A
-000065D9:	LD (F033h),HL			; pointer on paint address
+000065D9:	LD (F033h),HL			; pointer to paint address
 000065DC:	LD A,(E6A6h)
 000065DF:	OR A
 000065E0:	JR Z,+05h
@@ -1019,12 +1020,12 @@
 000065E8:	RET
 000065E9:	LD DE,0050h
 000065EC:	ADD HL,DE
-000065ED:	LD (F033h),HL			; pointer on paint address
+000065ED:	LD (F033h),HL			; pointer to paint address
 000065F0:	POP DE
 000065F1:	RET
 
 ; FETCHC
-000065F2:	LD HL,(F033h)			; pointer on paint address
+000065F2:	LD HL,(F033h)			; pointer to paint address
 000065F5:	LD A,H
 000065F6:	AND 3Fh
 000065F8:	LD H,A
@@ -1048,14 +1049,14 @@
 00006613:	LD A,H
 00006614:	OR C0h
 00006616:	LD H,A
-00006617:	LD (F033h),HL			; pointer on paint address
+00006617:	LD (F033h),HL			; pointer to paint address
 0000661A:	RET
 
 0000661B:	PUSH DE
 0000661C:	LD HL,(F089h)
 0000661F:	LD B,H
 00006620:	LD C,L
-00006621:	LD HL,(F033h)			; pointer on paint address
+00006621:	LD HL,(F033h)			; pointer to paint address
 00006624:	LD A,(F035h)
 00006627:	LD E,A
 00006628:	LD D,01h
@@ -1076,7 +1077,7 @@
 0000663A:	LD B,A
 0000663B:	OUT (C),A
 0000663D:	LD A,(HL)
-0000663E:	OUTA (5Fh)			; GVRAM independent access mode bank selection - Main RAM
+0000663E:	OUTA (5Fh)			; restore default GVRAM page to main RAM (no graphics plane anymore)
 00006640:	EI
 00006641:	AND E
 00006642:	LD A,B
@@ -1091,7 +1092,7 @@
 00006649:	LD A,(F035h)
 0000664C:	RLCA
 0000664D:	JR C,+0Dh
-0000664F:	CALL 66D7h		; SETC - Returns current screenpixel of specified attribute byte
+0000664F:	CALL 66D7h		; SETC - fill current screenpixel with specified attribute byte
 00006652:	CALL 657Ch		; RIGHTC
 00006655:	DEC DE
 00006656:	LD A,D
@@ -1099,7 +1100,7 @@
 00006658:	JR NZ,-11h
 0000665A:	JR +28h
 
-0000665C:	LD HL,(F033h)			; pointer on paint address
+0000665C:	LD HL,(F033h)			; pointer to paint address
 0000665F:	PUSH HL
 00006660:	EX DE,HL
 00006661:	LD DE,0008h
@@ -1115,7 +1116,7 @@
 00006672:	JR Z,+10h
 00006674:	LD A,80h
 00006676:	LD (F035h),A
-00006679:	LD (F033h),HL			; pointer on paint address
+00006679:	LD (F033h),HL			; pointer to paint address
 0000667C:	LD A,E
 0000667D:	ADD 08h
 0000667F:	LD E,A
@@ -1137,7 +1138,7 @@
 00006695:	LD (HL),A
 00006696:	INC DE
 00006697:	INC C
-00006698:	OUTA (5Fh)			; GVRAM independent access mode bank selection - Main RAM
+00006698:	OUTA (5Fh)			; restore default GVRAM page to main RAM (no graphics plane anymore)
 0000669A:	DJNZ -0Ah
 0000669C:	EI
 0000669D:	POP DE
@@ -1189,14 +1190,14 @@
 000066D4:	LD A,01h
 000066D6:	RET
 
-; SETC - Returns current screenpixel of specified attribute byte
+; SETC - fill current screenpixel with specified attribute byte
 000066D7:	PUSH DE
 000066D8:	PUSH BC
 000066D9:	LD DE,F036h
 000066DC:	LD HL,(F089h)
 000066DF:	LD B,H
 000066E0:	LD C,L
-000066E1:	LD HL,(F033h)			; pointer on paint address
+000066E1:	LD HL,(F033h)			; pointer to paint address
 000066E4:	CALL 66EEh
 000066E7:	INC C
 000066E8:	INC DE
@@ -1215,7 +1216,7 @@
 000066F8:	AND B
 000066F9:	XOR (HL)
 000066FA:	LD (HL),A
-000066FB:	OUTA (5Fh)			; GVRAM independent access mode bank selection - Main RAM
+000066FB:	OUTA (5Fh)			; restore default GVRAM page to main RAM (no graphics plane anymore)
 000066FD:	EI
 000066FE:	POP BC
 000066FF:	RET
@@ -1259,7 +1260,7 @@
 00006740:	INC DE
 00006741:	LD BC,3FF8h
 00006744:	LDIR
-00006746:	OUTA (5Fh)			; GVRAM independent access mode bank selection - Main RAM
+00006746:	OUTA (5Fh)			; restore default GVRAM page to main RAM (no graphics plane anymore)
 00006748:	EI
 00006749:	RET
 
@@ -1309,7 +1310,7 @@
 000067AD:	LD HL,(F02Fh)
 000067B0:	EX DE,HL
 000067B1:	CALL 6518h		; MAPXY
-000067B4:	LD HL,(F033h)			; pointer on paint address
+000067B4:	LD HL,(F033h)			; pointer to paint address
 000067B7:	PUSH HL
 000067B8:	LD A,(F035h)
 000067BB:	PUSH AF
@@ -1324,7 +1325,7 @@
 000067CE:	LD HL,(F031h)
 000067D1:	EX DE,HL
 000067D2:	CALL 6518h		; MAPXY
-000067D5:	LD HL,(F033h)			; pointer on paint address
+000067D5:	LD HL,(F033h)			; pointer to paint address
 000067D8:	LD DE,0050h
 000067DB:	OR A
 000067DC:	SBC HL,DE
@@ -1337,7 +1338,7 @@
 000067EC:	LD C,L
 000067ED:	LD DE,0000h
 000067F0:	CALL 6518h		; MAPXY
-000067F3:	LD HL,(F033h)			; pointer on paint address
+000067F3:	LD HL,(F033h)			; pointer to paint address
 000067F6:	LD (F0C6h),HL
 000067F9:	LD A,(F035h)
 000067FC:	LD (F0CAh),A	; VIEW2 - view position bit limit
@@ -1346,14 +1347,14 @@
 00006803:	LD C,L
 00006804:	LD DE,0000h
 00006807:	CALL 6518h		; MAPXY
-0000680A:	LD HL,(F033h)			; pointer on paint address
+0000680A:	LD HL,(F033h)			; pointer to paint address
 0000680D:	LD (F0C8h),HL	; RTVWPS - view (Rx,0) address
 00006810:	LD A,(F035h)
 00006813:	LD (F0CBh),A
 00006816:	POP AF
 00006817:	LD (F035h),A
 0000681A:	POP HL
-0000681B:	LD (F033h),HL			; pointer on paint address
+0000681B:	LD (F033h),HL			; pointer to paint address
 0000681E:	RET
 
 0000681F:	XOR A
@@ -1392,9 +1393,9 @@
 00006878:	LD A,(HL)
 00006879:	CP F1h
 0000687B:	JR Z,+6Fh
-0000687D:	CP 40h
+0000687D:	CP 40h			; '@'
 0000687F:	JP Z,6927h
-00006882:	CP 2Ch		; ','
+00006882:	CP 2Ch			; ','
 00006884:	JR Z,+12h
 00006886:	CALL 18A3h			; GETINT
 00006889:	CP 08h			; 8 colors
@@ -1624,12 +1625,14 @@
 000069DF:	CALL 18A3h			; GETINT
 000069E2:	CP 08h				; 8 colors
 000069E4:	JP NC,0B06h			; FCERR, Err $05 - "Illegal function call"
+
 000069E7:	LD (F08Ch),A
 000069EA:	XOR A
 000069EB:	LD (E6A6h),A
 000069EE:	POP AF
 000069EF:	PUSH HL
 000069F0:	PUSH AF
+
 000069F1:	LD HL,00C8h
 000069F4:	LD (F08Dh),HL
 000069F7:	LD A,(E6C2h)	; Value being sent to port 31h (bank switching)
@@ -1655,6 +1658,7 @@
 00006A21:	LD A,01h
 00006A23:	LD (F08Ah),A
 00006A26:	JR +1Ch
+
 00006A28:	LD A,5Ch
 00006A2A:	LD (F089h),A
 00006A2D:	LD A,01h
@@ -1848,7 +1852,7 @@
 00006BA0:	LD HL,(F090h)
 00006BA3:	CALL 21FDh				; INT_RESULT_HL
 00006BA6:	CALL 2214h				; CSNG - Convert number to single precision
-00006BA9:	CALL 20CDh
+00006BA9:	CALL 20CDh				; STAKFP - Put FP value on stack
 00006BAC:	LD HL,F094h
 00006BAF:	CALL 20DAh				; PHLTFP - Number at HL to BCDE
 00006BB2:	POP BC
@@ -1861,7 +1865,7 @@
 00006BBE:	LD HL,(F092h)
 00006BC1:	CALL 21FDh				; INT_RESULT_HL
 00006BC4:	CALL 2214h				; CSNG - Convert number to single precision
-00006BC7:	CALL 20CDh
+00006BC7:	CALL 20CDh				; STAKFP - Put FP value on stack
 00006BCA:	LD HL,F098h
 00006BCD:	CALL 20DAh				; PHLTFP - Number at HL to BCDE
 00006BD0:	POP BC
@@ -2044,7 +2048,7 @@
 00006CFF:	ADD HL,DE
 00006D00:	CALL 20DAh				; PHLTFP - Number at HL to BCDE
 00006D03:	LD A,04h
-00006D05:	LD (EABDh),A
+00006D05:	LD (EABDh),A		; VALTYP - type indicator
 00006D08:	POP HL
 00006D09:	RET
 
@@ -2091,7 +2095,7 @@
 00006D4F:	LD HL,F0ACh
 00006D52:	CALL 20DAh				; PHLTFP - Number at HL to BCDE
 00006D55:	LD A,04h
-00006D57:	LD (EABDh),A
+00006D57:	LD (EABDh),A		; VALTYP - type indicator
 00006D5A:	LD A,(F08Fh)
 00006D5D:	OR A
 00006D5E:	JR NZ,+06h
@@ -2187,7 +2191,7 @@ _CSRLIN:
 00006DFE:	LD HL,F0A8h
 00006E01:	CALL 20DAh				; PHLTFP - Number at HL to BCDE
 00006E04:	LD A,04h
-00006E06:	LD (EABDh),A
+00006E06:	LD (EABDh),A		; VALTYP - type indicator
 00006E09:	POP HL
 00006E0A:	RET
 
@@ -2203,6 +2207,7 @@ _CSRLIN:
 00006E23:	POP HL
 00006E24:	RET
 
+; get coordinate parameter
 00006E25:	DEC HL
 00006E26:	RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 00006E27:	CALL 6E3Dh		; COORD_PARMS_DST - pick destination coodinate parameters from BASIC program
@@ -2213,9 +2218,9 @@ _CSRLIN:
 00006E2E:	OR A
 00006E2F:	JP Z,7D98h
 00006E32:	LD A,(HL)
-00006E33:	CP 40h
-00006E35:	CALL Z,0A0Dh
-00006E38:	CP F4h
+00006E33:	CP 40h			; '@'
+00006E35:	CALL Z,0A0Dh	; _CHRGTB - Pick next char from program
+00006E38:	CP F4h			; TK_MINUS, Token for '-'
 00006E3A:	JP Z,6EE6h
 
 ; COORD_PARMS_DST - pick destination coodinate parameters from BASIC program
@@ -2224,29 +2229,31 @@ _CSRLIN:
 00006E43:	OR A
 00006E44:	JP Z,7DA7h
 00006E47:	LD A,(HL)
-00006E48:	CP DFh
+00006E48:	CP DFh			; TK_STEP
 00006E4A:	PUSH AF
-00006E4B:	CALL Z,0A0Dh
+00006E4B:	CALL Z,0A0Dh		; _CHRGTB - Pick next char from program
 00006E4E:	RST 08h				; Check syntax, 1 byte follows to be compared
 00006E4F:	JR Z,-33h
+
 00006E51:	OUTA (11h)
 00006E53:	PUSH HL
 00006E54:	CALL 2214h				; CSNG - Convert number to single precision
 00006E57:	POP HL
 00006E58:	POP AF
-00006E59:	CALL 20CDh
+00006E59:	CALL 20CDh				; STAKFP - Put FP value on stack
 00006E5C:	PUSH AF
-00006E5D:	RST 08h				; Check syntax, 1 byte follows to be compared
+00006E5D:	RST 08h					; Check syntax, 1 byte follows to be compared
 00006E5E:	DEFB ','
-00006E5F:	CALL 11D3h			; EVAL - evaluate expression
+00006E5F:	CALL 11D3h				; EVAL - evaluate expression
 00006E62:	PUSH HL
 00006E63:	CALL 2214h				; CSNG - Convert number to single precision
 00006E66:	POP HL
-00006E67:	RST 08h				; Check syntax, 1 byte follows to be compared
+00006E67:	RST 08h					; Check syntax, 1 byte follows to be compared
 00006E68:	DEFB ')'
 00006E69:	POP AF
 00006E6A:	PUSH HL
 00006E6B:	JR NZ,+1Fh
+
 00006E6D:	LD HL,F0A8h
 00006E70:	PUSH HL
 00006E71:	CALL 1DDEh
@@ -2292,7 +2299,7 @@ _CSRLIN:
 00006EC2:	LD HL,F0ACh
 00006EC5:	CALL 20F4h				; DEC_FACCU2HL - copy number value from FPREG (FP accumulator) to HL
 00006EC8:	LD A,04h
-00006ECA:	LD (EABDh),A
+00006ECA:	LD (EABDh),A		; VALTYP - type indicator
 00006ECD:	LD HL,F02Fh
 00006ED0:	LD DE,F0B8h
 00006ED3:	LD BC,F0A0h
@@ -2393,6 +2400,7 @@ _CSRLIN:
 00006F77:	POP BC
 00006F78:	POP HL
 00006F79:	RET
+
 00006F7A:	PUSH BC
 00006F7B:	PUSH DE
 00006F7C:	CALL 6F5Fh
@@ -2446,6 +2454,7 @@ _CSRLIN:
 00006FD2:	POP HL
 00006FD3:	LD L,A
 00006FD4:	JR -3Eh
+
 00006FD6:	PUSH AF
 00006FD7:	PUSH HL
 00006FD8:	LD HL,(F01Ch)		; GYPOS
@@ -2509,6 +2518,7 @@ _CSRLIN:
 0000703D:	POP DE
 0000703E:	CALL 7042h
 00007041:	RET
+
 00007042:	PUSH HL
 00007043:	LD HL,(F01Ch)		; GYPOS
 00007046:	PUSH HL
@@ -2682,7 +2692,7 @@ _CSRLIN:
 00007183:	DI
 00007184:	OUT (C),A
 00007186:	OR (HL)
-00007187:	OUTA (5Fh)			; GVRAM independent access mode bank selection - Main RAM
+00007187:	OUTA (5Fh)			; restore default GVRAM page to main RAM (no graphics plane anymore)
 00007189:	EI
 0000718A:	LD D,A
 0000718B:	LD A,E
@@ -3158,7 +3168,7 @@ _KEY:
 0000745F:	DEFB ','
 00007460:	CALL 11D3h			; EVAL - evaluate expression
 00007463:	PUSH HL
-00007464:	CALL 56C9h
+00007464:	CALL 56C9h			; GETSTR - Get string pointed by FPREG 'Type Error' if it is not
 00007467:	LD A,(HL)
 00007468:	CP 0Fh
 0000746A:	JR C,+02h
@@ -3214,7 +3224,7 @@ _KEY:
 000074B0:	LD A,(HL)
 000074B1:	PUSH AF
 000074B2:	RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
-000074B3:	JP NZ,0393h
+000074B3:	JP NZ,0393h			;  SNERR - entry for '?SN ERROR'
 000074B6:	POP AF
 000074B7:	POP DE
 000074B8:	PUSH HL
@@ -3240,9 +3250,11 @@ _KEY:
 000074D9:	DEC A
 000074DA:	CALL 4013h
 000074DD:	JP 4FE5h
+
 000074E0:	DEC A
 000074E1:	CALL 4013h
 000074E4:	JP 4FF5h
+
 000074E7:	DEC A
 000074E8:	CALL 4013h
 000074EB:	JP 4FFBh
@@ -3395,7 +3407,7 @@ _RENUM:
 000075FB:	DEFB ','
 000075FC:	PUSH DE
 000075FD:	CALL 0B0Bh			; LNUM_PARM - Read numeric function parameter
-00007600:	JP NZ,0393h
+00007600:	JP NZ,0393h			;  SNERR - entry for '?SN ERROR'
 00007603:	LD A,D
 00007604:	OR E
 00007605:	JP Z,0B06h			; FCERR, Err $05 - "Illegal function call"
@@ -3694,7 +3706,7 @@ _PAINT:
 000077F7:	CALL 11D3h			; EVAL - evaluate expression
 000077FA:	RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
 000077FB:	PUSH HL
-000077FC:	JR Z,+0Eh
+000077FC:	JR Z,+0Eh			; JP if string type
 000077FE:	CALL 18A6h
 00007801:	POP HL
 00007802:	LD A,E
@@ -3732,7 +3744,7 @@ _PAINT:
 00007838:	LD (F052h),HL
 0000783B:	LD A,E
 0000783C:	LD (F057h),A		; TILLEN - tile string length
-0000783F:	CP 40h
+0000783F:	CP 40h			; '@'
 00007841:	JP NC,0B06h			; FCERR, Err $05 - "Illegal function call"
 00007844:	POP HL
 00007845:	RET
@@ -3861,7 +3873,7 @@ _PAINT:
 00007908:	DEFB ','
 00007909:	CALL 11D3h			; EVAL - evaluate expression
 0000790C:	RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
-0000790D:	JP NZ,0B06h			; FCERR, Err $05 - "Illegal function call"
+0000790D:	JP NZ,0B06h			; FCERR, Err $05 - "Illegal function call" if not string type
 00007910:	PUSH HL
 00007911:	CALL 56CCh
 00007914:	LD HL,(EC41h)			; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
@@ -4193,13 +4205,15 @@ _PAINT:
 00007B50:	POP DE
 00007B51:	POP HL
 00007B52:	JR +10h
+
 00007B54:	POP DE
 00007B55:	POP HL
 00007B56:	CALL 7B9Ch			; CALC_POSITION
 00007B59:	CALL 64C0h			; SCALXY - Scales X and Y coordinates
 00007B5C:	JR NC,+06h
+
 00007B5E:	CALL 6518h		; MAPXY
-00007B61:	CALL 66D7h		; SETC - Returns current screenpixel of specified attribute byte
+00007B61:	CALL 66D7h		; SETC - fill current screenpixel with specified attribute byte
 00007B64:	POP DE
 00007B65:	POP HL
 00007B66:	POP AF
@@ -4307,7 +4321,7 @@ _PAINT:
 00007C05:	CALL 1F53h		; FPMULT - Multiply BCDE to FP reg
 00007C08:	CALL 7C28h		; FCOMP_UNITY... == 1 ?
 00007C0B:	JP Z,0B06h			; FCERR, Err $05 - "Illegal function call"
-00007C0E:	CALL 20CDh
+00007C0E:	CALL 20CDh			; STAKFP - Put FP value on stack
 00007C11:	LD HL,(F07Ch)		; CNPNTS
 00007C14:	ADD HL,HL
 00007C15:	ADD HL,HL
@@ -4554,19 +4568,19 @@ _PAINT:
 00007D97:	RET
 
 00007D98:	LD A,(HL)
-00007D99:	CP 40h
-00007D9B:	CALL Z,0A0Dh
+00007D99:	CP 40h			; '@'
+00007D9B:	CALL Z,0A0Dh	; _CHRGTB - Pick next char from program
 00007D9E:	LD BC,0000h
 00007DA1:	LD D,B
 00007DA2:	LD E,C
-00007DA3:	CP F4h
+00007DA3:	CP F4h			; TK_MINUS, Token for '-'
 00007DA5:	JR Z,+2Dh
 
 00007DA7:	LD A,(HL)
 00007DA8:	CALL EE05h
 00007DAB:	CP DFh
 00007DAD:	PUSH AF
-00007DAE:	CALL Z,0A0Dh
+00007DAE:	CALL Z,0A0Dh		; _CHRGTB - Pick next char from program
 00007DB1:	RST 08h				; Check syntax, 1 byte follows to be compared
 00007DB2:	JR Z,-33h
 00007DB4:	SUB (HL)
@@ -4622,11 +4636,12 @@ _PAINT:
 00007E04:	CALL 6E3Dh		; COORD_PARMS_DST - pick destination coodinate parameters from BASIC program
 00007E07:	POP AF
 00007E08:	CALL 7E37h		; PAINT_PARMS_0 -  pick color/fill related parameters from BASIC program
+; DOPSET:
 00007E0B:	PUSH HL
 00007E0C:	CALL 64C0h			; SCALXY - Scales X and Y coordinates
 00007E0F:	JR NC,+06h		;__PSET_1
 00007E11:	CALL 6518h		; MAPXY
-00007E14:	CALL 66D7h		; SETC - Returns current screenpixel of specified attribute byte
+00007E14:	CALL 66D7h		; SETC - fill current screenpixel with specified attribute byte
 ;__PSET_1
 00007E17:	POP HL
 00007E18:	RET
@@ -4914,7 +4929,7 @@ _PAINT:
 00007FCC:	INC HL
 00007FCD:	LD (F025h),HL
 00007FD0:	POP HL
-00007FD1:	CALL C,66D7h		; SETC - Returns current screenpixel of specified attribute byte
+00007FD1:	CALL C,66D7h		; SETC - fill current screenpixel with specified attribute byte
 00007FD4:	RET
 
 00007FD5:	EX DE,HL
