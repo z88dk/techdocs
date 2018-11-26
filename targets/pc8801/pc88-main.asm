@@ -94,7 +94,7 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 0000005D:       JP 11E9h			; EVAL3
 
 00000060:       CALL 05BDh
-00000063:       CALL 4F21h
+00000063:       CALL 4F21h			; RUN_FST
 00000066:       JP 4ED6h		; OMERR - handle stack pointer before issuing an 'out of memory error'
 
 00000069:       CALL ED9Fh
@@ -212,9 +212,10 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 000000C9:       LD A,00h
 000000CB:       RET
 
-; E60E
+; E60E - used by FP functions
 000000CC:       NOP
 000000CD:       NOP
+
 ; E610 - RNDX
 000000CE:       NOP
 000000CF:       DEC (HL)
@@ -245,63 +246,104 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 000000F0:       RST 00h
 000000F1:       LD C,A
 000000F2:       ADD B
+
 ; E635	-  USR0
-000000F3:       LD B,0Bh
-000000F5:       LD B,0Bh
-000000F7:       LD B,0Bh
-000000F9:       LD B,0Bh
-000000FB:       LD B,0Bh
-000000FD:       LD B,0Bh
-000000FF:       LD B,0Bh
-00000101:       LD B,0Bh
-00000103:       LD B,0Bh
+000000F3:       DEFB 0B06h			; FCERR, Err $05 - "Illegal function call"
+000000F5:       DEFB 0B06h			; FCERR, Err $05 - "Illegal function call"
+000000F7:       DEFB 0B06h			; FCERR, Err $05 - "Illegal function call"
+000000F9:       DEFB 0B06h			; FCERR, Err $05 - "Illegal function call"
+000000FB:       DEFB 0B06h			; FCERR, Err $05 - "Illegal function call"
+000000FD:       DEFB 0B06h			; FCERR, Err $05 - "Illegal function call"
+000000FF:       DEFB 0B06h			; FCERR, Err $05 - "Illegal function call"
+00000101:       DEFB 0B06h			; FCERR, Err $05 - "Illegal function call"
+00000103:       DEFB 0B06h			; FCERR, Err $05 - "Illegal function call"
 ; E647	-  USR9
-00000105:       LD B,0Bh
+00000105:       DEFB 0B06h			; FCERR, Err $05 - "Illegal function call"
+
+; E649	-  ERRFLG
 00000107:       NOP
+
 00000108:       NOP
+
+; E64B - LPTPOS (printer cursor position)
 00000109:       NOP
+
+; E64C - PRTFLG ("printer enabled" flag)
 0000010A:       NOP
+
+; E64D, E64E ..still related to printer position
 0000010B:       XOR FFh
-0000010D:       JR Z,+0Eh
+
+; E64F - TTYPOS2
+0000010D:       DEFB 28h		; 40
+
+; E650 - CLMLST (Column space)
+0000010E:       DEFB 0Eh		; 14
+
+; E651
 0000010F:       NOP
+
+; E652
 00000110:       NOP
+
+; E653
 00000111:       NOP
 
 ; E654 - STKTOP
-00000112:       CP C
-00000113:       JP P,FFFEh
-00000116:       LD D,(HL)
-00000117:       JP P,6056h
-0000011A:       LD C,(HL)
-0000011B:       LD B,L
-0000011C:       LD B,E
-0000011D:       JR NC,+30h
-0000011F:       JR NC,+30h
-00000121:       JR NC,+30h
-00000123:       JR NC,+31h
-00000125:       DEC C
-00000126:       LD A,(BC)
+00000112:		DEFW $F2B9
+
+; E656 - CURLIN (line number being interpreted)
+00000114:		DEFW $FFFE
+
+; E658 - TXTTAB (aka BASTXT) - address of BASIC program start
+00000116:		DEFW $F256
+
+; E65A
+00000118:		DEFW $6056
+
+; E65C
+0000011A:       DEFB "NEC00000001", $0D, $0A
+
+; E669 - KEYINT (interrupt handler)
 00000127:       JP 0000h
 0000012A:       RET
+
+; E66D
 0000012B:       NOP
 0000012C:       NOP
 0000012D:       RET
+
+; E670
 0000012E:       NOP
 0000012F:       NOP
+
+; E672
 00000130:       JP 60CEh
+
+; E675
 00000133:       JP 60CEh
+
+; E678
 00000136:       JP 60CEh
+
+; E67B
 00000139:       RET
+
+; E67C
 0000013A:       NOP
 0000013B:       NOP
 0000013C:       RET
+
+; E67F
 0000013D:       NOP
 0000013E:       NOP
 0000013F:       RET
 
+; E682
 00000140:       NOP
 00000141:       NOP
 
+; E684
 00000142:       OUTA (71h)				; Extended ROM bank switching
 00000144:       PUSH HL
 00000145:       LD HL,0154h
@@ -316,11 +358,14 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 00000152:       INC HL
 00000153:       LD PC,HL
 
+; E696
 00000154:       LD A,FFh				; back to main ROM
 00000156:       OUTA (71h)				; Extended ROM bank switching
 00000158:       RET
 
+; E69B
 00000159:       RET
+
 0000015A:       LD E,10h
 0000015C:       RST 38h
 0000015D:       NOP
@@ -473,7 +518,7 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 000002DF:       LD HL,3CACh		; FDINT_2 handler
 000002E2:       JR -38h
 
-; -> E826h
+; -> E826h		; MON (monitor) command entry
 000002E4:       CALL 0069h
 000002E7:       NOP
 000002E8:       OR 04h			; ROM mode = N-BASIC mode
@@ -493,6 +538,10 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 00000307:       LD (E6C2h),A	; Value being sent to port 31h (bank switching)
 0000030A:       EI
 0000030B:       JP 4DC1h		; 'Feature not available' error
+
+;---------------------------------------------------------------------------------------------------------
+; End of area beind relocated at E600
+;---------------------------------------------------------------------------------------------------------
 
 0000030E:       DEFS " Error"
 00000314:       NOP
@@ -514,55 +563,23 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 ; 
 ; $0326 -> $F300, 32 bytes
 
+0000326:        DEFW    $E7EA  ; Lv.0 	$F300 	RXRDY 	RS-232C receive interrupt
+0000328:        DEFW    $E808  ; Lv.1 	$F302 	VRTC 	Screen end interrupt 1/60 seconds
+000032A:        DEFW    $E80E  ; Lv.2 	$F304 	CLOCK 	Real time clock 1/600 sec
+000032C:        DEFW    $E814  ; Lv.3 	$F306 	INT 4 	User interrupt (sound source)
+000032E:        DEFW    $E814  ; Lv.4 	$F308 	INT 3 	User interrupt (sound source)
+0000330:        DEFW    $E814  ; Lv.5 	$F30A 	INT 2 	User interrupt
+0000332:        DEFW    $E81A  ; Lv.6 	$F30C 	FDINT 1 	Reserve for FDD
+0000334:        DEFW    $E820  ; Lv.7 	$F30E 	FDINT 0 	Reserve for FDD
+0000336:        DEFW    $E814  ; -> $F310
+0000338:        DEFW    $E814  ; -> $F312
+000033A:        DEFW    $E814  ; -> $F314
+000033C:        DEFW    $E814  ; -> $F316
+000033E:        DEFW    $E814  ; -> $F318
+0000340:        DEFW    $E814  ; -> $F31A
+0000342:        DEFW    $E814  ; -> $F31C
+0000344:        DEFW    $E814  ; -> $F31E
 
-;F300:
-;		DEFW E7EAh		; Lv.0 	$ F300 - $ F301 	RXRDY 	RS-232C receive interrupt
-;		DEFW E808h		; Lv.1 	$ F302 - $ F303 	VRTC 	Screen end interrupt 1/60 seconds
-;		DEFW E80Eh		; Lv.2 	$ F304 - $ F305 	CLOCK 	Real time clock 1/600 sec
-;		DEFW E814h		; Lv.3 	$ F306 - $ F307 	INT 4 	User interrupt (sound source)
-;		DEFW E814h		; Lv.4 	$ F308 - $ F309 	INT 3 	User interrupt (sound source)
-;		DEFW E814h		; Lv.5 	$ F30A - $ F30B 	INT 2 	User interrupt
-;		DEFW E81Ah		; Lv.6 	$ F30C - $ F30D 	FDINT 1 	Reserve for FDD
-;		DEFW E820h		; Lv.7 	$ F30E - $ F30F 	FDINT 0 	Reserve for FDD
-
-;		DEFW E814h
-;		DEFW E814h
-;		DEFW E814h
-;		DEFW E814h
-;		DEFW E814h
-;		DEFW E814h
-;		DEFW E814h
-;		DEFW E814h
-
-
-00000326:       JP PE,08E7h
-00000329:       RET PE
-0000032A:       LD C,E8h
-0000032C:       INC D
-0000032D:       RET PE
-0000032E:       INC D
-0000032F:       RET PE
-00000330:       INC D
-00000331:       RET PE
-00000332:       LD A,(DE)
-00000333:       RET PE
-00000334:       JR NZ,-18h
-00000336:       INC D
-00000337:       RET PE
-00000338:       INC D
-00000339:       RET PE
-0000033A:       INC D
-0000033B:       RET PE
-0000033C:       INC D
-0000033D:       RET PE
-0000033E:       INC D
-0000033F:       RET PE
-00000340:       INC D
-00000341:       RET PE
-00000342:       INC D
-00000343:       RET PE
-00000344:       INC D
-00000345:       RET PE
 
 ; search 'FOR' block
 00000346:       LD HL,0004h
@@ -914,12 +931,12 @@ NOTE  -   to call machine code from BASIC (e.g. at 32768):
 0000059D:       LD A,C
 0000059E:       OR B
 0000059F:       JR NZ,-09h
-000005A1:       CALL ED30h
+000005A1:       CALL ED30h			; ?HFINI?	- Hook 1 for Mainloop finished ?
 000005A4:       POP DE
 000005A5:       CALL 05C1h
 000005A8:       LD HL,(EC88h)		; PTRFIL
 000005AB:       LD (EB10h),HL		; TEMP2 - temp. storage used by EVAL
-000005AE:       CALL 4F21h
+000005AE:       CALL 4F21h			; RUN_FST
 000005B1:       CALL ED2Ah
 000005B4:       LD HL,(EB10h)		; TEMP2 - temp. storage used by EVAL
 000005B7:       LD (EC88h),HL		; PTRFIL
@@ -1540,7 +1557,8 @@ _FOR:
 000009B6:       LD (EB07h),SP			; SAVSTK
 000009BA:       LD A,(HL)
 000009BB:       CP 3Ah		; ':'
-000009BD:       JR Z,+26h
+000009BD:       JR Z,+26h			; NEXT_STMT
+
 000009BF:       OR A
 000009C0:       JP NZ,0393h			;  SNERR - entry for '?SN ERROR'
 000009C3:       INC HL
@@ -1567,6 +1585,8 @@ _FOR:
 000009E3:       POP DE
 ; NEW_STMT_2
 000009E4:       EX DE,HL
+
+; NEXT_STMT
 000009E5:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 000009E6:       LD DE,0996h		; NEW_STMT
 000009E9:       PUSH DE
@@ -1747,8 +1767,8 @@ _DEFSTR:
 00000B02:       CALL 1896h				; POSINT - Get positive integer
 00000B05:       RET P
 
-
-00000B06:       LD E,05h
+; FCERR, Err $05 - "Illegal function call"
+00000B06:       LD E,05h			; Err $05 - "Illegal function call"
 00000B08:       JP 03B3h				; ERROR, code in E
 
 ; LNUM_PARM - Read numeric function parameter
@@ -1826,7 +1846,7 @@ _DEFSTR:
 
 _RUN:
 00000B7C:       JR NZ,+0Fh
-00000B7E:       CALL 4F2Bh
+00000B7E:       CALL 4F2Bh			; _CLVAR - Initialise RUN variables
 00000B81:       CALL 53F6h
 00000B84:       LD HL,0000h
 00000B87:       CALL 44A4h			; bank switching pivot (write)
@@ -1839,7 +1859,7 @@ _RUN:
 00000B95:       CP F5h
 00000B97:       JR Z,+03h
 00000B99:       JP NZ,4852h
-00000B9C:       CALL 4F2Bh
+00000B9C:       CALL 4F2Bh			; _CLVAR - Initialise RUN variables
 00000B9F:       EX HL,(SP)
 00000BA0:       LD HL,(EAC0h)			; CONTXT - ptr to console buffer
 00000BA3:       CALL 44D5h			; bank switching pivot (read)
@@ -2365,7 +2385,7 @@ _PRINT_
 00000EFE:       CP B
 00000EFF:       JP 0F0Eh
 
-00000F02:       LD A,(E650h)	; CLMLST
+00000F02:       LD A,(E650h)	; CLMLST (Column space)
 00000F05:       LD B,A
 00000F06:       CALL 449Fh		; DECrement TTYPOS, (a.k.a. CSRX or CursorPos+1)
 00000F09:       CP FFh
@@ -3018,7 +3038,7 @@ NO_COMPARE_TK:
 00001368:       JP NC,1406h
 0000136B:       CP 20h		; ' '
 0000136D:       JP C,0A5Fh
-00001370:       CALL ED27h
+00001370:       CALL ED27h		; ?HEVAL? - Hook 1 for Factor Evaluator?
 00001373:       INC A
 00001374:       JP Z,147Eh
 00001377:       DEC A
@@ -3028,12 +3048,12 @@ NO_COMPARE_TK:
 0000137E:       JP Z,13F8h				; '-' operand
 00001381:       CP 22h		; '"'
 00001383:       JP Z,54FDh				; QTSTR - Create quote terminated String
-00001386:       CP E3h
+00001386:       CP E3h		; TK_NOT
 00001388:       JP Z,1512h				; 'NOT' operand
 0000138B:       CP 26h		; '&'
 0000138D:       JP Z,1423h				; '&' specifier, convert text with radix indication to number
-00001390:       CP E5h
-00001392:       JR NZ,+0Ah
+00001390:       CP E5h		; TK_ERR, Token for ERR()
+00001392:       JR NZ,+0Ah		; OPRND_0
 
 ; 'ERR'
 00001394:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
@@ -3043,8 +3063,9 @@ NO_COMPARE_TK:
 0000139C:       POP HL
 0000139D:       RET
 
-0000139E:       CP E4h
-000013A0:       JR NZ,+0Ah
+; OPRND_0:
+0000139E:       CP E4h			; TK_ERL, Token for ERL()
+000013A0:       JR NZ,+0Ah		; OPRND_00
 
 ; 'ERL'
 000013A2:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
@@ -3054,8 +3075,9 @@ NO_COMPARE_TK:
 000013AA:       POP HL
 000013AB:       RET
 
-000013AC:       CP EAh
-000013AE:       JR NZ,+24h
+; OPRND_00:
+000013AC:       CP EAh			; TK_VARPTR, Token for VARPTR()
+000013AE:       JR NZ,+24h		; OPRND_1
 
 ; 'VARPTR'
 000013B0:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
@@ -3084,13 +3106,17 @@ NO_COMPARE_TK:
 000013D2:       POP HL
 000013D3:       RET
 
-000013D4:       CP E0h
+; OPRND_1
+000013D4:       CP E0h				; TK_USR
 000013D6:       JP Z,158Fh			; 'USR'
-000013D9:       CP E8h
+
+000013D9:       CP E8h				; TK_INSTR
 000013DB:       JP Z,57D7h			; 'INSTR'
-000013DE:       CP EFh
+
+000013DE:       CP EFh				; TK_INKEY$
 000013E0:       JP Z,5AA3h			; 'INKEY$'
-000013E3:       CP E6h
+
+000013E3:       CP E6h				; TK_STRING
 000013E5:       JP Z,5722h			; 'STRING$'
 
 000013E8:       CP 85h				; TK_INPUT - Token for INPUT
@@ -3155,13 +3181,14 @@ NO_COMPARE_TK:
 00001439:       CALL 5216h			; IS_ALPHA_A - Check it is in the 'A'..'Z' range
 0000143C:       EX DE,HL
 0000143D:       JR NC,+0Ah
-0000143F:       CP 3Ah		; ':'
+0000143F:       CP 3Ah		; '9'+1
 00001441:       JR NC,+36h
 00001443:       SUB 30h		; '0'
 00001445:       JR C,+32h
 00001447:       JR +06h
 
-00001449:       CP 47h
+; hex
+00001449:       CP 47h		; 'F'+1
 0000144B:       JR NC,+2Ch
 0000144D:       SUB 37h
 0000144F:       ADD HL,HL
@@ -3174,11 +3201,14 @@ NO_COMPARE_TK:
 00001456:       DJNZ -24h
 00001458:       JP 03ABh		; "Overflow" error
 
+; decimal
 0000145B:       DEC HL
+; 'O', octal.
 0000145C:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
 0000145D:       EX DE,HL
 0000145E:       JR NC,+19h
-00001460:       CP 38h
+
+00001460:       CP 38h		; '8'
 00001462:       JP NC,0393h			;  SNERR - entry for '?SN ERROR'
 00001465:       LD BC,03ABh			; "Overflow" error
 00001468:       PUSH BC
@@ -3190,11 +3220,13 @@ NO_COMPARE_TK:
 0000146E:       RET C
 0000146F:       POP BC
 00001470:       LD B,00h
-00001472:       SUB 30h
+00001472:       SUB 30h		; '0'
 00001474:       LD C,A
 00001475:       ADD HL,BC
 00001476:       EX DE,HL
 00001477:       JR -1Dh
+
+; from 145e
 00001479:       CALL 21FDh				; INT_RESULT_HL
 0000147C:       EX DE,HL
 0000147D:       RET
@@ -3663,7 +3695,7 @@ _FN:
 00001766:       RST 20h				; CPDEHL - compare DE and HL (aka DCOMPR)
 00001767:       JR C,+06h
 00001769:       CALL 54D8h			; SAVSTR_0
-0000176C:       CALL 5530h
+0000176C:       CALL 5530h			; $552F+1
 0000176F:       LD HL,(EB3Dh)		; PRMSTK - previous block definition on stack
 00001772:       LD D,H
 00001773:       LD E,L
@@ -3853,7 +3885,7 @@ _WIDTH:
 00001880:       LD (E64Fh),A		; TTYPOS2
 00001883:       LD E,A
 00001884:       CALL 188Bh
-00001887:       LD (E650h),A			; CLMLST
+00001887:       LD (E650h),A			; CLMLST (Column space)
 0000188A:       RET
 
 0000188B:       SUB 0Eh
@@ -7812,17 +7844,17 @@ _SIN:
 0000308A:       LD E,7Fh
 0000308C:       LD (E6C3h),A	; Value being sent to port E4h
 0000308F:       LD A,(E6A8h)		; CursorCommand
-00003092:       OUTA (51h)			; CRTC
+00003092:       OUTA (51h)			; Output command to CRTC
 00003094:       LD A,(EF89h)	; WIDTH
 00003097:       CP 29h		; 40+1
 00003099:       LD A,(EF87h)			; TTYPOS, (a.k.a. CSRX or CursorPos+1)
 0000309C:       DEC A
 0000309D:       JR NC,+01h
 0000309F:       ADD A
-000030A0:       OUTA (50h)			; CRTC
+000030A0:       OUTA (50h)			; Send parameter to CRTC
 000030A2:       LD A,(EF86h)		; CSRY (CursorPos) - current text position
 000030A5:       DEC A
-000030A6:       OUTA (50h)			; CRTC
+000030A6:       OUTA (50h)			; Send parameter to CRTC
 000030A8:       EI
 000030A9:       CALL 3F3Fh
 000030AC:       LD A,(E6CDh)
@@ -8600,7 +8632,7 @@ _SIN:
 0000358A:       JR NZ,+07h
 0000358C:       LD A,(E6A7h)	; CursorMode
 0000358F:       OR A
-00003590:       CALL NZ,4290h
+00003590:       CALL NZ,4290h	; update CursorMode and CursorCommand
 00003593:       CALL 7780h
 00003596:       CALL 35A8h
 00003599:       DI
@@ -9130,16 +9162,16 @@ _SIN:
 
 000038D1:       CALL 39E4h		; jump to remote bank. follows address (word) and bank (byte)
 				DEFW 6024h
-				DEFB 3			; ..will jump to 6045h, bank 3  (this one is odd !)
+				DEFB 3			; ..will jump to 6045h, bank 3  (this one is odd, it will JP back to BASE ROM at addr 0 !)
 
 000038D7:       CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
 				DEFW 6027h
-				DEFB 3			; ..will jump to 604Ah, bank 3
+				DEFB 3			; ..will jump to 604Ah, bank 3	(=RET)
 000038DD:       RET
 
 000038DE:       CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
 				DEFW 602Ah
-				DEFB 3			; ..will jump to 604Bh, bank 3
+				DEFB 3			; ..will jump to 604Bh, bank 3	(=RET)
 000038E4:       RET
 
 000038E5:       NOP
@@ -9502,6 +9534,7 @@ _SIN:
 00003AE9:       JP 3A36h
 
 00003AEC:       NOP
+
 00003AED:       CALL 391Fh
 00003AF0:       RET Z
 00003AF1:       LD A,00h
@@ -9857,7 +9890,7 @@ _SIN:
 				DEFB 2			; ..will jump to 74FAh, bank 2
 00003CBF:       RET
 
-; Init JP table at HL, B entries, default JP address in DE
+; Init JP table at HL, B entries.   Set all with the default pointer in DE
 00003CC0:       LD (HL),C3h		; JP instruction
 00003CC2:       INC HL
 00003CC3:       LD (HL),E
@@ -9886,6 +9919,8 @@ _SIN:
 00003CDE:       EX HL,(SP)
 00003CDF:       POP DE
 00003CE0:       DJNZ -14h
+
+; Init JP table at $EE2E ($16 entries)
 00003CE2:       LD HL,EE2Fh
 00003CE5:       LD DE,3D3Bh
 00003CE8:       LD BC,1602h
@@ -9945,35 +9980,34 @@ _SIN:
 00003D37:       DI
 00003D38:       DB EDh,CEh
 00003D3A:       ADD HL,SP
-00003D3B:       SCF
-00003D3C:       LD L,A
-00003D3D:       DEC A
-00003D3E:       LD C,B
-00003D3F:       CCF
-00003D40:       LD L,A
-00003D41:       RST 30h				; GETYPR -  Test number FAC type (Precision mode, etc..)
-00003D42:       DEC C
-00003D43:       LD B,0Bh
-00003D45:       LD B,0Bh
-00003D47:       LD B,0Bh
-00003D49:       LD B,0Bh
-00003D4B:       LD B,0Bh
-00003D4D:       LD B,0Bh
-00003D4F:       LD B,0Bh
-00003D51:       INA (0Dh)
-00003D53:       DEC A
-00003D54:       LD C,B
-00003D55:       LD E,6Fh
-00003D57:       LD B,0Bh
-00003D59:       LD (DE),A
-00003D5A:       LD L,A
-00003D5B:       RET P
-00003D5C:       DEC C
-00003D5D:       LD B,0Bh
-00003D5F:       LD B,0Bh
-00003D61:       LD B,0Bh
-00003D63:       AND 0Dh
-00003D65:       LD B,0Bh
+
+
+
+; word jp table ($16 entries) is moved from 3D3Bh to EE2Fh (with jp prefix), 
+
+00003D3B:       DEFW    $6F37  -> $EE2E + 1
+00003D3D:       DEFW    $483D  -> $EE31 + 1		; CLOSE_0
+00003D3F:       DEFW    $6F3F  -> $EE34 + 1
+00003D41:       DEFW    $0DF7  -> $EE37 + 1
+00003D43:       DEFW    $0B06  -> $EE3A + 1		; FCERR, Err $05 - "Illegal function call"
+00003D45:       DEFW    $0B06  -> $EE3D + 1		; FCERR, Err $05 - "Illegal function call"
+00003D47:       DEFW    $0B06  -> $EE40 + 1		; FCERR, Err $05 - "Illegal function call"
+00003D49:       DEFW    $0B06  -> $EE43 + 1		; FCERR, Err $05 - "Illegal function call"
+00003D4B:       DEFW    $0B06  -> $EE46 + 1		; FCERR, Err $05 - "Illegal function call"
+00003D4D:       DEFW    $0B06  -> $EE49 + 1		; FCERR, Err $05 - "Illegal function call"
+00003D4F:       DEFW    $0B06  -> $EE4C + 1		; FCERR, Err $05 - "Illegal function call"
+00003D51:       DEFW    $0DDB  -> $EE4F + 1
+00003D53:       DEFW    $483D  -> $EE52 + 1		; CLOSE_0
+00003D55:       DEFW    $6F1E  -> $EE55 + 1
+00003D57:       DEFW    $0B06  -> $EE58 + 1		; FCERR, Err $05 - "Illegal function call"
+00003D59:       DEFW    $6F12  -> $EE5B + 1
+00003D5B:       DEFW    $0DF0  -> $EE5E + 1
+00003D5D:       DEFW    $0B06  -> $EE61 + 1		; FCERR, Err $05 - "Illegal function call"
+00003D5F:       DEFW    $0B06  -> $EE64 + 1		; FCERR, Err $05 - "Illegal function call"
+00003D61:       DEFW    $0B06  -> $EE67 + 1		; FCERR, Err $05 - "Illegal function call"
+00003D63:       DEFW    $0DE6  -> $EE6A + 1
+00003D65:       DEFW    $0B06  -> $EE6D + 1		; FCERR, Err $05 - "Illegal function call"
+
 
 00003D67:       CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
 00003D6A:       RRCA
@@ -10107,7 +10141,7 @@ _SIN:
 00003E0E:       PUSH DE
 00003E0F:       PUSH HL
 00003E10:       PUSH AF
-00003E11:       CALL 428Bh		; deal with cursor
+00003E11:       CALL 428Bh		; update CursorCommand
 00003E14:       LD B,A
 00003E15:       LD A,(E6B6h)			; PrintCtrlCode
 00003E18:       OR A
@@ -10309,9 +10343,9 @@ LPTOUT:
 00003F5E:       CALL 5012h
 00003F61:       RET
 
-00003F62:       LD A,60h
+00003F62:       LD A,60h		; "READ LIGHT PEN" command ?
 00003F64:       DI
-00003F65:       OUTA (51h)		; CRTC
+00003F65:       OUTA (51h)		; Output command to CRTC
 00003F67:       INA (50h)		; CRTC
 00003F69:       LD HL,E6AEh
 00003F6C:       OR A
@@ -10624,7 +10658,7 @@ LPTOUT:
 0000415A:       DEC A
 0000415B:       LD (EFC8h),A
 0000415E:       JR NZ,+1Bh
-00004160:       LD A,3Ch
+00004160:       LD A,3Ch		; 3C0000h / 600 = 6553
 00004162:       LD (EFC8h),A
 00004165:       LD HL,(EFC6h)
 00004168:       DEC HL
@@ -10802,10 +10836,11 @@ LPTOUT:
 00004289:       DEFW $0BB8		; 3000
 
 
-; deal with cursor
+; update CursorCommand
 0000428B:       PUSH AF
 0000428C:       LD A,80h
 0000428E:       JR +08h
+; update CursorMode and CursorCommand
 00004290:       PUSH AF
 00004291:       LD A,(E6A7h)		; CursorMode
 00004294:       AND 01h
@@ -11376,6 +11411,7 @@ EXEC_ROM0_RET:
 000045A9:       XOR A
 000045AA:       LD (EC7Dh),A
 000045AD:       RET
+
 000045AE:       PUSH DE
 000045AF:       PUSH BC
 000045B0:       LD BC,0001h
@@ -11848,7 +11884,7 @@ _OPEN:
 00004824:       AND 01h
 00004826:       JP NZ,4C1Dh
 00004829:       CALL 46F8h			; GETPTR - get i/o channel control block
-0000482C:       JR Z,+13h
+0000482C:       JR Z,+13h 			; CLOSE_1
 0000482E:       LD (EC88h),HL		; PTRFIL
 00004831:       PUSH HL
 00004832:       LD A,02h
@@ -11856,8 +11892,10 @@ _OPEN:
 00004837:       CALL ED6Fh
 0000483A:       JP 4DB5h			 ; 'Internal error' error
 
+; CLOSE_0
 0000483D:       CALL 4C14h
 00004840:       POP HL
+; CLOSE_1
 00004841:       PUSH HL
 00004842:       LD DE,0007h
 00004845:       ADD HL,DE
@@ -12038,7 +12076,7 @@ _SAVE:
 00004971:       INC HL
 00004972:       CALL 44D5h			; bank switching pivot (read)
 00004975:       LD (EB18h),HL			; ARYTAB - Pointer to begin of array table
-00004978:       CALL 4F21h
+00004978:       CALL 4F21h			; RUN_FST
 0000497B:       XOR A
 0000497C:       LD (ECA3h),A		; NLONLY
 0000497F:       CALL 481Dh			; CLOSE
@@ -12538,7 +12576,7 @@ _FPOS:
 00004C6D:       JP 4DA0h			; 'Bad file name' error
 
 00004C70:       CALL 5372h				; ISFLIO - Tests if I/O to device is taking place
-00004C73:       JP Z,09E5h
+00004C73:       JP Z,09E5h			; NEXT_STMT
 00004C76:       XOR A
 00004C77:       CALL 481Dh			; CLOSE
 00004C7A:       JP 4DA6h			; 'Direct statement in file' error
@@ -12938,6 +12976,7 @@ _FPOS:
 00004EF1:       CALL 4EF7h
 00004EF4:       RET NC
 00004EF5:       JR -19h
+
 00004EF7:       PUSH DE
 00004EF8:       EX DE,HL
 00004EF9:       LD HL,(EAF1h)			; FRETOP - Starting address of unused area of string area
@@ -12946,6 +12985,7 @@ _FPOS:
 00004EFE:       POP DE
 00004EFF:       RET
 
+__NEW:
 00004F00:       RET NZ
 ; CLRPTR
 00004F01:       LD HL,(E658h)		; TXTTAB (aka BASTXT) - address of BASIC program start
@@ -12963,14 +13003,22 @@ _FPOS:
 00004F1A:       INC HL
 00004F1B:       CALL 44D5h			; bank switching pivot (read)
 00004F1E:       LD (EB18h),HL			; ARYTAB - Pointer to begin of array table
-00004F21:       CALL ED96h
+
+;; RUNFST:
+RUN_FST:
+  ; Clear all variables
+00004F21:       CALL ED96h			; ?HRUNC?   Hook 1 for RUN-Clear ?
 00004F24:       LD HL,(E658h)		; TXTTAB (aka BASTXT) - address of BASIC program start
 00004F27:       CALL 44A4h			; bank switching pivot (write)
 00004F2A:       DEC HL
+
+;; INTVAR:
+_CLVAR:
+  ; Initialise RUN variables
 00004F2B:       LD A,(E69Fh)
 00004F2E:       OR A
 00004F2F:       JP NZ,0B06h			; FCERR, Err $05 - "Illegal function call"
-00004F32:       CALL ED84h
+00004F32:       CALL ED84h			; ?HCLEA? -  Hook 2 for RUN-Clear ?
 00004F35:       CALL 44D5h			; bank switching pivot (read)
 00004F38:       LD (EAFDh),HL		; TEMP - temp. reservation for st.code
 00004F3B:       CALL 5045h
@@ -12978,12 +13026,14 @@ _FPOS:
 00004F41:       LD A,(EC2Ah)
 00004F44:       OR A
 00004F45:       JR NZ,+14h
+
 00004F47:       XOR A
 00004F48:       LD (EC20h),A
 00004F4B:       LD (EC1Fh),A
+
 00004F4E:       LD B,1Ah
-00004F50:       LD HL,EB23h		; DEFTBL
-00004F53:       CALL ED8Dh
+00004F50:       LD HL,EB23h			; DEFTBL
+00004F53:       CALL ED8Dh			; ?HLOPD? -  Hook 3 for RUN-Clear ?
 00004F56:       LD (HL),04h
 00004F58:       INC HL
 00004F59:       DJNZ -05h
@@ -13435,7 +13485,9 @@ _SWAP:
 00005219:       CP 5Bh		; '['
 0000521B:       CCF
 0000521C:       RET
-0000521D:       CALL 4F2Bh
+
+; _CLEAR_0
+0000521D:       CALL 4F2Bh			; _CLVAR - Initialise RUN variables
 00005220:       CALL 44D5h			; bank switching pivot (read)
 00005223:       PUSH HL
 00005224:       CALL 53F6h
@@ -13449,7 +13501,7 @@ _CLEAR:
 00005232:       OR A
 00005233:       JP NZ,0B06h			; FCERR, Err $05 - "Illegal function call"
 00005236:       POP AF
-00005237:       JR Z,-1Ch
+00005237:       JR Z,-1Ch	; _CLEAR_0
 00005239:       CP 2Ch		; ','
 0000523B:       JR Z,+07h
 0000523D:       CALL 0B02h
@@ -13739,12 +13791,14 @@ _NEXT:
 000053FB:       LD A,(EB1Ah)
 000053FE:       OR A
 000053FF:       JR NZ,+38h
+
 00005401:       LD HL,(E658h)		; TXTTAB (aka BASTXT) - address of BASIC program start
 00005404:       CALL 44A4h			; bank switching pivot (write)
 00005407:       LD A,(HL)
 00005408:       INC HL
 00005409:       OR (HL)
 0000540A:       JR Z,+2Dh
+
 0000540C:       LD E,L
 0000540D:       LD D,H
 0000540E:       DEC HL
@@ -13960,10 +14014,12 @@ _STR$:
 
 ; TSTOPL - Temporary string to pool
 0000552C:       LD DE,EAEEh			; TMPSTR - Temporary string
-0000552F:       LD A,D5h
+0000552F:		DEFB $3E		; LD A,D5h
+; 
+00005530:		PUSH DE
 00005531:       LD HL,(EACEh)		; TEMPPT - start of free area of temporary descriptor
 00005534:       LD (EC41h),HL			; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
-00005537:       LD A,03h
+00005537:       LD A,03h			; String type
 00005539:       LD (EABDh),A		; VALTYP - type indicator
 0000553C:       CALL 20FCh			; FP2HL - copy number value from DE to HL
 0000553F:       LD DE,EAF1h			; FRETOP - Starting address of unused area of string area
@@ -13972,7 +14028,7 @@ _STR$:
 00005546:       POP HL
 00005547:       LD A,(HL)
 00005548:       RET NZ
-00005549:       LD DE,0010h
+00005549:       LD DE,0010h			; Err $10 - "String formula too complex"
 0000554C:       JP 03B3h				; ERROR, code in E
 
 0000554F:       INC HL
@@ -14737,6 +14793,7 @@ _FRE:
 0000595F:       JR NZ,-10h
 00005961:       POP AF
 00005962:       RET
+
 00005963:       POP AF
 00005964:       PUSH AF
 00005965:       SUB 0Dh
@@ -14816,6 +14873,7 @@ _FRE:
 000059E2:       PUSH BC
 000059E3:       PUSH AF
 000059E4:       JR +1Ah
+
 000059E6:       POP AF
 000059E7:       PUSH BC
 000059E8:       PUSH AF
@@ -14859,7 +14917,8 @@ _FRE:
 00005A29:       JR Z,+07h
 00005A2B:       LD HL,0996h			; NEW_STMT
 00005A2E:       PUSH HL
-00005A2F:       JP 4F21h
+00005A2F:       JP 4F21h			; RUN_FST
+
 00005A32:       PUSH HL
 00005A33:       PUSH BC
 00005A34:       PUSH DE
@@ -15858,11 +15917,13 @@ GVAR:
 00006046:       CP (HL)
 00006047:       JR NZ,-06h
 00006049:       RET
+
 0000604A:       LD HL,609Ah
 0000604D:       LD C,0Eh
 0000604F:       CALL 6042h
 00006052:       JP M,605Bh
 00006055:       PUSH AF
+
 00006056:       XOR A
 00006057:       LD (E6ADh),A
 0000605A:       POP AF
@@ -15906,6 +15967,7 @@ GVAR:
 00006096:       JR C,-1Ah
 00006098:       XOR A
 00006099:       RET
+
 0000609A:       DEC C
 0000609B:       LD (BC),A
 0000609C:       LD B,05h
@@ -15921,6 +15983,7 @@ GVAR:
 000060AB:       LD (DE),A
 000060AC:       LD (BC),A
 000060AD:       LD B,05h
+
 000060AF:       INC BC
 000060B0:       DEC C
 000060B1:       JR +15h
@@ -16152,7 +16215,7 @@ GVAR:
 00006218:       CPL
 00006219:       LD (E6ADh),A
 0000621C:       XOR A
-0000621D:       JP 4290h
+0000621D:       JP 4290h	; update CursorMode and CursorCommand
 
 00006220:       PUSH HL
 00006221:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
@@ -16354,38 +16417,42 @@ GVAR:
 00006374:       RET
 
 00006375:       XOR A
-00006376:       CALL 428Bh		; deal with cursor
+00006376:       CALL 428Bh		; update CursorCommand
 00006379:       JR +08h
+
 0000637B:       CALL 4472h
 0000637E:       CALL 6508h
 00006381:       JR C,+10h
 00006383:       CALL 63CBh
-00006386:       JP Z,4290h
+00006386:       JP Z,4290h		; update CursorMode and CursorCommand
 00006389:       JR -10h
+
 0000638B:       CALL 4472h
 0000638E:       CALL 6508h
 00006391:       JR NC,+08h
 00006393:       CALL 63CBh
-00006396:       JP Z,4290h
+00006396:       JP Z,4290h		; update CursorMode and CursorCommand
 00006399:       JR -10h
-0000639B:       CALL 4290h
+
+0000639B:       CALL 4290h		; update CursorMode and CursorCommand
 0000639E:       XOR A
 0000639F:       RET
 
 000063A0:       XOR A
-000063A1:       CALL 428Bh		; deal with cursor
+000063A1:       CALL 428Bh		; update CursorCommand
 000063A4:       JR +08h
+
 000063A6:       CALL 4472h
 000063A9:       CALL 6508h
 000063AC:       JR NC,+10h
 000063AE:       CALL 63D7h
-000063B1:       JP Z,4290h
+000063B1:       JP Z,4290h		; update CursorMode and CursorCommand
 000063B4:       JR -10h
 000063B6:       CALL 4472h
 000063B9:       CALL 6508h
 000063BC:       JR C,+08h
 000063BE:       CALL 63D7h
-000063C1:       JP Z,4290h
+000063C1:       JP Z,4290h		; update CursorMode and CursorCommand
 000063C4:       JR -10h
 000063C6:       CALL 63CBh
 000063C9:       JR -30h
@@ -17282,7 +17349,7 @@ __USING:
 000069B0:       XOR A
 000069B1:       RET
 
-; Prepare jump table at $ECBB
+; Prepare jump table at $ECBB and $EE0E
 000069B2:       LD HL,ECBBh
 000069B5:       LD B,71h		; 71 entries
 000069B7:       LD DE,0003h
@@ -17828,9 +17895,12 @@ _RENUM:
 00006F31:       INC HL
 00006F32:       DJNZ -0Ch
 00006F34:       JP 7E60h
+
+; pointed by [$EE2E + 1]
 00006F37:       LD A,E9h
 00006F39:       CALL 7B2Fh
 00006F3C:       JP 0DDDh
+
 00006F3F:       PUSH HL
 00006F40:       LD DE,0008h
 00006F43:       ADD HL,DE
@@ -17949,40 +18019,40 @@ _RENUM:
 00007007:       LD (E6C1h),A		; enable/status FLAGS for port 40h
 0000700A:       OUTA (40h)
 0000700C:       CALL 433Fh			; WaitVSync
-0000700F:       XOR A
-00007010:       OUTA (51h)			; CRTC
+0000700F:       XOR A				; INIT command
+00007010:       OUTA (51h)			; Output command to CRTC
 00007012:       LD A,A0h
-00007014:       OUTA (68h)
+00007014:       OUTA (68h)			; DMA control port
 00007016:       PUSH HL
 00007017:       LD HL,(E6C4h)		; TVRAMTop
 0000701A:       LD A,L
-0000701B:       OUTA (64h)
+0000701B:       OUTA (64h)			; DMA
 0000701D:       LD A,H
-0000701E:       OUTA (64h)
+0000701E:       OUTA (64h)			; DMA
 00007020:       POP HL
 00007021:       LD A,(HL)
 00007022:       INC HL
-00007023:       OUTA (65h)
+00007023:       OUTA (65h)			; DMA
 00007025:       LD A,(HL)
 00007026:       INC HL
-00007027:       OUTA (65h)
+00007027:       OUTA (65h)			; DMA
 00007029:       ADD HL,DE
 0000702A:       LD B,04h
 0000702C:       LD A,(HL)
-0000702D:       OUTA (50h)		; CRTC
+0000702D:       OUTA (50h)		; Send parameter to CRTC
 0000702F:       INC HL
 00007030:       DJNZ -06h
 
 00007032:       LD A,(E6B9h)			; TextIsColor, Color / monochrome switch
 00007035:       AND 40h
 00007037:       OR 13h
-00007039:       OUTA (50h)		; CRTC
-0000703B:       LD A,43h
-0000703D:       OUTA (51h)		; CRTC
+00007039:       OUTA (50h)		; Send parameter to CRTC
+0000703B:       LD A,43h		;
+0000703D:       OUTA (51h)		; Output command to CRTC
 0000703F:       LD A,E4h
-00007041:       OUTA (68h)
+00007041:       OUTA (68h)			; DMA control port
 00007043:       LD A,20h
-00007045:       OUTA (51h)		; CRTC
+00007045:       OUTA (51h)		; Output command to CRTC
 00007047:       CALL 433Fh			; WaitVSync
 0000704A:       INA (40h)			; Vertical retrace signal from CRTC (µPD3301AC)
 0000704C:       AND 20h
@@ -18384,7 +18454,7 @@ _MAP:
 000072C9:       LD C,04h
 000072CB:       JR -1Ah
 
-
+; Init interrupts
 000072CD:       DI
 000072CE:       XOR A			; disable all interrupts
 000072CF:       OUTA (E6h)		; Interrupt mask
@@ -18512,7 +18582,7 @@ _TERM:
 000073BF:       CALL 7705h
 000073C2:       LD A,(E6A7h)	; CursorMode
 000073C5:       OR A
-000073C6:       CALL NZ,4290h
+000073C6:       CALL NZ,4290h		; update CursorMode and CursorCommand
 000073C9:       CALL 7780h
 000073CC:       CALL 35A8h
 000073CF:       CALL 7570h
@@ -18695,6 +18765,7 @@ _TERM:
 00007540:       JR C,-7Eh
 00007542:       CALL 4494h
 00007545:       JP 74C4h
+
 00007548:       XOR A
 00007549:       LD (E6CDh),A
 0000754C:       JP 74C4h
@@ -18761,7 +18832,7 @@ _TERM:
 000075C3:       LD (EC88h),HL		; PTRFIL
 000075C6:       LD HL,E9B9h
 000075C9:       CALL 0632h
-000075CC:       CALL 428Bh			; deal with cursor
+000075CC:       CALL 428Bh			; update CursorCommand
 000075CF:       LD A,01h
 000075D1:       LD (ECA3h),A		; NLONLY
 000075D4:       NOP
@@ -19045,7 +19116,9 @@ _TERM:
 000077D5:       CALL 44A4h			; bank switching pivot (write)
 000077D8:       LD D,FEh
 000077DA:       CALL 736Eh
-000077DD:       JP Z,4F00h
+
+; _NEW:
+000077DD:       JP Z,4F00h		; __NEW
 
 000077E0:       CALL 39E4h		; jump to remote bank. follows address (word) and bank (byte)
 				DEFW 64DFh
@@ -19089,7 +19162,7 @@ _TERM:
 00007812:       AND 01h			; BASIC mode, 0=N-BASIC. 1=N88-BASIC
 00007814:       LD HL,0066h
 00007817:       JP NZ,77ABh		; JP if N88-BASIC
-0000781A:       CALL 72CDh
+0000781A:       CALL 72CDh		; Init interrupts
 0000781D:       JP 036Fh
 
 00007820:       LD HL,E5FEh
@@ -19103,8 +19176,8 @@ _TERM:
 00007834:       LD DE,E600h				; DST position on bottom of RAM
 00007837:       LD (EACCh),HL			; STREND (aka STRTOP) - string area top address
 0000783A:       LDIR
-0000783C:       CALL 69B2h				; Prepare jump table at $ECBB
-0000783F:       CALL 72CDh
+0000783C:       CALL 69B2h				; Prepare jump table at $ECBB and $EE0E
+0000783F:       CALL 72CDh				; Init interrupts
 00007842:       CALL 458Fh
 00007845:       LD HL,(E7E8h)
 00007848:       LD D,H
@@ -19561,9 +19634,9 @@ _TERM:
 00007B60:       ADD HL,DE
 00007B61:       LD A,(HL)
 00007B62:       OR A
-00007B63:       JP Z,483Dh
+00007B63:       JP Z,483Dh			; CLOSE_0
 00007B66:       CALL 7B6Ch
-00007B69:       JP 483Dh
+00007B69:       JP 483Dh			; CLOSE_0
 
 00007B6C:       LD A,0Dh
 00007B6E:       CALL 5935h
@@ -19717,7 +19790,7 @@ _TERM:
 00007C65:       XOR A
 00007C66:       OUTA (21h)		; USART (µPD8251C) Control port
 00007C68:       LD (E6EDh),A
-00007C6B:       JP 483Dh
+00007C6B:       JP 483Dh			; CLOSE_0
 
 00007C6E:       LD A,01h
 00007C70:       CALL 4655h
@@ -19987,7 +20060,7 @@ _TERM:
 
 00007E3A:       XOR A
 00007E3B:       LD (E6E8h),A
-00007E3E:       JP 483Dh
+00007E3E:       JP 483Dh			; CLOSE_0
 
 00007E41:       LD A,(E6E8h)
 00007E44:       LD (E6A9h),A
