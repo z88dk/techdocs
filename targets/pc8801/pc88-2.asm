@@ -237,7 +237,7 @@
 000065E6:	LD A,(F044h)	; ATRBYT (aka PPALET)
 000065E9:	PUSH AF
 000065EA:	LD A,(F01Fh)
-000065ED:	CALL 66B8h
+000065ED:	CALL 66B8h		; set pen color (bank #0)
 000065F0:	LD A,(E6A6h)
 000065F3:	OR A
 000065F4:	JR NZ,+08h
@@ -255,7 +255,7 @@
 00006610:	CALL 663Eh
 00006613:	POP AF
 00006614:	LD (F044h),A	; ATRBYT (aka PPALET)
-00006617:	CALL 66B8h
+00006617:	CALL 66B8h		; set pen color (bank #0)
 0000661A:	POP HL
 0000661B:	CALL 3A03h	; Call BASE ROM, word for address follows
 0000661E:	NOP
@@ -358,10 +358,10 @@
 000066B4:	LD (E9BBh),HL
 000066B7:	RET
 
-000066B8:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-000066BB:	AND B
-000066BC:	LD H,(HL)
-000066BD:	NOP
+; set pen color (bank #0)
+000066B8:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+000066BB:   DEFW $66A0    ; set pen color
+000066BD:   DEFB $00      ; Bank #0
 000066BE:	RET
 
 ; _AUTO
@@ -1732,10 +1732,11 @@
 0000700D:	LD (E170h),HL
 00007010:	LD HL,3BDEh		; FN_POINT entry in main rom
 00007013:	LD (EEB7h),HL	; Entry address for FN_POINT
-00007016:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007019:	INC BC
-0000701A:	LD H,B
-0000701B:	INC BC
+
+00007016:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007019:   DEFW $6003    ; Address
+0000701B:   DEFB $03      ; Bank #3
+
 0000701C:	INA (32h)
 0000701E:	AND 7Fh			; Enable sound interrupt (bit7=0)
 00007020:	OUTA (32h)
@@ -1969,10 +1970,13 @@
 00007145:	LD DE,E5FFh
 00007148:	XOR A
 00007149:	RET
-0000714A:	CALL 39E4h
-0000714D:	XOR B
-0000714E:	LD H,B
-0000714F:	LD BC,023Eh
+
+0000714A:   CALL 39E4h    ; jump to remote bank. follows address (word) and bank (byte)
+0000714D:   DEFW $60A8    ; Address
+0000714F:   DEFB $01      ; Bank #1
+
+00007150:   LD	A,02h
+
 00007152:	JR C,+01h
 00007154:	INC A
 00007155:	LD (EF17h),A
@@ -2958,10 +2962,13 @@
 00007820:	CALL 7CD3h
 00007823:	LD B,(HL)
 00007824:	INC HL
-00007825:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007828:	OR H
-00007829:	LD H,B
-0000782A:	LD BC,237Eh
+
+00007825:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007828:   DEFW $60B4    ; Address
+0000782A:   DEFB $01      ; Bank #1
+	
+0000782B:	LD	A,(HL)
+0000782C:	INC HL
 0000782D:	LD C,(HL)
 0000782E:	INC HL
 0000782F:	LD B,(HL)
@@ -2975,27 +2982,37 @@
 0000783E:	POP BC
 0000783F:	DEC A
 00007840:	JP P,784Ah
-00007843:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007846:	SBC H
-00007847:	LD H,B
-00007848:	LD BC,20C9h
-0000784B:	RLCA
-0000784C:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-0000784F:	SBC A
-00007850:	LD H,B
-00007851:	LD BC,3DC9h
+
+00007843:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007846:   DEFW $609C    ; Address
+00007848:   DEFB $01      ; Bank #1
+00007849:	RET
+
+0000784A:	JR	NZ,7
+
+0000784C:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+0000784F:   DEFW $609F    ; Address
+00007851:   DEFB $01      ; Bank #1
+00007852:	RET
+
+00007853:	DEC A
 00007854:	JP NZ,77E9h
-00007857:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-0000785A:	AND D
-0000785B:	LD H,B
-0000785C:	LD BC,CDC9h
-0000785F:	OUTA (7Ch)
+
+00007857:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+0000785A:   DEFW $60A2    ; Address
+0000785C:   DEFB $01      ; Bank #1
+0000785D:	RET
+
+0000785E:	CALL 7CD3h
 00007861:	LD B,(HL)
 00007862:	INC HL
-00007863:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007866:	OR H
-00007867:	LD H,B
-00007868:	LD BC,237Eh
+
+00007863:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007866:   DEFW $60B4    ; Address
+00007868:   DEFB $01      ; Bank #1
+
+00007869:	LD	A,(HL)
+0000786A:	RLA
 0000786B:	LD C,(HL)
 0000786C:	INC HL
 0000786D:	LD B,(HL)
@@ -3012,35 +3029,46 @@
 00007881:	CALL 7CBAh
 00007884:	POP DE
 00007885:	POP BC
-00007886:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007889:	SBC H
-0000788A:	LD H,B
-0000788B:	LD BC,3DF1h
+
+00007886:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007889:   DEFW $609C    ; Address
+0000788B:   DEFB $01      ; Bank #1
+
+0000788C:   POP AF
+0000788D:   DEC A
 0000788E:	JR NZ,-1Ah
 00007890:	RET
+
 00007891:	CALL 7CD3h
 00007894:	LD B,(HL)
 00007895:	INC HL
-00007896:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007899:	OR H
-0000789A:	LD H,B
-0000789B:	LD BC,CDEBh
-0000789E:	CP D
-0000789F:	LD A,H
-000078A0:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-000078A3:	LD C,E
-000078A4:	LD H,B
-000078A5:	LD BC,1830h
-000078A8:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-000078AB:	LD C,(HL)
-000078AC:	LD H,B
-000078AD:	LD BC,32DBh
+
+00007896:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007899:   DEFW $60B4    ; Address
+0000789B:   DEFB $01      ; Bank #1
+
+0000789C:	EX DE,HL
+0000789D:	CALL 7CBAh
+
+000078A0:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+000078A3:   DEFW $604B    ; Address
+000078A5:   DEFB $01      ; Bank #1
+
+000078A6:	JR	NC,18h
+
+000078A8:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+000078AB:   DEFW $604E    ; Address
+000078AD:   DEFB $01      ; Bank #1
+
+00007D4E:	INA (32h)
 000078B0:	SET 6,A			; Set EXTENDED graphics VRAM access mode
 000078B2:	OUTA (32h)
-000078B4:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-000078B7:	LD H,B
-000078B8:	LD H,B
-000078B9:	LD BC,32DBh
+
+000078B4:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+000078B7:   DEFW $6060    ; Address
+000078B9:   DEFB $01      ; Bank #1
+
+000078BA:	INA (32h)
 000078BC:	RES 6,A			; Set INDEPENDENT graphics VRAM access mode
 000078BE:	OUTA (32h)
 000078C0:	RET
@@ -3048,17 +3076,22 @@
 000078C1:	PUSH BC
 000078C2:	EX DE,HL
 000078C3:	CALL 7CBAh
-000078C6:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-000078C9:	LD C,E
-000078CA:	LD H,B
-000078CB:	LD BC,FF3Eh
+
+000078C6:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+000078C9:   DEFW $604B    ; Address
+000078CB:   DEFB $01      ; Bank #1
+
+000078CC:	LD	A,FFh
 000078CE:	JP NC,78DDh
-000078D1:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-000078D4:	LD C,(HL)
-000078D5:	LD H,B
-000078D6:	LD BC,B4CDh
-000078D9:	LD A,(661Bh)
-000078DC:	NOP
+
+000078D1:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+000078D4:   DEFW $604E    ; Address
+000078D6:   DEFB $01      ; Bank #1
+
+000078D7:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+000078DA:   DEFW $661B    ; Address
+000078DC:   DEFB $00      ; Bank #0
+
 000078DD:	POP HL
 000078DE:	LD (HL),A
 000078DF:	RET
@@ -3066,23 +3099,28 @@
 000078E0:	LD A,(HL)
 000078E1:	CP 08h
 000078E3:	JP NC,77E9h
-000078E6:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-000078E9:	LD D,C
-000078EA:	LD H,B
-000078EB:	LD BC,D5C9h
-000078EE:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-000078F1:	ADC D
-000078F2:	LD H,B
-000078F3:	LD BC,32AFh
-000078F6:	LD E,B
-000078F7:	RET P
+
+000078E6:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+000078E9:   DEFW $6051    ; Address
+000078EB:   DEFB $01      ; Bank #1
+000078EC:	RET
+
+000078ED:	PUSH DE
+
+000078EE:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+000078F1:   DEFW $608A    ; Address
+000078F3:   DEFB $01      ; Bank #1
+000078F4:	XOR A
+000078F5:	LD (F058h),A
+
 000078F8:	EX HL,(SP)
 000078F9:	CALL 7CBAh
-000078FC:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-000078FF:	LD C,E
-00007900:	LD H,B
-00007901:	LD BC,E9D2h
-00007904:	LD (HL),A
+
+000078FC:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+000078FF:   DEFW $604B    ; Address
+00007901:   DEFB $01      ; Bank #1
+
+00007902:	JP NC,77E9h
 00007905:	POP HL
 00007906:	PUSH BC
 00007907:	PUSH DE
@@ -3090,11 +3128,12 @@
 0000790B:	LD A,(HL)
 0000790C:	CP 08h
 0000790E:	JP NC,77E9h
-00007911:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007914:	LD L,C
-00007915:	LD H,B
-00007916:	LD BC,E9DAh
-00007919:	LD (HL),A
+
+00007911:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007914:   DEFW $6069    ; Address
+00007916:   DEFB $01      ; Bank #1
+
+00007917:	JP C,77E9h
 0000791A:	POP DE
 0000791B:	POP BC
 0000791C:	PUSH HL
@@ -3104,24 +3143,31 @@
 00007924:	LD A,(F056h)		; TILFLG - tile string flag
 00007927:	OR A
 00007928:	JR Z,+07h
-0000792A:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-0000792D:	ADD C
-0000792E:	LD H,B
-0000792F:	LD BC,CDC9h
-00007932:	OR H
-00007933:	LD A,(6084h)
-00007936:	LD BC,7EC9h
+
+0000792A:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+0000792D:   DEFW $6081    ; Address
+0000792F:   DEFB $01      ; Bank #1
+00007930:	RET
+
+00007931:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007934:   DEFW $6084    ; Address
+00007936:   DEFB $01      ; Bank #1
+00007937:   RET
+
+00007938:	LD A,(HL)
 00007939:	INC HL
 0000793A:	INC A
 0000793B:	JR Z,+14h
+
 0000793D:	DEC A
 0000793E:	CP 08h
 00007940:	JP NC,77E9h
-00007943:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007946:	LD A,E
-00007947:	LD H,B
-00007948:	LD BC,E9DAh
-0000794B:	LD (HL),A
+
+00007943:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007946:   DEFW $607B    ; Address
+00007948:   DEFB $01      ; Bank #1
+00007949:	JP C,77E9h
+
 0000794C:	XOR A
 0000794D:	LD (F056h),A		; TILFLG - tile string flag
 00007950:	RET
@@ -3179,10 +3225,13 @@
 0000799C:	CALL 7CD3h
 0000799F:	LD B,(HL)
 000079A0:	INC HL
-000079A1:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-000079A4:	OR H
-000079A5:	LD H,B
-000079A6:	LD BC,EBE5h
+
+000079A1:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+000079A4:   DEFW $60B4    ; Address
+000079A6:   DEFB $01      ; Bank #1
+
+000079A7:	PUSH HL
+000079A8:	EX DE,HL
 000079A9:	CALL 7CBAh
 000079AC:	POP HL
 000079AD:	LD E,(HL)
@@ -3260,10 +3309,13 @@
 00007A35:	LD HL,60B7h
 00007A38:	LD (84BFh),HL
 00007A3B:	POP HL
-00007A3C:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007A3F:	ADC L
-00007A40:	LD H,B
-00007A41:	LD BC,5EC9h
+
+00007A3C:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007A3F:   DEFW $608D    ; Address
+00007A41:   DEFB $01      ; Bank #1
+00007A42:   RET
+
+00007A43:	LD E,(HL)
 00007A44:	INC HL
 00007A45:	LD D,(HL)
 00007A46:	INC HL
@@ -3277,10 +3329,13 @@
 00007A56:	LD BC,7836h
 00007A59:	LD DE,0B61h
 00007A5C:	POP HL
-00007A5D:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007A60:	ADD A
-00007A61:	LD H,B
-00007A62:	LD BC,AFC9h
+
+00007A5D:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007A60:   DEFW $6087    ; Address
+00007A62:   DEFB $01      ; Bank #1
+00007A63:	RET
+
+00007A64:	XOR A
 00007A65:	LD (F071h),A
 00007A68:	PUSH BC
 00007A69:	EX DE,HL
@@ -3292,35 +3347,45 @@
 00007A75:	CALL 7B09h
 00007A78:	POP DE
 00007A79:	POP BC
-00007A7A:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007A7D:	SUB E
-00007A7E:	LD H,B
-00007A7F:	LD BC,0630h
-00007A82:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007A85:	SBC C
-00007A86:	LD H,B
-00007A87:	LD BC,2223h
-00007A8A:	INC HL
-00007A8B:	RET P
-00007A8C:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007A8F:	SUB B
-00007A90:	LD H,B
-00007A91:	LD BC,0630h
-00007A94:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007A97:	SUB (HL)
-00007A98:	LD H,B
-00007A99:	LD BC,2223h
-00007A9C:	LD HL,CDF0h
-00007A9F:	OR H
-00007AA0:	LD A,(604Eh)
-00007AA3:	LD BC,01D1h
-00007AA6:	RST 38h
-00007AA7:	RST 38h
-00007AA8:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007AAB:	LD L,D
-00007AAC:	LD A,H
-00007AAD:	NOP
+
+00007A7A:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007A7D:   DEFW $6093    ; Address
+00007A7F:   DEFB $01      ; Bank #1
+
+00007A80:	JR NC,06h
+
+00007A82:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007A85:   DEFW $6099    ; Address
+00007A87:   DEFB $01      ; Bank #1
+
+00007A88:	INC HL
+00007A89:	LD (F023h),HL
+
+00007A8C:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007A8F:   DEFW $6090    ; Address
+00007A91:   DEFB $01      ; Bank #1
+
+00007A92:	JR NC,06h
+
+00007A94:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007A97:   DEFW $6096    ; Address
+00007A99:   DEFB $01      ; Bank #1
+
+00007A9A:	INC HL
+00007A9B:	LD (F021h),HL
+
+00007A9E:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007AA1:   DEFW $604E    ; Address
+00007AA3:   DEFB $01      ; Bank #1
+
+00007AA4:	POP DE
+00007AA5:	LD BC,FFFFh
+
+00007AA8:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007AAB:   DEFW $7C6A    ; Address
+00007AAD:   DEFB $00      ; Bank #0
 00007AAE:	RET
+
 00007AAF:	XOR A
 00007AB0:	LD (F013h),A
 00007AB3:	LD C,(HL)
@@ -3333,10 +3398,11 @@
 00007ABB:	INC HL
 00007ABC:	LD D,(HL)
 00007ABD:	INC HL
-00007ABE:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007AC1:	LD H,C
-00007AC2:	LD (HL),D
-00007AC3:	NOP
+
+00007ABE:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007AC1:   DEFW $7261    ; Address
+00007AC3:   DEFB $00      ; Bank #0
+
 00007AC4:	LD B,D
 00007AC5:	LD C,E
 00007AC6:	POP DE
@@ -3347,10 +3413,13 @@
 00007ACE:	EX DE,HL
 00007ACF:	CALL 7CBAh
 00007AD2:	CALL 7B09h
-00007AD5:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007AD8:	LD C,(HL)
-00007AD9:	LD H,B
-00007ADA:	LD BC,7EE1h
+
+00007AD5:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007AD8:   DEFW $604E    ; Address
+00007ADA:   DEFB $01      ; Bank #1
+
+00007ADB:	POP HL
+00007ADC:	LD A,(HL)
 00007ADD:	INC HL
 00007ADE:	CP 05h
 00007AE0:	JP NC,77E9h
@@ -3370,18 +3439,19 @@
 00007AFD:	LD (F013h),A
 00007B00:	POP AF
 00007B01:	POP HL
-00007B02:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007B05:	RLCA
-00007B06:	LD H,B
-00007B07:	NOP
+
+00007B02:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007B05:   DEFW $6007    ; Address
+00007B07:   DEFB $00      ; Bank #0
 00007B08:	RET
 
 00007B09:	PUSH HL
-00007B0A:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007B0D:	LD C,E
-00007B0E:	LD H,B
-00007B0F:	LD BC,E9D2h
-00007B12:	LD (HL),A
+
+00007B0A:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007B0D:   DEFW $604B    ; Address
+00007B0F:   DEFB $01      ; Bank #1
+
+00007B10:	JP NC,77E9h
 00007B13:	POP HL
 00007B14:	RET
 
@@ -3418,10 +3488,13 @@
 00007B4C:	JP NC,77E9h
 00007B4F:	LD (F08Ch),A
 00007B52:	POP AF
-00007B53:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007B56:	LD A,(HL)
-00007B57:	LD H,B
-00007B58:	LD BC,E5C9h
+
+00007B53:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007B56:   DEFW $607E    ; Address
+00007B58:   DEFB $01      ; Bank #1
+00007B59:	RET
+
+00007B5A:	PUSH HL
 00007B5B:	EX DE,HL
 00007B5C:	XOR A
 00007B5D:	CALL 7BB0h
@@ -3435,11 +3508,12 @@
 00007B6F:	JP Z,77E9h
 00007B72:	JP C,77E9h
 00007B75:	LD (F090h),HL
-00007B78:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007B7B:	LD D,H
-00007B7C:	LD H,B
-00007B7D:	LD BC,2F2Ah
-00007B80:	RET P
+
+00007B78:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007B7B:   DEFW $6054    ; Address
+00007B7D:   DEFB $01      ; Bank #1
+
+00007B7E:	LD HL,(F02F)
 00007B81:	EX DE,HL
 00007B82:	LD HL,(F031h)
 00007B85:	OR A
@@ -3447,10 +3521,13 @@
 00007B88:	JP C,77E9h
 00007B8B:	JP Z,77E9h
 00007B8E:	LD (F092h),HL
-00007B91:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007B94:	LD D,A
-00007B95:	LD H,B
-00007B96:	LD BC,7EE1h
+
+00007B91:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007B94:   DEFW $6057    ; Address
+00007B96:   DEFB $01      ; Bank #1
+
+00007B97:	POP HL
+00007B98:	LD	A,(HL)
 00007B99:	INC HL
 00007B9A:	INC A
 00007B9B:	CP 09h
@@ -3461,10 +3538,13 @@
 00007BA3:	CP 09h
 00007BA5:	JP NC,77E9h
 00007BA8:	LD C,A
-00007BA9:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007BAC:	LD E,D
-00007BAD:	LD H,B
-00007BAE:	LD BC,F5C9h
+
+00007BA9:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007BAC:   DEFW $605A    ; Address
+00007BAE:   DEFB $01      ; Bank #1
+00007BAF:	RET
+
+00007BB0:	PUSH AF
 00007BB1:	LD E,(HL)
 00007BB2:	INC HL
 00007BB3:	LD D,(HL)
@@ -3529,11 +3609,12 @@
 00007C23:	JP C,77E9h
 00007C26:	LD HL,F094h
 00007C29:	CALL 20F4h			; DEC_FACCU2HL - copy number value from FPREG (FP accumulator) to HL
-00007C2C:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007C2F:	LD D,H
-00007C30:	LD H,B
-00007C31:	LD BC,B821h
-00007C34:	RET P
+
+00007C2C:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007C2F:   DEFW $6054    ; Address
+00007C31:   DEFB $01      ; Bank #1
+
+00007C32:	LD HL,F0B8h
 00007C35:	CALL 20DAh				; PHLTFP - Number at HL to BCDE
 00007C38:	LD HL,F0BCh
 00007C3B:	CALL 1DE3h
@@ -3542,12 +3623,17 @@
 00007C42:	JP C,77E9h
 00007C45:	LD HL,F098h
 00007C48:	CALL 20F4h			; DEC_FACCU2HL - copy number value from FPREG (FP accumulator) to HL
-00007C4B:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007C4E:	LD D,A
-00007C4F:	LD H,B
-00007C50:	LD BC,B4CDh
-00007C53:	LD A,(6078h)
-00007C56:	LD BC,C5C9h
+
+00007C4B:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007C4E:   DEFW $6057    ; Address
+00007C50:   DEFB $01      ; Bank #1
+
+00007C51:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007C54:   DEFW $6078    ; Address
+00007C56:   DEFB $01      ; Bank #1
+00007C57:	RET
+
+00007C58:	PUSH BC
 00007C59:	LD DE,(F02Bh)
 00007C5D:	PUSH DE
 00007C5E:	CALL 7C8Dh
@@ -3562,10 +3648,13 @@
 00007C75:	LD HL,F02Fh
 00007C78:	LD DE,F0B8h
 00007C7B:	LD BC,F0A0h
-00007C7E:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007C81:	LD H,E
-00007C82:	LD H,B
-00007C83:	LD BC,E1EBh
+
+00007C7E:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007C81:   DEFW $6063    ; Address
+00007C83:   DEFB $01      ; Bank #1
+
+00007C84:	EX DE,HL
+00007C85:	POP HL
 00007C86:	ADD HL,DE
 00007C87:	EX DE,HL
 00007C88:	POP HL
@@ -3595,10 +3684,13 @@
 00007CB0:	LD E,(HL)
 00007CB1:	INC HL
 00007CB2:	LD D,(HL)
-00007CB3:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007CB6:	XOR (HL)
-00007CB7:	LD H,B
-00007CB8:	LD BC,4EC9h
+
+00007CB3:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007CB6:   DEFW $60AE    ; Address
+00007CB8:   DEFB $01      ; Bank #1
+00007CB9:	RET
+
+00007CBA:	LD C,(HL)
 00007CBB:	INC HL
 00007CBC:	LD B,(HL)
 00007CBD:	INC HL
@@ -3614,12 +3706,14 @@
 
 00007CD3:	LD A,(HL)
 00007CD4:	INC HL
-00007CD5:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007CD8:	LD L,H
-00007CD9:	LD H,B
-00007CDA:	LD BC,C3D0h
-00007CDD:	LD PC,HL
-00007CDE:	LD (HL),A
+
+00007CD5:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007CD8:   DEFW $606C    ; Address
+00007CDA:   DEFB $01      ; Bank #1
+
+00007CDB:	RET NC
+00007CDC:	JP 77E9h
+
 00007CDF:	LD A,(F01Fh)
 00007CE2:	LD B,A
 00007CE3:	PUSH BC
@@ -3636,6 +3730,7 @@
 00007CF5:	LD A,B
 00007CF6:	LD (F01Fh),A
 00007CF9:	RET
+
 00007CFA:	DEC HL
 00007CFB:	CALL 1895h
 00007CFE:	PUSH HL
@@ -3664,11 +3759,12 @@
 00007D25:	LD A,(F044h)	; ATRBYT (aka PPALET)
 00007D28:	PUSH AF
 00007D29:	LD A,(F01Fh)
-00007D2C:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007D2F:	LD L,H
-00007D30:	LD H,B
-00007D31:	LD BC,C13Ah
-00007D34:	ADD H
+
+00007D2C:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007D2F:   DEFW $606C    ; Address
+00007D31:   DEFB $01      ; Bank #1
+
+00007D32:	LD	A,(84C1h)
 00007D35:	OR A
 00007D36:	PUSH AF
 00007D37:	LD A,(F087h)		; SCREEN - screen mode
@@ -3779,12 +3875,14 @@
 00007E09:	EI
 00007E0A:	LD BC,0000h
 00007E0D:	LD DE,00C9h
-00007E10:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007E13:	LD C,(HL)
-00007E14:	LD H,B
-00007E15:	LD BC,BB2Ah
-00007E18:	LD PC,HL
+
+00007E10:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007E13:   DEFW $604E    ; Address
+00007E15:   DEFB $01      ; Bank #1
+
+00007E16:	LD HL,(E9BBh)
 00007E19:	JP 7E5Bh
+
 00007E1C:	LD DE,FE7Fh
 00007E1F:	LD HL,(E9BBh)
 00007E22:	DEC HL
@@ -3837,10 +3935,13 @@
 00007E7B:	OUTA (32h)
 00007E7D:	POP AF
 00007E7E:	LD (F044h),A	; ATRBYT (aka PPALET)
-00007E81:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007E84:	LD L,H
-00007E85:	LD H,B
-00007E86:	LD BC,C9AFh
+
+00007E81:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007E84:   DEFW $606C    ; Address
+00007E86:   DEFB $01      ; Bank #1
+00007E87:	XOR A
+00007E88:	RET
+
 00007E89:	LD HL,0050h
 00007E8C:	CALL 235Ah
 00007E8F:	LD (F0ACh),HL
@@ -3944,255 +4045,21 @@
 00007EFD:	NOP
 00007EFE:	NOP
 00007EFF:	NOP
-00007F00:	NOP
-00007F01:	LD D,A
-00007F02:	NOP
-00007F03:	LD D,A
-00007F04:	NOP
-00007F05:	LD D,A
-00007F06:	NOP
-00007F07:	NOP
-00007F08:	INC B
-00007F09:	LD B,B
-00007F0A:	INC B
-00007F0B:	LD D,D
-00007F0C:	INC B
-00007F0D:	LD (HL),C
-00007F0E:	NOP
-00007F0F:	INC E
-00007F10:	NOP
-00007F11:	NOP
-00007F12:	NOP
-00007F13:	LD D,A
-00007F14:	NOP
-00007F15:	LD D,A
-00007F16:	NOP
-00007F17:	LD D,A
-00007F18:	NOP
-00007F19:	NOP
-00007F1A:	NOP
-00007F1B:	NOP
-00007F1C:	RRA
-00007F1D:	RRCA
-00007F1E:	NOP
-00007F1F:	NOP
-00007F20:	RRA
-00007F21:	RRA
-00007F22:	NOP
-00007F23:	NOP
-00007F24:	NOP
-00007F25:	NOP
-00007F26:	LD L,L
-00007F27:	LD (HL),C
-00007F28:	NOP
-00007F29:	NOP
-00007F2A:	DEC E
-00007F2B:	LD E,B
-00007F2C:	NOP
-00007F2D:	NOP
-00007F2E:	NOP
-00007F2F:	NOP
-00007F30:	NOP
-00007F31:	NOP
-00007F32:	NOP
-00007F33:	NOP
-00007F34:	DJNZ +67h
-00007F36:	NOP
-00007F37:	NOP
-00007F38:	LD A,(DE)
-00007F39:	LD (DE),A
-00007F3A:	NOP
-00007F3B:	NOP
-00007F3C:	NOP
-00007F3D:	NOP
-00007F3E:	LD D,53h
-00007F40:	NOP
-00007F41:	NOP
-00007F42:	LD H,A
-00007F43:	LD D,D
-00007F44:	NOP
-00007F45:	NOP
-00007F46:	NOP
-00007F47:	NOP
-00007F48:	NOP
-00007F49:	NOP
-00007F4A:	NOP
-00007F4B:	NOP
-00007F4C:	DEC DE
-00007F4D:	DEC D
-00007F4E:	NOP
-00007F4F:	NOP
-00007F50:	LD L,D
-00007F51:	LD D,D
-00007F52:	NOP
-00007F53:	NOP
-00007F54:	NOP
-00007F55:	NOP
-00007F56:	LD L,(HL)
-00007F57:	LD H,E
-00007F58:	NOP
-00007F59:	NOP
-00007F5A:	LD L,C
-00007F5B:	LD E,A
-00007F5C:	NOP
-00007F5D:	NOP
-00007F5E:	NOP
-00007F5F:	NOP
-00007F60:	NOP
-00007F61:	NOP
-00007F62:	NOP
-00007F63:	NOP
-00007F64:	LD L,L
-00007F65:	LD D,C
-00007F66:	NOP
-00007F67:	NOP
-00007F68:	LD L,B
-00007F69:	LD D,L
-00007F6A:	NOP
-00007F6B:	NOP
-00007F6C:	NOP
-00007F6D:	NOP
-00007F6E:	LD H,C
-00007F6F:	INC D
-00007F70:	NOP
-00007F71:	NOP
-00007F72:	LD E,6Ch
-00007F74:	NOP
-00007F75:	NOP
-00007F76:	NOP
-00007F77:	NOP
-00007F78:	NOP
-00007F79:	NOP
-00007F7A:	NOP
-00007F7B:	NOP
-00007F7C:	LD L,E
-00007F7D:	NOP
-00007F7E:	NOP
-00007F7F:	NOP
-00007F80:	INC DE
-00007F81:	DEC C
-00007F82:	NOP
-00007F83:	NOP
-00007F84:	NOP
-00007F85:	NOP
-00007F86:	LD L,L
-00007F87:	LD H,C
-00007F88:	NOP
-00007F89:	NOP
-00007F8A:	LD E,0Ch
-00007F8C:	NOP
-00007F8D:	NOP
-00007F8E:	NOP
-00007F8F:	NOP
-00007F90:	NOP
-00007F91:	NOP
-00007F92:	NOP
-00007F93:	NOP
-00007F94:	NOP
-00007F95:	NOP
-00007F96:	NOP
-00007F97:	NOP
-00007F98:	NOP
-00007F99:	NOP
-00007F9A:	NOP
-00007F9B:	NOP
-00007F9C:	NOP
-00007F9D:	NOP
-00007F9E:	NOP
-00007F9F:	NOP
-00007FA0:	NOP
-00007FA1:	NOP
-00007FA2:	NOP
-00007FA3:	NOP
-00007FA4:	NOP
-00007FA5:	NOP
-00007FA6:	NOP
-00007FA7:	NOP
-00007FA8:	NOP
-00007FA9:	NOP
-00007FAA:	NOP
-00007FAB:	NOP
-00007FAC:	NOP
-00007FAD:	NOP
-00007FAE:	NOP
-00007FAF:	NOP
-00007FB0:	NOP
-00007FB1:	NOP
-00007FB2:	NOP
-00007FB3:	NOP
-00007FB4:	NOP
-00007FB5:	NOP
-00007FB6:	NOP
-00007FB7:	NOP
-00007FB8:	NOP
-00007FB9:	NOP
-00007FBA:	NOP
-00007FBB:	NOP
-00007FBC:	NOP
-00007FBD:	NOP
-00007FBE:	NOP
-00007FBF:	NOP
-00007FC0:	NOP
-00007FC1:	NOP
-00007FC2:	NOP
-00007FC3:	NOP
-00007FC4:	NOP
-00007FC5:	NOP
-00007FC6:	NOP
-00007FC7:	NOP
-00007FC8:	NOP
-00007FC9:	NOP
-00007FCA:	NOP
-00007FCB:	NOP
-00007FCC:	NOP
-00007FCD:	NOP
-00007FCE:	NOP
-00007FCF:	NOP
-00007FD0:	NOP
-00007FD1:	NOP
-00007FD2:	NOP
-00007FD3:	NOP
-00007FD4:	NOP
-00007FD5:	NOP
-00007FD6:	NOP
-00007FD7:	NOP
-00007FD8:	NOP
-00007FD9:	NOP
-00007FDA:	NOP
-00007FDB:	NOP
-00007FDC:	NOP
-00007FDD:	NOP
-00007FDE:	NOP
-00007FDF:	NOP
-00007FE0:	NOP
-00007FE1:	NOP
-00007FE2:	NOP
-00007FE3:	NOP
-00007FE4:	NOP
-00007FE5:	NOP
-00007FE6:	NOP
-00007FE7:	NOP
-00007FE8:	NOP
-00007FE9:	NOP
-00007FEA:	NOP
-00007FEB:	NOP
-00007FEC:	NOP
-00007FED:	NOP
-00007FEE:	NOP
-00007FEF:	NOP
-00007FF0:	NOP
-00007FF1:	NOP
-00007FF2:	NOP
-00007FF3:	NOP
-00007FF4:	NOP
-00007FF5:	NOP
-00007FF6:	NOP
-00007FF7:	NOP
-00007FF8:	NOP
-00007FF9:	NOP
-00007FFA:	NOP
-00007FFB:	NOP
-00007FFC:	NOP
-00007FFD:	NOP
-00007FFE:	NOP
-00007FFF:	ADD L
+
+1506:7F00  00 57 00 57 00 57 00 00-04 40 04 52 04 71 00 1C   .W.W.W...@.R.q..
+1506:7F10  00 00 00 57 00 57 00 57-00 00 00 00 1F 0F 00 00   ...W.W.W........
+1506:7F20  1F 1F 00 00 00 00 6D 71-00 00 1D 58 00 00 00 00   ......mq...X....
+1506:7F30  00 00 00 00 10 67 00 00-1A 12 00 00 00 00 16 53   .....g.........S
+1506:7F40  00 00 67 52 00 00 00 00-00 00 00 00 1B 15 00 00   ..gR............
+1506:7F50  6A 52 00 00 00 00 6E 63-00 00 69 5F 00 00 00 00   jR....nc..i_....
+1506:7F60  00 00 00 00 6D 51 00 00-68 55 00 00 00 00 61 14   ....mQ..hU....a.
+1506:7F70  00 00 1E 6C 00 00 00 00-00 00 00 00 6B 00 00 00   ...l........k...
+1506:7F80  13 0D 00 00 00 00 6D 61-00 00 1E 0C 00 00 00 00   ......ma........
+1506:7F90  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00   ................
+1506:7FA0  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00   ................
+1506:7FB0  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00   ................
+1506:7FC0  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00   ................
+1506:7FD0  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00   ................
+1506:7FE0  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00   ................
+1506:7FF0  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 85   ................
+
