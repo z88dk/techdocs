@@ -8338,6 +8338,25 @@ _SIN:
 000033F4:       SCF
 000033F5:       RET
 
+
+; key map
+000033F6:
+
+1506:33F0                    0A BA-34 30 BA 34 30 BA 34 30         ..40.40.40
+1506:3400  BA 34 30 BA 34 30 BD 34-00 10 BD 34 04 BD 34 04   .40.40.4...4..4.
+1506:3410  BD 34 04 BD 34 04 BD 34-04 BD 34 02 2B 01 35 60   .4..4..4..4.+.5`
+1506:3420  09 35 40 BA 34 00 BD 34-06 11 35 06 BD 34 08 30   .5@.4..4..5..4.0
+1506:3430  1F 35 5B BD 34 0A B2 34-00 BD 34 0C 26 35 0C BD   .5[.4..4..4.&5..
+1506:3440  34 0E 3A BA 34 30 B4 34-20 B2 34 00 BD 34 10 BD   4.:.40.4 .4..4..
+1506:3450  34 12 BD 34 14 40 BD 34-16 BD 34 18 B2 34 00 BD   4..4.@.4..4..4..
+1506:3460  34 1A BD 34 1C BD 34 1E-49 BD 34 20 BD 34 22 B2   4..4..4.I.4 .4".
+1506:3470  34 00 BD 34 20 BD 34 22-B2 34 00 4E D2 34 00 34   4..4 .4".4.N.4.4
+1506:3480  35 05 B2 34 00 D2 34 00-34 35 05 B2 34 00 E3 35   5..4..4.45..4..5
+1506:3490  F3 35 ED 35 F9 35 14 36-2F 36 34 36 39 36 3E 36   .5.5.5.6/64696>6
+1506:34A0  48 36 52 36 5C 36 62 36-68 36 6E 36 74 36 7A 36   H6R6\6b6h6n6t6z6
+1506:34B0  7E 36 37 C9 B9 20 03 3E-30 C9 91 80 C9 91 16 00   ~67.. .>0.......
+
+
 000033F6:       LD A,(BC)
 000033F7:       CP D
 000033F8:       INC (HL)
@@ -9125,9 +9144,10 @@ _SIN:
 00003883:       LD A,0Ch
 00003885:       OUTA (FFh)
 00003887:       JR -62h
+
 00003889:       POP AF
 0000388A:       PUSH AF
-0000388B:       CALL 38BDh
+0000388B:       CALL 38BDh		; 64E2h, Bank #2
 0000388E:       CALL 3D67h
 00003891:       CALL 3D8Dh
 00003894:       LD A,01h
@@ -9250,7 +9270,7 @@ _SIN:
 
 0000395C:       CALL 39E4h		; jump to remote bank. follows address (word) and bank (byte)
 				DEFW 6021h
-				DEFB 3			; ..will jump to 6040h, bank 3
+				DEFB 3			; ..will jump to 6040h, bank 3 (->  page the BASE ROM back in and return)
 				
 00003962:       LD BC,0854h
 00003965:       LD HL,3DA4h
@@ -9382,9 +9402,9 @@ _SIN:
 00003A1F:       POP DE
 00003A20:       LD A,H
 00003A21:       OR L
-00003A22:       JP Z,3A29h
+00003A22:       JP Z,3A29h			; if HL=0, then just return 
 00003A25:       POP AF
-00003A26:       EX HL,(SP)
+00003A26:       EX HL,(SP)			; ..otherwise jp to the given address
 00003A27:       EI
 00003A28:       RET
 
@@ -10517,7 +10537,7 @@ LPTOUT:
 00004070:       JR NZ,-07h
 00004072:       RET
 
-00004073:       LD BC,0804h
+00004073:       LD BC,0804h		; B=8, C=4
 00004076:       LD E,00h
 00004078:       INA (40h)
 0000407A:       RRCA
@@ -13525,6 +13545,7 @@ _CLEAR:
 00005262:       POP HL
 00005263:       DEC HL
 00005264:       RST 10h			; CHRGTB - Gets next character (or token) from BASIC text.
+
 00005265:       PUSH DE
 00005266:       JR Z,+3Dh
 00005268:       RST 08h				; SYNCHR - Check syntax, 1 byte follows to be compared
@@ -15621,6 +15642,7 @@ GVAR:
 00005E64:       RET Z
 00005E65:       DEC H
 00005E66:       JP 4494h
+
 00005E69:       LD A,(E69Fh)
 00005E6C:       OR A
 00005E6D:       INA (71h)			; save Extended ROM bank status
@@ -15983,10 +16005,10 @@ GVAR:
 000060AB:       LD (DE),A
 000060AC:       LD (BC),A
 000060AD:       LD B,05h
-
 000060AF:       INC BC
 000060B0:       DEC C
 000060B1:       JR +15h
+
 000060B3:       INC B
 000060B4:       RET M
 000060B5:       LD SP,HL
@@ -16481,16 +16503,19 @@ GVAR:
 000063F5:       LD A,(E69Fh)
 000063F8:       OR A
 000063F9:       JR NZ,+00h
+
 000063FB:       PUSH AF
 000063FC:       CALL 5E69h
 000063FF:       POP AF
 00006400:       CALL NZ,7675h
 00006403:       XOR A
 00006404:       RET
+
 00006405:       CALL ECE2h
 00006408:       LD A,(E69Fh)
 0000640B:       OR A
 0000640C:       JR NZ,+00h
+
 0000640E:       LD A,(E69Fh)
 00006411:       OR A
 00006412:       PUSH AF
@@ -16500,6 +16525,7 @@ GVAR:
 0000641A:       CALL NZ,76ACh
 0000641D:       XOR A
 0000641E:       RET
+
 0000641F:       LD A,(E6C6h)
 00006422:       INC A
 00006423:       JR Z,+1Eh
@@ -16751,6 +16777,7 @@ _EDIT:
 000065AC:       INC HL
 000065AD:       LD D,(HL)
 000065AE:       INC HL
+
 000065AF:       PUSH HL
 000065B0:       CALL 5A69h	; OUTDO_CRLF
 000065B3:       EX DE,HL
@@ -16780,6 +16807,7 @@ _EDIT:
 000065E5:       CALL 194Ch
 000065E8:       LD HL,E9B9h
 000065EB:       CALL 1933h
+
 000065EE:       LD HL,(EF86h)			; CSRY (CursorPos) - current text position
 000065F1:       LD A,01h
 000065F3:       CALL 5F86h
@@ -18329,7 +18357,8 @@ _CLS:
 00007204:       RRCA
 00007205:       LD (F011h),A
 00007208:       RET
-00007209:       LD BC,0804h
+
+00007209:       LD BC,0804h		; B=8, C=4
 0000720C:       LD A,(HL)
 0000720D:       RRCA
 0000720E:       RRCA
@@ -19011,6 +19040,7 @@ _TERM:
 00007711:       CALL 6405h
 00007714:       XOR A
 00007715:       RET
+
 00007716:       LD A,(EF7Eh)
 00007719:       OR B
 0000771A:       RET Z
