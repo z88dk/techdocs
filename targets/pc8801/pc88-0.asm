@@ -1446,10 +1446,9 @@
 000068D5:	JP NC,0B06h			; FCERR, Err $05 - "Illegal function call"
 000068D8:	LD (F01Eh),A	; FORCLR - foreground color
 
-000068DB:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-000068DE:	OR C
-000068DF:	LD H,B
-000068E0:	LD BC,nn		; $01
+000068DB:	CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+000068DE:	DEFW $60B1    ; Address
+000068E0:	DEFB $01      ; Bank #1
 000068E1:	RET
 
 000068E2:	AND 70h
@@ -1459,11 +1458,11 @@
 000068E9:	OUTA (52h)
 000068EB:	RET
 
-000068EC:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-000068EF:	XOR E
-000068F0:	LD H,B
-000068F1:	DEFB 1			; LD BC,A3C9h
+000068EC:	CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+000068EF:	DEFW $60AB    ; Address
+000068F1:	DEFB $01      ; Bank #1
 000068F2:	RET
+
 000068F3:	AND E
 000068F4:	JR -02h
 
@@ -3253,11 +3252,12 @@ _KEY:
 
 000074E0:	DEC A
 000074E1:	CALL 4013h
-000074E4:	JP 4FF5h
+000074E4:	JP 4FF5h		; A=(HL), (HL)=0
 
 000074E7:	DEC A
+
 000074E8:	CALL 4013h
-000074EB:	JP 4FFBh
+000074EB:	JP 4FFBh		; A=(HL), (HL)|=2..
 
 000074EE:	PUSH HL
 000074EF:	CALL 4047h
