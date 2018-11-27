@@ -115,11 +115,12 @@
 000060A2:	JP 7A17h
 000060A5:	JP 7E60h
 000060A8:	JP 7E77h
-000060AB:	JP 7EB9h
+000060AB:	JP 7EB9h	; called from bank #0 (68ECh)
 000060AE:	JP 7E9Eh
-000060B1:	JP 7F10h
+000060B1:	JP 7F10h	; called from bank #0 (68DBh)
 000060B4:	JP 6AB1h
 000060B7:	JP 6AF3h
+
 000060BA:	LD HL,0100h
 000060BD:	LD DE,0100h
 000060C0:	LD A,(E6A6h)
@@ -636,10 +637,9 @@
 0000641B:	LD (F033h),HL			; pointer to paint address
 0000641E:	RET
 
-0000641F:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00006422:	RRA
-00006423:	LD L,B
-00006424:	NOP
+0000641F:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00006422:   DEFW $681F    ; Address
+00006424:   DEFB $00      ; Bank #0
 00006425:	RET
 
 00006426:	XOR A
@@ -1381,10 +1381,9 @@
 00006997:	POP HL
 00006998:	RET
 
-00006999:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-0000699C:	RST 18h
-0000699D:	LD (HL),E
-0000699E:	NOP
+00006999:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+0000699C:   DEFW $73DF    ; Address
+0000699E:   DEFB $00      ; Bank #0
 0000699F:	RET
 
 000069A0:	CP 93h
@@ -1398,10 +1397,9 @@
 000069B1:	CP 95h
 000069B3:	JR Z,+10h
 
-000069B5:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-000069B8:	LD B,E
-000069B9:	LD (HL),H
-000069BA:	NOP
+000069B5:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+000069B8:   DEFW $7443    ; Address
+000069BA:   DEFB $00      ; Bank #0
 000069BB:	RET
 
 000069BC:	LD BC,6A19h
@@ -1530,10 +1528,9 @@
 00006A84:	PUSH HL
 00006A85:	JP 78BEh
 
-00006A88:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00006A8B:	LD B,D
-00006A8C:	LD H,L
-00006A8D:	LD (BC),A
+00006A88:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00006A8B:   DEFW $6542    ; Address
+00006A8D:   DEFB $02      ; Bank #2
 00006A8E:	RET
 
 00006A8F:	PUSH BC
@@ -1603,105 +1600,93 @@
 00006AF0:	OUTA (34h)
 00006AF2:	RET
 
-00006AF3:	CALL 39E4h
-00006AF6:	LD D,C
-00006AF7:	LD H,L
-00006AF8:	LD (BC),A
+00006AF3:   CALL 39E4h    ; jump to remote bank. follows address (word) and bank (byte)
+00006AF6:   DEFW $6551    ; Address
+00006AF8:   DEFB $02      ; Bank #2
 00006AF9:	NOP
 
-00006AFA:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00006AFD:	ADD HL,HL
-00006AFE:	LD L,L
-00006AFF:	NOP
+00006AFA:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00006AFD:   DEFW $6D29    ; Address
+00006AFF:   DEFB $00      ; Bank #0
 00006B00:	RET
 
-00006B01:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00006B04:	LD D,E
-00006B05:	LD (HL),B
-00006B06:	NOP
+00006B01:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00006B04:   DEFW $7053    ; Address
+00006B06:   DEFB $00      ; Bank #0
 00006B07:	RET
 
-00006B08:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00006B0B:	LD H,H
-00006B0C:	LD (HL),B
-00006B0D:	NOP
+00006B08:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00006B0B:   DEFW $7064    ; Address
+00006B0D:   DEFB $00      ; Bank #0
 00006B0E:	RET
 
-00006B0F:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00006B12:	DEC H
-00006B13:	LD L,(HL)
-00006B14:	NOP
+00006B0F:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00006B12:   DEFW $6E25    ; Address
+00006B14:   DEFB $00      ; Bank #0
 00006B15:	RET
 
-00006B16:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00006B19:	RET NZ
-00006B1A:	LD L,L
-00006B1B:	NOP
+00006B16:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00006B19:   DEFW $6DC0    ; Address
+00006B1B:   DEFB $00      ; Bank #0
 00006B1C:	RET
 
-00006B1D:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00006B20:	PUSH DE
-00006B21:	LD L,H
-00006B22:	NOP
+00006B1D:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00006B20:   DEFW $6CD5    ; Address
+00006B22:   DEFB $00      ; Bank #0
 00006B23:	RET
 
-00006B24:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00006B27:	LD D,L
-00006B28:	LD L,H
-00006B29:	NOP
+00006B24:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00006B27:   DEFW $6C55    ; Address
+00006B29:   DEFB $00      ; Bank #0
 00006B2A:	RET
 
-00006B2B:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00006B2E:	XOR B
-00006B2F:	LD L,H
-00006B30:	NOP
+00006B2B:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00006B2E:   DEFW $6CA8    ; Address
+00006B30:   DEFB $00      ; Bank #0
 00006B31:	RET
 
-00006B32:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00006B35:	RET NC
-00006B36:	LD (HL),D
-00006B37:	NOP
+00006B32:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00006B35:   DEFW $72D0    ; Address
+00006B37:   DEFB $00      ; Bank #0
 00006B38:	RET
 
-00006B39:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00006B3C:	SBC HL,SP
-00006B3E:	NOP
+00006B39:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00006B3C:   DEFW $72ED    ; Address
+00006B3E:   DEFB $00      ; Bank #0
 00006B3F:	RET
 
-00006B40:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00006B43:	INC H
-00006B44:	LD (HL),E
-00006B45:	NOP
+00006B40:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00006B43:   DEFW $7324    ; Address
+00006B45:   DEFB $00      ; Bank #0
 00006B46:	RET
 
-00006B47:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00006B4A:	LD HL,(0075h)
+00006B47:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00006B4A:   DEFW $752A    ; Address
+00006B4C:   DEFB $00      ; Bank #0
 00006B4D:	RET
 
-00006B4E:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00006B51:	XOR 74h
-00006B53:	NOP
+00006B4E:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00006B51:   DEFW $74EE    ; Address
+00006B53:   DEFB $00      ; Bank #0
 00006B54:	RET
 
-00006B55:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00006B58:	AND C
-00006B59:	LD (HL),L
-00006B5A:	NOP
+00006B55:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00006B58:   DEFW $75A1    ; Address
+00006B5A:   DEFB $00      ; Bank #0
 00006B5B:	RET
 
-00006B5C:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00006B5F:	LD C,A
-00006B60:	LD (HL),L
-00006B61:	NOP
+00006B5C:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00006B5F:   DEFW $754F    ; Address
+00006B61:   DEFB $00      ; Bank #0
 00006B62:	RET
 
-00006B63:	CALL 39E4h
-00006B66:	LD (IX+00h),L
+00006B63:   CALL 39E4h    ; jump to remote bank. follows address (word) and bank (byte)
+00006B66:   DEFW $75DD    ; Address
+00006B68:   DEFB $00      ; Bank #0
 
-00006B69:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00006B6C:	LD A,B
-00006B6D:	LD L,B
-00006B6E:	NOP
+00006B69:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00006B6C:   DEFW $6878    ; Address
+00006B6E:   DEFB $00      ; Bank #0
 00006B6F:	RET
 
 00006B70:	CALL 62D4h
@@ -3590,10 +3575,9 @@
 000078F3:	POP HL
 000078F4:	RET
 
-000078F5:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-000078F8:	INC SP
-000078F9:	LD A,H
-000078FA:	NOP
+000078F5:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+000078F8:   DEFW $7C33    ; Address
+000078FA:   DEFB $00      ; Bank #0
 000078FB:	RET
 
 000078FC:	LD A,(HL)
@@ -4380,10 +4364,9 @@
 00007E57:	EI
 00007E58:	RET
 
-00007E59:	CALL 3AB4h		; call remote bank. follows address (word) and bank (byte)
-00007E5C:	ADD HL,DE
-00007E5D:	LD A,(HL)
-00007E5E:	NOP
+00007E59:   CALL 3AB4h    ; call remote bank. follows address (word) and bank (byte)
+00007E5C:   DEFW $7E19    ; Address
+00007E5E:   DEFB $00      ; Bank #0
 00007E5F:	RET
 
 00007E60:	INA (32h)
