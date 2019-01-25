@@ -1,4 +1,62 @@
 
+# -- Hand edited additions --
+
+b $0050 data area
+
+@ $0000 label=BOOT
+c $0000 T-BASIC ORG address
+
+@ $0018 label=OUTC
+c $0018 Output char in 'A' to console
+
+@ $1022 label=SETMODE
+c $1022 Screen set: A=40h for mode 1, A=80h for mode 2..
+
+@ $1022 label=COLD_BOOT
+c $1022 Entry from power up
+
+@ $7022 label=FACCVT
+c $7022 convert FAC -> ASCII CODE
+
+@ $6e04 label=ASCCVT
+c $6e04 convert ASCII CODE -> FAC
+
+@ $5058 label=LINE_INPUT
+c $5058 Line input with '?'
+
+
+@ $8000 label=INITSA
+D $8000 RAM AREA in ROM BASIC mode
+
+@ $fc84 label=DRVTAB
+D $fc84 System variable DRVTAB
+
+@ $fc82 label=FILTAB
+D $fc82 System variable FILTAB
+
+@ $eb23 label=VARTAB
+D $eb23 System variable VARTAB
+
+@ $eb25 label=ARYTAB
+D $eb25 System variable ARYTAB
+
+@ $eb27 label=STREND
+D $eb27 System variable STREND
+
+@ $fafc label=FRETOP
+D $fafc System variable FRETOP
+
+@ $fad7 label=MEMSIZ
+D $fad7 System variable MEMSIZ
+
+@ $f853 label=TOPMEM
+D $f853 System variable TOPMEM
+
+@ $fb29 label=DATPTR
+D $fb29 System variable DATPTR
+
+
+
 # File size: 32768
 
 # Specific Z80 CPU code detected
@@ -88,8 +146,6 @@ D $fc44 Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 D $fc46 Last byte in Single Precision FP Register (+sign bit)
 @ $fc47 label=FPEXP
 D $fc47 Floating Point Exponent
-@ $fc44 label=DBL_FPREG
-D $fc44 Double Precision Floating Point Register (aka FACLOW)
 @ $fc53 label=DBL_LAST_FPREG
 D $fc53 Last byte in Double Precision FP register (+sign bit)
 
@@ -209,7 +265,7 @@ c $6e22 ASCII to FP number (also '&' prefixes)
 @ $61ab label=PRNUMS
 c $61ab Print number string
 @ $61ac label=PRS
-c $61ac Create string entry and print it
+c $61ac Create string entry and print it, (HL) = zero terminated text
 @ $61af label=PRS1
 c $61af Print string at HL
 @ $6127 label=STR
@@ -283,8 +339,6 @@ c $2c5a Get char from (HL) and make upper case
 c $2c5b Make char in 'A' upper case
 @ $505e label=RINPUT
 c $505e Line input
-@ $0018 label=OUTC
-c $0018 Output char in 'A' to console
 
 @ $1df7 label=DATSNR
 c $1df7 'SN err' entry for Input STMT
@@ -321,43 +375,44 @@ t $19eb BASIC keyword list
 #	RETURN		[137]	
 #	THEN		[217]	
 #	GOSUB		[141]	
+
 @ $7aeb label=__USING
-w $7aeb PRINT USING
+c $7aeb PRINT USING
 
 @ $27c5 label=__TAB(
-w $27c5 PRINT TAB(
+c $27c5 PRINT TAB(
 
 #	SPC(		[222]	- same as TAB(
 #	= assignment		[237]	
 @ $2b98 label=__OPRND
-w $2b98 '+' operand evaluation
+c $2b98 '+' operand evaluation
 
 @ $2c3e label=__SUB_OPRND
-w $2c3e '-' operand evaluation
+c $2c3e '-' operand evaluation
 
 @ $6159 label=__QTSTR
-w $6159 quoted string evaluation
+c $6159 quoted string evaluation
 
 @ $2d52 label=__NOT
-w $2d52 eval NOT boolean operation
+c $2d52 eval NOT boolean operation
 
 @ $2c69 label=__HEXTFP
-w $2c69 Convert HEX to FP
+c $2c69 Convert HEX to FP
 
 @ $2bcb label=__ERR
-w $2bcb ERR function evaluation
+c $2bcb ERR function evaluation
 
 @ $2bd9 label=__ERL
-w $2bd9 ERL function evaluation
+c $2bd9 ERL function evaluation
 
 @ $2be7 label=__VARPTR
-w $2be7 VARPTR function evaluation
+c $2be7 VARPTR function evaluation
 
 @ $2dd4 label=__USR
-w $2dd4 eval user M/C functions
+c $2dd4 eval user M/C functions
 
 @ $641c label=__INSTR
-w $641c INSTR function
+c $641c INSTR function
 
 #	TOKEN_?		[235]	- $7E0A
 #	TOKEN_?		[226]	- $6367
@@ -402,7 +457,6 @@ c $4dbf BASIC command: CLEAR
 #	CLOAD
 @ $562f label=__CLOAD
 c $562f BASIC command: CLOAD
-c  BASIC command: 
 #	CSAVE
 @ $5617 label=__CSAVE
 c 5617 BASIC command: CSAVE
@@ -795,4 +849,264 @@ c $60a4 BASIC command: WRITE
 #	[=      	[237]
 #	[<      	[238]
 #
+
+# hand edited extra tweaking
+c 1501
+b 1502
+b 3999
+b 4007
+b 4230
+b 4339
+b 4352
+b 4423
+b 4936
+b 8164
+b 8858
+b 8943
+b 9639
+b 9748
+b 9794
+b 9892
+b 9939
+b 10230
+b 10318
+b 10473
+b 10781
+b 10784
+b 11241
+b 11262
+b 11324
+b 11522
+b 11794
+b 11836
+b 11875
+b 11935
+b 11941
+b 12024
+b 12200
+b 12251
+b 12275
+b 13032
+b 13097
+b 13105
+b 13366
+b 13368
+b 13370
+b 13372
+b 13650
+b 14839
+b 14841
+b 14940
+b 14942
+b 14944
+b 14946
+b 14948
+b 14950
+b 14957
+b 14959
+b 14961
+b 14963
+b 14965
+b 14972
+b 14974
+b 14980
+b 14982
+b 15497
+b 15557
+b 15559
+b 16096
+b 16288
+b 16290
+b 16391
+b 16444
+b 16468
+b 17052
+b 17319
+b 17321
+b 17353
+b 17440
+b 17447
+b 17564
+b 17577
+b 17603
+b 18774
+b 19250
+b 19264
+b 19727
+b 19917
+b 19946
+b 21602
+b 21638
+b 21705
+b 21818
+b 21820
+b 21845
+b 21850
+b 21921
+b 22408
+b 22414
+b 22419
+b 22525
+b 22607
+b 22619
+b 22621
+b 22626
+b 22892
+b 23207
+b 23298
+b 23695
+b 23975
+b 23999
+b 24088
+b 24109
+b 24117
+b 24119
+b 24121
+b 24126
+b 24336
+b 24341
+b 24791
+b 25449
+b 25455
+b 25460
+b 25622
+b 25648
+b 25656
+b 25666
+b 25760
+b 25799
+b 25884
+b 25889
+b 30685
+b 31474
+b 31768
+
+c 1503
+c 4000
+c 4008
+c 4231
+c 4340
+c 4353
+c 4424
+c 4937
+c 8165
+c 8859
+c 8944
+c 9640
+c 9749
+c 9795
+c 9893
+c 9940
+c 10231
+c 10319
+c 10474
+c 10782
+c 10785
+c 11242
+c 11263
+c 11325
+c 11523
+c 11795
+c 11837
+c 11876
+c 11936
+c 11942
+c 12025
+c 12201
+c 12252
+c 12276
+c 13033
+c 13098
+c 13106
+c 13367
+c 13369
+c 13371
+c 13373
+c 13651
+c 14840
+c 14842
+c 14941
+c 14943
+c 14945
+c 14947
+c 14949
+c 14951
+c 14958
+c 14960
+c 14962
+c 14964
+c 14966
+c 14973
+c 14975
+c 14981
+c 14983
+c 15498
+c 15558
+c 15560
+c 16097
+c 16289
+c 16291
+c 16392
+c 16445
+c 16469
+c 17053
+c 17320
+c 17322
+c 17354
+c 17441
+c 17448
+c 17565
+c 17578
+c 17604
+c 18775
+c 19251
+c 19265
+c 19728
+c 19918
+c 19947
+c 21603
+c 21639
+c 21706
+c 21819
+c 21821
+c 21846
+c 21851
+c 21922
+c 22409
+c 22415
+c 22420
+c 22526
+c 22608
+c 22620
+c 22622
+c 22627
+c 22893
+c 23208
+c 23299
+c 23696
+c 23976
+c 24000
+c 24089
+c 24110
+c 24118
+c 24120
+c 24122
+c 24127
+c 24337
+c 24342
+c 24792
+c 25450
+c 25456
+c 25461
+c 25623
+c 25649
+c 25657
+c 25667
+c 25761
+c 25800
+c 25885
+c 25890
+c 30686
+c 31475
+c 31769
 
