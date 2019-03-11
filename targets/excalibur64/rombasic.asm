@@ -1,24 +1,26 @@
 
 
+
 ; NOTE: the code listed in this disassembly is not complete, nor the proper bank switching was considered !
+
 
 
 ; ___________ information collected so far about the memory banks ___________
 
 
-; FFFFh                   |----Reserved-----|
-; D400h                   |----CPM CCP------|
-;                         |                 |
-;                         |    User RAM     |
-;                         |                 |
-;                         |                 |
-; 4000h                   |-----------------|-----------------|
-; 3000h  |----PCG RAM-----|      ROM 2      |                 |
-; 2800h  |---Colour RAM---|                 |    Lower CPM    |
-; 2000h  |-- Screen RAM---|-----------------|      memory     |
-;                         |      ROM 1      |                 |
-; 0100h                   |                 |-----------------|
-; 0000h                   |-----------------|--CPM-reserved---|
+;  FFFFh                   |----Reserved-----|
+;  D400h                   |----CPM CCP------|
+;                          |                 |
+;                          |    User RAM     |
+;                          |                 |
+;                          |                 |
+;  4000h                   |-----------------|-----------------|
+;  3000h  |----PCG RAM-----|      ROM 2      |                 |
+;  2800h  |---Colour RAM---|                 |    Lower CPM    |
+;  2000h  |-- Screen RAM---|-----------------|      memory     |
+;                          |      ROM 1      |                 |
+;  0100h                   |                 |-----------------|
+;  0000h                   |-----------------|--CPM-reserved---|
 ;
 ;              bank 2            bank 1            bank 3
 
@@ -38,6 +40,7 @@
 ;      out     (70h),a        ; Set system status
 
 ; _____________________________________________________________________________
+
 
 
 0000 f3        di      
@@ -116,7 +119,7 @@
 006a c35e02    jp      025eh    ; RS232 Input routine
 006d c39e07    jp      079eh    ; Cassette read on routine
 0070 c3c907    jp      07c9h    ; Casette read routine
-0073 c32307    jp      0723h    ; Casseete write on routine
+0073 c32307    jp      0723h    ; Cassette write on routine
 0076 c33d07    jp      073dh    ; Cassette output routine
 0079 c38007    jp      0780h    ; Cassette off routine
 007c c3b606    jp      06b6h    ; Turns CRTC on
@@ -146,11 +149,12 @@
 00c4 c32918    jp      1829h    ; Load a SP value from WRA1 into BC/DE
 00c7 c30e18    jp      180eh    ; Move WRA1 to stack
 00ca c3162a    jp      2a16h    ; FIND_LNUM - Search for line number
-00cd c30135    jp      3501h    ; Find address of variable
+00cd c30135    jp      3501h    ; GETVAR: Find address of variable
 00d0 c39c2d    jp      2d9ch    ; Gosub routine
 00d3 c3ca2d    jp      2dcah    ; Return entry point
 00d6 c39b37    jp      379bh    ; Output a string
 00d9 c3693a    jp      3a69h    ; Print message, text ptr in (HL)
+
 00dc d9        exx
 00dd 210042    ld      hl,4200h
 00e0 cdf510    call    10f5h
@@ -223,7 +227,7 @@
 014f cb46      bit     0,(hl)
 0151 c20702    jp      nz,0207h
 0154 21ce10    ld      hl,10ceh
-0157 cd0d11    call    110dh
+0157 cd0d11    call    110dh		; Output a string to video device
 015a af        xor     a
 015b 3201fe    ld      (0fe01h),a    ; AUTFLG: Auto increment flag 0 = no auto mode, otherwise line number
 015e 010229    ld      bc,2902h
@@ -309,9 +313,9 @@
 020c 3e70      ld      a,70h
 020e 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
 0211 21cd10    ld      hl,10cdh
-0214 cd9b37    call    379bh
+0214 cd9b37    call    379bh			; Output a string
 0217 216602    ld      hl,0266h
-021a cd9b37    call    379bh
+021a cd9b37    call    379bh			; Output a string
 021d cd9d2a    call    2a9dh            ; INLIN
 0220 38f5      jr      c,0217h
 0222 d7        rst     10h                ; CHRGTB: Gets next character (or token) from BASIC text.
@@ -335,6 +339,8 @@
 0242 2254fc    ld      (0fc54h),hl        ; Address of string area boundary
 0245 cd372a    call    2a37h
 0248 c30329    jp      2903h
+
+; RS232 Output routine
 024b 08        ex      af,af'
 024c db11      in      a,(11h)
 024e e601      and     01h
@@ -342,12 +348,16 @@
 0252 08        ex      af,af'
 0253 d310      out     (10h),a
 0255 c9        ret     
+
+; RS232 Status routine
 0256 db11      in      a,(11h)
 0258 e602      and     02h
 025a c8        ret     z
 025b 3eff      ld      a,0ffh
-025d c9        ret     
-025e cd5602    call    0256h
+025d c9        ret
+
+; RS232 Input routine
+025e cd5602    call    0256h			; RS232 Status routine
 0261 28fb      jr      z,025eh
 0263 db10      in      a,(10h)
 0265 c9        ret
@@ -398,7 +408,7 @@
 02a4 c9        ret
 
 02a5 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-02a6 c39e07    jp      079eh
+02a6 c39e07    jp      079eh		; Cassette read on routine
 
 02a9 cdd2fe    call    0fed2h
 02ac fe23      cp      23h
@@ -529,7 +539,7 @@
 0389 fe0b      cp      0bh
 038b cab504    jp      z,04b5h
 038e fe1a      cp      1ah
-0390 cae304    jp      z,04e3h
+0390 cae304    jp      z,04e3h        ; Clear screen routine
 0393 fe0e      cp      0eh
 0395 ca2e04    jp      z,042eh
 0398 fe1e      cp      1eh
@@ -552,9 +562,9 @@
 03c1 fe1d      cp      1dh
 03c3 ca2805    jp      z,0528h
 03c6 fe19      cp      19h
-03c8 cab606    jp      z,06b6h
+03c8 cab606    jp      z,06b6h			; Turns CRTC on
 03cb fe18      cp      18h
-03cd caae06    jp      z,06aeh
+03cd caae06    jp      z,06aeh			; Turns CRTC off
 03d0 c9        ret     
 
 03d1 ed5bddfb  ld      de,(0fbddh)        ; CURSOR POSITION relative to upper L.H. corner
@@ -692,7 +702,7 @@
 04c4 ed5a      adc     hl,de
 04c6 eb        ex      de,hl
 04c7 c9        ret     
-04c8 2819      jr      z,04e3h
+04c8 2819      jr      z,04e3h			; Clear screen routine
 04ca cdf639    call    39f6h            ; GETINT/EVAL
 04cd 7a        ld      a,d
 04ce b7        or      a
@@ -706,23 +716,27 @@
 04dd e6f0      and     0f0h
 04df b0        or      b
 04e0 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
+
+; Clear screen routine
 04e3 e5        push    hl
-04e4 cdae06    call    06aeh
+04e4 cdae06    call    06aeh			; Turns CRTC off
 04e7 cd6806    call    0668h            ; Turns screen ram on
 04ea 210020    ld      hl,2000h
 04ed 01ff07    ld      bc,07ffh
 04f0 3e20      ld      a,20h
-04f2 cd1005    call    0510h
+04f2 cd1005    call    0510h			; Fills BC bytes at HL with A
 04f5 01ff07    ld      bc,07ffh
 04f8 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
-04fb cd1005    call    0510h
+04fb cd1005    call    0510h			; Fills BC bytes at HL with A
 04fe cd6f06    call    066fh            ; Turns screen ram off
-0501 cdb606    call    06b6h
+0501 cdb606    call    06b6h			; Turns CRTC on
 0504 110000    ld      de,0000h
 0507 ed53dffb  ld      (0fbdfh),de
 050b cd0804    call    0408h
 050e e1        pop     hl
-050f c9        ret     
+050f c9        ret
+
+; Fills BC bytes at HL with A
 0510 77        ld      (hl),a
 0511 23        inc     hl
 0512 0b        dec     bc
@@ -943,7 +957,7 @@
 067e f604      or      04h
 0680 1807      jr      0689h
 
-0682 cdae06    call    06aeh
+0682 cdae06    call    06aeh		; Turns CRTC off
 0685 db50      in      a,(50h)        ; get system status
 0687 ee04      xor     04h
 
@@ -959,11 +973,11 @@
 
 069f ed53e1fb  ld      (0fbe1h),de        ; MAXIMUM No. CHARACTERS ALLOWED ON SCREEN
 06a3 060f      ld      b,0fh
-06a5 cdcc06    call    06cch
-06a8 cdb606    call    06b6h
-06ab c3e304    jp      04e3h
+06a5 cdcc06    call    06cch			; Loads CRTC regs with B+1 bytes dwn from HL
+06a8 cdb606    call    06b6h			; Turns CRTC on
+06ab c3e304    jp      04e3h              ; Clear screen routine
 
-06ae 3e01      ld      a,01h
+06ae 3e01      ld      a,01h			; Turns CRTC off
 06b0 d330      out     (30h),a            ; CRTC register select
 06b2 af        xor     a
 06b3 d331      out     (31h),a            ; CRTC data
@@ -982,7 +996,7 @@
 06c9 d331      out     (31h),a            ; CRTC data
 06cb c9        ret
 
-06cc 0e31      ld      c,31h
+06cc 0e31      ld      c,31h			; Loads CRTC regs with B+1 bytes dwn from HL
 06ce 0d        dec     c                ; CRTC register select
 06cf ed41      out     (c),b
 06d1 0c        inc     c                ; CRTC data
@@ -1066,19 +1080,21 @@
 071a c8        ret     z
 071b ed5b8cfc  ld      de,(0fc8ch)
 071f 015000    ld      bc,0050h
-0722 c9        ret     
+0722 c9        ret
+
+; Cassette write on routine
 0723 3ae3fb    ld      a,(0fbe3h)        ; CASSETTE SPEED 01 = 1200 baud 02 = 600 baud  04 = 300 baud
 0726 cbff      set     7,a
 0728 32e3fb    ld      (0fbe3h),a        ; CASSETTE SPEED 01 = 1200 baud 02 = 600 baud  04 = 300 baud
 072b cd8b07    call    078bh
 072e 0600      ld      b,00h
 0730 af        xor     a
-0731 cd3d07    call    073dh
+0731 cd3d07    call    073dh			; Cassette output routine
 0734 10fa      djnz    0730h
 0736 3ea5      ld      a,0a5h
-0738 1803      jr      073dh
+0738 1803      jr      073dh			; Cassette output routine
 
-073a cd3d07    call    073dh
+073a cd3d07    call    073dh			; Cassette output routine
 073d c5        push    bc
 073e cd5707    call    0757h
 0741 0608      ld      b,08h
@@ -1138,9 +1154,10 @@
 079c c1        pop     bc
 079d c9        ret
 
+; Cassette read on routine
 079e d9        exx     
 079f af        xor     a
-07a0 cdc907    call    07c9h
+07a0 cdc907    call    07c9h			; Casette read routine
 07a3 fea5      cp      0a5h
 07a5 20f9      jr      nz,07a0h
 07a7 cd0f07    call    070fh
@@ -1162,6 +1179,7 @@
 07c7 d9        exx     
 07c8 c9        ret
 
+; Casette read routine
 07c9 c5        push    bc
 07ca cd3a08    call    083ah
 07cd cd3a08    call    083ah
@@ -1262,38 +1280,39 @@
 0862 da1c16    jp      c,161ch            ; Overflow Error (OV ERROR)
 0865 e3        ex      (sp),hl
 0866 c5        push    bc
-0867 cd2307    call    0723h
+0867 cd2307    call    0723h			; Cassette write on routine
 086a 3e2f      ld      a,2fh
-086c cd3d07    call    073dh
+086c cd3d07    call    073dh			; Cassette output routine
 086f cd3a07    call    073ah
 0872 08        ex      af,af'
 0873 47        ld      b,a
 0874 7e        ld      a,(hl)
 0875 cdd90e    call    0ed9h
 0878 23        inc     hl
-0879 cd3d07    call    073dh
+0879 cd3d07    call    073dh			; Cassette output routine
 087c 10f6      djnz    0874h
 087e 3e5c      ld      a,5ch
-0880 cd3d07    call    073dh
+0880 cd3d07    call    073dh			; Cassette output routine
 0883 e1        pop     hl
 0884 c1        pop     bc
 0885 7c        ld      a,h
-0886 cd3d07    call    073dh
+0886 cd3d07    call    073dh			; Cassette output routine
 0889 7d        ld      a,l
-088a cd3d07    call    073dh
+088a cd3d07    call    073dh			; Cassette output routine
 088d 78        ld      a,b
-088e cd3d07    call    073dh
+088e cd3d07    call    073dh			; Cassette output routine
 0891 79        ld      a,c
-0892 cd3d07    call    073dh
+0892 cd3d07    call    073dh			; Cassette output routine
 0895 7e        ld      a,(hl)
 0896 23        inc     hl
-0897 cd3d07    call    073dh
+0897 cd3d07    call    073dh			; Cassette output routine
 089a 0b        dec     bc
 089b 78        ld      a,b
 089c b1        or      c
 089d 20f6      jr      nz,0895h
 089f eb        ex      de,hl
-08a0 c9        ret     
+08a0 c9        ret
+
 08a1 e1        pop     hl
 08a2 2b        dec     hl
 08a3 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
@@ -1302,9 +1321,9 @@
 08a6 2803      jr      z,08abh
 08a8 cdc40e    call    0ec4h
 08ab c5        push    bc
-08ac cd9e07    call    079eh
+08ac cd9e07    call    079eh			; Cassette read on routine
 08af 0603      ld      b,03h
-08b1 cdc907    call    07c9h
+08b1 cdc907    call    07c9h			; Casette read routine
 08b4 fe2f      cp      2fh
 08b6 20f7      jr      nz,08afh
 08b8 10f7      djnz    08b1h
@@ -1312,7 +1331,7 @@
 08bb f1        pop     af
 08bc 3e20      ld      a,20h
 08be 2811      jr      z,08d1h
-08c0 cdc907    call    07c9h
+08c0 cdc907    call    07c9h			; Casette read routine
 08c3 5f        ld      e,a
 08c4 0a        ld      a,(bc)
 08c5 cdd90e    call    0ed9h
@@ -1323,21 +1342,21 @@
 08cd 20f1      jr      nz,08c0h
 08cf 3e01      ld      a,01h
 08d1 47        ld      b,a
-08d2 cdc907    call    07c9h
+08d2 cdc907    call    07c9h			; Casette read routine
 08d5 fe5c      cp      5ch
 08d7 2804      jr      z,08ddh
 08d9 10f7      djnz    08d2h
 08db 18c4      jr      08a1h
 08dd e3        ex      (sp),hl
-08de cdc907    call    07c9h
+08de cdc907    call    07c9h			; Casette read routine
 08e1 67        ld      h,a
-08e2 cdc907    call    07c9h
+08e2 cdc907    call    07c9h			; Casette read routine
 08e5 6f        ld      l,a
-08e6 cdc907    call    07c9h
+08e6 cdc907    call    07c9h			; Casette read routine
 08e9 47        ld      b,a
-08ea cdc907    call    07c9h
+08ea cdc907    call    07c9h			; Casette read routine
 08ed 4f        ld      c,a
-08ee cdc907    call    07c9h
+08ee cdc907    call    07c9h			; Casette read routine
 08f1 77        ld      (hl),a
 08f2 23        inc     hl
 08f3 0b        dec     bc
@@ -1472,11 +1491,12 @@
 09cd af        xor     a
 09ce 324dfc    ld      (0fc4dh),a    ; Holds last character typed after break
 09d1 3c        inc     a
-09d2 cd4b37    call    374bh
+09d2 cd4b37    call    374bh		; MKTMST - Make temporary string
 09d5 f1        pop     af
 09d6 2af4fd    ld      hl,(0fdf4h)
 09d9 77        ld      (hl),a
-09da c37837    jp      3778h
+09da c37837    jp      3778h		; TSTOPL
+
 09dd 217202    ld      hl,0272h
 09e0 2241fe    ld      (0fe41h),hl        ; FACCU
 09e3 3e03      ld      a,03h
@@ -1769,8 +1789,8 @@
 0ba8 b7        or      a
 0ba9 79        ld      a,c
 0baa d9        exx     
-0bab fa3d07    jp      m,073dh
-0bae 2018      jr      nz,0bc8h
+0bab fa3d07    jp      m,073dh			; Cassette output routine
+0bae 2018      jr      nz,0bc8h          ; Print routine
 0bb0 f5        push    af
 0bb1 cde802    call    02e8h
 0bb4 d9        exx     
@@ -1786,6 +1806,7 @@
 0bc6 f1        pop     af
 0bc7 c9        ret     
 
+; Print routine
 0bc8 d9        exx     
 0bc9 4f        ld      c,a
 0bca 1e00      ld      e,00h
@@ -1803,7 +1824,8 @@
 0bdd 79        ld      a,c
 0bde cde30b    call    0be3h
 0be1 d9        exx     
-0be2 c9        ret     
+0be2 c9        ret
+
 0be3 dd21e5fb  ld      ix,0fbe5h
 0be7 00        nop     
 0be8 00        nop     
@@ -1812,6 +1834,7 @@
 0beb 00        nop     
 0bec 00        nop     
 0bed 1816      jr      0c05h
+
 0bef af        xor     a
 0bf0 ddb603    or      (ix+03h)
 0bf3 2810      jr      z,0c05h
@@ -1819,14 +1842,14 @@
 0bf8 dd9604    sub     (ix+04h)
 0bfb 47        ld      b,a
 0bfc 3e0a      ld      a,0ah
-0bfe cd2d0c    call    0c2dh
+0bfe cd2d0c    call    0c2dh             ; List routine
 0c01 10f9      djnz    0bfch
 0c03 1816      jr      0c1bh
-0c05 cd2d0c    call    0c2dh
+0c05 cd2d0c    call    0c2dh             ; List routine
 0c08 fe0d      cp      0dh
 0c0a c0        ret     nz
 0c0b 3e0a      ld      a,0ah
-0c0d cd2d0c    call    0c2dh
+0c0d cd2d0c    call    0c2dh             ; List routine
 0c10 dd3404    inc     (ix+04h)
 0c13 dd7e04    ld      a,(ix+04h)
 0c16 ddbe03    cp      (ix+03h)
@@ -1841,9 +1864,11 @@
 0c27 b7        or      a
 0c28 c8        ret     z
 0c29 3e0d      ld      a,0dh
-0c2b 189b      jr      0bc8h
+0c2b 189b      jr      0bc8h          ; Print routine
+
+; List routine
 0c2d 08        ex      af,af'
-0c2e cd450c    call    0c45h
+0c2e cd450c    call    0c45h			; List status routine
 0c31 20fb      jr      nz,0c2eh
 0c33 08        ex      af,af'
 0c34 d360      out     (60h),a
@@ -1855,7 +1880,9 @@
 0c3f 3e09      ld      a,09h
 0c41 d363      out     (63h),a
 0c43 08        ex      af,af'
-0c44 c9        ret     
+0c44 c9        ret
+
+; List status routine
 0c45 db62      in      a,(62h)
 0c47 e603      and     03h
 0c49 c9        ret     
@@ -2252,8 +2279,8 @@
 0ec2 eb        ex      de,hl
 0ec3 c9        ret
 
-0ec4 cd2b32    call    322bh
-0ec7 e7        rst     20h
+0ec4 cd2b32    call    322bh			; EVAL
+0ec7 e7        rst     20h			; GETYPR - Get the number type (FAC)
 0ec8 c28128    jp      nz,2881h            ; Syntax Error (SN ERROR)
 0ecb e5        push    hl
 0ecc cdce38    call    38ceh
@@ -2270,13 +2297,15 @@
 0ede d0        ret     nc
 0edf e65f      and     5fh
 0ee1 c9        ret     
+
 0ee2 cdc902    call    02c9h
 0ee5 2809      jr      z,0ef0h
 0ee7 21a510    ld      hl,10a5h
-0eea cd9b37    call    379bh
+0eea cd9b37    call    379bh			; Output a string
 0eed c30000    jp      0000h
+
 0ef0 217410    ld      hl,1074h
-0ef3 cd9b37    call    379bh
+0ef3 cd9b37    call    379bh			; Output a string
 0ef6 cda211    call    11a2h
 0ef9 1e01      ld      e,01h
 0efb 3ed0      ld      a,0d0h
@@ -2291,7 +2320,7 @@
 0f11 0d        dec     c
 0f12 20ef      jr      nz,0f03h
 0f14 217a10    ld      hl,107ah
-0f17 cd9b37    call    379bh
+0f17 cd9b37    call    379bh			; Output a string
 0f1a cdea09    call    09eah        ; Console status routine
 0f1d b7        or      a
 0f1e c21b00    jp      nz,001bh
@@ -2316,8 +2345,9 @@
 0f45 cd580f    call    0f58h
 0f48 cd540f    call    0f54h
 0f4b 218910    ld      hl,1089h
-0f4e cd9b37    call    379bh
+0f4e cd9b37    call    379bh			; Output a string
 0f51 c30000    jp      0000h
+
 0f54 3e02      ld      a,02h
 0f56 1802      jr      0f5ah
 0f58 3e00      ld      a,00h
@@ -2396,8 +2426,9 @@
 0fec cd472a    call    2a47h
 0fef c31611    jp      1116h
 0ff2 21b710    ld      hl,10b7h
-0ff5 cd9b37    call    379bh
+0ff5 cd9b37    call    379bh			; Output a string
 0ff8 c30000    jp      0000h
+
 0ffb 3e83      ld      a,83h
 0ffd d3e0      out     (0e0h),a
 0fff 3e19      ld      a,19h
@@ -2460,10 +2491,13 @@
 1062 dbf1      in      a,(0f1h)
 1064 b9        cp      c
 1065 c9        ret     
+
+
+
 1066 83        add     a,e
 1067 19        add     hl,de
 1068 00        nop     
-1069 d46100    call    nc,0061h
+1069 d46100    call    nc,0061h			; List status routine
 106c 04        inc     b
 106d 14        inc     d
 106e 2885      jr      z,0ff5h
@@ -2477,6 +2511,7 @@
 1077 161a      ld      d,1ah
 1079 00        nop     
 107a 17        rla     
+
 107b 1649      ld      d,49h
 107d 4e        ld      c,(hl)
 107e 53        ld      d,e
@@ -2548,8 +2583,10 @@
 10c9 6b        ld      l,e
 10ca 0d        dec     c
 10cb 0a        ld      a,(bc)
-10cc 00        nop     
+10cc 00        nop
+
 10cd 1a        ld      a,(de)
+
 10ce 161b      ld      d,1bh
 10d0 49        ld      c,c
 10d1 07        rlca    
@@ -2599,10 +2636,12 @@
 110b e1        pop     hl
 110c c9        ret
 
+; Output a string to video device
 110d 3e00      ld      a,00h
 110f 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
-1112 cd9b37    call    379bh
-1115 c9        ret     
+1112 cd9b37    call    379bh			; Output a string
+1115 c9        ret
+
 1116 cd3a3f    call    3f3ah
 1119 00        nop     
 111a 00        nop     
@@ -2989,7 +3028,7 @@
 13af 3c        inc     a
 13b0 280d      jr      z,13bfh
 13b2 211328    ld      hl,2813h
-13b5 cd9b37    call    379bh
+13b5 cd9b37    call    379bh			; Output a string
 13b8 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
 13bb e5        push    hl
 13bc c3d229    jp      29d2h
@@ -3047,12 +3086,13 @@
 142c c8        ret     z
 142d cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 142e 2c        defb    ','
-142f cd2b32    call    322bh
+142f cd2b32    call    322bh			; EVAL
 1432 e5        push    hl
-1433 e7        rst     20h
+1433 e7        rst     20h			; GETYPR - Get the number type (FAC)
 1434 2806      jr      z,143ch
 1436 cd271e    call    1e27h
 1439 cd5937    call    3759h
+
 143c cd4814    call    1448h
 143f 3e2c      ld      a,2ch
 1441 cd5814    call    1458h
@@ -3139,7 +3179,7 @@
 14d8 e5        push    hl
 14d9 d5        push    de
 14da 21e3fe    ld      hl,0fee3h
-14dd e7        rst     20h
+14dd e7        rst     20h			; GETYPR - Get the number type (FAC)
 14de f5        push    af
 14df 2019      jr      nz,14fah
 14e1 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
@@ -3298,7 +3338,8 @@
 15e0 20f0      jr      nz,15d2h
 15e2 af        xor     a
 15e3 3244fe    ld      (0fe44h),a
-15e6 c9        ret     
+15e6 c9        ret
+
 15e7 05        dec     b
 15e8 29        add     hl,hl
 15e9 7a        ld      a,d
@@ -3401,10 +3442,14 @@
 165e 1f        rra     
 165f 47        ld      b,a
 1660 18ef      jr      1651h
+
+; UNITY - Constant ptr for number 1 in FP
 1662 00        nop     
 1663 00        nop     
 1664 00        nop     
 1665 81        add     a,c
+
+; LOGTAB - Table used by LOG
 1666 03        inc     bc
 1667 aa        xor     d
 1668 56        ld      d,(hl)
@@ -3432,9 +3477,9 @@
 168d d1        pop     de
 168e 04        inc     b
 168f cd0c17    call    170ch
-1692 216216    ld      hl,1662h
+1692 216216    ld      hl,1662h			; UNITY - Constant ptr for number 1 in FP
 1695 cd7a15    call    157ah
-1698 216616    ld      hl,1666h
+1698 216616    ld      hl,1666h			; LOGTAB - Table used by LOG
 169b cd0423    call    2304h
 169e 018080    ld      bc,8080h
 16a1 110000    ld      de,0000h
@@ -3492,12 +3537,14 @@
 16f7 7c        ld      a,h
 16f8 20e1      jr      nz,16dbh
 16fa e1        pop     hl
-16fb c9        ret     
+16fb c9        ret
+
 16fc 43        ld      b,e
 16fd 5a        ld      e,d
 16fe 51        ld      d,c
 16ff 4f        ld      c,a
-1700 c9        ret     
+1700 c9        ret
+
 1701 cd0e18    call    180eh                ; Move WRA1 to stack
 1704 21421c    ld      hl,1c42h
 1707 cd1b18    call    181bh                ; Move a SP value -> HL to WRA1
@@ -3643,7 +3690,7 @@
 17e4 f0        ret     p
 
 ; INVSGN
-17e5 e7        rst     20h
+17e5 e7        rst     20h			; GETYPR - Get the number type (FAC)
 17e6 fac51a    jp      m,1ac5h
 17e9 ca6019    jp      z,1960h
 17ec 2143fe    ld      hl,0fe43h
@@ -3657,7 +3704,7 @@
 17f9 9f        sbc     a,a
 17fa 67        ld      h,a
 17fb c30419    jp      1904h
-17fe e7        rst     20h
+17fe e7        rst     20h			; GETYPR - Get the number type (FAC)
 17ff ca6019    jp      z,1960h
 1802 f2bf17    jp      p,17bfh
 1805 2a41fe    ld      hl,(0fe41h)        ; FACCU
@@ -3745,7 +3792,7 @@
 1869 113d18    ld      de,183dh
 186c d5        push    de
 186d 1141fe    ld      de,0fe41h        ; FACCU
-1870 e7        rst     20h
+1870 e7        rst     20h			; GETYPR - Get the number type (FAC)
 1871 d8        ret     c
 1872 113dfe    ld      de,0fe3dh
 1875 c9        ret     
@@ -3830,7 +3877,7 @@
 
 
 ; GETWORD_HL: Floating point to Integer
-18e9 e7        rst     20h
+18e9 e7        rst     20h			; GETYPR - Get the number type (FAC)
 18ea 2a41fe    ld      hl,(0fe41h)        ; FACCU
 18ed f8        ret     m
 18ee ca6019    jp      z,1960h
@@ -3854,7 +3901,9 @@
 1917 61        ld      h,c
 1918 6a        ld      l,d
 1919 18e8      jr      1903h
-191b e7        rst     20h
+
+; Integer to single precision
+191b e7        rst     20h			; GETYPR - Get the number type (FAC)
 191c e0        ret     po
 191d fa3619    jp      m,1936h
 1920 ca6019    jp      z,1960h
@@ -3874,7 +3923,7 @@
 193e 1e00      ld      e,00h
 1940 0690      ld      b,90h
 1942 c3d317    jp      17d3h
-1945 e7        rst     20h
+1945 e7        rst     20h			; GETYPR - Get the number type (FAC)
 1946 d0        ret     nc
 1947 ca6019    jp      z,1960h
 194a fc3619    call    m,1936h
@@ -3884,7 +3933,7 @@
 1956 3e08      ld      a,08h
 1958 013e04    ld      bc,043eh
 195b c30919    jp      1909h
-195e e7        rst     20h
+195e e7        rst     20h			; GETYPR - Get the number type (FAC)
 195f c8        ret     z
 1960 1e18      ld      e,18h
 1962 c38c28    jp      288ch        ; ERROR, E=error code
@@ -3918,7 +3967,7 @@
 198d c0        ret     nz
 198e 0b        dec     bc
 198f c9        ret     
-1990 e7        rst     20h
+1990 e7        rst     20h			; GETYPR - Get the number type (FAC)
 1991 f8        ret     m
 1992 cdbf17    call    17bfh
 1995 f2a119    jp      p,19a1h
@@ -3926,7 +3975,7 @@
 199b cda119    call    19a1h
 199e c3e517    jp      17e5h        ; INVSGN
 
-19a1 e7        rst     20h
+19a1 e7        rst     20h			; GETYPR - Get the number type (FAC)
 19a2 f8        ret     m
 19a3 301e      jr      nc,19c3h
 19a5 28b9      jr      z,1960h
@@ -4487,19 +4536,20 @@
 1d3e e5        push    hl
 1d3f cce517    call    z,17e5h        ; INVSGN
 1d42 e1        pop     hl
-1d43 e7        rst     20h
+1d43 e7        rst     20h			; GETYPR - Get the number type (FAC)
 1d44 e8        ret     pe
 1d45 e5        push    hl
 1d46 21fa16    ld      hl,16fah
 1d49 e5        push    hl
 1d4a cd0d19    call    190dh
 1d4d c9        ret     
-1d4e e7        rst     20h
+
+1d4e e7        rst     20h			; GETYPR - Get the number type (FAC)
 1d4f 0c        inc     c
 1d50 20df      jr      nz,1d31h
 1d52 dc651d    call    c,1d65h
 1d55 c3ed1c    jp      1cedh
-1d58 e7        rst     20h
+1d58 e7        rst     20h			; GETYPR - Get the number type (FAC)
 1d59 f28128    jp      p,2881h            ; Syntax Error (SN ERROR)
 1d5c 23        inc     hl
 1d5d 18d2      jr      1d31h
@@ -4511,16 +4561,17 @@
 1d66 d5        push    de
 1d67 c5        push    bc
 1d68 f5        push    af
-1d69 cc1b19    call    z,191bh
+1d69 cc1b19    call    z,191bh			; Integer to single precision
 1d6c f1        pop     af
 1d6d c44519    call    nz,1945h
 1d70 c1        pop     bc
 1d71 d1        pop     de
 1d72 e1        pop     hl
 1d73 c9        ret     
+
 1d74 c8        ret     z
 1d75 f5        push    af
-1d76 e7        rst     20h
+1d76 e7        rst     20h			; GETYPR - Get the number type (FAC)
 1d77 f5        push    af
 1d78 e4a817    call    po,17a8h
 1d7b f1        pop     af
@@ -4528,10 +4579,11 @@
 1d7f f1        pop     af
 1d80 3d        dec     a
 1d81 c9        ret     
+
 1d82 d5        push    de
 1d83 e5        push    hl
 1d84 f5        push    af
-1d85 e7        rst     20h
+1d85 e7        rst     20h			; GETYPR - Get the number type (FAC)
 1d86 f5        push    af
 1d87 e40117    call    po,1701h
 1d8a f1        pop     af
@@ -4551,7 +4603,7 @@
 
 1d9a d630      sub     30h
 1d9c f5        push    af
-1d9d e7        rst     20h
+1d9d e7        rst     20h			; GETYPR - Get the number type (FAC)
 1d9e f2c71d    jp      p,1dc7h
 1da1 2a41fe    ld      hl,(0fe41h)        ; FACCU
 1da4 11cd0c    ld      de,0ccdh
@@ -4574,6 +4626,7 @@
 1dbc c1        pop     bc
 1dbd d1        pop     de
 1dbe c3ed1c    jp      1cedh
+
 1dc1 79        ld      a,c
 1dc2 f5        push    af
 1dc3 cd3619    call    1936h
@@ -4616,7 +4669,7 @@
 ; LNUM_MSG
 1e11 e5        push    hl
 1e12 210e28    ld      hl,280eh
-1e15 cd9b37    call    379bh
+1e15 cd9b37    call    379bh			; Output a string
 1e18 e1        pop     hl
 1e19 cd0419    call    1904h
 1e1c af        xor     a
@@ -4726,7 +4779,7 @@
 1edb f1        pop     af
 1edc 281f      jr      z,1efdh
 1ede f5        push    af
-1edf e7        rst     20h
+1edf e7        rst     20h			; GETYPR - Get the number type (FAC)
 1ee0 3e22      ld      a,22h
 1ee2 8f        adc     a,a
 1ee3 77        ld      (hl),a
@@ -5674,7 +5727,7 @@
 2315 feaa      cp      0aah
 2317 ca770e    jp      z,0e77h
 231a feab      cp      0abh
-231c ca6216    jp      z,1662h
+231c ca6216    jp      z,1662h			; UNITY - Constant ptr for number 1 in FP
 231f feac      cp      0ach
 2321 ca000b    jp      z,0b00h
 2324 fead      cp      0adh
@@ -6494,7 +6547,7 @@
 28f3 cd6c1d    call    1d6ch
 28f6 e5        push    hl
 28f7 3e2f      ld      a,2fh
-28f9 dd214b37  ld      ix,374bh
+28f9 dd214b37  ld      ix,374bh		; IX = {MKTMST - Make temporary string}
 28fd cd9a1d    call    1d9ah
 2900 2af4fd    ld      hl,(0fdf4h)
 2903 d1        pop     de
@@ -6532,7 +6585,7 @@
 293d 2ad3fd    ld      hl,(0fdd3h)        ; TMSTPT: Address of next available location in LSPT
 2940 224efb    ld      (0fb4eh),hl
 2943 e1        pop     hl
-2944 dd212b32  ld      ix,322bh
+2944 dd212b32  ld      ix,322bh            ; IX = {EVAL}
 2948 cd9a1d    call    1d9ah
 294b e5        push    hl
 294c dd215e19  ld      ix,195eh
@@ -6631,7 +6684,7 @@
 29fc e5        push    hl
 29fd d5        push    de
 29fe 3e05      ld      a,05h
-2a00 dd214b37  ld      ix,374bh
+2a00 dd214b37  ld      ix,374bh		; IX = {MKTMST - Make temporary string}
 2a04 cd9a1d    call    1d9ah
 2a07 2af4fd    ld      hl,(0fdf4h)
 2a0a 3e48      ld      a,48h
@@ -6676,7 +6729,7 @@
 2a47 e5        push    hl
 2a48 d5        push    de
 2a49 3e11      ld      a,11h
-2a4b dd214b37  ld      ix,374bh
+2a4b dd214b37  ld      ix,374bh		; IX = {MKTMST - Make temporary string}
 2a4f cd9a1d    call    1d9ah
 2a52 2af4fd    ld      hl,(0fdf4h)
 2a55 3e42      ld      a,42h
@@ -6720,7 +6773,7 @@
 2a93 e5        push    hl
 2a94 d5        push    de
 2a95 3e07      ld      a,07h
-2a97 dd214b37  ld      ix,374bh
+2a97 dd214b37  ld      ix,374bh		; IX = {MKTMST - Make temporary string}
 2a9b cd9a1d    call    1d9ah
 2a9e 2af4fd    ld      hl,(0fdf4h)
 2aa1 3e4f      ld      a,4fh
@@ -7077,9 +7130,10 @@
 2d68 328cfb    ld      (0fb8ch),a
 2d6b c9        ret
 
-2d6c dd212d0c  ld      ix,0c2dh
+2d6c dd212d0c  ld      ix,0c2dh             ; IX = {List routine}
 2d70 cd9a1d    call    1d9ah
-2d73 c9        ret     
+2d73 c9        ret
+
 2d74 2b        dec     hl
 2d75 cdc51c    call    1cc5h
 2d78 cd5d0b    call    0b5dh
@@ -7097,6 +7151,8 @@
 2d95 cd520b    call    0b52h
 2d98 2c        inc     l
 2d99 cd961d    call    1d96h
+
+; ?Gosub routine?
 2d9c ed5365fb  ld      (0fb65h),de
 2da0 af        xor     a
 2da1 3261fb    ld      (0fb61h),a
@@ -7194,6 +7250,7 @@
 2e54 a2        and     d
 2e55 47        ld      b,a
 2e56 18dc      jr      2e34h
+
 2e58 2b        dec     hl
 2e59 cd5d0b    call    0b5dh
 2e5c cd520b    call    0b52h
@@ -7207,7 +7264,8 @@
 2e6e ed53affb  ld      (0fbafh),de
 2e72 cd520b    call    0b52h
 2e75 29        add     hl,hl
-2e76 c9        ret     
+2e76 c9        ret
+
 2e77 2b        dec     hl
 2e78 cdc51c    call    1cc5h
 2e7b cd5d0b    call    0b5dh
@@ -7406,7 +7464,8 @@
 306c 227bfb    ld      (0fb7bh),hl
 306f 18d8      jr      3049h
 3071 e1        pop     hl
-3072 c9        ret     
+3072 c9        ret
+
 3073 e5        push    hl
 3074 d5        push    de
 3075 c5        push    bc
@@ -7870,7 +7929,7 @@
 3470 c3f914    jp      14f9h
 3473 e5        push    hl
 3474 cd4315    call    1543h
-3477 dd215500  ld      ix,0055h
+3477 dd215500  ld      ix,0055h				; IX = {HI-RES Selection routine}
 347b cd9a1d    call    1d9ah
 347e 3a8afb    ld      a,(0fb8ah)
 3481 cb87      res     0,a
@@ -7928,7 +7987,7 @@
 
 34f9 e5        push    hl
 34fa cd4b15    call    154bh
-34fd dd215200  ld      ix,0052h
+34fd dd215200  ld      ix,0052h				; IX = {LO-RES Selection routine}
 
 ; GETVAR: Find address of variable
 3501 cd9a1d    call    1d9ah
@@ -7998,9 +8057,12 @@
 35ae 3a8afb    ld      a,(0fb8ah)
 35b1 cb47      bit     0,a
 35b3 2006      jr      nz,35bbh
-35b5 dd215500  ld      ix,0055h
+
+35b5 dd215500  ld      ix,0055h				; IX = {HI-RES Selection routine}
 35b9 1804      jr      35bfh
-35bb dd215200  ld      ix,0052h
+
+35bb dd215200  ld      ix,0052h				; IX = {LO-RES Selection routine}
+
 35bf cd9a1d    call    1d9ah
 35c2 e1        pop     hl
 35c3 c9        ret     
@@ -8070,34 +8132,39 @@
 360d 3a8afb    ld      a,(0fb8ah)
 3610 cb47      bit     0,a
 3612 c22816    jp      nz,1628h
+
 3615 cd4315    call    1543h
-3618 dd215500  ld      ix,0055h
+3618 dd215500  ld      ix,0055h				; IX = {HI-RES Selection routine}
 361c cd9a1d    call    1d9ah
 361f cd4c14    call    144ch
 3622 cd0f1d    call    1d0fh
 3625 c3a014    jp      14a0h
+
 3628 cd4b15    call    154bh
-362b dd215200  ld      ix,0052h
+362b dd215200  ld      ix,0052h				; IX = {LO-RES Selection routine}
 362f cd9a1d    call    1d9ah
 3632 cd4c14    call    144ch
 3635 cd0f1d    call    1d0fh
 3638 c32615    jp      1526h
+
 363b e5        push    hl
 363c 3a8afb    ld      a,(0fb8ah)
 363f cb47      bit     0,a
 3641 c25316    jp      nz,1653h
 3644 cd4b15    call    154bh
 3647 cd4315    call    1543h
-364a dd215500  ld      ix,0055h
+364a dd215500  ld      ix,0055h				; IX = {HI-RES Selection routine}
 364e cd9a1d    call    1d9ah
 3651 e1        pop     hl
-3652 c9        ret     
+3652 c9        ret
+
 3653 cd4315    call    1543h
 3656 cd4b15    call    154bh
-3659 dd215200  ld      ix,0052h
+3659 dd215200  ld      ix,0052h				; IX = {LO-RES Selection routine}
 365d cd9a1d    call    1d9ah
 3660 e1        pop     hl
-3661 c9        ret     
+3661 c9        ret
+
 3662 7e        ld      a,(hl)
 3663 fe23      cp      23h
 3665 282d      jr      z,3694h
@@ -8236,7 +8303,7 @@
 3788 d5        push    de
 3789 cd520b    call    0b52h
 378c 2c        inc     l
-378d dd21103a  ld      ix,3a10h
+378d dd21103a  ld      ix,3a10h			; IX = {GETINT}
 3791 cd9a1d    call    1d9ah
 3794 5f        ld      e,a
 3795 c1        pop     bc
@@ -8377,7 +8444,9 @@
 38c6 c9        ret     
 38c7 3eff      ld      a,0ffh
 38c9 a7        and     a
-38ca c9        ret     
+38ca c9        ret
+
+; GETSTR
 38cb e5        push    hl
 38cc cd4c14    call    144ch
 38cf 210040    ld      hl,4000h
@@ -8394,7 +8463,8 @@
 38e2 cd1b1d    call    1d1bh
 38e5 cd5414    call    1454h
 38e8 e1        pop     hl
-38e9 c9        ret     
+38e9 c9        ret
+
 38ea 1180d8    ld      de,0d880h
 38ed 0e14      ld      c,14h
 38ef cdf318    call    18f3h
@@ -8419,7 +8489,7 @@
 390f 2ad3fd    ld      hl,(0fdd3h)        ; TMSTPT: Address of next available location in LSPT
 3912 224efb    ld      (0fb4eh),hl
 3915 e1        pop     hl
-3916 dd212b32  ld      ix,322bh
+3916 dd212b32  ld      ix,322bh            ; IX = {EVAL}
 391a cd9a1d    call    1d9ah
 391d e5        push    hl
 391e 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
@@ -8529,6 +8599,8 @@
 3a09 cd0f1d    call    1d0fh
 3a0c db50      in      a,(50h)        ; get system status
 3a0e e610      and     10h
+
+; GETINT
 3a10 28fa      jr      z,3a0ch        ; wait for CSYNC - Composite video sync.signal 
 3a12 1a        ld      a,(de)
 3a13 13        inc     de
@@ -8696,7 +8768,7 @@
 3b6d 3ec9      ld      a,0c9h
 3b6f 32b7fe    ld      (0feb7h),a
 3b72 21a33b    ld      hl,3ba3h
-3b75 dd219b37  ld      ix,379bh
+3b75 dd219b37  ld      ix,379bh			; IX= {Output a string}
 3b79 cd9a1d    call    1d9ah
 3b7c dd210329  ld      ix,2903h
 3b80 dde5      push    ix
@@ -8930,15 +9002,15 @@
 3d52 1846      jr      3d9ah
 3d54 dd210c17  ld      ix,170ch
 3d58 1840      jr      3d9ah
-3d5a dd212b32  ld      ix,322bh
+3d5a dd212b32  ld      ix,322bh            ; IX = {EVAL}
 3d5e 183a      jr      3d9ah
 3d60 dd215e19  ld      ix,195eh
 3d64 1834      jr      3d9ah
-3d66 dd210135  ld      ix,3501h            ; ix= {Find address of variable}
+3d66 dd210135  ld      ix,3501h            ; IX= {GETVAR: Find address of variable}
 3d6a 182e      jr      3d9ah
 3d6c dd21e918  ld      ix,18e9h            ; IX= {GETWORD_HL: Floating point to Integer}
 3d70 1828      jr      3d9ah
-3d72 dd211b19  ld      ix,191bh
+3d72 dd211b19  ld      ix,191bh            ; IX= {Integer to single precision}
 3d76 1822      jr      3d9ah
 3d78 dd21f43f  ld      ix,3ff4h
 3d7c 181c      jr      3d9ah
@@ -8951,8 +9023,10 @@
 3d90 dd215910  ld      ix,1059h
 3d94 1804      jr      3d9ah
 3d96 dd21f639  ld      ix,39f6h        ; GETINT/EVAL
+
 3d9a dde5      push    ix
 3d9c c3803f    jp      3f80h
+
 3d9f cd0f1d    call    1d0fh
 3da2 db50      in      a,(50h)        ; get system status
 3da4 e610      and     10h
@@ -9046,7 +9120,7 @@
 3e4f 3ec9      ld      a,0c9h
 3e51 3293fe    ld      (0fe93h),a
 3e54 af        xor     a
-3e55 214dfb    ld      hl,0fb4dh
+3e55 214dfb    ld      hl,0fb4dh		; force the range fb4dh..fbbdh to zero
 3e58 77        ld      (hl),a
 3e59 114efb    ld      de,0fb4eh
 3e5c 017000    ld      bc,0070h
@@ -9508,10 +9582,11 @@
 4066 eb        ex      de,hl
 4067 d1        pop     de
 4068 c3291f    jp      1f29h
+
 406b d5        push    de
 406c af        xor     a
 406d f5        push    af
-406e e7        rst     20h
+406e e7        rst     20h			; GETYPR - Get the number type (FAC)
 406f e28c20    jp      po,208ch
 4072 3a44fe    ld      a,(0fe44h)
 4075 fe91      cp      91h
@@ -9524,13 +9599,15 @@
 4087 d60a      sub     0ah
 4089 f5        push    af
 408a 18e6      jr      4072h
+
 408c cdb920    call    20b9h
-408f e7        rst     20h
+408f e7        rst     20h			; GETYPR - Get the number type (FAC)
 4090 300b      jr      nc,409dh
 4092 014391    ld      bc,9143h
 4095 11f94f    ld      de,4ff9h
 4098 cd7618    call    1876h
 409b 1806      jr      40a3h
+
 409d 11d621    ld      de,21d6h
 40a0 cdb318    call    18b3h
 40a3 f2b520    jp      p,20b5h
@@ -9545,8 +9622,9 @@
 40b5 f1        pop     af
 40b6 b7        or      a
 40b7 d1        pop     de
-40b8 c9        ret     
-40b9 e7        rst     20h
+40b8 c9        ret
+
+40b9 e7        rst     20h			; GETYPR - Get the number type (FAC)
 40ba eac820    jp      pe,20c8h
 40bd 017494    ld      bc,9474h
 40c0 11f823    ld      de,23f8h
@@ -9590,15 +9668,17 @@
 4100 2213fe    ld      (0fe13h),hl        ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
 4103 23        inc     hl
 4104 48        ld      c,b
-4105 c9        ret     
+4105 c9        ret
+
 4106 0d        dec     c
 4107 c0        ret     nz
 4108 362c      ld      (hl),2ch
 410a 23        inc     hl
 410b 0e03      ld      c,03h
-410d c9        ret     
+410d c9        ret
+
 410e d5        push    de
-410f e7        rst     20h
+410f e7        rst     20h			; GETYPR - Get the number type (FAC)
 4110 e25421    jp      po,2154h
 4113 c5        push    bc
 4114 e5        push    hl
@@ -9888,7 +9968,7 @@
 42bc c602      add     a,02h
 42be da9b17    jp      c,179bh
 42c1 f5        push    af
-42c2 216216    ld      hl,1662h
+42c2 216216    ld      hl,1662h			; UNITY - Constant ptr for number 1 in FP
 42c5 cd7515    call    1575h
 42c8 cdab16    call    16abh
 42cb f1        pop     af
@@ -9974,7 +10054,7 @@
 434c c1        pop     bc
 434d d1        pop     de
 434e cdb116    call    16b1h
-4351 216216    ld      hl,1662h
+4351 216216    ld      hl,1662h			; UNITY - Constant ptr for number 1 in FP
 4354 cd7515    call    1575h
 4357 c3aa19    jp      19aah
 435a 2144fc    ld      hl,0fc44h
@@ -10980,7 +11060,7 @@
 48eb e5        push    hl
 48ec 2a0afe    ld      hl,(0fe0ah)        ; ERRLIN: Line No. in which error occured.
 48ef e3        ex      (sp),hl
-48f0 cd9b37    call    379bh
+48f0 cd9b37    call    379bh			; Output a string
 48f3 e1        pop     hl
 48f4 11feff    ld      de,0fffeh
 48f7 df        rst     18h                ; DCOMPR - Compare HL with DE.
@@ -10992,10 +11072,10 @@
 4901 3ec1      ld      a,0c1h
 4903 cd200c    call    0c20h
 4906 cdabfe    call    0feabh
-4909 cd8007    call    0780h
+4909 cd8007    call    0780h			; Cassette off routine
 490c cde42f    call    2fe4h            ; CONSOLE_CRLF
 490f 211328    ld      hl,2813h
-4912 cd9b37    call    379bh
+4912 cd9b37    call    379bh			; Output a string
 4915 3a4efc    ld      a,(0fc4eh)        ; ERRFLG:  ERROR FLAG
 4918 d602      sub     02h
 491a cc513d    call    z,3d51h
@@ -11402,11 +11482,11 @@
 4bae e3        ex      (sp),hl
 4baf cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 4bb0 bd        cp      l
-4bb1 e7        rst     20h
+4bb1 e7        rst     20h			; GETYPR - Get the number type (FAC)
 4bb2 ca6019    jp      z,1960h
 4bb5 d26019    jp      nc,1960h
 4bb8 f5        push    af
-4bb9 cd2b32    call    322bh
+4bb9 cd2b32    call    322bh			; EVAL
 4bbc f1        pop     af
 4bbd e5        push    hl
 4bbe f2d62b    jp      p,2bd6h
@@ -11442,7 +11522,7 @@
 4bf9 c5        push    bc
 4bfa d5        push    de
 4bfb 4f        ld      c,a
-4bfc e7        rst     20h
+4bfc e7        rst     20h			; GETYPR - Get the number type (FAC)
 4bfd 47        ld      b,a
 4bfe c5        push    bc
 4bff e5        push    hl
@@ -11758,6 +11838,7 @@
 4e08 8a        adc     a,d
 4e09 57        ld      d,a
 4e0a 18ed      jr      4df9h
+
 4e0c cd0135    call    3501h        ; GETVAR: Find address of variable
 4e0f cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 4e10 d5        push    de
@@ -11765,9 +11846,9 @@
 4e12 22fffd    ld      (0fdffh),hl
 4e15 eb        ex      de,hl
 4e16 d5        push    de
-4e17 e7        rst     20h
+4e17 e7        rst     20h			; GETYPR - Get the number type (FAC)
 4e18 f5        push    af
-4e19 cd2b32    call    322bh
+4e19 cd2b32    call    322bh			; EVAL
 4e1c f1        pop     af
 4e1d e3        ex      (sp),hl
 4e1e c603      add     a,03h
@@ -11827,7 +11908,7 @@
 4e7c 5f        ld      e,a
 4e7d c39528    jp      2895h
 
-4e80 cd103a    call    3a10h
+4e80 cd103a    call    3a10h		; GETINT
 4e83 7e        ld      a,(hl)
 4e84 47        ld      b,a
 4e85 fe91      cp      91h
@@ -11884,7 +11965,8 @@
 4ed8 3d        dec     a
 4ed9 caa92c    jp      z,2ca9h
 4edc c3f02d    jp      2df0h
-4edf cd103a    call    3a10h
+
+4edf cd103a    call    3a10h		; GETINT
 4ee2 c0        ret     nz
 4ee3 b7        or      a
 4ee4 ca352d    jp      z,2d35h            ; Error: Illegal function call (FC ERROR)
@@ -11924,7 +12006,7 @@
 4f20 c1        pop     bc
 4f21 c31d29    jp      291dh            ; PROMPT
 
-4f24 cd2b32    call    322bh
+4f24 cd2b32    call    322bh			; EVAL
 4f27 7e        ld      a,(hl)
 4f28 fe2c      cp      ','
 4f2a cc622c    call    z,2c62h
@@ -11972,7 +12054,7 @@
 4f7b d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 4f7c cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 4f7d 2c        defb    ','
-4f7e cd2307    call    0723h
+4f7e cd2307    call    0723h			; Cassette write on routine
 4f81 3e80      ld      a,80h
 4f83 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
 4f86 2b        dec     hl
@@ -11989,9 +12071,9 @@
 4f9e fe3b      cp      3bh
 4fa0 ca4f30    jp      z,304fh
 4fa3 c1        pop     bc
-4fa4 cd2b32    call    322bh
+4fa4 cd2b32    call    322bh			; EVAL
 4fa7 e5        push    hl
-4fa8 e7        rst     20h
+4fa8 e7        rst     20h			; GETYPR - Get the number type (FAC)
 4fa9 2832      jr      z,4fddh
 4fab cd271e    call    1e27h
 4fae cd5937    call    3759h
@@ -12081,7 +12163,7 @@
 
 5054 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
 5057 b7        or      a
-5058 fc8007    call    m,0780h
+5058 fc8007    call    m,0780h			; Cassette off routine
 505b af        xor     a
 505c 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
 505f cdbafe    call    0febah
@@ -12103,7 +12185,7 @@
 5077 ca8c28    jp      z,288ch            ; ERROR, E=error code
 507a c1        pop     bc
 507b 216330    ld      hl,3063h
-507e cd9b37    call    379bh
+507e cd9b37    call    379bh			; Output a string
 5081 2a06fe    ld      hl,(0fe06h)        ; SAVTXT (During input:  ADDR of code string for current statement)
 5084 c9        ret
 
@@ -12118,7 +12200,7 @@
 5097 e5        push    hl
 5098 06fa      ld      b,0fah
 509a 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
-509d cdc907    call    07c9h
+509d cdc907    call    07c9h			; Casette read routine
 50a0 77        ld      (hl),a
 50a1 23        inc     hl
 50a2 fe0d      cp      0dh
@@ -12126,7 +12208,7 @@
 50a6 10f5      djnz    509dh
 50a8 2b        dec     hl
 50a9 3600      ld      (hl),00h
-50ab cd8007    call    0780h
+50ab cd8007    call    0780h			; Cassette off routine
 50ae 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
 50b1 2b        dec     hl
 50b2 1822      jr      50d6h
@@ -12194,7 +12276,7 @@
 511d caef2d    jp      z,2defh
 5120 d5        push    de
 5121 cdd8fe    call    0fed8h
-5124 e7        rst     20h
+5124 e7        rst     20h			; GETYPR - Get the number type (FAC)
 5125 f5        push    af
 5126 2019      jr      nz,5141h
 5128 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
@@ -12241,7 +12323,7 @@
 516c cddbfe    call    0fedbh
 516f b6        or      (hl)
 5170 217a31    ld      hl,317ah
-5173 c49b37    call    nz,379bh
+5173 c49b37    call    nz,379bh			; Output a string
 5176 e1        pop     hl
 5177 c35430    jp      3054h
 
@@ -12472,12 +12554,13 @@
 52e6 110464    ld      de,6404h
 52e9 21ac34    ld      hl,34ach
 52ec e5        push    hl
-52ed e7        rst     20h
+52ed e7        rst     20h			; GETYPR - Get the number type (FAC)
 52ee c28932    jp      nz,3289h
 52f1 2a41fe    ld      hl,(0fe41h)        ; FACCU
 52f4 e5        push    hl
 52f5 018034    ld      bc,3480h
 52f8 18c7      jr      52c1h
+
 52fa c1        pop     bc
 52fb 79        ld      a,c
 52fc 32d0fd    ld      (0fdd0h),a
@@ -12584,7 +12667,7 @@
 53c3 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 53c4 3a4efc    ld      a,(0fc4eh)            ; ERRFLG:  ERROR FLAG
 53c7 e5        push    hl
-53c8 cdec36    call    36ech
+53c8 cdec36    call    36ech			; UNSIGNED_RESULT_A
 53cb e1        pop     hl
 53cc c9        ret
 
@@ -12649,7 +12732,7 @@
 5437 e5        push    hl
 5438 eb        ex      de,hl
 5439 2241fe    ld      (0fe41h),hl        ; FACCU
-543c e7        rst     20h
+543c e7        rst     20h			; GETYPR - Get the number type (FAC)
 543d c46118    call    nz,1861h
 5440 e1        pop     hl
 5441 c9        ret
@@ -12671,7 +12754,7 @@
 5459 e3        ex      (sp),hl
 545a e5        push    hl
 545b eb        ex      de,hl
-545c cd103a    call    3a10h
+545c cd103a    call    3a10h		; GETINT
 545f eb        ex      de,hl
 5460 e3        ex      (sp),hl
 5461 1814      jr      5477h
@@ -12694,7 +12777,7 @@
 547d 66        ld      h,(hl)
 547e 69        ld      l,c
 547f e9        jp      (hl)
-5480 cdcb38    call    38cbh
+5480 cdcb38    call    38cbh			; GETSTR
 5483 7e        ld      a,(hl)
 5484 23        inc     hl
 5485 4e        ld      c,(hl)
@@ -12933,12 +13016,13 @@
 55cd 67        ld      h,a
 55ce 6f        ld      l,a
 55cf 2241fe    ld      (0fe41h),hl        ; FACCU
-55d2 e7        rst     20h
+55d2 e7        rst     20h			; GETYPR - Get the number type (FAC)
 55d3 2006      jr      nz,55dbh
 55d5 211228    ld      hl,2812h
 55d8 2241fe    ld      (0fe41h),hl        ; FACCU
 55db e1        pop     hl
-55dc c9        ret     
+55dc c9        ret
+
 55dd e5        push    hl
 55de 2acefd    ld      hl,(0fdceh)        ; DIMFLG
 55e1 e3        ex      (sp),hl
@@ -13092,7 +13176,8 @@
 56b7 09        add     hl,bc
 56b8 eb        ex      de,hl
 56b9 2a13fe    ld      hl,(0fe13h)        ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
-56bc c9        ret     
+56bc c9        ret
+
 56bd af        xor     a
 56be e5        push    hl
 56bf 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
@@ -13104,7 +13189,7 @@
 56cb eb        ex      de,hl
 56cc 210000    ld      hl,0000h
 56cf 39        add     hl,sp
-56d0 e7        rst     20h
+56d0 e7        rst     20h			; GETYPR - Get the number type (FAC)
 56d1 200d      jr      nz,56e0h
 56d3 cdce38    call    38ceh
 56d6 cdda37    call    37dah
@@ -13168,7 +13253,7 @@
 5737 7e        ld      a,(hl)
 5738 23        inc     hl
 5739 e5        push    hl
-573a cdb337    call    37b3h
+573a cdb337    call    37b3h		; TESTR
 573d e1        pop     hl
 573e 4e        ld      c,(hl)
 573f 23        inc     hl
@@ -13178,8 +13263,9 @@
 5745 6f        ld      l,a
 5746 cdc238    call    38c2h
 5749 d1        pop     de
-574a c9        ret     
-574b cdb337    call    37b3h
+574a c9        ret
+
+574b cdb337    call    37b3h		; TESTR
 574e 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
 5751 e5        push    hl
 5752 77        ld      (hl),a
@@ -13188,7 +13274,8 @@
 5755 23        inc     hl
 5756 72        ld      (hl),d
 5757 e1        pop     hl
-5758 c9        ret     
+5758 c9        ret
+
 5759 2b        dec     hl
 575a 0622      ld      b,22h
 575c 50        ld      d,b
@@ -13239,6 +13326,7 @@
 57ad ccee2f    call    z,2feeh
 57b0 03        inc     bc
 57b1 18f2      jr      57a5h
+
 57b3 b7        or      a
 57b4 0ef1      ld      c,0f1h
 57b6 f5        push    af
@@ -13256,7 +13344,8 @@
 57ca 23        inc     hl
 57cb eb        ex      de,hl
 57cc f1        pop     af
-57cd c9        ret     
+57cd c9        ret
+
 57ce f1        pop     af
 57cf 1e1a      ld      e,1ah
 57d1 ca8c28    jp      z,288ch        ; ERROR, E=error code
@@ -13295,12 +13384,14 @@
 580f 1600      ld      d,00h
 5811 19        add     hl,de
 5812 18e6      jr      57fah
+
 5814 c1        pop     bc
 5815 eb        ex      de,hl
 5816 2a1dfe    ld      hl,(0fe1dh)        ; ARREND - Starting address of free space list (FSL)
 5819 eb        ex      de,hl
 581a df        rst     18h            ; DCOMPR - Compare HL with DE.
 581b ca5f38    jp      z,385fh
+
 581e 7e        ld      a,(hl)
 581f 23        inc     hl
 5820 cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
@@ -13351,7 +13442,8 @@
 585b e5        push    hl
 585c d5        push    de
 585d c5        push    bc
-585e c9        ret     
+585e c9        ret
+
 585f d1        pop     de
 5860 e1        pop     hl
 5861 7d        ld      a,l
@@ -13396,7 +13488,7 @@
 5896 86        add     a,(hl)
 5897 1e1c      ld      e,1ch
 5899 da8c28    jp      c,288ch        ; ERROR, E=error code
-589c cd4b37    call    374bh
+589c cd4b37    call    374bh		; MKTMST - Make temporary string
 589f d1        pop     de
 58a0 cdd238    call    38d2h
 58a3 e3        ex      (sp),hl
@@ -13409,7 +13501,8 @@
 58b2 213d32    ld      hl,323dh
 58b5 e3        ex      (sp),hl
 58b6 e5        push    hl
-58b7 c37837    jp      3778h
+58b7 c37837    jp      3778h		; TSTOPL
+
 58ba e1        pop     hl
 58bb e3        ex      (sp),hl
 58bc 7e        ld      a,(hl)
@@ -13444,7 +13537,9 @@
 58e3 09        add     hl,bc
 58e4 22f6fd    ld      (0fdf6h),hl        ; Pointer to next available loc. in string area.
 58e7 e1        pop     hl
-58e8 c9        ret     
+58e8 c9        ret
+
+; BAKTMP - Back to last tmp-str entry
 58e9 2ad3fd    ld      hl,(0fdd3h)        ; TMSTPT: Address of next available location in LSPT
 58ec 2b        dec     hl
 58ed 46        ld      b,(hl)
@@ -13456,15 +13551,18 @@
 58f3 22d3fd    ld      (0fdd3h),hl        ; TMSTPT: Address of next available location in LSPT
 58f6 c9        ret
 
-58f7 01ec36    ld      bc,36ech
+; __LEN
+58f7 01ec36    ld      bc,36ech		; UNSIGNED_RESULT_A
 58fa c5        push    bc
-58fb cdcb38    call    38cbh
+58fb cdcb38    call    38cbh		; GETSTR
 58fe af        xor     a
 58ff 57        ld      d,a
 5900 7e        ld      a,(hl)
 5901 b7        or      a
-5902 c9        ret     
-5903 01ec36    ld      bc,36ech
+5902 c9        ret
+
+; __ASC
+5903 01ec36    ld      bc,36ech			; UNSIGNED_RESULT_A
 5906 c5        push    bc
 5907 cdfb38    call    38fbh
 590a ca352d    jp      z,2d35h            ; Error: Illegal function call (FC ERROR)
@@ -13475,46 +13573,54 @@
 5911 1a        ld      a,(de)
 5912 c9        ret
 
-5913 3e01      ld      a,01h
-5915 cd4b37    call    374bh
-5918 cd133a    call    3a13h
-591b 2af4fd    ld      hl,(0fdf4h)
+; __CHR_S
+5913 3e01      ld      a,01h		; Make temporary string 1 byte long
+5915 cd4b37    call    374bh		; MKTMST - Make temporary string
+5918 cd133a    call    3a13h		; MAKINT
+591b 2af4fd    ld      hl,(0fdf4h)	; TMPSTR+1
 591e 73        ld      (hl),e
+; TOPOOL
 591f c1        pop     bc
-5920 c37837    jp      3778h
+5920 c37837    jp      3778h		; TSTOPL
+
+; FN_STRING
 5923 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 5924 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-5925 28cd      jr      z,58f4h
-5927 103a      djnz    5963h
+5925 28        defb  '('
+5926 cd103a    call    3a10h		; GETINT
 5929 d5        push    de
 592a cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 592b 2c        defb    ','
-592c cd2b32    call    322bh
+592c cd2b32    call    322bh			; EVAL
 592f cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 5930 29        defb    ')'
 5931 e3        ex      (sp),hl
 5932 e5        push    hl
-5933 e7        rst     20h
-5934 2805      jr      z,593bh
-5936 cd133a    call    3a13h
-5939 1803      jr      593eh
-593b cd0739    call    3907h
+5933 e7        rst     20h			; GETYPR - Get the number type (FAC)
+5934 2805      jr      z,593bh		; FN_STRING_0
+5936 cd133a    call    3a13h		; MAKINT
+5939 1803      jr      593eh		; FN_STRING_1
+;FN_STRING_0
+593b cd0739    call    3907h		; __ASC_0
+;FN_STRING_1
 593e d1        pop     de
 593f f5        push    af
 5940 f5        push    af
 5941 7b        ld      a,e
-5942 cd4b37    call    374bh
+5942 cd4b37    call    374bh		; MKTMST - Make temporary string
 5945 5f        ld      e,a
 5946 f1        pop     af
 5947 1c        inc     e
 5948 1d        dec     e
-5949 28d4      jr      z,591fh
+5949 28d4      jr      z,591fh		; TOPOOL
 594b 2af4fd    ld      hl,(0fdf4h)
 594e 77        ld      (hl),a
 594f 23        inc     hl
 5950 1d        dec     e
 5951 20fb      jr      nz,594eh
-5953 18ca      jr      591fh
+5953 18ca      jr      591fh		; TOPOOL
+
+; __LEFT_S
 5955 cdd339    call    39d3h
 5958 af        xor     a
 5959 e3        ex      (sp),hl
@@ -13527,7 +13633,7 @@
 5962 78        ld      a,b
 5963 110e00    ld      de,000eh
 5966 c5        push    bc
-5967 cdb337    call    37b3h
+5967 cdb337    call    37b3h		; TESTR
 596a c1        pop     bc
 596b e1        pop     hl
 596c e5        push    hl
@@ -13545,13 +13651,15 @@
 597b cdc238    call    38c2h
 597e d1        pop     de
 597f cdd238    call    38d2h
-5982 c37837    jp      3778h
+5982 c37837    jp      3778h		; TSTOPL
+
 5985 cdd339    call    39d3h
 5988 d1        pop     de
 5989 d5        push    de
 598a 1a        ld      a,(de)
 598b 90        sub     b
 598c 18cb      jr      5959h
+
 598e eb        ex      de,hl
 598f 7e        ld      a,(hl)
 5990 cdd639    call    39d6h
@@ -13564,7 +13672,7 @@
 599d 2805      jr      z,59a4h
 599f cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 59a0 2c        defb    ','
-59a1 cd103a    call    3a10h
+59a1 cd103a    call    3a10h		; GETINT
 59a4 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 59a5 29        defb    ')'
 59a6 f1        pop     af
@@ -13582,9 +13690,10 @@
 59b5 47        ld      b,a
 59b6 d8        ret     c
 59b7 43        ld      b,e
-59b8 c9        ret     
+59b8 c9        ret
+
 59b9 cdfb38    call    38fbh
-59bc caec36    jp      z,36ech
+59bc caec36    jp      z,36ech			; UNSIGNED_RESULT_A
 59bf 5f        ld      e,a
 59c0 23        inc     hl
 59c1 7e        ld      a,(hl)
@@ -13616,15 +13725,15 @@
 59db fe7a      cp      7ah
 59dd c28128    jp      nz,2881h            ; Syntax Error (SN ERROR)
 59e0 c3423f    jp      3f42h
-59e3 cd133a    call    3a13h
+59e3 cd133a    call    3a13h		; MAKINT
 59e6 3248fc    ld      (0fc48h),a        ; Current port for 'INP' function
 59e9 cd47fc    call    0fc47h
-59ec c3ec36    jp      36ech
+59ec c3ec36    jp      36ech			; UNSIGNED_RESULT_A
 59ef cd023a    call    3a02h
 59f2 c34afc    jp      0fc4ah
 
 59f5 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-59f6 cd2b32    call    322bh
+59f6 cd2b32    call    322bh			; EVAL
 59f9 e5        push    hl
 59fa cde918    call    18e9h            ; GETWORD_HL: Floating point to Integer
 59fd eb        ex      de,hl
@@ -13635,14 +13744,14 @@
 
 
 ; OUT BASIC instruction
-5a02 cd103a    call    3a10h
+5a02 cd103a    call    3a10h		; GETINT
 5a05 3248fc    ld      (0fc48h),a        ; Current port for 'INP' function
 5a08 324bfc    ld      (0fc4bh),a
 5a0b cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 5a0c 2c        defb    ','
 5a0d 1801      jr      5a10h
 5a0f d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-5a10 cd2b32    call    322bh
+5a10 cd2b32    call    322bh			; EVAL
 5a13 cdf939    call    39f9h
 5a16 c2352d    jp      nz,2d35h            ; Error: Illegal function call (FC ERROR)
 5a19 2b        dec     hl
@@ -13695,12 +13804,14 @@
 5a61 cd693a    call    3a69h        ; Print message, text ptr in (HL)
 5a64 cde92f    call    2fe9h
 5a67 18be      jr      5a27h
+
 5a69 7e        ld      a,(hl)
 5a6a b7        or      a
 5a6b c8        ret     z
 5a6c cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
 5a6f 23        inc     hl
 5a70 18f7      jr      5a69h
+
 5a72 e5        push    hl
 5a73 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
 5a76 44        ld      b,h
@@ -13708,6 +13819,7 @@
 5a78 e1        pop     hl
 5a79 16ff      ld      d,0ffh
 5a7b 1803      jr      5a80h
+
 5a7d 03        inc     bc
 5a7e 15        dec     d
 5a7f c8        ret     z
@@ -13766,7 +13878,7 @@
 5ac9 df        rst     18h            ; DCOMPR - Compare HL with DE.
 5aca d2352d    jp      nc,2d35h            ; Error: Illegal function call (FC ERROR)
 5acd 211328    ld      hl,2813h
-5ad0 cd9b37    call    379bh
+5ad0 cd9b37    call    379bh			; Output a string
 5ad3 c1        pop     bc
 5ad4 21d229    ld      hl,29d2h
 5ad7 e3        ex      (sp),hl
@@ -13785,26 +13897,27 @@
 
 5ae9 fe4d      cp      4dh
 5aeb ca4b08    jp      z,084bh
-5aee cd2b32    call    322bh
+5aee cd2b32    call    322bh			; EVAL
 5af1 e5        push    hl
-5af2 cd0739    call    3907h
-5af5 cd2307    call    0723h
+5af2 cd0739    call    3907h			; __ASC_0
+5af5 cd2307    call    0723h			; Cassette write on routine
 5af8 3ed3      ld      a,0d3h
-5afa cd3d07    call    073dh
+5afa cd3d07    call    073dh			; Cassette output routine
 5afd cd3a07    call    073ah
 5b00 1a        ld      a,(de)
-5b01 cd3d07    call    073dh
+5b01 cd3d07    call    073dh			; Cassette output routine
 5b04 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
 5b07 eb        ex      de,hl
 5b08 2a19fe    ld      hl,(0fe19h)        ; Addr of simple variables
 5b0b 1a        ld      a,(de)
 5b0c 13        inc     de
-5b0d cd3d07    call    073dh
+5b0d cd3d07    call    073dh			; Cassette output routine
 5b10 df        rst     18h            ; DCOMPR - Compare HL with DE.
 5b11 20f8      jr      nz,5b0bh
-5b13 cd8007    call    0780h
+5b13 cd8007    call    0780h			; Cassette off routine
 5b16 e1        pop     hl
-5b17 c9        ret     
+5b17 c9        ret
+
 5b18 7e        ld      a,(hl)
 5b19 fe4d      cp      4dh
 5b1b caa308    jp      z,08a3h
@@ -13817,8 +13930,8 @@
 5b28 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 5b29 3e00      ld      a,00h
 5b2b 2807      jr      z,5b34h
-5b2d cd2b32    call    322bh
-5b30 cd0739    call    3907h
+5b2d cd2b32    call    322bh			; EVAL
+5b30 cd0739    call    3907h			; __ASC_0
 5b33 1a        ld      a,(de)
 5b34 6f        ld      l,a
 5b35 f1        pop     af
@@ -13828,13 +13941,13 @@
 5b3b cc372a    call    z,2a37h
 5b3e 2a41fe    ld      hl,(0fe41h)        ; FACCU
 5b41 eb        ex      de,hl
-5b42 cd9e07    call    079eh
+5b42 cd9e07    call    079eh		; Cassette read on routine
 5b45 0603      ld      b,03h
-5b47 cdc907    call    07c9h
+5b47 cdc907    call    07c9h			; Casette read routine
 5b4a d6d3      sub     0d3h
 5b4c 20f7      jr      nz,5b45h
 5b4e 10f7      djnz    5b47h
-5b50 cdc907    call    07c9h
+5b50 cdc907    call    07c9h			; Casette read routine
 5b53 1c        inc     e
 5b54 1d        dec     e
 5b55 2803      jr      z,5b5ah
@@ -13842,7 +13955,7 @@
 5b58 2037      jr      nz,5b91h
 5b5a 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
 5b5d 0603      ld      b,03h
-5b5f cdc907    call    07c9h
+5b5f cdc907    call    07c9h			; Casette read routine
 5b62 5f        ld      e,a
 5b63 96        sub     (hl)
 5b64 a2        and     d
@@ -13857,23 +13970,25 @@
 5b73 10ea      djnz    5b5fh
 5b75 2219fe    ld      (0fe19h),hl        ; Addr of simple variables
 5b78 211328    ld      hl,2813h
-5b7b cd9b37    call    379bh
-5b7e cd8007    call    0780h
+5b7b cd9b37    call    379bh			; Output a string
+5b7e cd8007    call    0780h			; Cassette off routine
 5b81 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
 5b84 e5        push    hl
 5b85 c3d229    jp      29d2h
+
 5b88 21a33b    ld      hl,3ba3h
-5b8b cd9b37    call    379bh
+5b8b cd9b37    call    379bh			; Output a string
 5b8e c30229    jp      2902h
 
 5b91 323e3c    ld      (3c3eh),a
 5b94 0603      ld      b,03h
-5b96 cdc907    call    07c9h
+5b96 cdc907    call    07c9h			; Casette read routine
 5b99 b7        or      a
 5b9a 20f8      jr      nz,5b94h
 5b9c 10f8      djnz    5b96h
 5b9e cda107    call    07a1h
 5ba1 18a2      jr      5b45h
+
 5ba3 42        ld      b,d
 5ba4 41        ld      b,c
 5ba5 44        ld      b,h
@@ -13881,15 +13996,17 @@
 5ba7 00        nop     
 5ba8 cde918    call    18e9h            ; GETWORD_HL: Floating point to Integer
 5bab 7e        ld      a,(hl)
-5bac c3ec36    jp      36ech
+5bac c3ec36    jp      36ech			; UNSIGNED_RESULT_A
+
 5baf cdf639    call    39f6h        ; GETINT/EVAL
 5bb2 d5        push    de
 5bb3 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 5bb4 2c        defb    ','
-5bb5 cd103a    call    3a10h
+5bb5 cd103a    call    3a10h		; GETINT
 5bb8 d1        pop     de
 5bb9 12        ld      (de),a
-5bba c9        ret     
+5bba c9        ret
+
 5bbb cd2c32    call    322ch
 5bbe cd5e19    call    195eh
 5bc1 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
@@ -13917,6 +14034,7 @@
 5be1 66        ld      h,(hl)
 5be2 69        ld      l,c
 5be3 181c      jr      5c01h
+
 5be5 58        ld      e,b
 5be6 e5        push    hl
 5be7 0e02      ld      c,02h
@@ -14056,7 +14174,7 @@
 5cb5 2850      jr      z,5d07h
 5cb7 c5        push    bc
 5cb8 d5        push    de
-5cb9 cd2b32    call    322bh
+5cb9 cd2b32    call    322bh			; EVAL
 5cbc d1        pop     de
 5cbd c1        pop     bc
 5cbe c5        push    bc
@@ -14069,7 +14187,7 @@
 5cc8 7a        ld      a,d
 5cc9 f680      or      80h
 5ccb cd281e    call    1e28h
-5cce cd9b37    call    379bh
+5cce cd9b37    call    379bh			; Output a string
 5cd1 e1        pop     hl
 5cd2 2b        dec     hl
 5cd3 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
@@ -14101,6 +14219,7 @@
 5cf6 b7        or      a
 5cf7 c2013c    jp      nz,3c01h
 5cfa 1806      jr      5d02h
+
 5cfc cd473d    call    3d47h
 5cff cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
 5d02 e1        pop     hl
@@ -14111,6 +14230,7 @@
 5d0b cdd138    call    38d1h
 5d0e e1        pop     hl
 5d0f c35430    jp      3054h
+
 5d12 0e01      ld      c,01h
 5d14 3ef1      ld      a,0f1h
 5d16 05        dec     b
@@ -14119,7 +14239,7 @@
 5d1b f1        pop     af
 5d1c 28e9      jr      z,5d07h
 5d1e c5        push    bc
-5d1f cd2b32    call    322bh
+5d1f cd2b32    call    322bh			; EVAL
 5d22 cd5e19    call    195eh
 5d25 c1        pop     bc
 5d26 c5        push    bc
@@ -14164,6 +14284,7 @@
 5d67 eb        ex      de,hl
 5d68 cd162a    call    2a16h                ; FIND_LNUM - Search for line number
 5d6b d2c42d    jp      nc,2dc4h
+
 5d6e 60        ld      h,b
 5d6f 69        ld      l,c
 5d70 23        inc     hl
@@ -14256,7 +14377,8 @@
 5e0f 23        inc     hl
 5e10 15        dec     d
 5e11 20f5      jr      nz,5e08h
-5e13 c9        ret     
+5e13 c9        ret
+
 5e14 e5        push    hl
 5e15 215d3e    ld      hl,3e5dh
 5e18 e3        ex      (sp),hl
@@ -14270,6 +14392,7 @@
 5e24 7e        ld      a,(hl)
 5e25 b7        or      a
 5e26 ca3c3e    jp      z,3e3ch
+
 5e29 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
 5e2c f1        pop     af
 5e2d f5        push    af
@@ -14289,6 +14412,7 @@
 5e41 cde92f    call    2fe9h
 5e44 c1        pop     bc
 5e45 c37a3d    jp      3d7ah
+
 5e48 7e        ld      a,(hl)
 5e49 b7        or      a
 5e4a c8        ret     z
@@ -14303,7 +14427,8 @@
 5e5b 20f3      jr      nz,5e50h
 5e5d 3e21      ld      a,21h
 5e5f cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5e62 c9        ret     
+5e62 c9        ret
+
 5e63 7e        ld      a,(hl)
 5e64 b7        or      a
 5e65 c8        ret     z
@@ -14314,7 +14439,8 @@
 5e6e 04        inc     b
 5e6f 15        dec     d
 5e70 20f1      jr      nz,5e63h
-5e72 c9        ret     
+5e72 c9        ret
+
 5e73 3600      ld      (hl),00h
 5e75 48        ld      c,b
 5e76 16ff      ld      d,0ffh
@@ -14374,6 +14500,7 @@
 5ec9 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
 5ecc 23        inc     hl
 5ecd c37b3e    jp      3e7bh
+
 5ed0 78        ld      a,b
 5ed1 b7        or      a
 5ed2 c8        ret     z
@@ -14419,6 +14546,7 @@
 5f0d ff        rst     38h
 5f0e ff        rst     38h
 5f0f ff        rst     38h
+
 5f10 3eff      ld      a,0ffh
 5f12 181c      jr      5f30h
 5f14 3efe      ld      a,0feh
@@ -14452,6 +14580,7 @@
 5f4c 1806      jr      5f54h
 5f4e 3ef0      ld      a,0f0h
 5f50 1802      jr      5f54h
+
 5f52 00        nop     
 5f53 00        nop     
 5f54 f5        push    af
