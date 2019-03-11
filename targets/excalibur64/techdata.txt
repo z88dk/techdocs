@@ -1,0 +1,1899 @@
+
+
+ *** VERSION_2.10_BASIC ***  - PRELIMINARY
+
+ *** SCREEN_FUNCTIONS *** :
+
+The  contents of each character position displayed upon the  screen  
+is  defined by sixteen bits of information in screen memory  space.   
+These  16 bits are broken up into two bytes which are  functionally  
+further divided as shown in Fig. 1.
+
+*Fig. 1.*
+
+               *COLOUR BYTE              CHARACTER BYTE*
+
+          b7 -  -  -   -  -  -  b0  b7 -  -  -  -  -  -  b0
+
+          f7 f6 f5 f4  b3 b2 b1 P   G  c6 c5 c4 c3 c2 c1 c0
+
+   where -
+
+          f7 f6 f5 f4 = FOREGROUND COLOUR SELECTION
+
+          b3 b2 b1    = BACKGROUND COLOUR SELECTION
+
+          P & G  = CHARACTER SET CODE
+               IF P=0 AND G=0 THEN ASCII CHARACTERS ARE DISPLAYED
+               IF P=0 AND G=1 THEN FIXED GRAPHICS ARE DISPLAYED
+               IF P=1 AND G=1 THEN PROGRAMMABLE GRAPHICS ARE DISPLAYED
+
+          c6 c5 c4 c3 c2 c1 c0 = CHARACTER No (SEE TABLES OF 
+                                  CHARACTER SETS)
+
+Whenever the screen handling routine within the Excalibur  writes  
+a  character  into  the  character byte of  a  particular  screen  
+location,  it also copies the contents of memory location   -1052  
+into  the  corresponding  colour byte.   Hence  by  changing  the  
+contents of location -1052  prior to printing on the screen, both  
+the  foreground and background colours and the type of  character  
+(i.e either programmable or fixed) may be changed.
+
+To  print a graphics character the 'PRINT CHR$(128+C)'  statement  
+should  be used where C=the character byte of Fig.  1 in decimal.   
+If the colour byte (location -1052) has been previously set to an  
+even number (i.e. P=0) then:-
+          (a)   For  the  character  byte  values  X=0->127  the  
+          'PRINT   CHR$(X)'  statement  will  return  the   ASCII  
+          character set.              
+          (b)   For  the  character byte  values  X=128->255  the  
+          'PRINT   CHR$(X)'  statement  will  return  the   fixed  
+          graphics character set.
+If however the colour set byte has previously been set to an  odd  
+number (i.e P=1) then :-
+          (c)  For the character byte values 128->255 the  'PRINT  
+          CHR$(C)'   statement   will  return  the   programmable  
+          graphics characters.
+
+
+
+
+ *** SCREEN_FUNCTIONS *** :
+
+To create a new programmable character the 'PCGEN' statement should  
+be  used.  Each programmable character consists of a 8x12  grid  of  
+dots  which  may  be programmed into any desired pattern  and  then  
+printed as a character onto the screen.
+
+The high resolution mode 80x24 characters may be selected  directly  
+from  the keyboard by pushing control W or from a basic program via  
+the statement 'PRINT CHR$(23)'.
+
+A  second execution of Control W or PRINT CHR$(23) will return  the  
+screen to the low resolution mode.
+
+ *** DESCRIPTION_OF_SCREEN_HANDLING_ROUTINES *** 
+
+         The  EXCALIBUR  screen output routines are  designed  to  
+         operate in two modes,  "TERMINAL MODE" for CPM and BASIC  
+         MODE for the resident MICROSOFT BASIC.  In terminal mode  
+         the screen output routine emulates the widely used ADM3A  
+         terminal  whose control characters and escape  sequences  
+         are  given in Fig.  2.   In BASIC MODE almost all of the  
+         ADM3A's control codes are available but several  operate  
+         differently.
+         The  most  obvious  of these  differences  concerns  the  
+         "carriage  return" code 0DH,  in BASIC MODE this control  
+         character performs in addition to a true carriage return  
+         function an automatic "linefeed" and a "clear to end  of  
+         line" function.  Other differences concern the line feed  
+         or  down cursor and backspace control characters and are  
+         documented in Fig. 2.
+
+ *** DESCRIPTION_OF_ESCAPE_SEQUENCES *** 
+
+                   All  escape sequences start with the  lead  in  
+          character  1BH (^[) which is followed either by one  or  
+          three other characters.  The two operating modes of the  
+          output  routines  "BASIC MODE" and "TERMINAL MODE"  are  
+          automatically entered whenever basic or CPM are entered  
+          respectively however, either mode may be entered at any  
+          time via an escape sequence.
+
+         **Cursor_Addressing**:  ESC = row col
+
+         The escape sequence for cursor addressing is an 'ESC (27  
+          DECIMAL)  followed  by an '=' (61 DECIMAL) followed  by  
+          two ASCII characters representing the row position  and  
+          column  position  to which the cursor is to  be  moved.   
+          The  ASCII  characters representing the row and  column  
+          positions  begin  at "SPACE" (32 DECIMAL)  for  row  or  
+          column   0  and  progress  sequentially  upto  "7"  (55  
+          decimal)  for the bottom row and to "o"  (111  decimal)  
+          for the right most column.
+                   Thus ESC = SPACE SPACE moves the cursor to ROW  
+          0 ,COLUMN 0 (TOP LEFT OF SCREEN) 
+
+
+
+
+         **Terminal_Mode**:  ESC H
+
+         The  escape sequence to enter the TERMINAL MODE  of  the  
+         output routines is an 'ESC' (27 DECIMAL) followed by 'H'  
+         (72 DECIMAL).
+
+         **Basic_Mode**:  ESC I
+
+         The  escape  sequence  to enter the BASIC  MODE  of  the  
+         output routines is an 'ESC' (27 DECIMAL) followed by 'I'  
+         (73 DECIMAL).         
+
+         **Reverse_Video**:  ESC J
+
+          The  escape  sequence  to reverse  the  video  or  more  
+          precisely to swap the background and foreground colours  
+          is  an 'ESC' (27 DECIMAL) followed by 'J' (74 DECIMAL).  
+          The  foreground colours are limited to the first  8  of  
+          the colour#1 menu which are identical to the background  
+          colours.
+
+
+         **Colour_Selection**:  ESC C foreground background
+
+         The escape sequence for the selection of the  foreground  
+         and background colours is 'ESC' (27 DECIMAL) followed by  
+         'C'  (67  DECIMAL)  followed  by  two  ASC11  characters  
+         representing  the  foreground colour and  the  background  
+         colour  respectively.   Colour  0 is represented by  the  
+         character  'A'  (65 DECIMAL) and the  remaining  colours  
+         progress sequentially up to 'p' (80 DECIMAL).
+
+          **Jump_to_User_Function_Key_Programs**
+
+          The  eight  User Function Key Programs normally  called  
+          directly from the keys F1,  F2,  F3 and F4 can be  also  
+          called  via an escape sequence.  The escape sequence is  
+          'ESC' (27 DECIMAL) followed by an ASCII number  between  
+          1  and 8 (49 DECIMAL to 56 DECIMAL) where 1 to 4 relate  
+          to  the  keys F1 to F4 and where 5 to 8 relate  to  the  
+          shifted keys F1 to F4.
+
+
+
+
+.
+
+Fig. 2.
+
+ *** SUMMARY_OF_CONTROL_CHARACTERS_AND_ESCAPE_SEQUENCES_FOR_EXCALIBUR *** 
+
+                   DEC   HEX   CHAR  
+**FUNCTION           CODE  CODE  SEQ.   COMMENTS**
+
+Break                3   03H    ^C    Stops   a   basic   program  
+                                      execution.   Performs  warm  
+                                      reset for CPM.
+
+Bell                 7   07H    ^G    Pulses speaker with a  bell  
+                                      tone.
+
+Backspace or         8   08H    ^H    Cursor left one  character.   
+Cursor Left                           In BASIC MODE the character  
+                                      moved onto by the cursor is  
+                                      erased.
+
+Tab Character        9   09H    ^I    Cursor right to the next 8- 
+                                      column tab position.
+
+Linefeed or Cursor  10   0AH    ^J    Linefeed     with    scroll  
+Down                                  function  in TERMINAL  MODE  
+                                      and  cursor down with  wrap  
+                                      around to top of screen  in  
+                                      BASIC MODE.
+
+Cursor Up           11   0BH    ^K    Cursor  up  one  line  with  
+                                      wrap around.
+
+Cursor Right        12   0CH    ^L    Cursor  right one character  
+                                      position.
+
+Carriage Return     13   0DH    ^M    Cursor   to  Column  1   in  
+                                      TERMINAL  MODE.   In  BASIC  
+                                      MODE also performs clear to  
+                                      end  of line and a linefeed  
+                                      automatically.
+
+Cursor to Column 1  14   0EH    ^N    Cursor to Column 1.
+
+Top of Form TOF     17   11H    ^Q    Move  print to top of  form  
+                                      character.
+
+STOF                18   12H    ^R    Conditional skip to top  of  
+                                      form.  (Top of form only if  
+                                      page started).
+
+Screen List Pause   19   13H    ^S    Will halt a screen listing,  
+                                      any  other  character  will  
+                                      recommence list.
+
+Select High         20   14H    ^T    Selects   80  x  24  screen  
+Resolution                            format and clears screen.
+
+
+
+Fig 2. cont.
+
+ *** SUMMARY_OF_CONTROL_CHARACTERS_AND_ESCAPE_SEQUENCES_FOR_EXCALIBUR *** 
+
+                   DEC   HEX   CHAR  
+**FUNCTION           CODE  CODE  SEQ.   COMMENTS**
+
+Cursor Off          21   15H    ^U    Cursor is made invisible.
+
+Cursor On           22   16H    ^V    Cursor is made visible.
+
+Toggle Resolution   23   17H    ^W    Changes screen resolution.
+
+Screen Off          24   18H    ^X    Turns screen off to a blank  
+                                      screen.
+
+Screen On           25   19H    ^Y    Turns screen on.
+
+Clear Screen        26   1AH    ^Z    Clears  the screen  to  the  
+                                      current  background  colour  
+                                      and homes the cursor.
+
+Escape Character    27   1BH    ^[    Lead  in  character for  an  
+                                      escape sequence.
+
+Clear to End of     28   ICH    ^\    Clears    all     remaining  
+Line                           (^<)   characters    between   the  
+                                      cursor and the end of line.
+
+
+Clear to End of     29   IDH    ^]    Clears    all     remaining  
+Page                            (^=)  characters    between   the  
+                                      cursor and the end of page.
+
+Home Cursor         30   1EH    ^^    Moves  Cursor to  top  left  
+                               (^>)   hand corner of screen.
+
+
+
+
+
+
+ *** LIST_OF_CONSOLE_CONTROL_CHARACTERS_AND_ESCAPE_CHARACTERS***
+
+**Console_Control_Characters**
+
+03H      ; BREAK character
+07H	 ; Bell
+08H	 ; Back space char same as curs left
+08H	 ; Cursor left
+09H	 ; TAB character 
+0AH	 ; Line feed char same as curs down
+0AH	 ; Cursor down
+0BH	 ; Cursor up
+0CH	 ; Cursor right
+0DH	 ; Car ret char   
+0EH	 ; Cursor to column 1
+11H	 ; Top of Form character
+12H	 ; Conditional skip to top of form
+13H	 ; Control-S character
+14H      ; High resolution select
+15H	 ; Cursor off control
+16H	 ; Cursor on control
+17H	 ; Toggle resolution control
+18H	 ; Turn display off
+19H	 ; Turn display on
+1AH	 ; Clear screen, cursor Home
+1BH	 ; Start of esc sequence
+1CH	 ; Clear to end of line
+1DH	 ; Clear to end of page
+1EH	 ; Cursor to home position
+20H	 ; Space character
+
+**Escape_Character_Codes**
+
+3DH      ; Cursor addressing
+48H      ; Terminal mode
+49H	 ; Basic mode
+4AH	 ; Toggle reverse colours
+43H	 ; Set colour escape sequence
+31H->39H ; Jump to User Function Key locations
+
+
+
+
+
+
+ *** SPECIAL_FUNCTION_KEYS***
+
+There  are six special function keys on the EXCALIBUR 64's  key - 
+board   which   perform   immediate  tasks  whenever   they   are  
+detected.  These are the four user programmable keys F1,F2,F3 and  
+F4 and the SYSTEM/BASIC and COLOUR SET/DELETE keys.
+
+*SHIFT & SYSTEM/BASIC*
+        
+        When  both the SHIFT and SYSTEM/BASIC keys  are  detected  
+simultaneously  then  the  EXCALIBUR 64 will jump  to  the  BASIC  
+interpreter  in  ROM and perform either a cold or warm  start  of  
+MICROSOFT's BASIC.
+
+*CONTROL & SYSTEM/BASIC*
+
+        When  both  CONTROL  and SYSTEM/BASIC keys  are  detected  
+simultaneuosly then the EXCALIBUR 64 will attempt to boot CPM  on  
+disk drive "A" if it is available. If CPM cannot be executed then  
+either  a disc related promt message will appear or a restart  of  
+BASIC will be performed.
+
+*COLOUR SET/DELETE*
+
+        When  the COLOUR SET/DELETE key is detected EXCALIBUR  64  
+generates the ASCII delete key (127).
+
+*SHIFT COLOUR SET/DELETE*
+
+        When  both  the  SHIFT  and  COLOUR SET/DELETE  keys  are  
+detected simultaneously then the EXCALIBUR 64 will interpret  the  
+next two keys it detects as the foreground and background colours  
+of  the  video  display.  The  colours are related  to  the  keys  
+according to the list in the colour menus. 
+
+*F1, F2, F3, F4, SHIFT&F1, SHIFT&F2, SHIFT&F3, & SHIFT&F4*
+
+        The four keys F1,  F2,  F3 and F4 together with the SHIFT  
+key define eight user programable function keys.  Upon  detection  
+of  these keys the EXCALIBUR 64 will jump to the appropriate  one  
+of the following locations in RAM and begin execution.
+
+       *KEY	        RAM LOCATION*
+	F1		-1034	FBF6
+	F2		-1031	FBF9
+	F3		-1028	FBFC
+	F4		-1025	FBFF
+     SHIFT&F1		-1022	FC02
+     SHIFT&F2		-1019	FC05
+     SHIFT&F3		-1016	FC08
+     SHIFT&F4		-1013	FC0B
+
+     When  the EXCALIBUR 64 is powered up (cold start) all of the  
+above locations are initialized with RETURNs so that normally the  
+user programmable  function keys are ignored. 
+
+
+
+ *** COLOUR_MENUS_FOR_VERSION_2.1 *** 
+
+
+
+The  EXCALIBUR 64 poessess two foreground colour menus each of 16  
+colours and one background colour menu of 8 colours.  Colours may  
+be  selected by using any of the following:  the COLOUR  command,  
+the COLOUR SET key, a colour escape sequence, or a POKE -1052.
+
+
+
+    f7 f6 f5 f4 = FOREGROUND COLOUR SELECTION BITS OF COLOUR BYTE
+
+Number   Key     f7 f6 f5 f4   COLOUR #1           COLOUR #2
+
+  0       A      0  0  0  0  - BLACK              - BLACK
+  1       B      0  0  0  1  - RED                - RED
+  2       C      0  0  1  0  - BLUE               - GREY BLUE
+  3       D      0  0  1  1  - MAGENTA            - DARK PURPLE
+  4       E      0  1  0  0  - GREEN              - VERY DARK GREEN
+  5       F      0  1  0  1  - YELLOW             - YELLOW GREEN
+  6       G      0  1  1  0  - LIGHT BLUE (CYAN)  - VERY PALE BLUE
+  7       H      0  1  1  0  - WHITE              - WHITE
+  8       I      1  0  0  0  - DARK RED           - DARK RED 
+  9       J      1  0  0  1  - PINK               - PINK
+ 10       K      1  0  1  0  - ORANGE             - FLESH
+ 11       L      1  0  1  1  - BROWN              - YELLOW BROWN
+ 12       M      1  1  0  0  - DARK GREEN         - DARK BROWN
+ 13       N      1  1  0  1  - LIGHT GREEN        - SKY BLUE
+ 14       O      1  1  1  0  - PURPLE             - DARK GREY
+ 15       P      1  1  1  1  - LIGHT GREY         - LIGHT GREY
+
+
+
+    b3 b2 b1    = BACKGROUND COLOUR SELECTION BITS OF COLOUR BYTE
+
+Number   Key     b3 b2 b1      COLOUR #1          COLOUR #2
+
+  0       A      0  0  0     - BLACK              - BLACK
+  1       B      0  0  1     - RED                - RED
+  2       C      0  1  0     - BLUE               - BLUE
+  3       D      0  1  1     - MAGENTA            - MAGENTA
+  4       E      1  0  0     - GREEN              - GREEN
+  5       F      1  0  1     - YELLOW             - YELLOW 
+  6       Ç      1  1  0     - LIGHT BLUE (CYAN)  - LIGHT BLUE (CYAN)
+  7       H      1  1  0     - WHITE              - WHITE
+     
+
+
+
+
+
+***CHARACTER SETS***
+
+
+
+*CHAR.  ASCII  FIXED   PROG.      CHAR.  ASCII  FIXED   PROG.
+ NO.    SET  GRAPHIC GRAPHIC      NO.    SET  GRAPHIC GRAPHIC*
+             (CHAR.NO.+128)                   (CHAR.NO.+128)
+
+
+00                               20      HI 
+
+01                               21    COFF
+
+02                               22     CON  
+
+03     BRK                       23    TRES   
+
+04                               24    SOFF   
+
+05                               25     SON  
+
+06                               26    SCLR  
+
+0     BELL                       27     ESC  
+
+08    BSP                        28    CEOL   
+
+09    TAB                        29    CEOP   
+
+10     LF                        30    HOME
+
+11     UP                        31       
+
+12   RIGHT                       32      SP 
+
+13     CR                        33       !
+
+14    COL1                       34       "
+
+15                               35       #
+
+16                               36       $
+
+17     TOF                       37       %
+
+18    STOF                       38       &
+
+19    STOP                       39       '
+
+
+
+
+
+***CHARACTER SETS***
+
+
+
+*CHAR.  ASCII  FIXED   PROG.      CHAR.  ASCII  FIXED   PROG.
+ NO.    SET  GRAPHIC GRAPHIC      NO.    SET  GRAPHIC GRAPHIC*
+             (CHAR.NO.+128)                   (CHAR.NO.+128)
+
+
+40      (                        60       <
+
+41      )                        61       =
+
+42      *                        62       >
+
+43      +                        63       ?
+
+44      '                        64       @
+
+45      -                        65       A
+
+46      .                        66       B
+
+47      /                        67       C
+
+48      0                        68       D
+
+49      1                        69       E
+
+50      2                        70       F
+
+51      3                        71       G
+
+52      4                        72       H
+
+53      5                        73       I
+
+54      6                        74       J
+
+55      7                        75       K
+
+56      8                        76       L
+
+57      9                        77       M
+
+58      :                        78       N
+
+59      ;                        79       O
+
+
+
+
+***CHARACTER SETS***
+
+
+*CHAR.  ASCII  FIXED   PROG.      CHAR.  ASCII  FIXED   PROG.
+ NO.    SET  GRAPHIC GRAPHIC      NO.    SET  GRAPHIC GRAPHIC*
+             (CHAR.NO.+128)                   (CHAR.NO.+128)
+
+80      P                        104      h
+
+81      Q                        105      i
+
+82      R                        106      j
+
+83      S                        107      k
+
+84      T                        108      l
+
+85      U                        109      m
+
+86      V                        110      n
+
+87      W                        111      o
+
+88      X                        112      p
+
+89      Y                        113      q
+
+90      Z                        114      r
+
+91      [                        115      s
+
+92      \                        116      t
+
+93      ]                        117      u
+
+94      ^                        118      v
+
+95      _                        119      w
+
+96      `                        120      x
+
+97      a                        121      y
+
+98      b                        122      z
+
+99      c                        123      {
+
+100     d                        124      :
+
+101     e                        125      }
+
+102     f                        126      ~
+
+103     g                        127    DEL  
+
+
+
+
+
+
+***I/O_PORT_ALLOCATION_TABLE *** 
+
+The  following is a description of the I/O ports and their function  
+within  the Excalibur 64.   For a specific breakdown of  the  exact  
+function  of each bit the user is referred to the appropriate  data  
+sheet.
+
+
+ *** PORT          DESCRIPTION                          IC DEVICE TYPE *** 
+
+       (CS0)  **KEYBOARD_MATRIX_COLUMN_READ**             (74LS244) 
+
+00H           b0 --> b7   COL0 --> COL7
+          
+              See keyboard matrix diagram
+
+       (CS1)  **SERIAL_COMMUNICATIONS_PORT**              (8251A) 
+
+10H           b0 --> b7   Data port
+11H           b0 --> b7   Control and status port
+
+
+       (CS2)  **PROGRAMMABLE_INTERNAL_TIMER**             (8253) 
+
+20H           b0 --> b7   COUNTER 0 - Audio output freq.
+21H           b0 --> b7   COUNTER 1 - Baud rate gen.(RS232)
+22H           b0 --> b7   COUNTER 2 - Not used
+23H           b0 --> b7   MODE CONTROL WORD
+
+
+       (CS3)  **CATHODE_RAY_TUBE_CONTROLLER**             (6845) 
+
+30H           b0 --> b7   Data pointer register
+31H           b0 --> b7   Data port
+
+
+50H    (CS5)  **SYSTEM_STATUS_REGISTER**                  (74LS367) 
+
+              b0          SCREEN RAM ON   1=Screen on,0=ROM on
+              b1          RAM ON      1=RAM only on,0=ROM & RAM
+              b2          SCREEN RES. STATUS  1=High,0=low
+              b3          COLOUR MENU STATUS  1=menu,0=menu2
+              b4          CSYNC - Composite video sync.signal
+              b5          DISPEN - CRTC display enable signal
+
+
+
+
+
+
+ *** I/O_PORT_ALLOCATION_TABLE_CONTINUED *** 
+
+**PORT          DESCRIPTION                          IC DEVICE TYPE**
+
+
+       (CS6)  **PARALLEL_PERIPHERAL_INTERFACE**           (8255A)
+
+60H           b0 --> b7   Parallel output port data  [PA0-PA7]
+61H           b0 --> b7   Keyboard row drive port  [PB0-PB7]
+62H           b0          Parallel output port 'BUSY' line  (INPUT)   
+                          [PC0]
+              b1          Parallel  output  port 'UNIT  SELECT  AND  
+                          PAPER OUT' LINE (INPUT) [PC1]
+              b2          Parallel output port 'READY' line (INPUT) [PC2]
+              b3          Cassette interface data input line  [PC3]
+              b4          Parallel output port data strobe line  [PC4]
+              b5,b6       Reserved for future use
+              b7          Cassette interface data output line  [PC7]
+63H           b0 --> b7       PPI Control word
+
+
+
+
+70H    (CS7)   **SYSTEM_CONTROL_REGISTER**                (74LS273) 
+              b0          SCREEN select  1=enable screen RAM
+              b1          RAM   select   1=disable ROM and enable RAM
+              b2          SCREEN RESOLUTION   0 selects 40 chars,1=80
+              b3          SELECT COLOUR MENUS
+              b4 --> b7   Reserved for future use									<< memory bank switching
+
+
+
+              **FLOPPY_DISK_CONTROLLER**
+
+E0H           b0 --> b7   DMA CONTROL PORT             Z80A-DMA
+
+E4H           b0          DISK SELECT 1                 74LS174
+              b1          DISK SELECT 2
+              b2          DISK SELECT 3
+              b3          DISK SELECT 4
+              b4          SIDE SELECT
+              b5          Motor drive monostable trigger
+
+E8H           b0          Motor drive monostable status 74LS367
+              b1          Disk size select status
+
+ECH           b0          Disk precompensation select   74LS174
+              b1          Disk size select
+              b2          Disk density select
+
+F0H           b0 --> b7   FDC command/status register  WD2793-02
+F1H           b0 --> b7   FDC tract register
+F2H           b0 --> b7   FDC sector register
+F3H           b0 --> b7   FDC data register
+
+
+
+
+
+***USEFUL MEMORY LOCATIONS FOR THE EXCALIBUR***
+
+
+FBD2  ......  Interrupt exit - initialised to a return
+FBDD  ......  CURSOR POSITION relative to upper L.H. corner
+FBDF  ......  
+FBE1  ......  MAXIMUM No. CHARACTERS ALLOWED ON SCREEN
+FBE3  ......  CASSETTE SPEED 01 = 1200 baud 02 = 600 baud  04 = 300  
+              baud
+FBE4   ...... COLOUR  BYTE  copied into colour  ram  with  every  
+              console output
+FBE8  ......  No. LINES PER PAGE
+FBE9  ......  No. LINES PRINTED SO FAR
+FBF6  ......  Function 1 key exit - initialised to a return
+FBF9  ......  Function 2 key exit - initialised to a return
+FBFC  ......  Function 3 key exit - initialised to a return
+FBFF  ......  Function 4 key exit - initialised to a return
+FC02  ......  Function 5 key exit - initialised to a return
+FC05  ......  Function 6 key exit - initialised to a return
+FC08  ......  Function 7 key exit - initialised to a return
+FC0B  ......  Function 8 key exit - initialised to a return
+
+
+FC42  ......  Contains address of user subroutine
+FC43  ......  Multiplier for RND function
+FC4D  ......  Holds last character typed after break
+FC4E  ......  ERROR FLAG
+FC4F  ......  No. of characters printed on this line
+FC50  ......  Output device code 0 = Video, 1 = Printer, 
+              -1 = Cassette
+FC51  ......  Size of video display line
+FC52  ......  Last comma column position
+FC54  ......  Address of string area boundary
+FC56  ......  Current line number
+FC58  ......  Address of P.S.T.
+
+LOW SCREEN RESOLUTION CRTC DATA
+     FC66  ......Total No. of character intervals in horiz scan
+     FC67  ......No. of characters displayed in a horiz scan
+     FC68  ......Horiz sync position
+     FC69  ......horiz sync pulse width
+     FC6A  ......Total No. of character lines
+     FC6B  ......Adjust for vertical sync
+     FC6C  ......No of lines displayed by CRTC
+     FC6D  ......Vertical sync position
+     FC6E  ......Interlace mode
+     FC6F  ......crtc reg.9
+     FC70  ......crtc reg.10
+     FC71  ......crtc reg 11
+     FC72  ......crtc reg 12
+     FC73  ......crtc reg 13
+     FC74  ......crtc reg 14
+     FC75  ......crtc reg 15
+	 
+HIGH SCREEN RESOLUTION CRTC DATA
+     FC76  ......Total No. of character intervals in horiz scan
+     FC77  ......No. of characters displayed in a horiz scan
+     FC78  ......Horiz sync position
+     FC79  ......horiz sync pulse width
+     FC7A  ......Total No. of character lines
+     FC7B  ......Adjust for vertical sync
+     FC7C  ......No of lines displayed by CRTC
+     FC7D  ......Vertical sync position
+     FC7E  ......Interlace mode
+     FC7F  ......crtc reg.9
+     FC80  ......crtc reg.10
+     FC81  ......crtc reg 11
+     FC82  ......crtc reg 12
+     FC83  ......crtc reg 13
+     FC84  ......crtc reg 14
+     FC85  ......crtc reg 15
+	 
+FC86........  MAX No. of characters displayed in low resolution
+FC88  ......  MAX No. of characters displayed in high resolution
+FC8A  ......
+FC8C  ......
+FC8F  ......  No.of lines displayed by screen
+FC90  ......  ESCAPE FLAG REGISTER
+FC91  ......  First warm start flag
+FDC6  ......  Current cursor position (column number )
+FDC7  ......  Pointer to address of keyboard buffer
+FDC9  ......  0 if input from cassette else non-zero
+FDCA  ......  Random number seeds
+FCDE  ......  FLAG :  0 - locate named variable
+                     -1 - Create entry for named variable
+FDCF  ......  Type flag for WRA1
+              2 - Integer
+              3 - String
+              4 - Single precision
+              8 - Double precision
+FDD1  ......  Memory size
+FDD3  ......  Address of next available location in LSPT
+FDD5  ......  LSPT (literal string pool table)
+FDF3  ......  The next 3 bytes are used to hold
+              The  length and addr of a string when it is moved  to  
+              the string area
+FDF6  ......  Pointer to next available loc. in string area.
+FDF8  ......  1: Index of last byte executed in current statement
+              2: Edit flag during print using
+FDFA  ......  Line No.  of last data statement 
+
+
+
+
+
+ *** USEFUL MEMORY LOCATIONS FOR THE EXCALIBUR CONTINUED***
+
+
+FDFC  ......  Read  for  flag (1 = for in progress 0 =  no  for  in  
+              progress
+
+              0 during input phase, zero otherwise
+FDFD  ......  Read flag: 0 = read statement active
+FDFE  ......  1 = input statement active.  Also used in print using  
+              to hold seperator between string and variable.
+FE01  ......  Auto increment flag 0 = no auto mode
+              Non-zero holds next line number
+FE02  ......  Current line number in binary (during input phase)
+FE04  ......  Auto line increment
+FE06  ......  During  input:   ADDR  of  code  string  for  current  
+              statement
+FE08  ......  During  execution:  holds  stack pointer  value  when  
+              statement execution begins.
+FEOA  ......  Line No. in which error occured.
+FEOC  ......  Line No. in which error occured.
+FEOD  ......  Last byte executed in current statement
+FEOF  ......  Addr of position in error line
+FE10  ......  On error address
+FE12  ......  Flag. FF during on error processing cleared by resume  
+              routine.
+FE13  ......  Addr of decimal point in PBUF.
+FE15  ......  Last line number executed saved by stop/end
+FE17  ......  Addr of last byte executed during error
+FE19  ......  Addr of simple variables
+FE1B  ......  Addr of dimensioned variables
+FE1D  ......  Starting address of free space list (FSL)
+FE1F  ......  Points to byte following last char
+FE21  ......  Variable  declaration list.  There are 26 entries ( 1  
+              for each letter of the alphabet) each entry  contains  
+              a   code  indicating  default  mode   for   variables  
+              starting with that letter.
+FE3A  ......  End of declaration list
+FE3B  ......  Trace flag (0 = No trace, Non-zero = trace)
+
+ 
+
+
+
+
+
+
+ *** SUMMARY_OF_JUMP_TABLE_ROUTINES***
+
+40H      ; Console output routine
+43H      ; Console status routine
+46H      ; Console input routine
+49H      ; Console line input routine
+4CH      ; Cursor on routine
+4FH      ; Cursor off routine
+52H      ; LO-RES Selection routine
+55H      ; HI-RES Selection routine
+58H      ; Clear screen routine
+5BH      ; Print routine
+5EH      ; List routine
+61H      ; List status routine
+64H      ; RS232 Output routine
+67H      ; RS232 Status routine
+6AH      ; RS232 Input routine
+6DH      ; Cassette read on routine
+70H      ; Casette read routine
+73H      ; Casseete write on routine
+76H      ; Cassette output routine
+79H      ; Cassette off routine
+
+7CH      ; Turns CRTC on
+7FH      ; Turns CRTC off
+82H      ; Fills BC bytes at HL with A
+85H      ; Loads CRTC regs with B+1 bytes dwn from HL
+88H      ; Turns screen ram on
+8BH      ; Turns screen ram off
+
+8EH      ; Floating point to Integer
+91H      ; Integer to single precision
+94H      ; ASCII to Binary conversion
+97H      ; Floating point to ASCII
+9AH      ; Single precision add
+9DH      ; Single precision subtract
+A0H      ; Single precision multiply
+A3H      ; Single precision division
+A6H      ; Single precision compare
+
+A9H      ; Absolute value
+ACH      ; Return Integer
+
+AFH      ; Arctangent
+B2H      ; Cosine
+B5H      ; Sine
+B8H      ; Tangent
+
+BBH      ; Move SP value in BC/DE into WRA1
+BEH      ; Move a SP value -> HL to WRA1
+C1H      ; Load SP value -> into BC/DE
+C4H      ; Load a SP value from WRA1 into BC/DE
+C7H      ; Move WRA1 to stack
+
+
+
+
+
+ *** SUMMARY_OF_JUMP_TABLE_CONTINUED *** 
+
+CAH      ; Search for line number
+CDH      ; Find address of variable
+D0H      ; Gosub routine
+D3H      ; Return entry point
+D6H      ; Output a string
+D9H      ; Print message
+
+
+
+
+
+
+ *** JUMP_TABLE_DESCRIPTIONS***
+
+CALL 40H      **CONSOLE_OUTPUT_ROUTINE**
+	
+FUNCTION
+        
+Outputs  a  character  to the next position in video  memory  and  
+detects  and  acts upon the control codes  and  escape  sequ%nces  
+listed in the section on screen handling.   Handles scrolling and  
+colour RAM update.   To use,  pass character code to be displayed  
+into  'A' register and  call routine.   This routine may  destroy  
+all registers.
+
+
+CALL 43H      **KEYBOARD_SCAN_ROUTINE_(CONSOLE_STATUS_ROUTINE)**
+
+FUNCTION
+
+Scans the keyboard for depressed keys and returns in 'A' register  
+the  ASCII  code  for any active key that is found.   If  no  new  
+active key is found then the 'A' register is cleared and the zero  
+flag  is set.   This routine provides debounce and if  repeatedly  
+called  will  perform  a  character  repeat  of  any  continously  
+depressed key.   To use, call the routine.  All primary registers  
+are used.
+
+
+CALL 46H      **GET_A_CHARACTER_FROM_KEYBOARD_(CONSOLE_INPUT)**
+
+FUNCTION
+
+Will continously scan the keyboard until a character is found and  
+will then return its ASCII code in 'A' register.  To use call the  
+routine.  All primary registers are used.
+
+
+CALL 49H      **GET_A_LINE_OF_CHARACTERS_AND_DISPLAY 
+              (CONSOLE_LINE_INPUT)**
+
+FUNCTION
+        
+Will  continously  scan  the keyboard and store and  display  any  
+depressed  keys  until  either an  '^C'or  'Carriage  Return'  is  
+depressed.   The  characters are stored in a 256 character BUFFER  
+pointed to by location FDC7H.  Each character is echoed as it  is  
+entered into the video display memory.  To use, call the routine.   
+All primary registers are used.
+
+
+CALL 4CH      **TURN_THE_CURSOR_ON**
+
+FUNCTION
+
+Turns the video cursor on.   To use,  call the routine.  Uses the  
+'A' register only.
+
+
+
+CALL 4FH      **TURN_THE_CURSOR_OFF**
+
+FUNCTION
+
+Turns the video displays cursor off.   To use,  call the routine.   
+Use the 'A' register only.
+
+
+CALL 52H      **SELECT_LOW_RESOLUTION_MODE**
+
+FUNCTION
+
+Selects  40 characters per line format on screen.   To use,  call  
+the routine.  Uses all primary registers.
+
+
+CALL 55H      **SELECT_HIGH_RESOLUTION_MODE**
+
+FUNCTION
+
+Selects 80 characters per line format on screen.   To  use,  call  
+the routine.  Uses all primary registers.
+
+
+CALL 58H      **CLEAR_SCREEN**
+
+FUNCTION
+
+Clears  the  display  to the currently  selected  foreground  and  
+background colour.   To use,  call the routine.  Uses all primary  
+registers.
+
+
+CALL 5BH      **PRINTER_OUTPUT_ROUTINE**
+
+FUNCTION
+
+Outputs  a character to the printer and responds to 'Skip to  top  
+of  Form'  and  'Top of  Form'  characters.   Maintains  internal  
+line/page  count  and inserts line feeds to top of each new  form  
+automatically.
+          The number of lines per page byte is at FBE8H.
+          The number of lines printed so far is at FBE9H.
+
+To use pass the character to be printed in 'A' register and  call  
+the routine.  Uses all the alternate register set and IX.
+
+
+CALL 5EH      **PHYSICAL_OUTPUT_ROUTINE_FOR_PRINTER_(LIST_ROUTINE)**
+
+FUNCTION
+Performs  low level control of printer.   Outputs a character  to  
+printer  port and operates strobe and ready lines.   To use  pass  
+the  character  in 'A' register and call routine.   Uses  AF,B,A'  
+registers.
+
+
+
+CALL 61H      **PRINTER_STATUS**
+
+FUNCTION
+
+Returns printer status bits in 'A' register.
+
+              Bit0 = 1, printer busy.
+              Bit1 = 1, printer not selected or out of paper.
+
+To use, call the routine.  Uses 'A' register only.
+
+
+CALL 64H      **RS232_OUTPUT_ROUTINE**
+
+FUNCTION
+
+Outputs  character passed in 'A' register to the RS232 port.   To  
+use, pass character in 'A' reg and call routine.  Uses 'A' A' and  
+F regs.
+
+
+CALL 67H      **GET_RS232_STATUS_ROUTINE** 
+
+FUNCTION
+
+Returns an FFH in 'A' register if an input character is available  
+and 00H if the register is empty.   To use,  call routine.   Uses  
+'A' register only.
+
+
+CALL 6AH      **RS232_INPUT_ROUTINE**
+
+FUNCTION
+
+Reads  the RS232 port until a received character is available and  
+returns  it in 'A' register.   To use,  call routine.   Uses  'A'  
+register only.
+
+
+CALL 6DH      **CASSETTE_READ_ON_ROUTINE**
+
+FUNCTION
+
+This  routine  sets up the cassette software for a  pending  read  
+operation  by  scanning the incoming data for  a  synchronisation  
+byte  once  synchronized two asterisks are put in the  top  right  
+hand corner of the screen.   To use,  call the routine.  Uses all  
+the alternate register set.
+
+
+
+
+
+
+
+CALL 70H      **CASSETTE_READ_ROUTINE**
+
+FUNCTION
+
+This routine reads input from the cassette and assembles one byte  
+which  it returns in the 'A' register.   To  use,  call  routine.   
+Uses registers A and F only.
+
+
+CALL 73H      **CASSETTE_WRITE_ON_ROUTINE**
+
+FUNCTION
+
+This routine sets up the cassette software for a pending write by  
+writing  5 seconds of leader marks followed by a series of  zeros  
+and then a synchronisation byte.   To use, call routine.  Uses F,  
+A, B  and C registers.
+
+
+CALL 76H      **CASSETTE_WRITE_ROUTINE**
+
+FUNCTION
+
+This routine takes the byte passed in the 'A' register and writes  
+it  to the tape at the selected speed.   Refer to table of useful  
+RAM locations for speed set.  To use, call routine.  Uses A and F  
+registers only.
+
+
+CALL 79H      **CASSETTE_WRITE_OFF**
+
+FUNCTION
+
+If  a cassette write has been active then this routine  writes  a  
+trailer  of Mark characters onto the end of a cassette save.   To  
+use, call the routine . Uses AF registers only.
+
+
+CALL 7CH      **TURN_SCREEN_ON**
+
+FUNCTION
+
+Restores  the  screen display after it has been disabled  by  the  
+screen  OFF routine.   To use,  call routine.   Uses AF registers  
+only.
+
+
+CALL 7FH      **TURN_SCREEN_OFF**
+
+FUNCTION
+
+Turns  the screen display OFF resulting in a blank  picture.   To  
+use, call the routine.  Uses AF registers only.
+
+
+
+
+
+CALL 82H      **MEMORY_FILL**
+
+FUNCTION
+
+Loads 'BC' bytes at 'HL' upward with the contents of 'A'.  To use  
+load the desired values and call the routine.   Uses A,  F, B, C,  
+HL, and A' F' registers.
+
+
+CALL 85H      **LOAD_SCREEN_CONTROLLER**
+
+FUNCTION
+
+Loads  the CRT controller (6845) registers with 'BC'  bytes  from  
+'HL'  downwards.   Will  take byte pointed to by HL and place  in  
+register 15 of the 6845 then decrement HL,  the register  pointer  
+and B and repeat until B = 0.   To use,  load memory area pointed  
+to  by HL with the desired screen characteristics and B with  the  
+number of registers.  Uses BC, HL registers.
+
+
+CALL 88H      **TURN_SCREEN_RAM_ACCESS_ON**
+
+FUNCTION
+
+Switches  the screen RAM pages into the CPUs memory map to enable  
+updating of the screen contents.  To use, call the routine.  Uses  
+AF registers only.  Refer to memory map for locations.
+
+
+CALL 8BH      **TURN_SCREEN_RAM_ACCESS_OFF**
+
+FUNCTION
+
+Switches  the  screen  RAM pages out of the CPUs memory  map  and  
+restores access to ROM2.   To use call the routine.  Uses 'A' and  
+'F' register only.
+
+
+
+*NOTE:    The  next four routines are all type conversion programs  
+         and  assume   the value to be converted is in  WRA1  and  
+         that the mode flag FDCFH reflects the current data type.  
+         The  result will be left in WRA1 and the mode flag  will  
+         be updated.*
+
+CALL 8EH      **FLOATING_POINT_TO_INTEGER**
+
+FUNCTION
+
+The content of WRA1 is converted from single or double  precision  
+to integer.  No rounding is performed.  All registers are used.
+
+      
+
+
+
+
+CALL 91H      **INTEGER_TO_SINGLE_PRECISION**
+
+FUNCTION
+
+The  contents  of  WRA1  are converted  from  integer  or  double  
+precision to single precision.  All registers are used.
+
+
+CALL 94H      **ASCII_TO_BINARY_CONVERSION**
+
+FUNCTION
+
+Converts  the ASCII string pointed to by HL to  binary.   If  the  
+value  is less than 2**16 and does not contain a decimal point or  
+an  E or D descriptor (exponent),  the string will  be  converted  
+into  it's integer equivalent.   If the string contains a decimal  
+point  or an E or D descriptor or if it exceeds 2**16 it will  be  
+converted to single or double precision.   The binary value  will  
+be  left  in  WRA1 and the mode flag will be set  to  the  proper  
+value.
+
+
+CALL 97H      **FLOATING_POINT_TO_ASCII**
+
+FUNCTION
+
+Converts  the  single or double precision number in WRA1  to  its  
+ASCII  equivalent.   The  ASCII  value is stored  at  the  buffer  
+pointed  to by the HL register pair.   As the value is  converted  
+from  binary to ASCII,  it is formatted as it would be if a PRINT  
+USINÇ statement had been invoked.   The format modes than can  be  
+specified  are selected by loading the following values into  the  
+A, B  and C registers.
+
+     REG.A = 0..Do not change format.
+     REG.A = X..Where X selects :
+               
+        X =    BIT
+               0 = Exponential notataion
+               1 = Reserved
+               2 = Sign follows value
+               3 = Include sign
+               4 = Print leading $ sign
+               5 = Include leading asterisks
+               6 = Print commas every 3rd digit
+               7 = 0 do not change format
+                   1 change format 
+     
+     REG.B = The number of digits to the left of the dec. point.
+
+     REG.C = The number of digits after the decimal point.
+
+
+
+
+
+
+
+*NOTE:    The  next  five routines perform  arithmetic  operations  
+         between two operands of the same type.  They assume that  
+         the operands are located in the correct operating areas,  
+         and that the correct mode flags are set.*
+
+
+CALL 9AH      **SINGLE_PRECISION_ADDITION**
+
+FUNCTION
+
+Add the single precision value in (BC/DE) to the single precision  
+value in WRA1.  The sum is left in WRA1.
+
+         
+CALL 9DH      **SINGLE_PRECISION_SUBTRACT**
+
+FUNCTION
+
+Subtracts  the single precision value in (BC/DE) from the  single  
+precision value in WRA1.  The difference is left in WRA1.
+
+
+CALL A0H       **SINGLE_PRECISION_MULTIPLY**
+
+FUNCTION
+
+Multiplies  the current value in WRA1 by the value in (BC/DE) the  
+product is left in WRA1.
+
+
+CALL A3H      **SINGLE_PRECISION_DIVISION**
+
+FUNCTION
+
+Divides  the  single  precision value in 9BC/DE)  by  the  single  
+precision value in WRA1.  The quotient is left in WRA1.
+
+
+CALL A6H      **SINGLE_PRECISION_COMPARE**
+
+FUNCTION
+
+Algebraically  compares the single precision value in (BC/DE)  to  
+the single precision value WRA1.   The result of the  comparision  
+is returned in the A and status as:
+
+          A = -1 if BC/DE > WRA1
+          A = +1 if BC/DE < WRA1
+          A =  0 if BC/DE = WRA1
+
+
+
+
+
+
+
+
+
+
+*NOTE:    MATHS ROUTINES
+
+         All  of the following subroutines assume  that  location  
+         FDCFH  contains a code indicating the data type or  mode  
+         of  the variable e.g.,  integer,  single  precision,  or  
+         double  precision,  and  that the variable itself is  in  
+         working Register Area 1, (WRA1).  *
+
+
+CALL A9H       **ABSOLUTE_VALUE**
+
+FUNCTION
+
+Converts  the  value  in Working Register Area 1  (WRA1)  to  its  
+positive equivalent.   The result is left in WRA1.  If a negative  
+integer  greater than 2**15 is encountered,  it is converted to a  
+single precision value.   The data type or mode flag (FDCFH) will  
+be updated to reflect any change in mode.
+
+
+CALL ACH      **RETURN_INTEGER**
+
+FUNCTION
+
+Returns the integer portion of a floating point number.   If  the  
+value is positive, the integer portion is returned.  If the value  
+is  negative  with  a fractional part,  it is rounded  up  before  
+truncation.   The integer portion is left in WRA1.  The mode flag  
+is updated.
+
+
+CALL AFH      **ARCTANGENT**
+
+FUNCTION
+
+Returns  the  angle in radians,  for the floating  point  tangent  
+value  in  WRA1.   The angle will be left as a  single  precision  
+value in WRA1.
+
+CALL B2H      **COSINE**
+
+FUNCTION
+
+Computes  the cosine for an angle given in  radians.   The  angle  
+must  be a floating point value:  the cosine will be returned  in  
+WRA1 as a floating point value.
+
+
+CALL B5H      **SINE**
+
+FUNCTION
+
+Returns  the sine as a single precision value in WRA1.   The sine  
+must be given in radians in WRA1.
+
+
+
+
+
+CALL B8H      **TANGENT**
+
+FUNCTION
+
+Computes  the tangent of an angle in radians.   The angle must be  
+specified as a single precision value in WRA1.   The tangent will  
+be left in WRA1.
+
+
+*NOTE:     The  following 11 routines deal mainly with tables   in  
+          the Communications Region (CR).  Because of this, these  
+          programs  assume  that the CR has been initialized  and  
+          properly  maintained.    This  means  that  the   BASIC  
+          Interpreter must have been entered prior to calling any  
+          of these routines,   and  the BASIC utility in RAM must  
+          be  intact.   The assembly program making the CALL must  
+          be running as a subroutine called by a BASIC program.*
+
+
+CALL BBH      **MOVE_SINGLE_PRECISION_VALUE_(SP)_IN_BC/DE_TOß WRA1**
+
+FUNCTION
+
+Moves  the  single precision value in BC/DE  into  WRA1.   HL  is  
+destroyed  BC/DE  is left intact.   Note - the mode flag  is  not  
+updated!
+
+
+CALL BEH       **MOVE_A_SP_VALUE_POINTED_TO_BY_HL_TO_WRA1**
+
+FUNCTION
+
+Loads  a  single precision value pointed to by HL into BC/DE  and  
+then moves it to WRA1.  Destroys HL/BC/DE.
+
+
+CALL C1H       **LOAD_SP_VALUE_POINTED_TO_BY_HL_INTO_BC/DE**
+
+FUNCTION
+
+Loads a single precision value pointed to by HL into BC/DE.  Uses  
+all registers.
+
+
+CALL C4H       **LOAD_A_SP_VALUE_FROM_WRA1_INTO_BC/DE**
+
+FUNCTION
+
+Loads a single precision value from WRA1 into BC/DE.   Note,  the  
+mode  flag is not tested by the move routine.   It is up  to  the  
+caller  to insure that WRA1 actually contains a single  precision  
+value.
+
+
+
+
+
+CALL C7H      **MOVE_WRA1_TO_STACK**
+
+FUNCTION
+
+Moves  the  single precision value in WRA1 to the stack.   It  is  
+stored in LSB/MSB/Exponent order.  All registers are left intact.   
+Note,  the  mode flag is not tested by the move  routine,  it  is  
+simply assumed that WRA1 contains a single precision value.
+
+
+
+CALL CAH      **SEARCH_FOR_LINE_NUMBER**
+
+FUNCTION
+
+Searches  the Program Statement Table (PST) for a BASIC statement  
+with  the  line number specified in the DE  register  pair.   All  
+registers  are  used.   If the line is found the carry  and  zero  
+flags are set and the starting adddress of the line is placed  in  
+BC.
+
+
+CALL CDH      **FIND_ADDRESS_OF_VARIABLE**
+
+FUNCTION
+
+This  entry  point searches the Variable List Table (VLT)  for  a  
+variable name which matches the name in the string pointed to  by  
+HL.   If the variable exists, it s address is returned in DE.  If  
+it  is not defined,  then it is created with an initial value  of  
+zero  and  its address is returned in DE.   Dimensioned and  non- 
+dimensioned variables may be located,  and suffixes for data mode  
+may be included in the name string.  A byte of machine zeros must  
+terminate the name string.  All registers are used.
+
+
+CALL D0H      **GOSUB_ROUTINE**
+
+FUNCTION
+
+Can  be used to execute the equivalent of a GOSUB statement  from  
+an  assembly program.   It allows a BASIC subroutine to be called  
+from  an  assembly  subroutine.    After  the  BASIC   subroutine  
+executes,  control  returns to the next statement in the assembly  
+program.  All registers are used.  On entry, the HL must point to  
+an ASCII string with the starting line number of the subroutine.
+
+
+CALL D3H      **RETURN_ENTRY_POINT**
+
+FUNCTION
+
+Returns control to  the BASIC statement following the last  GOSUB  
+call.   An assembly program called by a BASIC subroutine may wish  
+to  return  directly  to the original  caller  without  returning  
+
+
+
+through  the subroutine entry point.   This exit can be used  for  
+that return.  The return address on the stack for the call to the  
+assembly program must be cleared before returning via D3H.
+
+
+CALL D6H      **OUTPUT_A_STRING_TO_CONSOLE**
+
+FUNCTION
+
+Displays message pointed to by HL on current system output device  
+(usually video).   The string to be displayed must be  terminated  
+by  a byte of machine zeros or a carriage return code  ODh.  This  
+subroutine  uses  the  literal string pool table and  the  string  
+area.   It should not be called if the communications region  and  
+the string area are not properly maintained.
+
+
+CALL D9H       **PRINT_A_STRING**
+
+FUNCTION
+
+Writes  string  pointed  to by HL to the current  output  device.   
+String  must  be terminated by a byte of  zeros.   This  call  is  
+different  from  D6H because it does not use the  literal  string  
+pool  area,  but it does use the same display routine.  Uses  all  
+registers.  This  routine can be called without loading the BASIC  
+utility if a C9H (RET) is stored in XXXX 
+
+
+
+
+
+                        *** NEW_BASIC_COMMANDS***
+
+*COLOUR  Selects foreground and background screen colours*
+
+SYNTAX   Line # COLOUR foreground colour, background colour 
+
+         where:  foreground colour can be a constant, variable or  
+         expression that will return an integer between 0 and 15.   
+         Background  colour  can  be  a  constant,   variable  or  
+         expression that will return an integer between 0 and 7.
+
+         This  command is used to select the colour  combinations  
+         available on the Excalibur 64's video display.
+
+         In addition, to select which of the two available colour  
+         menu's are to be used the commands COLOUR#1 and COLOUR#2  
+         can be used.
+
+EXAMPLES: 
+         Line# COLOUR 15,2
+         Line# COLOUR 8
+         Line# COLOUR 5
+         Line# COLOUR#1
+
+
+
+*CLS      Clears the screen*
+
+SYNTAX   Line# CLS background colour
+
+         where:  background colour can be a constant, variable on  
+         expression that will return an integer between 0 and 7.
+
+         This command is used to clear the contents of the screen  
+         and return the cursor to the top left of the screen.  If  
+         the  background  colour  specifier is omitted  then  the  
+         screen  will  be  cleared  in  the  currently   selected  
+         background colour.
+
+EXAMPLES: 
+         Line# CLS 5
+         Line# CLS
+
+
+
+*SOUND    Produces a continuous frequency at the speaker output.*
+
+SYNTAX   Line# SOUND tone
+
+         where:  tone can be a constant,  variable or  expression  
+         that returns an integer between 0 and 255.
+
+         This  command is used to output sound effects during the  
+         running of a BASIC program.   The frequency of the sound  
+         that is produced increases with increasing values of the  
+
+
+
+         tone specifier.  A tone specifier with the value of zero  
+         will turn the sound output off.   The sound output  will  
+         continue  unchanged  until the program executes  another  
+         SOUND command.
+
+EXAMPLES: 
+         Line# SOUND 100
+         Line# SOUND 0
+
+
+
+*PCGEN    Used to create programmable characters.*
+
+SYNTAX   Line# PCGEN C, L1, L2, L3, L4, L5, L6, L7, L8, L9, L10,  
+         L11, L12
+
+         where:  C is the character number and can be a constant,  
+         variable,  or  expression that returns an integer  value  
+         between 0 and 127.  L1 to L12 are constant, variables or  
+         expressions  which return integer values between  0  and  
+         255  that correspond to the 12 bytes of line data needed  
+         to create the new character.
+
+         This command is used to create new programmable graphics  
+         characters.   The  character number c identified the new  
+         character  and the 12 line data specifiers describe  the  
+         character as shown below.         
+
+         L1 = (00001110)=(0X27)+(0X26)+(0X24)+(1X23)+
+              (1X22)+(1X21)+(0X20) = 14              *  *  *
+         L2 = (000100100)          = 18           *        *
+         L3 = (00001100)           = 12              *  *
+         L4 = (00000100)           =  4                 *
+         L5 = (00011110)           = 30           *  *  *  *
+         L6 = (10101101)           =173  *     *     *  *     *
+         L7 = (01001101)           = 77     *        *  *     *
+         L8 = (00001101)           = 13              *  *     *
+         L9 = (00010010)           = 18           *        *
+         L10= (00100010)           = 34        *           *
+         L11= (00100001)           = 33        *              *
+         L12= (01100011)           = 99     *  *           *  *
+
+         A  command to generate the above running figure  as  the  
+         programmable  graphics character whose character  number  
+         is three could be:-
+
+         PCGEN 3, 14, 18, 12, 4, 30, 173, 77, 13, 18, 34, 33, 99
+
+         A  single  PCGEN  statement  may  be  used  to  generate  
+         multiple  new characters by placing a semé  colon  after  
+         the last data of each character and then continuing with  
+         the next character number and its data.
+
+         If it is desired to modify an existing character than it  
+         is  not necessary to re-enter all of the old data.   The  
+
+
+
+         new  data must however be spaced from the character  no.  
+         by the required number of commas.
+
+         A PCGEN statement followed by only a character no.  will  
+         clear the character to an emply grid i.e. a blank.
+
+         A  PCGEN  statement followed only by a  carriage  return  
+         performs a special function in that is generates in  the  
+         programmable  characters  64  to 127.   A set  of  PIXEL  
+         graphics  characters  shown in the tables  of  character  
+         sets.
+
+         The  command PCGEN ON will cause all characters  written  
+         to  the screen to be the programmable  characters  until  
+         the command PCGEN OFF is executed.
+
+         To  place  programmable character number  three  on  the  
+         screen the following statements could be used:-
+
+         Line# PCGEN ON
+         Line# PRINT CHR$ (128+3)
+         Line# PCGEN OFF
+
+EXAMPLES: 
+         PCGEN C1,L11,L12,L13,..L12;C2,L21,L22,L23,..212,C3,L31,
+         L32,L33,L34,..L31
+
+         PCGEN C1,,,,,L15;C2,,,,,251,27,L28
+
+         PCGEN C25
+
+         PCGEN
+
+         PCGEN ON
+         
+         PCGEN OFF
+
+
+
+ *** OPEN *** 
+
+SYNTAX   Line# OPEN buff#,"filename.ext"
+
+         where:  buff# is a numeric constant between 1 ¦ 8 speci- 
+         fying  the  buffer or channel number 
+         filename.ext  is  a valid CPM filename.
+
+DESCRIPTION
+         
+         The  OPEN  command causes BASIC to initiate or locate  a  
+         disk  file  ¦ assign a channel number specified  by  the  
+         buff# parameter to this file.   Further operations  with  
+         this  file  are achieved by reference to the  buffer  or  
+         channel number and not by reference to the filename.  An  
+         FC  error  will  be  flagged if  either  the  buffer  or  
+
+
+
+         filename is already in use.  An FN error will be flagged  
+         if  the filename specified is not a legal CPM  filename.              
+
+
+EXAMPLES: 
+         1000  OPEN  7,  "MYFILE.OBJ" - Assigns channel 7 to  the  
+                                        file MYFILE.OBJ
+         
+         OPEN 1,  "FRED"               - Assigns channel 1 to the  
+                                         file FRED
+
+
+
+ *** CLOSE *** 
+
+SYNTAX   Line# CLOSE buff#1,buff#2,...,buff#n
+
+         where: buff# is a numeric constant between 1 & 8
+
+DESCRIPTION
+
+         The  CLOSE  command is used to "close" a  disk  file  or  
+         files.  A disk file is normally first OPENed for reading  
+         or  writing  and  assigned a channel or  buffer  number.   
+         After  records  have  been  read  or  written,  a  CLOSE  
+         'flushes'  any  remaining data in the  buffer  resulting  
+         from a write and properly terminates file operations for  
+         the designated buffer(s).   the buff# parameters specify  
+         the channels i.e.  the files to be closed.   One or more  
+         buffer,   numbeers  may  be  specified.    If  no  buff#  
+         parameter is specified then all currently open files are  
+         closed.
+
+         A file that has been written to must be CLOSEd to ensure  
+         all the written data is stored correctly on the disk.
+
+         Execution of an END statement also closes all files.
+Valid Examples:
+         
+         10010 CLOSE 1,5,8    - Close files for buffers 1,5 & 8.
+         117   CLOSE 2        - Close files for buffer 2.
+         190   CLOSE          - Close all files presently OPEN.
+
+
+ *** READ# *** 
+
+SYNTAX   Line# READ# buff#, item - list
+
+         where: buff# is a numeric constant between 1 & B
+         item - list is a list of the items to be read.
+
+         The  READ#  is used to read a list of items  as  in  the  
+         normal BASIC READ statement except that the item list is  
+         read  from a sequential disk file.   This file must have  
+         been previously OPENEd:  the OPEN command associates the  
+         buff# with the desired disk file.   the item - list must  
+         follow  the same sequence as the items on the disk  file  
+         or a TM error will result.  Normally the data items have  
+         been output to the disk file using the WRITE# statement.
+
+**Valid_Examples**
+         
+         750  READ 3,A$,B       - Read  in  data for A$ ¦ B  from  
+                                  the  disk file associated  with  
+                                  channel or buffer 3.
+
+         210  READ  1,Z,A,X$    - Read  from the file  associated  
+                                  with channel 1 values for Ú ¦ A  
+                                  ¦ a string for X$.
+
+
+ *** WRITE# *** 
+
+SYNTAX   Line# WRITE# buff#,item-list
+
+         where: buff# is the channel or buffer number between 1 ¦  
+         8 item - list is the list of items to be written.
+
+         WRITE# performs a write to a sequential disk file.  This  
+         file must have been previously OPENEd.  The OPEN command  
+         specifies  a buffer or channel number for the file  name  
+         and  this buffer or channel number is that used  in  the  
+         WRITE$  command.   The  items  to be output may  be  any  
+         number  of  numeric  or  string  variables.   All  items  
+         written  however are transformed into character  strings  
+         and  written to the disk buffer.   It is essential  that  
+         the file is CLOSEd after a WRITE$ is completed to ensure  
+         all data is stored correctly.   This is achieved with  a  
+         CLOSE command.  An END statement also closes all files.
+
+**Valid_Examples**
+
+         640   WRITE#3,A$,B     - Write  the  string A$  and  the  
+                                  value  of  B to the  disk  file  
+                                  associated with buffer 3.
+
+         1720   WRITE#7,X%,"ALL DONE",6 - Write the integer value  
+                                  X,  the string ALL DONE and the  
+                                  value   6  to  the  disk   file  
+                                  associated with buffer 7.
+
+
+
+
+
+
+
+
+ *** SAVE *** 
+
+SYNTAX   SAVE "filename"
+
+         where: filename is a valid CPM filename.
+
+DESCRIPTION
+
+         The  SAVE  command  is used to save  the  current  BASIC  
+         program  in RAM onto disk ¦ is given the name  specified  
+         in the filename parameter but with an extension of .BAS.   
+         Any  extension specified in the filename parameter  will  
+         be ignored and an extension of .BAS substituted.
+
+
+**Valid_Examples**
+
+         SAVE "FRED"            - Saves the current BASIC program  
+                                  in  RAM as a file on disk  with  
+                                  the name of FRED.BAS.
+
+         SAVE "TEST.KTJ"        - Saves the current BASIC program  
+                                  is  RAM as a file on disk  with  
+                                  the name of TEST.BAS - note the  
+                                  extension has been altered.
+
+
+
+
+ *** LOAD *** 
+
+SYNTAX   LOAD "Filename",R
+         Line# LOAD "Filename",R
+         
+         where: filename is a valid CPM filename
+         R  is an optional parameter requesting an immediate  RUN  
+         after LOAD.
+
+         The  LOAD  command is used to load a BASIC program  from  
+         disk LOAD searches for the file specified in  "filename"  
+         with  a  .BAS  extension and if  successful  loads  this  
+         program  into  RAM.   All open files are closed and  all  
+         variables are cleared.  If used without the R option the  
+         BASIC  command mode is re-entered.   If the R option  is  
+         specified  the BASIC program just loaded will  begin  to  
+         execute  from it's first line.   LOAD in either form may  
+         be used as a program statement and executed as part of a  
+         BASIC  program.   In this way it is possible to  "chain"  
+         programs,  allowing  one  program to call another  in  a  
+         chain of "overlays".
+**Valid_Examples**
+
+         LOAD  "FRED"           - load  the  BASIC  program  from  
+                                  disk with the name FRED.BAS and  
+                                  return to the command mode.
+
+
+
+
+         756 LOAD "TEST.123",R  - load the BASIC program with the  
+                                  name  TEST.BAS  from  disk  and  
+                                  execute it.  Note the extension  
+                                  has been altered.         
+
+
+
+ *** KILL *** 
+
+SYNTAX   Line# KILL "filename"
+
+         where: filename is any valid CPM filename.
+
+         The KILL command deletes a file from the disk.  The file  
+         to be deleted must be closed before executing KILL or an  
+         FC error will occur.
+
+         
+         **Valid_Examples**
+         
+         KILL  "FRED.BAS"       - remove  the BASIC program  file  
+                                  FRED.BAS from the A disk.
+
+         820 KILL "B:TEST.DTA"  - remove  the file TEST.DTA  from  
+                                  the B disk.
+
+
+
+
+
