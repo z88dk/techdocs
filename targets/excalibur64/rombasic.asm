@@ -67,8 +67,8 @@
 ; DCOMPR - Compare HL with DE.
 0018 c3c6fb    jp      0fbc6h
 
-001b af        xor     a
-001c d3e4      out     (0e4h),a
+001b af        xor     a				; (motor off)
+001c d3e4      out     (0e4h),a			; Disk select
 001e 18e0      jr      0000h
 
 0020 c3c9fb    jp      0fbc9h        ; __CHRCKB ?
@@ -232,17 +232,18 @@
 015b 3201fe    ld      (0fe01h),a    ; AUTFLG: Auto increment flag 0 = no auto mode, otherwise line number
 015e 010229    ld      bc,2902h
 0161 c39828    jp      2898h
+
 0164 3134fc    ld      sp,0fc34h
 0167 3e3a      ld      a,3ah
-0169 d323      out     (23h),a
-016b d320      out     (20h),a
-016d d320      out     (20h),a
+0169 d323      out     (23h),a		;  8253 MODE CONTROL WORD
+016b d320      out     (20h),a		;  COUNTER 0 - Audio output freq.
+016d d320      out     (20h),a		;  COUNTER 0 - Audio output freq.
 016f 3e76      ld      a,76h
-0171 d323      out     (23h),a
+0171 d323      out     (23h),a		;  8253 MODE CONTROL WORD
 0173 3ed0      ld      a,0d0h
-0175 d321      out     (21h),a
+0175 d321      out     (21h),a		;  COUNTER 1 - Baud rate gen.(RS232)
 0177 af        xor     a
-0178 d321      out     (21h),a
+0178 d321      out     (21h),a		;  COUNTER 1 - Baud rate gen.(RS232)
 017a af        xor     a
 017b 329dfc    ld      (0fc9dh),a
 
@@ -306,13 +307,13 @@
 01f9 2218fc    ld      (0fc18h),hl
 01fc 2190fc    ld      hl,0fc90h        ; ESCAPE FLAG REGISTER
 01ff 3601      ld      (hl),01h
-0201 cdc902    call    02c9h
+0201 cdc902    call    02c9h			; Detect Disk Drive Controller
 0204 caf00e    jp      z,0ef0h
 0207 2190fc    ld      hl,0fc90h        ; ESCAPE FLAG REGISTER
 020a 3600      ld      (hl),00h
 020c 3e70      ld      a,70h
-020e 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
-0211 21cd10    ld      hl,10cdh
+020e 32e4fb    ld      (0fbe4h),a       ; COLOUR BYTE  copied into colour ram with every console output
+0211 21cd10    ld      hl,10cdh			; BEL, Excalibur 64 Extended Basic 1.1
 0214 cd9b37    call    379bh			; Output a string
 0217 216602    ld      hl,0266h
 021a cd9b37    call    379bh			; Output a string
@@ -416,7 +417,7 @@
 02af fe40      cp      40h
 02b1 c0        ret     nz
 02b2 23        inc     hl
-02b3 cdf639    call    39f6h        ; GETINT/EVAL
+02b3 cdf639    call    39f6h        ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
 02b6 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 02b7 2c        defb    ','
 02b8 e5        push    hl
@@ -429,6 +430,7 @@
 02c7 7e        ld      a,(hl)
 02c8 c9        ret
 
+; Detect Disk Drive Controller
 02c9 cd283f    call    3f28h
 02cc cd5910    call    1059h
 02cf c9        ret
@@ -470,13 +472,13 @@
 
 02f2 f5        push    af
 02f3 3efd      ld      a,0fdh
-02f5 d361      out     (61h),a
-02f7 db00      in      a,(00h)
+02f5 d361      out     (61h),a		; Keyboard row select
+02f7 db00      in      a,(00h)		; **KEYBOARD_MATRIX_COLUMN_READ**
 02f9 feef      cp      0efh
 02fb 200f      jr      nz,030ch
 02fd 3ebf      ld      a,0bfh
-02ff d361      out     (61h),a
-0301 db00      in      a,(00h)
+02ff d361      out     (61h),a		; Keyboard row select
+0301 db00      in      a,(00h)		; **KEYBOARD_MATRIX_COLUMN_READ**
 0303 fedf      cp      0dfh
 0305 ccac09    call    z,09ach        ; Console input routine
 0308 fe13      cp      13h
@@ -548,7 +550,7 @@
 039e fe1b      cp      1bh
 03a0 ca9105    jp      z,0591h
 03a3 fe07      cp      07h
-03a5 ca5b05    jp      z,055bh
+03a5 ca5b05    jp      z,055bh        ; BEL
 03a8 fe16      cp      16h
 03aa ca6504    jp      z,0465h        ; Cursor on routine
 03ad fe15      cp      15h
@@ -568,7 +570,7 @@
 03d0 c9        ret     
 
 03d1 ed5bddfb  ld      de,(0fbddh)        ; CURSOR POSITION relative to upper L.H. corner
-03d5 2adffb    ld      hl,(0fbdfh)
+03d5 2adffb    ld      hl,(0fbdfh)        ; CRTC value for "display start address"
 03d8 19        add     hl,de
 03d9 cb9c      res     3,h
 03db cbec      set     5,h
@@ -586,27 +588,28 @@
 03f5 ed52      sbc     hl,de
 03f7 301f      jr      nc,0418h
 03f9 cd0f07    call    070fh
-03fc 2adffb    ld      hl,(0fbdfh)
+03fc 2adffb    ld      hl,(0fbdfh)        ; CRTC value for "display start address"
 03ff 09        add     hl,bc
 0400 cb9c      res     3,h
-0402 22dffb    ld      (0fbdfh),hl
+0402 22dffb    ld      (0fbdfh),hl        ; CRTC value for "display start address"
 0405 cd3405    call    0534h
-0408 2adffb    ld      hl,(0fbdfh)
-040b 3e0d      ld      a,0dh
+; update cursor position
+0408 2adffb    ld      hl,(0fbdfh)        ; CRTC value for "display start address"
+040b 3e0d      ld      a,0dh              ; reg. for CRTC display start address, MSB
 040d d330      out     (30h),a            ; CRTC register select
-040f 0e31      ld      c,31h            ; CRTC data
-0411 ed69      out     (c),l
+040f 0e31      ld      c,31h              ; CRTC data
+0411 ed69      out     (c),l              ; reg. for CRTC display start address, LSB
 0413 3d        dec     a
 0414 d330      out     (30h),a            ; CRTC register select
 0416 ed61      out     (c),h
 0418 ed53ddfb  ld      (0fbddh),de        ; CURSOR POSITION relative to upper L.H. corner
-041c 2adffb    ld      hl,(0fbdfh)
+041c 2adffb    ld      hl,(0fbdfh)        ; CRTC value for "display start address"
 041f 19        add     hl,de
-0420 3e0f      ld      a,0fh
+0420 3e0f      ld      a,0fh              ; reg. for CRTC cursor address, MSB
 0422 d330      out     (30h),a            ; CRTC register select
-0424 0e31      ld      c,31h            ; CRTC data
+0424 0e31      ld      c,31h              ; CRTC data
 0426 ed69      out     (c),l
-0428 3d        dec     a
+0428 3d        dec     a                  ; reg. for CRTC cursor address, LSB
 0429 d330      out     (30h),a            ; CRTC register select
 042b ed61      out     (c),h
 042d c9        ret
@@ -701,9 +704,10 @@
 04c0 ed5be1fb  ld      de,(0fbe1h)        ; MAXIMUM No. CHARACTERS ALLOWED ON SCREEN
 04c4 ed5a      adc     hl,de
 04c6 eb        ex      de,hl
-04c7 c9        ret     
+04c7 c9        ret
+
 04c8 2819      jr      z,04e3h			; Clear screen routine
-04ca cdf639    call    39f6h            ; GETINT/EVAL
+04ca cdf639    call    39f6h        ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
 04cd 7a        ld      a,d
 04ce b7        or      a
 04cf c21c16    jp      nz,161ch            ; Overflow Error (OV ERROR)
@@ -731,8 +735,8 @@
 04fe cd6f06    call    066fh            ; Turns screen ram off
 0501 cdb606    call    06b6h			; Turns CRTC on
 0504 110000    ld      de,0000h
-0507 ed53dffb  ld      (0fbdfh),de
-050b cd0804    call    0408h
+0507 ed53dffb  ld      (0fbdfh),de        ; CRTC value for "display start address"
+050b cd0804    call    0408h			; update cursor position
 050e e1        pop     hl
 050f c9        ret
 
@@ -760,7 +764,8 @@
 0530 ed52      sbc     hl,de
 0532 44        ld      b,h
 0533 4d        ld      c,l
-0534 2adffb    ld      hl,(0fbdfh)
+
+0534 2adffb    ld      hl,(0fbdfh)        ; CRTC value for "display start address"
 0537 19        add     hl,de
 0538 cbec      set     5,h
 053a d5        push    de
@@ -781,14 +786,17 @@
 0555 20eb      jr      nz,0542h
 0557 d1        pop     de
 0558 c36f06    jp      066fh            ; Turns screen ram off
+
+; BEL
 055b 015e01    ld      bc,015eh
-055e cdaf0d    call    0dafh
+055e cdaf0d    call    0dafh			; Enable sound output, BC=audio frequency
 0561 21ff7f    ld      hl,7fffh
 0564 110100    ld      de,0001h
 0567 ed52      sbc     hl,de
 0569 20fc      jr      nz,0567h
-056b cdba0d    call    0dbah
+056b cdba0d    call    0dbah			; Stop sound output
 056e c9        ret     
+
 056f 218ffc    ld      hl,0fc8fh        ; No.of lines displayed by screen
 0572 cb6e      bit     5,(hl)
 0574 2002      jr      nz,0578h
@@ -1161,7 +1169,7 @@
 07a3 fea5      cp      0a5h
 07a5 20f9      jr      nz,07a0h
 07a7 cd0f07    call    070fh
-07aa 2adffb    ld      hl,(0fbdfh)
+07aa 2adffb    ld      hl,(0fbdfh)        ; CRTC value for "display start address"
 07ad 09        add     hl,bc
 07ae cb9c      res     3,h
 07b0 2b        dec     hl
@@ -1236,7 +1244,7 @@
 
 0821 d9        exx     
 0822 cd0f07    call    070fh
-0825 2adffb    ld      hl,(0fbdfh)
+0825 2adffb    ld      hl,(0fbdfh)        ; CRTC value for "display start address"
 0828 09        add     hl,bc
 0829 2b        dec     hl
 082a cbec      set     5,h
@@ -1260,7 +1268,8 @@
 0846 28f8      jr      z,0840h
 0848 78        ld      a,b
 0849 c1        pop     bc
-084a c9        ret     
+084a c9        ret
+
 084b d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 084c cdc40e    call    0ec4h
 084f cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
@@ -1268,11 +1277,11 @@
 0851 7a        ld      a,d
 0852 08        ex      af,af'
 0853 c5        push    bc
-0854 cdf639    call    39f6h        ; GETINT/EVAL
+0854 cdf639    call    39f6h        ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
 0857 d5        push    de
 0858 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 0859 2c        defb    ','
-085a cdf639    call    39f6h        ; GETINT/EVAL
+085a cdf639    call    39f6h        ; GETINT/EVAL (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
 085d eb        ex      de,hl
 085e c1        pop     bc
 085f b7        or      a
@@ -1507,14 +1516,14 @@
 
 ; Console status routine
 09ea af        xor     a
-09eb d361      out     (61h),a
-09ed db00      in      a,(00h)
+09eb d361      out     (61h),a		; Keyboard row select
+09ed db00      in      a,(00h)		; **KEYBOARD_MATRIX_COLUMN_READ**
 09ef eeff      xor     0ffh
 09f1 280f      jr      z,0a02h
 09f3 0efe      ld      c,0feh
 09f5 79        ld      a,c
-09f6 d361      out     (61h),a
-09f8 db00      in      a,(00h)
+09f6 d361      out     (61h),a		; Keyboard row select
+09f8 db00      in      a,(00h)		; **KEYBOARD_MATRIX_COLUMN_READ**
 09fa eeff      xor     0ffh
 09fc 200f      jr      nz,0a0dh
 09fe cb01      rlc     c
@@ -1523,7 +1532,8 @@
 0a05 af        xor     a
 0a06 32d8fb    ld      (0fbd8h),a
 0a09 22dafb    ld      (0fbdah),hl
-0a0c c9        ret     
+0a0c c9        ret
+
 0a0d cd890a    call    0a89h
 0a10 b7        or      a
 0a11 28eb      jr      z,09feh
@@ -1551,7 +1561,7 @@
 0a39 7d        ld      a,l
 0a3a b4        or      h
 0a3b 20fb      jr      nz,0a38h
-0a3d db00      in      a,(00h)
+0a3d db00      in      a,(00h)		; **KEYBOARD_MATRIX_COLUMN_READ**
 0a3f eeff      xor     0ffh
 0a41 cd890a    call    0a89h
 0a44 bb        cp      e
@@ -1569,8 +1579,8 @@
 0a57 0600      ld      b,00h
 0a59 21200b    ld      hl,0b20h
 0a5c 3efe      ld      a,0feh
-0a5e d361      out     (61h),a
-0a60 db00      in      a,(00h)
+0a5e d361      out     (61h),a		; Keyboard row select
+0a60 db00      in      a,(00h)		; **KEYBOARD_MATRIX_COLUMN_READ**
 0a62 cb57      bit     2,a
 0a64 2002      jr      nz,0a68h
 0a66 cbf1      set     6,c
@@ -1587,59 +1597,64 @@
 0a7a d8        ret     c
 0a7b 47        ld      b,a
 0a7c 3efd      ld      a,0fdh
-0a7e d361      out     (61h),a
-0a80 db00      in      a,(00h)
+0a7e d361      out     (61h),a		; Keyboard row select
+0a80 db00      in      a,(00h)		; **KEYBOARD_MATRIX_COLUMN_READ**
 0a82 cb67      bit     4,a
 0a84 78        ld      a,b
 0a85 c0        ret     nz
 0a86 e61f      and     1fh
-0a88 c9        ret     
+0a88 c9        ret
+
 0a89 cb41      bit     0,c
 0a8b 2003      jr      nz,0a90h
 0a8d e6db      and     0dbh
-0a8f c9        ret     
+0a8f c9        ret
+
 0a90 cb49      bit     1,c
 0a92 200d      jr      nz,0aa1h
 0a94 cb5f      bit     3,a
 0a96 2803      jr      z,0a9bh
 0a98 e608      and     08h
-0a9a c9        ret     
+0a9a c9        ret
+
 0a9b cb67      bit     4,a
 0a9d 2849      jr      z,0ae8h
 0a9f af        xor     a
-0aa0 c9        ret     
+0aa0 c9        ret
+
 0aa1 cb61      bit     4,c
 0aa3 c0        ret     nz
 0aa4 cb7f      bit     7,a
 0aa6 281d      jr      z,0ac5h
 0aa8 f5        push    af
 0aa9 3efd      ld      a,0fdh
-0aab d361      out     (61h),a
-0aad db00      in      a,(00h)
+0aab d361      out     (61h),a		; Keyboard row select
+0aad db00      in      a,(00h)		; **KEYBOARD_MATRIX_COLUMN_READ**
 0aaf cb67      bit     4,a
 0ab1 cae20e    jp      z,0ee2h
 0ab4 3efe      ld      a,0feh
-0ab6 d361      out     (61h),a
-0ab8 db00      in      a,(00h)
+0ab6 d361      out     (61h),a		; Keyboard row select
+0ab8 db00      in      a,(00h)		; **KEYBOARD_MATRIX_COLUMN_READ**
 0aba cb57      bit     2,a
 0abc ca0000    jp      z,0000h
 0abf 79        ld      a,c
-0ac0 d361      out     (61h),a
+0ac0 d361      out     (61h),a		; Keyboard row select
 0ac2 f1        pop     af
 0ac3 cbbf      res     7,a
 0ac5 cb67      bit     4,a
 0ac7 c8        ret     z
 0ac8 f5        push    af
 0ac9 3efe      ld      a,0feh
-0acb d361      out     (61h),a
-0acd db00      in      a,(00h)
+0acb d361      out     (61h),a		; Keyboard row select
+0acd db00      in      a,(00h)		; **KEYBOARD_MATRIX_COLUMN_READ**
 0acf cb57      bit     2,a
 0ad1 79        ld      a,c
 0ad2 2804      jr      z,0ad8h
 0ad4 d361      out     (61h),a
 0ad6 f1        pop     af
-0ad7 c9        ret     
-0ad8 d361      out     (61h),a
+0ad7 c9        ret
+
+0ad8 d361      out     (61h),a		; Keyboard row select
 0ada f1        pop     af
 0adb 218ffc    ld      hl,0fc8fh        ; No.of lines displayed by screen
 0ade cb56      bit     2,(hl)
@@ -1662,8 +1677,8 @@
 0b01 1803      jr      0b06h
 0b03 21fffb    ld      hl,0fbffh            ; Function 4 key exit - initialised to a return
 0b06 3efe      ld      a,0feh
-0b08 d361      out     (61h),a
-0b0a db00      in      a,(00h)
+0b08 d361      out     (61h),a		; Keyboard row select
+0b0a db00      in      a,(00h)		; **KEYBOARD_MATRIX_COLUMN_READ**
 0b0c cb57      bit     2,a
 0b0e 2004      jr      nz,0b14h
 0b10 110c00    ld      de,000ch
@@ -1674,7 +1689,8 @@
 0b19 ed43d8fb  ld      (0fbd8h),bc
 0b1d e9        jp      (hl)
 0b1e af        xor     a
-0b1f c9        ret     
+0b1f c9        ret
+
 0b20 72        ld      (hl),d
 0b21 77        ld      (hl),a
 0b22 77        ld      (hl),a
@@ -1845,6 +1861,7 @@
 0bfe cd2d0c    call    0c2dh             ; List routine
 0c01 10f9      djnz    0bfch
 0c03 1816      jr      0c1bh
+
 0c05 cd2d0c    call    0c2dh             ; List routine
 0c08 fe0d      cp      0dh
 0c0a c0        ret     nz
@@ -1952,7 +1969,7 @@
 0cbd c9        ret
 
 0cbe e1        pop     hl
-0cbf cdf639    call    39f6h        ; GETINT/EVAL
+0cbf cdf639    call    39f6h        ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
 0cc2 e5        push    hl
 0cc3 eb        ex      de,hl
 0cc4 3e80      ld      a,80h
@@ -1996,7 +2013,7 @@
 0cfb 2818      jr      z,0d15h
 0cfd d5        push    de
 0cfe c5        push    bc
-0cff cdf639    call    39f6h        ; GETINT/EVAL
+0cff cdf639    call    39f6h        ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
 0d02 7a        ld      a,d
 0d03 b7        or      a
 0d04 c21c16    jp      nz,161ch            ; Overflow Error (OV ERROR)
@@ -2050,9 +2067,9 @@
 0d50 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
 0d53 e6f0      and     0f0h                ; mask background color
 0d55 f5        push    af                ; save foreground color
-0d56 181a      jr      0d72h            ; text next value
+0d56 181a      jr      0d72h            ; test next value
 
-0d58 cdf639    call    39f6h            ; GETINT/EVAL
+0d58 cdf639    call    39f6h        ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
 0d5b 201a      jr      nz,0d77h            ; > 255 ?
 0d5d 7b        ld      a,e                ; store foreground color
 0d5e fe10      cp      10h                ; 0..15 ?
@@ -2061,7 +2078,7 @@
 0d63 07        rlca                    ; ..to top nibble..
 0d64 07        rlca                    ; ..to conform..
 0d65 07        rlca                    ; ..to colour byte format
-0d66 f5        push    af                ; safe foreground colour
+0d66 f5        push    af                ; save foreground colour
 0d67 2b        dec     hl            ; reset symbol pointer
 0d68 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 0d69 2007      jr      nz,0d72h
@@ -2072,7 +2089,7 @@
 ; text next value in colour commands
 0d72 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 0d73 2c        defb    ','
-0d74 cdf639    call    39f6h        ; GETINT/EVAL
+0d74 cdf639    call    39f6h        ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
 0d77 c21c16    jp      nz,161ch            ; Overflow Error (OV ERROR)
 0d7a 7b        ld      a,e            ; get background colour
 0d7b fe08      cp      08h            ; 0..7 ?
@@ -2101,27 +2118,35 @@
 0d9b 78        ld      a,b
 0d9c 77        ld      (hl),a
 0d9d c1        pop     bc
-0d9e c9        ret     
+0d9e c9        ret
+
 0d9f 2f        cpl     
 0da0 a0        and     b
 0da1 18f0      jr      0d93h
+
 0da3 cbc7      set     0,a
 0da5 18ec      jr      0d93h
 0da7 03        inc     bc
 0da8 18f9      jr      0da3h
-0daa cdaf0d    call    0dafh
+
+0daa cdaf0d    call    0dafh			; Enable sound output, BC=audio frequency
 0dad e1        pop     hl
-0dae c9        ret     
+0dae c9        ret
+
+; Enable sound output, BC=audio frequency
 0daf 3e36      ld      a,36h
-0db1 d323      out     (23h),a
+0db1 d323      out     (23h),a		;  8253 MODE CONTROL WORD
 0db3 79        ld      a,c
-0db4 d320      out     (20h),a
+0db4 d320      out     (20h),a		;  COUNTER 0 - Audio output freq.
 0db6 78        ld      a,b
-0db7 d320      out     (20h),a
-0db9 c9        ret     
+0db7 d320      out     (20h),a		;  COUNTER 0 - Audio output freq.
+0db9 c9        ret
+
+; Stop sound output
 0dba 3e34      ld      a,34h
-0dbc d323      out     (23h),a
-0dbe c9        ret     
+0dbc d323      out     (23h),a		;  8253 MODE CONTROL WORD
+0dbe c9        ret
+
 0dbf cdfe0d    call    0dfeh
 0dc2 d5        push    de
 0dc3 cd8f0d    call    0d8fh
@@ -2149,6 +2174,7 @@
 0dec 2805      jr      z,0df3h
 0dee 3e01      ld      a,01h
 0df0 1801      jr      0df3h
+
 0df2 78        ld      a,b
 0df3 6f        ld      l,a
 0df4 2600      ld      h,00h
@@ -2166,7 +2192,7 @@
 0e07 3291fc    ld      (0fc91h),a    ; First warm start flag
 0e0a cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 0e0b 2c        defb    ','
-0e0c cdf639    call    39f6h        ; GETINT/EVAL
+0e0c cdf639    call    39f6h        ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
 0e0f c21c16    jp      nz,161ch            ; Overflow Error (OV ERROR)
 0e12 7b        ld      a,e
 0e13 3c        inc     a
@@ -2180,6 +2206,7 @@
 0e20 e604      and     04h
 0e22 3e28      ld      a,28h
 0e24 2801      jr      z,0e27h
+
 0e26 17        rla     
 0e27 17        rla     
 0e28 3d        dec     a
@@ -2202,6 +2229,7 @@
 0e45 3803      jr      c,0e4ah
 0e47 04        inc     b
 0e48 18f8      jr      0e42h
+
 0e4a 78        ld      a,b
 0e4b 3c        inc     a
 0e4c 3293fc    ld      (0fc93h),a
@@ -2224,7 +2252,7 @@
 0e6a 1600      ld      d,00h
 0e6c 5f        ld      e,a
 0e6d 19        add     hl,de
-0e6e ed5bdffb  ld      de,(0fbdfh)
+0e6e ed5bdffb  ld      de,(0fbdfh)        ; CRTC value for "display start address"
 0e72 19        add     hl,de
 0e73 7c        ld      a,h
 0e74 e607      and     07h
@@ -2241,7 +2269,8 @@
 0e85 00        nop     
 0e86 00        nop     
 0e87 d1        pop     de
-0e88 c9        ret     
+0e88 c9        ret
+
 0e89 3809      jr      c,0e94h
 0e8b cd9302    call    0293h
 0e8e 00        nop     
@@ -2267,6 +2296,7 @@
 0eac cb46      bit     0,(hl)
 0eae 2011      jr      nz,0ec1h
 0eb0 180b      jr      0ebdh
+
 0eb2 2b        dec     hl
 0eb3 cb46      bit     0,(hl)
 0eb5 280a      jr      z,0ec1h
@@ -2298,13 +2328,13 @@
 0edf e65f      and     5fh
 0ee1 c9        ret     
 
-0ee2 cdc902    call    02c9h
+0ee2 cdc902    call    02c9h			; Detect Disk Drive Controller
 0ee5 2809      jr      z,0ef0h
-0ee7 21a510    ld      hl,10a5h
+0ee7 21a510    ld      hl,10a5h			; "No Controller"
 0eea cd9b37    call    379bh			; Output a string
 0eed c30000    jp      0000h
 
-0ef0 217410    ld      hl,1074h
+0ef0 217410    ld      hl,1074h			; BEL, ESC, 'H', 16h, 1Ah
 0ef3 cd9b37    call    379bh			; Output a string
 0ef6 cda211    call    11a2h
 0ef9 1e01      ld      e,01h
@@ -2315,11 +2345,11 @@
 0f05 e680      and     80h
 0f07 2821      jr      z,0f2ah
 0f09 cd4510    call    1045h
-0f0c cd5310    call    1053h
+0f0c cd5310    call    1053h		; timing delay
 0f0f 10f2      djnz    0f03h
 0f11 0d        dec     c
 0f12 20ef      jr      nz,0f03h
-0f14 217a10    ld      hl,107ah
+0f14 217a10    ld      hl,107ah		; "INSERT DISK"
 0f17 cd9b37    call    379bh			; Output a string
 0f1a cdea09    call    09eah        ; Console status routine
 0f1d b7        or      a
@@ -2329,50 +2359,59 @@
 0f26 e680      and     80h
 0f28 20f0      jr      nz,0f1ah
 0f2a 3134fc    ld      sp,0fc34h
-0f2d dbe8      in      a,(0e8h)
-0f2f e602      and     02h
+0f2d dbe8      in      a,(0e8h)		; disk status
+0f2f e602      and     02h			; selected disk size
 0f31 47        ld      b,a
 0f32 ee02      xor     02h
-0f34 d3ec      out     (0ech),a
+0f34 d3ec      out     (0ech),a		; change disk size
 0f36 dbe8      in      a,(0e8h)
 0f38 e602      and     02h
 0f3a b8        cp      b
 0f3b 2008      jr      nz,0f45h
 0f3d b7        or      a
 0f3e 2008      jr      nz,0f48h
-0f40 cd580f    call    0f58h
+
+0f40 cd580f    call    0f58h			; init disk with size bit disabled
 0f43 1806      jr      0f4bh
+
 0f45 cd580f    call    0f58h
-0f48 cd540f    call    0f54h
-0f4b 218910    ld      hl,1089h
+
+0f48 cd540f    call    0f54h			; init disk with size bit enabled
+
+0f4b 218910    ld      hl,1089h			; "READ ERROR"
 0f4e cd9b37    call    379bh			; Output a string
 0f51 c30000    jp      0000h
 
+; init disk with size bit enabled
 0f54 3e02      ld      a,02h
 0f56 1802      jr      0f5ah
+
+; init disk with size bit disabled
 0f58 3e00      ld      a,00h
-0f5a d3ec      out     (0ech),a
+0f5a d3ec      out     (0ech),a		; init disk type (size, density..)
 0f5c 0603      ld      b,03h
 0f5e 3e0c      ld      a,0ch
 0f60 cd3e10    call    103eh
 0f63 e618      and     18h
 0f65 2803      jr      z,0f6ah
 0f67 10f5      djnz    0f5eh
-0f69 c9        ret     
+0f69 c9        ret
+
 0f6a 1605      ld      d,05h
 0f6c 216610    ld      hl,1066h
 0f6f 0ee0      ld      c,0e0h
 0f71 060e      ld      b,0eh
 0f73 edb3      otir    
 0f75 3e01      ld      a,01h
-0f77 d3f2      out     (0f2h),a
+0f77 d3f2      out     (0f2h),a		; FDC sector register
 0f79 3e86      ld      a,86h
 0f7b cd3e10    call    103eh
 0f7e e61c      and     1ch
 0f80 2804      jr      z,0f86h
 0f82 15        dec     d
 0f83 20e7      jr      nz,0f6ch
-0f85 c9        ret     
+0f85 c9        ret
+
 0f86 2a00d4    ld      hl,(0d400h)
 0f89 114c53    ld      de,534ch
 0f8c b7        or      a
@@ -2399,7 +2438,8 @@
 0fb4 2804      jr      z,0fbah
 0fb6 15        dec     d
 0fb7 20f1      jr      nz,0faah
-0fb9 c9        ret     
+0fb9 c9        ret
+
 0fba 3a05d4    ld      a,(0d405h)
 0fbd eb        ex      de,hl
 0fbe 214000    ld      hl,0040h
@@ -2425,6 +2465,7 @@
 0fe9 2254fc    ld      (0fc54h),hl        ; Address of string area boundary
 0fec cd472a    call    2a47h
 0fef c31611    jp      1116h
+
 0ff2 21b710    ld      hl,10b7h
 0ff5 cd9b37    call    379bh			; Output a string
 0ff8 c30000    jp      0000h
@@ -2453,10 +2494,10 @@
 1022 0600      ld      b,00h
 1024 09        add     hl,bc
 1025 7e        ld      a,(hl)
-1026 d3f2      out     (0f2h),a
+1026 d3f2      out     (0f2h),a			; FDC sector register
 1028 7b        ld      a,e
-1029 d3e4      out     (0e4h),a
-102b cd5310    call    1053h
+1029 d3e4      out     (0e4h),a			; Disk select
+102b cd5310    call    1053h			; timing delay
 102e 0e86      ld      c,86h
 1030 3e10      ld      a,10h
 1032 a3        and     e
@@ -2465,30 +2506,34 @@
 1037 79        ld      a,c
 1038 cd3e10    call    103eh
 103b e61c      and     1ch
-103d c9        ret     
+103d c9        ret
+
 103e d3f0      out     (0f0h),a
 1040 3e0a      ld      a,0ah
 1042 3d        dec     a
 1043 20fd      jr      nz,1042h
 1045 7b        ld      a,e
-1046 d3e4      out     (0e4h),a
+1046 d3e4      out     (0e4h),a			; Disk select
 1048 f620      or      20h
-104a d3e4      out     (0e4h),a
+104a d3e4      out     (0e4h),a			; Disk select
 104c dbf0      in      a,(0f0h)
 104e cb47      bit     0,a
 1050 20f3      jr      nz,1045h
-1052 c9        ret     
+1052 c9        ret
+
+; timing delay
 1053 af        xor     a
 1054 3d        dec     a
 1055 00        nop     
 1056 20fc      jr      nz,1054h
-1058 c9        ret     
-1059 dbf1      in      a,(0f1h)
+1058 c9        ret
+
+1059 dbf1      in      a,(0f1h)			; FDC tract register
 105b 2f        cpl     
-105c d3f1      out     (0f1h),a
+105c d3f1      out     (0f1h),a			; FDC tract register
 105e 4f        ld      c,a
-105f cd5310    call    1053h
-1062 dbf1      in      a,(0f1h)
+105f cd5310    call    1053h			; timing delay
+1062 dbf1      in      a,(0f1h)			; FDC tract register
 1064 b9        cp      c
 1065 c9        ret     
 
@@ -2652,6 +2697,7 @@
 1121 0d        dec     c
 1122 0a        ld      a,(bc)
 1123 00        nop     
+
 1124 0d        dec     c
 1125 0a        ld      a,(bc)
 1126 44        ld      b,h
@@ -2711,7 +2757,8 @@
 117e 09        add     hl,bc
 117f 70        ld      (hl),b
 1180 eb        ex      de,hl
-1181 c9        ret     
+1181 c9        ret
+
 1182 281e      jr      z,11a2h
 1184 cdd011    call    11d0h
 1187 d5        push    de
@@ -2770,7 +2817,8 @@
 11e4 57        ld      d,a
 11e5 3a9dfc    ld      a,(0fc9dh)
 11e8 a2        and     d
-11e9 c9        ret     
+11e9 c9        ret
+
 11ea cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 11eb 22ca81    ld      (81cah),hl
 11ee 28d7      jr      z,11c7h
@@ -2834,9 +2882,11 @@
 124c d0        ret     nc
 124d 1003      djnz    1252h
 124f c36515    jp      1565h
+
 1252 12        ld      (de),a
 1253 13        inc     de
 1254 18ec      jr      1242h
+
 1256 e5        push    hl
 1257 210000    ld      hl,0000h
 125a 112400    ld      de,0024h
@@ -2846,7 +2896,8 @@
 1263 19        add     hl,de
 1264 eb        ex      de,hl
 1265 e1        pop     hl
-1266 c9        ret     
+1266 c9        ret
+
 1267 e5        push    hl
 1268 0608      ld      b,08h
 126a 3a9dfc    ld      a,(0fc9dh)
@@ -2855,7 +2906,8 @@
 1270 10fb      djnz    126dh
 1272 e1        pop     hl
 1273 af        xor     a
-1274 c9        ret     
+1274 c9        ret
+
 1275 08        ex      af,af'
 1276 c5        push    bc
 1277 d5        push    de
@@ -2879,7 +2931,8 @@
 1297 e1        pop     hl
 1298 3e01      ld      a,01h
 129a b7        or      a
-129b c9        ret     
+129b c9        ret
+
 129c d1        pop     de
 129d c1        pop     bc
 129e 08        ex      af,af'
@@ -2937,7 +2990,8 @@
 1302 3c        inc     a
 1303 ca352d    jp      z,2d35h            ; Error: Illegal function call (FC ERROR)
 1306 e1        pop     hl
-1307 c9        ret     
+1307 c9        ret
+
 1308 cd452d    call    2d45h            ; LNUM_PARM_0 - Get specified line number (2nd parameter)
 130b d5        push    de
 130c cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
@@ -3032,11 +3086,13 @@
 13b8 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
 13bb e5        push    hl
 13bc c3d229    jp      29d2h
+
 13bf ed5b58fc  ld      de,(0fc58h)        ; BASTXT - Address of BASIC Program
 13c3 cde629    call    29e6h
 13c6 21082c    ld      hl,2c08h
 13c9 e5        push    hl
 13ca c3472a    jp      2a47h
+
 13cd e5        push    hl
 13ce cdf513    call    13f5h
 13d1 2102d8    ld      hl,0d802h
@@ -3055,7 +3111,8 @@
 13f0 b7        or      a
 13f1 28ed      jr      z,13e0h
 13f3 e1        pop     hl
-13f4 c9        ret     
+13f4 c9        ret
+
 13f5 c5        push    bc
 13f6 1100d8    ld      de,0d800h
 13f9 0e1a      ld      c,1ah
@@ -3066,7 +3123,8 @@
 1406 b7        or      a
 1407 c2352d    jp      nz,2d35h            ; Error: Illegal function call (FC ERROR)
 140a c1        pop     bc
-140b c9        ret     
+140b c9        ret
+
 140c cd8714    call    1487h
 140f e5        push    hl
 1410 2a99fc    ld      hl,(0fc99h)
@@ -3109,6 +3167,7 @@
 1452 cd5814    call    1458h
 1455 03        inc     bc
 1456 18f7      jr      144fh
+
 1458 d5        push    de
 1459 c5        push    bc
 145a 2a99fc    ld      hl,(0fc99h)
@@ -3133,7 +3192,8 @@
 1481 ca352d    jp      z,2d35h            ; Error: Illegal function call (FC ERROR)
 1484 c1        pop     bc
 1485 d1        pop     de
-1486 c9        ret     
+1486 c9        ret
+
 1487 e5        push    hl
 1488 2180d3    ld      hl,0d380h
 148b 018000    ld      bc,0080h
@@ -3150,7 +3210,8 @@
 149f cd5612    call    1256h
 14a2 ed5397fc  ld      (0fc97h),de
 14a6 e1        pop     hl
-14a7 c9        ret     
+14a7 c9        ret
+
 14a8 cd1c37    call    371ch
 14ab d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 14ac ca1300    jp      z,0013h        ;  Memory Overflow (MO ERROR)
@@ -3197,6 +3258,7 @@
 14f5 e3        ex      (sp),hl
 14f6 d5        push    de
 14f7 c31e2e    jp      2e1eh
+
 14fa d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 14fb f1        pop     af
 14fc f5        push    af
@@ -3204,12 +3266,14 @@
 1500 c5        push    bc
 1501 dad61c    jp      c,1cd6h
 1504 c3cf1c    jp      1ccfh
+
 1507 eb        ex      de,hl
 1508 e1        pop     hl
 1509 2b        dec     hl
 150a d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 150b c8        ret     z
 150c 18ab      jr      14b9h
+
 150e e5        push    hl
 150f 2a99fc    ld      hl,(0fc99h)
 1512 7e        ld      a,(hl)
@@ -3233,14 +3297,16 @@
 1537 09        add     hl,bc
 1538 7e        ld      a,(hl)
 1539 e1        pop     hl
-153a c9        ret     
+153a c9        ret
+
 153b 1180d8    ld      de,0d880h
 153e cd103f    call    3f10h
 1541 cd6712    call    1267h
 1544 c2352d    jp      nz,2d35h            ; Error: Illegal function call (FC ERROR)
 1547 0e13      ld      c,13h
 1549 cd4d15    call    154dh
-154c c9        ret     
+154c c9        ret
+
 154d e5        push    hl
 154e d5        push    de
 154f 3a00ea    ld      a,(0ea00h)
@@ -6923,7 +6989,8 @@
 2ba7 cd1b1d    call    1d1bh
 2baa e1        pop     hl
 2bab e1        pop     hl
-2bac c9        ret     
+2bac c9        ret
+
 2bad cd520b    call    0b52h
 2bb0 4f        ld      c,a
 2bb1 cd520b    call    0b52h
@@ -6940,7 +7007,8 @@
 2bcb cd1b1d    call    1d1bh
 2bce cd5414    call    1454h
 2bd1 e1        pop     hl
-2bd2 c9        ret     
+2bd2 c9        ret
+
 2bd3 cdd905    call    05d9h
 2bd6 e5        push    hl
 2bd7 cd4c14    call    144ch
@@ -6963,7 +7031,8 @@
 2bf3 cd1b1d    call    1d1bh
 2bf6 cd5414    call    1454h
 2bf9 e1        pop     hl
-2bfa c9        ret     
+2bfa c9        ret
+
 2bfb 2b        dec     hl
 2bfc cd5d0b    call    0b5dh
 2bff fe23      cp      23h
@@ -8182,23 +8251,26 @@
 367d 18f9      jr      3678h
 367f cd9f16    call    169fh
 3682 e1        pop     hl
-3683 c9        ret     
+3683 c9        ret
+
 3684 3e36      ld      a,36h
-3686 d323      out     (23h),a
+3686 d323      out     (23h),a		;  8253 MODE CONTROL WORD
 3688 79        ld      a,c
-3689 d320      out     (20h),a
+3689 d320      out     (20h),a		;  COUNTER 0 - Audio output freq.
 368b 78        ld      a,b
-368c d320      out     (20h),a
+368c d320      out     (20h),a		;  COUNTER 0 - Audio output freq.
 368e c9        ret     
 368f 3e34      ld      a,34h
-3691 d323      out     (23h),a
-3693 c9        ret     
+3691 d323      out     (23h),a		;  8253 MODE CONTROL WORD
+3693 c9        ret
+
 3694 cd5d0b    call    0b5dh
 3697 cd961d    call    1d96h
 369a e5        push    hl
 369b d5        push    de
 369c c1        pop     bc
 369d 18e0      jr      367fh
+
 369f d1        pop     de
 36a0 e1        pop     hl
 36a1 d5        push    de
@@ -8212,13 +8284,15 @@
 36af d1        pop     de
 36b0 e5        push    hl
 36b1 d5        push    de
-36b2 c9        ret     
+36b2 c9        ret
+
 36b3 23        inc     hl
 36b4 cd961d    call    1d96h
 36b7 c1        pop     bc
 36b8 e5        push    hl
 36b9 cd8416    call    1684h
 36bc 1804      jr      36c2h
+
 36be 1b        dec     de
 36bf cdce16    call    16ceh
 36c2 7a        ld      a,d
@@ -8229,7 +8303,8 @@
 36ca d1        pop     de
 36cb e5        push    hl
 36cc d5        push    de
-36cd c9        ret     
+36cd c9        ret
+
 36ce c5        push    bc
 36cf f5        push    af
 36d0 010020    ld      bc,2000h
@@ -8239,7 +8314,8 @@
 36d6 20fb      jr      nz,36d3h
 36d8 f1        pop     af
 36d9 c1        pop     bc
-36da c9        ret     
+36da c9        ret
+
 36db 3a8afb    ld      a,(0fb8ah)
 36de cbd7      set     2,a
 36e0 328afb    ld      (0fb8ah),a
@@ -8291,11 +8367,13 @@
 3769 ed5b87fb  ld      de,(0fb87h)
 376d 19        add     hl,de
 376e 18bd      jr      372dh
+
 3770 3a8afb    ld      a,(0fb8ah)
 3773 cbcf      set     1,a
 3775 328afb    ld      (0fb8ah),a
 3778 cdc51c    call    1cc5h
 377b 1808      jr      3785h
+
 377d 3a8afb    ld      a,(0fb8ah)
 3780 cb8f      res     1,a
 3782 328afb    ld      (0fb8ah),a
@@ -8330,13 +8408,15 @@
 37b8 2003      jr      nz,37bdh
 37ba 23        inc     hl
 37bb 18f8      jr      37b5h
+
 37bd fe2c      cp      ','
 37bf 2008      jr      nz,37c9h
 37c1 cdc51c    call    1cc5h
 37c4 d5        push    de
 37c5 23        inc     hl
 37c6 c38d17    jp      178dh
-37c9 c9        ret     
+37c9 c9        ret
+
 37ca cd520b    call    0b52h
 37cd 41        ld      b,c
 37ce cd520b    call    0b52h
@@ -8415,7 +8495,8 @@
 388e 22affb    ld      (0fbafh),hl
 3891 1881      jr      3814h
 3893 e1        pop     hl
-3894 c9        ret     
+3894 c9        ret
+
 3895 cda618    call    18a6h
 3898 c0        ret     nz
 3899 cdc813    call    13c8h
@@ -8450,6 +8531,7 @@
 38cb e5        push    hl
 38cc cd4c14    call    144ch
 38cf 210040    ld      hl,4000h
+; GSTRDE
 38d2 01ff5f    ld      bc,5fffh
 38d5 cd0f1d    call    1d0fh
 38d8 7e        ld      a,(hl)
@@ -8583,7 +8665,7 @@
 39f3 c3d619    jp      19d6h
 
 
-; GETINT/EVAL
+; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times
 39f6 cd0f1d    call    1d0fh
 39f9 db50      in      a,(50h)        ; get system status
 39fb e610      and     10h
@@ -8593,7 +8675,7 @@
 3a01 12        ld      (de),a
 3a02 13        inc     de
 3a03 cd1b1d    call    1d1bh
-3a06 10ee      djnz    39f6h        ; GETINT/EVAL
+3a06 10ee      djnz    39f6h        ; LDIRVM
 3a08 c9        ret
 
 3a09 cd0f1d    call    1d0fh
@@ -8609,7 +8691,8 @@
 3a16 cd1b1d    call    1d1bh
 3a19 10ee      djnz    3a09h
 3a1b 225bfb    ld      (0fb5bh),hl
-3a1e c9        ret     
+3a1e c9        ret
+
 3a1f 1180d8    ld      de,0d880h
 3a22 0e13      ld      c,13h
 3a24 cdf318    call    18f3h
@@ -9022,7 +9105,7 @@
 3d8e 180a      jr      3d9ah
 3d90 dd215910  ld      ix,1059h
 3d94 1804      jr      3d9ah
-3d96 dd21f639  ld      ix,39f6h        ; GETINT/EVAL
+3d96 dd21f639  ld      ix,39f6h                ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
 
 3d9a dde5      push    ix
 3d9c c3803f    jp      3f80h
@@ -9038,20 +9121,22 @@
 3dad f5        push    af
 3dae cd1b1d    call    1d1bh
 3db1 f1        pop     af
-3db2 c9        ret     
-3db3 dbf1      in      a,(0f1h)
+3db2 c9        ret
+
+3db3 dbf1      in      a,(0f1h)			; FDC tract register
 3db5 2f        cpl     
-3db6 d3f1      out     (0f1h),a
+3db6 d3f1      out     (0f1h),a			; FDC tract register
 3db8 4f        ld      c,a
 3db9 af        xor     a
 3dba 3d        dec     a
 3dbb 20fd      jr      nz,3dbah
-3dbd dbf1      in      a,(0f1h)
+3dbd dbf1      in      a,(0f1h)			; FDC tract register
 3dbf b9        cp      c
 3dc0 c24f1e    jp      nz,1e4fh
 3dc3 cd9f1d    call    1d9fh
 3dc6 00        nop     
 3dc7 c34f1e    jp      1e4fh
+
 3dca 50        ld      d,b
 3dcb fb        ei      
 3dcc cd7a1e    call    1e7ah
@@ -9083,9 +9168,9 @@
 3dff d3e0      out     (0e0h),a
 3e01 3afa1d    ld      a,(1dfah)
 3e04 eeff      xor     0ffh
-3e06 d3f2      out     (0f2h),a
+3e06 d3f2      out     (0f2h),a			; FDC sector register
 3e08 af        xor     a
-3e09 d3f1      out     (0f1h),a
+3e09 d3f1      out     (0f1h),a			; FDC tract register
 3e0b 3e8c      ld      a,8ch
 3e0d d3f0      out     (0f0h),a
 3e0f 0ef3      ld      c,0f3h
@@ -9138,12 +9223,14 @@
 3e74 3d        dec     a
 3e75 77        ld      (hl),a
 3e76 cd1b1d    call    1d1bh
-3e79 c9        ret     
+3e79 c9        ret
+
 3e7a 3e01      ld      a,01h
-3e7c d3e4      out     (0e4h),a
-3e7e cbef      set     5,a
-3e80 d3e4      out     (0e4h),a
-3e82 c9        ret     
+3e7c d3e4      out     (0e4h),a			; Disk select
+3e7e cbef      set     5,a				; Motor drive monostable trigger
+3e80 d3e4      out     (0e4h),a			; Disk select
+3e82 c9        ret
+
 3e83 e3        ex      (sp),hl
 3e84 e3        ex      (sp),hl
 3e85 e3        ex      (sp),hl
@@ -9155,7 +9242,8 @@
 3e8e dbf0      in      a,(0f0h)
 3e90 cb47      bit     0,a
 3e92 20f4      jr      nz,3e88h
-3e94 c9        ret     
+3e94 c9        ret
+
 3e95 cd0f1d    call    1d0fh
 3e98 21ff0f    ld      hl,0fffh
 3e9b 3e9f      ld      a,9fh
@@ -10902,10 +10990,12 @@
 47f0 2d        dec     l
 47f1 40        ld      b,b
 47f2 e64d      and     4dh
-47f4 db00      in      a,(00h)
-47f6 c9        ret     
+47f4 db00      in      a,(00h)		; **KEYBOARD_MATRIX_COLUMN_READ**
+47f6 c9        ret
+
 47f7 d300      out     (00h),a
-47f9 c9        ret     
+47f9 c9        ret
+
 47fa 00        nop     
 47fb 00        nop     
 47fc 00        nop     
@@ -11707,7 +11797,7 @@
 4d2f c9        ret
 
 4d30 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4d31 cdf639    call    39f6h        ; GETINT/EVAL
+4d31 cdf639    call    39f6h                ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
 4d34 f0        ret     p
 4d35 1e08      ld      e,08h
 4d37 c38c28    jp      288ch        ; ERROR, E=error code
@@ -12786,7 +12876,7 @@
 5488 d1        pop     de
 5489 c5        push    bc
 548a f5        push    af
-548b cdd238    call    38d2h
+548b cdd238    call    38d2h		; GSTRDE
 548e d1        pop     de
 548f 5e        ld      e,(hl)
 5490 23        inc     hl
@@ -12957,6 +13047,7 @@
 557d 2600      ld      h,00h
 557f 19        add     hl,de
 5580 18df      jr      5561h
+
 5582 7c        ld      a,h
 5583 e1        pop     hl
 5584 e3        ex      (sp),hl
@@ -13010,7 +13101,8 @@
 55c5 f1        pop     af
 55c6 f1        pop     af
 55c7 e3        ex      (sp),hl
-55c8 c9        ret     
+55c8 c9        ret
+
 55c9 3244fe    ld      (0fe44h),a
 55cc c1        pop     bc
 55cd 67        ld      h,a
@@ -13258,10 +13350,10 @@
 573e 4e        ld      c,(hl)
 573f 23        inc     hl
 5740 46        ld      b,(hl)
-5741 cd4e37    call    374eh
+5741 cd4e37    call    374eh		; CRTMST - Create temporary string entry
 5744 e5        push    hl
 5745 6f        ld      l,a
-5746 cdc238    call    38c2h
+5746 cdc238    call    38c2h		; TOSTRA
 5749 d1        pop     de
 574a c9        ret
 
@@ -13296,7 +13388,7 @@
 5772 23        inc     hl
 5773 eb        ex      de,hl
 5774 79        ld      a,c
-5775 cd4e37    call    374eh
+5775 cd4e37    call    374eh			; CRTMST - Create temporary string entry
 5778 11f3fd    ld      de,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
 577b 3ed5      ld      a,0d5h
 577d 2ad3fd    ld      hl,(0fdd3h)        ; TMSTPT: Address of next available location in LSPT
@@ -13490,7 +13582,7 @@
 5899 da8c28    jp      c,288ch        ; ERROR, E=error code
 589c cd4b37    call    374bh		; MKTMST - Make temporary string
 589f d1        pop     de
-58a0 cdd238    call    38d2h
+58a0 cdd238    call    38d2h		; GSTRDE
 58a3 e3        ex      (sp),hl
 58a4 cdd138    call    38d1h
 58a7 e5        push    hl
@@ -13621,7 +13713,7 @@
 5953 18ca      jr      591fh		; TOPOOL
 
 ; __LEFT_S
-5955 cdd339    call    39d3h
+5955 cdd339    call    39d3h		; LFRGNM
 5958 af        xor     a
 5959 e3        ex      (sp),hl
 595a 4f        ld      c,a
@@ -13646,23 +13738,25 @@
 5974 09        add     hl,bc
 5975 44        ld      b,h
 5976 4d        ld      c,l
-5977 cd4e37    call    374eh
+5977 cd4e37    call    374eh		; CRTMST - Create temporary string entry
 597a 6f        ld      l,a
-597b cdc238    call    38c2h
+597b cdc238    call    38c2h		; TOSTRA
 597e d1        pop     de
-597f cdd238    call    38d2h
+597f cdd238    call    38d2h		; GSTRDE
 5982 c37837    jp      3778h		; TSTOPL
 
-5985 cdd339    call    39d3h
+; __RIGHT_S
+5985 cdd339    call    39d3h		; LFRGNM
 5988 d1        pop     de
 5989 d5        push    de
 598a 1a        ld      a,(de)
 598b 90        sub     b
 598c 18cb      jr      5959h
 
+; __MID_S
 598e eb        ex      de,hl
 598f 7e        ld      a,(hl)
-5990 cdd639    call    39d6h
+5990 cdd639    call    39d6h			; MIDNUM - Get numeric argument for MID$
 5993 04        inc     b
 5994 05        dec     b
 5995 ca352d    jp      z,2d35h            ; Error: Illegal function call (FC ERROR)
@@ -13998,7 +14092,7 @@
 5bab 7e        ld      a,(hl)
 5bac c3ec36    jp      36ech			; UNSIGNED_RESULT_A
 
-5baf cdf639    call    39f6h        ; GETINT/EVAL
+5baf cdf639    call    39f6h                ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
 5bb2 d5        push    de
 5bb3 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 5bb4 2c        defb    ','
@@ -14700,19 +14794,25 @@
 5fe7 ff        rst     38h
 5fe8 ff        rst     38h
 5fe9 ff        rst     38h
+
 5fea cd9e1e    call    1e9eh
 5fed b6        or      (hl)
 5fee cd431e    call    1e43h
 5ff1 c9        ret     
+
 5ff2 7e        ld      a,(hl)
 5ff3 c9        ret     
+
 5ff4 5e        ld      e,(hl)
 5ff5 23        inc     hl
 5ff6 56        ld      d,(hl)
 5ff7 c9        ret     
+
 5ff8 1a        ld      a,(de)
 5ff9 c9        ret     
+
 5ffa dde9      jp      (ix)
+
 5ffc e1        pop     hl
 5ffd 2e65      ld      l,65h
 5fff 86        add     a,(hl)
