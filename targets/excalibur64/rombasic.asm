@@ -1,7 +1,8 @@
 
 
 
-; NOTE: the code listed in this disassembly is not complete, nor the proper bank switching was considered !
+; NOTE: the code listed in this disassembly is not complete, the ROM files hold folded program pages which had to be manually remapped.  
+; Not all tbe proper bank mapping was considered !
 
 
 
@@ -71,7 +72,8 @@
 001c d3e4      out     (0e4h),a			; Disk select
 001e 18e0      jr      0000h
 
-0020 c3c9fb    jp      0fbc9h        ; __CHRCKB ?
+
+0020 c3c9fb    jp      0fbc9h			; GETYPR - Get the number type (FAC)
 
 0023 00        nop     
 0024 00        nop     
@@ -85,7 +87,9 @@
 002c 00        nop     
 002d 00        nop     
 002e 00        nop     
-002f 00        nop     
+002f 00        nop
+
+
 0030 c3cffb    jp      0fbcfh
 
 0033 00        nop     
@@ -132,22 +136,22 @@
 0091 c31b19    jp      191bh    ; Integer to single precision
 0094 c3d61c    jp      1cd6h    ; ASCII to Binary conversion
 0097 c3281e    jp      1e28h    ; Floating point to ASCII
-009a c38015    jp      1580h    ; Single precision add
-009d c37d15    jp      157dh    ; Single precision subtract
-00a0 c3b116    jp      16b1h    ; Single precision multiply
+009a c38015    jp      1580h    ; FPADD  - Single precision add (Add BCDE to FP reg)
+009d c37d15    jp      157dh    ; SUBCDE - Single precision subtract  (Subtract BCDE from FP reg)
+00a0 c3b116    jp      16b1h    ; FPMULT - Single precision multiply  (Multiply BCDE to FP reg)
 00a3 c38433    jp      3384h    ; Single precision division
 00a6 c37618    jp      1876h    ; Single precision compare
-00a9 c3e117    jp      17e1h    ; Absolute value
+00a9 c3e117    jp      17e1h    ; ABS - Absolute value
 00ac c3a119    jp      19a1h    ; Return Integer
-00af c32724    jp      2427h    ; Arctangent
-00b2 c3ab23    jp      23abh    ; Cosine
-00b5 c3b123    jp      23b1h    ; Sine
-00b8 c31224    jp      2412h    ; Tangent
-00bb c31e18    jp      181eh    ; Move SP value in BC/DE into WRA1
-00be c31b18    jp      181bh    ; Move a SP value -> HL to WRA1
+00af c32724    jp      2427h    ; ATN - Arctangent
+00b2 c3ab23    jp      23abh    ; COS - Cosine
+00b5 c3b123    jp      23b1h    ; SIN - Sine
+00b8 c31224    jp      2412h    ; TAN - Tangent
+00bb c31e18    jp      181eh    ; FPBCDE: Move SP value in BC/DE into WRA1
+00be c31b18    jp      181bh    ; PHLTFP - Move a SP value -> HL to WRA1
 00c1 c32c18    jp      182ch    ; LOADFP: Load SP value -> into BC/DE
-00c4 c32918    jp      1829h    ; Load a SP value from WRA1 into BC/DE
-00c7 c30e18    jp      180eh    ; Move WRA1 to stack
+00c4 c32918    jp      1829h    ; BCDEFP: Load a SP value from WRA1 into BC/DE
+00c7 c30e18    jp      180eh    ; STAKFP: Move WRA1 to stack
 00ca c3162a    jp      2a16h    ; FIND_LNUM - Search for line number
 00cd c30135    jp      3501h    ; GETVAR: Find address of variable
 00d0 c39c2d    jp      2d9ch    ; Gosub routine
@@ -193,13 +197,13 @@
 0105 b5        or      l
 0106 20fb      jr      nz,0103h
 0108 3e4e      ld      a,4eh
-010a d311      out     (11h),a
+010a d311      out     (11h),a			; Serial Control and status port
 010c 3e37      ld      a,37h
-010e d311      out     (11h),a
+010e d311      out     (11h),a			; Serial Control and status port
 0110 3e81      ld      a,81h
-0112 d363      out     (63h),a
+0112 d363      out     (63h),a			; Parallel Port Interface Control word
 0114 3e10      ld      a,10h
-0116 d362      out     (62h),a
+0116 d362      out     (62h),a			; Parallel and Cassette I/O port
 0118 210040    ld      hl,4000h
 011b 3600      ld      (hl),00h
 011d 218ffc    ld      hl,0fc8fh        ; No.of lines displayed by screen
@@ -258,10 +262,12 @@
 018c 12        ld      (de),a
 018d 13        inc     de
 018e 10fc      djnz    018ch
+
 0190 1134fc    ld      de,0fc34h
 0193 21e127    ld      hl,27e1h
 0196 012600    ld      bc,0026h
 0199 edb0      ldir    
+
 019b 21e1fe    ld      hl,0fee1h
 019e 363a      ld      (hl),3ah
 01a0 23        inc     hl
@@ -315,7 +321,7 @@
 020e 32e4fb    ld      (0fbe4h),a       ; COLOUR BYTE  copied into colour ram with every console output
 0211 21cd10    ld      hl,10cdh			; BEL, Excalibur 64 Extended Basic 1.1
 0214 cd9b37    call    379bh			; Output a string
-0217 216602    ld      hl,0266h
+0217 216602    ld      hl,0266h			; "Memory Size"
 021a cd9b37    call    379bh			; Output a string
 021d cd9d2a    call    2a9dh            ; INLIN
 0220 38f5      jr      c,0217h
@@ -343,7 +349,7 @@
 
 ; RS232 Output routine
 024b 08        ex      af,af'
-024c db11      in      a,(11h)
+024c db11      in      a,(11h)			; Serial Control and status port
 024e e601      and     01h
 0250 28fa      jr      z,024ch
 0252 08        ex      af,af'
@@ -351,7 +357,7 @@
 0255 c9        ret     
 
 ; RS232 Status routine
-0256 db11      in      a,(11h)
+0256 db11      in      a,(11h)			; Serial Control and status port
 0258 e602      and     02h
 025a c8        ret     z
 025b 3eff      ld      a,0ffh
@@ -401,9 +407,9 @@
 0296 db50      in      a,(50h)        ; get system status
 0298 e610      and     10h
 029a 28fa      jr      z,0296h        ; wait for CSYNC - Composite video sync.signal 
-029c cbc6      set     0,(hl)
-029e cb9c      res     3,h
-02a0 06c0      ld      b,0c0h
+029c cbc6      set     0,(hl)         ; enable PCGEN bit
+029e cb9c      res     3,h            ; move from attribute to text address
+02a0 06c0      ld      b,0c0h         ; character 0xC0 (192)
 02a2 70        ld      (hl),b
 02a3 f1        pop     af
 02a4 c9        ret
@@ -417,7 +423,7 @@
 02af fe40      cp      40h
 02b1 c0        ret     nz
 02b2 23        inc     hl
-02b3 cdf639    call    39f6h        ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
+02b3 cdf639    call    39f6h        ; GETWORD - Get a number to DE (0..65535)
 02b6 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 02b7 2c        defb    ','
 02b8 e5        push    hl
@@ -707,7 +713,7 @@
 04c7 c9        ret
 
 04c8 2819      jr      z,04e3h			; Clear screen routine
-04ca cdf639    call    39f6h        ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
+04ca cdf639    call    39f6h        ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times
 04cd 7a        ld      a,d
 04ce b7        or      a
 04cf c21c16    jp      nz,161ch            ; Overflow Error (OV ERROR)
@@ -801,7 +807,8 @@
 0572 cb6e      bit     5,(hl)
 0574 2002      jr      nz,0578h
 0576 e1        pop     hl
-0577 c9        ret     
+0577 c9        ret
+
 0578 cd2e04    call    042eh
 057b 23        inc     hl
 057c 3e07      ld      a,07h
@@ -883,7 +890,8 @@
 0602 e65f      and     5fh
 0604 cd0d03    call    030dh        ; Console output routine
 0607 af        xor     a
-0608 c9        ret     
+0608 c9        ret
+
 0609 cb4e      bit     1,(hl)
 060b 201e      jr      nz,062bh
 060d cbce      set     1,(hl)
@@ -913,10 +921,10 @@
 0635 d0        ret     nc
 0636 cb07      rlc     a
 0638 47        ld      b,a
-0639 3ae4fb    ld      a,(0fbe4h)
+0639 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
 063c e6f1      and     0f1h
 063e b0        or      b
-063f 32e4fb    ld      (0fbe4h),a
+063f 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
 0642 c9        ret
 
 0643 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
@@ -1133,12 +1141,12 @@
 076c 10fe      djnz    076ch
 076e c1        pop     bc
 076f 3e0e      ld      a,0eh
-0771 d363      out     (63h),a
+0771 d363      out     (63h),a			; Parallel Port Interface Control word
 0773 c5        push    bc
 0774 10fe      djnz    0774h
 0776 c1        pop     bc
 0777 3e0f      ld      a,0fh
-0779 d363      out     (63h),a
+0779 d363      out     (63h),a			; Parallel Port Interface Control word
 077b 0d        dec     c
 077c 20ed      jr      nz,076bh
 077e f1        pop     af
@@ -1258,11 +1266,11 @@
 0839 c9        ret
 
 083a c5        push    bc
-083b db62      in      a,(62h)
+083b db62      in      a,(62h)			; Parallel and Cassette I/O port
 083d 4f        ld      c,a
 083e 0600      ld      b,00h
 0840 04        inc     b
-0841 db62      in      a,(62h)
+0841 db62      in      a,(62h)			; Parallel and Cassette I/O port
 0843 a9        xor     c
 0844 cb5f      bit     3,a
 0846 28f8      jr      z,0840h
@@ -1277,11 +1285,11 @@
 0851 7a        ld      a,d
 0852 08        ex      af,af'
 0853 c5        push    bc
-0854 cdf639    call    39f6h        ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
+0854 cdf639    call    39f6h        ; GETWORD - Get a number to DE (0..65535)
 0857 d5        push    de
 0858 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 0859 2c        defb    ','
-085a cdf639    call    39f6h        ; GETINT/EVAL (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
+085a cdf639    call    39f6h        ; GETWORD - Get a number to DE (0..65535)
 085d eb        ex      de,hl
 085e c1        pop     bc
 085f b7        or      a
@@ -1378,7 +1386,7 @@
 ; Console line input routine
 08fa af        xor     a
 08fb 324dfc    ld      (0fc4dh),a    ; Holds last character typed after break
-08fe 32c6fd    ld      (0fdc6h),a    ; Current cursor position (column number)
+08fe 32c6fd    ld      (0fdc6h),a    ; CURPOS (a.k.a. TTYPOS) - Current cursor position (column number)
 0901 cdaefe    call    0feaeh
 0904 cd6504    call    0465h        ; Cursor on routine
 0907 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
@@ -1402,7 +1410,8 @@
 092f 2810      jr      z,0941h
 0931 fe17      cp      17h
 0933 cce802    call    z,02e8h
-0936 c9        ret     
+0936 c9        ret
+
 0937 04        inc     b
 0938 05        dec     b
 0939 c8        ret     z
@@ -1410,10 +1419,12 @@
 093b 23        inc     hl
 093c cde802    call    02e8h
 093f 05        dec     b
-0940 c9        ret     
+0940 c9        ret
+
 0941 cdf202    call    02f2h
 0944 d1        pop     de
 0945 18b3      jr      08fah    ; Console line input routine
+
 0947 78        ld      a,b
 0948 b9        cp      c
 0949 c8        ret     z
@@ -1458,6 +1469,7 @@
 098b 1d        dec     e
 098c c8        ret     z
 098d 18f1      jr      0980h
+
 098f 37        scf     
 0990 f5        push    af
 0991 3600      ld      (hl),00h
@@ -1475,11 +1487,13 @@
 09a6 d9        exx     
 09a7 cdea09    call    09eah        ; Console status routine
 09aa d9        exx     
-09ab c9        ret     
+09ab c9        ret
+
 09ac cda309    call    09a3h        ; Console input routine
 09af b7        or      a
 09b0 c0        ret     nz
 09b1 18f9      jr      09ach        ; Console input routine
+
 09b3 e5        push    hl
 09b4 c5        push    bc
 09b5 cdea09    call    09eah        ; Console status routine
@@ -1488,6 +1502,7 @@
 09ba b7        or      a
 09bb c0        ret     nz
 09bc 18f5      jr      09b3h
+
 09be d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 09bf e5        push    hl
 09c0 3a4dfc    ld      a,(0fc4dh)    ; Holds last character typed after break
@@ -1507,7 +1522,7 @@
 09da c37837    jp      3778h		; TSTOPL
 
 09dd 217202    ld      hl,0272h
-09e0 2241fe    ld      (0fe41h),hl        ; FACCU
+09e0 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 09e3 3e03      ld      a,03h
 09e5 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 09e8 e1        pop     hl
@@ -1553,6 +1568,7 @@
 0a28 2803      jr      z,0a2dh
 0a2a af        xor     a
 0a2b 18dc      jr      0a09h
+
 0a2d 21bc02    ld      hl,02bch
 0a30 22dafb    ld      (0fbdah),hl
 0a33 1816      jr      0a4bh
@@ -1667,10 +1683,12 @@
 0aea 2805      jr      z,0af1h
 0aec 21f6fb    ld      hl,0fbf6h            ; Function 1 key exit - initialised to a return
 0aef 1815      jr      0b06h
+
 0af1 cb4f      bit     1,a
 0af3 2805      jr      z,0afah
 0af5 21f9fb    ld      hl,0fbf9h            ; Function 2 key exit - initialised to a return
 0af8 180c      jr      0b06h
+
 0afa cb47      bit     0,a
 0afc 2805      jr      z,0b03h
 0afe 21fcfb    ld      hl,0fbfch            ; Function 3 key exit - initialised to a return
@@ -1817,7 +1835,7 @@
 0bbe 30fc      jr      nc,0bbch
 0bc0 09        add     hl,bc
 0bc1 7d        ld      a,l
-0bc2 32c6fd    ld      (0fdc6h),a        ; Current cursor position (column number)
+0bc2 32c6fd    ld      (0fdc6h),a        ; CURPOS (a.k.a. TTYPOS) - Current cursor position (column number)
 0bc5 d9        exx     
 0bc6 f1        pop     af
 0bc7 c9        ret     
@@ -1888,19 +1906,19 @@
 0c2e cd450c    call    0c45h			; List status routine
 0c31 20fb      jr      nz,0c2eh
 0c33 08        ex      af,af'
-0c34 d360      out     (60h),a
+0c34 d360      out     (60h),a			; Parallel output port data  [PA0-PA7]
 0c36 08        ex      af,af'
 0c37 3e08      ld      a,08h
-0c39 d363      out     (63h),a
+0c39 d363      out     (63h),a			; Parallel Port Interface Control word
 0c3b 060a      ld      b,0ah
 0c3d 10fe      djnz    0c3dh
 0c3f 3e09      ld      a,09h
-0c41 d363      out     (63h),a
+0c41 d363      out     (63h),a			; Parallel Port Interface Control word
 0c43 08        ex      af,af'
 0c44 c9        ret
 
 ; List status routine
-0c45 db62      in      a,(62h)
+0c45 db62      in      a,(62h)			; Parallel and Cassette I/O port
 0c47 e603      and     03h
 0c49 c9        ret     
 0c4a 210048    ld      hl,4800h
@@ -1969,7 +1987,7 @@
 0cbd c9        ret
 
 0cbe e1        pop     hl
-0cbf cdf639    call    39f6h        ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
+0cbf cdf639    call    39f6h        ; GETWORD - Get a number to DE (0..65535)   (or, LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
 0cc2 e5        push    hl
 0cc3 eb        ex      de,hl
 0cc4 3e80      ld      a,80h
@@ -2013,7 +2031,7 @@
 0cfb 2818      jr      z,0d15h
 0cfd d5        push    de
 0cfe c5        push    bc
-0cff cdf639    call    39f6h        ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
+0cff cdf639    call    39f6h        ; GETWORD - Get a number to DE (0..65535)
 0d02 7a        ld      a,d
 0d03 b7        or      a
 0d04 c21c16    jp      nz,161ch            ; Overflow Error (OV ERROR)
@@ -2069,7 +2087,7 @@
 0d55 f5        push    af                ; save foreground color
 0d56 181a      jr      0d72h            ; test next value
 
-0d58 cdf639    call    39f6h        ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
+0d58 cdf639    call    39f6h        ; GETWORD - Get a number to DE (0..65535)
 0d5b 201a      jr      nz,0d77h            ; > 255 ?
 0d5d 7b        ld      a,e                ; store foreground color
 0d5e fe10      cp      10h                ; 0..15 ?
@@ -2089,7 +2107,7 @@
 ; text next value in colour commands
 0d72 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 0d73 2c        defb    ','
-0d74 cdf639    call    39f6h        ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
+0d74 cdf639    call    39f6h        ; GETWORD - Get a number to DE (0..65535)
 0d77 c21c16    jp      nz,161ch            ; Overflow Error (OV ERROR)
 0d7a 7b        ld      a,e            ; get background colour
 0d7b fe08      cp      08h            ; 0..7 ?
@@ -2178,7 +2196,7 @@
 0df2 78        ld      a,b
 0df3 6f        ld      l,a
 0df4 2600      ld      h,00h
-0df6 cd0419    call    1904h
+0df6 cd0419    call    1904h			; INT_RESULT_HL - Get back from function, result in HL
 0df9 cd6f06    call    066fh            ; Turns screen ram off
 0dfc e1        pop     hl
 0dfd c9        ret
@@ -2192,7 +2210,7 @@
 0e07 3291fc    ld      (0fc91h),a    ; First warm start flag
 0e0a cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 0e0b 2c        defb    ','
-0e0c cdf639    call    39f6h        ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
+0e0c cdf639    call    39f6h        ; GETWORD - Get a number to DE (0..65535)
 0e0f c21c16    jp      nz,161ch            ; Overflow Error (OV ERROR)
 0e12 7b        ld      a,e
 0e13 3c        inc     a
@@ -2341,7 +2359,7 @@
 0efb 3ed0      ld      a,0d0h
 0efd cd3e10    call    103eh
 0f00 010400    ld      bc,0004h
-0f03 dbf0      in      a,(0f0h)
+0f03 dbf0      in      a,(0f0h)		; WD2793 FDC command/status register
 0f05 e680      and     80h
 0f07 2821      jr      z,0f2ah
 0f09 cd4510    call    1045h
@@ -2364,8 +2382,8 @@
 0f31 47        ld      b,a
 0f32 ee02      xor     02h
 0f34 d3ec      out     (0ech),a		; change disk size
-0f36 dbe8      in      a,(0e8h)
-0f38 e602      and     02h
+0f36 dbe8      in      a,(0e8h)		; disk status
+0f38 e602      and     02h			; selected disk size
 0f3a b8        cp      b
 0f3b 2008      jr      nz,0f45h
 0f3d b7        or      a
@@ -2471,13 +2489,13 @@
 0ff8 c30000    jp      0000h
 
 0ffb 3e83      ld      a,83h
-0ffd d3e0      out     (0e0h),a
+0ffd d3e0      out     (0e0h),a			; DMA CONTROL PORT
 0fff 3e19      ld      a,19h
-1001 d3e0      out     (0e0h),a
+1001 d3e0      out     (0e0h),a			; DMA CONTROL PORT
 1003 7d        ld      a,l
-1004 d3e0      out     (0e0h),a
+1004 d3e0      out     (0e0h),a			; DMA CONTROL PORT
 1006 7c        ld      a,h
-1007 d3e0      out     (0e0h),a
+1007 d3e0      out     (0e0h),a			; DMA CONTROL PORT
 1009 79        ld      a,c
 100a 216a10    ld      hl,106ah
 100d 0ee0      ld      c,0e0h
@@ -2508,7 +2526,7 @@
 103b e61c      and     1ch
 103d c9        ret
 
-103e d3f0      out     (0f0h),a
+103e d3f0      out     (0f0h),a		; WD2793 FDC command/status register
 1040 3e0a      ld      a,0ah
 1042 3d        dec     a
 1043 20fd      jr      nz,1042h
@@ -2516,7 +2534,7 @@
 1046 d3e4      out     (0e4h),a			; Disk select
 1048 f620      or      20h
 104a d3e4      out     (0e4h),a			; Disk select
-104c dbf0      in      a,(0f0h)
+104c dbf0      in      a,(0f0h)		; WD2793 FDC command/status register
 104e cb47      bit     0,a
 1050 20f3      jr      nz,1045h
 1052 c9        ret
@@ -2668,7 +2686,7 @@
 10f5 cd6806    call    0668h            ; Turns screen ram on
 10f8 e5        push    hl
 10f9 f5        push    af
-10fa 210030    ld      hl,3000h            ; top of PCG RAM address
+10fa 210030    ld      hl,3000h            ; PCG RAM address
 
 10fd db50      in      a,(50h)            ; get system status
 10ff e610      and     10h
@@ -2728,6 +2746,7 @@
 1145 0d        dec     c
 1146 0a        ld      a,(bc)
 1147 00        nop     
+
 1148 cdd011    call    11d0h
 114b c2352d    jp      nz,2d35h            ; Error: Illegal function call (FC ERROR)
 114e d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
@@ -2776,6 +2795,7 @@
 119e cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 119f 2c        defb    ','
 11a0 18e2      jr      1184h
+
 11a2 3a9dfc    ld      a,(0fc9dh)
 11a5 b7        or      a
 11a6 c8        ret     z
@@ -3220,6 +3240,7 @@
 14b5 cd8714    call    1487h
 14b8 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 14b9 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+
 14ba 2c        defb    ','
 14bb e5        push    hl
 14bc 21e3fe    ld      hl,0fee3h
@@ -3330,27 +3351,33 @@
 1570 c0        ret     nz
 1571 2d        dec     l
 
+1572 21ea21    ld      hl,21eah			; HALF: Constant ptr for 0.5 in FP
 
-
-1572 21ea21    ld      hl,21eah
+; ADDPHL - ADD number at HL to BCDE
 1575 cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
-1578 1806      jr      1580h
+1578 1806      jr      1580h			; FPADD  - Single precision add (Add BCDE to FP reg)
+
+; SUBPHL - SUBTRACT number at HL from BCDE
 157a cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
-157d cdec17    call    17ech
+
+; SUBCDE - Single precision subtract  (Subtract BCDE from FP reg)
+157d cdec17    call    17ech			; INVSGN - Invert number sign
+
+; FPADD  - Single precision add (Add BCDE to FP reg)
 1580 78        ld      a,b
 1581 b7        or      a
 1582 c8        ret     z
-1583 3a44fe    ld      a,(0fe44h)
+1583 3a44fe    ld      a,(0fe44h)		; FPEXP - Floating Point Exponent
 1586 b7        or      a
-1587 ca1e18    jp      z,181eh            ; Move SP value in BC/DE into WRA1
+1587 ca1e18    jp      z,181eh            ; FPBCDE: Move SP value in BC/DE into WRA1
 158a 90        sub     b
 158b 300c      jr      nc,1599h
 158d 2f        cpl     
 158e 3c        inc     a
 158f eb        ex      de,hl
-1590 cd0e18    call    180eh            ; Move WRA1 to stack
+1590 cd0e18    call    180eh            ; STAKFP: Move WRA1 to stack
 1593 eb        ex      de,hl
-1594 cd1e18    call    181eh            ; Move SP value in BC/DE into WRA1
+1594 cd1e18    call    181eh            ; FPBCDE: Move SP value in BC/DE into WRA1
 1597 c1        pop     bc
 1598 d1        pop     de
 1599 fe19      cp      19h
@@ -3359,11 +3386,11 @@
 159d cd4918    call    1849h
 15a0 67        ld      h,a
 15a1 f1        pop     af
-15a2 cd4116    call    1641h
+15a2 cd4116    call    1641h			; SCALE - Scale number in BCDE for A exponent (bits)
 15a5 b4        or      h
-15a6 2141fe    ld      hl,0fe41h        ; FACCU
+15a6 2141fe    ld      hl,0fe41h        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 15a9 f2be15    jp      p,15beh
-15ac cd2116    call    1621h
+15ac cd2116    call    1621h			; PLUCDE - Add number pointed by HL to CDE
 15af d20016    jp      nc,1600h
 15b2 23        inc     hl
 15b3 34        inc     (hl)
@@ -3386,7 +3413,7 @@
 15c9 7e        ld      a,(hl)
 15ca 99        sbc     a,c
 15cb 4f        ld      c,a
-15cc dc2d16    call    c,162dh
+15cc dc2d16    call    c,162dh			; COMPL - Convert a negative number to positive
 15cf 68        ld      l,b
 15d0 63        ld      h,e
 15d1 af        xor     a
@@ -3403,7 +3430,7 @@
 15de fee0      cp      0e0h
 15e0 20f0      jr      nz,15d2h
 15e2 af        xor     a
-15e3 3244fe    ld      (0fe44h),a
+15e3 3244fe    ld      (0fe44h),a		; FPEXP - Floating Point Exponent
 15e6 c9        ret
 
 15e7 05        dec     b
@@ -3420,14 +3447,14 @@
 15f4 45        ld      b,l
 15f5 b7        or      a
 15f6 2808      jr      z,1600h
-15f8 2144fe    ld      hl,0fe44h
+15f8 2144fe    ld      hl,0fe44h		; FPEXP - Floating Point Exponent
 15fb 86        add     a,(hl)
 15fc 77        ld      (hl),a
 15fd 30e3      jr      nc,15e2h
 15ff c8        ret     z
 
 1600 78        ld      a,b
-1601 2144fe    ld      hl,0fe44h
+1601 2144fe    ld      hl,0fe44h		; FPEXP - Floating Point Exponent
 1604 b7        or      a
 1605 fc1216    call    m,1612h
 1608 46        ld      b,(hl)
@@ -3436,7 +3463,7 @@
 160b e680      and     80h
 160d a9        xor     c
 160e 4f        ld      c,a
-160f c31e18    jp      181eh            ; Move SP value in BC/DE into WRA1
+160f c31e18    jp      181eh            ; FPBCDE: Move SP value in BC/DE into WRA1
 
 1612 1c        inc     e
 1613 c0        ret     nz
@@ -3452,6 +3479,7 @@
 161c 1e0a      ld      e,0ah
 161e c38c28    jp      288ch        ; ERROR, E=error code
 
+; PLUCDE - Add number pointed by HL to CDE
 1621 7e        ld      a,(hl)
 1622 83        add     a,e
 1623 5f        ld      e,a
@@ -3463,8 +3491,10 @@
 1629 7e        ld      a,(hl)
 162a 89        adc     a,c
 162b 4f        ld      c,a
-162c c9        ret     
-162d 2145fe    ld      hl,0fe45h
+162c c9        ret
+
+; COMPL - Convert a negative number to positive
+162d 2145fe    ld      hl,0fe45h		; SGNRES - Sign of result
 1630 7e        ld      a,(hl)
 1631 2f        cpl     
 1632 77        ld      (hl),a
@@ -3481,15 +3511,19 @@
 163d 7d        ld      a,l
 163e 99        sbc     a,c
 163f 4f        ld      c,a
-1640 c9        ret     
+1640 c9        ret
+
+; SCALE - Scale number in BCDE for A exponent (bits)
 1641 0600      ld      b,00h
 1643 d608      sub     08h
-1645 3807      jr      c,164eh
+1645 3807      jr      c,164eh				; SHRITE - Shift right number in BCDE
 1647 43        ld      b,e
 1648 5a        ld      e,d
 1649 51        ld      d,c
 164a 0e00      ld      c,00h
 164c 18f5      jr      1643h
+
+; SHRITE - Shift right number in BCDE
 164e c609      add     a,09h
 1650 6f        ld      l,a
 1651 af        xor     a
@@ -3526,10 +3560,12 @@
 166f 45        ld      b,l
 1670 aa        xor     d
 1671 3882      jr      c,15f5h
-1673 cdbf17    call    17bfh
+
+; LOG
+1673 cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
 1676 b7        or      a
 1677 ea352d    jp      pe,2d35h            ; Error: Illegal function call (FC ERROR)
-167a 2144fe    ld      hl,0fe44h
+167a 2144fe    ld      hl,0fe44h		; FPEXP - Floating Point Exponent
 167d 7e        ld      a,(hl)
 167e 013580    ld      bc,8035h
 1681 11f304    ld      de,04f3h
@@ -3538,23 +3574,25 @@
 1686 70        ld      (hl),b
 1687 d5        push    de
 1688 c5        push    bc
-1689 cd8015    call    1580h
+1689 cd8015    call    1580h			; FPADD  - Single precision add (Add BCDE to FP reg)
 168c c1        pop     bc
 168d d1        pop     de
 168e 04        inc     b
-168f cd0c17    call    170ch
+168f cd0c17    call    170ch			; DVBCDE - Divide FP by BCDE
 1692 216216    ld      hl,1662h			; UNITY - Constant ptr for number 1 in FP
-1695 cd7a15    call    157ah
+1695 cd7a15    call    157ah			; SUBPHL - SUBTRACT number at HL from BCDE
 1698 216616    ld      hl,1666h			; LOGTAB - Table used by LOG
 169b cd0423    call    2304h
 169e 018080    ld      bc,8080h
 16a1 110000    ld      de,0000h
-16a4 cd8015    call    1580h
+16a4 cd8015    call    1580h			; FPADD  - Single precision add (Add BCDE to FP reg)
 16a7 f1        pop     af
 16a8 cdf31d    call    1df3h
 16ab 013180    ld      bc,8031h
 16ae 111872    ld      de,7218h
-16b1 cdbf17    call    17bfh
+
+; FPMULT - Single precision multiply  (Multiply BCDE to FP reg)
+16b1 cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
 16b4 c8        ret     z
 16b5 2e00      ld      l,00h
 16b7 cd7e17    call    177eh
@@ -3570,7 +3608,7 @@
 16cb 21d316    ld      hl,16d3h
 16ce e5        push    hl
 16cf e5        push    hl
-16d0 2141fe    ld      hl,0fe41h        ; FACCU
+16d0 2141fe    ld      hl,0fe41h        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 16d3 7e        ld      a,(hl)
 16d4 23        inc     hl
 16d5 b7        or      a
@@ -3611,12 +3649,17 @@
 16ff 4f        ld      c,a
 1700 c9        ret
 
-1701 cd0e18    call    180eh                ; Move WRA1 to stack
+; DIV10 - Divide FP by 10
+1701 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
 1704 21421c    ld      hl,1c42h
-1707 cd1b18    call    181bh                ; Move a SP value -> HL to WRA1
+1707 cd1b18    call    181bh                ; PHLTFP - Move a SP value -> HL to WRA1
+
+; DIV - Divide FP by number on stack
 170a c1        pop     bc
 170b d1        pop     de
-170c cdbf17    call    17bfh
+
+; DVBCDE - Divide FP by BCDE
+170c cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
 170f ca8428    jp      z,2884h
 1712 2eff      ld      l,0ffh
 1714 cd7e17    call    177eh
@@ -3677,7 +3720,7 @@
 1763 b3        or      e
 1764 20cb      jr      nz,1731h
 1766 e5        push    hl
-1767 2144fe    ld      hl,0fe44h
+1767 2144fe    ld      hl,0fe44h		; FPEXP - Floating Point Exponent
 176a 35        dec     (hl)
 176b e1        pop     hl
 176c 20c3      jr      nz,1731h
@@ -3685,7 +3728,7 @@
 
 1771 3eff      ld      a,0ffh
 1773 2eaf      ld      l,0afh
-1775 214dfe    ld      hl,0fe4dh
+1775 214dfe    ld      hl,0fe4dh		; DBL_FPREG: Last byte in Double Precision FP register (+sign bit)
 1778 4e        ld      c,(hl)
 1779 23        inc     hl
 177a ae        xor     (hl)
@@ -3695,7 +3738,7 @@
 177f b7        or      a
 1780 281f      jr      z,17a1h
 1782 7d        ld      a,l
-1783 2144fe    ld      hl,0fe44h
+1783 2144fe    ld      hl,0fe44h		; FPEXP - Floating Point Exponent
 1786 ae        xor     (hl)
 1787 80        add     a,b
 1788 47        ld      b,a
@@ -3710,7 +3753,7 @@
 1798 77        ld      (hl),a
 1799 2b        dec     hl
 179a c9        ret     
-179b cdbf17    call    17bfh
+179b cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
 179e 2f        cpl     
 179f e1        pop     hl
 17a0 b7        or      a
@@ -3718,23 +3761,25 @@
 17a2 f2e215    jp      p,15e2h
 17a5 c31c16    jp      161ch            ; Overflow Error (OV ERROR)
 
-17a8 cd2918    call    1829h            ; Load a SP value from WRA1 into BC/DE
+; MLSP10 - Multiply number in FPREG by 10
+17a8 cd2918    call    1829h            ; BCDEFP: Load a SP value from WRA1 into BC/DE
 17ab 78        ld      a,b
 17ac b7        or      a
 17ad c8        ret     z
 17ae c602      add     a,02h
 17b0 da1c16    jp      c,161ch            ; Overflow Error (OV ERROR)
 17b3 47        ld      b,a
-17b4 cd8015    call    1580h
-17b7 2144fe    ld      hl,0fe44h
+17b4 cd8015    call    1580h			; FPADD  - Single precision add (Add BCDE to FP reg)
+17b7 2144fe    ld      hl,0fe44h		; FPEXP - Floating Point Exponent
 17ba 34        inc     (hl)
 17bb c0        ret     nz
 17bc c31c16    jp      161ch            ; Overflow Error (OV ERROR)
 
-17bf 3a44fe    ld      a,(0fe44h)
+; TSTSGN - Test sign of FPREG
+17bf 3a44fe    ld      a,(0fe44h)		; FPEXP - Floating Point Exponent
 17c2 b7        or      a
 17c3 c8        ret     z
-17c4 3a43fe    ld      a,(0fe43h)
+17c4 3a43fe    ld      a,(0fe43h)		; LAST-FPREG - Last byte in Single Precision FP Register (+sign bit)
 17c7 fe2f      cp      2fh
 17c9 17        rla     
 17ca 9f        sbc     a,a
@@ -3742,9 +3787,10 @@
 17cc 3c        inc     a
 17cd c9        ret
 
+; FLGREL - CY and A to FP, & normalise
 17ce 0688      ld      b,88h
 17d0 110000    ld      de,0000h
-17d3 2144fe    ld      hl,0fe44h
+17d3 2144fe    ld      hl,0fe44h		; FPEXP - Floating Point Exponent
 17d6 4f        ld      c,a
 17d7 70        ld      (hl),b
 17d8 0600      ld      b,00h
@@ -3752,59 +3798,68 @@
 17db 3680      ld      (hl),80h
 17dd 17        rla     
 17de c3cc15    jp      15cch
-17e1 cdfe17    call    17feh
+
+; ABS - Absolute value
+17e1 cdfe17    call    17feh		; _TSTSGN - Test sign in number
 17e4 f0        ret     p
 
 ; INVSGN
 17e5 e7        rst     20h			; GETYPR - Get the number type (FAC)
-17e6 fac51a    jp      m,1ac5h
+17e6 fac51a    jp      m,1ac5h		; DBL_ABS - ABS (double precision BASIC variant)
 17e9 ca6019    jp      z,1960h
-17ec 2143fe    ld      hl,0fe43h
+
+; INVSGN - Invert number sign
+17ec 2143fe    ld      hl,0fe43h		; LAST-FPREG - Last byte in Single Precision FP Register (+sign bit)
 17ef 7e        ld      a,(hl)
 17f0 ee80      xor     80h
 17f2 77        ld      (hl),a
 17f3 c9        ret     
-17f4 cdfe17    call    17feh
+
+17f4 cdfe17    call    17feh		; _TSTSGN - Test sign in number
+
+; INT_RESULT_A  - Get back from function, result in A (signed)
 17f7 6f        ld      l,a
 17f8 17        rla     
 17f9 9f        sbc     a,a
 17fa 67        ld      h,a
-17fb c30419    jp      1904h
+17fb c30419    jp      1904h			; INT_RESULT_HL - Get back from function, result in HL
+
+; _TSTSGN - Test sign in number
 17fe e7        rst     20h			; GETYPR - Get the number type (FAC)
 17ff ca6019    jp      z,1960h
-1802 f2bf17    jp      p,17bfh
-1805 2a41fe    ld      hl,(0fe41h)        ; FACCU
+1802 f2bf17    jp      p,17bfh			; TSTSGN - Test sign of FPREG
+1805 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 1808 7c        ld      a,h
 1809 b5        or      l
 180a c8        ret     z
 180b 7c        ld      a,h
 180c 18bb      jr      17c9h
 
-; Move WRA1 to stack
+; STAKFP: Move WRA1 to stack
 180e eb        ex      de,hl
-180f 2a41fe    ld      hl,(0fe41h)        ; FACCU
+180f 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 1812 e3        ex      (sp),hl
 1813 e5        push    hl
-1814 2a43fe    ld      hl,(0fe43h)
+1814 2a43fe    ld      hl,(0fe43h)		; LAST-FPREG - Last byte in Single Precision FP Register (+sign bit)
 1817 e3        ex      (sp),hl
 1818 e5        push    hl
 1819 eb        ex      de,hl
 181a c9        ret     
 
-; Move a SP value -> HL to WRA1
+; PHLTFP - Move a SP value -> HL to WRA1
 181b cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
 
-; Move SP value in BC/DE into WRA1
+; FPBCDE: Move SP value in BC/DE into WRA1
 181e eb        ex      de,hl
-181f 2241fe    ld      (0fe41h),hl        ; FACCU
+181f 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 1822 60        ld      h,b
 1823 69        ld      l,c
-1824 2243fe    ld      (0fe43h),hl
+1824 2243fe    ld      (0fe43h),hl		; LAST-FPREG - Last byte in Single Precision FP Register (+sign bit)
 1827 eb        ex      de,hl
 1828 c9        ret
 
-; Load a SP value from WRA1 into BC/DE
-1829 2141fe    ld      hl,0fe41h        ; FACCU
+; BCDEFP: Load a SP value from WRA1 into BC/DE
+1829 2141fe    ld      hl,0fe41h        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 
 ; LOADFP: Load SP value -> into BC/DE
 182c 5e        ld      e,(hl)
@@ -3819,7 +3874,7 @@
 1833 23        inc     hl
 1834 c9        ret
 
-1835 1141fe    ld      de,0fe41h        ; FACCU
+1835 1141fe    ld      de,0fe41h        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 1838 0604      ld      b,04h
 183a 1805      jr      1841h
 183c eb        ex      de,hl
@@ -3832,7 +3887,7 @@
 1845 05        dec     b
 1846 20f9      jr      nz,1841h
 1848 c9        ret     
-1849 2143fe    ld      hl,0fe43h
+1849 2143fe    ld      hl,0fe43h		; LAST-FPREG - Last byte in Single Precision FP Register (+sign bit)
 184c 7e        ld      a,(hl)
 184d 07        rlca    
 184e 37        scf     
@@ -3857,20 +3912,22 @@
 1866 2147fe    ld      hl,0fe47h
 1869 113d18    ld      de,183dh
 186c d5        push    de
-186d 1141fe    ld      de,0fe41h        ; FACCU
+186d 1141fe    ld      de,0fe41h        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 1870 e7        rst     20h			; GETYPR - Get the number type (FAC)
 1871 d8        ret     c
 1872 113dfe    ld      de,0fe3dh
-1875 c9        ret     
+1875 c9        ret
+
+; CMPNUM - Compare FP reg to BCDE
 1876 78        ld      a,b
 1877 b7        or      a
-1878 cabf17    jp      z,17bfh
+1878 cabf17    jp      z,17bfh			; TSTSGN - Test sign of FPREG
 187b 21c817    ld      hl,17c8h
 187e e5        push    hl
-187f cdbf17    call    17bfh
+187f cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
 1882 79        ld      a,c
 1883 c8        ret     z
-1884 2143fe    ld      hl,0fe43h
+1884 2143fe    ld      hl,0fe43h		; LAST-FPREG - Last byte in Single Precision FP Register (+sign bit)
 1887 ae        xor     (hl)
 1888 79        ld      a,c
 1889 f8        ret     m
@@ -3912,15 +3969,15 @@
 18b9 114efe    ld      de,0fe4eh
 18bc 1a        ld      a,(de)
 18bd b7        or      a
-18be cabf17    jp      z,17bfh
+18be cabf17    jp      z,17bfh			; TSTSGN - Test sign of FPREG
 18c1 21c817    ld      hl,17c8h
 18c4 e5        push    hl
-18c5 cdbf17    call    17bfh
+18c5 cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
 18c8 1b        dec     de
 18c9 1a        ld      a,(de)
 18ca 4f        ld      c,a
 18cb c8        ret     z
-18cc 2143fe    ld      hl,0fe43h
+18cc 2143fe    ld      hl,0fe43h		; LAST-FPREG - Last byte in Single Precision FP Register (+sign bit)
 18cf ae        xor     (hl)
 18d0 79        ld      a,c
 18d1 f8        ret     m
@@ -3944,25 +4001,28 @@
 
 ; GETWORD_HL: Floating point to Integer
 18e9 e7        rst     20h			; GETYPR - Get the number type (FAC)
-18ea 2a41fe    ld      hl,(0fe41h)        ; FACCU
+18ea 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 18ed f8        ret     m
 18ee ca6019    jp      z,1960h
 18f1 d42319    call    nc,1923h
 18f4 211c16    ld      hl,161ch            ; Overflow Error (OV ERROR)
 18f7 e5        push    hl
-18f8 3a44fe    ld      a,(0fe44h)
+18f8 3a44fe    ld      a,(0fe44h)		; FPEXP - Floating Point Exponent
 18fb fe90      cp      90h
 18fd 300e      jr      nc,190dh
-18ff cd6519    call    1965h
+18ff cd6519    call    1965h			; FPINT - Floating Point to Integer
 1902 eb        ex      de,hl
 1903 d1        pop     de
-1904 2241fe    ld      (0fe41h),hl        ; FACCU
+
+; INT_RESULT_HL - Get back from function, result in HL
+1904 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 1907 3e02      ld      a,02h
 1909 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
-190c c9        ret     
+190c c9        ret
+
 190d 018090    ld      bc,9080h
 1910 110000    ld      de,0000h
-1913 cd7618    call    1876h
+1913 cd7618    call    1876h			; CMPNUM - Compare FP reg to BCDE
 1916 c0        ret     nz
 1917 61        ld      h,c
 1918 6a        ld      l,d
@@ -3973,7 +4033,7 @@
 191c e0        ret     po
 191d fa3619    jp      m,1936h
 1920 ca6019    jp      z,1960h
-1923 cd2918    call    1829h
+1923 cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
 1926 cd5919    call    1959h
 1929 78        ld      a,b
 192a b7        or      a
@@ -3982,7 +4042,7 @@
 192f 2140fe    ld      hl,0fe40h
 1932 46        ld      b,(hl)
 1933 c30016    jp      1600h
-1936 2a41fe    ld      hl,(0fe41h)        ; FACCU
+1936 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 1939 cd5919    call    1959h
 193c 7c        ld      a,h
 193d 55        ld      d,l
@@ -4004,6 +4064,7 @@
 1960 1e18      ld      e,18h
 1962 c38c28    jp      288ch        ; ERROR, E=error code
 
+; FPINT - Floating Point to Integer
 1965 47        ld      b,a
 1966 4f        ld      c,a
 1967 57        ld      d,a
@@ -4011,21 +4072,23 @@
 1969 b7        or      a
 196a c8        ret     z
 196b e5        push    hl
-196c cd2918    call    1829h
+196c cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
 196f cd4918    call    1849h
 1972 ae        xor     (hl)
 1973 67        ld      h,a
-1974 fc8919    call    m,1989h
+1974 fc8919    call    m,1989h			; DCBCDE - Decrement FP value in BCDE
 1977 3e98      ld      a,98h
 1979 90        sub     b
-197a cd4116    call    1641h
+197a cd4116    call    1641h			; SCALE - Scale number in BCDE for A exponent (bits)
 197d 7c        ld      a,h
 197e 17        rla     
 197f dc1216    call    c,1612h
 1982 0600      ld      b,00h
-1984 dc2d16    call    c,162dh
+1984 dc2d16    call    c,162dh			; COMPL - Convert a negative number to positive
 1987 e1        pop     hl
-1988 c9        ret     
+1988 c9        ret
+
+; DCBCDE - Decrement FP value in BCDE
 1989 1b        dec     de
 198a 7a        ld      a,d
 198b a3        and     e
@@ -4035,9 +4098,9 @@
 198f c9        ret     
 1990 e7        rst     20h			; GETYPR - Get the number type (FAC)
 1991 f8        ret     m
-1992 cdbf17    call    17bfh
+1992 cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
 1995 f2a119    jp      p,19a1h
-1998 cdec17    call    17ech
+1998 cdec17    call    17ech			; INVSGN - Invert number sign
 199b cda119    call    19a1h
 199e c3e517    jp      17e5h        ; INVSGN
 
@@ -4046,13 +4109,13 @@
 19a3 301e      jr      nc,19c3h
 19a5 28b9      jr      z,1960h
 19a7 cdf818    call    18f8h
-19aa 2144fe    ld      hl,0fe44h
+19aa 2144fe    ld      hl,0fe44h		; FPEXP - Floating Point Exponent
 19ad 7e        ld      a,(hl)
 19ae fe98      cp      98h
-19b0 3a41fe    ld      a,(0fe41h)        ; FACCU
+19b0 3a41fe    ld      a,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 19b3 d0        ret     nc
 19b4 7e        ld      a,(hl)
-19b5 cd6519    call    1965h
+19b5 cd6519    call    1965h			; FPINT - Floating Point to Integer
 19b8 3698      ld      (hl),98h
 19ba 7b        ld      a,e
 19bb f5        push    af
@@ -4061,7 +4124,7 @@
 19be cdcc15    call    15cch
 19c1 f1        pop     af
 19c2 c9        ret     
-19c3 2144fe    ld      hl,0fe44h
+19c3 2144fe    ld      hl,0fe44h		; FPEXP - Floating Point Exponent
 19c6 7e        ld      a,(hl)
 19c7 fe90      cp      90h
 19c9 dae918    jp      c,18e9h            ; GETWORD_HL: Floating point to Integer
@@ -4077,19 +4140,19 @@
 19d8 20fb      jr      nz,19d5h
 19da b7        or      a
 19db 210080    ld      hl,8000h
-19de ca0419    jp      z,1904h
+19de ca0419    jp      z,1904h			; INT_RESULT_HL - Get back from function, result in HL
 19e1 79        ld      a,c
 19e2 feb8      cp      0b8h
 19e4 d0        ret     nc
 19e5 f5        push    af
-19e6 cd2918    call    1829h
+19e6 cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
 19e9 cd4918    call    1849h
 19ec ae        xor     (hl)
 19ed 2b        dec     hl
 19ee 36b8      ld      (hl),0b8h
 19f0 f5        push    af
 19f1 fc0a1a    call    m,1a0ah
-19f4 2143fe    ld      hl,0fe43h
+19f4 2143fe    ld      hl,0fe43h		; LAST-FPREG - Last byte in Single Precision FP Register (+sign bit)
 19f7 3eb8      ld      a,0b8h
 19f9 90        sub     b
 19fa cdd31b    call    1bd3h
@@ -4152,13 +4215,13 @@
 1a4d cd3919    call    1939h
 1a50 f1        pop     af
 1a51 e1        pop     hl
-1a52 cd0e18    call    180eh                ; Move WRA1 to stack
+1a52 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
 1a55 eb        ex      de,hl
 1a56 cdd51a    call    1ad5h
 1a59 c3f91d    jp      1df9h
 1a5c 7c        ld      a,h
 1a5d b5        or      l
-1a5e ca0419    jp      z,1904h
+1a5e ca0419    jp      z,1904h			; INT_RESULT_HL - Get back from function, result in HL
 1a61 e5        push    hl
 1a62 d5        push    de
 1a63 cdaf1a    call    1aafh
@@ -4192,19 +4255,21 @@
 1a8f 01c1e1    ld      bc,0e1c1h
 1a92 cd3919    call    1939h
 1a95 e1        pop     hl
-1a96 cd0e18    call    180eh                ; Move WRA1 to stack
+1a96 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
 1a99 cd3919    call    1939h
 1a9c c1        pop     bc
 1a9d d1        pop     de
-1a9e c3b116    jp      16b1h
+1a9e c3b116    jp      16b1h			; FPMULT - Single precision multiply  (Multiply BCDE to FP reg)
+
 1aa1 78        ld      a,b
 1aa2 b7        or      a
 1aa3 c1        pop     bc
-1aa4 fa0419    jp      m,1904h
+1aa4 fa0419    jp      m,1904h			; INT_RESULT_HL - Get back from function, result in HL
 1aa7 d5        push    de
 1aa8 cd3919    call    1939h
 1aab d1        pop     de
-1aac c3ec17    jp      17ech
+1aac c3ec17    jp      17ech			; INVSGN - Invert number sign
+
 1aaf 7c        ld      a,h
 1ab0 aa        xor     d
 1ab1 47        ld      b,a
@@ -4212,7 +4277,7 @@
 1ab5 eb        ex      de,hl
 1ab6 7c        ld      a,h
 1ab7 b7        or      a
-1ab8 f20419    jp      p,1904h
+1ab8 f20419    jp      p,1904h			; INT_RESULT_HL - Get back from function, result in HL
 1abb af        xor     a
 1abc 4f        ld      c,a
 1abd 95        sub     l
@@ -4220,8 +4285,10 @@
 1abf 79        ld      a,c
 1ac0 9c        sbc     a,h
 1ac1 67        ld      h,a
-1ac2 c30419    jp      1904h
-1ac5 2a41fe    ld      hl,(0fe41h)        ; FACCU
+1ac2 c30419    jp      1904h			; INT_RESULT_HL - Get back from function, result in HL
+
+; DBL_ABS - ABS (double precision BASIC variant)
+1ac5 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 1ac8 cdbb1a    call    1abbh
 1acb 7c        ld      a,h
 1acc ee80      xor     80h
@@ -4232,7 +4299,7 @@
 1ad4 af        xor     a
 1ad5 0698      ld      b,98h
 1ad7 c3d317    jp      17d3h
-1ada 214dfe    ld      hl,0fe4dh
+1ada 214dfe    ld      hl,0fe4dh		; DBL_FPREG: Last byte in Double Precision FP register (+sign bit)
 1add 7e        ld      a,(hl)
 1ade ee80      xor     80h
 1ae0 77        ld      (hl),a
@@ -4243,7 +4310,7 @@
 1ae7 47        ld      b,a
 1ae8 2b        dec     hl
 1ae9 4e        ld      c,(hl)
-1aea 1144fe    ld      de,0fe44h
+1aea 1144fe    ld      de,0fe44h		; FPEXP - Floating Point Exponent
 1aed 1a        ld      a,(de)
 1aee b7        or      a
 1aef ca5e18    jp      z,185eh
@@ -4277,7 +4344,7 @@
 1b13 3600      ld      (hl),00h
 1b15 47        ld      b,a
 1b16 f1        pop     af
-1b17 214dfe    ld      hl,0fe4dh
+1b17 214dfe    ld      hl,0fe4dh		; DBL_FPREG: Last byte in Double Precision FP register (+sign bit)
 1b1a cdd31b    call    1bd3h
 1b1d 3a46fe    ld      a,(0fe46h)
 1b20 323cfe    ld      (0fe3ch),a
@@ -4292,11 +4359,11 @@
 1b33 cdfa1b    call    1bfah
 1b36 c3781b    jp      1b78h
 1b39 cdaf1b    call    1bafh
-1b3c 2145fe    ld      hl,0fe45h
+1b3c 2145fe    ld      hl,0fe45h		; SGNRES - Sign of result
 1b3f dcc11b    call    c,1bc1h
 1b42 af        xor     a
 1b43 47        ld      b,a
-1b44 3a43fe    ld      a,(0fe43h)
+1b44 3a43fe    ld      a,(0fe43h)		; LAST-FPREG - Last byte in Single Precision FP Register (+sign bit)
 1b47 b7        or      a
 1b48 201e      jr      nz,1b68h
 1b4a 213cfe    ld      hl,0fe3ch
@@ -4320,7 +4387,7 @@
 1b6b 78        ld      a,b
 1b6c b7        or      a
 1b6d 2809      jr      z,1b78h
-1b6f 2144fe    ld      hl,0fe44h
+1b6f 2144fe    ld      hl,0fe44h		; FPEXP - Floating Point Exponent
 1b72 86        add     a,(hl)
 1b73 77        ld      (hl),a
 1b74 d2e215    jp      nc,15e2h
@@ -4328,7 +4395,7 @@
 1b78 3a3cfe    ld      a,(0fe3ch)
 1b7b b7        or      a
 1b7c fc8a1b    call    m,1b8ah
-1b7f 2145fe    ld      hl,0fe45h
+1b7f 2145fe    ld      hl,0fe45h		; SGNRES - Sign of result
 1b82 7e        ld      a,(hl)
 1b83 e680      and     80h
 1b85 2b        dec     hl
@@ -4416,7 +4483,7 @@
 1bf5 1d        dec     e
 1bf6 20f9      jr      nz,1bf1h
 1bf8 18f0      jr      1beah
-1bfa 2143fe    ld      hl,0fe43h
+1bfa 2143fe    ld      hl,0fe43h		; LAST-FPREG - Last byte in Single Precision FP Register (+sign bit)
 1bfd 1601      ld      d,01h
 1bff 18ed      jr      1beeh
 1c01 0e08      ld      c,08h
@@ -4426,8 +4493,9 @@
 1c06 23        inc     hl
 1c07 0d        dec     c
 1c08 20f9      jr      nz,1c03h
-1c0a c9        ret     
-1c0b cdbf17    call    17bfh
+1c0a c9        ret
+
+1c0b cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
 1c0e c8        ret     z
 1c0f cd7417    call    1774h
 1c12 cda31c    call    1ca3h
@@ -4453,9 +4521,10 @@
 1c30 05        dec     b
 1c31 20e6      jr      nz,1c19h
 1c33 c3421b    jp      1b42h
-1c36 2143fe    ld      hl,0fe43h
+1c36 2143fe    ld      hl,0fe43h		; LAST-FPREG - Last byte in Single Precision FP Register (+sign bit)
 1c39 cdda1b    call    1bdah
 1c3c 18f1      jr      1c2fh
+
 1c3e 00        nop     
 1c3f 00        nop     
 1c40 00        nop     
@@ -4488,7 +4557,7 @@
 1c77 cda31b    call    1ba3h
 1c7a af        xor     a
 1c7b da1204    jp      c,0412h
-1c7e 3a43fe    ld      a,(0fe43h)
+1c7e 3a43fe    ld      a,(0fe43h)		; LAST-FPREG - Last byte in Single Precision FP Register (+sign bit)
 1c81 3c        inc     a
 1c82 3d        dec     a
 1c83 1f        rra     
@@ -4502,13 +4571,13 @@
 1c96 78        ld      a,b
 1c97 b7        or      a
 1c98 20c9      jr      nz,1c63h
-1c9a 2144fe    ld      hl,0fe44h
+1c9a 2144fe    ld      hl,0fe44h		; FPEXP - Floating Point Exponent
 1c9d 35        dec     (hl)
 1c9e 20c3      jr      nz,1c63h
 1ca0 c31c16    jp      161ch            ; Overflow Error (OV ERROR)
 
 1ca3 79        ld      a,c
-1ca4 324dfe    ld      (0fe4dh),a
+1ca4 324dfe    ld      (0fe4dh),a		; DBL_FPREG: Last byte in Double Precision FP register (+sign bit)
 1ca7 2b        dec     hl
 1ca8 1170fe    ld      de,0fe70h
 1cab 010007    ld      bc,0700h
@@ -4543,7 +4612,7 @@
 1cd8 01ff00    ld      bc,00ffh
 1cdb 60        ld      h,b
 1cdc 68        ld      l,b
-1cdd cc0419    call    z,1904h
+1cdd cc0419    call    z,1904h			; INT_RESULT_HL - Get back from function, result in HL
 1ce0 eb        ex      de,hl
 1ce1 7e        ld      a,(hl)
 1ce2 fe2d      cp      2dh
@@ -4639,7 +4708,7 @@
 1d75 f5        push    af
 1d76 e7        rst     20h			; GETYPR - Get the number type (FAC)
 1d77 f5        push    af
-1d78 e4a817    call    po,17a8h
+1d78 e4a817    call    po,17a8h		; MLSP10 - Multiply number in FPREG by 10
 1d7b f1        pop     af
 1d7c ecb71c    call    pe,1cb7h
 1d7f f1        pop     af
@@ -4651,7 +4720,7 @@
 1d84 f5        push    af
 1d85 e7        rst     20h			; GETYPR - Get the number type (FAC)
 1d86 f5        push    af
-1d87 e40117    call    po,1701h
+1d87 e40117    call    po,1701h		; DIV10 - Divide FP by 10
 1d8a f1        pop     af
 1d8b ec461c    call    pe,1c46h
 1d8e f1        pop     af
@@ -4671,7 +4740,7 @@
 1d9c f5        push    af
 1d9d e7        rst     20h			; GETYPR - Get the number type (FAC)
 1d9e f2c71d    jp      p,1dc7h
-1da1 2a41fe    ld      hl,(0fe41h)        ; FACCU
+1da1 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 1da4 11cd0c    ld      de,0ccdh
 1da7 df        rst     18h            ; DCOMPR - Compare HL with DE.
 1da8 3019      jr      nc,1dc3h
@@ -4687,7 +4756,7 @@
 1db3 7c        ld      a,h
 1db4 b7        or      a
 1db5 fac11d    jp      m,1dc1h
-1db8 2241fe    ld      (0fe41h),hl        ; FACCU
+1db8 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 1dbb e1        pop     hl
 1dbc c1        pop     bc
 1dbd d1        pop     de
@@ -4700,25 +4769,28 @@
 1dc7 3018      jr      nc,1de1h
 1dc9 017494    ld      bc,9474h
 1dcc 110024    ld      de,2400h
-1dcf cd7618    call    1876h
+1dcf cd7618    call    1876h			; CMPNUM - Compare FP reg to BCDE
 1dd2 f2de1d    jp      p,1ddeh
-1dd5 cda817    call    17a8h
+1dd5 cda817    call    17a8h		; MLSP10 - Multiply number in FPREG by 10
 1dd8 f1        pop     af
 1dd9 cdf31d    call    1df3h
 1ddc 18dd      jr      1dbbh
+
 1dde cd4d19    call    194dh
 1de1 cdb71c    call    1cb7h
 1de4 cd6618    call    1866h
 1de7 f1        pop     af
-1de8 cdce17    call    17ceh
+1de8 cdce17    call    17ceh			; FLGREL - CY and A to FP, & normalise
 1deb cd4d19    call    194dh
 1dee cde11a    call    1ae1h
 1df1 18c8      jr      1dbbh
-1df3 cd0e18    call    180eh                ; Move WRA1 to stack
-1df6 cdce17    call    17ceh
+
+1df3 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+1df6 cdce17    call    17ceh			; FLGREL - CY and A to FP, & normalise
 1df9 c1        pop     bc
 1dfa d1        pop     de
-1dfb c38015    jp      1580h
+1dfb c38015    jp      1580h			; FPADD  - Single precision add (Add BCDE to FP reg)
+
 1dfe 7b        ld      a,e
 1dff fe0a      cp      0ah
 1e01 3009      jr      nc,1e0ch
@@ -4737,7 +4809,7 @@
 1e12 210e28    ld      hl,280eh
 1e15 cd9b37    call    379bh			; Output a string
 1e18 e1        pop     hl
-1e19 cd0419    call    1904h
+1e19 cd0419    call    1904h			; INT_RESULT_HL - Get back from function, result in HL
 1e1c af        xor     a
 1e1d cd9e1e    call    1e9eh
 1e20 b6        or      (hl)
@@ -4749,7 +4821,7 @@
 1e2d 2802      jr      z,1e31h
 1e2f 362b      ld      (hl),2bh
 1e31 eb        ex      de,hl
-1e32 cdfe17    call    17feh
+1e32 cdfe17    call    17feh		; _TSTSGN - Test sign in number
 1e35 eb        ex      de,hl
 1e36 f2431e    jp      p,1e43h
 1e39 362d      ld      (hl),2dh
@@ -4889,6 +4961,7 @@
 1f22 cc9917    call    z,1799h
 1f25 3d        dec     a
 1f26 f4d320    call    p,20d3h
+
 1f29 e5        push    hl
 1f2a cd5f1e    call    1e5fh
 1f2d e1        pop     hl
@@ -4931,6 +5004,7 @@
 1f66 28fb      jr      z,1f63h
 1f68 c1        pop     bc
 1f69 c3381f    jp      1f38h
+
 1f6c f1        pop     af
 1f6d 28fd      jr      z,1f6ch
 1f6f e1        pop     hl
@@ -4949,13 +5023,14 @@
 1f87 cd271e    call    1e27h
 1f8a 2b        dec     hl
 1f8b 3625      ld      (hl),25h
-1f8d c9        ret     
+1f8d c9        ret
+
 1f8e 010eb6    ld      bc,0b60eh
 1f91 11ca1b    ld      de,1bcah
-1f94 cd7618    call    1876h
+1f94 cd7618    call    1876h			; CMPNUM - Compare FP reg to BCDE
 1f97 f2851f    jp      p,1f85h
 1f9a 1606      ld      d,06h
-1f9c cdbf17    call    17bfh
+1f9c cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
 1f9f c46b20    call    nz,206bh
 1fa2 e1        pop     hl
 1fa3 c1        pop     bc
@@ -4974,6 +5049,7 @@
 1fba c4fb20    call    nz,20fbh
 1fbd d1        pop     de
 1fbe c3201f    jp      1f20h
+
 1fc1 5f        ld      e,a
 1fc2 79        ld      a,c
 1fc3 b7        or      a
@@ -4999,6 +5075,7 @@
 1fe3 c5        push    bc
 1fe4 cde720    call    20e7h
 1fe7 1811      jr      1ffah
+
 1fe9 cdd320    call    20d3h
 1fec 79        ld      a,c
 1fed cdfe20    call    20feh
@@ -5010,10 +5087,18 @@
 1ff7 c5        push    bc
 1ff8 47        ld      b,a
 1ff9 4f        ld      c,a
+
 1ffa cd0e21    call    210eh
 1ffd c1        pop     bc
 1ffe b1        or      c
-1fff 20ff      jr      nz,2000h
+
+; Switched memory bank
+;1fff 2003      jr      nz,2004h
+;2001 2a13fe    ld      hl,(0fe13h)
+;(...)
+
+
+; 1fff 20ff      jr      nz,2000h
 2001 ff        rst     38h
 2002 ff        rst     38h
 2003 ff        rst     38h
@@ -5976,20 +6061,14 @@
 246e d5        push    de
 246f e5        push    hl
 2470 dde5      push    ix
-
-
-; Code to be relocated at FBC0h (004eh bytes)
-
-2472 e1        pop     hl              ; ->FBC0h (RST 8 jumps here)
+2472 e1        pop     hl
 2473 18da      jr      244fh
 
-2475 2a58fc    ld      hl,(0fc58h)     ; ->FBC3h (RST 10h jumps here)          ; BASTXT - Address of BASIC Program
-
-2478 2b        dec     hl              ; ->FBC6h (RST 18h jumps here)
+2475 2a58fc    ld      hl,(0fc58h)
+2478 2b        dec     hl
 2479 23        inc     hl
 247a 7e        ld      a,(hl)
-
-247b 23        inc     hl              ; ->FBC9h (RST 20h jumps here)
+247b 23        inc     hl
 247c b6        or      (hl)
 247d ca0d05    jp      z,050dh
 2480 23        inc     hl
@@ -6126,7 +6205,8 @@
 254e c1        pop     bc
 254f d1        pop     de
 2550 e1        pop     hl
-2551 c9        ret     
+2551 c9        ret
+
 2552 8d        adc     a,l
 2553 91        sub     c
 2554 ca959f    jp      z,9f95h
@@ -6144,7 +6224,7 @@
 256d af        xor     a
 256e 328cfb    ld      (0fb8ch),a
 2571 cdcb05    call    05cbh
-2574 db62      in      a,(62h)
+2574 db62      in      a,(62h)			; Parallel and Cassette I/O port
 2576 cb5f      bit     3,a
 2578 280e      jr      z,2588h
 257a 3a8cfb    ld      a,(0fb8ch)
@@ -6159,6 +6239,7 @@
 258f 328cfb    ld      (0fb8ch),a
 2592 10dd      djnz    2571h
 2594 18ca      jr      2560h
+
 2596 e5        push    hl
 2597 210050    ld      hl,5000h
 259a 1100bf    ld      de,0bf00h
@@ -6175,25 +6256,29 @@
 25b5 cb47      bit     0,a
 25b7 2808      jr      z,25c1h
 25b9 3e0e      ld      a,0eh
-25bb d363      out     (63h),a
+25bb d363      out     (63h),a			; Parallel Port Interface Control word
 25bd 10eb      djnz    25aah
 25bf 18dc      jr      259dh
+
 25c1 3e0f      ld      a,0fh
-25c3 d363      out     (63h),a
+25c3 d363      out     (63h),a			; Parallel Port Interface Control word
 25c5 10e3      djnz    25aah
 25c7 18d4      jr      259dh
 25c9 e1        pop     hl
-25ca c9        ret     
+25ca c9        ret
+
 25cb c5        push    bc
 25cc 0608      ld      b,08h
 25ce 10fe      djnz    25ceh
 25d0 c1        pop     bc
-25d1 c9        ret     
+25d1 c9        ret
+
 25d2 c5        push    bc
 25d3 0608      ld      b,08h
 25d5 10fe      djnz    25d5h
 25d7 c1        pop     bc
-25d8 c9        ret     
+25d8 c9        ret
+
 25d9 cd520b    call    0b52h
 25dc 57        ld      d,a
 25dd cd520b    call    0b52h
@@ -6336,7 +6421,7 @@
 26f9 d1        pop     de
 26fa e5        push    hl
 26fb d5        push    de
-26fc 2a41fe    ld      hl,(0fe41h)        ; FACCU
+26fc 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 26ff 7e        ld      a,(hl)
 2700 23        inc     hl
 2701 5e        ld      e,(hl)
@@ -6352,7 +6437,7 @@
 2711 b9        cp      c
 2712 da001d    jp      c,1d00h
 2715 cd2207    call    0722h
-2718 2241fe    ld      (0fe41h),hl        ; FACCU
+2718 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 271b 3e02      ld      a,02h
 271d 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 2720 e1        pop     hl
@@ -6467,7 +6552,7 @@
 27f2 e5        push    hl
 27f3 2a4efb    ld      hl,(0fb4eh)
 27f6 22d3fd    ld      (0fdd3h),hl        ; TMSTPT: Address of next available location in LSPT
-27f9 2a41fe    ld      hl,(0fe41h)        ; FACCU
+27f9 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 27fc 7e        ld      a,(hl)
 27fd 23        inc     hl
 27fe 5e        ld      e,(hl)
@@ -6592,7 +6677,7 @@
 28c7 28fa      jr      z,28c3h        ; wait for CSYNC - Composite video sync.signal 
 28c9 5e        ld      e,(hl)
 28ca 1600      ld      d,00h
-28cc ed5341fe  ld      (0fe41h),de        ; FACCU
+28cc ed5341fe  ld      (0fe41h),de        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 28d0 3e02      ld      a,02h
 28d2 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 28d5 cd1b1d    call    1d1bh
@@ -6603,7 +6688,7 @@
 28db cdc51c    call    1cc5h
 28de cd6c1d    call    1d6ch
 28e1 cd781d    call    1d78h
-28e4 ed5341fe  ld      (0fe41h),de        ; FACCU
+28e4 ed5341fe  ld      (0fe41h),de        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 28e8 3e02      ld      a,02h
 28ea 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 28ed e1        pop     hl
@@ -6628,7 +6713,7 @@
 2912 c1        pop     bc
 2913 10f1      djnz    2906h
 2915 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
-2918 2241fe    ld      (0fe41h),hl        ; FACCU
+2918 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 291b 3e03      ld      a,03h
 
 ; PROMPT
@@ -6656,7 +6741,7 @@
 294b e5        push    hl
 294c dd215e19  ld      ix,195eh
 2950 cd9a1d    call    1d9ah
-2953 ed5b41fe  ld      de,(0fe41h)        ; FACCU
+2953 ed5b41fe  ld      de,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 2957 1a        ld      a,(de)
 2958 fe12      cp      12h
 295a d2001d    jp      nc,1d00h
@@ -6691,7 +6776,7 @@
 298e 1a        ld      a,(de)
 298f fe3a      cp      3ah
 2991 3809      jr      c,299ch
-2993 fe41      cp      41h        ; FACCU
+2993 fe41      cp      41h        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 2995 da001d    jp      c,1d00h
 2998 e6df      and     0dfh
 299a d607      sub     07h
@@ -6703,7 +6788,7 @@
 29a7 6f        ld      l,a
 29a8 13        inc     de
 29a9 10df      djnz    298ah
-29ab 2241fe    ld      (0fe41h),hl        ; FACCU
+29ab 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 29ae 3e02      ld      a,02h
 29b0 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 29b3 2a4efb    ld      hl,(0fb4eh)
@@ -6762,7 +6847,7 @@
 
 ; FIND_LNUM - Search for line number
 2a16 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
-2a19 2241fe    ld      (0fe41h),hl        ; FACCU
+2a19 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 2a1c e1        pop     hl
 2a1d c9        ret
 
@@ -6807,7 +6892,7 @@
 2a60 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
 2a63 3e03      ld      a,03h
 2a65 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
-2a68 2241fe    ld      (0fe41h),hl        ; FACCU
+2a68 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 2a6b e1        pop     hl
 2a6c c9        ret
 
@@ -6851,7 +6936,7 @@
 2aac 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
 2aaf 3e03      ld      a,03h
 2ab1 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
-2ab4 2241fe    ld      (0fe41h),hl        ; FACCU
+2ab4 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 2ab7 e1        pop     hl
 2ab8 c9        ret
 
@@ -6889,7 +6974,7 @@
 2aee f1        pop     af
 2aef 2802      jr      z,2af3h
 2af1 3eff      ld      a,0ffh
-2af3 2141fe    ld      hl,0fe41h        ; FACCU
+2af3 2141fe    ld      hl,0fe41h        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 2af6 77        ld      (hl),a
 2af7 23        inc     hl
 2af8 77        ld      (hl),a
@@ -6909,7 +6994,7 @@
 2b12 fe53      cp      53h
 2b14 cad30b    jp      z,0bd3h
 2b17 fe4f      cp      4fh
-2b19 ca7a15    jp      z,157ah
+2b19 ca7a15    jp      z,157ah			; SUBPHL - SUBTRACT number at HL from BCDE
 2b1c fe58      cp      58h
 2b1e ca0b0e    jp      z,0e0bh
 2b21 fe84      cp      84h
@@ -7067,7 +7152,8 @@
 2c40 cbef      set     5,a
 2c42 328afb    ld      (0fb8ah),a
 2c45 e1        pop     hl
-2c46 c9        ret     
+2c46 c9        ret
+
 2c47 e5        push    hl
 2c48 af        xor     a
 2c49 328cfb    ld      (0fb8ch),a
@@ -7106,6 +7192,7 @@
 2ca2 cb47      bit     0,a
 2ca4 2806      jr      z,2cach
 2ca6 3a8cfb    ld      a,(0fb8ch)
+
 2ca9 cd6c0d    call    0d6ch
 2cac af        xor     a
 2cad 328cfb    ld      (0fb8ch),a
@@ -7222,7 +7309,7 @@
 2d99 cd961d    call    1d96h
 
 ; ?Gosub routine?
-2d9c ed5365fb  ld      (0fb65h),de
+2d9c ed5365fb  ld      (0fb65h),de			; number of text columns
 2da0 af        xor     a
 2da1 3261fb    ld      (0fb61h),a
 2da4 3a8afb    ld      a,(0fb8ah)
@@ -7384,6 +7471,7 @@
 2ee4 dd211d2e  ld      ix,2e1dh
 2ee8 dde5      push    ix
 2eea c38a3f    jp      3f8ah
+
 2eed 2b        dec     hl
 2eee cd5d0b    call    0b5dh
 2ef1 7e        ld      a,(hl)
@@ -7546,7 +7634,7 @@
 307d e5        push    hl
 307e d5        push    de
 307f c5        push    bc
-3080 cd0117    call    1701h
+3080 cd0117    call    1701h		; DIV10 - Divide FP by 10
 3083 c1        pop     bc
 3084 d1        pop     de
 3085 e1        pop     hl
@@ -7564,7 +7652,7 @@
 309c 2263fb    ld      (0fb63h),hl
 309f 210000    ld      hl,0000h
 30a2 2275fb    ld      (0fb75h),hl
-30a5 2a65fb    ld      hl,(0fb65h)
+30a5 2a65fb    ld      hl,(0fb65h)			; number of text columns
 30a8 cb7c      bit     7,h
 30aa c0        ret     nz
 30ab 2277fb    ld      (0fb77h),hl
@@ -7852,15 +7940,15 @@
 3338 2267fb    ld      (0fb67h),hl
 333b ed5b6ffb  ld      de,(0fb6fh)
 333f ed52      sbc     hl,de
-3341 2265fb    ld      (0fb65h),hl
+3341 2265fb    ld      (0fb65h),hl			; number of text columns
 3344 ed52      sbc     hl,de
 3346 2269fb    ld      (0fb69h),hl
 3349 2a73fb    ld      hl,(0fb73h)
 334c cb7c      bit     7,h
 334e 280a      jr      z,335ah
-3350 2a65fb    ld      hl,(0fb65h)
+3350 2a65fb    ld      hl,(0fb65h)			; number of text columns
 3353 ed5b67fb  ld      de,(0fb67h)
-3357 2265fb    ld      (0fb65h),hl
+3357 2265fb    ld      (0fb65h),hl			; number of text columns
 335a 2a77fb    ld      hl,(0fb77h)
 335d 226dfb    ld      (0fb6dh),hl
 3360 2a75fb    ld      hl,(0fb75h)
@@ -7889,16 +7977,16 @@
 339a 2a75fb    ld      hl,(0fb75h)
 339d 23        inc     hl
 339e 2275fb    ld      (0fb75h),hl
-33a1 2a65fb    ld      hl,(0fb65h)
+33a1 2a65fb    ld      hl,(0fb65h)			; number of text columns
 33a4 cb7c      bit     7,h
 33a6 280a      jr      z,33b2h
 33a8 ed5b67fb  ld      de,(0fb67h)
 33ac 19        add     hl,de
-33ad 2265fb    ld      (0fb65h),hl
+33ad 2265fb    ld      (0fb65h),hl			; number of text columns
 33b0 18ae      jr      3360h
 33b2 ed5b69fb  ld      de,(0fb69h)
 33b6 19        add     hl,de
-33b7 2265fb    ld      (0fb65h),hl
+33b7 2265fb    ld      (0fb65h),hl			; number of text columns
 33ba 2a6dfb    ld      hl,(0fb6dh)
 33bd ed5b73fb  ld      de,(0fb73h)
 33c1 19        add     hl,de
@@ -8007,24 +8095,28 @@
 3489 ed5385fb  ld      (0fb85h),de
 348d cd4c14    call    144ch
 3490 cd0f1d    call    1d0fh
+
 3493 210040    ld      hl,4000h
 3496 110140    ld      de,4001h
 3499 af        xor     a
 349a 77        ld      (hl),a
 349b 01fe5f    ld      bc,5ffeh
 349e edb0      ldir    
+
 34a0 210004    ld      hl,0400h
 34a3 2263fb    ld      (0fb63h),hl
 34a6 111204    ld      de,0412h
 34a9 ed5367fb  ld      (0fb67h),de
+
 34ad dd210020  ld      ix,2000h
 34b1 fd210030  ld      iy,3000h
-34b5 3e50      ld      a,50h
-34b7 3265fb    ld      (0fb65h),a
-34ba 3a65fb    ld      a,(0fb65h)
+34b5 3e50      ld      a,50h			; 80
+34b7 3265fb    ld      (0fb65h),a			; number of text columns
+
+34ba 3a65fb    ld      a,(0fb65h)			; number of text columns
 34bd 47        ld      b,a
 34be 2a63fb    ld      hl,(0fb63h)
-34c1 111200    ld      de,0012h
+34c1 111200    ld      de,0012h				; 18
 34c4 7d        ld      a,l
 34c5 dd7700    ld      (ix+00h),a
 34c8 7c        ld      a,h
@@ -8033,15 +8125,17 @@
 34ce fd23      inc     iy
 34d0 19        add     hl,de
 34d1 10ee      djnz    34c1h
+
 34d3 2a63fb    ld      hl,(0fb63h)
 34d6 23        inc     hl
 34d7 2263fb    ld      (0fb63h),hl
 34da ed5b67fb  ld      de,(0fb67h)
 34de cd4c0b    call    0b4ch
 34e1 20d7      jr      nz,34bah
+
 34e3 210028    ld      hl,2800h
 34e6 010008    ld      bc,0800h
-34e9 cbc6      set     0,(hl)
+34e9 cbc6      set     0,(hl)		; enable PCGEN bit
 34eb 23        inc     hl
 34ec 0b        dec     bc
 34ed 78        ld      a,b
@@ -8079,9 +8173,10 @@
 352f ed5367fb  ld      (0fb67h),de
 3533 dd210020  ld      ix,2000h
 3537 fd210030  ld      iy,3000h
-353b 3e28      ld      a,28h
-353d 3265fb    ld      (0fb65h),a
+353b 3e28      ld      a,28h			; 40
+353d 3265fb    ld      (0fb65h),a			; number of text columns
 3540 c3ba14    jp      14bah
+
 3543 219f05    ld      hl,059fh
 3546 22e1fb    ld      (0fbe1h),hl        ; MAXIMUM No. CHARACTERS ALLOWED ON SCREEN
 3549 1806      jr      3551h
@@ -8425,7 +8520,7 @@
 37d5 ed5badfb  ld      de,(0fbadh)
 37d9 ed5363fb  ld      (0fb63h),de
 37dd ed5baffb  ld      de,(0fbafh)
-37e1 ed5365fb  ld      (0fb65h),de
+37e1 ed5365fb  ld      (0fb65h),de			; number of text columns
 37e5 af        xor     a
 37e6 3289fb    ld      (0fb89h),a
 37e9 e5        push    hl
@@ -8433,14 +8528,14 @@
 37ed 2267fb    ld      (0fb67h),hl
 37f0 2a63fb    ld      hl,(0fb63h)
 37f3 22adfb    ld      (0fbadh),hl
-37f6 2a65fb    ld      hl,(0fb65h)
+37f6 2a65fb    ld      hl,(0fb65h)			; number of text columns
 37f9 22affb    ld      (0fbafh),hl
 37fc cd9518    call    1895h
 37ff c29318    jp      nz,1893h
 3802 2a63fb    ld      hl,(0fb63h)
 3805 22adfb    ld      (0fbadh),hl
 3808 228dfb    ld      (0fb8dh),hl
-380b 2a65fb    ld      hl,(0fb65h)
+380b 2a65fb    ld      hl,(0fb65h)			; number of text columns
 380e 22affb    ld      (0fbafh),hl
 3811 228ffb    ld      (0fb8fh),hl
 3814 cd5912    call    1259h
@@ -8489,7 +8584,7 @@
 387e 2a63fb    ld      hl,(0fb63h)
 3881 22adfb    ld      (0fbadh),hl
 3884 228dfb    ld      (0fb8dh),hl
-3887 2a65fb    ld      hl,(0fb65h)
+3887 2a65fb    ld      hl,(0fb65h)			; number of text columns
 388a 23        inc     hl
 388b 228ffb    ld      (0fb8fh),hl
 388e 22affb    ld      (0fbafh),hl
@@ -8577,7 +8672,7 @@
 391e 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 3921 fe03      cp      03h
 3923 c2fb1c    jp      nz,1cfbh
-3926 2141fe    ld      hl,0fe41h        ; FACCU
+3926 2141fe    ld      hl,0fe41h        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 3929 5e        ld      e,(hl)
 392a 23        inc     hl
 392b 56        ld      d,(hl)
@@ -8843,6 +8938,7 @@
 3b56 dd216b29  ld      ix,296bh
 3b5a dde5      push    ix
 3b5c c38a3f    jp      3f8ah
+
 3b5f 3ec9      ld      a,0c9h
 3b61 32b7fe    ld      (0feb7h),a
 3b64 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
@@ -8856,6 +8952,7 @@
 3b7c dd210329  ld      ix,2903h
 3b80 dde5      push    ix
 3b82 c38a3f    jp      3f8ah
+
 3b85 44        ld      b,h
 3b86 49        ld      c,c
 3b87 52        ld      d,d
@@ -8899,7 +8996,7 @@
 3bc4 2100d8    ld      hl,0d800h
 3bc7 2263fb    ld      (0fb63h),hl
 3bca 0680      ld      b,80h
-3bcc ed4365fb  ld      (0fb65h),bc
+3bcc ed4365fb  ld      (0fb65h),bc			; number of text columns
 3bd0 1180d8    ld      de,0d880h
 3bd3 0e13      ld      c,13h
 3bd5 cdf318    call    18f3h
@@ -8921,7 +9018,7 @@
 3bf4 23        inc     hl
 3bf5 56        ld      d,(hl)
 3bf6 21e1ff    ld      hl,0ffe1h
-3bf9 ed5341fe  ld      (0fe41h),de        ; FACCU
+3bf9 ed5341fe  ld      (0fe41h),de        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 3bfd 3e02      ld      a,02h
 3bff 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 3c02 010000    ld      bc,0000h
@@ -8973,7 +9070,7 @@
 3c60 d5        push    de
 3c61 c5        push    bc
 3c62 2a63fb    ld      hl,(0fb63h)
-3c65 ed4b65fb  ld      bc,(0fb65h)
+3c65 ed4b65fb  ld      bc,(0fb65h)			; number of text columns
 3c69 fe1a      cp      1ah
 3c6b 200b      jr      nz,3c78h
 3c6d 77        ld      (hl),a
@@ -8984,7 +9081,7 @@
 3c78 77        ld      (hl),a
 3c79 05        dec     b
 3c7a 280a      jr      z,3c86h
-3c7c ed4365fb  ld      (0fb65h),bc
+3c7c ed4365fb  ld      (0fb65h),bc			; number of text columns
 3c80 23        inc     hl
 3c81 2263fb    ld      (0fb63h),hl
 3c84 1822      jr      3ca8h
@@ -9001,7 +9098,7 @@
 3c99 c3001d    jp      1d00h
 3c9c 0680      ld      b,80h
 3c9e 2100d8    ld      hl,0d800h
-3ca1 ed4365fb  ld      (0fb65h),bc
+3ca1 ed4365fb  ld      (0fb65h),bc			; number of text columns
 3ca5 2263fb    ld      (0fb63h),hl
 3ca8 c1        pop     bc
 3ca9 d1        pop     de
@@ -9017,6 +9114,7 @@
 3cbc dd210329  ld      ix,2903h
 3cc0 dde5      push    ix
 3cc2 c38a3f    jp      3f8ah
+
 3cc5 e5        push    hl
 3cc6 f5        push    af
 3cc7 c5        push    bc
@@ -9069,7 +9167,7 @@
 3d20 c9        ret     
 3d21 dd21452d  ld      ix,2d45h            ; IX= {LNUM_PARM_0 - Get specified line number (2nd parameter)}
 3d25 c39a1d    jp      1d9ah
-3d28 dd210419  ld      ix,1904h
+3d28 dd210419  ld      ix,1904h			; INT_RESULT_HL - Get back from function, result in HL
 3d2c c39a1d    jp      1d9ah
 3d2f dd21e229  ld      ix,29e2h
 3d33 c39a1d    jp      1d9ah
@@ -9081,9 +9179,9 @@
 3d46 1852      jr      3d9ah
 3d48 dd212c18  ld      ix,182ch            ; IX= {Load SP value -> into BC/DE}
 3d4c 184c      jr      3d9ah
-3d4e dd21b116  ld      ix,16b1h
+3d4e dd21b116  ld      ix,16b1h            ; IX= {FPMULT - Single precision multiply  (Multiply BCDE to FP reg)}
 3d52 1846      jr      3d9ah
-3d54 dd210c17  ld      ix,170ch
+3d54 dd210c17  ld      ix,170ch            ; IX= {DVBCDE - Divide FP by BCDE}
 3d58 1840      jr      3d9ah
 3d5a dd212b32  ld      ix,322bh            ; IX = {EVAL}
 3d5e 183a      jr      3d9ah
@@ -9105,7 +9203,7 @@
 3d8e 180a      jr      3d9ah
 3d90 dd215910  ld      ix,1059h
 3d94 1804      jr      3d9ah
-3d96 dd21f639  ld      ix,39f6h                ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
+3d96 dd21f639  ld      ix,39f6h                ; GETWORD - Get a number to DE (0..65535)  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
 
 3d9a dde5      push    ix
 3d9c c3803f    jp      3f80h
@@ -9143,7 +9241,7 @@
 3dcf cd831e    call    1e83h
 3dd2 cd881e    call    1e88h
 3dd5 af        xor     a
-3dd6 d3f0      out     (0f0h),a
+3dd6 d3f0      out     (0f0h),a		; WD2793 FDC command/status register
 3dd8 cd831e    call    1e83h
 3ddb cd831e    call    1e83h
 3dde cd881e    call    1e88h
@@ -9160,34 +9258,35 @@
 3df5 7b        ld      a,e
 3df6 b2        or      d
 3df7 20f6      jr      nz,3defh
-3df9 c9        ret     
+3df9 c9        ret
+
 3dfa a7        and     a
 3dfb 00        nop     
 3dfc 00        nop     
 3dfd 3e83      ld      a,83h
-3dff d3e0      out     (0e0h),a
+3dff d3e0      out     (0e0h),a			; DMA CONTROL PORT
 3e01 3afa1d    ld      a,(1dfah)
 3e04 eeff      xor     0ffh
 3e06 d3f2      out     (0f2h),a			; FDC sector register
 3e08 af        xor     a
 3e09 d3f1      out     (0f1h),a			; FDC tract register
 3e0b 3e8c      ld      a,8ch
-3e0d d3f0      out     (0f0h),a
+3e0d d3f0      out     (0f0h),a		; WD2793 FDC command/status register
 3e0f 0ef3      ld      c,0f3h
 3e11 cd831e    call    1e83h
 3e14 cd831e    call    1e83h
-3e17 dbf0      in      a,(0f0h)
+3e17 dbf0      in      a,(0f0h)		; WD2793 FDC command/status register
 3e19 cb4f      bit     1,a
 3e1b 2018      jr      nz,3e35h
-3e1d dbf0      in      a,(0f0h)
+3e1d dbf0      in      a,(0f0h)		; WD2793 FDC command/status register
 3e1f cb4f      bit     1,a
 3e21 2012      jr      nz,3e35h
-3e23 dbf0      in      a,(0f0h)
+3e23 dbf0      in      a,(0f0h)		; WD2793 FDC command/status register
 3e25 cb4f      bit     1,a
 3e27 200c      jr      nz,3e35h
 3e29 cb47      bit     0,a
 3e2b 280d      jr      z,3e3ah
-3e2d dbf0      in      a,(0f0h)
+3e2d dbf0      in      a,(0f0h)		; WD2793 FDC command/status register
 3e2f cb4f      bit     1,a
 3e31 2002      jr      nz,3e35h
 3e33 18e2      jr      3e17h
@@ -9200,6 +9299,7 @@
 3e42 ca951e    jp      z,1e95h
 3e45 3250fb    ld      (0fb50h),a
 3e48 c3fd1d    jp      1dfdh
+
 3e4b cb5f      bit     3,a
 3e4d 28ef      jr      z,3e3eh
 3e4f 3ec9      ld      a,0c9h
@@ -9235,11 +9335,12 @@
 3e84 e3        ex      (sp),hl
 3e85 e3        ex      (sp),hl
 3e86 e3        ex      (sp),hl
-3e87 c9        ret     
-3e88 dbf0      in      a,(0f0h)
+3e87 c9        ret
+
+3e88 dbf0      in      a,(0f0h)		; WD2793 FDC command/status register
 3e8a cb47      bit     0,a
 3e8c 20fa      jr      nz,3e88h
-3e8e dbf0      in      a,(0f0h)
+3e8e dbf0      in      a,(0f0h)		; WD2793 FDC command/status register
 3e90 cb47      bit     0,a
 3e92 20f4      jr      nz,3e88h
 3e94 c9        ret
@@ -9602,5219 +9703,5513 @@
 3ffe ff        rst     38h
 3fff ff        rst     38h
 
-4000 03        inc     bc
-4001 2a13fe    ld      hl,(0fe13h)    ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
-4004 83        add     a,e
-4005 3d        dec     a
-4006 f4d320    call    p,20d3h
-4009 50        ld      d,b
-400a c3291f    jp      1f29h
-400d e5        push    hl
-400e d5        push    de
-400f cd3619    call    1936h
-4012 d1        pop     de
-4013 af        xor     a
-4014 ca1a20    jp      z,201ah
-4017 1e10      ld      e,10h
-4019 011e06    ld      bc,061eh
-401c cdbf17    call    17bfh
-401f 37        scf     
-4020 c46b20    call    nz,206bh
-4023 e1        pop     hl
-4024 c1        pop     bc
-4025 f5        push    af
-4026 79        ld      a,c
-4027 b7        or      a
-4028 f5        push    af
-4029 c4801d    call    nz,1d80h
-402c 80        add     a,b
-402d 4f        ld      c,a
-402e 7a        ld      a,d
-402f e604      and     04h
-4031 fe01      cp      01h
-4033 9f        sbc     a,a
-4034 57        ld      d,a
-4035 81        add     a,c
-4036 4f        ld      c,a
-4037 93        sub     e
-4038 f5        push    af
-4039 c5        push    bc
-403a fc821d    call    m,1d82h
-403d fa3a20    jp      m,203ah
-4040 c1        pop     bc
-4041 f1        pop     af
-4042 c5        push    bc
-4043 f5        push    af
-4044 fa4820    jp      m,2048h
-4047 af        xor     a
-4048 2f        cpl     
-4049 3c        inc     a
-404a 80        add     a,b
-404b 3c        inc     a
-404c 82        add     a,d
-404d 47        ld      b,a
-404e 0e00      ld      c,00h
-4050 cd0e21    call    210eh
-4053 f1        pop     af
-4054 f4db20    call    p,20dbh
-4057 c1        pop     bc
-4058 f1        pop     af
-4059 cc9917    call    z,1799h
-405c f1        pop     af
-405d 3803      jr      c,4062h
-405f 83        add     a,e
-4060 90        sub     b
-4061 92        sub     d
-4062 c5        push    bc
-4063 cdde1e    call    1edeh
-4066 eb        ex      de,hl
-4067 d1        pop     de
-4068 c3291f    jp      1f29h
 
-406b d5        push    de
-406c af        xor     a
-406d f5        push    af
-406e e7        rst     20h			; GETYPR - Get the number type (FAC)
-406f e28c20    jp      po,208ch
-4072 3a44fe    ld      a,(0fe44h)
-4075 fe91      cp      91h
-4077 d28c20    jp      nc,208ch
-407a 11ce21    ld      de,21ceh
-407d 2147fe    ld      hl,0fe47h
-4080 cd3d18    call    183dh
-4083 cd0b1c    call    1c0bh
-4086 f1        pop     af
-4087 d60a      sub     0ah
-4089 f5        push    af
-408a 18e6      jr      4072h
 
-408c cdb920    call    20b9h
-408f e7        rst     20h			; GETYPR - Get the number type (FAC)
-4090 300b      jr      nc,409dh
-4092 014391    ld      bc,9143h
-4095 11f94f    ld      de,4ff9h
-4098 cd7618    call    1876h
-409b 1806      jr      40a3h
 
-409d 11d621    ld      de,21d6h
-40a0 cdb318    call    18b3h
-40a3 f2b520    jp      p,20b5h
-40a6 f1        pop     af
-40a7 cd751d    call    1d75h
-40aa f5        push    af
-40ab 18e2      jr      408fh
-40ad f1        pop     af
-40ae cd821d    call    1d82h
-40b1 f5        push    af
-40b2 cdb920    call    20b9h
-40b5 f1        pop     af
-40b6 b7        or      a
-40b7 d1        pop     de
-40b8 c9        ret
 
-40b9 e7        rst     20h			; GETYPR - Get the number type (FAC)
-40ba eac820    jp      pe,20c8h
-40bd 017494    ld      bc,9474h
-40c0 11f823    ld      de,23f8h
-40c3 cd7618    call    1876h
-40c6 1806      jr      40ceh
-40c8 11de21    ld      de,21deh
-40cb cdb318    call    18b3h
-40ce e1        pop     hl
-40cf f2ad20    jp      p,20adh
-40d2 e9        jp      (hl)
-40d3 b7        or      a
-40d4 c8        ret     z
-40d5 3d        dec     a
-40d6 3630      ld      (hl),30h
-40d8 23        inc     hl
-40d9 18f9      jr      40d4h
-40db 2004      jr      nz,40e1h
-40dd c8        ret     z
-40de cdfb20    call    20fbh
-40e1 3630      ld      (hl),30h
-40e3 23        inc     hl
-40e4 3d        dec     a
-40e5 18f6      jr      40ddh
-40e7 7b        ld      a,e
-40e8 82        add     a,d
-40e9 3c        inc     a
-40ea 47        ld      b,a
-40eb 3c        inc     a
-40ec d603      sub     03h
-40ee 30fc      jr      nc,40ech
-40f0 c605      add     a,05h
-40f2 4f        ld      c,a
-40f3 3af8fd    ld      a,(0fdf8h)        ; 1: Index of last byte executed in current statement- 2: Edit flag during print using
-40f6 e640      and     40h
-40f8 c0        ret     nz
-40f9 4f        ld      c,a
-40fa c9        ret     
-40fb 05        dec     b
-40fc 2008      jr      nz,4106h
-40fe 362e      ld      (hl),2eh
-4100 2213fe    ld      (0fe13h),hl        ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
-4103 23        inc     hl
-4104 48        ld      c,b
-4105 c9        ret
 
-4106 0d        dec     c
-4107 c0        ret     nz
-4108 362c      ld      (hl),2ch
-410a 23        inc     hl
-410b 0e03      ld      c,03h
-410d c9        ret
 
-410e d5        push    de
-410f e7        rst     20h			; GETYPR - Get the number type (FAC)
-4110 e25421    jp      po,2154h
-4113 c5        push    bc
-4114 e5        push    hl
-4115 cd6618    call    1866h
-4118 21e621    ld      hl,21e6h
-411b cd6118    call    1861h
-411e cde11a    call    1ae1h
-4121 af        xor     a
-4122 cde519    call    19e5h
-4125 e1        pop     hl
-4126 c1        pop     bc
-4127 11f621    ld      de,21f6h
-412a 3e0a      ld      a,0ah
-412c cdfb20    call    20fbh
-412f c5        push    bc
-4130 f5        push    af
-4131 e5        push    hl
-4132 d5        push    de
-4133 062f      ld      b,2fh
-4135 04        inc     b
-4136 e1        pop     hl
-4137 e5        push    hl
-4138 cdb21b    call    1bb2h
-413b 30f8      jr      nc,4135h
-413d e1        pop     hl
-413e cda01b    call    1ba0h
-4141 eb        ex      de,hl
-4142 e1        pop     hl
-4143 70        ld      (hl),b
-4144 23        inc     hl
-4145 f1        pop     af
-4146 c1        pop     bc
-4147 3d        dec     a
-4148 20e2      jr      nz,412ch
-414a c5        push    bc
-414b e5        push    hl
-414c 213dfe    ld      hl,0fe3dh
-414f cd1b18    call    181bh            ; Move a SP value -> HL to WRA1
-4152 180c      jr      4160h
-4154 c5        push    bc
-4155 e5        push    hl
-4156 cd7215    call    1572h
-4159 3c        inc     a
-415a cd6519    call    1965h
-415d cd1e18    call    181eh            ; Move SP value in BC/DE into WRA1
-4160 e1        pop     hl
-4161 c1        pop     bc
-4162 af        xor     a
-4163 113c22    ld      de,223ch
-4166 3f        ccf     
-4167 cdfb20    call    20fbh
-416a c5        push    bc
-416b f5        push    af
-416c e5        push    hl
-416d d5        push    de
-416e cd2918    call    1829h
-4171 e1        pop     hl
-4172 062f      ld      b,2fh
-4174 04        inc     b
-4175 7b        ld      a,e
-4176 96        sub     (hl)
-4177 5f        ld      e,a
-4178 23        inc     hl
-4179 7a        ld      a,d
-417a 9e        sbc     a,(hl)
-417b 57        ld      d,a
-417c 23        inc     hl
-417d 79        ld      a,c
-417e 9e        sbc     a,(hl)
-417f 4f        ld      c,a
-4180 2b        dec     hl
-4181 2b        dec     hl
-4182 30f0      jr      nc,4174h
-4184 cd2116    call    1621h
-4187 23        inc     hl
-4188 cd1e18    call    181eh            ; Move SP value in BC/DE into WRA1
-418b eb        ex      de,hl
-418c e1        pop     hl
-418d 70        ld      (hl),b
-418e 23        inc     hl
-418f f1        pop     af
-4190 c1        pop     bc
-4191 38d3      jr      c,4166h
-4193 13        inc     de
-4194 13        inc     de
-4195 3e04      ld      a,04h
-4197 1806      jr      419fh
-4199 d5        push    de
-419a 114222    ld      de,2242h
-419d 3e05      ld      a,05h
-419f cdfb20    call    20fbh
-41a2 c5        push    bc
-41a3 f5        push    af
-41a4 e5        push    hl
-41a5 eb        ex      de,hl
-41a6 4e        ld      c,(hl)
-41a7 23        inc     hl
-41a8 46        ld      b,(hl)
-41a9 c5        push    bc
-41aa 23        inc     hl
-41ab e3        ex      (sp),hl
-41ac eb        ex      de,hl
-41ad 2a41fe    ld      hl,(0fe41h)        ; FACCU
-41b0 062f      ld      b,2fh
-41b2 04        inc     b
-41b3 7d        ld      a,l
-41b4 93        sub     e
-41b5 6f        ld      l,a
-41b6 7c        ld      a,h
-41b7 9a        sbc     a,d
-41b8 67        ld      h,a
-41b9 30f7      jr      nc,41b2h
-41bb 19        add     hl,de
-41bc 2241fe    ld      (0fe41h),hl        ; FACCU
-41bf d1        pop     de
-41c0 e1        pop     hl
-41c1 70        ld      (hl),b
-41c2 23        inc     hl
-41c3 f1        pop     af
-41c4 c1        pop     bc
-41c5 3d        dec     a
-41c6 20d7      jr      nz,419fh
-41c8 cdfb20    call    20fbh
-41cb 77        ld      (hl),a
-41cc d1        pop     de
-41cd c9        ret     
-41ce 00        nop     
-41cf 00        nop     
-41d0 00        nop     
-41d1 00        nop     
-41d2 f9        ld      sp,hl
-41d3 02        ld      (bc),a
-41d4 15        dec     d
-41d5 a2        and     d
-41d6 fdff      rst     38h
-41d8 9f        sbc     a,a
-41d9 31a95f    ld      sp,5fa9h
-41dc 63        ld      h,e
-41dd b2        or      d
-41de feff      cp      0ffh
-41e0 03        inc     bc
-41e1 bf        cp      a
-41e2 c9        ret     
-41e3 1b        dec     de
-41e4 0eb6      ld      c,0b6h
-41e6 00        nop     
-41e7 00        nop     
-41e8 00        nop     
-41e9 00        nop     
-41ea 00        nop     
-41eb 00        nop     
-41ec 00        nop     
-41ed 80        add     a,b
-41ee 00        nop     
-41ef 00        nop     
-41f0 04        inc     b
-41f1 bf        cp      a
-41f2 c9        ret     
-41f3 1b        dec     de
-41f4 0eb6      ld      c,0b6h
-41f6 00        nop     
-41f7 80        add     a,b
-41f8 c6a4      add     a,0a4h
-41fa 7e        ld      a,(hl)
-41fb 8d        adc     a,l
-41fc 03        inc     bc
-41fd 00        nop     
-41fe 40        ld      b,b
-41ff 7a        ld      a,d
-4200 10f3      djnz    41f5h
-4202 5a        ld      e,d
-4203 00        nop     
-4204 00        nop     
-4205 a0        and     b
-4206 72        ld      (hl),d
-4207 4e        ld      c,(hl)
-4208 1809      jr      4213h
-420a 00        nop     
-420b 00        nop     
-420c 10a5      djnz    41b3h
-420e d4e800    call    nc,00e8h
-4211 00        nop     
-4212 00        nop     
-4213 e8        ret     pe
-4214 76        halt    
-4215 48        ld      c,b
-4216 17        rla     
-4217 00        nop     
-4218 00        nop     
-4219 00        nop     
-421a e40b54    call    po,540bh
-421d 02        ld      (bc),a
-421e 00        nop     
-421f 00        nop     
-4220 00        nop     
-4221 ca9a3b    jp      z,3b9ah
-4224 00        nop     
-4225 00        nop     
-4226 00        nop     
-4227 00        nop     
-4228 e1        pop     hl
-4229 f5        push    af
-422a 05        dec     b
-422b 00        nop     
-422c 00        nop     
-422d 00        nop     
-422e 80        add     a,b
-422f 96        sub     (hl)
-4230 98        sbc     a,b
-4231 00        nop     
-4232 00        nop     
-4233 00        nop     
-4234 00        nop     
-4235 40        ld      b,b
-4236 42        ld      b,d
-4237 0f        rrca    
-4238 00        nop     
-4239 00        nop     
-423a 00        nop     
-423b 00        nop     
-423c a0        and     b
-423d 86        add     a,(hl)
-423e 011027    ld      bc,2710h
-4241 00        nop     
-4242 1027      djnz    426bh
-4244 e8        ret     pe
-4245 03        inc     bc
-4246 64        ld      h,h
-4247 00        nop     
-4248 0a        ld      a,(bc)
-4249 00        nop     
-424a 010021    ld      bc,2100h
-424d ec17e3    call    pe,0e317h
-4250 e9        jp      (hl)
-4251 cd0e18    call    180eh                ; Move WRA1 to stack
-4254 21ea21    ld      hl,21eah
-4257 cd1b18    call    181bh            ; Move a SP value -> HL to WRA1
-425a 1803      jr      425fh
-425c cd1b19    call    191bh
-425f c1        pop     bc
-4260 d1        pop     de
-4261 cdbf17    call    17bfh
-4264 78        ld      a,b
-4265 283c      jr      z,42a3h
-4267 f26e22    jp      p,226eh
-426a b7        or      a
-426b ca8428    jp      z,2884h
-426e b7        or      a
-426f cae315    jp      z,15e3h
-4272 d5        push    de
-4273 c5        push    bc
-4274 79        ld      a,c
-4275 f67f      or      7fh
-4277 cd2918    call    1829h
-427a f28b22    jp      p,228bh
-427d d5        push    de
-427e c5        push    bc
-427f cdaa19    call    19aah
-4282 c1        pop     bc
-4283 d1        pop     de
-4284 f5        push    af
-4285 cd7618    call    1876h
-4288 e1        pop     hl
-4289 7c        ld      a,h
-428a 1f        rra     
-428b e1        pop     hl
-428c 2243fe    ld      (0fe43h),hl
-428f e1        pop     hl
-4290 2241fe    ld      (0fe41h),hl        ; FACCU
-4293 dc4c22    call    c,224ch
-4296 ccec17    call    z,17ech
-4299 d5        push    de
-429a c5        push    bc
-429b cd7316    call    1673h
-429e c1        pop     bc
-429f d1        pop     de
-42a0 cdb116    call    16b1h
-42a3 cd0e18    call    180eh                ; Move WRA1 to stack
-42a6 013881    ld      bc,8138h
-42a9 113baa    ld      de,0aa3bh
-42ac cdb116    call    16b1h
-42af 3a44fe    ld      a,(0fe44h)
-42b2 fe88      cp      88h
-42b4 d29b17    jp      nc,179bh
-42b7 cdaa19    call    19aah
-42ba c680      add     a,80h
-42bc c602      add     a,02h
-42be da9b17    jp      c,179bh
-42c1 f5        push    af
-42c2 216216    ld      hl,1662h			; UNITY - Constant ptr for number 1 in FP
-42c5 cd7515    call    1575h
-42c8 cdab16    call    16abh
-42cb f1        pop     af
-42cc c1        pop     bc
-42cd d1        pop     de
-42ce f5        push    af
-42cf cd7d15    call    157dh
-42d2 cdec17    call    17ech
-42d5 21e322    ld      hl,22e3h
-42d8 cd1323    call    2313h
-42db 110000    ld      de,0000h
-42de c1        pop     bc
-42df 4a        ld      c,d
-42e0 c3b116    jp      16b1h
-42e3 08        ex      af,af'
-42e4 40        ld      b,b
-42e5 2e94      ld      l,94h
-42e7 74        ld      (hl),h
-42e8 70        ld      (hl),b
-42e9 4f        ld      c,a
-42ea 2e77      ld      l,77h
-42ec 6e        ld      l,(hl)
-42ed 02        ld      (bc),a
-42ee 88        adc     a,b
-42ef 7a        ld      a,d
-42f0 e6a0      and     0a0h
-42f2 2a7c50    ld      hl,(507ch)
-42f5 aa        xor     d
-42f6 aa        xor     d
-42f7 7e        ld      a,(hl)
-42f8 ff        rst     38h
-42f9 ff        rst     38h
-42fa 7f        ld      a,a
-42fb 7f        ld      a,a
-42fc 00        nop     
-42fd 00        nop     
-42fe 80        add     a,b
-42ff 81        add     a,c
-4300 00        nop     
-4301 00        nop     
-4302 00        nop     
-4303 81        add     a,c
-4304 cd0e18    call    180eh                ; Move WRA1 to stack
-4307 119c1a    ld      de,1a9ch
-430a d5        push    de
-430b e5        push    hl
-430c cd2918    call    1829h
-430f cdb116    call    16b1h
-4312 e1        pop     hl
-4313 cd0e18    call    180eh                ; Move WRA1 to stack
-4316 7e        ld      a,(hl)
-4317 23        inc     hl
-4318 cd1b18    call    181bh            ; Move a SP value -> HL to WRA1
-431b 06f1      ld      b,0f1h
-431d c1        pop     bc
-431e d1        pop     de
-431f 3d        dec     a
-4320 c8        ret     z
-4321 d5        push    de
-4322 c5        push    bc
-4323 f5        push    af
-4324 e5        push    hl
-4325 cdb116    call    16b1h
-4328 e1        pop     hl
-4329 cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
-432c e5        push    hl
-432d cd8015    call    1580h
-4330 e1        pop     hl
-4331 18e9      jr      431ch
-4333 cde918    call    18e9h            ; GETWORD_HL: Floating point to Integer
-4336 7c        ld      a,h
-4337 b7        or      a
-4338 fa352d    jp      m,2d35h            ; Error: Illegal function call (FC ERROR)
-433b b5        or      l
-433c ca5a23    jp      z,235ah
-433f e5        push    hl
-4340 cd5a23    call    235ah
-4343 cd2918    call    1829h
-4346 eb        ex      de,hl
-4347 e3        ex      (sp),hl
-4348 c5        push    bc
-4349 cd3919    call    1939h
-434c c1        pop     bc
-434d d1        pop     de
-434e cdb116    call    16b1h
-4351 216216    ld      hl,1662h			; UNITY - Constant ptr for number 1 in FP
-4354 cd7515    call    1575h
-4357 c3aa19    jp      19aah
-435a 2144fc    ld      hl,0fc44h
-435d e5        push    hl
-435e 110000    ld      de,0000h
-4361 4b        ld      c,e
-4362 2603      ld      h,03h
-4364 2e08      ld      l,08h
-4366 eb        ex      de,hl
-4367 29        add     hl,hl
-4368 eb        ex      de,hl
-4369 79        ld      a,c
-436a 17        rla     
-436b 4f        ld      c,a
-436c e3        ex      (sp),hl
-436d 7e        ld      a,(hl)
-436e 07        rlca    
-436f 77        ld      (hl),a
-4370 e3        ex      (sp),hl
-4371 d28023    jp      nc,2380h
-4374 e5        push    hl
-4375 2acafd    ld      hl,(0fdcah)        ; Random number seeds
-4378 19        add     hl,de
-4379 eb        ex      de,hl
-437a 3accfd    ld      a,(0fdcch)
-437d 89        adc     a,c
-437e 4f        ld      c,a
-437f e1        pop     hl
-4380 2d        dec     l
-4381 c26623    jp      nz,2366h
-4384 e3        ex      (sp),hl
-4385 23        inc     hl
-4386 e3        ex      (sp),hl
-4387 25        dec     h
-4388 c26423    jp      nz,2364h
-438b e1        pop     hl
-438c 2165b0    ld      hl,0b065h
-438f 19        add     hl,de
-4390 22cafd    ld      (0fdcah),hl        ; Random number seeds
-4393 cd5919    call    1959h
-4396 3e05      ld      a,05h
-4398 89        adc     a,c
-4399 32ccfd    ld      (0fdcch),a
-439c eb        ex      de,hl
-439d 0680      ld      b,80h
-439f 2145fe    ld      hl,0fe45h
-43a2 70        ld      (hl),b
-43a3 2b        dec     hl
-43a4 70        ld      (hl),b
-43a5 4f        ld      c,a
-43a6 0600      ld      b,00h
-43a8 c3cf15    jp      15cfh
 
-43ab 21f523    ld      hl,23f5h
-43ae cd7515    call    1575h
-43b1 cd0e18    call    180eh                ; Move WRA1 to stack
-43b4 014983    ld      bc,8349h
-43b7 11db0f    ld      de,0fdbh
-43ba cd1e18    call    181eh            ; Move SP value in BC/DE into WRA1
-43bd c1        pop     bc
-43be d1        pop     de
-43bf cd0c17    call    170ch
-43c2 cd0e18    call    180eh                ; Move WRA1 to stack
-43c5 cdaa19    call    19aah
-43c8 c1        pop     bc
-43c9 d1        pop     de
-43ca cd7d15    call    157dh
-43cd 21f923    ld      hl,23f9h
-43d0 cd7a15    call    157ah
-43d3 cdbf17    call    17bfh
-43d6 37        scf     
-43d7 f2e123    jp      p,23e1h
-43da cd7215    call    1572h
-43dd cdbf17    call    17bfh
-43e0 b7        or      a
-43e1 f5        push    af
-43e2 f4ec17    call    p,17ech
-43e5 21f923    ld      hl,23f9h
-43e8 cd7515    call    1575h
-43eb f1        pop     af
-43ec d4ec17    call    nc,17ech
-43ef 21fd23    ld      hl,23fdh
-43f2 c30423    jp      2304h
-43f5 db0f      in      a,(0fh)
-43f7 49        ld      c,c
-43f8 81        add     a,c
-43f9 00        nop     
-43fa 00        nop     
-43fb 00        nop     
-43fc 7f        ld      a,a
-43fd 05        dec     b
-43fe ba        cp      d
-43ff d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4400 1e86      ld      e,86h
-4402 64        ld      h,h
-4403 2699      ld      h,99h
-4405 87        add     a,a
-4406 58        ld      e,b
-4407 34        inc     (hl)
-4408 23        inc     hl
-4409 87        add     a,a
-440a e0        ret     po
-440b 5d        ld      e,l
-440c a5        and     l
-440d 86        add     a,(hl)
-440e da0f49    jp      c,490fh
-4411 83        add     a,e
-4412 cd0e18    call    180eh                ; Move WRA1 to stack
-4415 cdb123    call    23b1h
-4418 c1        pop     bc
-4419 e1        pop     hl
-441a cd0e18    call    180eh                ; Move WRA1 to stack
-441d eb        ex      de,hl
-441e cd1e18    call    181eh            ; Move SP value in BC/DE into WRA1
-4421 cdab23    call    23abh
-4424 c30a17    jp      170ah
-4427 cdbf17    call    17bfh
-442a fc4c22    call    m,224ch
-442d fcec17    call    m,17ech
-4430 3a44fe    ld      a,(0fe44h)
-4433 fe81      cp      81h
-4435 380c      jr      c,4443h
-4437 010081    ld      bc,8100h
-443a 51        ld      d,c
-443b 59        ld      e,c
-443c cd0c17    call    170ch
-443f 217a15    ld      hl,157ah
-4442 e5        push    hl
-4443 214d24    ld      hl,244dh
-4446 cd0423    call    2304h
-4449 21f523    ld      hl,23f5h
-444c c9        ret     
-444d 09        add     hl,bc
-444e 4a        ld      c,d
-444f d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4450 3b        dec     sp
-4451 78        ld      a,b
-4452 02        ld      (bc),a
-4453 6e        ld      l,(hl)
-4454 84        add     a,h
-4455 7b        ld      a,e
-4456 fec1      cp      0c1h
-4458 2f        cpl     
-4459 7c        ld      a,h
-445a 74        ld      (hl),h
-445b 319a7d    ld      sp,7d9ah
-445e 84        add     a,h
-445f 3d        dec     a
-4460 5a        ld      e,d
-4461 7d        ld      a,l
-4462 c8        ret     z
-4463 7f        ld      a,a
-4464 91        sub     c
-4465 7e        ld      a,(hl)
-4466 e4bb4c    call    po,4cbbh
-4469 7e        ld      a,(hl)
-446a 6c        ld      l,h
-446b aa        xor     d
-446c aa        xor     d
-446d 7f        ld      a,a
-446e 00        nop     
-446f 00        nop     
-4470 00        nop     
-4471 81        add     a,c
-4472 c3802b    jp      2b80h
-4475 c3622c    jp      2c62h
-4478 c37a2b    jp      2b7ah
-447b c3cd34    jp      34cdh
-447e c9        ret     
-447f 00        nop     
-4480 00        nop     
-4481 c9        ret     
-4482 00        nop     
-4483 00        nop     
-4484 f3        di      
-4485 c9        ret     
-4486 00        nop     
-4487 010000    ld      bc,0000h
-448a 00        nop     
-448b 00        nop     
-448c 34        inc     (hl)
-448d 1c        inc     e
-448e 00        nop     
-448f 00        nop     
-4490 00        nop     
-4491 00        nop     
-4492 00        nop     
-4493 00        nop     
-4494 00        nop     
-4495 01f006    ld      bc,06f0h
-4498 00        nop     
-4499 00        nop     
-449a 43        ld      b,e
-449b 00        nop     
-449c 00        nop     
-449d 00        nop     
-449e 00        nop     
-449f c30000    jp      0000h
-44a2 c30000    jp      0000h
-44a5 3e00      ld      a,00h
-44a7 c9        ret     
-44a8 c9        ret     
-44a9 00        nop     
-44aa 00        nop     
-44ab c9        ret     
-44ac 00        nop     
-44ad 00        nop     
-44ae c9        ret     
-44af 00        nop     
-44b0 00        nop     
-44b1 c9        ret     
-44b2 00        nop     
-44b3 00        nop     
-44b4 c9        ret     
-44b5 00        nop     
-44b6 00        nop     
-44b7 c9        ret     
-44b8 00        nop     
-44b9 00        nop     
-44ba c9        ret     
-44bb 00        nop     
-44bc 00        nop     
-44bd c9        ret     
-44be 00        nop     
-44bf 00        nop     
-44c0 00        nop     
-44c1 00        nop     
-44c2 00        nop     
-44c3 00        nop     
-44c4 00        nop     
-44c5 00        nop     
-44c6 00        nop     
-44c7 00        nop     
-44c8 00        nop     
-44c9 00        nop     
-44ca 00        nop     
-44cb 00        nop     
-44cc 00        nop     
-44cd 00        nop     
-44ce 00        nop     
-44cf 00        nop     
-44d0 00        nop     
-44d1 00        nop     
-44d2 00        nop     
-44d3 00        nop     
-44d4 00        nop     
-44d5 00        nop     
-44d6 00        nop     
-44d7 00        nop     
-44d8 00        nop     
-44d9 00        nop     
-44da 00        nop     
-44db 00        nop     
-44dc 00        nop     
-44dd 00        nop     
-44de 00        nop     
-44df 00        nop     
-44e0 00        nop     
-44e1 00        nop     
-44e2 00        nop     
-44e3 00        nop     
-44e4 00        nop     
-44e5 00        nop     
-44e6 f417a1    call    p,0a117h
-44e9 19        add     hl,de
-44ea e1        pop     hl
-44eb 17        rla     
-44ec c8        ret     z
-44ed 36e3      ld      (hl),0e3h
-44ef 39        add     hl,sp
-44f0 e9        jp      (hl)
-44f1 3651      ld      (hl),51h
-44f3 223323    ld      (2333h),hl
-44f6 73        ld      (hl),e
-44f7 16a3      ld      d,0a3h
-44f9 22ab23    ld      (23abh),hl
-44fc b1        or      c
-44fd 23        inc     hl
-44fe 12        ld      (de),a
-44ff 24        inc     h
-4500 27        daa     
-4501 24        inc     h
-4502 a8        xor     b
-4503 3b        dec     sp
-4504 14        inc     d
-4505 3f        ccf     
-4506 78        ld      a,b
-4507 fe1c      cp      1ch
-4509 3f        ccf     
-450a 81        add     a,c
-450b fe84      cp      84h
-450d fe2c      cp      ','
-450f 3f        ccf     
-4510 323f18    ld      (183fh),a
-4513 3f        ccf     
-4514 363f      ld      (hl),3fh
-4516 e9        jp      (hl)
-4517 181b      jr      4534h
-4519 19        add     hl,de
-451a 45        ld      b,l
-451b 19        add     hl,de
-451c 90        sub     b
-451d 19        add     hl,de
-451e f7        rst     30h
-451f 382a      jr      c,454bh
-4521 37        scf     
-4522 b9        cp      c
-4523 39        add     hl,sp
-4524 03        inc     bc
-4525 39        add     hl,sp
-4526 13        inc     de
-4527 39        add     hl,sp
-4528 55        ld      d,l
-4529 39        add     hl,sp
-452a 85        add     a,l
-452b 39        add     hl,sp
-452c 8e        adc     a,(hl)
-452d 39        add     hl,sp
-452e c5        push    bc
-452f 4e        ld      c,(hl)
-4530 44        ld      b,h
-4531 c64f      add     a,4fh
-4533 52        ld      d,d
-4534 d24553    jp      nc,5345h
-4537 45        ld      b,l
-4538 54        ld      d,h
-4539 d345      out     (45h),a
-453b 54        ld      d,h
-453c c34c53    jp      534ch
-453f c34d44    jp      444dh
-4542 d2414e    jp      nc,4e41h
-4545 44        ld      b,h
-4546 4f        ld      c,a
-4547 4d        ld      c,l
-4548 ce45      adc     a,45h
-454a 58        ld      e,b
-454b 54        ld      d,h
-454c c44154    call    nz,5441h
-454f 41        ld      b,c
-4550 c9        ret     
-4551 4e        ld      c,(hl)
-4552 50        ld      d,b
-4553 55        ld      d,l
-4554 54        ld      d,h
-4555 c4494d    call    nz,4d49h
-4558 d24541    jp      nc,4145h
-455b 44        ld      b,h
-455c cc4554    call    z,5445h
-455f c7        rst     00h
-4560 4f        ld      c,a
-4561 54        ld      d,h
-4562 4f        ld      c,a
-4563 d2554e    jp      nc,4e55h
-4566 c9        ret     
-4567 46        ld      b,(hl)
-4568 d24553    jp      nc,5345h
-456b 54        ld      d,h
-456c 4f        ld      c,a
-456d 52        ld      d,d
-456e 45        ld      b,l
-456f c7        rst     00h
-4570 4f        ld      c,a
-4571 53        ld      d,e
-4572 55        ld      d,l
-4573 42        ld      b,d
-4574 d24554    jp      nc,5445h
-4577 55        ld      d,l
-4578 52        ld      d,d
-4579 4e        ld      c,(hl)
-457a d2454d    jp      nc,4d45h
-457d d354      out     (54h),a
-457f 4f        ld      c,a
-4580 50        ld      d,b
-4581 c5        push    bc
-4582 4c        ld      c,h
-4583 53        ld      d,e
-4584 45        ld      b,l
-4585 d4524f    call    nc,4f52h
-4588 4e        ld      c,(hl)
-4589 d4524f    call    nc,4f52h
-458c 46        ld      b,(hl)
-458d 46        ld      b,(hl)
-458e c44546    call    nz,4645h
-4591 53        ld      d,e
-4592 54        ld      d,h
-4593 52        ld      d,d
-4594 c44546    call    nz,4645h
-4597 49        ld      c,c
-4598 4e        ld      c,(hl)
-4599 54        ld      d,h
-459a c44546    call    nz,4645h
-459d 53        ld      d,e
-459e 4e        ld      c,(hl)
-459f 47        ld      b,a
-45a0 c44546    call    nz,4645h
-45a3 44        ld      b,h
-45a4 42        ld      b,d
-45a5 4c        ld      c,h
-45a6 d0        ret     nc
-45a7 43        ld      b,e
-45a8 47        ld      b,a
-45a9 45        ld      b,l
-45aa 4e        ld      c,(hl)
-45ab c5        push    bc
-45ac 44        ld      b,h
-45ad 49        ld      c,c
-45ae 54        ld      d,h
-45af c5        push    bc
-45b0 52        ld      d,d
-45b1 52        ld      d,d
-45b2 4f        ld      c,a
-45b3 52        ld      d,d
-45b4 d24553    jp      nc,5345h
-45b7 55        ld      d,l
-45b8 4d        ld      c,l
-45b9 45        ld      b,l
-45ba cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-45bb 55        ld      d,l
-45bc 54        ld      d,h
-45bd cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-45be 4e        ld      c,(hl)
-45bf cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-45c0 50        ld      d,b
-45c1 45        ld      b,l
-45c2 4e        ld      c,(hl)
-45c3 c34f4c    jp      4c4fh
-45c6 4f        ld      c,a
-45c7 55        ld      d,l
-45c8 52        ld      d,d
-45c9 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-45ca 52        ld      d,d
-45cb 49        ld      c,c
-45cc 54        ld      d,h
-45cd 45        ld      b,l
-45ce 23        inc     hl
-45cf c34c4f    jp      4f4ch
-45d2 53        ld      d,e
-45d3 45        ld      b,l
-45d4 cc4f41    call    z,414fh
-45d7 44        ld      b,h
-45d8 d341      out     (41h),a
-45da 56        ld      d,(hl)
-45db 45        ld      b,l
-45dc cb49      bit     1,c
-45de 4c        ld      c,h
-45df 4c        ld      c,h
-45e0 c34952    jp      5249h
-45e3 43        ld      b,e
-45e4 4c        ld      c,h
-45e5 45        ld      b,l
-45e6 cc494e    call    z,4e49h
-45e9 45        ld      b,l
-45ea d34f      out     (4fh),a
-45ec 55        ld      d,l
-45ed 4e        ld      c,(hl)
-45ee 44        ld      b,h
-45ef c8        ret     z
-45f0 47        ld      b,a
-45f1 52        ld      d,d
-45f2 d650      sub     50h
-45f4 4f        ld      c,a
-45f5 4b        ld      c,e
-45f6 45        ld      b,l
-45f7 d359      out     (59h),a
-45f9 53        ld      d,e
-45fa 54        ld      d,h
-45fb 45        ld      b,l
-45fc 4d        ld      c,l
-45fd cc5052    call    z,5250h
-4600 49        ld      c,c
-4601 4e        ld      c,(hl)
-4602 54        ld      d,h
-4603 c44546    call    nz,4645h
-4606 d0        ret     nc
-4607 4f        ld      c,a
-4608 4b        ld      c,e
-4609 45        ld      b,l
-460a d0        ret     nc
-460b 52        ld      d,d
-460c 49        ld      c,c
-460d 4e        ld      c,(hl)
-460e 54        ld      d,h
-460f c34f4e    jp      4e4fh
-4612 54        ld      d,h
-4613 cc4953    call    z,5349h
-4616 54        ld      d,h
-4617 cc4c49    call    z,494ch
-461a 53        ld      d,e
-461b 54        ld      d,h
-461c c4454c    call    nz,4c45h
-461f 45        ld      b,l
-4620 54        ld      d,h
-4621 45        ld      b,l
-4622 c1        pop     bc
-4623 55        ld      d,l
-4624 54        ld      d,h
-4625 4f        ld      c,a
-4626 c34c45    jp      454ch
-4629 41        ld      b,c
-462a 52        ld      d,d
-462b c34c4f    jp      4f4ch
-462e 41        ld      b,c
-462f 44        ld      b,h
-4630 c35341    jp      4153h
-4633 56        ld      d,(hl)
-4634 45        ld      b,l
-4635 ce45      adc     a,45h
-4637 57        ld      d,a
-4638 d44142    call    nc,4241h
-463b 28d4      jr      z,4611h
-463d 4f        ld      c,a
-463e c64e      add     a,4eh
-4640 d5        push    de
-4641 53        ld      d,e
-4642 49        ld      c,c
-4643 4e        ld      c,(hl)
-4644 47        ld      b,a
-4645 d641      sub     41h
-4647 52        ld      d,d
-4648 50        ld      d,b
-4649 54        ld      d,h
-464a 52        ld      d,d
-464b d5        push    de
-464c 53        ld      d,e
-464d 52        ld      d,d
-464e c5        push    bc
-464f 52        ld      d,d
-4650 4c        ld      c,h
-4651 c5        push    bc
-4652 52        ld      d,d
-4653 52        ld      d,d
-4654 d354      out     (54h),a
-4656 52        ld      d,d
-4657 49        ld      c,c
-4658 4e        ld      c,(hl)
-4659 47        ld      b,a
-465a 24        inc     h
-465b c9        ret     
-465c 4e        ld      c,(hl)
-465d 53        ld      d,e
-465e 54        ld      d,h
-465f 52        ld      d,d
-4660 d0        ret     nc
-4661 4f        ld      c,a
-4662 49        ld      c,c
-4663 4e        ld      c,(hl)
-4664 54        ld      d,h
-4665 d4494d    call    nc,4d49h
-4668 45        ld      b,l
-4669 24        inc     h
-466a cd454d    call    4d45h
-466d c9        ret     
-466e 4e        ld      c,(hl)
-466f 4b        ld      c,e
-4670 45        ld      b,l
-4671 59        ld      e,c
-4672 24        inc     h
-4673 d44845    call    nc,4548h
-4676 4e        ld      c,(hl)
-4677 ce4f      adc     a,4fh
-4679 54        ld      d,h
-467a d354      out     (54h),a
-467c 45        ld      b,l
-467d 50        ld      d,b
-467e ab        xor     e
-467f ad        xor     l
-4680 aa        xor     d
-4681 af        xor     a
-4682 dec1      sbc     a,0c1h
-4684 4e        ld      c,(hl)
-4685 44        ld      b,h
-4686 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-4687 52        ld      d,d
-4688 be        cp      (hl)
-4689 bd        cp      l
-468a bc        cp      h
-468b d347      out     (47h),a
-468d 4e        ld      c,(hl)
-468e c9        ret     
-468f 4e        ld      c,(hl)
-4690 54        ld      d,h
-4691 c1        pop     bc
-4692 42        ld      b,d
-4693 53        ld      d,e
-4694 c652      add     a,52h
-4696 45        ld      b,l
-4697 c9        ret     
-4698 4e        ld      c,(hl)
-4699 50        ld      d,b
-469a d0        ret     nc
-469b 4f        ld      c,a
-469c 53        ld      d,e
-469d d351      out     (51h),a
-469f 52        ld      d,d
-46a0 d24e44    jp      nc,444eh
-46a3 cc4f47    call    z,474fh
-46a6 c5        push    bc
-46a7 58        ld      e,b
-46a8 50        ld      d,b
-46a9 c34f53    jp      534fh
-46ac d349      out     (49h),a
-46ae 4e        ld      c,(hl)
-46af d4414e    call    nc,4e41h
-46b2 c1        pop     bc
-46b3 54        ld      d,h
-46b4 4e        ld      c,(hl)
-46b5 d0        ret     nc
-46b6 45        ld      b,l
-46b7 45        ld      b,l
-46b8 4b        ld      c,e
-46b9 d650      sub     50h
-46bb 45        ld      b,l
-46bc 45        ld      b,l
-46bd 4b        ld      c,e
-46be d0        ret     nc
-46bf 45        ld      b,l
-46c0 4e        ld      c,(hl)
-46c1 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-46c2 50        ld      d,b
-46c3 4b        ld      c,e
-46c4 c5        push    bc
-46c5 4f        ld      c,a
-46c6 46        ld      b,(hl)
-46c7 ca534b    jp      z,4b53h
-46ca ca554d    jp      z,4d55h
-46cd 50        ld      d,b
-46ce c44547    call    nz,4745h
-46d1 cd504b    call    4b50h
-46d4 24        inc     h
-46d5 d24144    jp      nc,4441h
-46d8 c3494e    jp      4e49h
-46db 54        ld      d,h
-46dc c3534e    jp      4e53h
-46df 47        ld      b,a
-46e0 c34442    jp      4244h
-46e3 4c        ld      c,h
-46e4 c649      add     a,49h
-46e6 58        ld      e,b
-46e7 cc454e    call    z,4e45h
-46ea d354      out     (54h),a
-46ec 52        ld      d,d
-46ed 24        inc     h
-46ee d641      sub     41h
-46f0 4c        ld      c,h
-46f1 c1        pop     bc
-46f2 53        ld      d,e
-46f3 43        ld      b,e
-46f4 c34852    jp      5248h
-46f7 24        inc     h
-46f8 cc4546    call    z,4645h
-46fb 54        ld      d,h
-46fc 24        inc     h
-46fd d24947    jp      nc,4749h
-4700 48        ld      c,b
-4701 54        ld      d,h
-4702 24        inc     h
-4703 cd4944    call    4449h
-4706 24        inc     h
-4707 a7        and     a
-4708 80        add     a,b
-4709 00        nop     
-470a 99        sbc     a,c
-470b 2c        inc     l
-470c 8b        adc     a,e
-470d 2b        dec     hl
-470e ca0dbf    jp      z,0bf0dh
-4711 0d        dec     c
-4712 c8        ret     z
-4713 04        inc     b
-4714 42        ld      b,d
-4715 3f        ccf     
-4716 27        daa     
-4717 0d        dec     c
-4718 aa        xor     d
-4719 31f02d    ld      sp,2df0h
-471c 85        add     a,l
-471d 30fc      jr      nc,471bh
-471f 34        inc     (hl)
-4720 da300c    jp      c,0c30h
-4723 2ead      ld      l,0adh
-4725 2d        dec     l
-4726 8e        adc     a,(hl)
-4727 2d        dec     l
-4728 24        inc     h
-4729 2f        cpl     
-472a 42        ld      b,d
-472b 3f        ccf     
-472c 9c        sbc     a,h
-472d 2d        dec     l
-472e c9        ret     
-472f 2d        dec     l
-4730 f22d94    jp      p,942dh
-4733 2c        inc     l
-4734 f22de2    jp      p,0e22dh
-4737 2c        inc     l
-4738 e3        ex      (sp),hl
-4739 2c        inc     l
-473a eb        ex      de,hl
-473b 2c        inc     l
-473c ee2c      xor     2ch
-473e f1        pop     af
-473f 2c        inc     l
-4740 f42c96    call    p,962ch
-4743 0c        inc     c
-4744 5e        ld      e,(hl)
-4745 3d        dec     a
-4746 df        rst     18h            ; DCOMPR - Compare HL with DE.
-4747 2e9a      ld      l,9ah
-4749 2eef      ld      l,0efh
-474b 39        add     hl,sp
-474c 57        ld      d,a
-474d 2e48      ld      l,48h
-474f 112d0d    ld      de,0d2dh
-4752 1f        rra     
-4753 14        inc     d
-4754 82        add     a,d
-4755 11423f    ld      de,3f42h
-4758 42        ld      b,d
-4759 3f        ccf     
-475a 3b        dec     sp
-475b 15        dec     d
-475c 42        ld      b,d
-475d 3f        ccf     
-475e 42        ld      b,d
-475f 3f        ccf     
-4760 42        ld      b,d
-4761 3f        ccf     
-4762 42        ld      b,d
-4763 3f        ccf     
-4764 42        ld      b,d
-4765 3f        ccf     
-4766 e20e52    jp      po,520eh
-4769 2f        cpl     
-476a 42        ld      b,d
-476b 3f        ccf     
-476c af        xor     a
-476d 3b        dec     sp
-476e 5a        ld      e,d
-476f 2f        cpl     
-4770 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-4771 2c        inc     l
-4772 223a1d    ld      (1d3ah),hl
-4775 3aba3a    ld      a,(3abah)
-4778 f3        di      
-4779 2e65      ld      l,65h
-477b 2d        dec     l
-477c 183b      jr      47b9h
-477e e9        jp      (hl)
-477f 3a332a    ld      a,(2a33h)
-4782 79        ld      a,c
-4783 79        ld      a,c
-4784 7c        ld      a,h
-4785 7c        ld      a,h
-4786 7f        ld      a,a
-4787 50        ld      d,b
-4788 46        ld      b,(hl)
-4789 45        ld      b,l
-478a 19        add     hl,de
-478b 00        nop     
-478c 00        nop     
-478d e9        jp      (hl)
-478e 185e      jr      47eeh
-4790 19        add     hl,de
-4791 1b        dec     de
-4792 19        add     hl,de
-4793 e1        pop     hl
-4794 1a        ld      a,(de)
-4795 da1a0b    jp      c,0b1ah
-4798 1c        inc     e
-4799 4f        ld      c,a
-479a 1c        inc     e
-479b e21880    jp      po,8018h
-479e 15        dec     d
-479f 7d        ld      a,l
-47a0 15        dec     d
-47a1 b1        or      c
-47a2 160c      ld      d,0ch
-47a4 17        rla     
-47a5 76        halt    
-47a6 183c      jr      47e4h
-47a8 1a        ld      a,(de)
-47a9 311a5c    ld      sp,5c1ah
-47ac 1a        ld      a,(de)
-47ad 84        add     a,h
-47ae 33        inc     sp
-47af a3        and     e
-47b0 184e      jr      4800h
-47b2 46        ld      b,(hl)
-47b3 53        ld      d,e
-47b4 4e        ld      c,(hl)
-47b5 52        ld      d,d
-47b6 47        ld      b,a
-47b7 4f        ld      c,a
-47b8 44        ld      b,h
-47b9 46        ld      b,(hl)
-47ba 43        ld      b,e
-47bb 4f        ld      c,a
-47bc 56        ld      d,(hl)
-47bd 4f        ld      c,a
-47be 4d        ld      c,l
-47bf 55        ld      d,l
-47c0 4c        ld      c,h
-47c1 42        ld      b,d
-47c2 53        ld      d,e
-47c3 44        ld      b,h
-47c4 44        ld      b,h
-47c5 2f        cpl     
-47c6 3049      jr      nc,4811h
-47c8 44        ld      b,h
-47c9 54        ld      d,h
-47ca 4d        ld      c,l
-47cb 4f        ld      c,a
-47cc 53        ld      d,e
-47cd 4c        ld      c,h
-47ce 53        ld      d,e
-47cf 53        ld      d,e
-47d0 54        ld      d,h
-47d1 43        ld      b,e
-47d2 4e        ld      c,(hl)
-47d3 4e        ld      c,(hl)
-47d4 52        ld      d,d
-47d5 52        ld      d,d
-47d6 57        ld      d,a
-47d7 55        ld      d,l
-47d8 45        ld      b,l
-47d9 4d        ld      c,l
-47da 4f        ld      c,a
-47db 46        ld      b,(hl)
-47dc 44        ld      b,h
-47dd 4c        ld      c,h
-47de 33        inc     sp
-47df 46        ld      b,(hl)
-47e0 4e        ld      c,(hl)
-47e1 d600      sub     00h
-47e3 6f        ld      l,a
-47e4 7c        ld      a,h
-47e5 de00      sbc     a,00h
-47e7 67        ld      h,a
-47e8 78        ld      a,b
-47e9 de00      sbc     a,00h
-47eb 47        ld      b,a
-47ec 3e00      ld      a,00h
-47ee c9        ret     
-47ef 35        dec     (hl)
-47f0 2d        dec     l
-47f1 40        ld      b,b
-47f2 e64d      and     4dh
-47f4 db00      in      a,(00h)		; **KEYBOARD_MATRIX_COLUMN_READ**
-47f6 c9        ret
 
-47f7 d300      out     (00h),a
-47f9 c9        ret
 
-47fa 00        nop     
-47fb 00        nop     
-47fc 00        nop     
-47fd 00        nop     
-47fe 50        ld      d,b
-47ff 3800      jr      c,4801h
-4801 be        cp      (hl)
-4802 fb        ei      
-4803 feff      cp      0ffh
-4805 014020    ld      bc,2040h
-4808 45        ld      b,l
-4809 72        ld      (hl),d
-480a 72        ld      (hl),d
-480b 6f        ld      l,a
-480c 72        ld      (hl),d
-480d 00        nop     
-480e 2069      jr      nz,4879h
-4810 6e        ld      l,(hl)
-4811 2000      jr      nz,4813h
-4813 52        ld      d,d
-4814 45        ld      b,l
-4815 41        ld      b,c
-4816 44        ld      b,h
-4817 59        ld      e,c
-4818 0d        dec     c
-4819 00        nop     
-481a 42        ld      b,d
-481b 72        ld      (hl),d
-481c 65        ld      h,l
-481d 61        ld      h,c
-481e 6b        ld      l,e
-481f 00        nop     
-4820 210400    ld      hl,0004h
-4823 39        add     hl,sp
-4824 7e        ld      a,(hl)
-4825 23        inc     hl
-4826 fe81      cp      81h
-4828 c0        ret     nz
-4829 4e        ld      c,(hl)
-482a 23        inc     hl
-482b 46        ld      b,(hl)
-482c 23        inc     hl
-482d e5        push    hl
-482e 69        ld      l,c
-482f 60        ld      h,b
-4830 7a        ld      a,d
-4831 b3        or      e
-4832 eb        ex      de,hl
-4833 2802      jr      z,4837h
-4835 eb        ex      de,hl
-4836 df        rst     18h            ; DCOMPR - Compare HL with DE.
-4837 010e00    ld      bc,000eh
-483a e1        pop     hl
-483b c8        ret     z
-483c 09        add     hl,bc
-483d 18e5      jr      4824h
-483f cd5628    call    2856h
-4842 c5        push    bc
-4843 e3        ex      (sp),hl
-4844 c1        pop     bc
-4845 df        rst     18h            ; DCOMPR - Compare HL with DE.
-4846 7e        ld      a,(hl)
-4847 02        ld      (bc),a
-4848 c8        ret     z
-4849 0b        dec     bc
-484a 2b        dec     hl
-484b 18f8      jr      4845h
-484d e5        push    hl
-484e 2a1dfe    ld      hl,(0fe1dh)        ; ARREND - Starting address of free space list (FSL)
-4851 0600      ld      b,00h
-4853 09        add     hl,bc
-4854 09        add     hl,bc
-4855 3ee5      ld      a,0e5h
-4857 3ec6      ld      a,0c6h
-4859 95        sub     l
-485a 6f        ld      l,a
-485b 3eff      ld      a,0ffh
-485d 9c        sbc     a,h
-485e 3804      jr      c,4864h
-4860 67        ld      h,a
-4861 39        add     hl,sp
-4862 e1        pop     hl
-4863 d8        ret     c
-4864 1e0c      ld      e,0ch
-4866 1824      jr      488ch
-4868 2a56fc    ld      hl,(0fc56h)        ; CURLIN: Current line number
-486b 7c        ld      a,h
-486c a5        and     l
-486d 3c        inc     a
-486e 2808      jr      z,4878h
-4870 3a12fe    ld      a,(0fe12h)        ; Flag. FF during on error processing cleared by resume routine
-4873 b7        or      a
-4874 1e22      ld      e,22h
-4876 2014      jr      nz,488ch
-4878 c3ac2c    jp      2cach
-487b 2afafd    ld      hl,(0fdfah)        ; Line No.  of last data statement
-487e 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
-4881 1e02      ld      e,02h
-4883 011e14    ld      bc,141eh
-4886 011e00    ld      bc,001eh
-4889 011e24    ld      bc,241eh
-488c 2a56fc    ld      hl,(0fc56h)        ; CURLIN: Current line number
-488f 220afe    ld      (0fe0ah),hl            ; ERRLIN: Line No. in which error occured.
-4892 220cfe    ld      (0fe0ch),hl            ; Line No. in which error occured.
-4895 019e28    ld      bc,289eh
-4898 2a08fe    ld      hl,(0fe08h)            ; During execution: stack pointer value when statement execution begins.
-489b c3842a    jp      2a84h
+; ----------------------------------------------------------------------------------------
+;    this code is in the last 2000h bytes in ROM1, the BASIC pages it at position $2000 
+; ----------------------------------------------------------------------------------------
 
-489e c1        pop     bc
-489f 7b        ld      a,e
-48a0 4b        ld      c,e
-48a1 324efc    ld      (0fc4eh),a            ; ERRFLG
-48a4 2a06fe    ld      hl,(0fe06h)            ; SAVTXT (During input:  ADDR of code string for current statement)
-48a7 220efe    ld      (0fe0eh),hl            ; ERRTXT
-48aa eb        ex      de,hl
-48ab 2a0afe    ld      hl,(0fe0ah)            ; ERRLIN: Line No. in which error occured.
-48ae 7c        ld      a,h
-48af a5        and     l
-48b0 3c        inc     a
-48b1 2807      jr      z,48bah
-48b3 2215fe    ld      (0fe15h),hl            ; OLDLIN: Last line number executed saved by stop/end
-48b6 eb        ex      de,hl
-48b7 2217fe    ld      (0fe17h),hl            ; OLDTXT: Addr of last byte executed during error
-48ba 2a10fe    ld      hl,(0fe10h)            ; ONELIN: LINE to go when 'on error' event happens
-48bd 7c        ld      a,h
-48be b5        or      l
-48bf eb        ex      de,hl
-48c0 2112fe    ld      hl,0fe12h            ; ONEFLG
-48c3 2808      jr      z,48cdh                ; ERROR_REPORT
-48c5 a6        and     (hl)
-48c6 2005      jr      nz,48cdh                ; ERROR_REPORT
-48c8 35        dec     (hl)
-48c9 eb        ex      de,hl
-48ca c3202c    jp      2c20h
 
-; ERROR_REPORT:
-48cd af        xor     a
-48ce 77        ld      (hl),a
-48cf 59        ld      e,c
-48d0 cde42f    call    2fe4h        ; CONSOLE_CRLF
-48d3 21b127    ld      hl,27b1h        ; ERROR_MESSAGES
-48d6 cda5fe    call    0fea5h
-48d9 57        ld      d,a
-48da 3e3f      ld      a,3fh        ; '?'
-48dc cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-48df 19        add     hl,de
-48e0 7e        ld      a,(hl)
-48e1 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-48e4 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-48e5 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-48e8 210728    ld      hl,2807h
-48eb e5        push    hl
-48ec 2a0afe    ld      hl,(0fe0ah)        ; ERRLIN: Line No. in which error occured.
-48ef e3        ex      (sp),hl
-48f0 cd9b37    call    379bh			; Output a string
-48f3 e1        pop     hl
-48f4 11feff    ld      de,0fffeh
-48f7 df        rst     18h                ; DCOMPR - Compare HL with DE.
-48f8 ca0001    jp      z,0100h
-48fb 7c        ld      a,h
-48fc a5        and     l
-48fd 3c        inc     a
-48fe c4111e    call    nz,1e11h            ; LNUM_MSG
-4901 3ec1      ld      a,0c1h
-4903 cd200c    call    0c20h
-4906 cdabfe    call    0feabh
-4909 cd8007    call    0780h			; Cassette off routine
-490c cde42f    call    2fe4h            ; CONSOLE_CRLF
-490f 211328    ld      hl,2813h
-4912 cd9b37    call    379bh			; Output a string
-4915 3a4efc    ld      a,(0fc4eh)        ; ERRFLG:  ERROR FLAG
-4918 d602      sub     02h
-491a cc513d    call    z,3d51h
-491d 21ffff    ld      hl,0ffffh
-4920 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
-4923 3a01fe    ld      a,(0fe01h)        ; AUTFLG: Auto increment flag 0 = no auto mode, otherwise line number
-4926 b7        or      a
-4927 2837      jr      z,4960h
-4929 2a02fe    ld      hl,(0fe02h)        ; AUTLIN: Current line number in binary (during input phase)
-492c e5        push    hl
-492d cd191e    call    1e19h
-4930 d1        pop     de
-4931 d5        push    de
-4932 cd162a    call    2a16h            ; FIND_LNUM - Search for line number
-4935 3e2a      ld      a,2ah
-4937 3802      jr      c,493bh
-4939 3e20      ld      a,20h
-493b cda00b    call    0ba0h            ; OUTC (alias OUTDO): print character
-493e cdfa08    call    08fah            ; Console line input routine
-4941 d1        pop     de
-4942 3006      jr      nc,494ah
-4944 af        xor     a
-4945 3201fe    ld      (0fe01h),a        ; AUTFLG: Auto increment flag 0 = no auto mode, otherwise line number
-4948 18b9      jr      4903h
+;1ffd c1        pop     bc
+;1ffe b1        or      c
+1fff 2003      jr      nz,2004h			;   --------------- ROM bank ----------------
+2001 2a13fe    ld      hl,(0fe13h)    ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
+2004 83        add     a,e
+2005 3d        dec     a
+2006 f4d320    call    p,20d3h
+2009 50        ld      d,b
+200a c3291f    jp      1f29h
 
-494a 2a04fe    ld      hl,(0fe04h)        ; AUTINC: Auto line increment
-494d 19        add     hl,de
-494e 38f4      jr      c,4944h
-4950 d5        push    de
-4951 11f9ff    ld      de,0fff9h
-4954 df        rst     18h                ; DCOMPR - Compare HL with DE.
-4955 d1        pop     de
-4956 30ec      jr      nc,4944h
-4958 2202fe    ld      (0fe02h),hl        ; AUTLIN: Current line number in binary (during input phase)
-495b f6ff      or      0ffh
-495d c3e93e    jp      3ee9h
-4960 3e3e      ld      a,3eh
-4962 cda00b    call    0ba0h            ; OUTC (alias OUTDO): print character
-4965 cdfa08    call    08fah            ; Console line input routine
-4968 da1d29    jp      c,291dh            ; PROMPT
-496b d7        rst     10h                ; CHRGTB: Gets next character (or token) from BASIC text.
-496c 3c        inc     a
-496d 3d        dec     a
-496e ca1d29    jp      z,291dh            ; PROMPT
-4971 f5        push    af
-4972 cd452d    call    2d45h            ; LNUM_PARM_0 - Get specified line number (2nd parameter)
-4975 2b        dec     hl
-4976 7e        ld      a,(hl)
-4977 fe20      cp      20h
-4979 28fa      jr      z,4975h
-497b 23        inc     hl
-497c 7e        ld      a,(hl)
-497d fe20      cp      20h
-497f cc3318    call    z,1833h        ; INCHL
-4982 d5        push    de
-4983 cdaa2a    call    2aaah
-4986 d1        pop     de
-4987 f1        pop     af
-4988 2206fe    ld      (0fe06h),hl        ; SAVTXT (During input:  ADDR of code string for current statement)
-498b cdb1fe    call    0feb1h
-498e d2442c    jp      nc,2c44h
-4991 d5        push    de
-4992 c5        push    bc
-4993 af        xor     a
-4994 32fdfd    ld      (0fdfdh),a    ; Read flag: 0 = read statement active
-4997 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4998 b7        or      a
-4999 f5        push    af
-499a eb        ex      de,hl
-499b 220cfe    ld      (0fe0ch),hl    ; Line No. in which error occured.
-499e eb        ex      de,hl
-499f cd162a    call    2a16h        ; FIND_LNUM - Search for line number
-49a2 c5        push    bc
-49a3 dcd83a    call    c,3ad8h
-49a6 d1        pop     de
-49a7 f1        pop     af
-49a8 d5        push    de
-49a9 2827      jr      z,49d2h
-49ab d1        pop     de
-49ac 2a19fe    ld      hl,(0fe19h)        ; Addr of simple variables
-49af e3        ex      (sp),hl
-49b0 c1        pop     bc
-49b1 09        add     hl,bc
-49b2 e5        push    hl
-49b3 cd3f28    call    283fh
-49b6 e1        pop     hl
-49b7 2219fe    ld      (0fe19h),hl        ; Addr of simple variables
-49ba eb        ex      de,hl
-49bb 74        ld      (hl),h
-49bc d1        pop     de
-49bd e5        push    hl
-49be 23        inc     hl
-49bf 23        inc     hl
-49c0 73        ld      (hl),e
-49c1 23        inc     hl
-49c2 72        ld      (hl),d
-49c3 23        inc     hl
-49c4 eb        ex      de,hl
-49c5 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
-49c8 eb        ex      de,hl
-49c9 1b        dec     de
-49ca 1b        dec     de
-49cb 1a        ld      a,(de)
-49cc 77        ld      (hl),a
-49cd 23        inc     hl
-49ce 13        inc     de
-49cf b7        or      a
-49d0 20f9      jr      nz,49cbh
-49d2 d1        pop     de
-49d3 cde629    call    29e6h
-49d6 cdb4fe    call    0feb4h
-49d9 cd472a    call    2a47h
-49dc cdb7fe    call    0feb7h
-49df c31d29    jp      291dh            ; PROMPT
 
-49e2 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
-49e5 eb        ex      de,hl
-49e6 62        ld      h,d
-49e7 6b        ld      l,e
-49e8 7e        ld      a,(hl)
-49e9 23        inc     hl
-49ea b6        or      (hl)
-49eb c8        ret     z
-49ec 23        inc     hl
-49ed 23        inc     hl
-49ee 23        inc     hl
-49ef af        xor     a
-49f0 be        cp      (hl)
-49f1 23        inc     hl
-49f2 20fc      jr      nz,49f0h
-49f4 eb        ex      de,hl
-49f5 73        ld      (hl),e
-49f6 23        inc     hl
-49f7 72        ld      (hl),d
-49f8 18ec      jr      49e6h
-49fa 110000    ld      de,0000h
-49fd d5        push    de
-49fe 2809      jr      z,4a09h
-4a00 d1        pop     de
-4a01 cd3a2d    call    2d3ah        ; LNUM_PARM - Get specified line number
-4a04 d5        push    de
-4a05 280b      jr      z,4a12h
-4a07 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-4a08 ce11      adc     a,11h
-4a0a faffc4    jp      m,0c4ffh
-4a0d 3a2dc2    ld      a,(0c22dh)
-4a10 81        add     a,c
-4a11 28eb      jr      z,49feh
-4a13 d1        pop     de
-4a14 e3        ex      (sp),hl
-4a15 e5        push    hl
-4a16 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
-4a19 44        ld      b,h
-4a1a 4d        ld      c,l
-4a1b 7e        ld      a,(hl)
-4a1c 23        inc     hl
-4a1d b6        or      (hl)
-4a1e 2b        dec     hl
-4a1f c8        ret     z
-4a20 23        inc     hl
-4a21 23        inc     hl
-4a22 7e        ld      a,(hl)
-4a23 23        inc     hl
-4a24 66        ld      h,(hl)
-4a25 6f        ld      l,a
-4a26 df        rst     18h            ; DCOMPR - Compare HL with DE.
-4a27 60        ld      h,b
-4a28 69        ld      l,c
-4a29 7e        ld      a,(hl)
-4a2a 23        inc     hl
-4a2b 66        ld      h,(hl)
-4a2c 6f        ld      l,a
-4a2d 3f        ccf     
-4a2e c8        ret     z
-4a2f 3f        ccf     
-4a30 d0        ret     nc
-4a31 18e6      jr      4a19h
-4a33 c0        ret     nz
-4a34 cdc804    call    04c8h
-4a37 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
-4a3a cde32c    call    2ce3h
-4a3d 3201fe    ld      (0fe01h),a    ; AUTFLG: Auto increment flag 0 = no auto mode, otherwise line number
-4a40 77        ld      (hl),a
-4a41 23        inc     hl
-4a42 77        ld      (hl),a
-4a43 23        inc     hl
-4a44 2219fe    ld      (0fe19h),hl        ; Addr of simple variables
-4a47 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
-4a4a 2b        dec     hl
-4a4b 22fffd    ld      (0fdffh),hl
-4a4e 061a      ld      b,1ah
-4a50 2121fe    ld      hl,0fe21h        ; Variable declaration list. 26 entries, each containing a code inicating default mode for that initial letter
-4a53 3604      ld      (hl),04h
-4a55 23        inc     hl
-4a56 10fb      djnz    4a53h
-4a58 af        xor     a
-4a59 3212fe    ld      (0fe12h),a
-4a5c 6f        ld      l,a
-4a5d 67        ld      h,a
-4a5e 2210fe    ld      (0fe10h),hl
-4a61 2217fe    ld      (0fe17h),hl        ; OLDTXT: Addr of last byte executed during error
-4a64 2ad1fd    ld      hl,(0fdd1h)        ; Memory size
-4a67 22f6fd    ld      (0fdf6h),hl        ; Pointer to next available loc. in string area.
-4a6a cd7b2c    call    2c7bh
-4a6d 2a19fe    ld      hl,(0fe19h)        ; Addr of simple variables
-4a70 221bfe    ld      (0fe1bh),hl        ; VAREND: Addr of dimensioned variables
-4a73 221dfe    ld      (0fe1dh),hl        ; ARREND - Starting address of free space list (FSL)
-4a76 cda211    call    11a2h
-4a79 c1        pop     bc
-4a7a 2a54fc    ld      hl,(0fc54h)        ; Address of string area boundary
-4a7d 2b        dec     hl
-4a7e 2b        dec     hl
-4a7f 2208fe    ld      (0fe08h),hl        ; During execution: stack pointer value when statement execution begins.
-4a82 23        inc     hl
-4a83 23        inc     hl
-4a84 f9        ld      sp,hl
-4a85 21d5fd    ld      hl,0fdd5h        ; TEMPST: LSPT (literal string pool table)
-4a88 22d3fd    ld      (0fdd3h),hl        ; TMSTPT: Address of next available location in LSPT
-4a8b cd200c    call    0c20h
-4a8e cd5430    call    3054h
-4a91 af        xor     a
-4a92 67        ld      h,a
-4a93 6f        ld      l,a
-4a94 32fcfd    ld      (0fdfch),a        ; FOR flag (1 = 'for' in progress, 0 =  no 'for' in progress)
-4a97 e5        push    hl
-4a98 c5        push    bc
-4a99 2afffd    ld      hl,(0fdffh)
-4a9c c9        ret     
-4a9d 3e3f      ld      a,3fh
-4a9f cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-4aa2 3e20      ld      a,20h
-4aa4 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-4aa7 c3fa08    jp      08fah    ; Console line input routine
+200d e5        push    hl
+200e d5        push    de
+200f cd3619    call    1936h
+2012 d1        pop     de
+2013 af        xor     a
+2014 ca1a20    jp      z,201ah
+2017 1e10      ld      e,10h
+2019 011e06    ld      bc,061eh
+201c cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
+201f 37        scf     
+2020 c46b20    call    nz,206bh
+2023 e1        pop     hl
+2024 c1        pop     bc
+2025 f5        push    af
+2026 79        ld      a,c
+2027 b7        or      a
+2028 f5        push    af
+2029 c4801d    call    nz,1d80h
+202c 80        add     a,b
+202d 4f        ld      c,a
+202e 7a        ld      a,d
+202f e604      and     04h
+2031 fe01      cp      01h
+2033 9f        sbc     a,a
+2034 57        ld      d,a
+2035 81        add     a,c
+2036 4f        ld      c,a
+2037 93        sub     e
+2038 f5        push    af
+2039 c5        push    bc
+203a fc821d    call    m,1d82h
+203d fa3a20    jp      m,203ah
+2040 c1        pop     bc
+2041 f1        pop     af
+2042 c5        push    bc
+2043 f5        push    af
+2044 fa4820    jp      m,2048h
+2047 af        xor     a
+2048 2f        cpl     
+2049 3c        inc     a
+204a 80        add     a,b
+204b 3c        inc     a
+204c 82        add     a,d
+204d 47        ld      b,a
+204e 0e00      ld      c,00h
+2050 cd0e21    call    210eh
+2053 f1        pop     af
+2054 f4db20    call    p,20dbh
+2057 c1        pop     bc
+2058 f1        pop     af
+2059 cc9917    call    z,1799h
+205c f1        pop     af
+205d 3803      jr      c,2062h
+205f 83        add     a,e
+2060 90        sub     b
+2061 92        sub     d
+2062 c5        push    bc
+2063 cdde1e    call    1edeh
+2066 eb        ex      de,hl
+2067 d1        pop     de
+2068 c3291f    jp      1f29h
 
-4aaa af        xor     a
-4aab 32d0fd    ld      (0fdd0h),a
-4aae 4f        ld      c,a
-4aaf eb        ex      de,hl
-4ab0 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
-4ab3 2b        dec     hl
-4ab4 2b        dec     hl
-4ab5 eb        ex      de,hl
-4ab6 7e        ld      a,(hl)
-4ab7 fe20      cp      20h
-4ab9 ca452b    jp      z,2b45h
-4abc 47        ld      b,a
-4abd fe22      cp      22h
-4abf ca612b    jp      z,2b61h
-4ac2 b7        or      a
-4ac3 ca672b    jp      z,2b67h
-4ac6 3ad0fd    ld      a,(0fdd0h)
-4ac9 b7        or      a
-4aca 7e        ld      a,(hl)
-4acb c2452b    jp      nz,2b45h
-4ace fe3f      cp      3fh
-4ad0 3eb2      ld      a,0b2h
-4ad2 ca452b    jp      z,2b45h
-4ad5 7e        ld      a,(hl)
-4ad6 fe30      cp      30h
-4ad8 3805      jr      c,4adfh
-4ada fe3c      cp      3ch
-4adc da452b    jp      c,2b45h
-4adf d5        push    de
-4ae0 112d25    ld      de,252dh
-4ae3 c5        push    bc
-4ae4 01272b    ld      bc,2b27h
-4ae7 c5        push    bc
-4ae8 067f      ld      b,7fh
-4aea 7e        ld      a,(hl)
-4aeb fe61      cp      61h
-4aed 3807      jr      c,4af6h
-4aef fe7b      cp      7bh
-4af1 3003      jr      nc,4af6h
-4af3 e65f      and     5fh
-4af5 77        ld      (hl),a
-4af6 4e        ld      c,(hl)
-4af7 eb        ex      de,hl
-4af8 23        inc     hl
-4af9 b6        or      (hl)
-4afa f2f82a    jp      p,2af8h
-4afd 04        inc     b
-4afe 7e        ld      a,(hl)
-4aff e67f      and     7fh
-4b01 c8        ret     z
-4b02 b9        cp      c
-4b03 20f3      jr      nz,4af8h
-4b05 eb        ex      de,hl
-4b06 e5        push    hl
-4b07 13        inc     de
-4b08 1a        ld      a,(de)
-4b09 b7        or      a
-4b0a fa232b    jp      m,2b23h
-4b0d 4f        ld      c,a
-4b0e 78        ld      a,b
-4b0f fe8d      cp      8dh
-4b11 2002      jr      nz,4b15h
-4b13 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4b14 2b        dec     hl
-4b15 23        inc     hl
-4b16 7e        ld      a,(hl)
-4b17 fe61      cp      61h
-4b19 3802      jr      c,4b1dh
-4b1b e65f      and     5fh
-4b1d b9        cp      c
-4b1e 28e7      jr      z,4b07h
-4b20 e1        pop     hl
-4b21 18d3      jr      4af6h
-4b23 48        ld      c,b
-4b24 f1        pop     af
-4b25 eb        ex      de,hl
-4b26 c9        ret     
-4b27 eb        ex      de,hl
-4b28 79        ld      a,c
-4b29 c1        pop     bc
-4b2a d1        pop     de
-4b2b eb        ex      de,hl
-4b2c fe95      cp      95h
-4b2e 363a      ld      (hl),3ah
-4b30 2002      jr      nz,4b34h
-4b32 0c        inc     c
-4b33 23        inc     hl
-4b34 fefb      cp      0fbh
-4b36 200c      jr      nz,4b44h
-4b38 363a      ld      (hl),3ah
-4b3a 23        inc     hl
-4b3b 0693      ld      b,93h
-4b3d 70        ld      (hl),b
-4b3e 23        inc     hl
-4b3f eb        ex      de,hl
-4b40 0c        inc     c
-4b41 0c        inc     c
-4b42 181d      jr      4b61h
-4b44 eb        ex      de,hl
-4b45 23        inc     hl
-4b46 12        ld      (de),a
-4b47 13        inc     de
-4b48 0c        inc     c
-4b49 d63a      sub     3ah
-4b4b 2804      jr      z,4b51h
-4b4d fe4e      cp      4eh
-4b4f 2003      jr      nz,4b54h
-4b51 32d0fd    ld      (0fdd0h),a
-4b54 d659      sub     59h
-4b56 c2b62a    jp      nz,2ab6h
-4b59 47        ld      b,a
-4b5a 7e        ld      a,(hl)
-4b5b b7        or      a
-4b5c 2809      jr      z,4b67h
-4b5e b8        cp      b
-4b5f 28e4      jr      z,4b45h
-4b61 23        inc     hl
-4b62 12        ld      (de),a
-4b63 0c        inc     c
-4b64 13        inc     de
-4b65 18f3      jr      4b5ah
-4b67 210500    ld      hl,0005h
-4b6a 44        ld      b,h
-4b6b 09        add     hl,bc
-4b6c 44        ld      b,h
-4b6d 4d        ld      c,l
-4b6e 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
-4b71 2b        dec     hl
-4b72 2b        dec     hl
-4b73 2b        dec     hl
-4b74 12        ld      (de),a
-4b75 13        inc     de
-4b76 12        ld      (de),a
-4b77 13        inc     de
-4b78 12        ld      (de),a
-4b79 c9        ret     
-4b7a 7c        ld      a,h
-4b7b 92        sub     d
-4b7c c0        ret     nz
-4b7d 7d        ld      a,l
-4b7e 93        sub     e
-4b7f c9        ret     
-4b80 7e        ld      a,(hl)
-4b81 e3        ex      (sp),hl
-4b82 be        cp      (hl)
-4b83 23        inc     hl
-4b84 e3        ex      (sp),hl
-4b85 ca622c    jp      z,2c62h
-4b88 c38128    jp      2881h            ; Syntax Error (SN ERROR)
+
+206b d5        push    de
+206c af        xor     a
+206d f5        push    af
+206e e7        rst     20h			; GETYPR - Get the number type (FAC)
+206f e28c20    jp      po,208ch
+2072 3a44fe    ld      a,(0fe44h)		; FPEXP - Floating Point Exponent
+2075 fe91      cp      91h
+2077 d28c20    jp      nc,208ch
+207a 11ce21    ld      de,21ceh
+207d 2147fe    ld      hl,0fe47h
+2080 cd3d18    call    183dh
+2083 cd0b1c    call    1c0bh
+2086 f1        pop     af
+2087 d60a      sub     0ah
+2089 f5        push    af
+208a 18e6      jr      2072h
+
+208c cdb920    call    20b9h
+208f e7        rst     20h			; GETYPR - Get the number type (FAC)
+2090 300b      jr      nc,209dh
+2092 014391    ld      bc,9143h
+2095 11f94f    ld      de,4ff9h
+2098 cd7618    call    1876h			; CMPNUM - Compare FP reg to BCDE
+209b 1806      jr      20a3h
+
+209d 11d621    ld      de,21d6h
+20a0 cdb318    call    18b3h
+20a3 f2b520    jp      p,20b5h
+20a6 f1        pop     af
+20a7 cd751d    call    1d75h
+20aa f5        push    af
+20ab 18e2      jr      208fh
+
+20ad f1        pop     af
+20ae cd821d    call    1d82h
+20b1 f5        push    af
+20b2 cdb920    call    20b9h
+20b5 f1        pop     af
+20b6 b7        or      a
+20b7 d1        pop     de
+20b8 c9        ret
+
+20b9 e7        rst     20h			; GETYPR - Get the number type (FAC)
+20ba eac820    jp      pe,20c8h
+20bd 017494    ld      bc,9474h
+20c0 11f823    ld      de,23f8h
+20c3 cd7618    call    1876h			; CMPNUM - Compare FP reg to BCDE
+20c6 1806      jr      20ceh
+
+20c8 11de21    ld      de,21deh
+20cb cdb318    call    18b3h
+20ce e1        pop     hl
+20cf f2ad20    jp      p,20adh
+20d2 e9        jp      (hl)
+
+20d3 b7        or      a
+20d4 c8        ret     z
+20d5 3d        dec     a
+20d6 3630      ld      (hl),30h
+20d8 23        inc     hl
+20d9 18f9      jr      20d4h
+
+20db 2004      jr      nz,20e1h
+20dd c8        ret     z
+20de cdfb20    call    20fbh
+20e1 3630      ld      (hl),30h
+20e3 23        inc     hl
+20e4 3d        dec     a
+20e5 18f6      jr      20ddh
+
+20e7 7b        ld      a,e
+20e8 82        add     a,d
+20e9 3c        inc     a
+20ea 47        ld      b,a
+20eb 3c        inc     a
+20ec d603      sub     03h
+20ee 30fc      jr      nc,20ech
+20f0 c605      add     a,05h
+20f2 4f        ld      c,a
+20f3 3af8fd    ld      a,(0fdf8h)        ; 1: Index of last byte executed in current statement- 2: Edit flag during print using
+20f6 e640      and     40h
+20f8 c0        ret     nz
+20f9 4f        ld      c,a
+20fa c9        ret
+
+20fb 05        dec     b
+20fc 2008      jr      nz,2106h
+20fe 362e      ld      (hl),2eh
+2100 2213fe    ld      (0fe13h),hl    ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
+2103 23        inc     hl
+2104 48        ld      c,b
+2105 c9        ret
+
+2106 0d        dec     c
+2107 c0        ret     nz
+2108 362c      ld      (hl),2ch
+210a 23        inc     hl
+210b 0e03      ld      c,03h
+210d c9        ret
+
+210e d5        push    de
+210f e7        rst     20h			; GETYPR - Get the number type (FAC)
+2110 e25421    jp      po,2154h
+2113 c5        push    bc
+2114 e5        push    hl
+2115 cd6618    call    1866h
+2118 21e621    ld      hl,21e6h
+211b cd6118    call    1861h
+211e cde11a    call    1ae1h
+2121 af        xor     a
+2122 cde519    call    19e5h
+2125 e1        pop     hl
+2126 c1        pop     bc
+2127 11f621    ld      de,21f6h
+212a 3e0a      ld      a,0ah
+212c cdfb20    call    20fbh
+212f c5        push    bc
+2130 f5        push    af
+2131 e5        push    hl
+2132 d5        push    de
+2133 062f      ld      b,2fh
+2135 04        inc     b
+2136 e1        pop     hl
+2137 e5        push    hl
+2138 cdb21b    call    1bb2h
+213b 30f8      jr      nc,2135h
+213d e1        pop     hl
+213e cda01b    call    1ba0h
+2141 eb        ex      de,hl
+2142 e1        pop     hl
+2143 70        ld      (hl),b
+2144 23        inc     hl
+2145 f1        pop     af
+2146 c1        pop     bc
+2147 3d        dec     a
+2148 20e2      jr      nz,212ch
+214a c5        push    bc
+214b e5        push    hl
+214c 213dfe    ld      hl,0fe3dh
+214f cd1b18    call    181bh            ; PHLTFP - Move a SP value -> HL to WRA1
+2152 180c      jr      2160h
+
+
+2154 c5        push    bc
+2155 e5        push    hl
+2156 cd7215    call    1572h
+2159 3c        inc     a
+215a cd6519    call    1965h			; FPINT - Floating Point to Integer
+215d cd1e18    call    181eh            ; FPBCDE: Move SP value in BC/DE into WRA1
+2160 e1        pop     hl
+2161 c1        pop     bc
+2162 af        xor     a
+2163 113c22    ld      de,223ch
+2166 3f        ccf     
+2167 cdfb20    call    20fbh
+216a c5        push    bc
+216b f5        push    af
+216c e5        push    hl
+216d d5        push    de
+216e cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
+2171 e1        pop     hl
+2172 062f      ld      b,2fh
+2174 04        inc     b
+2175 7b        ld      a,e
+2176 96        sub     (hl)
+2177 5f        ld      e,a
+2178 23        inc     hl
+2179 7a        ld      a,d
+217a 9e        sbc     a,(hl)
+217b 57        ld      d,a
+217c 23        inc     hl
+217d 79        ld      a,c
+217e 9e        sbc     a,(hl)
+217f 4f        ld      c,a
+2180 2b        dec     hl
+2181 2b        dec     hl
+2182 30f0      jr      nc,2174h
+2184 cd2116    call    1621h			; PLUCDE - Add number pointed by HL to CDE
+2187 23        inc     hl
+2188 cd1e18    call    181eh            ; FPBCDE: Move SP value in BC/DE into WRA1
+218b eb        ex      de,hl
+218c e1        pop     hl
+218d 70        ld      (hl),b
+218e 23        inc     hl
+218f f1        pop     af
+2190 c1        pop     bc
+2191 38d3      jr      c,2166h
+2193 13        inc     de
+2194 13        inc     de
+2195 3e04      ld      a,04h
+2197 1806      jr      219fh
+
+
+2199 d5        push    de
+219a 114222    ld      de,2242h
+219d 3e05      ld      a,05h
+219f cdfb20    call    20fbh
+21a2 c5        push    bc
+21a3 f5        push    af
+21a4 e5        push    hl
+21a5 eb        ex      de,hl
+21a6 4e        ld      c,(hl)
+21a7 23        inc     hl
+21a8 46        ld      b,(hl)
+21a9 c5        push    bc
+21aa 23        inc     hl
+21ab e3        ex      (sp),hl
+21ac eb        ex      de,hl
+21ad 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+21b0 062f      ld      b,2fh
+21b2 04        inc     b
+21b3 7d        ld      a,l
+21b4 93        sub     e
+21b5 6f        ld      l,a
+21b6 7c        ld      a,h
+21b7 9a        sbc     a,d
+21b8 67        ld      h,a
+21b9 30f7      jr      nc,21b2h
+21bb 19        add     hl,de
+21bc 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+21bf d1        pop     de
+21c0 e1        pop     hl
+21c1 70        ld      (hl),b
+21c2 23        inc     hl
+21c3 f1        pop     af
+21c4 c1        pop     bc
+21c5 3d        dec     a
+21c6 20d7      jr      nz,219fh
+21c8 cdfb20    call    20fbh
+21cb 77        ld      (hl),a
+21cc d1        pop     de
+21cd c9        ret
+
+21ce 00        nop     
+21cf 00        nop     
+21d0 00        nop     
+21d1 00        nop     
+21d2 f9        ld      sp,hl
+21d3 02        ld      (bc),a
+21d4 15        dec     d
+21d5 a2        and     d
+21d6 fdff      rst     38h
+21d8 9f        sbc     a,a
+21d9 31a95f    ld      sp,5fa9h
+21dc 63        ld      h,e
+21dd b2        or      d
+21de feff      cp      0ffh
+21e0 03        inc     bc
+21e1 bf        cp      a
+21e2 c9        ret
+
+21e3 1b        dec     de
+21e4 0eb6      ld      c,0b6h
+21e6 00        nop     
+21e7 00        nop     
+21e8 00        nop     
+21e9 00        nop     
+
+; HALF: Constant for 0.5 in FP
+21ea 00        nop     
+21eb 00        nop     
+21ec 00        nop     
+21ed 80        add     a,b
+21ee 00        nop     
+21ef 00        nop     
+21f0 04        inc     b
+21f1 bf        cp      a
+21f2 c9        ret
+
+21f3 1b        dec     de
+21f4 0eb6      ld      c,0b6h
+21f6 00        nop     
+21f7 80        add     a,b
+21f8 c6a4      add     a,0a4h
+21fa 7e        ld      a,(hl)
+21fb 8d        adc     a,l
+21fc 03        inc     bc
+21fd 00        nop     
+21fe 40        ld      b,b
+21ff 7a        ld      a,d
+2200 10f3      djnz    21f5h
+2202 5a        ld      e,d
+2203 00        nop     
+2204 00        nop     
+2205 a0        and     b
+2206 72        ld      (hl),d
+2207 4e        ld      c,(hl)
+2208 1809      jr      2213h
+
+
+220a 00        nop     
+220b 00        nop     
+220c 10a5      djnz    21b3h
+220e d4e800    call    nc,00e8h
+2211 00        nop     
+2212 00        nop     
+2213 e8        ret     pe
+2214 76        halt    
+2215 48        ld      c,b
+2216 17        rla     
+2217 00        nop     
+2218 00        nop     
+2219 00        nop     
+221a e40b54    call    po,540bh
+221d 02        ld      (bc),a
+221e 00        nop     
+221f 00        nop     
+2220 00        nop     
+2221 ca9a3b    jp      z,3b9ah
+2224 00        nop     
+2225 00        nop     
+2226 00        nop     
+2227 00        nop     
+2228 e1        pop     hl
+2229 f5        push    af
+222a 05        dec     b
+222b 00        nop     
+222c 00        nop     
+222d 00        nop     
+222e 80        add     a,b
+222f 96        sub     (hl)
+2230 98        sbc     a,b
+2231 00        nop     
+2232 00        nop     
+2233 00        nop     
+2234 00        nop     
+2235 40        ld      b,b
+2236 42        ld      b,d
+2237 0f        rrca    
+2238 00        nop     
+2239 00        nop     
+223a 00        nop     
+223b 00        nop     
+223c a0        and     b
+223d 86        add     a,(hl)
+223e 011027    ld      bc,2710h
+2241 00        nop     
+2242 1027      djnz    226bh
+2244 e8        ret     pe
+2245 03        inc     bc
+2246 64        ld      h,h
+2247 00        nop     
+2248 0a        ld      a,(bc)
+2249 00        nop     
+224a 010021    ld      bc,2100h
+224d ec17e3    call    pe,0e317h
+2250 e9        jp      (hl)
+
+; SQR
+2251 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+2254 21ea21    ld      hl,21eah			; HALF: Constant ptr for 0.5 in FP
+2257 cd1b18    call    181bh            ; PHLTFP - Move a SP value -> HL to WRA1
+225a 1803      jr      225fh
+
+; POWER
+225c cd1b19    call    191bh
+225f c1        pop     bc
+2260 d1        pop     de
+2261 cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
+2264 78        ld      a,b
+2265 283c      jr      z,22a3h			; EXP
+2267 f26e22    jp      p,226eh
+226a b7        or      a
+226b ca8428    jp      z,2884h
+226e b7        or      a
+226f cae315    jp      z,15e3h
+2272 d5        push    de
+2273 c5        push    bc
+2274 79        ld      a,c
+2275 f67f      or      7fh
+2277 cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
+227a f28b22    jp      p,228bh
+227d d5        push    de
+227e c5        push    bc
+227f cdaa19    call    19aah
+2282 c1        pop     bc
+2283 d1        pop     de
+2284 f5        push    af
+2285 cd7618    call    1876h			; CMPNUM - Compare FP reg to BCDE
+2288 e1        pop     hl
+2289 7c        ld      a,h
+228a 1f        rra     
+228b e1        pop     hl
+228c 2243fe    ld      (0fe43h),hl		; LAST-FPREG - Last byte in Single Precision FP Register (+sign bit)
+228f e1        pop     hl
+2290 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+2293 dc4c22    call    c,224ch			; NEGAFT - Negate number
+2296 ccec17    call    z,17ech			; INVSGN - Invert number sign
+2299 d5        push    de
+229a c5        push    bc
+229b cd7316    call    1673h			; LOG
+229e c1        pop     bc
+229f d1        pop     de
+22a0 cdb116    call    16b1h			; FPMULT - Single precision multiply  (Multiply BCDE to FP reg)
+
+; EXP
+22a3 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+22a6 013881    ld      bc,8138h
+22a9 113baa    ld      de,0aa3bh
+22ac cdb116    call    16b1h			; FPMULT - Single precision multiply  (Multiply BCDE to FP reg)
+22af 3a44fe    ld      a,(0fe44h)		; FPEXP - Floating Point Exponent
+22b2 fe88      cp      88h
+22b4 d29b17    jp      nc,179bh
+22b7 cdaa19    call    19aah
+22ba c680      add     a,80h
+22bc c602      add     a,02h
+22be da9b17    jp      c,179bh
+22c1 f5        push    af
+22c2 216216    ld      hl,1662h			; UNITY - Constant ptr for number 1 in FP
+22c5 cd7515    call    1575h			; ADDPHL - ADD number at HL to BCDE
+22c8 cdab16    call    16abh
+22cb f1        pop     af
+22cc c1        pop     bc
+22cd d1        pop     de
+22ce f5        push    af
+22cf cd7d15    call    157dh			; SUBCDE - Single precision subtract  (Subtract BCDE from FP reg)
+22d2 cdec17    call    17ech			; INVSGN - Invert number sign
+22d5 21e322    ld      hl,22e3h
+22d8 cd1323    call    2313h
+22db 110000    ld      de,0000h
+22de c1        pop     bc
+22df 4a        ld      c,d
+22e0 c3b116    jp      16b1h			; FPMULT - Single precision multiply  (Multiply BCDE to FP reg)
+
+22e3 08        ex      af,af'
+22e4 40        ld      b,b
+22e5 2e94      ld      l,94h
+22e7 74        ld      (hl),h
+22e8 70        ld      (hl),b
+22e9 4f        ld      c,a
+22ea 2e77      ld      l,77h
+22ec 6e        ld      l,(hl)
+22ed 02        ld      (bc),a
+22ee 88        adc     a,b
+22ef 7a        ld      a,d
+22f0 e6a0      and     0a0h
+22f2 2a7c50    ld      hl,(507ch)
+22f5 aa        xor     d
+22f6 aa        xor     d
+22f7 7e        ld      a,(hl)
+22f8 ff        rst     38h
+22f9 ff        rst     38h
+22fa 7f        ld      a,a
+22fb 7f        ld      a,a
+22fc 00        nop     
+22fd 00        nop     
+22fe 80        add     a,b
+22ff 81        add     a,c
+2300 00        nop     
+2301 00        nop     
+2302 00        nop     
+2303 81        add     a,c
+2304 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+2307 119c1a    ld      de,1a9ch
+230a d5        push    de
+230b e5        push    hl
+230c cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
+230f cdb116    call    16b1h			; FPMULT - Single precision multiply  (Multiply BCDE to FP reg)
+2312 e1        pop     hl
+2313 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+2316 7e        ld      a,(hl)
+2317 23        inc     hl
+2318 cd1b18    call    181bh            ; PHLTFP - Move a SP value -> HL to WRA1
+231b 06f1      ld      b,0f1h
+231d c1        pop     bc
+231e d1        pop     de
+231f 3d        dec     a
+2320 c8        ret     z
+2321 d5        push    de
+2322 c5        push    bc
+2323 f5        push    af
+2324 e5        push    hl
+2325 cdb116    call    16b1h			; FPMULT - Single precision multiply  (Multiply BCDE to FP reg)
+2328 e1        pop     hl
+2329 cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
+232c e5        push    hl
+232d cd8015    call    1580h			; FPADD  - Single precision add (Add BCDE to FP reg)
+2330 e1        pop     hl
+2331 18e9      jr      231ch
+
+2333 cde918    call    18e9h            ; GETWORD_HL: Floating point to Integer
+2336 7c        ld      a,h
+2337 b7        or      a
+2338 fa352d    jp      m,2d35h            ; Error: Illegal function call (FC ERROR)
+233b b5        or      l
+233c ca5a23    jp      z,235ah
+233f e5        push    hl
+2340 cd5a23    call    235ah
+2343 cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
+2346 eb        ex      de,hl
+2347 e3        ex      (sp),hl
+2348 c5        push    bc
+2349 cd3919    call    1939h
+234c c1        pop     bc
+234d d1        pop     de
+234e cdb116    call    16b1h			; FPMULT - Single precision multiply  (Multiply BCDE to FP reg)
+2351 216216    ld      hl,1662h			; UNITY - Constant ptr for number 1 in FP
+2354 cd7515    call    1575h			; ADDPHL - ADD number at HL to BCDE
+2357 c3aa19    jp      19aah
+
+235a 2144fc    ld      hl,0fc44h
+235d e5        push    hl
+235e 110000    ld      de,0000h
+2361 4b        ld      c,e
+2362 2603      ld      h,03h
+2364 2e08      ld      l,08h
+2366 eb        ex      de,hl
+2367 29        add     hl,hl
+2368 eb        ex      de,hl
+2369 79        ld      a,c
+236a 17        rla     
+236b 4f        ld      c,a
+236c e3        ex      (sp),hl
+236d 7e        ld      a,(hl)
+236e 07        rlca    
+236f 77        ld      (hl),a
+2370 e3        ex      (sp),hl
+2371 d28023    jp      nc,2380h
+2374 e5        push    hl
+2375 2acafd    ld      hl,(0fdcah)        ; Random number seeds
+2378 19        add     hl,de
+2379 eb        ex      de,hl
+237a 3accfd    ld      a,(0fdcch)
+237d 89        adc     a,c
+237e 4f        ld      c,a
+237f e1        pop     hl
+2380 2d        dec     l
+2381 c26623    jp      nz,2366h
+2384 e3        ex      (sp),hl
+2385 23        inc     hl
+2386 e3        ex      (sp),hl
+2387 25        dec     h
+2388 c26423    jp      nz,2364h
+238b e1        pop     hl
+238c 2165b0    ld      hl,0b065h
+238f 19        add     hl,de
+2390 22cafd    ld      (0fdcah),hl        ; Random number seeds
+2393 cd5919    call    1959h
+2396 3e05      ld      a,05h
+2398 89        adc     a,c
+2399 32ccfd    ld      (0fdcch),a
+239c eb        ex      de,hl
+239d 0680      ld      b,80h
+239f 2145fe    ld      hl,0fe45h		; SGNRES - Sign of result
+23a2 70        ld      (hl),b
+23a3 2b        dec     hl
+23a4 70        ld      (hl),b
+23a5 4f        ld      c,a
+23a6 0600      ld      b,00h
+23a8 c3cf15    jp      15cfh
+
+; COS - Cosine
+23ab 21f523    ld      hl,23f5h			; HALFPI: ptr to PI/2 constant
+23ae cd7515    call    1575h			; ADDPHL - ADD number at HL to BCDE
+; SIN - Sine
+23b1 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+23b4 014983    ld      bc,8349h
+23b7 11db0f    ld      de,0fdbh
+23ba cd1e18    call    181eh            ; FPBCDE: Move SP value in BC/DE into WRA1
+23bd c1        pop     bc
+23be d1        pop     de
+23bf cd0c17    call    170ch			; DVBCDE - Divide FP by BCDE
+23c2 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+23c5 cdaa19    call    19aah
+23c8 c1        pop     bc
+23c9 d1        pop     de
+23ca cd7d15    call    157dh			; SUBCDE - Single precision subtract  (Subtract BCDE from FP reg)
+23cd 21f923    ld      hl,23f9h
+23d0 cd7a15    call    157ah			; SUBPHL - SUBTRACT number at HL from BCDE
+23d3 cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
+23d6 37        scf     
+23d7 f2e123    jp      p,23e1h
+23da cd7215    call    1572h
+23dd cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
+23e0 b7        or      a
+23e1 f5        push    af
+23e2 f4ec17    call    p,17ech			; INVSGN - Invert number sign
+23e5 21f923    ld      hl,23f9h
+23e8 cd7515    call    1575h			; ADDPHL - ADD number at HL to BCDE
+23eb f1        pop     af
+23ec d4ec17    call    nc,17ech			; INVSGN - Invert number sign
+23ef 21fd23    ld      hl,23fdh
+23f2 c30423    jp      2304h
+
+
+; HALFPI: PI/2 constant
+23f5 db0f      in      a,(0fh)
+23f7 49        ld      c,c
+23f8 81        add     a,c
+23f9 00        nop     
+23fa 00        nop     
+23fb 00        nop     
+23fc 7f        ld      a,a
+23fd 05        dec     b
+23fe ba        cp      d
+23ff d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+2400 1e86      ld      e,86h
+2402 64        ld      h,h
+2403 2699      ld      h,99h
+2405 87        add     a,a
+2406 58        ld      e,b
+2407 34        inc     (hl)
+2408 23        inc     hl
+2409 87        add     a,a
+240a e0        ret     po
+240b 5d        ld      e,l
+240c a5        and     l
+240d 86        add     a,(hl)
+240e da0f49    jp      c,490fh
+2411 83        add     a,e
+
+; TAN - Tangent
+2412 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+2415 cdb123    call    23b1h			; SIN - Sine
+2418 c1        pop     bc
+2419 e1        pop     hl
+241a cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+241d eb        ex      de,hl
+241e cd1e18    call    181eh            ; FPBCDE: Move SP value in BC/DE into WRA1
+2421 cdab23    call    23abh			; COS - Cosine
+2424 c30a17    jp      170ah			; DIV - Divide FP by number on stack
+
+; ATN - Arctangent
+2427 cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
+242a fc4c22    call    m,224ch			; NEGAFT - Negate number
+242d fcec17    call    m,17ech			; INVSGN - Invert number sign
+2430 3a44fe    ld      a,(0fe44h)		; FPEXP - Floating Point Exponent
+2433 fe81      cp      81h
+2435 380c      jr      c,2443h
+2437 010081    ld      bc,8100h
+243a 51        ld      d,c
+243b 59        ld      e,c
+243c cd0c17    call    170ch			; DVBCDE - Divide FP by BCDE
+243f 217a15    ld      hl,157ah			; SUBPHL - SUBTRACT number at HL from BCDE
+2442 e5        push    hl
+2443 214d24    ld      hl,244dh
+2446 cd0423    call    2304h
+2449 21f523    ld      hl,23f5h			; HALFPI: ptr to PI/2 constant
+244c c9        ret
+
+244d 09        add     hl,bc
+244e 4a        ld      c,d
+244f d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+2450 3b        dec     sp
+2451 78        ld      a,b
+2452 02        ld      (bc),a
+2453 6e        ld      l,(hl)
+2454 84        add     a,h
+2455 7b        ld      a,e
+2456 fec1      cp      0c1h
+2458 2f        cpl     
+2459 7c        ld      a,h
+245a 74        ld      (hl),h
+245b 319a7d    ld      sp,7d9ah
+245e 84        add     a,h
+245f 3d        dec     a
+2460 5a        ld      e,d
+2461 7d        ld      a,l
+2462 c8        ret     z
+2463 7f        ld      a,a
+2464 91        sub     c
+2465 7e        ld      a,(hl)
+2466 e4bb4c    call    po,4cbbh
+2469 7e        ld      a,(hl)
+246a 6c        ld      l,h
+246b aa        xor     d
+246c aa        xor     d
+246d 7f        ld      a,a
+246e 00        nop     
+246f 00        nop     
+2470 00        nop     
+2471 81        add     a,c
+
+
+; Code to be relocated at FBC0h (004eh bytes)
+
+; ->FBC0h (RST 8 jumps here)
+2472 c3802b    jp      2b80h
+
+; ->FBC3h (RST 10h jumps here)
+2475 c3622c    jp      2c62h
+
+; ->FBC6h (RST 18h jumps here)
+2478 c37a2b    jp      2b7ah		; -> CPDEHL - compare DE and HL (aka DCOMPR)
+
+; ->FBC9h (RST 20h jumps here)
+247b c3cd34    jp      34cdh		; GETYPR - Get the number type (FAC)
+
+; ->FBCCh (RST 28h jumps here)
+247e c9        ret
+247f 00        nop     
+2480 00        nop
+     
+; ->FBCFh (RST 30h jumps here)
+2481 c9        ret
+2482 00        nop     
+2483 00        nop
+
+; ->FBD2h (RST 38h jumps here)
+2484 f3        di      			; Interrupt exit - initialised to a return
+2485 c9        ret
+2486 00        nop
+
+
+2487 010000    ld      bc,0000h
+248a 00        nop     
+248b 00        nop     
+248c 34        inc     (hl)
+248d 1c        inc     e
+248e 00        nop
+
+; -> FBDDh
+248f 00        nop     ; CURSOR POSITION relative to upper L.H. corner
+2490 00        nop  
+
+; -> FBDFh
+2491 00        nop		; CRTC value for "display start address"
+2492 00        nop     
+
+; -> FBE1h
+2493 00        nop     ; MAXIMUM No. CHARACTERS ALLOWED ON SCREEN
+2494 00        nop     
+
+
+2495 01f006    ld      bc,06f0h
+2498 00        nop     
+2499 00        nop     
+249a 43        ld      b,e
+249b 00        nop     
+249c 00        nop     
+249d 00        nop     
+249e 00        nop     
+
+249f c30000    jp      0000h
+
+
+24a2 c30000    jp      0000h
+
+
+24a5 3e00      ld      a,00h
+24a7 c9        ret
+
+24a8 c9        ret
+
+24a9 00        nop     
+24aa 00        nop     
+24ab c9        ret
+
+24ac 00        nop     
+24ad 00        nop     
+24ae c9        ret
+
+24af 00        nop     
+24b0 00        nop     
+24b1 c9        ret
+
+24b2 00        nop     
+24b3 00        nop     
+24b4 c9        ret
+
+24b5 00        nop     
+24b6 00        nop     
+24b7 c9        ret
+
+24b8 00        nop     
+24b9 00        nop     
+24ba c9        ret
+
+24bb 00        nop     
+24bc 00        nop     
+24bd c9        ret
+
+24be 00        nop     
+24bf 00        nop     
+24c0 00        nop     
+24c1 00        nop     
+24c2 00        nop     
+24c3 00        nop     
+24c4 00        nop     
+24c5 00        nop     
+24c6 00        nop     
+24c7 00        nop     
+24c8 00        nop     
+24c9 00        nop     
+24ca 00        nop     
+24cb 00        nop     
+24cc 00        nop     
+24cd 00        nop     
+24ce 00        nop     
+24cf 00        nop     
+24d0 00        nop     
+24d1 00        nop     
+24d2 00        nop     
+24d3 00        nop     
+24d4 00        nop     
+24d5 00        nop     
+24d6 00        nop     
+24d7 00        nop     
+24d8 00        nop     
+24d9 00        nop     
+24da 00        nop     
+24db 00        nop     
+24dc 00        nop     
+24dd 00        nop     
+24de 00        nop     
+24df 00        nop     
+24e0 00        nop     
+24e1 00        nop     
+24e2 00        nop     
+24e3 00        nop     
+24e4 00        nop     
+24e5 00        nop     
+
+
+
+; # JP table for functions = $24E6
+24e6 f417a1    call    p,0a117h
+24e9 19        add     hl,de
+24ea e1        pop     hl
+24eb 17        rla     
+24ec c8        ret     z
+24ed 36e3      ld      (hl),0e3h
+24ef 39        add     hl,sp
+24f0 e9        jp      (hl)
+24f1 3651      ld      (hl),51h
+24f3 223323    ld      (2333h),hl
+24f6 73        ld      (hl),e
+24f7 16a3      ld      d,0a3h
+24f9 22ab23    ld      (23abh),hl
+24fc b1        or      c
+24fd 23        inc     hl
+24fe 12        ld      (de),a
+24ff 24        inc     h
+2500 27        daa     
+2501 24        inc     h
+2502 a8        xor     b
+2503 3b        dec     sp
+2504 14        inc     d
+2505 3f        ccf     
+2506 78        ld      a,b
+2507 fe1c      cp      1ch
+2509 3f        ccf     
+250a 81        add     a,c
+250b fe84      cp      84h
+250d fe2c      cp      2ch
+250f 3f        ccf     
+2510 323f18    ld      (183fh),a
+2513 3f        ccf     
+2514 363f      ld      (hl),3fh
+2516 e9        jp      (hl)
+2517 181b      jr      2534h
+
+
+2519 19        add     hl,de
+251a 45        ld      b,l
+251b 19        add     hl,de
+251c 90        sub     b
+251d 19        add     hl,de
+251e f7        rst     30h
+251f 382a      jr      c,254bh
+2521 37        scf     
+2522 b9        cp      c
+2523 39        add     hl,sp
+2524 03        inc     bc
+2525 39        add     hl,sp
+2526 13        inc     de
+2527 39        add     hl,sp
+2528 55        ld      d,l
+2529 39        add     hl,sp
+252a 85        add     a,l
+252b 39        add     hl,sp
+252c 8e        adc     a,(hl)
+252d 39        add     hl,sp
+
+; TOKEN table position (in the ROM file it is shifted to $452e)
+252e c5        push    bc
+252f 4e        ld      c,(hl)
+2530 44        ld      b,h
+2531 c64f      add     a,4fh
+2533 52        ld      d,d
+2534 d24553    jp      nc,5345h
+2537 45        ld      b,l
+2538 54        ld      d,h
+2539 d345      out     (45h),a
+253b 54        ld      d,h
+253c c34c53    jp      534ch
+
+253f c34d44    jp      444dh
+
+2542 d2414e    jp      nc,4e41h
+2545 44        ld      b,h
+2546 4f        ld      c,a
+2547 4d        ld      c,l
+2548 ce45      adc     a,45h
+254a 58        ld      e,b
+254b 54        ld      d,h
+254c c44154    call    nz,5441h
+254f 41        ld      b,c
+2550 c9        ret
+
+2551 4e        ld      c,(hl)
+2552 50        ld      d,b
+2553 55        ld      d,l
+2554 54        ld      d,h
+2555 c4494d    call    nz,4d49h
+2558 d24541    jp      nc,4145h
+255b 44        ld      b,h
+255c cc4554    call    z,5445h
+255f c7        rst     00h
+2560 4f        ld      c,a
+2561 54        ld      d,h
+2562 4f        ld      c,a
+2563 d2554e    jp      nc,4e55h
+2566 c9        ret
+
+2567 46        ld      b,(hl)
+2568 d24553    jp      nc,5345h
+256b 54        ld      d,h
+256c 4f        ld      c,a
+256d 52        ld      d,d
+256e 45        ld      b,l
+256f c7        rst     00h
+2570 4f        ld      c,a
+2571 53        ld      d,e
+2572 55        ld      d,l
+2573 42        ld      b,d
+2574 d24554    jp      nc,5445h
+2577 55        ld      d,l
+2578 52        ld      d,d
+2579 4e        ld      c,(hl)
+257a d2454d    jp      nc,4d45h
+257d d354      out     (54h),a
+257f 4f        ld      c,a
+2580 50        ld      d,b
+2581 c5        push    bc
+2582 4c        ld      c,h
+2583 53        ld      d,e
+2584 45        ld      b,l
+2585 d4524f    call    nc,4f52h
+2588 4e        ld      c,(hl)
+2589 d4524f    call    nc,4f52h
+258c 46        ld      b,(hl)
+258d 46        ld      b,(hl)
+258e c44546    call    nz,4645h
+2591 53        ld      d,e
+2592 54        ld      d,h
+2593 52        ld      d,d
+2594 c44546    call    nz,4645h
+2597 49        ld      c,c
+2598 4e        ld      c,(hl)
+2599 54        ld      d,h
+259a c44546    call    nz,4645h
+259d 53        ld      d,e
+259e 4e        ld      c,(hl)
+259f 47        ld      b,a
+25a0 c44546    call    nz,4645h
+25a3 44        ld      b,h
+25a4 42        ld      b,d
+25a5 4c        ld      c,h
+25a6 d0        ret     nc
+25a7 43        ld      b,e
+25a8 47        ld      b,a
+25a9 45        ld      b,l
+25aa 4e        ld      c,(hl)
+25ab c5        push    bc
+25ac 44        ld      b,h
+25ad 49        ld      c,c
+25ae 54        ld      d,h
+25af c5        push    bc
+25b0 52        ld      d,d
+25b1 52        ld      d,d
+25b2 4f        ld      c,a
+25b3 52        ld      d,d
+25b4 d24553    jp      nc,5345h
+25b7 55        ld      d,l
+25b8 4d        ld      c,l
+25b9 45        ld      b,l
+25ba cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+25bb 55        ld      d,l
+25bc 54        ld      d,h
+25bd cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+25be 4e        ld      c,(hl)
+25bf cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+25c0 50        ld      d,b
+25c1 45        ld      b,l
+25c2 4e        ld      c,(hl)
+25c3 c34f4c    jp      4c4fh
+
+25c6 4f        ld      c,a
+25c7 55        ld      d,l
+25c8 52        ld      d,d
+25c9 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+25ca 52        ld      d,d
+25cb 49        ld      c,c
+25cc 54        ld      d,h
+25cd 45        ld      b,l
+25ce 23        inc     hl
+25cf c34c4f    jp      4f4ch
+
+25d2 53        ld      d,e
+25d3 45        ld      b,l
+25d4 cc4f41    call    z,414fh
+25d7 44        ld      b,h
+25d8 d341      out     (41h),a
+25da 56        ld      d,(hl)
+25db 45        ld      b,l
+25dc cb49      bit     1,c
+25de 4c        ld      c,h
+25df 4c        ld      c,h
+25e0 c34952    jp      5249h
+
+
+25e3 43        ld      b,e
+25e4 4c        ld      c,h
+25e5 45        ld      b,l
+25e6 cc494e    call    z,4e49h
+25e9 45        ld      b,l
+25ea d34f      out     (4fh),a
+25ec 55        ld      d,l
+25ed 4e        ld      c,(hl)
+25ee 44        ld      b,h
+25ef c8        ret     z
+25f0 47        ld      b,a
+25f1 52        ld      d,d
+25f2 d650      sub     50h
+25f4 4f        ld      c,a
+25f5 4b        ld      c,e
+25f6 45        ld      b,l
+25f7 d359      out     (59h),a
+25f9 53        ld      d,e
+25fa 54        ld      d,h
+25fb 45        ld      b,l
+25fc 4d        ld      c,l
+25fd cc5052    call    z,5250h
+2600 49        ld      c,c
+2601 4e        ld      c,(hl)
+2602 54        ld      d,h
+2603 c44546    call    nz,4645h
+2606 d0        ret     nc
+2607 4f        ld      c,a
+2608 4b        ld      c,e
+2609 45        ld      b,l
+260a d0        ret     nc
+260b 52        ld      d,d
+260c 49        ld      c,c
+260d 4e        ld      c,(hl)
+260e 54        ld      d,h
+260f c34f4e    jp      4e4fh
+
+2612 54        ld      d,h
+2613 cc4953    call    z,5349h
+2616 54        ld      d,h
+2617 cc4c49    call    z,494ch
+261a 53        ld      d,e
+261b 54        ld      d,h
+261c c4454c    call    nz,4c45h
+261f 45        ld      b,l
+2620 54        ld      d,h
+2621 45        ld      b,l
+2622 c1        pop     bc
+2623 55        ld      d,l
+2624 54        ld      d,h
+2625 4f        ld      c,a
+2626 c34c45    jp      454ch
+
+2629 41        ld      b,c
+262a 52        ld      d,d
+262b c34c4f    jp      4f4ch
+
+262e 41        ld      b,c
+262f 44        ld      b,h
+2630 c35341    jp      4153h
+
+
+2633 56        ld      d,(hl)
+2634 45        ld      b,l
+2635 ce45      adc     a,45h
+2637 57        ld      d,a
+2638 d44142    call    nc,4241h
+263b 28d4      jr      z,2611h
+263d 4f        ld      c,a
+263e c64e      add     a,4eh
+2640 d5        push    de
+2641 53        ld      d,e
+2642 49        ld      c,c
+2643 4e        ld      c,(hl)
+2644 47        ld      b,a
+2645 d641      sub     41h
+2647 52        ld      d,d
+2648 50        ld      d,b
+2649 54        ld      d,h
+264a 52        ld      d,d
+264b d5        push    de
+264c 53        ld      d,e
+264d 52        ld      d,d
+264e c5        push    bc
+264f 52        ld      d,d
+2650 4c        ld      c,h
+2651 c5        push    bc
+2652 52        ld      d,d
+2653 52        ld      d,d
+2654 d354      out     (54h),a
+2656 52        ld      d,d
+2657 49        ld      c,c
+2658 4e        ld      c,(hl)
+2659 47        ld      b,a
+265a 24        inc     h
+265b c9        ret
+
+265c 4e        ld      c,(hl)
+265d 53        ld      d,e
+265e 54        ld      d,h
+265f 52        ld      d,d
+2660 d0        ret     nc
+2661 4f        ld      c,a
+2662 49        ld      c,c
+2663 4e        ld      c,(hl)
+2664 54        ld      d,h
+2665 d4494d    call    nc,4d49h
+2668 45        ld      b,l
+2669 24        inc     h
+266a cd454d    call    4d45h
+266d c9        ret
+
+266e 4e        ld      c,(hl)
+266f 4b        ld      c,e
+2670 45        ld      b,l
+2671 59        ld      e,c
+2672 24        inc     h
+2673 d44845    call    nc,4548h
+2676 4e        ld      c,(hl)
+2677 ce4f      adc     a,4fh
+2679 54        ld      d,h
+267a d354      out     (54h),a
+267c 45        ld      b,l
+267d 50        ld      d,b
+267e ab        xor     e
+267f ad        xor     l
+2680 aa        xor     d
+2681 af        xor     a
+2682 dec1      sbc     a,0c1h
+2684 4e        ld      c,(hl)
+2685 44        ld      b,h
+2686 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+2687 52        ld      d,d
+2688 be        cp      (hl)
+2689 bd        cp      l
+268a bc        cp      h
+268b d347      out     (47h),a
+268d 4e        ld      c,(hl)
+268e c9        ret
+
+268f 4e        ld      c,(hl)
+2690 54        ld      d,h
+2691 c1        pop     bc
+2692 42        ld      b,d
+2693 53        ld      d,e
+2694 c652      add     a,52h
+2696 45        ld      b,l
+2697 c9        ret
+
+2698 4e        ld      c,(hl)
+2699 50        ld      d,b
+269a d0        ret     nc
+269b 4f        ld      c,a
+269c 53        ld      d,e
+269d d351      out     (51h),a
+269f 52        ld      d,d
+26a0 d24e44    jp      nc,444eh
+26a3 cc4f47    call    z,474fh
+26a6 c5        push    bc
+26a7 58        ld      e,b
+26a8 50        ld      d,b
+26a9 c34f53    jp      534fh
+
+26ac d349      out     (49h),a
+26ae 4e        ld      c,(hl)
+26af d4414e    call    nc,4e41h
+26b2 c1        pop     bc
+26b3 54        ld      d,h
+26b4 4e        ld      c,(hl)
+26b5 d0        ret     nc
+26b6 45        ld      b,l
+26b7 45        ld      b,l
+26b8 4b        ld      c,e
+26b9 d650      sub     50h
+26bb 45        ld      b,l
+26bc 45        ld      b,l
+26bd 4b        ld      c,e
+26be d0        ret     nc
+26bf 45        ld      b,l
+26c0 4e        ld      c,(hl)
+26c1 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+26c2 50        ld      d,b
+26c3 4b        ld      c,e
+26c4 c5        push    bc
+26c5 4f        ld      c,a
+26c6 46        ld      b,(hl)
+26c7 ca534b    jp      z,4b53h
+26ca ca554d    jp      z,4d55h
+26cd 50        ld      d,b
+26ce c44547    call    nz,4745h
+26d1 cd504b    call    4b50h
+26d4 24        inc     h
+26d5 d24144    jp      nc,4441h
+26d8 c3494e    jp      4e49h
+
+26db 54        ld      d,h
+26dc c3534e    jp      4e53h
+
+26df 47        ld      b,a
+26e0 c34442    jp      4244h
+
+
+26e3 4c        ld      c,h
+26e4 c649      add     a,49h
+26e6 58        ld      e,b
+26e7 cc454e    call    z,4e45h
+26ea d354      out     (54h),a
+26ec 52        ld      d,d
+26ed 24        inc     h
+26ee d641      sub     41h
+26f0 4c        ld      c,h
+26f1 c1        pop     bc
+26f2 53        ld      d,e
+26f3 43        ld      b,e
+26f4 c34852    jp      5248h
+
+
+26f7 24        inc     h
+26f8 cc4546    call    z,4645h
+26fb 54        ld      d,h
+26fc 24        inc     h
+26fd d24947    jp      nc,4749h
+2700 48        ld      c,b
+2701 54        ld      d,h
+2702 24        inc     h
+2703 cd4944    call    4449h
+2706 24        inc     h
+2707 a7        and     a
+2708 80        add     a,b
+2709 00        nop     
+270a 99        sbc     a,c
+270b 2c        inc     l
+270c 8b        adc     a,e
+270d 2b        dec     hl
+270e ca0dbf    jp      z,0bf0dh
+2711 0d        dec     c
+2712 c8        ret     z
+2713 04        inc     b
+2714 42        ld      b,d
+2715 3f        ccf     
+2716 27        daa     
+2717 0d        dec     c
+2718 aa        xor     d
+2719 31f02d    ld      sp,2df0h
+271c 85        add     a,l
+271d 30fc      jr      nc,271bh
+271f 34        inc     (hl)
+2720 da300c    jp      c,0c30h
+2723 2ead      ld      l,0adh
+2725 2d        dec     l
+2726 8e        adc     a,(hl)
+2727 2d        dec     l
+2728 24        inc     h
+2729 2f        cpl     
+272a 42        ld      b,d
+272b 3f        ccf     
+272c 9c        sbc     a,h
+272d 2d        dec     l
+272e c9        ret
+
+272f 2d        dec     l
+2730 f22d94    jp      p,942dh
+2733 2c        inc     l
+2734 f22de2    jp      p,0e22dh
+2737 2c        inc     l
+2738 e3        ex      (sp),hl
+2739 2c        inc     l
+273a eb        ex      de,hl
+273b 2c        inc     l
+273c ee2c      xor     2ch
+273e f1        pop     af
+273f 2c        inc     l
+2740 f42c96    call    p,962ch
+2743 0c        inc     c
+2744 5e        ld      e,(hl)
+2745 3d        dec     a
+2746 df        rst     18h            ; DCOMPR - Compare HL with DE.
+2747 2e9a      ld      l,9ah
+2749 2eef      ld      l,0efh
+274b 39        add     hl,sp
+274c 57        ld      d,a
+274d 2e48      ld      l,48h
+274f 112d0d    ld      de,0d2dh
+2752 1f        rra     
+2753 14        inc     d
+2754 82        add     a,d
+2755 11423f    ld      de,3f42h			; __LOAD
+2758 42        ld      b,d
+2759 3f        ccf     
+275a 3b        dec     sp
+275b 15        dec     d
+275c 42        ld      b,d
+275d 3f        ccf     
+275e 42        ld      b,d
+275f 3f        ccf     
+2760 42        ld      b,d
+2761 3f        ccf     
+2762 42        ld      b,d
+2763 3f        ccf     
+2764 42        ld      b,d
+2765 3f        ccf     
+2766 e20e52    jp      po,520eh
+2769 2f        cpl     
+276a 42        ld      b,d
+276b 3f        ccf     
+276c af        xor     a
+276d 3b        dec     sp
+276e 5a        ld      e,d
+276f 2f        cpl     
+2770 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+2771 2c        defb    ','
+2772 223a1d    ld      (1d3ah),hl
+2775 3aba3a    ld      a,(3abah)
+2778 f3        di      
+2779 2e65      ld      l,65h
+277b 2d        dec     l
+277c 183b      jr      27b9h
+
+277e e9        jp      (hl)
+277f 3a332a    ld      a,(2a33h)
+2782 79        ld      a,c
+2783 79        ld      a,c
+2784 7c        ld      a,h
+2785 7c        ld      a,h
+2786 7f        ld      a,a
+2787 50        ld      d,b
+2788 46        ld      b,(hl)
+2789 45        ld      b,l
+278a 19        add     hl,de
+278b 00        nop     
+278c 00        nop     
+278d e9        jp      (hl)
+278e 185e      jr      27eeh
+
+2790 19        add     hl,de
+2791 1b        dec     de
+2792 19        add     hl,de
+2793 e1        pop     hl
+2794 1a        ld      a,(de)
+2795 da1a0b    jp      c,0b1ah
+2798 1c        inc     e
+2799 4f        ld      c,a
+279a 1c        inc     e
+279b e21880    jp      po,8018h
+279e 15        dec     d
+279f 7d        ld      a,l
+27a0 15        dec     d
+27a1 b1        or      c
+27a2 160c      ld      d,0ch
+27a4 17        rla     
+27a5 76        halt    
+27a6 183c      jr      27e4h
+
+27a8 1a        ld      a,(de)
+27a9 311a5c    ld      sp,5c1ah
+27ac 1a        ld      a,(de)
+27ad 84        add     a,h
+27ae 33        inc     sp
+27af a3        and     e
+27b0 184e      jr      2800h
+
+
+27b2 46        ld      b,(hl)
+27b3 53        ld      d,e
+27b4 4e        ld      c,(hl)
+27b5 52        ld      d,d
+27b6 47        ld      b,a
+27b7 4f        ld      c,a
+27b8 44        ld      b,h
+27b9 46        ld      b,(hl)
+27ba 43        ld      b,e
+27bb 4f        ld      c,a
+27bc 56        ld      d,(hl)
+27bd 4f        ld      c,a
+27be 4d        ld      c,l
+27bf 55        ld      d,l
+27c0 4c        ld      c,h
+27c1 42        ld      b,d
+27c2 53        ld      d,e
+27c3 44        ld      b,h
+27c4 44        ld      b,h
+27c5 2f        cpl     
+27c6 3049      jr      nc,2811h
+27c8 44        ld      b,h
+27c9 54        ld      d,h
+27ca 4d        ld      c,l
+27cb 4f        ld      c,a
+27cc 53        ld      d,e
+27cd 4c        ld      c,h
+27ce 53        ld      d,e
+27cf 53        ld      d,e
+27d0 54        ld      d,h
+27d1 43        ld      b,e
+27d2 4e        ld      c,(hl)
+27d3 4e        ld      c,(hl)
+27d4 52        ld      d,d
+27d5 52        ld      d,d
+27d6 57        ld      d,a
+27d7 55        ld      d,l
+27d8 45        ld      b,l
+27d9 4d        ld      c,l
+27da 4f        ld      c,a
+27db 46        ld      b,(hl)
+27dc 44        ld      b,h
+27dd 4c        ld      c,h
+27de 33        inc     sp
+27df 46        ld      b,(hl)
+27e0 4e        ld      c,(hl)
+
+
+
+
+;0190 1134fc    ld      de,0fc34h
+;0193 21e127    ld      hl,27e1h
+;0196 012600    ld      bc,0026h
+;0199 edb0      ldir    
+
+; 27e1 -> FC34       ..FC34 is also pointed by SP under some condition
+27e1 d600      sub     00h
+27e3 6f        ld      l,a
+27e4 7c        ld      a,h
+27e5 de00      sbc     a,00h
+27e7 67        ld      h,a
+27e8 78        ld      a,b
+27e9 de00      sbc     a,00h
+27eb 47        ld      b,a
+27ec 3e00      ld      a,00h
+27ee c9        ret
+
+; -> FC42		; Address of USR subroutine
+; default: 2d35 = {Error: Illegal function call (FC ERROR)}
+27ef 35        dec     (hl)
+27f0 2d        dec     l
+
+27f1 40        ld      b,b
+27f2 e64d      and     4dh
+
+; -> FC47
+; Used by "__INP"
+27f4 db00      in      a,(00h)		; INPORT=FC48h
+27f6 c9        ret
+
+; -> FC4A
+; Used by "__OUT"
+27f7 d300      out     (00h),a		; OTPORT=FC4Bh
+27f9 c9        ret
+
+27fa 00        nop     
+27fb 00        nop     
+27fc 00        nop     
+27fd 00        nop     
+27fe 50        ld      d,b
+27ff 3800      jr      c,2801h
+2801 be        cp      (hl)
+2802 fb        ei      
+2803 feff      cp      0ffh
+2805 014020    ld      bc,2040h
+2808 45        ld      b,l
+2809 72        ld      (hl),d
+280a 72        ld      (hl),d
+280b 6f        ld      l,a
+280c 72        ld      (hl),d
+280d 00        nop     
+280e 2069      jr      nz,2879h
+2810 6e        ld      l,(hl)
+2811 2000      jr      nz,2813h
+2813 52        ld      d,d
+2814 45        ld      b,l
+2815 41        ld      b,c
+2816 44        ld      b,h
+2817 59        ld      e,c
+2818 0d        dec     c
+2819 00        nop     
+281a 42        ld      b,d
+281b 72        ld      (hl),d
+281c 65        ld      h,l
+281d 61        ld      h,c
+281e 6b        ld      l,e
+281f 00        nop     
+2820 210400    ld      hl,0004h
+2823 39        add     hl,sp
+2824 7e        ld      a,(hl)
+2825 23        inc     hl
+2826 fe81      cp      81h
+2828 c0        ret     nz
+2829 4e        ld      c,(hl)
+282a 23        inc     hl
+282b 46        ld      b,(hl)
+282c 23        inc     hl
+282d e5        push    hl
+282e 69        ld      l,c
+282f 60        ld      h,b
+2830 7a        ld      a,d
+2831 b3        or      e
+2832 eb        ex      de,hl
+2833 2802      jr      z,2837h
+2835 eb        ex      de,hl
+2836 df        rst     18h            ; DCOMPR - Compare HL with DE.
+2837 010e00    ld      bc,000eh
+283a e1        pop     hl
+283b c8        ret     z
+283c 09        add     hl,bc
+283d 18e5      jr      2824h
+
+
+283f cd5628    call    2856h
+2842 c5        push    bc
+2843 e3        ex      (sp),hl
+2844 c1        pop     bc
+2845 df        rst     18h            ; DCOMPR - Compare HL with DE.
+2846 7e        ld      a,(hl)
+2847 02        ld      (bc),a
+2848 c8        ret     z
+2849 0b        dec     bc
+284a 2b        dec     hl
+284b 18f8      jr      2845h
+
+
+; CHKSTK - Check for C levels of stack
+284d e5        push    hl
+284e 2a1dfe    ld      hl,(0fe1dh)        ; ARREND - Starting address of free space list (FSL)
+2851 0600      ld      b,00h
+2853 09        add     hl,bc
+2854 09        add     hl,bc
+2855 3ee5      ld      a,0e5h
+2857 3ec6      ld      a,0c6h
+2859 95        sub     l
+285a 6f        ld      l,a
+285b 3eff      ld      a,0ffh
+285d 9c        sbc     a,h
+285e 3804      jr      c,2864h
+2860 67        ld      h,a
+2861 39        add     hl,sp
+2862 e1        pop     hl
+2863 d8        ret     c
+2864 1e0c      ld      e,0ch
+2866 1824      jr      288ch        ; ERROR, E=error code
+
+2868 2a56fc    ld      hl,(0fc56h)        ; CURLIN: Current line number
+286b 7c        ld      a,h
+286c a5        and     l
+286d 3c        inc     a
+286e 2808      jr      z,2878h
+2870 3a12fe    ld      a,(0fe12h)        ; ONEFLG - Flag. FF during on error processing cleared by resume routine
+2873 b7        or      a
+2874 1e22      ld      e,22h
+2876 2014      jr      nz,288ch        ; ERROR, E=error code
+2878 c3ac2c    jp      2cach
+
+287b 2afafd    ld      hl,(0fdfah)        ; Line No.  of last data statement
+287e 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
+; Syntax Error (SN ERROR)
+2881 1e02      ld      e,02h
+2883 011e14    ld      bc,141eh
+2886 011e00    ld      bc,001eh
+2889 011e24    ld      bc,241eh
+288c 2a56fc    ld      hl,(0fc56h)        ; CURLIN: Current line number
+288f 220afe    ld      (0fe0ah),hl            ; ERRLIN: Line No. in which error occured.
+2892 220cfe    ld      (0fe0ch),hl            ; Line No. in which error occured.
+2895 019e28    ld      bc,289eh
+2898 2a08fe    ld      hl,(0fe08h)            ; During execution: stack pointer value when statement execution begins.
+289b c3842a    jp      2a84h
+
+289e c1        pop     bc
+289f 7b        ld      a,e
+28a0 4b        ld      c,e
+28a1 324efc    ld      (0fc4eh),a            ; ERRFLG
+28a4 2a06fe    ld      hl,(0fe06h)            ; SAVTXT (During input:  ADDR of code string for current statement)
+28a7 220efe    ld      (0fe0eh),hl            ; ERRTXT
+28aa eb        ex      de,hl
+28ab 2a0afe    ld      hl,(0fe0ah)            ; ERRLIN: Line No. in which error occured.
+28ae 7c        ld      a,h
+28af a5        and     l
+28b0 3c        inc     a
+28b1 2807      jr      z,28bah
+28b3 2215fe    ld      (0fe15h),hl            ; OLDLIN: Last line number executed saved by stop/end
+28b6 eb        ex      de,hl
+28b7 2217fe    ld      (0fe17h),hl            ; OLDTXT: Addr of last byte executed during error
+28ba 2a10fe    ld      hl,(0fe10h)            ; ONELIN: LINE to go when 'on error' event happens
+28bd 7c        ld      a,h
+28be b5        or      l
+28bf eb        ex      de,hl
+28c0 2112fe    ld      hl,0fe12h        ; ONEFLG - Flag. FF during on error processing cleared by resume routine
+28c3 2808      jr      z,28cdh                ; ERROR_REPORT
+28c5 a6        and     (hl)
+28c6 2005      jr      nz,28cdh                ; ERROR_REPORT
+28c8 35        dec     (hl)
+28c9 eb        ex      de,hl
+28ca c3202c    jp      2c20h
+
+; ERROR_REPORT
+28cd af        xor     a
+28ce 77        ld      (hl),a
+28cf 59        ld      e,c
+28d0 cde42f    call    2fe4h        ; CONSOLE_CRLF
+28d3 21b127    ld      hl,27b1h        ; ERROR_MESSAGES
+28d6 cda5fe    call    0fea5h
+28d9 57        ld      d,a
+28da 3e3f      ld      a,3fh        ; '?'
+28dc cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+28df 19        add     hl,de
+28e0 7e        ld      a,(hl)
+28e1 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+28e4 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+28e5 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+28e8 210728    ld      hl,2807h
+28eb e5        push    hl
+28ec 2a0afe    ld      hl,(0fe0ah)            ; ERRLIN: Line No. in which error occured.
+28ef e3        ex      (sp),hl
+28f0 cd9b37    call    379bh			; Output a string
+28f3 e1        pop     hl
+28f4 11feff    ld      de,0fffeh
+28f7 df        rst     18h            ; DCOMPR - Compare HL with DE.
+28f8 ca0001    jp      z,0100h
+28fb 7c        ld      a,h
+28fc a5        and     l
+28fd 3c        inc     a
+28fe c4111e    call    nz,1e11h            ; LNUM_MSG
+2901 3ec1      ld      a,0c1h
+2903 cd200c    call    0c20h
+2906 cdabfe    call    0feabh
+2909 cd8007    call    0780h			; Cassette off routine
+290c cde42f    call    2fe4h        ; CONSOLE_CRLF
+290f 211328    ld      hl,2813h
+2912 cd9b37    call    379bh			; Output a string
+2915 3a4efc    ld      a,(0fc4eh)            ; ERRFLG
+2918 d602      sub     02h
+291a cc513d    call    z,3d51h
+
+; PROMPT:
+291d 21ffff    ld      hl,0ffffh
+2920 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
+2923 3a01fe    ld      a,(0fe01h)        ; AUTFLG: Auto increment flag 0 = no auto mode, otherwise line number
+2926 b7        or      a
+2927 2837      jr      z,2960h
+2929 2a02fe    ld      hl,(0fe02h)        ; AUTLIN: Current line number in binary (during input phase)
+292c e5        push    hl
+292d cd191e    call    1e19h
+2930 d1        pop     de
+2931 d5        push    de
+2932 cd162a    call    2a16h            ; FIND_LNUM - Search for line number
+2935 3e2a      ld      a,2ah
+2937 3802      jr      c,293bh
+2939 3e20      ld      a,20h		; ' '
+293b cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+293e cdfa08    call    08fah            ; Console line input routine
+2941 d1        pop     de
+2942 3006      jr      nc,294ah
+2944 af        xor     a
+2945 3201fe    ld      (0fe01h),a        ; AUTFLG: Auto increment flag 0 = no auto mode, otherwise line number
+2948 18b9      jr      2903h
+
+
+294a 2a04fe    ld      hl,(0fe04h)        ; AUTINC: Auto line increment
+294d 19        add     hl,de
+294e 38f4      jr      c,2944h
+2950 d5        push    de
+2951 11f9ff    ld      de,0fff9h
+2954 df        rst     18h            ; DCOMPR - Compare HL with DE.
+2955 d1        pop     de
+2956 30ec      jr      nc,2944h
+2958 2202fe    ld      (0fe02h),hl        ; AUTLIN: Current line number in binary (during input phase)
+295b f6ff      or      0ffh
+295d c3e93e    jp      3ee9h
+
+2960 3e3e      ld      a,3eh		; '>'
+2962 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+2965 cdfa08    call    08fah            ; Console line input routine
+2968 da1d29    jp      c,291dh            ; PROMPT
+296b d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+296c 3c        inc     a
+296d 3d        dec     a
+296e ca1d29    jp      z,291dh            ; PROMPT
+2971 f5        push    af
+2972 cd452d    call    2d45h            ; LNUM_PARM_0 - Get specified line number (2nd parameter)
+
+2975 2b        dec     hl
+2976 7e        ld      a,(hl)
+2977 fe20      cp      20h		; =' ' ?
+2979 28fa      jr      z,2975h
+297b 23        inc     hl
+297c 7e        ld      a,(hl)
+297d fe20      cp      20h		; =' ' ?
+297f cc3318    call    z,1833h
+2982 d5        push    de
+2983 cdaa2a    call    2aaah
+2986 d1        pop     de
+2987 f1        pop     af
+2988 2206fe    ld      (0fe06h),hl            ; SAVTXT (During input:  ADDR of code string for current statement)
+298b cdb1fe    call    0feb1h
+298e d2442c    jp      nc,2c44h
+2991 d5        push    de
+2992 c5        push    bc
+2993 af        xor     a
+2994 32fdfd    ld      (0fdfdh),a    ; Read flag: 0 = read statement active
+2997 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+2998 b7        or      a
+2999 f5        push    af
+299a eb        ex      de,hl
+299b 220cfe    ld      (0fe0ch),hl            ; Line No. in which error occured.
+299e eb        ex      de,hl
+299f cd162a    call    2a16h            ; FIND_LNUM - Search for line number
+29a2 c5        push    bc
+29a3 dcd83a    call    c,3ad8h
+29a6 d1        pop     de
+29a7 f1        pop     af
+29a8 d5        push    de
+29a9 2827      jr      z,29d2h
+29ab d1        pop     de
+29ac 2a19fe    ld      hl,(0fe19h)        ; Addr of simple variables
+29af e3        ex      (sp),hl
+29b0 c1        pop     bc
+29b1 09        add     hl,bc
+29b2 e5        push    hl
+29b3 cd3f28    call    283fh
+29b6 e1        pop     hl
+29b7 2219fe    ld      (0fe19h),hl        ; Addr of simple variables
+29ba eb        ex      de,hl
+29bb 74        ld      (hl),h
+29bc d1        pop     de
+29bd e5        push    hl
+29be 23        inc     hl
+29bf 23        inc     hl
+29c0 73        ld      (hl),e
+29c1 23        inc     hl
+29c2 72        ld      (hl),d
+29c3 23        inc     hl
+29c4 eb        ex      de,hl
+29c5 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
+29c8 eb        ex      de,hl
+29c9 1b        dec     de
+29ca 1b        dec     de
+29cb 1a        ld      a,(de)
+29cc 77        ld      (hl),a
+29cd 23        inc     hl
+29ce 13        inc     de
+29cf b7        or      a
+29d0 20f9      jr      nz,29cbh
+29d2 d1        pop     de
+29d3 cde629    call    29e6h
+29d6 cdb4fe    call    0feb4h
+29d9 cd472a    call    2a47h
+29dc cdb7fe    call    0feb7h
+29df c31d29    jp      291dh            ; PROMPT
+
+29e2 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
+29e5 eb        ex      de,hl
+29e6 62        ld      h,d
+29e7 6b        ld      l,e
+29e8 7e        ld      a,(hl)
+29e9 23        inc     hl
+29ea b6        or      (hl)
+29eb c8        ret     z
+29ec 23        inc     hl
+29ed 23        inc     hl
+29ee 23        inc     hl
+29ef af        xor     a
+29f0 be        cp      (hl)
+29f1 23        inc     hl
+29f2 20fc      jr      nz,29f0h
+29f4 eb        ex      de,hl
+29f5 73        ld      (hl),e
+29f6 23        inc     hl
+29f7 72        ld      (hl),d
+29f8 18ec      jr      29e6h
+
+; LNUM_RANGE - Get specified line number range
+29fa 110000    ld      de,0000h
+29fd d5        push    de
+29fe 2809      jr      z,2a09h
+2a00 d1        pop     de
+2a01 cd3a2d    call    2d3ah        ; LNUM_PARM - Get specified line number
+2a04 d5        push    de
+2a05 280b      jr      z,2a12h
+2a07 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+2a08 ce11      adc     a,11h
+2a0a faffc4    jp      m,0c4ffh
+2a0d 3a2dc2    ld      a,(0c22dh)
+2a10 81        add     a,c
+2a11 28eb      jr      z,29feh
+2a13 d1        pop     de
+2a14 e3        ex      (sp),hl
+2a15 e5        push    hl
+
+; FIND_LNUM - Search for line number
+2a16 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
+2a19 44        ld      b,h
+2a1a 4d        ld      c,l
+2a1b 7e        ld      a,(hl)
+2a1c 23        inc     hl
+2a1d b6        or      (hl)
+2a1e 2b        dec     hl
+2a1f c8        ret     z
+2a20 23        inc     hl
+2a21 23        inc     hl
+2a22 7e        ld      a,(hl)
+2a23 23        inc     hl
+2a24 66        ld      h,(hl)
+2a25 6f        ld      l,a
+2a26 df        rst     18h            ; DCOMPR - Compare HL with DE.
+2a27 60        ld      h,b
+2a28 69        ld      l,c
+2a29 7e        ld      a,(hl)
+2a2a 23        inc     hl
+2a2b 66        ld      h,(hl)
+2a2c 6f        ld      l,a
+2a2d 3f        ccf     
+2a2e c8        ret     z
+2a2f 3f        ccf     
+2a30 d0        ret     nc
+2a31 18e6      jr      2a19h
+
+2a33 c0        ret     nz
+2a34 cdc804    call    04c8h
+2a37 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
+2a3a cde32c    call    2ce3h
+2a3d 3201fe    ld      (0fe01h),a        ; AUTFLG: Auto increment flag 0 = no auto mode, otherwise line number
+2a40 77        ld      (hl),a
+2a41 23        inc     hl
+2a42 77        ld      (hl),a
+2a43 23        inc     hl
+2a44 2219fe    ld      (0fe19h),hl        ; Addr of simple variables
+2a47 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
+2a4a 2b        dec     hl
+2a4b 22fffd    ld      (0fdffh),hl
+2a4e 061a      ld      b,1ah
+2a50 2121fe    ld      hl,0fe21h        ; Variable declaration list. 26 entries, each containing a code inicating default mode for that initial letter
+2a53 3604      ld      (hl),04h
+2a55 23        inc     hl
+2a56 10fb      djnz    2a53h
+2a58 af        xor     a
+2a59 3212fe    ld      (0fe12h),a        ; ONEFLG - Flag. FF during on error processing cleared by resume routine
+2a5c 6f        ld      l,a
+2a5d 67        ld      h,a
+2a5e 2210fe    ld      (0fe10h),hl            ; ONELIN: LINE to go when 'on error' event happens
+2a61 2217fe    ld      (0fe17h),hl            ; OLDTXT: Addr of last byte executed during error
+2a64 2ad1fd    ld      hl,(0fdd1h)        ; Memory size
+2a67 22f6fd    ld      (0fdf6h),hl        ; Pointer to next available loc. in string area.
+2a6a cd7b2c    call    2c7bh
+2a6d 2a19fe    ld      hl,(0fe19h)        ; Addr of simple variables
+2a70 221bfe    ld      (0fe1bh),hl        ; VAREND: Addr of dimensioned variables
+2a73 221dfe    ld      (0fe1dh),hl        ; ARREND - Starting address of free space list (FSL)
+2a76 cda211    call    11a2h
+2a79 c1        pop     bc
+2a7a 2a54fc    ld      hl,(0fc54h)        ; Address of string area boundary
+2a7d 2b        dec     hl
+2a7e 2b        dec     hl
+2a7f 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
+2a82 23        inc     hl
+2a83 23        inc     hl
+2a84 f9        ld      sp,hl
+2a85 21d5fd    ld      hl,0fdd5h        ; TEMPST: LSPT (literal string pool table)
+2a88 22d3fd    ld      (0fdd3h),hl        ; TMSTPT: Address of next available location in LSPT
+2a8b cd200c    call    0c20h
+2a8e cd5430    call    3054h
+2a91 af        xor     a
+2a92 67        ld      h,a
+2a93 6f        ld      l,a
+2a94 32fcfd    ld      (0fdfch),a        ; FOR flag (1 = 'for' in progress, 0 =  no 'for' in progress)
+2a97 e5        push    hl
+2a98 c5        push    bc
+2a99 2afffd    ld      hl,(0fdffh)
+2a9c c9        ret
+
+; INLIN
+2a9d 3e3f      ld      a,3fh		; '?'
+2a9f cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+2aa2 3e20      ld      a,20h		; ' '
+2aa4 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+2aa7 c3fa08    jp      08fah            ; Console line input routine
+
+2aaa af        xor     a
+2aab 32d0fd    ld      (0fdd0h),a
+2aae 4f        ld      c,a
+2aaf eb        ex      de,hl
+2ab0 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
+2ab3 2b        dec     hl
+2ab4 2b        dec     hl
+2ab5 eb        ex      de,hl
+2ab6 7e        ld      a,(hl)
+2ab7 fe20      cp      20h
+2ab9 ca452b    jp      z,2b45h
+2abc 47        ld      b,a
+2abd fe22      cp      22h
+2abf ca612b    jp      z,2b61h
+2ac2 b7        or      a
+2ac3 ca672b    jp      z,2b67h
+2ac6 3ad0fd    ld      a,(0fdd0h)
+2ac9 b7        or      a
+2aca 7e        ld      a,(hl)
+2acb c2452b    jp      nz,2b45h
+2ace fe3f      cp      3fh
+2ad0 3eb2      ld      a,0b2h
+2ad2 ca452b    jp      z,2b45h
+2ad5 7e        ld      a,(hl)
+2ad6 fe30      cp      30h
+2ad8 3805      jr      c,2adfh
+2ada fe3c      cp      3ch
+2adc da452b    jp      c,2b45h
+2adf d5        push    de
+2ae0 112d25    ld      de,252dh
+2ae3 c5        push    bc
+2ae4 01272b    ld      bc,2b27h
+2ae7 c5        push    bc
+2ae8 067f      ld      b,7fh
+2aea 7e        ld      a,(hl)
+2aeb fe61      cp      61h
+2aed 3807      jr      c,2af6h
+2aef fe7b      cp      7bh
+2af1 3003      jr      nc,2af6h
+2af3 e65f      and     5fh
+2af5 77        ld      (hl),a
+2af6 4e        ld      c,(hl)
+2af7 eb        ex      de,hl
+2af8 23        inc     hl
+2af9 b6        or      (hl)
+2afa f2f82a    jp      p,2af8h
+2afd 04        inc     b
+2afe 7e        ld      a,(hl)
+2aff e67f      and     7fh
+2b01 c8        ret     z
+2b02 b9        cp      c
+2b03 20f3      jr      nz,2af8h
+2b05 eb        ex      de,hl
+2b06 e5        push    hl
+2b07 13        inc     de
+2b08 1a        ld      a,(de)
+2b09 b7        or      a
+2b0a fa232b    jp      m,2b23h
+2b0d 4f        ld      c,a
+2b0e 78        ld      a,b
+2b0f fe8d      cp      8dh
+2b11 2002      jr      nz,2b15h
+2b13 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+2b14 2b        dec     hl
+2b15 23        inc     hl
+2b16 7e        ld      a,(hl)
+2b17 fe61      cp      61h
+2b19 3802      jr      c,2b1dh
+2b1b e65f      and     5fh
+2b1d b9        cp      c
+2b1e 28e7      jr      z,2b07h
+2b20 e1        pop     hl
+2b21 18d3      jr      2af6h
+2b23 48        ld      c,b
+2b24 f1        pop     af
+2b25 eb        ex      de,hl
+2b26 c9        ret
+
+2b27 eb        ex      de,hl
+2b28 79        ld      a,c
+2b29 c1        pop     bc
+2b2a d1        pop     de
+2b2b eb        ex      de,hl
+2b2c fe95      cp      95h
+2b2e 363a      ld      (hl),3ah
+2b30 2002      jr      nz,2b34h
+2b32 0c        inc     c
+2b33 23        inc     hl
+2b34 fefb      cp      0fbh
+2b36 200c      jr      nz,2b44h
+2b38 363a      ld      (hl),3ah
+2b3a 23        inc     hl
+2b3b 0693      ld      b,93h
+2b3d 70        ld      (hl),b
+2b3e 23        inc     hl
+2b3f eb        ex      de,hl
+2b40 0c        inc     c
+2b41 0c        inc     c
+2b42 181d      jr      2b61h
+
+2b44 eb        ex      de,hl
+2b45 23        inc     hl
+2b46 12        ld      (de),a
+2b47 13        inc     de
+2b48 0c        inc     c
+2b49 d63a      sub     3ah
+2b4b 2804      jr      z,2b51h
+2b4d fe4e      cp      4eh
+2b4f 2003      jr      nz,2b54h
+2b51 32d0fd    ld      (0fdd0h),a
+2b54 d659      sub     59h
+2b56 c2b62a    jp      nz,2ab6h
+2b59 47        ld      b,a
+2b5a 7e        ld      a,(hl)
+2b5b b7        or      a
+2b5c 2809      jr      z,2b67h
+2b5e b8        cp      b
+2b5f 28e4      jr      z,2b45h
+2b61 23        inc     hl
+2b62 12        ld      (de),a
+2b63 0c        inc     c
+2b64 13        inc     de
+2b65 18f3      jr      2b5ah
+2b67 210500    ld      hl,0005h
+2b6a 44        ld      b,h
+2b6b 09        add     hl,bc
+2b6c 44        ld      b,h
+2b6d 4d        ld      c,l
+2b6e 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
+2b71 2b        dec     hl
+2b72 2b        dec     hl
+2b73 2b        dec     hl
+2b74 12        ld      (de),a
+2b75 13        inc     de
+2b76 12        ld      (de),a
+2b77 13        inc     de
+2b78 12        ld      (de),a
+2b79 c9        ret
+
+; CPDEHL - compare DE and HL (aka DCOMPR)
+; -> fbc6h
+2b7a 7c        ld      a,h
+2b7b 92        sub     d
+2b7c c0        ret     nz
+2b7d 7d        ld      a,l
+2b7e 93        sub     e
+2b7f c9        ret
+
+2b80 7e        ld      a,(hl)
+2b81 e3        ex      (sp),hl
+2b82 be        cp      (hl)
+2b83 23        inc     hl
+2b84 e3        ex      (sp),hl
+2b85 ca622c    jp      z,2c62h
+2b88 c38128    jp      2881h            ; Syntax Error (SN ERROR)
 
 ; __FOR:
-4b8b 3e64      ld      a,64h
-4b8d 32fcfd    ld      (0fdfch),a        ; FOR flag (1 = 'for' in progress, 0 =  no 'for' in progress)
-4b90 cd0c2e    call    2e0ch
-4b93 e3        ex      (sp),hl
-4b94 cd2028    call    2820h
-4b97 d1        pop     de
-4b98 2005      jr      nz,4b9fh
-4b9a 09        add     hl,bc
-4b9b f9        ld      sp,hl
-4b9c 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
-4b9f eb        ex      de,hl
-4ba0 0e08      ld      c,08h
-4ba2 cd4d28    call    284dh
-4ba5 e5        push    hl
-4ba6 cdf02d    call    2df0h
-4ba9 e3        ex      (sp),hl
-4baa e5        push    hl
-4bab 2a56fc    ld      hl,(0fc56h)        ; CURLIN: Current line number
-4bae e3        ex      (sp),hl
-4baf cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-4bb0 bd        cp      l
-4bb1 e7        rst     20h			; GETYPR - Get the number type (FAC)
-4bb2 ca6019    jp      z,1960h
-4bb5 d26019    jp      nc,1960h
-4bb8 f5        push    af
-4bb9 cd2b32    call    322bh			; EVAL
-4bbc f1        pop     af
-4bbd e5        push    hl
-4bbe f2d62b    jp      p,2bd6h
-4bc1 cde918    call    18e9h            ; GETWORD_HL: Floating point to Integer
-4bc4 e3        ex      (sp),hl
-4bc5 110100    ld      de,0001h
-4bc8 7e        ld      a,(hl)
-4bc9 fecc      cp      0cch
-4bcb ccf539    call    z,39f5h
-4bce d5        push    de
-4bcf e5        push    hl
-4bd0 eb        ex      de,hl
-4bd1 cd0818    call    1808h
-4bd4 1822      jr      4bf8h
-4bd6 cd1b19    call    191bh
-4bd9 cd2918    call    1829h
-4bdc e1        pop     hl
-4bdd c5        push    bc
-4bde d5        push    de
-4bdf 010081    ld      bc,8100h
-4be2 51        ld      d,c
-4be3 5a        ld      e,d
-4be4 7e        ld      a,(hl)
-4be5 fecc      cp      0cch
-4be7 3e01      ld      a,01h
-4be9 200e      jr      nz,4bf9h
-4beb cd2c32    call    322ch
-4bee e5        push    hl
-4bef cd1b19    call    191bh
-4bf2 cd2918    call    1829h
-4bf5 cdbf17    call    17bfh
-4bf8 e1        pop     hl
-4bf9 c5        push    bc
-4bfa d5        push    de
-4bfb 4f        ld      c,a
-4bfc e7        rst     20h			; GETYPR - Get the number type (FAC)
-4bfd 47        ld      b,a
-4bfe c5        push    bc
-4bff e5        push    hl
-4c00 2afffd    ld      hl,(0fdffh)
-4c03 e3        ex      (sp),hl
-4c04 0681      ld      b,81h
-4c06 c5        push    bc
-4c07 33        inc     sp
-4c08 cda309    call    09a3h
-4c0b b7        or      a
-4c0c c48a2c    call    nz,2c8ah
-4c0f 2206fe    ld      (0fe06h),hl        ; SAVTXT (During input:  ADDR of code string for current statement)
-4c12 ed7308fe  ld      (0fe08h),sp            ; During execution: stack pointer value when statement execution begins.
-4c16 7e        ld      a,(hl)
-4c17 fe3a      cp      3ah
-4c19 2829      jr      z,4c44h
-4c1b b7        or      a
-4c1c c28128    jp      nz,2881h            ; Syntax Error (SN ERROR)
-4c1f 23        inc     hl
-4c20 7e        ld      a,(hl)
-4c21 23        inc     hl
-4c22 b6        or      (hl)
-4c23 ca6828    jp      z,2868h
-4c26 23        inc     hl
-4c27 5e        ld      e,(hl)
-4c28 23        inc     hl
-4c29 56        ld      d,(hl)
-4c2a eb        ex      de,hl
-4c2b 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
-4c2e 3a3bfe    ld      a,(0fe3bh)        ; TRCFLG - Trace flag (0 = No trace, Non-zero = trace)
-4c31 b7        or      a
-4c32 280f      jr      z,4c43h
-4c34 d5        push    de
-4c35 3e3c      ld      a,3ch
-4c37 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-4c3a cd191e    call    1e19h
-4c3d 3e3e      ld      a,3eh
-4c3f cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-4c42 d1        pop     de
-4c43 eb        ex      de,hl
-4c44 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4c45 11082c    ld      de,2c08h
-4c48 d5        push    de
-4c49 c8        ret     z
-4c4a d680      sub     80h
-4c4c da0c2e    jp      c,2e0ch
-4c4f fe3c      cp      3ch
-4c51 d2db39    jp      nc,39dbh
-4c54 07        rlca    
-4c55 4f        ld      c,a
-4c56 0600      ld      b,00h
-4c58 eb        ex      de,hl
-4c59 210a27    ld      hl,270ah
-4c5c 09        add     hl,bc
-4c5d 4e        ld      c,(hl)
-4c5e 23        inc     hl
-4c5f 46        ld      b,(hl)
-4c60 c5        push    bc
-4c61 eb        ex      de,hl
-4c62 23        inc     hl
-4c63 7e        ld      a,(hl)
-4c64 fe3a      cp      3ah
-4c66 d0        ret     nc
-4c67 fe20      cp      20h
-4c69 ca622c    jp      z,2c62h
-4c6c fe0b      cp      0bh
-4c6e 3005      jr      nc,4c75h
-4c70 fe09      cp      09h
-4c72 d2622c    jp      nc,2c62h
-4c75 fe30      cp      30h
-4c77 3f        ccf     
-4c78 3c        inc     a
-4c79 3d        dec     a
-4c7a c9        ret
+2b8b 3e64      ld      a,64h
+2b8d 32fcfd    ld      (0fdfch),a        ; FOR flag (1 = 'for' in progress, 0 =  no 'for' in progress)
+2b90 cd0c2e    call    2e0ch
+2b93 e3        ex      (sp),hl
+2b94 cd2028    call    2820h
+2b97 d1        pop     de
+2b98 2005      jr      nz,2b9fh
+2b9a 09        add     hl,bc
+2b9b f9        ld      sp,hl
+2b9c 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
+2b9f eb        ex      de,hl
+2ba0 0e08      ld      c,08h
+2ba2 cd4d28    call    284dh			; CHKSTK - Check for C levels of stack
+2ba5 e5        push    hl
+2ba6 cdf02d    call    2df0h
+2ba9 e3        ex      (sp),hl
+2baa e5        push    hl
+2bab 2a56fc    ld      hl,(0fc56h)        ; CURLIN: Current line number
+2bae e3        ex      (sp),hl
+2baf cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+2bb0 bd        cp      l
+2bb1 e7        rst     20h			; GETYPR - Get the number type (FAC)
+2bb2 ca6019    jp      z,1960h
+2bb5 d26019    jp      nc,1960h
+2bb8 f5        push    af
+2bb9 cd2b32    call    322bh			; EVAL
+2bbc f1        pop     af
+2bbd e5        push    hl
+2bbe f2d62b    jp      p,2bd6h
+2bc1 cde918    call    18e9h            ; GETWORD_HL: Floating point to Integer
+2bc4 e3        ex      (sp),hl
+2bc5 110100    ld      de,0001h
+2bc8 7e        ld      a,(hl)
+2bc9 fecc      cp      0cch
+2bcb ccf539    call    z,39f5h			; FPSINT - Get subscript
+2bce d5        push    de
+2bcf e5        push    hl
+2bd0 eb        ex      de,hl
+2bd1 cd0818    call    1808h
+2bd4 1822      jr      2bf8h
 
-4c7b eb        ex      de,hl
-4c7c 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
-4c7f 2b        dec     hl
-4c80 221ffe    ld      (0fe1fh),hl        ; Points to byte following last char
-4c83 eb        ex      de,hl
-4c84 c9        ret
+2bd6 cd1b19    call    191bh
+2bd9 cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
+2bdc e1        pop     hl
+2bdd c5        push    bc
+2bde d5        push    de
+2bdf 010081    ld      bc,8100h
+2be2 51        ld      d,c
+2be3 5a        ld      e,d
+2be4 7e        ld      a,(hl)
+2be5 fecc      cp      0cch
+2be7 3e01      ld      a,01h
+2be9 200e      jr      nz,2bf9h
+2beb cd2c32    call    322ch
+2bee e5        push    hl
+2bef cd1b19    call    191bh
+2bf2 cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
+2bf5 cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
+2bf8 e1        pop     hl
+2bf9 c5        push    bc
+2bfa d5        push    de
+2bfb 4f        ld      c,a
+2bfc e7        rst     20h			; GETYPR - Get the number type (FAC)
+2bfd 47        ld      b,a
+2bfe c5        push    bc
+2bff e5        push    hl
+2c00 2afffd    ld      hl,(0fdffh)
+2c03 e3        ex      (sp),hl
+2c04 0681      ld      b,81h
+2c06 c5        push    bc
+2c07 33        inc     sp
+2c08 cda309    call    09a3h
+2c0b b7        or      a
+2c0c c48a2c    call    nz,2c8ah
+2c0f 2206fe    ld      (0fe06h),hl            ; SAVTXT (During input:  ADDR of code string for current statement)
+2c12 ed7308fe  ld      (0fe08h),sp            ; During execution: stack pointer value when statement execution begins.
+2c16 7e        ld      a,(hl)
+2c17 fe3a      cp      3ah
+2c19 2829      jr      z,2c44h
+2c1b b7        or      a
+2c1c c28128    jp      nz,2881h            ; Syntax Error (SN ERROR)
+2c1f 23        inc     hl
+2c20 7e        ld      a,(hl)
+2c21 23        inc     hl
+2c22 b6        or      (hl)
+2c23 ca6828    jp      z,2868h
+2c26 23        inc     hl
+2c27 5e        ld      e,(hl)
+2c28 23        inc     hl
+2c29 56        ld      d,(hl)
+2c2a eb        ex      de,hl
+2c2b 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
+2c2e 3a3bfe    ld      a,(0fe3bh)        ; TRCFLG - Trace flag (0 = No trace, Non-zero = trace)
+2c31 b7        or      a
+2c32 280f      jr      z,2c43h
+2c34 d5        push    de
+2c35 3e3c      ld      a,3ch		; '<'
+2c37 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+2c3a cd191e    call    1e19h
+2c3d 3e3e      ld      a,3eh		; '?'
+2c3f cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+2c42 d1        pop     de
+2c43 eb        ex      de,hl
+2c44 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+2c45 11082c    ld      de,2c08h
+2c48 d5        push    de
+2c49 c8        ret     z
+2c4a d680      sub     80h
+2c4c da0c2e    jp      c,2e0ch
+2c4f fe3c      cp      3ch
+2c51 d2db39    jp      nc,39dbh		; IN BASIC instruction
+2c54 07        rlca    
+2c55 4f        ld      c,a
+2c56 0600      ld      b,00h
+2c58 eb        ex      de,hl
+2c59 210a27    ld      hl,270ah
+2c5c 09        add     hl,bc
+2c5d 4e        ld      c,(hl)
+2c5e 23        inc     hl
+2c5f 46        ld      b,(hl)
+2c60 c5        push    bc
+2c61 eb        ex      de,hl
+2c62 23        inc     hl
+2c63 7e        ld      a,(hl)
+2c64 fe3a      cp      3ah
+2c66 d0        ret     nc
+2c67 fe20      cp      20h
+2c69 ca622c    jp      z,2c62h
+2c6c fe0b      cp      0bh
+2c6e 3005      jr      nc,2c75h
+2c70 fe09      cp      09h
+2c72 d2622c    jp      nc,2c62h
+2c75 fe30      cp      30h
+2c77 3f        ccf     
+2c78 3c        inc     a
+2c79 3d        dec     a
+2c7a c9        ret
 
-4c85 cda309    call    09a3h
-4c88 b7        or      a
-4c89 c8        ret     z
-4c8a fe60      cp      60h
-4c8c ccac09    call    z,09ach        ; Console input routine
-4c8f 324dfc    ld      (0fc4dh),a    ; Holds last character typed after break
-4c92 fe03      cp      03h
-4c94 c0        ret     nz
-4c95 3c        inc     a
-4c96 c39f2c    jp      2c9fh
+2c7b eb        ex      de,hl
+2c7c 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
+2c7f 2b        dec     hl
+2c80 221ffe    ld      (0fe1fh),hl        ; Points to byte following last char
+2c83 eb        ex      de,hl
+2c84 c9        ret
 
-4c99 c0        ret     nz
-4c9a f5        push    af
-4c9b cca211    call    z,11a2h
-4c9e f1        pop     af
-4c9f 2206fe    ld      (0fe06h),hl        ; SAVTXT (During input:  ADDR of code string for current statement)
-4ca2 21d5fd    ld      hl,0fdd5h        ; TEMPST: LSPT (literal string pool table)
-4ca5 22d3fd    ld      (0fdd3h),hl        ; TMSTPT: Address of next available location in LSPT
-4ca8 21f6ff    ld      hl,0fff6h
-4cab c1        pop     bc
-4cac 2a56fc    ld      hl,(0fc56h)        ; CURLIN: Current line number
-4caf e5        push    hl
-4cb0 f5        push    af
-4cb1 7d        ld      a,l
-4cb2 a4        and     h
-4cb3 3c        inc     a
-4cb4 2809      jr      z,4cbfh
-4cb6 2215fe    ld      (0fe15h),hl        ; OLDLIN: Last line number executed saved by stop/end
-4cb9 2a06fe    ld      hl,(0fe06h)        ; SAVTXT (During input:  ADDR of code string for current statement)
-4cbc 2217fe    ld      (0fe17h),hl        ; OLDTXT: Addr of last byte executed during error
-4cbf cd200c    call    0c20h
-4cc2 cde42f    call    2fe4h            ; CONSOLE_CRLF
-4cc5 f1        pop     af
-4cc6 211a28    ld      hl,281ah
-4cc9 c2f028    jp      nz,28f0h
-4ccc c30229    jp      2902h
+2c85 cda309    call    09a3h
+2c88 b7        or      a
+2c89 c8        ret     z
+2c8a fe60      cp      60h
+2c8c ccac09    call    z,09ach        ; Console input routine
+2c8f 324dfc    ld      (0fc4dh),a    ; Holds last character typed after break
+2c92 fe03      cp      03h
+2c94 c0        ret     nz
+2c95 3c        inc     a
+2c96 c39f2c    jp      2c9fh
 
-4ccf 2a17fe    ld      hl,(0fe17h)        ; OLDTXT: Addr of last byte executed during error
-4cd2 7c        ld      a,h
-4cd3 b5        or      l
-4cd4 1e20      ld      e,20h
-4cd6 ca8c28    jp      z,288ch            ; ERROR, E=error code
-4cd9 eb        ex      de,hl
-4cda 2a15fe    ld      hl,(0fe15h)        ; OLDLIN: Last line number executed saved by stop/end
-4cdd 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
-4ce0 eb        ex      de,hl
-4ce1 c9        ret
+2c99 c0        ret     nz
+2c9a f5        push    af
+2c9b cca211    call    z,11a2h
+2c9e f1        pop     af
+2c9f 2206fe    ld      (0fe06h),hl            ; SAVTXT (During input:  ADDR of code string for current statement)
+2ca2 21d5fd    ld      hl,0fdd5h        ; TEMPST: LSPT (literal string pool table)
+2ca5 22d3fd    ld      (0fdd3h),hl        ; TMSTPT: Address of next available location in LSPT
+2ca8 21f6ff    ld      hl,0fff6h
+2cab c1        pop     bc
+2cac 2a56fc    ld      hl,(0fc56h)        ; CURLIN: Current line number
+2caf e5        push    hl
+2cb0 f5        push    af
+2cb1 7d        ld      a,l
+2cb2 a4        and     h
+2cb3 3c        inc     a
+2cb4 2809      jr      z,2cbfh
+2cb6 2215fe    ld      (0fe15h),hl            ; OLDLIN: Last line number executed saved by stop/end
+2cb9 2a06fe    ld      hl,(0fe06h)            ; SAVTXT (During input:  ADDR of code string for current statement)
+2cbc 2217fe    ld      (0fe17h),hl            ; OLDTXT: Addr of last byte executed during error
+2cbf cd200c    call    0c20h
+2cc2 cde42f    call    2fe4h        ; CONSOLE_CRLF
+2cc5 f1        pop     af
+2cc6 211a28    ld      hl,281ah
+2cc9 c2f028    jp      nz,28f0h
+2ccc c30229    jp      2902h
 
-4ce2 3eaf      ld      a,0afh
-4ce4 323bfe    ld      (0fe3bh),a        ; TRCFLG - Trace flag (0 = No trace, Non-zero = trace)
-4ce7 c9        ret
 
-4ce8 f1        pop     af
-4ce9 e1        pop     hl
-4cea c9        ret
+2ccf 2a17fe    ld      hl,(0fe17h)            ; OLDTXT: Addr of last byte executed during error
+2cd2 7c        ld      a,h
+2cd3 b5        or      l
+2cd4 1e20      ld      e,20h
+2cd6 ca8c28    jp      z,288ch            ; ERROR, E=error code
+2cd9 eb        ex      de,hl
+2cda 2a15fe    ld      hl,(0fe15h)            ; OLDLIN: Last line number executed saved by stop/end
+2cdd 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
+2ce0 eb        ex      de,hl
+2ce1 c9        ret
 
-4ceb 1e03      ld      e,03h
-4ced 011e02    ld      bc,021eh
-4cf0 011e04    ld      bc,041eh
-4cf3 011e08    ld      bc,081eh
-4cf6 cd282d    call    2d28h        ; IS_ALPHA_A
-4cf9 018128    ld      bc,2881h        ; BC = {Syntax Error (SN ERROR)}
-4cfc c5        push    bc
-4cfd d8        ret     c
-4cfe d641      sub     41h
-4d00 4f        ld      c,a
-4d01 47        ld      b,a
-4d02 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4d03 fece      cp      0ceh
-4d05 2009      jr      nz,4d10h
-4d07 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4d08 cd282d    call    2d28h        ; IS_ALPHA_A
-4d0b d8        ret     c
-4d0c d641      sub     41h
-4d0e 47        ld      b,a
-4d0f d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4d10 78        ld      a,b
-4d11 91        sub     c
-4d12 d8        ret     c
-4d13 3c        inc     a
-4d14 e3        ex      (sp),hl
-4d15 2121fe    ld      hl,0fe21h    ; Variable declaration list. 26 entries, each containing a code inicating default mode for that initial letter
-4d18 0600      ld      b,00h
-4d1a 09        add     hl,bc
-4d1b 73        ld      (hl),e
-4d1c 23        inc     hl
-4d1d 3d        dec     a
-4d1e 20fb      jr      nz,4d1bh
-4d20 e1        pop     hl
-4d21 7e        ld      a,(hl)
-4d22 fe2c      cp      ','
-4d24 c0        ret     nz
-4d25 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4d26 18ce      jr      4cf6h
-4d28 7e        ld      a,(hl)
-4d29 fe41      cp      41h
-4d2b d8        ret     c
-4d2c fe5b      cp      5bh
-4d2e 3f        ccf     
-4d2f c9        ret
+2ce2 3eaf      ld      a,0afh
+2ce4 323bfe    ld      (0fe3bh),a        ; TRCFLG - Trace flag (0 = No trace, Non-zero = trace)
+2ce7 c9        ret
 
-4d30 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4d31 cdf639    call    39f6h                ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
-4d34 f0        ret     p
-4d35 1e08      ld      e,08h
-4d37 c38c28    jp      288ch        ; ERROR, E=error code
+2ce8 f1        pop     af
+2ce9 e1        pop     hl
+2cea c9        ret
 
-4d3a 7e        ld      a,(hl)
-4d3b fe2e      cp      2eh
-4d3d eb        ex      de,hl
-4d3e 2a0cfe    ld      hl,(0fe0ch)    ; Line No. in which error occured.
-4d41 eb        ex      de,hl
-4d42 ca622c    jp      z,2c62h
-4d45 2b        dec     hl
-4d46 110000    ld      de,0000h
-4d49 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4d4a d0        ret     nc
-4d4b e5        push    hl
-4d4c f5        push    af
-4d4d 219819    ld      hl,1998h
-4d50 df        rst     18h            ; DCOMPR - Compare HL with DE.
-4d51 da8128    jp      c,2881h            ; Syntax Error (SN ERROR)
-4d54 62        ld      h,d
-4d55 6b        ld      l,e
-4d56 19        add     hl,de
-4d57 29        add     hl,hl
-4d58 19        add     hl,de
-4d59 29        add     hl,hl
-4d5a f1        pop     af
-4d5b d630      sub     30h
-4d5d 5f        ld      e,a
-4d5e 1600      ld      d,00h
-4d60 19        add     hl,de
-4d61 eb        ex      de,hl
-4d62 e1        pop     hl
-4d63 18e4      jr      4d49h
+2ceb 1e03      ld      e,03h
+2ced 011e02    ld      bc,021eh
+2cf0 011e04    ld      bc,041eh
+2cf3 011e08    ld      bc,081eh
+2cf6 cd282d    call    2d28h        ; IS_ALPHA_A
+2cf9 018128    ld      bc,2881h            ; (SP) = Syntax Error (SN ERROR)
+2cfc c5        push    bc
+2cfd d8        ret     c
+2cfe d641      sub     41h
+2d00 4f        ld      c,a
+2d01 47        ld      b,a
+2d02 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+2d03 fece      cp      0ceh
+2d05 2009      jr      nz,2d10h
+2d07 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+2d08 cd282d    call    2d28h        ; IS_ALPHA_A
+2d0b d8        ret     c
+2d0c d641      sub     41h
+2d0e 47        ld      b,a
+2d0f d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+2d10 78        ld      a,b
+2d11 91        sub     c
+2d12 d8        ret     c
+2d13 3c        inc     a
+2d14 e3        ex      (sp),hl
+2d15 2121fe    ld      hl,0fe21h        ; Variable declaration list. 26 entries, each containing a code inicating default mode for that initial letter
+2d18 0600      ld      b,00h
+2d1a 09        add     hl,bc
+2d1b 73        ld      (hl),e
+2d1c 23        inc     hl
+2d1d 3d        dec     a
+2d1e 20fb      jr      nz,2d1bh
+2d20 e1        pop     hl
+2d21 7e        ld      a,(hl)
+2d22 fe2c      cp      2ch
+2d24 c0        ret     nz
+2d25 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+2d26 18ce      jr      2cf6h
 
-4d65 ca4b2a    jp      z,2a4bh
-4d68 cd312d    call    2d31h
-4d6b 2b        dec     hl
-4d6c d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4d6d c0        ret     nz
-4d6e e5        push    hl
-4d6f 2ad1fd    ld      hl,(0fdd1h)        ; Memory size
-4d72 7d        ld      a,l
-4d73 93        sub     e
-4d74 5f        ld      e,a
-4d75 7c        ld      a,h
-4d76 9a        sbc     a,d
-4d77 57        ld      d,a
-4d78 da6428    jp      c,2864h
-4d7b 2a19fe    ld      hl,(0fe19h)        ; Addr of simple variables
-4d7e 012800    ld      bc,0028h
-4d81 09        add     hl,bc
-4d82 df        rst     18h            ; DCOMPR - Compare HL with DE.
-4d83 d26428    jp      nc,2864h
-4d86 eb        ex      de,hl
-4d87 2254fc    ld      (0fc54h),hl        ; Address of string area boundary
-4d8a e1        pop     hl
-4d8b c34b2a    jp      2a4bh
-4d8e ca472a    jp      z,2a47h
-4d91 cdc3fe    call    0fec3h
-4d94 cd4b2a    call    2a4bh
-4d97 01082c    ld      bc,2c08h
-4d9a 1810      jr      4dach
+; IS_ALPHA_A
+2d28 7e        ld      a,(hl)
+2d29 fe41      cp      41h
+2d2b d8        ret     c
+2d2c fe5b      cp      5bh
+2d2e 3f        ccf     
+2d2f c9        ret
 
-4d9c 0e03      ld      c,03h
-4d9e cd4d28    call    284dh
-4da1 c1        pop     bc
-4da2 e5        push    hl
-4da3 e5        push    hl
-4da4 2a56fc    ld      hl,(0fc56h)        ; CURLIN: Current line number
-4da7 e3        ex      (sp),hl
-4da8 3e91      ld      a,91h
-4daa f5        push    af
-4dab 33        inc     sp
-4dac c5        push    bc
-4dad cd452d    call    2d45h            ; LNUM_PARM_0 - Get specified line number (2nd parameter)
-4db0 cdf22d    call    2df2h
-4db3 e5        push    hl
-4db4 2a56fc    ld      hl,(0fc56h)        ; CURLIN: Current line number
-4db7 df        rst     18h            ; DCOMPR - Compare HL with DE.
-4db8 e1        pop     hl
-4db9 23        inc     hl
-4dba dc192a    call    c,2a19h
-4dbd d4162a    call    nc,2a16h        ; FIND_LNUM - Search for line number
-4dc0 60        ld      h,b
-4dc1 69        ld      l,c
-4dc2 2b        dec     hl
-4dc3 d8        ret     c
-4dc4 1e0e      ld      e,0eh
-4dc6 c38c28    jp      288ch        ; ERROR, E=error code
+2d30 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+2d31 cdf639    call    39f6h          ; GETWORD - Get a number to DE (0..65535)
+2d34 f0        ret     p
 
-4dc9 c0        ret     nz
-4dca 16ff      ld      d,0ffh
-4dcc cd2028    call    2820h
-4dcf f9        ld      sp,hl
-4dd0 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
-4dd3 fe91      cp      91h
-4dd5 1e04      ld      e,04h
-4dd7 c28c28    jp      nz,288ch        ; ERROR, E=error code
-4dda e1        pop     hl
-4ddb 2256fc    ld      (0fc56h),hl    ; CURLIN: Current line number
-4dde 23        inc     hl
-4ddf 7c        ld      a,h
-4de0 b5        or      l
-4de1 2007      jr      nz,4deah
-4de3 3afdfd    ld      a,(0fdfdh)    ; Read flag: 0 = read statement active
-4de6 b7        or      a
-4de7 c20229    jp      nz,2902h
-4dea 21082c    ld      hl,2c08h
-4ded e3        ex      (sp),hl
-4dee 3ee1      ld      a,0e1h
-4df0 013a0e    ld      bc,0e3ah
-4df3 00        nop     
-4df4 0600      ld      b,00h
-4df6 79        ld      a,c
-4df7 48        ld      c,b
-4df8 47        ld      b,a
-4df9 7e        ld      a,(hl)
-4dfa b7        or      a
-4dfb c8        ret     z
-4dfc b8        cp      b
-4dfd c8        ret     z
-4dfe 23        inc     hl
-4dff fe22      cp      22h
-4e01 28f3      jr      z,4df6h
-4e03 d68f      sub     8fh
-4e05 20f2      jr      nz,4df9h
-4e07 b8        cp      b
-4e08 8a        adc     a,d
-4e09 57        ld      d,a
-4e0a 18ed      jr      4df9h
+; Error: Illegal function call (FC ERROR)
+2d35 1e08      ld      e,08h
+2d37 c38c28    jp      288ch        ; ERROR, E=error code
 
-4e0c cd0135    call    3501h        ; GETVAR: Find address of variable
-4e0f cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-4e10 d5        push    de
-4e11 eb        ex      de,hl
-4e12 22fffd    ld      (0fdffh),hl
-4e15 eb        ex      de,hl
-4e16 d5        push    de
-4e17 e7        rst     20h			; GETYPR - Get the number type (FAC)
-4e18 f5        push    af
-4e19 cd2b32    call    322bh			; EVAL
-4e1c f1        pop     af
-4e1d e3        ex      (sp),hl
-4e1e c603      add     a,03h
-4e20 cd0d37    call    370dh
-4e23 cd6d18    call    186dh
-4e26 e5        push    hl
-4e27 2028      jr      nz,4e51h
-4e29 2a41fe    ld      hl,(0fe41h)        ; FACCU
-4e2c e5        push    hl
-4e2d 23        inc     hl
-4e2e 5e        ld      e,(hl)
-4e2f 23        inc     hl
-4e30 56        ld      d,(hl)
-4e31 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
-4e34 df        rst     18h            ; DCOMPR - Compare HL with DE.
-4e35 300e      jr      nc,4e45h
-4e37 2a54fc    ld      hl,(0fc54h)        ; Address of string area boundary
-4e3a df        rst     18h            ; DCOMPR - Compare HL with DE.
-4e3b d1        pop     de
-4e3c 300f      jr      nc,4e4dh
-4e3e 2a19fe    ld      hl,(0fe19h)        ; Addr of simple variables
-4e41 df        rst     18h            ; DCOMPR - Compare HL with DE.
-4e42 3009      jr      nc,4e4dh
-4e44 3ed1      ld      a,0d1h
-4e46 cde938    call    38e9h
-4e49 eb        ex      de,hl
-4e4a cd3737    call    3737h
-4e4d cde938    call    38e9h
-4e50 e3        ex      (sp),hl
-4e51 cd3d18    call    183dh
-4e54 d1        pop     de
-4e55 e1        pop     hl
-4e56 c9        ret
+; LNUM_PARM - Get specified line number
+2d3a 7e        ld      a,(hl)
+2d3b fe2e      cp      2eh				; '.' ?
+2d3d eb        ex      de,hl
+2d3e 2a0cfe    ld      hl,(0fe0ch)            ; Line No. in which error occured.
+2d41 eb        ex      de,hl
+2d42 ca622c    jp      z,2c62h
 
-4e57 fe9e      cp      9eh
-4e59 2025      jr      nz,4e80h
-4e5b d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4e5c cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-4e5d 8d        adc     a,l
-4e5e cd452d    call    2d45h        ; LNUM_PARM_0 - Get specified line number (2nd parameter)
-4e61 7a        ld      a,d
-4e62 b3        or      e
-4e63 2809      jr      z,4e6eh
-4e65 cd142a    call    2a14h
-4e68 50        ld      d,b
-4e69 59        ld      e,c
-4e6a e1        pop     hl
-4e6b d2c42d    jp      nc,2dc4h
-4e6e eb        ex      de,hl
-4e6f 2210fe    ld      (0fe10h),hl
-4e72 eb        ex      de,hl
-4e73 d8        ret     c
-4e74 3a12fe    ld      a,(0fe12h)
-4e77 b7        or      a
-4e78 c8        ret     z
-4e79 3a4efc    ld      a,(0fc4eh)            ; ERRFLG:  ERROR FLAG
-4e7c 5f        ld      e,a
-4e7d c39528    jp      2895h
+; LNUM_PARM_0 - Get specified line number (2nd parameter)
+2d45 2b        dec     hl
+2d46 110000    ld      de,0000h
+2d49 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+2d4a d0        ret     nc
+2d4b e5        push    hl
+2d4c f5        push    af
+2d4d 219819    ld      hl,1998h
+2d50 df        rst     18h            ; DCOMPR - Compare HL with DE.
+2d51 da8128    jp      c,2881h            ; Syntax Error (SN ERROR)
+2d54 62        ld      h,d
+2d55 6b        ld      l,e
+2d56 19        add     hl,de
+2d57 29        add     hl,hl
+2d58 19        add     hl,de
+2d59 29        add     hl,hl
+2d5a f1        pop     af
+2d5b d630      sub     30h
+2d5d 5f        ld      e,a
+2d5e 1600      ld      d,00h
+2d60 19        add     hl,de
+2d61 eb        ex      de,hl
+2d62 e1        pop     hl
+2d63 18e4      jr      2d49h
 
-4e80 cd103a    call    3a10h		; GETINT
-4e83 7e        ld      a,(hl)
-4e84 47        ld      b,a
-4e85 fe91      cp      91h
-4e87 2803      jr      z,4e8ch
-4e89 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-4e8a 8d        adc     a,l
-4e8b 2b        dec     hl
-4e8c 4b        ld      c,e
-4e8d 0d        dec     c
-4e8e 78        ld      a,b
-4e8f ca4a2c    jp      z,2c4ah
-4e92 cd462d    call    2d46h
-4e95 fe2c      cp      ','
-4e97 c0        ret     nz
-4e98 18f3      jr      4e8dh
-4e9a 1112fe    ld      de,0fe12h
-4e9d 1a        ld      a,(de)
-4e9e b7        or      a
-4e9f ca8a28    jp      z,288ah
-4ea2 3c        inc     a
-4ea3 324efc    ld      (0fc4eh),a            ; ERRFLG:  ERROR FLAG
-4ea6 12        ld      (de),a
-4ea7 7e        ld      a,(hl)
-4ea8 fe87      cp      87h
-4eaa 280c      jr      z,4eb8h
-4eac cd452d    call    2d45h            ; LNUM_PARM_0 - Get specified line number (2nd parameter)
-4eaf c0        ret     nz
-4eb0 7a        ld      a,d
-4eb1 b3        or      e
-4eb2 c2b02d    jp      nz,2db0h
-4eb5 3c        inc     a
-4eb6 1802      jr      4ebah
-4eb8 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4eb9 c0        ret     nz
-4eba 2a0efe    ld      hl,(0fe0eh)
-4ebd eb        ex      de,hl
-4ebe 2a0afe    ld      hl,(0fe0ah)            ; ERRLIN: Line No. in which error occured.
-4ec1 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
-4ec4 eb        ex      de,hl
-4ec5 c0        ret     nz
-4ec6 7e        ld      a,(hl)
-4ec7 b7        or      a
-4ec8 2004      jr      nz,4eceh
-4eca 23        inc     hl
-4ecb 23        inc     hl
-4ecc 23        inc     hl
-4ecd 23        inc     hl
-4ece 23        inc     hl
-4ecf 7a        ld      a,d
-4ed0 a3        and     e
-4ed1 3c        inc     a
-4ed2 c2f02d    jp      nz,2df0h
-4ed5 3afdfd    ld      a,(0fdfdh)        ; Read flag: 0 = read statement active
-4ed8 3d        dec     a
-4ed9 caa92c    jp      z,2ca9h
-4edc c3f02d    jp      2df0h
+2d65 ca4b2a    jp      z,2a4bh
+2d68 cd312d    call    2d31h
+2d6b 2b        dec     hl
+2d6c d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+2d6d c0        ret     nz
+2d6e e5        push    hl
+2d6f 2ad1fd    ld      hl,(0fdd1h)        ; Memory size
+2d72 7d        ld      a,l
+2d73 93        sub     e
+2d74 5f        ld      e,a
+2d75 7c        ld      a,h
+2d76 9a        sbc     a,d
+2d77 57        ld      d,a
+2d78 da6428    jp      c,2864h
+2d7b 2a19fe    ld      hl,(0fe19h)        ; Addr of simple variables
+2d7e 012800    ld      bc,0028h
+2d81 09        add     hl,bc
+2d82 df        rst     18h            ; DCOMPR - Compare HL with DE.
+2d83 d26428    jp      nc,2864h
+2d86 eb        ex      de,hl
+2d87 2254fc    ld      (0fc54h),hl        ; Address of string area boundary
+2d8a e1        pop     hl
+2d8b c34b2a    jp      2a4bh
+2d8e ca472a    jp      z,2a47h
+2d91 cdc3fe    call    0fec3h
+2d94 cd4b2a    call    2a4bh
+2d97 01082c    ld      bc,2c08h
+2d9a 1810      jr      2dach
+2d9c 0e03      ld      c,03h
+2d9e cd4d28    call    284dh			; CHKSTK - Check for C levels of stack
+2da1 c1        pop     bc
+2da2 e5        push    hl
+2da3 e5        push    hl
+2da4 2a56fc    ld      hl,(0fc56h)        ; CURLIN: Current line number
+2da7 e3        ex      (sp),hl
+2da8 3e91      ld      a,91h
+2daa f5        push    af
+2dab 33        inc     sp
+2dac c5        push    bc
+2dad cd452d    call    2d45h            ; LNUM_PARM_0 - Get specified line number (2nd parameter)
+2db0 cdf22d    call    2df2h
+2db3 e5        push    hl
+2db4 2a56fc    ld      hl,(0fc56h)        ; CURLIN: Current line number
+2db7 df        rst     18h            ; DCOMPR - Compare HL with DE.
+2db8 e1        pop     hl
+2db9 23        inc     hl
+2dba dc192a    call    c,2a19h
+2dbd d4162a    call    nc,2a16h            ; FIND_LNUM - Search for line number
+2dc0 60        ld      h,b
+2dc1 69        ld      l,c
+2dc2 2b        dec     hl
+2dc3 d8        ret     c
+2dc4 1e0e      ld      e,0eh
+2dc6 c38c28    jp      288ch        ; ERROR, E=error code
 
-4edf cd103a    call    3a10h		; GETINT
-4ee2 c0        ret     nz
-4ee3 b7        or      a
-4ee4 ca352d    jp      z,2d35h            ; Error: Illegal function call (FC ERROR)
-4ee7 3d        dec     a
-4ee8 87        add     a,a
-4ee9 5f        ld      e,a
-4eea fe2f      cp      2fh
-4eec 3802      jr      c,4ef0h
-4eee 1e26      ld      e,26h
-4ef0 c38c28    jp      288ch        ; ERROR, E=error code
+2dc9 c0        ret     nz
+2dca 16ff      ld      d,0ffh
+2dcc cd2028    call    2820h
+2dcf f9        ld      sp,hl
+2dd0 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
+2dd3 fe91      cp      91h
+2dd5 1e04      ld      e,04h
+2dd7 c28c28    jp      nz,288ch        ; ERROR, E=error code
+2dda e1        pop     hl
+2ddb 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
+2dde 23        inc     hl
+2ddf 7c        ld      a,h
+2de0 b5        or      l
+2de1 2007      jr      nz,2deah
+2de3 3afdfd    ld      a,(0fdfdh)    ; Read flag: 0 = read statement active
+2de6 b7        or      a
+2de7 c20229    jp      nz,2902h
+2dea 21082c    ld      hl,2c08h
+2ded e3        ex      (sp),hl
+2dee 3ee1      ld      a,0e1h
+2df0 013a0e    ld      bc,0e3ah
+2df3 00        nop     
+2df4 0600      ld      b,00h
+2df6 79        ld      a,c
+2df7 48        ld      c,b
+2df8 47        ld      b,a
+2df9 7e        ld      a,(hl)
+2dfa b7        or      a
+2dfb c8        ret     z
+2dfc b8        cp      b
+2dfd c8        ret     z
+2dfe 23        inc     hl
+2dff fe22      cp      22h
+2e01 28f3      jr      z,2df6h
+2e03 d68f      sub     8fh
+2e05 20f2      jr      nz,2df9h
+2e07 b8        cp      b
+2e08 8a        adc     a,d
+2e09 57        ld      d,a
+2e0a 18ed      jr      2df9h
+
+2e0c cd0135    call    3501h        ; GETVAR: Find address of variable
+2e0f cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+2e10 d5        push    de
+2e11 eb        ex      de,hl
+2e12 22fffd    ld      (0fdffh),hl
+2e15 eb        ex      de,hl
+2e16 d5        push    de
+2e17 e7        rst     20h			; GETYPR - Get the number type (FAC)
+2e18 f5        push    af
+2e19 cd2b32    call    322bh			; EVAL
+2e1c f1        pop     af
+2e1d e3        ex      (sp),hl
+2e1e c603      add     a,03h
+2e20 cd0d37    call    370dh
+2e23 cd6d18    call    186dh
+2e26 e5        push    hl
+2e27 2028      jr      nz,2e51h
+2e29 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+2e2c e5        push    hl
+2e2d 23        inc     hl
+2e2e 5e        ld      e,(hl)
+2e2f 23        inc     hl
+2e30 56        ld      d,(hl)
+2e31 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
+2e34 df        rst     18h            ; DCOMPR - Compare HL with DE.
+2e35 300e      jr      nc,2e45h
+2e37 2a54fc    ld      hl,(0fc54h)        ; Address of string area boundary
+2e3a df        rst     18h            ; DCOMPR - Compare HL with DE.
+2e3b d1        pop     de
+2e3c 300f      jr      nc,2e4dh
+2e3e 2a19fe    ld      hl,(0fe19h)        ; Addr of simple variables
+2e41 df        rst     18h            ; DCOMPR - Compare HL with DE.
+2e42 3009      jr      nc,2e4dh
+2e44 3ed1      ld      a,0d1h
+2e46 cde938    call    38e9h
+2e49 eb        ex      de,hl
+2e4a cd3737    call    3737h
+2e4d cde938    call    38e9h
+2e50 e3        ex      (sp),hl
+2e51 cd3d18    call    183dh
+2e54 d1        pop     de
+2e55 e1        pop     hl
+2e56 c9        ret
+
+2e57 fe9e      cp      9eh
+2e59 2025      jr      nz,2e80h
+2e5b d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+2e5c cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+2e5d 8d        adc     a,l
+2e5e cd452d    call    2d45h            ; LNUM_PARM_0 - Get specified line number (2nd parameter)
+2e61 7a        ld      a,d
+2e62 b3        or      e
+2e63 2809      jr      z,2e6eh
+2e65 cd142a    call    2a14h
+2e68 50        ld      d,b
+2e69 59        ld      e,c
+2e6a e1        pop     hl
+2e6b d2c42d    jp      nc,2dc4h
+2e6e eb        ex      de,hl
+2e6f 2210fe    ld      (0fe10h),hl            ; ONELIN: LINE to go when 'on error' event happens
+2e72 eb        ex      de,hl
+2e73 d8        ret     c
+2e74 3a12fe    ld      a,(0fe12h)        ; ONEFLG - Flag. FF during on error processing cleared by resume routine
+2e77 b7        or      a
+2e78 c8        ret     z
+2e79 3a4efc    ld      a,(0fc4eh)            ; ERRFLG
+2e7c 5f        ld      e,a
+2e7d c39528    jp      2895h
+
+
+2e80 cd103a    call    3a10h		; GETINT
+2e83 7e        ld      a,(hl)
+2e84 47        ld      b,a
+2e85 fe91      cp      91h
+2e87 2803      jr      z,2e8ch
+2e89 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+2e8a 8d        adc     a,l
+2e8b 2b        dec     hl
+2e8c 4b        ld      c,e
+2e8d 0d        dec     c
+2e8e 78        ld      a,b
+2e8f ca4a2c    jp      z,2c4ah
+2e92 cd462d    call    2d46h
+2e95 fe2c      cp      2ch
+2e97 c0        ret     nz
+2e98 18f3      jr      2e8dh
+
+2e9a 1112fe    ld      de,0fe12h        ; ONEFLG - Flag. FF during on error processing cleared by resume routine
+2e9d 1a        ld      a,(de)
+2e9e b7        or      a
+2e9f ca8a28    jp      z,288ah
+2ea2 3c        inc     a
+2ea3 324efc    ld      (0fc4eh),a            ; ERRFLG
+2ea6 12        ld      (de),a
+2ea7 7e        ld      a,(hl)
+2ea8 fe87      cp      87h
+2eaa 280c      jr      z,2eb8h
+2eac cd452d    call    2d45h            ; LNUM_PARM_0 - Get specified line number (2nd parameter)
+2eaf c0        ret     nz
+2eb0 7a        ld      a,d
+2eb1 b3        or      e
+2eb2 c2b02d    jp      nz,2db0h
+2eb5 3c        inc     a
+2eb6 1802      jr      2ebah
+
+2eb8 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+2eb9 c0        ret     nz
+2eba 2a0efe    ld      hl,(0fe0eh)            ; ERRTXT
+2ebd eb        ex      de,hl
+2ebe 2a0afe    ld      hl,(0fe0ah)            ; ERRLIN: Line No. in which error occured.
+2ec1 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
+2ec4 eb        ex      de,hl
+2ec5 c0        ret     nz
+2ec6 7e        ld      a,(hl)
+2ec7 b7        or      a
+2ec8 2004      jr      nz,2eceh
+2eca 23        inc     hl
+2ecb 23        inc     hl
+2ecc 23        inc     hl
+2ecd 23        inc     hl
+2ece 23        inc     hl
+2ecf 7a        ld      a,d
+2ed0 a3        and     e
+2ed1 3c        inc     a
+2ed2 c2f02d    jp      nz,2df0h
+2ed5 3afdfd    ld      a,(0fdfdh)    ; Read flag: 0 = read statement active
+2ed8 3d        dec     a
+2ed9 caa92c    jp      z,2ca9h
+2edc c3f02d    jp      2df0h
+
+2edf cd103a    call    3a10h		; GETINT
+2ee2 c0        ret     nz
+2ee3 b7        or      a
+2ee4 ca352d    jp      z,2d35h            ; Error: Illegal function call (FC ERROR)
+2ee7 3d        dec     a
+2ee8 87        add     a,a
+2ee9 5f        ld      e,a
+2eea fe2f      cp      2fh
+2eec 3802      jr      c,2ef0h
+2eee 1e26      ld      e,26h
+2ef0 c38c28    jp      288ch        ; ERROR, E=error code
 
 ; __AUTO:
-4ef3 110a00    ld      de,000ah
-4ef6 d5        push    de
-4ef7 2817      jr      z,4f10h
-4ef9 cd3a2d    call    2d3ah        ; LNUM_PARM - Get specified line number
-4efc eb        ex      de,hl
-4efd e3        ex      (sp),hl
-4efe 2811      jr      z,4f11h
-4f00 eb        ex      de,hl
-4f01 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-4f02 2c        defb    ','
-4f03 eb        ex      de,hl
-4f04 2a04fe    ld      hl,(0fe04h)        ; AUTINC: Auto line increment
-4f07 eb        ex      de,hl
-4f08 2806      jr      z,4f10h
-4f0a cd452d    call    2d45h            ; LNUM_PARM_0 - Get specified line number (2nd parameter)
-4f0d c28128    jp      nz,2881h            ; Syntax Error (SN ERROR)
-4f10 eb        ex      de,hl
-4f11 7c        ld      a,h
-4f12 b5        or      l
-4f13 ca352d    jp      z,2d35h            ; Error: Illegal function call (FC ERROR)
-4f16 2204fe    ld      (0fe04h),hl        ; AUTINC: Auto line increment
-4f19 3201fe    ld      (0fe01h),a        ; AUTFLG: Auto increment flag 0 = no auto mode, otherwise line number
-4f1c e1        pop     hl
-4f1d 2202fe    ld      (0fe02h),hl        ; AUTLIN: Current line number in binary (during input phase)
-4f20 c1        pop     bc
-4f21 c31d29    jp      291dh            ; PROMPT
+2ef3 110a00    ld      de,000ah
+2ef6 d5        push    de
+2ef7 2817      jr      z,2f10h
+2ef9 cd3a2d    call    2d3ah        ; LNUM_PARM - Get specified line number
+2efc eb        ex      de,hl
+2efd e3        ex      (sp),hl
+2efe 2811      jr      z,2f11h
+2f00 eb        ex      de,hl
+2f01 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+2f02 2c        defb    ','
+2f03 eb        ex      de,hl
+2f04 2a04fe    ld      hl,(0fe04h)        ; AUTINC: Auto line increment
+2f07 eb        ex      de,hl
+2f08 2806      jr      z,2f10h
+2f0a cd452d    call    2d45h            ; LNUM_PARM_0 - Get specified line number (2nd parameter)
+2f0d c28128    jp      nz,2881h            ; Syntax Error (SN ERROR)
+2f10 eb        ex      de,hl
+2f11 7c        ld      a,h
+2f12 b5        or      l
+2f13 ca352d    jp      z,2d35h            ; Error: Illegal function call (FC ERROR)
+2f16 2204fe    ld      (0fe04h),hl        ; AUTINC: Auto line increment
+2f19 3201fe    ld      (0fe01h),a        ; AUTFLG: Auto increment flag 0 = no auto mode, otherwise line number
+2f1c e1        pop     hl
+2f1d 2202fe    ld      (0fe02h),hl        ; AUTLIN: Current line number in binary (during input phase)
+2f20 c1        pop     bc
+2f21 c31d29    jp      291dh            ; PROMPT
 
-4f24 cd2b32    call    322bh			; EVAL
-4f27 7e        ld      a,(hl)
-4f28 fe2c      cp      ','
-4f2a cc622c    call    z,2c62h
-4f2d feca      cp      0cah
-4f2f cc622c    call    z,2c62h
-4f32 2b        dec     hl
-4f33 e5        push    hl
-4f34 cdfe17    call    17feh
-4f37 e1        pop     hl
-4f38 2807      jr      z,4f41h
-4f3a d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4f3b daad2d    jp      c,2dadh
-4f3e c3492c    jp      2c49h
+2f24 cd2b32    call    322bh			; EVAL
+2f27 7e        ld      a,(hl)
+2f28 fe2c      cp      2ch
+2f2a cc622c    call    z,2c62h
+2f2d feca      cp      0cah
+2f2f cc622c    call    z,2c62h
+2f32 2b        dec     hl
+2f33 e5        push    hl
+2f34 cdfe17    call    17feh		; _TSTSGN - Test sign in number
+2f37 e1        pop     hl
+2f38 2807      jr      z,2f41h
+2f3a d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+2f3b daad2d    jp      c,2dadh
+2f3e c3492c    jp      2c49h
 
-4f41 1601      ld      d,01h
-4f43 cdf02d    call    2df0h
-4f46 b7        or      a
-4f47 c8        ret     z
-4f48 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4f49 fe95      cp      95h
-4f4b 20f6      jr      nz,4f43h
-4f4d 15        dec     d
-4f4e 20f3      jr      nz,4f43h
-4f50 18e8      jr      4f3ah
-4f52 3e01      ld      a,01h
-4f54 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
-4f57 c3862f    jp      2f86h
+2f41 1601      ld      d,01h
+2f43 cdf02d    call    2df0h
+2f46 b7        or      a
+2f47 c8        ret     z
+2f48 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+2f49 fe95      cp      95h
+2f4b 20f6      jr      nz,2f43h
+2f4d 15        dec     d
+2f4e 20f3      jr      nz,2f43h
+2f50 18e8      jr      2f3ah
+2f52 3e01      ld      a,01h
+2f54 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+2f57 c3862f    jp      2f86h
 
-4f5a cdc6fe    call    0fec6h
-4f5d fe40      cp      40h
-4f5f 2016      jr      nz,4f77h
-4f61 cdf539    call    39f5h
-4f64 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-4f65 2c        defb    ','
-4f66 e5        push    hl
-4f67 2ae1fb    ld      hl,(0fbe1h)        ; MAXIMUM No. CHARACTERS ALLOWED ON SCREEN
-4f6a b7        or      a
-4f6b ed52      sbc     hl,de
-4f6d da352d    jp      c,2d35h            ; Error: Illegal function call (FC ERROR)
-4f70 ed53ddfb  ld      (0fbddh),de        ; CURSOR POSITION relative to upper L.H. corner
-4f74 e1        pop     hl
-4f75 180f      jr      4f86h
-4f77 fe23      cp      23h
-4f79 200b      jr      nz,4f86h
-4f7b d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4f7c cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-4f7d 2c        defb    ','
-4f7e cd2307    call    0723h			; Cassette write on routine
-4f81 3e80      ld      a,80h
-4f83 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
-4f86 2b        dec     hl
-4f87 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-4f88 cce92f    call    z,2fe9h
-4f8b ca5430    jp      z,3054h
-4f8e febf      cp      0bfh
-4f90 cabb3b    jp      z,3bbbh
-4f93 febc      cp      0bch
-4f95 ca2230    jp      z,3022h
-4f98 e5        push    hl
-4f99 fe2c      cp      ','
-4f9b caf32f    jp      z,2ff3h
-4f9e fe3b      cp      3bh
-4fa0 ca4f30    jp      z,304fh
-4fa3 c1        pop     bc
-4fa4 cd2b32    call    322bh			; EVAL
-4fa7 e5        push    hl
-4fa8 e7        rst     20h			; GETYPR - Get the number type (FAC)
-4fa9 2832      jr      z,4fddh
-4fab cd271e    call    1e27h
-4fae cd5937    call    3759h
-4fb1 cdc9fe    call    0fec9h
-4fb4 2a41fe    ld      hl,(0fe41h)        ; FACCU
-4fb7 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
-4fba b7        or      a
-4fbb fad42f    jp      m,2fd4h
-4fbe 2808      jr      z,4fc8h
-4fc0 3a4ffc    ld      a,(0fc4fh)        ; No. of characters printed on this line
-4fc3 86        add     a,(hl)
-4fc4 fe84      cp      84h
-4fc6 1809      jr      4fd1h
+2f5a cdc6fe    call    0fec6h
+2f5d fe40      cp      40h
+2f5f 2016      jr      nz,2f77h
+2f61 cdf539    call    39f5h			; FPSINT - Get subscript
+2f64 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+2f65 2c        defb    ','
+2f66 e5        push    hl
+2f67 2ae1fb    ld      hl,(0fbe1h)        ; MAXIMUM No. CHARACTERS ALLOWED ON SCREEN
+2f6a b7        or      a
+2f6b ed52      sbc     hl,de
+2f6d da352d    jp      c,2d35h            ; Error: Illegal function call (FC ERROR)
+2f70 ed53ddfb  ld      (0fbddh),de        ; CURSOR POSITION relative to upper L.H. corner
+2f74 e1        pop     hl
+2f75 180f      jr      2f86h
 
-4fc8 3a51fc    ld      a,(0fc51h)        ; Size of video display line
-4fcb 47        ld      b,a
-4fcc 3ac6fd    ld      a,(0fdc6h)        ; Current cursor position (column number)
-4fcf 86        add     a,(hl)
-4fd0 b8        cp      b
-4fd1 d4e92f    call    nc,2fe9h
-4fd4 cd9e37    call    379eh
-4fd7 3e20      ld      a,20h
-4fd9 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-4fdc b7        or      a
-4fdd cc9e37    call    z,379eh
-4fe0 e1        pop     hl
-4fe1 c3862f    jp      2f86h
+2f77 fe23      cp      23h
+2f79 200b      jr      nz,2f86h
+2f7b d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+2f7c cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+2f7d 2c        defb    ','
+2f7e cd2307    call    0723h			; Cassette write on routine
+2f81 3e80      ld      a,80h
+2f83 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+2f86 2b        dec     hl
+2f87 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+2f88 cce92f    call    z,2fe9h
+2f8b ca5430    jp      z,3054h
+2f8e febf      cp      0bfh
+2f90 cabb3b    jp      z,3bbbh
+2f93 febc      cp      0bch
+2f95 ca2230    jp      z,3022h
+2f98 e5        push    hl
+2f99 fe2c      cp      2ch
+2f9b caf32f    jp      z,2ff3h
+2f9e fe3b      cp      3bh
+2fa0 ca4f30    jp      z,304fh
+2fa3 c1        pop     bc
+2fa4 cd2b32    call    322bh			; EVAL
+2fa7 e5        push    hl
+2fa8 e7        rst     20h			; GETYPR - Get the number type (FAC)
+2fa9 2832      jr      z,2fddh
+2fab cd271e    call    1e27h
+2fae cd5937    call    3759h
+2fb1 cdc9fe    call    0fec9h
+2fb4 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+2fb7 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+2fba b7        or      a
+2fbb fad42f    jp      m,2fd4h
+2fbe 2808      jr      z,2fc8h
+2fc0 3a4ffc    ld      a,(0fc4fh)        ; No. of characters printed on this line
+2fc3 86        add     a,(hl)
+2fc4 fe84      cp      84h
+2fc6 1809      jr      2fd1h
 
-4fe4 3ac6fd    ld      a,(0fdc6h)        ; Current cursor position (column number)
-4fe7 b7        or      a
-4fe8 c8        ret     z
-4fe9 3e0d      ld      a,0dh
-4feb cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-4fee cdccfe    call    0fecch
-4ff1 af        xor     a
-4ff2 c9        ret
+2fc8 3a51fc    ld      a,(0fc51h)        ; Size of video display line
+2fcb 47        ld      b,a
+2fcc 3ac6fd    ld      a,(0fdc6h)        ; CURPOS (a.k.a. TTYPOS) - Current cursor position (column number)
+2fcf 86        add     a,(hl)
+2fd0 b8        cp      b
+2fd1 d4e92f    call    nc,2fe9h
+2fd4 cd9e37    call    379eh
+2fd7 3e20      ld      a,20h		; ' '
+2fd9 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+2fdc b7        or      a
+2fdd cc9e37    call    z,379eh
+2fe0 e1        pop     hl
+2fe1 c3862f    jp      2f86h
 
-4ff3 cdcffe    call    0fecfh
-4ff6 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
-4ff9 b7        or      a
-4ffa f20430    jp      p,3004h
-4ffd 3e2c      ld      a,2ch
-4fff cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5002 184b      jr      504fh
-5004 2808      jr      z,500eh
-5006 3a4ffc    ld      a,(0fc4fh)        ; No. of characters printed on this line
-5009 fe70      cp      70h
-500b c31630    jp      3016h
-500e 3a52fc    ld      a,(0fc52h)        ; Last comma column position
-5011 47        ld      b,a
-5012 3ac6fd    ld      a,(0fdc6h)        ; Current cursor position (column number)
-5015 b8        cp      b
-5016 d4e92f    call    nc,2fe9h
-5019 3034      jr      nc,504fh
-501b d60e      sub     0eh
-501d 30fc      jr      nc,501bh
-501f 2f        cpl     
-5020 1823      jr      5045h
-5022 cd0f3a    call    3a0fh
-5025 e6ff      and     0ffh
-5027 5f        ld      e,a
-5028 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-5029 29        defb    ')'
-502a 2b        dec     hl
-502b e5        push    hl
-502c cdcffe    call    0fecfh
-502f 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
-5032 b7        or      a
-5033 fa352d    jp      m,2d35h            ; Error: Illegal function call (FC ERROR)
-5036 ca3e30    jp      z,303eh
-5039 3a4ffc    ld      a,(0fc4fh)        ; No. of characters printed on this line
-503c 1803      jr      5041h
+; CONSOLE_CRLF
+2fe4 3ac6fd    ld      a,(0fdc6h)        ; CURPOS (a.k.a. TTYPOS) - Current cursor position (column number)
+2fe7 b7        or      a
+2fe8 c8        ret     z
+2fe9 3e0d      ld      a,0dh		; CR
+2feb cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+2fee cdccfe    call    0fecch
+2ff1 af        xor     a
+2ff2 c9        ret
 
-503e 3ac6fd    ld      a,(0fdc6h)        ; Current cursor position (column number)
-5041 2f        cpl     
-5042 83        add     a,e
-5043 300a      jr      nc,504fh
-5045 3c        inc     a
-5046 47        ld      b,a
-5047 3e20      ld      a,20h
-5049 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-504c 05        dec     b
-504d 20fa      jr      nz,5049h
-504f e1        pop     hl
-5050 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-5051 c38b2f    jp      2f8bh
+2ff3 cdcffe    call    0fecfh
+2ff6 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+2ff9 b7        or      a
+2ffa f20430    jp      p,3004h
+2ffd 3e2c      ld      a,2ch		; ','
+2fff cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+3002 184b      jr      304fh
 
-5054 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
-5057 b7        or      a
-5058 fc8007    call    m,0780h			; Cassette off routine
-505b af        xor     a
-505c 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
-505f cdbafe    call    0febah
-5062 c9        ret
+3004 2808      jr      z,300eh
+3006 3a4ffc    ld      a,(0fc4fh)        ; No. of characters printed on this line
+3009 fe70      cp      70h
+300b c31630    jp      3016h
 
-5063 3f        ccf     
-5064 52        ld      d,d
-5065 45        ld      b,l
-5066 44        ld      b,h
-5067 4f        ld      c,a
-5068 0d        dec     c
-5069 00        nop     
-506a 3afefd    ld      a,(0fdfeh)        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
-506d b7        or      a
-506e c27b28    jp      nz,287bh
-5071 3ac9fd    ld      a,(0fdc9h)        ; 0 if input from cassette else non-zero
-5074 b7        or      a
-5075 1e2a      ld      e,2ah
-5077 ca8c28    jp      z,288ch            ; ERROR, E=error code
-507a c1        pop     bc
-507b 216330    ld      hl,3063h
-507e cd9b37    call    379bh			; Output a string
-5081 2a06fe    ld      hl,(0fe06h)        ; SAVTXT (During input:  ADDR of code string for current statement)
-5084 c9        ret
 
-5085 cd1c37    call    371ch
-5088 7e        ld      a,(hl)
-5089 cda902    call    02a9h
-508c d623      sub     23h
-508e 32c9fd    ld      (0fdc9h),a        ; 0 if input from cassette else non-zero
-5091 7e        ld      a,(hl)
-5092 2020      jr      nz,50b4h
-5094 cda502    call    02a5h
-5097 e5        push    hl
-5098 06fa      ld      b,0fah
-509a 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
-509d cdc907    call    07c9h			; Casette read routine
-50a0 77        ld      (hl),a
-50a1 23        inc     hl
-50a2 fe0d      cp      0dh
-50a4 2802      jr      z,50a8h
-50a6 10f5      djnz    509dh
-50a8 2b        dec     hl
-50a9 3600      ld      (hl),00h
-50ab cd8007    call    0780h			; Cassette off routine
-50ae 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
-50b1 2b        dec     hl
-50b2 1822      jr      50d6h
-50b4 01c630    ld      bc,30c6h
-50b7 c5        push    bc
-50b8 fe22      cp      22h
-50ba c0        ret     nz
-50bb cd5a37    call    375ah
-50be cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-50bf 3b        dec     sp
-50c0 e5        push    hl
-50c1 cd9e37    call    379eh
-50c4 e1        pop     hl
-50c5 c9        ret     
-50c6 e5        push    hl
-50c7 cd9d2a    call    2a9dh        ; INLIN
-50ca c1        pop     bc
-50cb daa92c    jp      c,2ca9h
-50ce 23        inc     hl
-50cf 7e        ld      a,(hl)
-50d0 b7        or      a
-50d1 2b        dec     hl
-50d2 c5        push    bc
-50d3 caef2d    jp      z,2defh
-50d6 362c      ld      (hl),2ch
-50d8 180e      jr      50e8h
-50da fe23      cp      23h
-50dc caa814    jp      z,14a8h
-50df 3c        inc     a
-50e0 32c9fd    ld      (0fdc9h),a        ; 0 if input from cassette else non-zero
+300e 3a52fc    ld      a,(0fc52h)        ; Last comma column position
+3011 47        ld      b,a
+3012 3ac6fd    ld      a,(0fdc6h)        ; CURPOS (a.k.a. TTYPOS) - Current cursor position (column number)
+3015 b8        cp      b
+3016 d4e92f    call    nc,2fe9h
+3019 3034      jr      nc,304fh
+301b d60e      sub     0eh
+301d 30fc      jr      nc,301bh
+301f 2f        cpl     
+3020 1823      jr      3045h
+
+
+3022 cd0f3a    call    3a0fh		; FNDNUM - Load 'A' with the next nume in BASIC program
+3025 e6ff      and     0ffh
+3027 5f        ld      e,a
+3028 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+3029 29        defb  '('
+302a 2b        dec     hl
+302b e5        push    hl
+302c cdcffe    call    0fecfh
+302f 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+3032 b7        or      a
+3033 fa352d    jp      m,2d35h            ; Error: Illegal function call (FC ERROR)
+3036 ca3e30    jp      z,303eh
+3039 3a4ffc    ld      a,(0fc4fh)        ; No. of characters printed on this line
+303c 1803      jr      3041h
+
+
+303e 3ac6fd    ld      a,(0fdc6h)        ; CURPOS (a.k.a. TTYPOS) - Current cursor position (column number)
+3041 2f        cpl     
+3042 83        add     a,e
+3043 300a      jr      nc,304fh
+3045 3c        inc     a
+3046 47        ld      b,a
+3047 3e20      ld      a,20h		; ' '
+3049 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+304c 05        dec     b
+304d 20fa      jr      nz,3049h
+304f e1        pop     hl
+3050 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+3051 c38b2f    jp      2f8bh
+
+3054 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+3057 b7        or      a
+3058 fc8007    call    m,0780h			; Cassette off routine
+305b af        xor     a
+305c 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+305f cdbafe    call    0febah
+3062 c9        ret
+
+3063 3f        ccf     
+3064 52        ld      d,d
+3065 45        ld      b,l
+3066 44        ld      b,h
+3067 4f        ld      c,a
+3068 0d        dec     c
+3069 00        nop     
+306a 3afefd    ld      a,(0fdfeh)        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
+306d b7        or      a
+306e c27b28    jp      nz,287bh
+3071 3ac9fd    ld      a,(0fdc9h)        ; 0 if input from cassette else non-zero
+3074 b7        or      a
+3075 1e2a      ld      e,2ah
+3077 ca8c28    jp      z,288ch        ; ERROR, E=error code
+307a c1        pop     bc
+307b 216330    ld      hl,3063h
+307e cd9b37    call    379bh			; Output a string
+3081 2a06fe    ld      hl,(0fe06h)            ; SAVTXT (During input:  ADDR of code string for current statement)
+3084 c9        ret
+
+3085 cd1c37    call    371ch
+3088 7e        ld      a,(hl)
+3089 cda902    call    02a9h
+308c d623      sub     23h
+308e 32c9fd    ld      (0fdc9h),a        ; 0 if input from cassette else non-zero
+3091 7e        ld      a,(hl)
+3092 2020      jr      nz,30b4h
+3094 cda502    call    02a5h
+3097 e5        push    hl
+3098 06fa      ld      b,0fah
+309a 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
+309d cdc907    call    07c9h			; Casette read routine
+30a0 77        ld      (hl),a
+30a1 23        inc     hl
+30a2 fe0d      cp      0dh
+30a4 2802      jr      z,30a8h
+30a6 10f5      djnz    309dh
+30a8 2b        dec     hl
+30a9 3600      ld      (hl),00h
+30ab cd8007    call    0780h			; Cassette off routine
+30ae 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
+30b1 2b        dec     hl
+30b2 1822      jr      30d6h
+
+30b4 01c630    ld      bc,30c6h
+30b7 c5        push    bc
+30b8 fe22      cp      22h
+30ba c0        ret     nz
+30bb cd5a37    call    375ah
+30be cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+30bf 3b        dec     sp
+30c0 e5        push    hl
+30c1 cd9e37    call    379eh
+30c4 e1        pop     hl
+30c5 c9        ret
+
+30c6 e5        push    hl
+30c7 cd9d2a    call    2a9dh		; INLIN
+30ca c1        pop     bc
+30cb daa92c    jp      c,2ca9h
+30ce 23        inc     hl
+30cf 7e        ld      a,(hl)
+30d0 b7        or      a
+30d1 2b        dec     hl
+30d2 c5        push    bc
+30d3 caef2d    jp      z,2defh
+30d6 362c      ld      (hl),2ch
+30d8 180e      jr      30e8h
+
+30da fe23      cp      23h
+30dc caa814    jp      z,14a8h
+30df 3c        inc     a
+30e0 32c9fd    ld      (0fdc9h),a        ; 0 if input from cassette else non-zero
 
 ; __READ:
-50e3 e5        push    hl
-50e4 2a1ffe    ld      hl,(0fe1fh)        ; Points to byte following last char
-50e7 f6af      or      0afh
-50e9 32fefd    ld      (0fdfeh),a        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
-50ec e3        ex      (sp),hl
-50ed 1802      jr      50f1h
-50ef cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-50f0 2c        defb    ','
-50f1 cd0135    call    3501h        ; GETVAR: Find address of variable
-50f4 e3        ex      (sp),hl
-50f5 d5        push    de
-50f6 7e        ld      a,(hl)
-50f7 fe2c      cp      ','
-50f9 2826      jr      z,5121h
-50fb 3afefd    ld      a,(0fdfeh)        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
-50fe b7        or      a
-50ff c28a31    jp      nz,318ah
-5102 3ac9fd    ld      a,(0fdc9h)        ; 0 if input from cassette else non-zero
-5105 b7        or      a
-5106 1e06      ld      e,06h
-5108 ca8c28    jp      z,288ch        ; ERROR, E=error code
-510b 3e3f      ld      a,3fh        ; '?'
-510d cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5110 cd9d2a    call    2a9dh        ; INLIN
-5113 d1        pop     de
-5114 c1        pop     bc
-5115 daa92c    jp      c,2ca9h
-5118 23        inc     hl
-5119 7e        ld      a,(hl)
-511a b7        or      a
-511b 2b        dec     hl
-511c c5        push    bc
-511d caef2d    jp      z,2defh
-5120 d5        push    de
-5121 cdd8fe    call    0fed8h
-5124 e7        rst     20h			; GETYPR - Get the number type (FAC)
-5125 f5        push    af
-5126 2019      jr      nz,5141h
-5128 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-5129 57        ld      d,a
-512a 47        ld      b,a
-512b fe22      cp      22h
-512d 2805      jr      z,5134h
-512f 163a      ld      d,3ah
-5131 062c      ld      b,2ch
-5133 2b        dec     hl
-5134 cd5d37    call    375dh
-5137 f1        pop     af
-5138 eb        ex      de,hl
-5139 214e31    ld      hl,314eh
-513c e3        ex      (sp),hl
-513d d5        push    de
-513e c31e2e    jp      2e1eh
+30e3 e5        push    hl
+30e4 2a1ffe    ld      hl,(0fe1fh)        ; Points to byte following last char
+30e7 f6af      or      0afh
+30e9 32fefd    ld      (0fdfeh),a        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
+30ec e3        ex      (sp),hl
+30ed 1802      jr      30f1h
 
-5141 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-5142 f1        pop     af
-5143 f5        push    af
-5144 013731    ld      bc,3137h
-5147 c5        push    bc
-5148 dad61c    jp      c,1cd6h
-514b d2cf1c    jp      nc,1ccfh
-514e 2b        dec     hl
-514f d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-5150 2805      jr      z,5157h
-5152 fe2c      cp      ','
-5154 c26a30    jp      nz,306ah
-5157 e3        ex      (sp),hl
-5158 2b        dec     hl
-5159 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-515a c2ef30    jp      nz,30efh
-515d d1        pop     de
-515e 3ac9fd    ld      a,(0fdc9h)        ; 0 if input from cassette else non-zero
-5161 b7        or      a
-5162 c8        ret     z
-5163 3afefd    ld      a,(0fdfeh)        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
-5166 b7        or      a
-5167 eb        ex      de,hl
-5168 c2802c    jp      nz,2c80h
-516b d5        push    de
-516c cddbfe    call    0fedbh
-516f b6        or      (hl)
-5170 217a31    ld      hl,317ah
-5173 c49b37    call    nz,379bh			; Output a string
-5176 e1        pop     hl
-5177 c35430    jp      3054h
+30ef cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+30f0 2c        defb    ','
+30f1 cd0135    call    3501h        ; GETVAR: Find address of variable
+30f4 e3        ex      (sp),hl
+30f5 d5        push    de
+30f6 7e        ld      a,(hl)
+30f7 fe2c      cp      2ch
+30f9 2826      jr      z,3121h
+30fb 3afefd    ld      a,(0fdfeh)        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
+30fe b7        or      a
+30ff c28a31    jp      nz,318ah
+3102 3ac9fd    ld      a,(0fdc9h)        ; 0 if input from cassette else non-zero
+3105 b7        or      a
+3106 1e06      ld      e,06h
+3108 ca8c28    jp      z,288ch        ; ERROR, E=error code
+310b 3e3f      ld      a,3fh		; '?'
+310d cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+3110 cd9d2a    call    2a9dh		; INLIN
+3113 d1        pop     de
+3114 c1        pop     bc
+3115 daa92c    jp      c,2ca9h
+3118 23        inc     hl
+3119 7e        ld      a,(hl)
+311a b7        or      a
+311b 2b        dec     hl
+311c c5        push    bc
+311d caef2d    jp      z,2defh
+3120 d5        push    de
+3121 cdd8fe    call    0fed8h
+3124 e7        rst     20h			; GETYPR - Get the number type (FAC)
+3125 f5        push    af
+3126 2019      jr      nz,3141h
+3128 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+3129 57        ld      d,a
+312a 47        ld      b,a
+312b fe22      cp      22h
+312d 2805      jr      z,3134h
+312f 163a      ld      d,3ah
+3131 062c      ld      b,2ch
+3133 2b        dec     hl
+3134 cd5d37    call    375dh
+3137 f1        pop     af
+3138 eb        ex      de,hl
+3139 214e31    ld      hl,314eh
+313c e3        ex      (sp),hl
+313d d5        push    de
+313e c31e2e    jp      2e1eh
 
-517a 3f        ccf     
-517b 45        ld      b,l
-517c 78        ld      a,b
-517d 74        ld      (hl),h
-517e 72        ld      (hl),d
-517f 61        ld      h,c
-5180 2069      jr      nz,51ebh
-5182 67        ld      h,a
-5183 6e        ld      l,(hl)
-5184 6f        ld      l,a
-5185 72        ld      (hl),d
-5186 65        ld      h,l
-5187 64        ld      h,h
-5188 0d        dec     c
-5189 00        nop     
-518a cdf02d    call    2df0h
-518d b7        or      a
-518e 2012      jr      nz,51a2h
-5190 23        inc     hl
-5191 7e        ld      a,(hl)
-5192 23        inc     hl
-5193 b6        or      (hl)
-5194 1e06      ld      e,06h
-5196 ca8c28    jp      z,288ch        ; ERROR, E=error code
-5199 23        inc     hl
-519a 5e        ld      e,(hl)
-519b 23        inc     hl
-519c 56        ld      d,(hl)
-519d eb        ex      de,hl
-519e 22fafd    ld      (0fdfah),hl        ; Line No.  of last data statement
-51a1 eb        ex      de,hl
-51a2 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-51a3 fe88      cp      88h
-51a5 20e3      jr      nz,518ah
-51a7 c32131    jp      3121h
-51aa 110000    ld      de,0000h
-51ad c40135    call    nz,3501h        ; GETVAR: Find address of variable
-51b0 22fffd    ld      (0fdffh),hl
-51b3 cd2028    call    2820h
-51b6 c28728    jp      nz,2887h
-51b9 f9        ld      sp,hl
-51ba 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
-51bd d5        push    de
-51be 7e        ld      a,(hl)
-51bf 23        inc     hl
-51c0 f5        push    af
-51c1 d5        push    de
-51c2 7e        ld      a,(hl)
-51c3 23        inc     hl
-51c4 b7        or      a
-51c5 fade31    jp      m,31deh
-51c8 cd1b18    call    181bh            ; Move a SP value -> HL to WRA1
-51cb e3        ex      (sp),hl
-51cc e5        push    hl
-51cd cd7515    call    1575h
-51d0 e1        pop     hl
-51d1 cd3518    call    1835h
-51d4 e1        pop     hl
-51d5 cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
-51d8 e5        push    hl
-51d9 cd7618    call    1876h
-51dc 1829      jr      5207h
-51de 23        inc     hl
-51df 23        inc     hl
-51e0 23        inc     hl
-51e1 23        inc     hl
-51e2 4e        ld      c,(hl)
-51e3 23        inc     hl
-51e4 46        ld      b,(hl)
-51e5 23        inc     hl
-51e6 e3        ex      (sp),hl
-51e7 5e        ld      e,(hl)
-51e8 23        inc     hl
-51e9 56        ld      d,(hl)
-51ea e5        push    hl
-51eb 69        ld      l,c
-51ec 60        ld      h,b
-51ed cd3c1a    call    1a3ch
-51f0 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
-51f3 fe04      cp      04h
-51f5 ca1c16    jp      z,161ch            ; Overflow Error (OV ERROR)
-51f8 eb        ex      de,hl
-51f9 e1        pop     hl
-51fa 72        ld      (hl),d
-51fb 2b        dec     hl
-51fc 73        ld      (hl),e
-51fd e1        pop     hl
-51fe d5        push    de
-51ff 5e        ld      e,(hl)
-5200 23        inc     hl
-5201 56        ld      d,(hl)
-5202 23        inc     hl
-5203 e3        ex      (sp),hl
-5204 cda318    call    18a3h
-5207 e1        pop     hl
-5208 c1        pop     bc
-5209 90        sub     b
-520a cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
-520d 2809      jr      z,5218h
-520f eb        ex      de,hl
-5210 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
-5213 69        ld      l,c
-5214 60        ld      h,b
-5215 c3042c    jp      2c04h
-5218 f9        ld      sp,hl
-5219 2208fe    ld      (0fe08h),hl        ; During execution: stack pointer value when statement execution begins.
-521c 2afffd    ld      hl,(0fdffh)
-521f 7e        ld      a,(hl)
-5220 fe2c      cp      ','
-5222 c2082c    jp      nz,2c08h
-5225 d7        rst     10h                ; CHRGTB: Gets next character (or token) from BASIC text.
-5226 cdad31    call    31adh
-5229 cf        rst     08h                ;   SYNCHR: Check syntax: next byte holds the byte to be found
-522a 282b      jr      z,5257h
-522c 1600      ld      d,00h
-522e d5        push    de
-522f 0e01      ld      c,01h
-5231 cd4d28    call    284dh
-5234 cd9333    call    3393h
-5237 2213fe    ld      (0fe13h),hl        ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
-523a 2a13fe    ld      hl,(0fe13h)        ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
-523d c1        pop     bc
-523e 7e        ld      a,(hl)
-523f 1600      ld      d,00h
-5241 d6d4      sub     0d4h
-5243 3813      jr      c,5258h
-5245 fe03      cp      03h
-5247 300f      jr      nc,5258h
-5249 fe01      cp      01h
-524b 17        rla     
-524c aa        xor     d
-524d ba        cp      d
-524e 57        ld      d,a
-524f da8128    jp      c,2881h            ; Syntax Error (SN ERROR)
-5252 22f8fd    ld      (0fdf8h),hl        ; 1: Index of last byte executed in current statement- 2: Edit flag during print using
-5255 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-5256 18e9      jr      5241h
-5258 7a        ld      a,d
-5259 b7        or      a
-525a c2e032    jp      nz,32e0h
-525d 7e        ld      a,(hl)
-525e 22f8fd    ld      (0fdf8h),hl        ; 1: Index of last byte executed in current statement- 2: Edit flag during print using
-5261 d6cd      sub     0cdh
-5263 d8        ret     c
-5264 fe07      cp      07h
-5266 d0        ret     nc
-5267 5f        ld      e,a
-5268 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
-526b d603      sub     03h
-526d b3        or      e
-526e ca8338    jp      z,3883h
-5271 218227    ld      hl,2782h
-5274 19        add     hl,de
-5275 78        ld      a,b
-5276 56        ld      d,(hl)
-5277 ba        cp      d
-5278 d0        ret     nc
-5279 c5        push    bc
-527a 013a32    ld      bc,323ah
-527d c5        push    bc
-527e 7a        ld      a,d
-527f fe7f      cp      7fh
-5281 cac832    jp      z,32c8h
-5284 fe51      cp      51h
-5286 dad532    jp      c,32d5h
-5289 2141fe    ld      hl,0fe41h        ; FACCU
-528c b7        or      a
-528d 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
-5290 3d        dec     a
-5291 3d        dec     a
-5292 3d        dec     a
-5293 ca6019    jp      z,1960h
-5296 4e        ld      c,(hl)
-5297 23        inc     hl
-5298 46        ld      b,(hl)
-5299 c5        push    bc
-529a fab932    jp      m,32b9h
-529d 23        inc     hl
-529e 4e        ld      c,(hl)
-529f 23        inc     hl
-52a0 46        ld      b,(hl)
-52a1 c5        push    bc
-52a2 f5        push    af
-52a3 b7        or      a
-52a4 e2b832    jp      po,32b8h
-52a7 f1        pop     af
-52a8 23        inc     hl
-52a9 3803      jr      c,52aeh
-52ab 213dfe    ld      hl,0fe3dh
-52ae 4e        ld      c,(hl)
-52af 23        inc     hl
-52b0 46        ld      b,(hl)
-52b1 23        inc     hl
-52b2 c5        push    bc
-52b3 4e        ld      c,(hl)
-52b4 23        inc     hl
-52b5 46        ld      b,(hl)
-52b6 c5        push    bc
-52b7 06f1      ld      b,0f1h
-52b9 c603      add     a,03h
-52bb 4b        ld      c,e
-52bc 47        ld      b,a
-52bd c5        push    bc
-52be 01fa32    ld      bc,32fah
-52c1 c5        push    bc
-52c2 2af8fd    ld      hl,(0fdf8h)        ; 1: Index of last byte executed in current statement- 2: Edit flag during print using
-52c5 c32e32    jp      322eh        ; EVAL1
+3141 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+3142 f1        pop     af
+3143 f5        push    af
+3144 013731    ld      bc,3137h
+3147 c5        push    bc
+3148 dad61c    jp      c,1cd6h
+314b d2cf1c    jp      nc,1ccfh
+314e 2b        dec     hl
+314f d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+3150 2805      jr      z,3157h
+3152 fe2c      cp      2ch
+3154 c26a30    jp      nz,306ah
+3157 e3        ex      (sp),hl
+3158 2b        dec     hl
+3159 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+315a c2ef30    jp      nz,30efh
+315d d1        pop     de
+315e 3ac9fd    ld      a,(0fdc9h)        ; 0 if input from cassette else non-zero
+3161 b7        or      a
+3162 c8        ret     z
+3163 3afefd    ld      a,(0fdfeh)        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
+3166 b7        or      a
+3167 eb        ex      de,hl
+3168 c2802c    jp      nz,2c80h
+316b d5        push    de
+316c cddbfe    call    0fedbh
+316f b6        or      (hl)
+3170 217a31    ld      hl,317ah
+3173 c49b37    call    nz,379bh			; Output a string
+3176 e1        pop     hl
+3177 c35430    jp      3054h
 
-52c8 cd1b19    call    191bh
-52cb cd0e18    call    180eh                ; Move WRA1 to stack
-52ce 015c22    ld      bc,225ch
-52d1 167f      ld      d,7fh
-52d3 18ec      jr      52c1h
-52d5 d5        push    de
-52d6 cde918    call    18e9h            ; GETWORD_HL: Floating point to Integer
-52d9 d1        pop     de
-52da e5        push    hl
-52db 01dd34    ld      bc,34ddh
-52de 18e1      jr      52c1h
-52e0 78        ld      a,b
-52e1 fe64      cp      64h
-52e3 d0        ret     nc
-52e4 c5        push    bc
-52e5 d5        push    de
-52e6 110464    ld      de,6404h
-52e9 21ac34    ld      hl,34ach
-52ec e5        push    hl
-52ed e7        rst     20h			; GETYPR - Get the number type (FAC)
-52ee c28932    jp      nz,3289h
-52f1 2a41fe    ld      hl,(0fe41h)        ; FACCU
-52f4 e5        push    hl
-52f5 018034    ld      bc,3480h
-52f8 18c7      jr      52c1h
 
-52fa c1        pop     bc
-52fb 79        ld      a,c
-52fc 32d0fd    ld      (0fdd0h),a
-52ff 78        ld      a,b
-5300 fe08      cp      08h
-5302 2828      jr      z,532ch
-5304 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
-5307 fe08      cp      08h
-5309 ca5433    jp      z,3354h
-530c 57        ld      d,a
-530d 78        ld      a,b
-530e fe04      cp      04h
-5310 ca6633    jp      z,3366h
-5313 7a        ld      a,d
-5314 fe03      cp      03h
-5316 ca6019    jp      z,1960h
-5319 d27033    jp      nc,3370h
-531c 21a727    ld      hl,27a7h
-531f 0600      ld      b,00h
-5321 09        add     hl,bc
-5322 09        add     hl,bc
-5323 4e        ld      c,(hl)
-5324 23        inc     hl
-5325 46        ld      b,(hl)
-5326 d1        pop     de
-5327 2a41fe    ld      hl,(0fe41h)        ; FACCU
-532a c5        push    bc
-532b c9        ret     
-532c cd4519    call    1945h
-532f cd6618    call    1866h
-5332 e1        pop     hl
-5333 223ffe    ld      (0fe3fh),hl
-5336 e1        pop     hl
-5337 223dfe    ld      (0fe3dh),hl
-533a c1        pop     bc
-533b d1        pop     de
-533c cd1e18    call    181eh            ; Move SP value in BC/DE into WRA1
-533f cd4519    call    1945h
-5342 219327    ld      hl,2793h
-5345 3ad0fd    ld      a,(0fdd0h)
-5348 07        rlca    
-5349 c5        push    bc
-534a 4f        ld      c,a
-534b 0600      ld      b,00h
-534d 09        add     hl,bc
-534e c1        pop     bc
-534f 7e        ld      a,(hl)
-5350 23        inc     hl
-5351 66        ld      h,(hl)
-5352 6f        ld      l,a
-5353 e9        jp      (hl)
+317a 3f        ccf     
+317b 45        ld      b,l
+317c 78        ld      a,b
+317d 74        ld      (hl),h
+317e 72        ld      (hl),d
+317f 61        ld      h,c
+3180 2069      jr      nz,31ebh
+3182 67        ld      h,a
+3183 6e        ld      l,(hl)
+3184 6f        ld      l,a
+3185 72        ld      (hl),d
+3186 65        ld      h,l
+3187 64        ld      h,h
+3188 0d        dec     c
+3189 00        nop     
+318a cdf02d    call    2df0h
+318d b7        or      a
+318e 2012      jr      nz,31a2h
+3190 23        inc     hl
+3191 7e        ld      a,(hl)
+3192 23        inc     hl
+3193 b6        or      (hl)
+3194 1e06      ld      e,06h
+3196 ca8c28    jp      z,288ch        ; ERROR, E=error code
+3199 23        inc     hl
+319a 5e        ld      e,(hl)
+319b 23        inc     hl
+319c 56        ld      d,(hl)
+319d eb        ex      de,hl
+319e 22fafd    ld      (0fdfah),hl        ; Line No.  of last data statement
+31a1 eb        ex      de,hl
+31a2 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+31a3 fe88      cp      88h
+31a5 20e3      jr      nz,318ah
+31a7 c32131    jp      3121h
 
-5354 c5        push    bc
-5355 cd6618    call    1866h
-5358 f1        pop     af
-5359 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
-535c fe04      cp      04h
-535e 28da      jr      z,533ah
-5360 e1        pop     hl
-5361 2241fe    ld      (0fe41h),hl        ; FACCU
-5364 18d9      jr      533fh
-5366 cd1b19    call    191bh
-5369 c1        pop     bc
-536a d1        pop     de
-536b 219d27    ld      hl,279dh
-536e 18d5      jr      5345h
-5370 e1        pop     hl
-5371 cd0e18    call    180eh                ; Move WRA1 to stack
-5374 cd3919    call    1939h
-5377 cd2918    call    1829h
-537a e1        pop     hl
-537b 2243fe    ld      (0fe43h),hl
-537e e1        pop     hl
-537f 2241fe    ld      (0fe41h),hl        ; FACCU
-5382 18e7      jr      536bh
-5384 e5        push    hl
-5385 eb        ex      de,hl
-5386 cd3919    call    1939h
-5389 e1        pop     hl
-538a cd0e18    call    180eh                ; Move WRA1 to stack
-538d cd3919    call    1939h
-5390 c30a17    jp      170ah
+31aa 110000    ld      de,0000h
+31ad c40135    call    nz,3501h        ; GETVAR: Find address of variable
+31b0 22fffd    ld      (0fdffh),hl
+31b3 cd2028    call    2820h
+31b6 c28728    jp      nz,2887h
+31b9 f9        ld      sp,hl
+31ba 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
+31bd d5        push    de
+31be 7e        ld      a,(hl)
+31bf 23        inc     hl
+31c0 f5        push    af
+31c1 d5        push    de
+31c2 7e        ld      a,(hl)
+31c3 23        inc     hl
+31c4 b7        or      a
+31c5 fade31    jp      m,31deh
+31c8 cd1b18    call    181bh            ; PHLTFP - Move a SP value -> HL to WRA1
+31cb e3        ex      (sp),hl
+31cc e5        push    hl
+31cd cd7515    call    1575h			; ADDPHL - ADD number at HL to BCDE
+31d0 e1        pop     hl
+31d1 cd3518    call    1835h
+31d4 e1        pop     hl
+31d5 cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
+31d8 e5        push    hl
+31d9 cd7618    call    1876h			; CMPNUM - Compare FP reg to BCDE
+31dc 1829      jr      3207h
 
-5393 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-5394 1e28      ld      e,28h
-5396 ca8c28    jp      z,288ch        ; ERROR, E=error code
-5399 dad61c    jp      c,1cd6h
-539c cd282d    call    2d28h        ; IS_ALPHA_A
-539f d23434    jp      nc,3434h
-53a2 fecd      cp      0cdh
-53a4 28ed      jr      z,5393h
-53a6 fe2e      cp      2eh
-53a8 cad61c    jp      z,1cd6h
-53ab fece      cp      0ceh
-53ad ca2634    jp      z,3426h
-53b0 fe22      cp      22h
-53b2 ca5a37    jp      z,375ah
-53b5 fecb      cp      0cbh
-53b7 cab834    jp      z,34b8h
-53ba fe26      cp      26h
-53bc ca203f    jp      z,3f20h
-53bf fec3      cp      0c3h
-53c1 200a      jr      nz,53cdh
-53c3 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-53c4 3a4efc    ld      a,(0fc4eh)            ; ERRFLG:  ERROR FLAG
-53c7 e5        push    hl
-53c8 cdec36    call    36ech			; UNSIGNED_RESULT_A
-53cb e1        pop     hl
-53cc c9        ret
 
-53cd fec2      cp      0c2h
-53cf 200a      jr      nz,53dbh
-53d1 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-53d2 e5        push    hl
-53d3 2a0afe    ld      hl,(0fe0ah)            ; ERRLIN: Line No. in which error occured.
-53d6 cdd01a    call    1ad0h
-53d9 e1        pop     hl
-53da c9        ret
 
-53db fec0      cp      0c0h
-53dd 2014      jr      nz,53f3h
-53df d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-53e0 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-53e1 28cd      jr      z,53b0h
-53e3 0135cf    ld      bc,0cf35h
-53e6 29        add     hl,hl
-53e7 e5        push    hl
-53e8 eb        ex      de,hl
-53e9 7c        ld      a,h
-53ea b5        or      l
-53eb ca352d    jp      z,2d35h            ; Error: Illegal function call (FC ERROR)
-53ee cd0419    call    1904h
-53f1 e1        pop     hl
-53f2 c9        ret
+31de 23        inc     hl
+31df 23        inc     hl
+31e0 23        inc     hl
+31e1 23        inc     hl
+31e2 4e        ld      c,(hl)
+31e3 23        inc     hl
+31e4 46        ld      b,(hl)
+31e5 23        inc     hl
+31e6 e3        ex      (sp),hl
+31e7 5e        ld      e,(hl)
+31e8 23        inc     hl
+31e9 56        ld      d,(hl)
+31ea e5        push    hl
+31eb 69        ld      l,c
+31ec 60        ld      h,b
+31ed cd3c1a    call    1a3ch
+31f0 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+31f3 fe04      cp      04h
+31f5 ca1c16    jp      z,161ch            ; Overflow Error (OV ERROR)
+31f8 eb        ex      de,hl
+31f9 e1        pop     hl
+31fa 72        ld      (hl),d
+31fb 2b        dec     hl
+31fc 73        ld      (hl),e
+31fd e1        pop     hl
+31fe d5        push    de
+31ff 5e        ld      e,(hl)
+3200 23        inc     hl
+3201 56        ld      d,(hl)
+3202 23        inc     hl
+3203 e3        ex      (sp),hl
+3204 cda318    call    18a3h
+3207 e1        pop     hl
+3208 c1        pop     bc
+3209 90        sub     b
+320a cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
+320d 2809      jr      z,3218h
+320f eb        ex      de,hl
+3210 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
+3213 69        ld      l,c
+3214 60        ld      h,b
+3215 c3042c    jp      2c04h
 
-53f3 fec1      cp      0c1h
-53f5 caf236    jp      z,36f2h
-53f8 fec5      cp      0c5h
-53fa ca243f    jp      z,3f24h
-53fd fec8      cp      0c8h
-53ff cabd36    jp      z,36bdh
-5402 fec7      cp      0c7h
-5404 ca96fe    jp      z,0fe96h
-5407 fec6      cp      0c6h
-5409 cae10d    jp      z,0de1h
-540c fec9      cp      0c9h
-540e cabe09    jp      z,09beh
-5411 fec4      cp      0c4h
-5413 ca2339    jp      z,3923h
-5416 febe      cp      0beh
-5418 ca75fe    jp      z,0fe75h
-541b d6d7      sub     0d7h
-541d d24234    jp      nc,3442h
-5420 cd2932    call    3229h
-5423 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-5424 29        defb    ')'
-5425 c9        ret
+3218 f9        ld      sp,hl
+3219 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
+321c 2afffd    ld      hl,(0fdffh)
+321f 7e        ld      a,(hl)
+3220 fe2c      cp      2ch
+3222 c2082c    jp      nz,2c08h
+3225 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+3226 cdad31    call    31adh
+3229 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+322a 28        defb    '('
+
+; EVAL
+322b 2b        dec     hl
+322c 1600      ld      d,00h
+
+; EVAL1
+322e d5        push    de
+322f 0e01      ld      c,01h
+3231 cd4d28    call    284dh			; CHKSTK - Check for C levels of stack
+3234 cd9333    call    3393h			; OPRND: Get next expression value
+3237 2213fe    ld      (0fe13h),hl    ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
+323a 2a13fe    ld      hl,(0fe13h)    ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
+323d c1        pop     bc
+323e 7e        ld      a,(hl)
+323f 1600      ld      d,00h
+3241 d6d4      sub     0d4h
+3243 3813      jr      c,3258h
+3245 fe03      cp      03h
+3247 300f      jr      nc,3258h
+3249 fe01      cp      01h
+324b 17        rla     
+324c aa        xor     d
+324d ba        cp      d
+324e 57        ld      d,a
+324f da8128    jp      c,2881h            ; Syntax Error (SN ERROR)
+3252 22f8fd    ld      (0fdf8h),hl        ; 1: Index of last byte executed in current statement- 2: Edit flag during print using
+3255 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+3256 18e9      jr      3241h
+
+
+3258 7a        ld      a,d
+3259 b7        or      a
+325a c2e032    jp      nz,32e0h
+325d 7e        ld      a,(hl)
+325e 22f8fd    ld      (0fdf8h),hl        ; 1: Index of last byte executed in current statement- 2: Edit flag during print using
+3261 d6cd      sub     0cdh
+3263 d8        ret     c
+3264 fe07      cp      07h
+3266 d0        ret     nc
+3267 5f        ld      e,a
+3268 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+326b d603      sub     03h
+326d b3        or      e
+326e ca8338    jp      z,3883h
+3271 218227    ld      hl,2782h
+3274 19        add     hl,de
+3275 78        ld      a,b
+3276 56        ld      d,(hl)
+3277 ba        cp      d
+3278 d0        ret     nc
+3279 c5        push    bc
+327a 013a32    ld      bc,323ah
+327d c5        push    bc
+327e 7a        ld      a,d
+327f fe7f      cp      7fh
+3281 cac832    jp      z,32c8h
+3284 fe51      cp      51h
+3286 dad532    jp      c,32d5h
+3289 2141fe    ld      hl,0fe41h        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+328c b7        or      a
+328d 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+3290 3d        dec     a
+3291 3d        dec     a
+3292 3d        dec     a
+3293 ca6019    jp      z,1960h
+3296 4e        ld      c,(hl)
+3297 23        inc     hl
+3298 46        ld      b,(hl)
+3299 c5        push    bc
+329a fab932    jp      m,32b9h
+329d 23        inc     hl
+329e 4e        ld      c,(hl)
+329f 23        inc     hl
+32a0 46        ld      b,(hl)
+32a1 c5        push    bc
+32a2 f5        push    af
+32a3 b7        or      a
+32a4 e2b832    jp      po,32b8h
+32a7 f1        pop     af
+32a8 23        inc     hl
+32a9 3803      jr      c,32aeh
+32ab 213dfe    ld      hl,0fe3dh
+32ae 4e        ld      c,(hl)
+32af 23        inc     hl
+32b0 46        ld      b,(hl)
+32b1 23        inc     hl
+32b2 c5        push    bc
+32b3 4e        ld      c,(hl)
+32b4 23        inc     hl
+32b5 46        ld      b,(hl)
+32b6 c5        push    bc
+32b7 06f1      ld      b,0f1h
+32b9 c603      add     a,03h
+32bb 4b        ld      c,e
+32bc 47        ld      b,a
+32bd c5        push    bc
+32be 01fa32    ld      bc,32fah
+32c1 c5        push    bc
+32c2 2af8fd    ld      hl,(0fdf8h)        ; 1: Index of last byte executed in current statement- 2: Edit flag during print using
+32c5 c32e32    jp      322eh        ; EVAL1
+
+
+32c8 cd1b19    call    191bh
+32cb cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+32ce 015c22    ld      bc,225ch
+32d1 167f      ld      d,7fh
+32d3 18ec      jr      32c1h
+
+
+32d5 d5        push    de
+32d6 cde918    call    18e9h            ; GETWORD_HL: Floating point to Integer
+32d9 d1        pop     de
+32da e5        push    hl
+32db 01dd34    ld      bc,34ddh
+32de 18e1      jr      32c1h
+
+32e0 78        ld      a,b
+32e1 fe64      cp      64h
+32e3 d0        ret     nc
+32e4 c5        push    bc
+32e5 d5        push    de
+32e6 110464    ld      de,6404h
+32e9 21ac34    ld      hl,34ach
+32ec e5        push    hl
+32ed e7        rst     20h			; GETYPR - Get the number type (FAC)
+32ee c28932    jp      nz,3289h
+32f1 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+32f4 e5        push    hl
+32f5 018034    ld      bc,3480h
+32f8 18c7      jr      32c1h
+
+32fa c1        pop     bc
+32fb 79        ld      a,c
+32fc 32d0fd    ld      (0fdd0h),a
+32ff 78        ld      a,b
+3300 fe08      cp      08h
+3302 2828      jr      z,332ch
+3304 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+3307 fe08      cp      08h
+3309 ca5433    jp      z,3354h
+330c 57        ld      d,a
+330d 78        ld      a,b
+330e fe04      cp      04h
+3310 ca6633    jp      z,3366h
+3313 7a        ld      a,d
+3314 fe03      cp      03h
+3316 ca6019    jp      z,1960h
+3319 d27033    jp      nc,3370h
+331c 21a727    ld      hl,27a7h
+331f 0600      ld      b,00h
+3321 09        add     hl,bc
+3322 09        add     hl,bc
+3323 4e        ld      c,(hl)
+3324 23        inc     hl
+3325 46        ld      b,(hl)
+3326 d1        pop     de
+3327 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+332a c5        push    bc
+332b c9        ret
+
+332c cd4519    call    1945h
+332f cd6618    call    1866h
+3332 e1        pop     hl
+3333 223ffe    ld      (0fe3fh),hl
+3336 e1        pop     hl
+3337 223dfe    ld      (0fe3dh),hl
+333a c1        pop     bc
+333b d1        pop     de
+333c cd1e18    call    181eh            ; FPBCDE: Move SP value in BC/DE into WRA1
+333f cd4519    call    1945h
+3342 219327    ld      hl,2793h
+3345 3ad0fd    ld      a,(0fdd0h)
+3348 07        rlca    
+3349 c5        push    bc
+334a 4f        ld      c,a
+334b 0600      ld      b,00h
+334d 09        add     hl,bc
+334e c1        pop     bc
+334f 7e        ld      a,(hl)
+3350 23        inc     hl
+3351 66        ld      h,(hl)
+3352 6f        ld      l,a
+3353 e9        jp      (hl)
+3354 c5        push    bc
+3355 cd6618    call    1866h
+3358 f1        pop     af
+3359 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+335c fe04      cp      04h
+335e 28da      jr      z,333ah
+3360 e1        pop     hl
+3361 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+3364 18d9      jr      333fh
+
+3366 cd1b19    call    191bh
+3369 c1        pop     bc
+336a d1        pop     de
+336b 219d27    ld      hl,279dh
+336e 18d5      jr      3345h
+
+
+3370 e1        pop     hl
+3371 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+3374 cd3919    call    1939h
+3377 cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
+337a e1        pop     hl
+337b 2243fe    ld      (0fe43h),hl		; LAST-FPREG - Last byte in Single Precision FP Register (+sign bit)
+337e e1        pop     hl
+337f 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+3382 18e7      jr      336bh
+
+3384 e5        push    hl
+3385 eb        ex      de,hl
+3386 cd3919    call    1939h
+3389 e1        pop     hl
+338a cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+338d cd3919    call    1939h
+3390 c30a17    jp      170ah			; DIV - Divide FP by number on stack
+
+; OPRND: Get next expression value
+3393 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+3394 1e28      ld      e,28h
+3396 ca8c28    jp      z,288ch        ; ERROR, E=error code
+3399 dad61c    jp      c,1cd6h
+339c cd282d    call    2d28h        ; IS_ALPHA_A
+339f d23434    jp      nc,3434h
+33a2 fecd      cp      0cdh
+33a4 28ed      jr      z,3393h		; OPRND: Get next expression value
+33a6 fe2e      cp      2eh
+33a8 cad61c    jp      z,1cd6h
+33ab fece      cp      0ceh
+33ad ca2634    jp      z,3426h		; OPRND_SUB
+33b0 fe22      cp      22h
+33b2 ca5a37    jp      z,375ah
+33b5 fecb      cp      0cbh
+33b7 cab834    jp      z,34b8h
+33ba fe26      cp      26h
+33bc ca203f    jp      z,3f20h
+33bf fec3      cp      0c3h
+33c1 200a      jr      nz,33cdh
+33c3 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+33c4 3a4efc    ld      a,(0fc4eh)            ; ERRFLG
+33c7 e5        push    hl
+33c8 cdec36    call    36ech			; UNSIGNED_RESULT_A
+33cb e1        pop     hl
+33cc c9        ret
+
+33cd fec2      cp      0c2h
+33cf 200a      jr      nz,33dbh
+33d1 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+33d2 e5        push    hl
+33d3 2a0afe    ld      hl,(0fe0ah)            ; ERRLIN: Line No. in which error occured.
+33d6 cdd01a    call    1ad0h
+33d9 e1        pop     hl
+33da c9        ret
+
+33db fec0      cp      0c0h
+33dd 2014      jr      nz,33f3h
+33df d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+33e0 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+33e1 28cd      jr      z,33b0h
+33e3 0135cf    ld      bc,0cf35h
+33e6 29        add     hl,hl
+33e7 e5        push    hl
+33e8 eb        ex      de,hl
+33e9 7c        ld      a,h
+33ea b5        or      l
+33eb ca352d    jp      z,2d35h            ; Error: Illegal function call (FC ERROR)
+33ee cd0419    call    1904h		; INT_RESULT_HL
+33f1 e1        pop     hl
+33f2 c9        ret
+
+33f3 fec1      cp      0c1h
+33f5 caf236    jp      z,36f2h
+33f8 fec5      cp      0c5h
+33fa ca243f    jp      z,3f24h
+33fd fec8      cp      0c8h
+33ff cabd36    jp      z,36bdh
+3402 fec7      cp      0c7h
+3404 ca96fe    jp      z,0fe96h
+3407 fec6      cp      0c6h
+3409 cae10d    jp      z,0de1h
+340c fec9      cp      0c9h
+340e cabe09    jp      z,09beh
+3411 fec4      cp      0c4h
+3413 ca2339    jp      z,3923h
+3416 febe      cp      0beh
+3418 ca75fe    jp      z,0fe75h
+341b d6d7      sub     0d7h
+341d d24234    jp      nc,3442h
+3420 cd2932    call    3229h
+3423 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+3424 29        defb  '('
+3425 c9        ret
 
 ; OPRND_SUB:
-5426 167d      ld      d,7dh
-5428 cd2e32    call    322eh        ; EVAL1
-542b 2a13fe    ld      hl,(0fe13h)        ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
-542e e5        push    hl
-542f cde517    call    17e5h        ; INVSGN
-5432 e1        pop     hl
-5433 c9        ret
-   
-5434 cd0135    call    3501h        ; GETVAR: Find address of variable
-5437 e5        push    hl
-5438 eb        ex      de,hl
-5439 2241fe    ld      (0fe41h),hl        ; FACCU
-543c e7        rst     20h			; GETYPR - Get the number type (FAC)
-543d c46118    call    nz,1861h
-5440 e1        pop     hl
-5441 c9        ret
+3426 167d      ld      d,7dh
+3428 cd2e32    call    322eh        ; EVAL1
+342b 2a13fe    ld      hl,(0fe13h)    ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
+342e e5        push    hl
+342f cde517    call    17e5h        ; INVSGN
+3432 e1        pop     hl
+3433 c9        ret
 
-5442 0600      ld      b,00h
-5444 07        rlca    
-5445 4f        ld      c,a
-5446 c5        push    bc
-5447 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-5448 79        ld      a,c
-5449 fe41      cp      41h
-544b 3816      jr      c,5463h
-544d cd2932    call    3229h
-5450 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-5451 2c        defb    ','
-5452 cd5e19    call    195eh
-5455 eb        ex      de,hl
-5456 2a41fe    ld      hl,(0fe41h)        ; FACCU
-5459 e3        ex      (sp),hl
-545a e5        push    hl
-545b eb        ex      de,hl
-545c cd103a    call    3a10h		; GETINT
-545f eb        ex      de,hl
-5460 e3        ex      (sp),hl
-5461 1814      jr      5477h
+3434 cd0135    call    3501h        ; GETVAR: Find address of variable
+3437 e5        push    hl
+3438 eb        ex      de,hl
+3439 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+343c e7        rst     20h			; GETYPR - Get the number type (FAC)
+343d c46118    call    nz,1861h
+3440 e1        pop     hl
+3441 c9        ret
 
-5463 cd2034    call    3420h
-5466 e3        ex      (sp),hl
-5467 7d        ld      a,l
-5468 fe0c      cp      0ch
-546a 3807      jr      c,5473h
-546c fe1b      cp      1bh
-546e e5        push    hl
-546f dc1b19    call    c,191bh
-5472 e1        pop     hl
-5473 113234    ld      de,3432h
-5476 d5        push    de
-5477 01e624    ld      bc,24e6h
-547a 09        add     hl,bc
-547b 4e        ld      c,(hl)
-547c 23        inc     hl
-547d 66        ld      h,(hl)
-547e 69        ld      l,c
-547f e9        jp      (hl)
-5480 cdcb38    call    38cbh			; GETSTR
-5483 7e        ld      a,(hl)
-5484 23        inc     hl
-5485 4e        ld      c,(hl)
-5486 23        inc     hl
-5487 46        ld      b,(hl)
-5488 d1        pop     de
-5489 c5        push    bc
-548a f5        push    af
-548b cdd238    call    38d2h		; GSTRDE
-548e d1        pop     de
-548f 5e        ld      e,(hl)
-5490 23        inc     hl
-5491 4e        ld      c,(hl)
-5492 23        inc     hl
-5493 46        ld      b,(hl)
-5494 e1        pop     hl
-5495 7b        ld      a,e
-5496 b2        or      d
-5497 c8        ret     z
-5498 7a        ld      a,d
-5499 d601      sub     01h
-549b d8        ret     c
-549c af        xor     a
-549d bb        cp      e
-549e 3c        inc     a
-549f d0        ret     nc
-54a0 15        dec     d
-54a1 1d        dec     e
-54a2 0a        ld      a,(bc)
-54a3 be        cp      (hl)
-54a4 23        inc     hl
-54a5 03        inc     bc
-54a6 28ed      jr      z,5495h
-54a8 3f        ccf     
-54a9 c3ca17    jp      17cah
-54ac 3c        inc     a
-54ad 8f        adc     a,a
-54ae c1        pop     bc
-54af a0        and     b
-54b0 c6ff      add     a,0ffh
-54b2 9f        sbc     a,a
-54b3 cdf717    call    17f7h
-54b6 1812      jr      54cah
-54b8 165a      ld      d,5ah
-54ba cd2e32    call    322eh        ; EVAL1
-54bd cde918    call    18e9h            ; GETWORD_HL: Floating point to Integer
-54c0 7d        ld      a,l
-54c1 2f        cpl     
-54c2 6f        ld      l,a
-54c3 7c        ld      a,h
-54c4 2f        cpl     
-54c5 67        ld      h,a
-54c6 2241fe    ld      (0fe41h),hl        ; FACCU
-54c9 c1        pop     bc
-54ca c33a32    jp      323ah
-54cd 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
-54d0 fe08      cp      08h
-54d2 3005      jr      nc,54d9h
-54d4 d603      sub     03h
-54d6 b7        or      a
-54d7 37        scf     
-54d8 c9        ret     
-54d9 d603      sub     03h
-54db b7        or      a
-54dc c9        ret     
-54dd c5        push    bc
-54de cde918    call    18e9h            ; GETWORD_HL: Floating point to Integer
-54e1 f1        pop     af
-54e2 d1        pop     de
-54e3 01ee36    ld      bc,36eeh
-54e6 c5        push    bc
-54e7 fe46      cp      46h
-54e9 2006      jr      nz,54f1h
-54eb 7b        ld      a,e
-54ec b5        or      l
-54ed 6f        ld      l,a
-54ee 7c        ld      a,h
-54ef b2        or      d
-54f0 c9        ret     
-54f1 7b        ld      a,e
-54f2 a5        and     l
-54f3 6f        ld      l,a
-54f4 7c        ld      a,h
-54f5 a2        and     d
-54f6 c9        ret
+3442 0600      ld      b,00h
+3444 07        rlca    
+3445 4f        ld      c,a
+3446 c5        push    bc
+3447 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+3448 79        ld      a,c
+3449 fe41      cp      41h
+344b 3816      jr      c,3463h
+344d cd2932    call    3229h
+3450 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+3451 2c        defb    ','
+3452 cd5e19    call    195eh
+3455 eb        ex      de,hl
+3456 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+3459 e3        ex      (sp),hl
+345a e5        push    hl
+345b eb        ex      de,hl
+345c cd103a    call    3a10h		; GETINT
+345f eb        ex      de,hl
+3460 e3        ex      (sp),hl
+3461 1814      jr      3477h
 
-54f7 2b        dec     hl
-54f8 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 
-54f9 c8        ret     z
-54fa cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-54fb 2c        defb    ','
+3463 cd2034    call    3420h
+3466 e3        ex      (sp),hl
+3467 7d        ld      a,l
+3468 fe0c      cp      0ch
+346a 3807      jr      c,3473h
+346c fe1b      cp      1bh
+346e e5        push    hl
+346f dc1b19    call    c,191bh
+3472 e1        pop     hl
+3473 113234    ld      de,3432h
+3476 d5        push    de
+3477 01e624    ld      bc,24e6h			; # JP table for functions = $24E6
+347a 09        add     hl,bc
+347b 4e        ld      c,(hl)
+347c 23        inc     hl
+347d 66        ld      h,(hl)
+347e 69        ld      l,c
+347f e9        jp      (hl)
+3480 cdcb38    call    38cbh			; GETSTR
+3483 7e        ld      a,(hl)
+3484 23        inc     hl
+3485 4e        ld      c,(hl)
+3486 23        inc     hl
+3487 46        ld      b,(hl)
+3488 d1        pop     de
+3489 c5        push    bc
+348a f5        push    af
+348b cdd238    call    38d2h		; GSTRDE
+348e d1        pop     de
+348f 5e        ld      e,(hl)
+3490 23        inc     hl
+3491 4e        ld      c,(hl)
+3492 23        inc     hl
+3493 46        ld      b,(hl)
+3494 e1        pop     hl
+3495 7b        ld      a,e
+3496 b2        or      d
+3497 c8        ret     z
+3498 7a        ld      a,d
+3499 d601      sub     01h
+349b d8        ret     c
+349c af        xor     a
+349d bb        cp      e
+349e 3c        inc     a
+349f d0        ret     nc
+34a0 15        dec     d
+34a1 1d        dec     e
+34a2 0a        ld      a,(bc)
+34a3 be        cp      (hl)
+34a4 23        inc     hl
+34a5 03        inc     bc
+34a6 28ed      jr      z,3495h
+34a8 3f        ccf     
+34a9 c3ca17    jp      17cah
+34ac 3c        inc     a
+34ad 8f        adc     a,a
+34ae c1        pop     bc
+34af a0        and     b
+34b0 c6ff      add     a,0ffh
+34b2 9f        sbc     a,a
+34b3 cdf717    call    17f7h		; INT_RESULT_A  - Get back from function, result in A (signed)
+34b6 1812      jr      34cah
+
+34b8 165a      ld      d,5ah
+34ba cd2e32    call    322eh        ; EVAL1
+34bd cde918    call    18e9h            ; GETWORD_HL: Floating point to Integer
+34c0 7d        ld      a,l
+34c1 2f        cpl     
+34c2 6f        ld      l,a
+34c3 7c        ld      a,h
+34c4 2f        cpl     
+34c5 67        ld      h,a
+34c6 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+34c9 c1        pop     bc
+34ca c33a32    jp      323ah
+
+; GETYPR - Get the number type (FAC)
+34cd 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+34d0 fe08      cp      08h
+34d2 3005      jr      nc,34d9h
+34d4 d603      sub     03h
+34d6 b7        or      a
+34d7 37        scf     
+34d8 c9        ret
+
+34d9 d603      sub     03h
+34db b7        or      a
+34dc c9        ret
+
+34dd c5        push    bc
+34de cde918    call    18e9h            ; GETWORD_HL: Floating point to Integer
+34e1 f1        pop     af
+34e2 d1        pop     de
+34e3 01ee36    ld      bc,36eeh
+34e6 c5        push    bc
+34e7 fe46      cp      46h
+34e9 2006      jr      nz,34f1h
+34eb 7b        ld      a,e
+34ec b5        or      l
+34ed 6f        ld      l,a
+34ee 7c        ld      a,h
+34ef b2        or      d
+34f0 c9        ret
+
+34f1 7b        ld      a,e
+34f2 a5        and     l
+34f3 6f        ld      l,a
+34f4 7c        ld      a,h
+34f5 a2        and     d
+34f6 c9        ret
+
+34f7 2b        dec     hl
+34f8 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+34f9 c8        ret     z
+34fa cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+34fb 2c        defb    ','
 
 ; __DIM
-54fc 01f734    ld      bc,34f7h        ; BC = {POP HL / RET}
-54ff c5        push    bc
-;5500 f6af      or      0afh
-5500           defb    f6h        ; OR $AF
+34fc 01f734    ld      bc,34f7h        ; (SP) = {POP HL / RET}
+34ff c5        push    bc
+;3500 f6af      or      0afh
+3500           defb    f6h        ; OR $AF
 ; GETVAR
-5501           xor     a
-5502 32cefd    ld      (0fdceh),a    ; DIMFLG
-5505 46        ld      b,(hl)
-5506 cd282d    call    2d28h        ; IS_ALPHA_A
-5509 da8128    jp      c,2881h            ; Syntax Error (SN ERROR)
-550c af        xor     a
-550d 4f        ld      c,a
-550e d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-550f 3805      jr      c,5516h
-5511 cd282d    call    2d28h        ; IS_ALPHA_A
-5514 3809      jr      c,551fh
-5516 4f        ld      c,a
-5517 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-5518 38fd      jr      c,5517h
-551a cd282d    call    2d28h        ; IS_ALPHA_A
-551d 30f8      jr      nc,5517h
-551f 114635    ld      de,3546h
-5522 d5        push    de
-5523 1602      ld      d,02h
-5525 fe25      cp      25h
-5527 c8        ret     z
-5528 14        inc     d
-5529 fe24      cp      24h
-552b c8        ret     z
-552c 14        inc     d
-552d fe21      cp      21h
-552f c8        ret     z
-5530 1608      ld      d,08h
-5532 fe23      cp      23h
-5534 c8        ret     z
-5535 78        ld      a,b
-5536 d641      sub     41h
-5538 e67f      and     7fh
-553a 5f        ld      e,a
-553b 1600      ld      d,00h
-553d e5        push    hl
-553e 2121fe    ld      hl,0fe21h    ; Variable declaration list. 26 entries, each containing a code inicating default mode for that initial letter
-5541 19        add     hl,de
-5542 56        ld      d,(hl)
-5543 e1        pop     hl
-5544 2b        dec     hl
-5545 c9        ret     
+3501 af        xor     a
+3502 32cefd    ld      (0fdceh),a    ; DIMFLG aka LCRFLG (Locate/Create and Type
+3505 46        ld      b,(hl)
+3506 cd282d    call    2d28h        ; IS_ALPHA_A
+3509 da8128    jp      c,2881h            ; Syntax Error (SN ERROR)
+350c af        xor     a
+350d 4f        ld      c,a
+350e d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+350f 3805      jr      c,3516h
+3511 cd282d    call    2d28h        ; IS_ALPHA_A
+3514 3809      jr      c,351fh
+3516 4f        ld      c,a
+3517 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+3518 38fd      jr      c,3517h
+351a cd282d    call    2d28h        ; IS_ALPHA_A
+351d 30f8      jr      nc,3517h
+351f 114635    ld      de,3546h
+3522 d5        push    de
+3523 1602      ld      d,02h
+3525 fe25      cp      25h
+3527 c8        ret     z
+3528 14        inc     d
+3529 fe24      cp      24h
+352b c8        ret     z
+352c 14        inc     d
 
-5546 7a        ld      a,d
-5547 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
-554a d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-554b 3afcfd    ld      a,(0fdfch)        ; FOR flag (1 = 'for' in progress, 0 =  no 'for' in progress)
-554e b7        or      a
-554f c25835    jp      nz,3558h
-5552 7e        ld      a,(hl)
-5553 d628      sub     28h
-5555 cadd35    jp      z,35ddh
-5558 af        xor     a
-5559 32fcfd    ld      (0fdfch),a        ; FOR flag (1 = 'for' in progress, 0 =  no 'for' in progress)
-555c e5        push    hl
-555d d5        push    de
-555e 2a19fe    ld      hl,(0fe19h)        ; Addr of simple variables
-5561 eb        ex      de,hl
-5562 2a1bfe    ld      hl,(0fe1bh)        ; VAREND: Addr of dimensioned variables
-5565 df        rst     18h            ; DCOMPR - Compare HL with DE.
-5566 e1        pop     hl
-5567 2819      jr      z,5582h
-5569 1a        ld      a,(de)
-556a 6f        ld      l,a
-556b bc        cp      h
-556c 13        inc     de
-556d 200b      jr      nz,557ah
-556f 1a        ld      a,(de)
-5570 b9        cp      c
-5571 2007      jr      nz,557ah
-5573 13        inc     de
-5574 1a        ld      a,(de)
-5575 b8        cp      b
-5576 cac035    jp      z,35c0h
-5579 3e13      ld      a,13h
-557b 13        inc     de
-557c e5        push    hl
-557d 2600      ld      h,00h
-557f 19        add     hl,de
-5580 18df      jr      5561h
 
-5582 7c        ld      a,h
-5583 e1        pop     hl
-5584 e3        ex      (sp),hl
-5585 f5        push    af
-5586 d5        push    de
-5587 11e533    ld      de,33e5h
-558a df        rst     18h            ; DCOMPR - Compare HL with DE.
-558b 2836      jr      z,55c3h
-558d 113734    ld      de,3437h
-5590 df        rst     18h            ; DCOMPR - Compare HL with DE.
-5591 d1        pop     de
-5592 2835      jr      z,55c9h
-5594 f1        pop     af
-5595 e3        ex      (sp),hl
-5596 e5        push    hl
-5597 c5        push    bc
-5598 4f        ld      c,a
-5599 0600      ld      b,00h
-559b c5        push    bc
-559c 03        inc     bc
-559d 03        inc     bc
-559e 03        inc     bc
-559f 2a1dfe    ld      hl,(0fe1dh)        ; ARREND - Starting address of free space list (FSL)
-55a2 e5        push    hl
-55a3 09        add     hl,bc
-55a4 c1        pop     bc
-55a5 e5        push    hl
-55a6 cd3f28    call    283fh
-55a9 e1        pop     hl
-55aa 221dfe    ld      (0fe1dh),hl        ; ARREND - Starting address of free space list (FSL)
-55ad 60        ld      h,b
-55ae 69        ld      l,c
-55af 221bfe    ld      (0fe1bh),hl        ; VAREND: Addr of dimensioned variables
-55b2 2b        dec     hl
-55b3 3600      ld      (hl),00h
-55b5 df        rst     18h            ; DCOMPR - Compare HL with DE.
-55b6 20fa      jr      nz,55b2h
-55b8 d1        pop     de
-55b9 73        ld      (hl),e
-55ba 23        inc     hl
-55bb d1        pop     de
-55bc 73        ld      (hl),e
-55bd 23        inc     hl
-55be 72        ld      (hl),d
-55bf eb        ex      de,hl
-55c0 13        inc     de
-55c1 e1        pop     hl
-55c2 c9        ret     
-55c3 57        ld      d,a
-55c4 5f        ld      e,a
-55c5 f1        pop     af
-55c6 f1        pop     af
-55c7 e3        ex      (sp),hl
-55c8 c9        ret
+352d fe21      cp      21h
+352f c8        ret     z
+3530 1608      ld      d,08h
+3532 fe23      cp      23h
+3534 c8        ret     z
+3535 78        ld      a,b
+3536 d641      sub     41h
+3538 e67f      and     7fh
+353a 5f        ld      e,a
+353b 1600      ld      d,00h
+353d e5        push    hl
+353e 2121fe    ld      hl,0fe21h        ; Variable declaration list. 26 entries, each containing a code inicating default mode for that initial letter
+3541 19        add     hl,de
+3542 56        ld      d,(hl)
+3543 e1        pop     hl
+3544 2b        dec     hl
+3545 c9        ret
 
-55c9 3244fe    ld      (0fe44h),a
-55cc c1        pop     bc
-55cd 67        ld      h,a
-55ce 6f        ld      l,a
-55cf 2241fe    ld      (0fe41h),hl        ; FACCU
-55d2 e7        rst     20h			; GETYPR - Get the number type (FAC)
-55d3 2006      jr      nz,55dbh
-55d5 211228    ld      hl,2812h
-55d8 2241fe    ld      (0fe41h),hl        ; FACCU
-55db e1        pop     hl
-55dc c9        ret
+3546 7a        ld      a,d
+3547 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+354a d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+354b 3afcfd    ld      a,(0fdfch)        ; FOR flag (1 = 'for' in progress, 0 =  no 'for' in progress)
+354e b7        or      a
+354f c25835    jp      nz,3558h
+3552 7e        ld      a,(hl)
+3553 d628      sub     28h
+3555 cadd35    jp      z,35ddh			; SBSCPT - Sort out subscript
+3558 af        xor     a
+3559 32fcfd    ld      (0fdfch),a        ; FOR flag (1 = 'for' in progress, 0 =  no 'for' in progress)
+355c e5        push    hl
+355d d5        push    de
+355e 2a19fe    ld      hl,(0fe19h)        ; Addr of simple variables
+3561 eb        ex      de,hl
+3562 2a1bfe    ld      hl,(0fe1bh)        ; VAREND: Addr of dimensioned variables
+3565 df        rst     18h            ; DCOMPR - Compare HL with DE.
+3566 e1        pop     hl
+3567 2819      jr      z,3582h
+3569 1a        ld      a,(de)
+356a 6f        ld      l,a
+356b bc        cp      h
+356c 13        inc     de
+356d 200b      jr      nz,357ah
+356f 1a        ld      a,(de)
+3570 b9        cp      c
+3571 2007      jr      nz,357ah
+3573 13        inc     de
+3574 1a        ld      a,(de)
+3575 b8        cp      b
+3576 cac035    jp      z,35c0h
+3579 3e13      ld      a,13h
+357b 13        inc     de
+357c e5        push    hl
+357d 2600      ld      h,00h
+357f 19        add     hl,de
+3580 18df      jr      3561h
 
-55dd e5        push    hl
-55de 2acefd    ld      hl,(0fdceh)        ; DIMFLG
-55e1 e3        ex      (sp),hl
-55e2 57        ld      d,a
-55e3 d5        push    de
-55e4 c5        push    bc
-55e5 cd302d    call    2d30h
-55e8 c1        pop     bc
-55e9 f1        pop     af
-55ea eb        ex      de,hl
-55eb e3        ex      (sp),hl
-55ec e5        push    hl
-55ed eb        ex      de,hl
-55ee 3c        inc     a
-55ef 57        ld      d,a
-55f0 7e        ld      a,(hl)
-55f1 fe2c      cp      ','
-55f3 28ee      jr      z,55e3h
-55f5 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-55f6 29        defb    ')'
-55f7 2213fe    ld      (0fe13h),hl        ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
-55fa e1        pop     hl
-55fb 22cefd    ld      (0fdceh),hl        ; DIMFLG
-55fe d5        push    de
-55ff 2a1bfe    ld      hl,(0fe1bh)        ; VAREND: Addr of dimensioned variables
-5602 3e19      ld      a,19h
-5604 eb        ex      de,hl
-5605 2a1dfe    ld      hl,(0fe1dh)        ; ARREND - Starting address of free space list (FSL)
-5608 eb        ex      de,hl
-5609 df        rst     18h            ; DCOMPR - Compare HL with DE.
-560a 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
-560d 2827      jr      z,5636h
-560f be        cp      (hl)
-5610 23        inc     hl
-5611 2008      jr      nz,561bh
-5613 7e        ld      a,(hl)
-5614 b9        cp      c
-5615 23        inc     hl
-5616 2004      jr      nz,561ch
-5618 7e        ld      a,(hl)
-5619 b8        cp      b
-561a 3e23      ld      a,23h
-561c 23        inc     hl
-561d 5e        ld      e,(hl)
-561e 23        inc     hl
-561f 56        ld      d,(hl)
-5620 23        inc     hl
-5621 20e0      jr      nz,5603h
-5623 3acefd    ld      a,(0fdceh)        ; DIMFLG
-5626 b7        or      a
-5627 1e12      ld      e,12h
-5629 c28c28    jp      nz,288ch        ; ERROR, E=error code
-562c f1        pop     af
-562d 96        sub     (hl)
-562e ca8936    jp      z,3689h
-5631 1e10      ld      e,10h
-5633 c38c28    jp      288ch        ; ERROR, E=error code
-5636 77        ld      (hl),a
-5637 23        inc     hl
-5638 5f        ld      e,a
-5639 1600      ld      d,00h
-563b f1        pop     af
-563c 71        ld      (hl),c
-563d 23        inc     hl
-563e 70        ld      (hl),b
-563f 23        inc     hl
-5640 4f        ld      c,a
-5641 cd4d28    call    284dh
-5644 23        inc     hl
-5645 23        inc     hl
-5646 22f8fd    ld      (0fdf8h),hl        ; 1: Index of last byte executed in current statement- 2: Edit flag during print using
-5649 71        ld      (hl),c
-564a 23        inc     hl
-564b 3acefd    ld      a,(0fdceh)        ; DIMFLG
-564e 17        rla     
-564f 79        ld      a,c
-5650 010b00    ld      bc,000bh
-5653 3002      jr      nc,5657h
-5655 c1        pop     bc
-5656 03        inc     bc
-5657 71        ld      (hl),c
-5658 23        inc     hl
-5659 70        ld      (hl),b
-565a 23        inc     hl
-565b f5        push    af
-565c cd141a    call    1a14h
-565f f1        pop     af
-5660 3d        dec     a
-5661 20ed      jr      nz,5650h
-5663 f5        push    af
-5664 42        ld      b,d
-5665 4b        ld      c,e
-5666 eb        ex      de,hl
-5667 19        add     hl,de
-5668 38c7      jr      c,5631h
-566a cd5628    call    2856h
-566d 221dfe    ld      (0fe1dh),hl        ; ARREND - Starting address of free space list (FSL)
-5670 2b        dec     hl
-5671 3600      ld      (hl),00h
-5673 df        rst     18h            ; DCOMPR - Compare HL with DE.
-5674 20fa      jr      nz,5670h
-5676 03        inc     bc
-5677 57        ld      d,a
-5678 2af8fd    ld      hl,(0fdf8h)        ; 1: Index of last byte executed in current statement- 2: Edit flag during print using
-567b 5e        ld      e,(hl)
-567c eb        ex      de,hl
-567d 29        add     hl,hl
-567e 09        add     hl,bc
-567f eb        ex      de,hl
-5680 2b        dec     hl
-5681 2b        dec     hl
-5682 73        ld      (hl),e
-5683 23        inc     hl
-5684 72        ld      (hl),d
-5685 23        inc     hl
-5686 f1        pop     af
-5687 3830      jr      c,56b9h
-5689 47        ld      b,a
-568a 4f        ld      c,a
-568b 7e        ld      a,(hl)
-568c 23        inc     hl
-568d 16e1      ld      d,0e1h
-568f 5e        ld      e,(hl)
-5690 23        inc     hl
-5691 56        ld      d,(hl)
-5692 23        inc     hl
-5693 e3        ex      (sp),hl
-5694 f5        push    af
-5695 df        rst     18h            ; DCOMPR - Compare HL with DE.
-5696 d23136    jp      nc,3631h
-5699 cd141a    call    1a14h
-569c 19        add     hl,de
-569d f1        pop     af
-569e 3d        dec     a
-569f 44        ld      b,h
-56a0 4d        ld      c,l
-56a1 20eb      jr      nz,568eh
-56a3 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
-56a6 44        ld      b,h
-56a7 4d        ld      c,l
-56a8 29        add     hl,hl
-56a9 d604      sub     04h
-56ab 3804      jr      c,56b1h
-56ad 29        add     hl,hl
-56ae 2806      jr      z,56b6h
-56b0 29        add     hl,hl
-56b1 b7        or      a
-56b2 e2b636    jp      po,36b6h
-56b5 09        add     hl,bc
-56b6 c1        pop     bc
-56b7 09        add     hl,bc
-56b8 eb        ex      de,hl
-56b9 2a13fe    ld      hl,(0fe13h)        ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
-56bc c9        ret
 
-56bd af        xor     a
-56be e5        push    hl
-56bf 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
-56c2 cdc836    call    36c8h
-56c5 e1        pop     hl
-56c6 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-56c7 c9        ret     
-56c8 2a1dfe    ld      hl,(0fe1dh)        ; ARREND - Starting address of free space list (FSL)
-56cb eb        ex      de,hl
-56cc 210000    ld      hl,0000h
-56cf 39        add     hl,sp
-56d0 e7        rst     20h			; GETYPR - Get the number type (FAC)
-56d1 200d      jr      nz,56e0h
-56d3 cdce38    call    38ceh
-56d6 cdda37    call    37dah
-56d9 2a54fc    ld      hl,(0fc54h)        ; Address of string area boundary
-56dc eb        ex      de,hl
-56dd 2af6fd    ld      hl,(0fdf6h)        ; Pointer to next available loc. in string area.
-56e0 7d        ld      a,l
-56e1 93        sub     e
-56e2 6f        ld      l,a
-56e3 7c        ld      a,h
-56e4 9a        sbc     a,d
-56e5 67        ld      h,a
-56e6 c3d01a    jp      1ad0h
+3582 7c        ld      a,h
+3583 e1        pop     hl
+3584 e3        ex      (sp),hl
+3585 f5        push    af
+3586 d5        push    de
+3587 11e533    ld      de,33e5h
+358a df        rst     18h            ; DCOMPR - Compare HL with DE.
+358b 2836      jr      z,35c3h
+358d 113734    ld      de,3437h
+3590 df        rst     18h            ; DCOMPR - Compare HL with DE.
+3591 d1        pop     de
+3592 2835      jr      z,35c9h
+3594 f1        pop     af
+3595 e3        ex      (sp),hl
+3596 e5        push    hl
+3597 c5        push    bc
+3598 4f        ld      c,a
+3599 0600      ld      b,00h
+359b c5        push    bc
+359c 03        inc     bc
+359d 03        inc     bc
+359e 03        inc     bc
+359f 2a1dfe    ld      hl,(0fe1dh)        ; ARREND - Starting address of free space list (FSL)
+35a2 e5        push    hl
+35a3 09        add     hl,bc
+35a4 c1        pop     bc
+35a5 e5        push    hl
+35a6 cd3f28    call    283fh
+35a9 e1        pop     hl
+35aa 221dfe    ld      (0fe1dh),hl        ; ARREND - Starting address of free space list (FSL)
+35ad 60        ld      h,b
+35ae 69        ld      l,c
+35af 221bfe    ld      (0fe1bh),hl        ; VAREND: Addr of dimensioned variables
+35b2 2b        dec     hl
+35b3 3600      ld      (hl),00h
+35b5 df        rst     18h            ; DCOMPR - Compare HL with DE.
+35b6 20fa      jr      nz,35b2h
+35b8 d1        pop     de
+35b9 73        ld      (hl),e
+35ba 23        inc     hl
+35bb d1        pop     de
+35bc 73        ld      (hl),e
+35bd 23        inc     hl
+35be 72        ld      (hl),d
+35bf eb        ex      de,hl
+35c0 13        inc     de
+35c1 e1        pop     hl
+35c2 c9        ret
 
-56e9 3ac6fd    ld      a,(0fdc6h)        ; Current cursor position (column number)
-56ec 6f        ld      l,a
-56ed af        xor     a
-56ee 67        ld      h,a
-56ef c30419    jp      1904h
+35c3 57        ld      d,a
+35c4 5f        ld      e,a
+35c5 f1        pop     af
+35c6 f1        pop     af
+35c7 e3        ex      (sp),hl
+35c8 c9        ret
 
-56f2 cda8fe    call    0fea8h
-56f5 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-56f6 cd2034    call    3420h
-56f9 e5        push    hl
-56fa 21fa16    ld      hl,16fah
-56fd e5        push    hl
-56fe 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
-5701 f5        push    af
-5702 fe03      cp      03h
-5704 ccce38    call    z,38ceh
-5707 f1        pop     af
-5708 eb        ex      de,hl
-5709 2a42fc    ld      hl,(0fc42h)        ; Address of USR subroutine
-570c e9        jp      (hl)
+35c9 3244fe    ld      (0fe44h),a		; FPEXP - Floating Point Exponent
+35cc c1        pop     bc
+35cd 67        ld      h,a
+35ce 6f        ld      l,a
+35cf 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+35d2 e7        rst     20h			; GETYPR - Get the number type (FAC)
+35d3 2006      jr      nz,35dbh
+35d5 211228    ld      hl,2812h
+35d8 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+35db e1        pop     hl
+35dc c9        ret
 
-570d e5        push    hl
-570e e607      and     07h
-5710 218927    ld      hl,2789h
-5713 4f        ld      c,a
-5714 0600      ld      b,00h
-5716 09        add     hl,bc
-5717 cd7a34    call    347ah
-571a e1        pop     hl
-571b c9        ret
+; SBSCPT - Sort out subscript
+35dd e5        push    hl
+35de 2acefd    ld      hl,(0fdceh)    ; DIMFLG aka LCRFLG (Locate/Create and Type
+35e1 e3        ex      (sp),hl
+35e2 57        ld      d,a
+; SCPTLP - SBSCPT loop
+35e3 d5        push    de
+35e4 c5        push    bc
+35e5 cd302d    call    2d30h
+35e8 c1        pop     bc
+35e9 f1        pop     af
+35ea eb        ex      de,hl
+35eb e3        ex      (sp),hl
+35ec e5        push    hl
+35ed eb        ex      de,hl
+35ee 3c        inc     a
+35ef 57        ld      d,a
+35f0 7e        ld      a,(hl)
+35f1 fe2c      cp      2ch
+35f3 28ee      jr      z,35e3h			; SCPTLP - SBSCPT loop
+35f5 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+35f6 29        defb  '('
+35f7 2213fe    ld      (0fe13h),hl    ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
+35fa e1        pop     hl
+35fb 22cefd    ld      (0fdceh),hl    ; DIMFLG aka LCRFLG (Locate/Create and Type
+35fe d5        push    de
+35ff 2a1bfe    ld      hl,(0fe1bh)        ; VAREND: Addr of dimensioned variables
+3602 3e19      ld      a,19h
+3604 eb        ex      de,hl
+3605 2a1dfe    ld      hl,(0fe1dh)        ; ARREND - Starting address of free space list (FSL)
+3608 eb        ex      de,hl
+3609 df        rst     18h            ; DCOMPR - Compare HL with DE.
+360a 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+360d 2827      jr      z,3636h
+360f be        cp      (hl)
+3610 23        inc     hl
+3611 2008      jr      nz,361bh
+3613 7e        ld      a,(hl)
+3614 b9        cp      c
+3615 23        inc     hl
+3616 2004      jr      nz,361ch
+3618 7e        ld      a,(hl)
+3619 b8        cp      b
+361a 3e23      ld      a,23h
+361c 23        inc     hl
+361d 5e        ld      e,(hl)
+361e 23        inc     hl
+361f 56        ld      d,(hl)
+3620 23        inc     hl
+3621 20e0      jr      nz,3603h
+3623 3acefd    ld      a,(0fdceh)    ; DIMFLG aka LCRFLG (Locate/Create and Type
+3626 b7        or      a
+3627 1e12      ld      e,12h
+3629 c28c28    jp      nz,288ch        ; ERROR, E=error code
+362c f1        pop     af
+362d 96        sub     (hl)
+362e ca8936    jp      z,3689h
+3631 1e10      ld      e,10h
+3633 c38c28    jp      288ch        ; ERROR, E=error code
 
-571c e5        push    hl
-571d 2a56fc    ld      hl,(0fc56h)        ; CURLIN: Current line number
-5720 23        inc     hl
-5721 7c        ld      a,h
-5722 b5        or      l
-5723 e1        pop     hl
-5724 c0        ret     nz
-5725 1e16      ld      e,16h
-5727 c38c28    jp      288ch        ; ERROR, E=error code
+3636 77        ld      (hl),a
+3637 23        inc     hl
+3638 5f        ld      e,a
+3639 1600      ld      d,00h
+363b f1        pop     af
+363c 71        ld      (hl),c
+363d 23        inc     hl
+363e 70        ld      (hl),b
+363f 23        inc     hl
+3640 4f        ld      c,a
+3641 cd4d28    call    284dh			; CHKSTK - Check for C levels of stack
+3644 23        inc     hl
+3645 23        inc     hl
+3646 22f8fd    ld      (0fdf8h),hl        ; 1: Index of last byte executed in current statement- 2: Edit flag during print using
+3649 71        ld      (hl),c
+364a 23        inc     hl
+364b 3acefd    ld      a,(0fdceh)    ; DIMFLG aka LCRFLG (Locate/Create and Type
+364e 17        rla     
+364f 79        ld      a,c
+3650 010b00    ld      bc,000bh
+3653 3002      jr      nc,3657h
+3655 c1        pop     bc
+3656 03        inc     bc
+3657 71        ld      (hl),c
+3658 23        inc     hl
+3659 70        ld      (hl),b
+365a 23        inc     hl
+365b f5        push    af
+365c cd141a    call    1a14h
+365f f1        pop     af
+3660 3d        dec     a
+3661 20ed      jr      nz,3650h
+3663 f5        push    af
+3664 42        ld      b,d
+3665 4b        ld      c,e
+3666 eb        ex      de,hl
+3667 19        add     hl,de
+3668 38c7      jr      c,3631h
+366a cd5628    call    2856h
+366d 221dfe    ld      (0fe1dh),hl        ; ARREND - Starting address of free space list (FSL)
+3670 2b        dec     hl
+3671 3600      ld      (hl),00h
+3673 df        rst     18h            ; DCOMPR - Compare HL with DE.
+3674 20fa      jr      nz,3670h
+3676 03        inc     bc
+3677 57        ld      d,a
+3678 2af8fd    ld      hl,(0fdf8h)        ; 1: Index of last byte executed in current statement- 2: Edit flag during print using
+367b 5e        ld      e,(hl)
+367c eb        ex      de,hl
+367d 29        add     hl,hl
+367e 09        add     hl,bc
+367f eb        ex      de,hl
+3680 2b        dec     hl
+3681 2b        dec     hl
+3682 73        ld      (hl),e
+3683 23        inc     hl
+3684 72        ld      (hl),d
+3685 23        inc     hl
+3686 f1        pop     af
+3687 3830      jr      c,36b9h
+3689 47        ld      b,a
+368a 4f        ld      c,a
+368b 7e        ld      a,(hl)
+368c 23        inc     hl
+368d 16e1      ld      d,0e1h
+368f 5e        ld      e,(hl)
+3690 23        inc     hl
+3691 56        ld      d,(hl)
+3692 23        inc     hl
+3693 e3        ex      (sp),hl
+3694 f5        push    af
+3695 df        rst     18h            ; DCOMPR - Compare HL with DE.
+3696 d23136    jp      nc,3631h
+3699 cd141a    call    1a14h
+369c 19        add     hl,de
+369d f1        pop     af
+369e 3d        dec     a
+369f 44        ld      b,h
+36a0 4d        ld      c,l
+36a1 20eb      jr      nz,368eh
+36a3 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+36a6 44        ld      b,h
+36a7 4d        ld      c,l
+36a8 29        add     hl,hl
+36a9 d604      sub     04h
+36ab 3804      jr      c,36b1h
+36ad 29        add     hl,hl
+36ae 2806      jr      z,36b6h
+36b0 29        add     hl,hl
+36b1 b7        or      a
+36b2 e2b636    jp      po,36b6h
+36b5 09        add     hl,bc
+36b6 c1        pop     bc
+36b7 09        add     hl,bc
+36b8 eb        ex      de,hl
+36b9 2a13fe    ld      hl,(0fe13h)    ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
+36bc c9        ret
 
-572a cd271e    call    1e27h
-572d cd5937    call    3759h
-5730 cdce38    call    38ceh
-5733 011f39    ld      bc,391fh
-5736 c5        push    bc
-5737 7e        ld      a,(hl)
-5738 23        inc     hl
-5739 e5        push    hl
-573a cdb337    call    37b3h		; TESTR
-573d e1        pop     hl
-573e 4e        ld      c,(hl)
-573f 23        inc     hl
-5740 46        ld      b,(hl)
-5741 cd4e37    call    374eh		; CRTMST - Create temporary string entry
-5744 e5        push    hl
-5745 6f        ld      l,a
-5746 cdc238    call    38c2h		; TOSTRA
-5749 d1        pop     de
-574a c9        ret
+36bd af        xor     a
+36be e5        push    hl
+36bf 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+36c2 cdc836    call    36c8h
+36c5 e1        pop     hl
+36c6 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+36c7 c9        ret
 
-574b cdb337    call    37b3h		; TESTR
-574e 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
-5751 e5        push    hl
-5752 77        ld      (hl),a
-5753 23        inc     hl
-5754 73        ld      (hl),e
-5755 23        inc     hl
-5756 72        ld      (hl),d
-5757 e1        pop     hl
-5758 c9        ret
+36c8 2a1dfe    ld      hl,(0fe1dh)        ; ARREND - Starting address of free space list (FSL)
+36cb eb        ex      de,hl
+36cc 210000    ld      hl,0000h
+36cf 39        add     hl,sp
+36d0 e7        rst     20h			; GETYPR - Get the number type (FAC)
+36d1 200d      jr      nz,36e0h
+36d3 cdce38    call    38ceh
+36d6 cdda37    call    37dah
+36d9 2a54fc    ld      hl,(0fc54h)        ; Address of string area boundary
+36dc eb        ex      de,hl
+36dd 2af6fd    ld      hl,(0fdf6h)        ; Pointer to next available loc. in string area.
+36e0 7d        ld      a,l
+36e1 93        sub     e
+36e2 6f        ld      l,a
+36e3 7c        ld      a,h
+36e4 9a        sbc     a,d
+36e5 67        ld      h,a
+36e6 c3d01a    jp      1ad0h
 
-5759 2b        dec     hl
-575a 0622      ld      b,22h
-575c 50        ld      d,b
-575d e5        push    hl
-575e 0eff      ld      c,0ffh
-5760 23        inc     hl
-5761 7e        ld      a,(hl)
-5762 0c        inc     c
-5763 b7        or      a
-5764 2806      jr      z,576ch
-5766 ba        cp      d
-5767 2803      jr      z,576ch
-5769 b8        cp      b
-576a 20f4      jr      nz,5760h
-576c fe22      cp      22h
-576e cc622c    call    z,2c62h
-5771 e3        ex      (sp),hl
-5772 23        inc     hl
-5773 eb        ex      de,hl
-5774 79        ld      a,c
-5775 cd4e37    call    374eh			; CRTMST - Create temporary string entry
-5778 11f3fd    ld      de,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
-577b 3ed5      ld      a,0d5h
-577d 2ad3fd    ld      hl,(0fdd3h)        ; TMSTPT: Address of next available location in LSPT
-5780 2241fe    ld      (0fe41h),hl        ; FACCU
-5783 3e03      ld      a,03h
-5785 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
-5788 cd3d18    call    183dh
-578b 11f6fd    ld      de,0fdf6h        ; Pointer to next available loc. in string area.
-578e df        rst     18h            ; DCOMPR - Compare HL with DE.
-578f 22d3fd    ld      (0fdd3h),hl        ; TMSTPT: Address of next available location in LSPT
-5792 e1        pop     hl
-5793 7e        ld      a,(hl)
-5794 c0        ret     nz
-5795 1e1e      ld      e,1eh
-5797 c38c28    jp      288ch        ; ERROR, E=error code
+36e9 3ac6fd    ld      a,(0fdc6h)        ; CURPOS (a.k.a. TTYPOS) - Current cursor position (column number)
 
-579a 23        inc     hl
-579b cd5937    call    3759h
-579e cdce38    call    38ceh
-57a1 cd2e18    call    182eh            ; LOADFP_0
-57a4 14        inc     d
-57a5 15        dec     d
-57a6 c8        ret     z
-57a7 0a        ld      a,(bc)
-57a8 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-57ab fe0d      cp      0dh
-57ad ccee2f    call    z,2feeh
-57b0 03        inc     bc
-57b1 18f2      jr      57a5h
+; UNSIGNED_RESULT_A
+36ec 6f        ld      l,a
+36ed af        xor     a
+36ee 67        ld      h,a
+36ef c30419    jp      1904h		; INT_RESULT_HL
 
-57b3 b7        or      a
-57b4 0ef1      ld      c,0f1h
-57b6 f5        push    af
-57b7 2a54fc    ld      hl,(0fc54h)        ; Address of string area boundary
-57ba eb        ex      de,hl
-57bb 2af6fd    ld      hl,(0fdf6h)        ; Pointer to next available loc. in string area.
-57be 2f        cpl     
-57bf 4f        ld      c,a
-57c0 06ff      ld      b,0ffh
-57c2 09        add     hl,bc
-57c3 23        inc     hl
-57c4 df        rst     18h            ; DCOMPR - Compare HL with DE.
-57c5 3807      jr      c,57ceh
-57c7 22f6fd    ld      (0fdf6h),hl        ; Pointer to next available loc. in string area.
-57ca 23        inc     hl
-57cb eb        ex      de,hl
-57cc f1        pop     af
-57cd c9        ret
 
-57ce f1        pop     af
-57cf 1e1a      ld      e,1ah
-57d1 ca8c28    jp      z,288ch        ; ERROR, E=error code
-57d4 bf        cp      a
-57d5 f5        push    af
-57d6 01b537    ld      bc,37b5h
-57d9 c5        push    bc
-57da 2ad1fd    ld      hl,(0fdd1h)        ; Memory size
-57dd 22f6fd    ld      (0fdf6h),hl        ; Pointer to next available loc. in string area.
-57e0 210000    ld      hl,0000h
-57e3 e5        push    hl
-57e4 2a54fc    ld      hl,(0fc54h)        ; Address of string area boundary
-57e7 e5        push    hl
-57e8 21d5fd    ld      hl,0fdd5h        ; TEMPST: LSPT (literal string pool table)
-57eb eb        ex      de,hl
-57ec 2ad3fd    ld      hl,(0fdd3h)        ; TMSTPT: Address of next available location in LSPT
-57ef eb        ex      de,hl
-57f0 df        rst     18h            ; DCOMPR - Compare HL with DE.
-57f1 01eb37    ld      bc,37ebh
-57f4 c23e38    jp      nz,383eh
-57f7 2a19fe    ld      hl,(0fe19h)        ; Addr of simple variables
-57fa eb        ex      de,hl
-57fb 2a1bfe    ld      hl,(0fe1bh)        ; VAREND: Addr of dimensioned variables
-57fe eb        ex      de,hl
-57ff df        rst     18h            ; DCOMPR - Compare HL with DE.
-5800 2813      jr      z,5815h
-5802 7e        ld      a,(hl)
-5803 23        inc     hl
-5804 23        inc     hl
-5805 23        inc     hl
-5806 fe03      cp      03h
-5808 2004      jr      nz,580eh
-580a cd3f38    call    383fh
-580d af        xor     a
-580e 5f        ld      e,a
-580f 1600      ld      d,00h
-5811 19        add     hl,de
-5812 18e6      jr      57fah
+36f2 cda8fe    call    0fea8h
+36f5 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+36f6 cd2034    call    3420h
+36f9 e5        push    hl
+36fa 21fa16    ld      hl,16fah
+36fd e5        push    hl
+36fe 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+3701 f5        push    af
+3702 fe03      cp      03h
+3704 ccce38    call    z,38ceh
+3707 f1        pop     af
+3708 eb        ex      de,hl
+3709 2a42fc    ld      hl,(0fc42h)        ; Address of USR subroutine
+370c e9        jp      (hl)
 
-5814 c1        pop     bc
-5815 eb        ex      de,hl
-5816 2a1dfe    ld      hl,(0fe1dh)        ; ARREND - Starting address of free space list (FSL)
-5819 eb        ex      de,hl
-581a df        rst     18h            ; DCOMPR - Compare HL with DE.
-581b ca5f38    jp      z,385fh
+370d e5        push    hl
+370e e607      and     07h
+3710 218927    ld      hl,2789h
+3713 4f        ld      c,a
+3714 0600      ld      b,00h
+3716 09        add     hl,bc
+3717 cd7a34    call    347ah
+371a e1        pop     hl
+371b c9        ret
 
-581e 7e        ld      a,(hl)
-581f 23        inc     hl
-5820 cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
-5823 e5        push    hl
-5824 09        add     hl,bc
-5825 fe03      cp      03h
-5827 20eb      jr      nz,5814h
-5829 22f8fd    ld      (0fdf8h),hl        ; 1: Index of last byte executed in current statement- 2: Edit flag during print using
-582c e1        pop     hl
-582d 4e        ld      c,(hl)
-582e 0600      ld      b,00h
-5830 09        add     hl,bc
-5831 09        add     hl,bc
-5832 23        inc     hl
-5833 eb        ex      de,hl
-5834 2af8fd    ld      hl,(0fdf8h)        ; 1: Index of last byte executed in current statement- 2: Edit flag during print using
-5837 eb        ex      de,hl
-5838 df        rst     18h            ; DCOMPR - Compare HL with DE.
-5839 28da      jr      z,5815h
-583b 013338    ld      bc,3833h
-583e c5        push    bc
-583f af        xor     a
-5840 b6        or      (hl)
-5841 23        inc     hl
-5842 5e        ld      e,(hl)
-5843 23        inc     hl
-5844 56        ld      d,(hl)
-5845 23        inc     hl
-5846 c8        ret     z
-5847 44        ld      b,h
-5848 4d        ld      c,l
-5849 2af6fd    ld      hl,(0fdf6h)        ; Pointer to next available loc. in string area.
-584c df        rst     18h            ; DCOMPR - Compare HL with DE.
-584d 60        ld      h,b
-584e 69        ld      l,c
-584f d8        ret     c
-5850 e1        pop     hl
-5851 e3        ex      (sp),hl
-5852 df        rst     18h            ; DCOMPR - Compare HL with DE.
-5853 e3        ex      (sp),hl
-5854 e5        push    hl
-5855 60        ld      h,b
-5856 69        ld      l,c
-5857 d0        ret     nc
-5858 c1        pop     bc
-5859 f1        pop     af
-585a f1        pop     af
-585b e5        push    hl
-585c d5        push    de
-585d c5        push    bc
-585e c9        ret
+371c e5        push    hl
+371d 2a56fc    ld      hl,(0fc56h)        ; CURLIN: Current line number
+3720 23        inc     hl
+3721 7c        ld      a,h
+3722 b5        or      l
+3723 e1        pop     hl
+3724 c0        ret     nz
+3725 1e16      ld      e,16h
+3727 c38c28    jp      288ch        ; ERROR, E=error code
 
-585f d1        pop     de
-5860 e1        pop     hl
-5861 7d        ld      a,l
-5862 b4        or      h
-5863 c8        ret     z
-5864 2b        dec     hl
-5865 46        ld      b,(hl)
-5866 2b        dec     hl
-5867 4e        ld      c,(hl)
-5868 e5        push    hl
-5869 2b        dec     hl
-586a 6e        ld      l,(hl)
-586b 2600      ld      h,00h
-586d 09        add     hl,bc
-586e 50        ld      d,b
-586f 59        ld      e,c
-5870 2b        dec     hl
-5871 44        ld      b,h
-5872 4d        ld      c,l
-5873 2af6fd    ld      hl,(0fdf6h)        ; Pointer to next available loc. in string area.
-5876 cd4228    call    2842h
-5879 e1        pop     hl
-587a 71        ld      (hl),c
-587b 23        inc     hl
-587c 70        ld      (hl),b
-587d 69        ld      l,c
-587e 60        ld      h,b
-587f 2b        dec     hl
-5880 c3dd37    jp      37ddh
+372a cd271e    call    1e27h
+372d cd5937    call    3759h
+3730 cdce38    call    38ceh
+3733 011f39    ld      bc,391fh		; TOPOOL
+3736 c5        push    bc
+3737 7e        ld      a,(hl)
+3738 23        inc     hl
+3739 e5        push    hl
+373a cdb337    call    37b3h		; TESTR
+373d e1        pop     hl
+373e 4e        ld      c,(hl)
+373f 23        inc     hl
+3740 46        ld      b,(hl)
+3741 cd4e37    call    374eh		; CRTMST - Create temporary string entry
+3744 e5        push    hl
+3745 6f        ld      l,a
+3746 cdc238    call    38c2h		; TOSTRA
+3749 d1        pop     de
+374a c9        ret
 
-5883 c5        push    bc
-5884 e5        push    hl
-5885 2a41fe    ld      hl,(0fe41h)        ; FACCU
-5888 e3        ex      (sp),hl
-5889 cd9333    call    3393h
-588c e3        ex      (sp),hl
-588d cd5e19    call    195eh
-5890 7e        ld      a,(hl)
-5891 e5        push    hl
-5892 2a41fe    ld      hl,(0fe41h)        ; FACCU
-5895 e5        push    hl
-5896 86        add     a,(hl)
-5897 1e1c      ld      e,1ch
-5899 da8c28    jp      c,288ch        ; ERROR, E=error code
-589c cd4b37    call    374bh		; MKTMST - Make temporary string
-589f d1        pop     de
-58a0 cdd238    call    38d2h		; GSTRDE
-58a3 e3        ex      (sp),hl
-58a4 cdd138    call    38d1h
-58a7 e5        push    hl
-58a8 2af4fd    ld      hl,(0fdf4h)
-58ab eb        ex      de,hl
-58ac cdba38    call    38bah
-58af cdba38    call    38bah
-58b2 213d32    ld      hl,323dh
-58b5 e3        ex      (sp),hl
-58b6 e5        push    hl
-58b7 c37837    jp      3778h		; TSTOPL
+; MKTMST - Make temporary string
+374b cdb337    call    37b3h		; TESTR
 
-58ba e1        pop     hl
-58bb e3        ex      (sp),hl
-58bc 7e        ld      a,(hl)
-58bd 23        inc     hl
-58be 4e        ld      c,(hl)
-58bf 23        inc     hl
-58c0 46        ld      b,(hl)
-58c1 6f        ld      l,a
-58c2 2c        inc     l
-58c3 2d        dec     l
-58c4 c8        ret     z
-58c5 0a        ld      a,(bc)
-58c6 12        ld      (de),a
-58c7 03        inc     bc
-58c8 13        inc     de
-58c9 18f8      jr      58c3h
-58cb cd5e19    call    195eh
-58ce 2a41fe    ld      hl,(0fe41h)        ; FACCU
-58d1 eb        ex      de,hl
-58d2 cde938    call    38e9h
-58d5 eb        ex      de,hl
-58d6 c0        ret     nz
-58d7 d5        push    de
-58d8 50        ld      d,b
-58d9 59        ld      e,c
-58da 1b        dec     de
-58db 4e        ld      c,(hl)
-58dc 2af6fd    ld      hl,(0fdf6h)        ; Pointer to next available loc. in string area.
-58df df        rst     18h            ; DCOMPR - Compare HL with DE.
-58e0 2005      jr      nz,58e7h
-58e2 47        ld      b,a
-58e3 09        add     hl,bc
-58e4 22f6fd    ld      (0fdf6h),hl        ; Pointer to next available loc. in string area.
-58e7 e1        pop     hl
-58e8 c9        ret
+; CRTMST - Create temporary string entry
+374e 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
+3751 e5        push    hl
+3752 77        ld      (hl),a
+3753 23        inc     hl
+3754 73        ld      (hl),e
+3755 23        inc     hl
+3756 72        ld      (hl),d
+3757 e1        pop     hl
+3758 c9        ret
+
+3759 2b        dec     hl
+375a 0622      ld      b,22h
+375c 50        ld      d,b
+375d e5        push    hl
+375e 0eff      ld      c,0ffh
+3760 23        inc     hl
+3761 7e        ld      a,(hl)
+3762 0c        inc     c
+3763 b7        or      a
+3764 2806      jr      z,376ch
+3766 ba        cp      d
+3767 2803      jr      z,376ch
+3769 b8        cp      b
+376a 20f4      jr      nz,3760h
+376c fe22      cp      22h
+376e cc622c    call    z,2c62h
+3771 e3        ex      (sp),hl
+3772 23        inc     hl
+3773 eb        ex      de,hl
+3774 79        ld      a,c
+3775 cd4e37    call    374eh		; CRTMST - Create temporary string entry
+
+; TSTOPL
+3778 11f3fd    ld      de,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
+377b 3ed5      ld      a,0d5h
+377d 2ad3fd    ld      hl,(0fdd3h)        ; TMSTPT: Address of next available location in LSPT
+3780 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+3783 3e03      ld      a,03h
+3785 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+3788 cd3d18    call    183dh
+378b 11f6fd    ld      de,0fdf6h        ; Pointer to next available loc. in string area.
+378e df        rst     18h            ; DCOMPR - Compare HL with DE.
+378f 22d3fd    ld      (0fdd3h),hl        ; TMSTPT: Address of next available location in LSPT
+3792 e1        pop     hl
+3793 7e        ld      a,(hl)
+3794 c0        ret     nz
+3795 1e1e      ld      e,1eh
+3797 c38c28    jp      288ch        ; ERROR, E=error code
+
+379a 23        inc     hl
+
+; Output a string
+379b cd5937    call    3759h
+379e cdce38    call    38ceh
+37a1 cd2e18    call    182eh            ; LOADFP_0
+37a4 14        inc     d
+37a5 15        dec     d
+37a6 c8        ret     z
+37a7 0a        ld      a,(bc)
+37a8 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+37ab fe0d      cp      0dh
+37ad ccee2f    call    z,2feeh
+37b0 03        inc     bc
+37b1 18f2      jr      37a5h
+
+; TESTR
+37b3 b7        or      a
+37b4 0ef1      ld      c,0f1h
+37b6 f5        push    af
+37b7 2a54fc    ld      hl,(0fc54h)        ; Address of string area boundary
+37ba eb        ex      de,hl
+37bb 2af6fd    ld      hl,(0fdf6h)        ; Pointer to next available loc. in string area.
+37be 2f        cpl     
+37bf 4f        ld      c,a
+37c0 06ff      ld      b,0ffh
+37c2 09        add     hl,bc
+37c3 23        inc     hl
+37c4 df        rst     18h            ; DCOMPR - Compare HL with DE.
+37c5 3807      jr      c,37ceh
+37c7 22f6fd    ld      (0fdf6h),hl        ; Pointer to next available loc. in string area.
+37ca 23        inc     hl
+37cb eb        ex      de,hl
+37cc f1        pop     af
+37cd c9        ret
+
+37ce f1        pop     af
+37cf 1e1a      ld      e,1ah
+37d1 ca8c28    jp      z,288ch        ; ERROR, E=error code
+37d4 bf        cp      a
+37d5 f5        push    af
+37d6 01b537    ld      bc,37b5h
+37d9 c5        push    bc
+37da 2ad1fd    ld      hl,(0fdd1h)        ; Memory size
+37dd 22f6fd    ld      (0fdf6h),hl        ; Pointer to next available loc. in string area.
+37e0 210000    ld      hl,0000h
+37e3 e5        push    hl
+37e4 2a54fc    ld      hl,(0fc54h)        ; Address of string area boundary
+37e7 e5        push    hl
+37e8 21d5fd    ld      hl,0fdd5h        ; TEMPST: LSPT (literal string pool table)
+37eb eb        ex      de,hl
+37ec 2ad3fd    ld      hl,(0fdd3h)        ; TMSTPT: Address of next available location in LSPT
+37ef eb        ex      de,hl
+37f0 df        rst     18h            ; DCOMPR - Compare HL with DE.
+37f1 01eb37    ld      bc,37ebh
+37f4 c23e38    jp      nz,383eh
+37f7 2a19fe    ld      hl,(0fe19h)        ; Addr of simple variables
+37fa eb        ex      de,hl
+37fb 2a1bfe    ld      hl,(0fe1bh)        ; VAREND: Addr of dimensioned variables
+37fe eb        ex      de,hl
+37ff df        rst     18h            ; DCOMPR - Compare HL with DE.
+3800 2813      jr      z,3815h
+3802 7e        ld      a,(hl)
+3803 23        inc     hl
+3804 23        inc     hl
+3805 23        inc     hl
+3806 fe03      cp      03h
+3808 2004      jr      nz,380eh
+380a cd3f38    call    383fh
+380d af        xor     a
+380e 5f        ld      e,a
+380f 1600      ld      d,00h
+3811 19        add     hl,de
+3812 18e6      jr      37fah
+3814 c1        pop     bc
+3815 eb        ex      de,hl
+3816 2a1dfe    ld      hl,(0fe1dh)        ; ARREND - Starting address of free space list (FSL)
+3819 eb        ex      de,hl
+381a df        rst     18h            ; DCOMPR - Compare HL with DE.
+381b ca5f38    jp      z,385fh
+381e 7e        ld      a,(hl)
+381f 23        inc     hl
+3820 cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
+3823 e5        push    hl
+3824 09        add     hl,bc
+3825 fe03      cp      03h
+3827 20eb      jr      nz,3814h
+3829 22f8fd    ld      (0fdf8h),hl        ; 1: Index of last byte executed in current statement- 2: Edit flag during print using
+382c e1        pop     hl
+382d 4e        ld      c,(hl)
+382e 0600      ld      b,00h
+3830 09        add     hl,bc
+3831 09        add     hl,bc
+3832 23        inc     hl
+3833 eb        ex      de,hl
+3834 2af8fd    ld      hl,(0fdf8h)        ; 1: Index of last byte executed in current statement- 2: Edit flag during print using
+3837 eb        ex      de,hl
+3838 df        rst     18h            ; DCOMPR - Compare HL with DE.
+3839 28da      jr      z,3815h
+383b 013338    ld      bc,3833h
+383e c5        push    bc
+383f af        xor     a
+3840 b6        or      (hl)
+3841 23        inc     hl
+3842 5e        ld      e,(hl)
+3843 23        inc     hl
+3844 56        ld      d,(hl)
+3845 23        inc     hl
+3846 c8        ret     z
+3847 44        ld      b,h
+3848 4d        ld      c,l
+3849 2af6fd    ld      hl,(0fdf6h)        ; Pointer to next available loc. in string area.
+384c df        rst     18h            ; DCOMPR - Compare HL with DE.
+384d 60        ld      h,b
+384e 69        ld      l,c
+384f d8        ret     c
+3850 e1        pop     hl
+3851 e3        ex      (sp),hl
+3852 df        rst     18h            ; DCOMPR - Compare HL with DE.
+3853 e3        ex      (sp),hl
+3854 e5        push    hl
+3855 60        ld      h,b
+3856 69        ld      l,c
+3857 d0        ret     nc
+3858 c1        pop     bc
+3859 f1        pop     af
+385a f1        pop     af
+385b e5        push    hl
+385c d5        push    de
+385d c5        push    bc
+385e c9        ret
+
+385f d1        pop     de
+3860 e1        pop     hl
+3861 7d        ld      a,l
+3862 b4        or      h
+3863 c8        ret     z
+3864 2b        dec     hl
+3865 46        ld      b,(hl)
+3866 2b        dec     hl
+3867 4e        ld      c,(hl)
+3868 e5        push    hl
+3869 2b        dec     hl
+386a 6e        ld      l,(hl)
+386b 2600      ld      h,00h
+386d 09        add     hl,bc
+386e 50        ld      d,b
+386f 59        ld      e,c
+3870 2b        dec     hl
+3871 44        ld      b,h
+3872 4d        ld      c,l
+3873 2af6fd    ld      hl,(0fdf6h)        ; Pointer to next available loc. in string area.
+3876 cd4228    call    2842h
+3879 e1        pop     hl
+387a 71        ld      (hl),c
+387b 23        inc     hl
+387c 70        ld      (hl),b
+387d 69        ld      l,c
+387e 60        ld      h,b
+387f 2b        dec     hl
+3880 c3dd37    jp      37ddh
+
+3883 c5        push    bc
+3884 e5        push    hl
+3885 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+3888 e3        ex      (sp),hl
+3889 cd9333    call    3393h			; OPRND: Get next expression value
+388c e3        ex      (sp),hl
+388d cd5e19    call    195eh
+3890 7e        ld      a,(hl)
+3891 e5        push    hl
+3892 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+3895 e5        push    hl
+3896 86        add     a,(hl)
+3897 1e1c      ld      e,1ch
+3899 da8c28    jp      c,288ch        ; ERROR, E=error code
+389c cd4b37    call    374bh		; MKTMST - Make temporary string
+389f d1        pop     de
+38a0 cdd238    call    38d2h		; GSTRDE
+38a3 e3        ex      (sp),hl
+38a4 cdd138    call    38d1h
+38a7 e5        push    hl
+38a8 2af4fd    ld      hl,(0fdf4h)	; TMPSTR
+38ab eb        ex      de,hl
+38ac cdba38    call    38bah
+38af cdba38    call    38bah
+38b2 213d32    ld      hl,323dh
+38b5 e3        ex      (sp),hl
+38b6 e5        push    hl
+38b7 c37837    jp      3778h		; TSTOPL
+
+38ba e1        pop     hl
+38bb e3        ex      (sp),hl
+38bc 7e        ld      a,(hl)
+38bd 23        inc     hl
+38be 4e        ld      c,(hl)
+38bf 23        inc     hl
+38c0 46        ld      b,(hl)
+38c1 6f        ld      l,a
+
+; TOSTRA
+38c2 2c        inc     l
+38c3 2d        dec     l
+38c4 c8        ret     z
+38c5 0a        ld      a,(bc)
+38c6 12        ld      (de),a
+38c7 03        inc     bc
+38c8 13        inc     de
+38c9 18f8      jr      38c3h
+
+; GETSTR
+38cb cd5e19    call    195eh
+38ce 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+38d1 eb        ex      de,hl
+; GSTRDE
+38d2 cde938    call    38e9h
+38d5 eb        ex      de,hl
+38d6 c0        ret     nz
+38d7 d5        push    de
+38d8 50        ld      d,b
+38d9 59        ld      e,c
+38da 1b        dec     de
+38db 4e        ld      c,(hl)
+38dc 2af6fd    ld      hl,(0fdf6h)        ; Pointer to next available loc. in string area.
+38df df        rst     18h            ; DCOMPR - Compare HL with DE.
+38e0 2005      jr      nz,38e7h
+38e2 47        ld      b,a
+38e3 09        add     hl,bc
+38e4 22f6fd    ld      (0fdf6h),hl        ; Pointer to next available loc. in string area.
+38e7 e1        pop     hl
+38e8 c9        ret
 
 ; BAKTMP - Back to last tmp-str entry
-58e9 2ad3fd    ld      hl,(0fdd3h)        ; TMSTPT: Address of next available location in LSPT
-58ec 2b        dec     hl
-58ed 46        ld      b,(hl)
-58ee 2b        dec     hl
-58ef 4e        ld      c,(hl)
-58f0 2b        dec     hl
-58f1 df        rst     18h            ; DCOMPR - Compare HL with DE.
-58f2 c0        ret     nz
-58f3 22d3fd    ld      (0fdd3h),hl        ; TMSTPT: Address of next available location in LSPT
-58f6 c9        ret
+38e9 2ad3fd    ld      hl,(0fdd3h)        ; TMSTPT: Address of next available location in LSPT
+38ec 2b        dec     hl
+38ed 46        ld      b,(hl)
+38ee 2b        dec     hl
+38ef 4e        ld      c,(hl)
+38f0 2b        dec     hl
+38f1 df        rst     18h            ; DCOMPR - Compare HL with DE.
+38f2 c0        ret     nz
+38f3 22d3fd    ld      (0fdd3h),hl        ; TMSTPT: Address of next available location in LSPT
+38f6 c9        ret
 
 ; __LEN
-58f7 01ec36    ld      bc,36ech		; UNSIGNED_RESULT_A
-58fa c5        push    bc
-58fb cdcb38    call    38cbh		; GETSTR
-58fe af        xor     a
-58ff 57        ld      d,a
-5900 7e        ld      a,(hl)
-5901 b7        or      a
-5902 c9        ret
+38f7 01ec36    ld      bc,36ech			; UNSIGNED_RESULT_A
+38fa c5        push    bc
+38fb cdcb38    call    38cbh			; GETSTR
+38fe af        xor     a
+38ff 57        ld      d,a
+3900 7e        ld      a,(hl)
+3901 b7        or      a
+3902 c9        ret
 
 ; __ASC
-5903 01ec36    ld      bc,36ech			; UNSIGNED_RESULT_A
-5906 c5        push    bc
-5907 cdfb38    call    38fbh
-590a ca352d    jp      z,2d35h            ; Error: Illegal function call (FC ERROR)
-590d 23        inc     hl
-590e 5e        ld      e,(hl)
-590f 23        inc     hl
-5910 56        ld      d,(hl)
-5911 1a        ld      a,(de)
-5912 c9        ret
+3903 01ec36    ld      bc,36ech			; UNSIGNED_RESULT_A
+3906 c5        push    bc
+; __ASC_0
+3907 cdfb38    call    38fbh
+390a ca352d    jp      z,2d35h            ; Error: Illegal function call (FC ERROR)
+390d 23        inc     hl
+390e 5e        ld      e,(hl)
+390f 23        inc     hl
+3910 56        ld      d,(hl)
+3911 1a        ld      a,(de)
+3912 c9        ret
 
 ; __CHR_S
-5913 3e01      ld      a,01h		; Make temporary string 1 byte long
-5915 cd4b37    call    374bh		; MKTMST - Make temporary string
-5918 cd133a    call    3a13h		; MAKINT
-591b 2af4fd    ld      hl,(0fdf4h)	; TMPSTR+1
-591e 73        ld      (hl),e
+3913 3e01      ld      a,01h		; Make temporary string 1 byte long
+3915 cd4b37    call    374bh		; MKTMST - Make temporary string
+3918 cd133a    call    3a13h		; MAKINT
+391b 2af4fd    ld      hl,(0fdf4h)	; TMPSTR+1
+391e 73        ld      (hl),e
 ; TOPOOL
-591f c1        pop     bc
-5920 c37837    jp      3778h		; TSTOPL
+391f c1        pop     bc
+3920 c37837    jp      3778h		; TSTOPL
 
 ; FN_STRING
-5923 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-5924 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-5925 28        defb  '('
-5926 cd103a    call    3a10h		; GETINT
-5929 d5        push    de
-592a cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-592b 2c        defb    ','
-592c cd2b32    call    322bh			; EVAL
-592f cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-5930 29        defb    ')'
-5931 e3        ex      (sp),hl
-5932 e5        push    hl
-5933 e7        rst     20h			; GETYPR - Get the number type (FAC)
-5934 2805      jr      z,593bh		; FN_STRING_0
-5936 cd133a    call    3a13h		; MAKINT
-5939 1803      jr      593eh		; FN_STRING_1
+3923 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+3924 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+3925 28        defb  '('
+3926 cd103a    call    3a10h		; GETINT
+3929 d5        push    de
+392a cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+392b 2c        defb    ','
+392c cd2b32    call    322bh			; EVAL
+392f cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+3930 29        defb  '('
+3931 e3        ex      (sp),hl
+3932 e5        push    hl
+3933 e7        rst     20h			; GETYPR - Get the number type (FAC)
+3934 2805      jr      z,393bh
+3936 cd133a    call    3a13h		; MAKINT
+3939 1803      jr      393eh		;FN_STRING_1
 ;FN_STRING_0
-593b cd0739    call    3907h		; __ASC_0
+393b cd0739    call    3907h		; __ASC_0
 ;FN_STRING_1
-593e d1        pop     de
-593f f5        push    af
-5940 f5        push    af
-5941 7b        ld      a,e
-5942 cd4b37    call    374bh		; MKTMST - Make temporary string
-5945 5f        ld      e,a
-5946 f1        pop     af
-5947 1c        inc     e
-5948 1d        dec     e
-5949 28d4      jr      z,591fh		; TOPOOL
-594b 2af4fd    ld      hl,(0fdf4h)
-594e 77        ld      (hl),a
-594f 23        inc     hl
-5950 1d        dec     e
-5951 20fb      jr      nz,594eh
-5953 18ca      jr      591fh		; TOPOOL
+393e d1        pop     de
+393f f5        push    af
+3940 f5        push    af
+3941 7b        ld      a,e
+3942 cd4b37    call    374bh		; MKTMST - Make temporary string
+3945 5f        ld      e,a
+3946 f1        pop     af
+3947 1c        inc     e
+3948 1d        dec     e
+3949 28d4      jr      z,391fh		; TOPOOL
+394b 2af4fd    ld      hl,(0fdf4h)	; TMPSTR+1
+394e 77        ld      (hl),a
+394f 23        inc     hl
+3950 1d        dec     e
+3951 20fb      jr      nz,394eh
+3953 18ca      jr      391fh		; TOPOOL
 
 ; __LEFT_S
-5955 cdd339    call    39d3h		; LFRGNM
-5958 af        xor     a
-5959 e3        ex      (sp),hl
-595a 4f        ld      c,a
-595b 3ee5      ld      a,0e5h
-595d e5        push    hl
-595e 7e        ld      a,(hl)
-595f b8        cp      b
-5960 3802      jr      c,5964h
-5962 78        ld      a,b
-5963 110e00    ld      de,000eh
-5966 c5        push    bc
-5967 cdb337    call    37b3h		; TESTR
-596a c1        pop     bc
-596b e1        pop     hl
-596c e5        push    hl
-596d 23        inc     hl
-596e 46        ld      b,(hl)
-596f 23        inc     hl
-5970 66        ld      h,(hl)
-5971 68        ld      l,b
-5972 0600      ld      b,00h
-5974 09        add     hl,bc
-5975 44        ld      b,h
-5976 4d        ld      c,l
-5977 cd4e37    call    374eh		; CRTMST - Create temporary string entry
-597a 6f        ld      l,a
-597b cdc238    call    38c2h		; TOSTRA
-597e d1        pop     de
-597f cdd238    call    38d2h		; GSTRDE
-5982 c37837    jp      3778h		; TSTOPL
+3955 cdd339    call    39d3h		; LFRGNM - number in program listing and check for ending ')'
+3958 af        xor     a
+3959 e3        ex      (sp),hl
+395a 4f        ld      c,a
+395b 3ee5      ld      a,0e5h
+395d e5        push    hl
+395e 7e        ld      a,(hl)
+395f b8        cp      b
+3960 3802      jr      c,3964h
+3962 78        ld      a,b
+3963 110e00    ld      de,000eh
+3966 c5        push    bc
+3967 cdb337    call    37b3h		; TESTR
+396a c1        pop     bc
+396b e1        pop     hl
+396c e5        push    hl
+396d 23        inc     hl
+396e 46        ld      b,(hl)
+396f 23        inc     hl
+3970 66        ld      h,(hl)
+3971 68        ld      l,b
+3972 0600      ld      b,00h
+3974 09        add     hl,bc
+3975 44        ld      b,h
+3976 4d        ld      c,l
+3977 cd4e37    call    374eh		; CRTMST - Create temporary string entry
+397a 6f        ld      l,a
+397b cdc238    call    38c2h		; TOSTRA
+397e d1        pop     de
+397f cdd238    call    38d2h		; GSTRDE
+3982 c37837    jp      3778h		; TSTOPL
 
 ; __RIGHT_S
-5985 cdd339    call    39d3h		; LFRGNM
-5988 d1        pop     de
-5989 d5        push    de
-598a 1a        ld      a,(de)
-598b 90        sub     b
-598c 18cb      jr      5959h
+3985 cdd339    call    39d3h		; LFRGNM - number in program listing and check for ending ')'
+3988 d1        pop     de
+3989 d5        push    de
+398a 1a        ld      a,(de)
+398b 90        sub     b
+398c 18cb      jr      3959h
 
 ; __MID_S
-598e eb        ex      de,hl
-598f 7e        ld      a,(hl)
-5990 cdd639    call    39d6h			; MIDNUM - Get numeric argument for MID$
-5993 04        inc     b
-5994 05        dec     b
-5995 ca352d    jp      z,2d35h            ; Error: Illegal function call (FC ERROR)
-5998 c5        push    bc
-5999 1eff      ld      e,0ffh
-599b fe29      cp      29h
-599d 2805      jr      z,59a4h
-599f cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-59a0 2c        defb    ','
-59a1 cd103a    call    3a10h		; GETINT
-59a4 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-59a5 29        defb    ')'
-59a6 f1        pop     af
-59a7 e3        ex      (sp),hl
-59a8 015d39    ld      bc,395dh
-59ab c5        push    bc
-59ac 3d        dec     a
-59ad be        cp      (hl)
-59ae 0600      ld      b,00h
-59b0 d0        ret     nc
-59b1 4f        ld      c,a
-59b2 7e        ld      a,(hl)
-59b3 91        sub     c
-59b4 bb        cp      e
-59b5 47        ld      b,a
-59b6 d8        ret     c
-59b7 43        ld      b,e
-59b8 c9        ret
+398e eb        ex      de,hl
+398f 7e        ld      a,(hl)
+3990 cdd639    call    39d6h			; MIDNUM - Get numeric argument for MID$
+3993 04        inc     b
+3994 05        dec     b
+3995 ca352d    jp      z,2d35h            ; Error: Illegal function call (FC ERROR)
+3998 c5        push    bc
+3999 1eff      ld      e,0ffh
+399b fe29      cp      29h
+399d 2805      jr      z,39a4h
+399f cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+39a0 2c        defb    ','
+39a1 cd103a    call    3a10h		; GETINT
+39a4 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+39a5 29        defb  '('
+39a6 f1        pop     af
+39a7 e3        ex      (sp),hl
+39a8 015d39    ld      bc,395dh
+39ab c5        push    bc
+39ac 3d        dec     a
+39ad be        cp      (hl)
+39ae 0600      ld      b,00h
+39b0 d0        ret     nc
+39b1 4f        ld      c,a
+39b2 7e        ld      a,(hl)
+39b3 91        sub     c
+39b4 bb        cp      e
+39b5 47        ld      b,a
+39b6 d8        ret     c
+39b7 43        ld      b,e
+39b8 c9        ret
 
-59b9 cdfb38    call    38fbh
-59bc caec36    jp      z,36ech			; UNSIGNED_RESULT_A
-59bf 5f        ld      e,a
-59c0 23        inc     hl
-59c1 7e        ld      a,(hl)
-59c2 23        inc     hl
-59c3 66        ld      h,(hl)
-59c4 6f        ld      l,a
-59c5 e5        push    hl
-59c6 19        add     hl,de
-59c7 46        ld      b,(hl)
-59c8 72        ld      (hl),d
-59c9 e3        ex      (sp),hl
-59ca c5        push    bc
-59cb 7e        ld      a,(hl)
-59cc cdcf1c    call    1ccfh
-59cf c1        pop     bc
-59d0 e1        pop     hl
-59d1 70        ld      (hl),b
-59d2 c9        ret     
-59d3 eb        ex      de,hl
-59d4 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-59d5 29        defb    ')'
-59d6 c1        pop     bc
-59d7 d1        pop     de
-59d8 c5        push    bc
-59d9 43        ld      b,e
-59da c9        ret
+39b9 cdfb38    call    38fbh
+39bc caec36    jp      z,36ech			; UNSIGNED_RESULT_A
+39bf 5f        ld      e,a
+39c0 23        inc     hl
+39c1 7e        ld      a,(hl)
+39c2 23        inc     hl
+39c3 66        ld      h,(hl)
+39c4 6f        ld      l,a
+39c5 e5        push    hl
+39c6 19        add     hl,de
+39c7 46        ld      b,(hl)
+39c8 72        ld      (hl),d
+39c9 e3        ex      (sp),hl
+39ca c5        push    bc
+39cb 7e        ld      a,(hl)
+39cc cdcf1c    call    1ccfh
+39cf c1        pop     bc
+39d0 e1        pop     hl
+39d1 70        ld      (hl),b
+39d2 c9        ret
+
+; LFRGNM - number in program listing and check for ending ')'
+39d3 eb        ex      de,hl
+39d4 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+39d5 29        defb  '('
+39d6 c1        pop     bc
+39d7 d1        pop     de
+39d8 c5        push    bc
+39d9 43        ld      b,e
+39da c9        ret
 
 ; IN BASIC instruction
-59db fe7a      cp      7ah
-59dd c28128    jp      nz,2881h            ; Syntax Error (SN ERROR)
-59e0 c3423f    jp      3f42h
-59e3 cd133a    call    3a13h		; MAKINT
-59e6 3248fc    ld      (0fc48h),a        ; Current port for 'INP' function
-59e9 cd47fc    call    0fc47h
-59ec c3ec36    jp      36ech			; UNSIGNED_RESULT_A
-59ef cd023a    call    3a02h
-59f2 c34afc    jp      0fc4ah
+39db fe7a      cp      7ah
+39dd c28128    jp      nz,2881h            ; Syntax Error (SN ERROR)
+39e0 c3423f    jp      3f42h			; __LOAD
 
-59f5 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-59f6 cd2b32    call    322bh			; EVAL
-59f9 e5        push    hl
-59fa cde918    call    18e9h            ; GETWORD_HL: Floating point to Integer
-59fd eb        ex      de,hl
-59fe e1        pop     hl
-59ff 7a        ld      a,d
-5a00 b7        or      a
-5a01 c9        ret
+; __INP
+39e3 cd133a    call    3a13h		; MAKINT
+39e6 3248fc    ld      (0fc48h),a        ; INPORT - Current port for 'INP' function
+39e9 cd47fc    call    0fc47h
+39ec c3ec36    jp      36ech			; UNSIGNED_RESULT_A
 
+; __OUT
+39ef cd023a    call    3a02h
+39f2 c34afc    jp      0fc4ah
+
+; FPSINT - Get subscript
+39f5 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+
+; GETWORD - Get a number to DE (0..65535)
+39f6 cd2b32    call    322bh			; EVAL
+; DEPINT - Get integer variable to DE, error if negative
+39f9 e5        push    hl
+39fa cde918    call    18e9h            ; GETWORD_HL: Floating point to Integer
+39fd eb        ex      de,hl
+39fe e1        pop     hl
+39ff 7a        ld      a,d
+3a00 b7        or      a
+3a01 c9        ret
 
 ; OUT BASIC instruction
-5a02 cd103a    call    3a10h		; GETINT
-5a05 3248fc    ld      (0fc48h),a        ; Current port for 'INP' function
-5a08 324bfc    ld      (0fc4bh),a
-5a0b cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-5a0c 2c        defb    ','
-5a0d 1801      jr      5a10h
-5a0f d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-5a10 cd2b32    call    322bh			; EVAL
-5a13 cdf939    call    39f9h
-5a16 c2352d    jp      nz,2d35h            ; Error: Illegal function call (FC ERROR)
-5a19 2b        dec     hl
-5a1a d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-5a1b 7b        ld      a,e
-5a1c c9        ret
-
-; __LLIST:
-5a1d 3e01      ld      a,01h
-5a1f 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
-;__LIST:
-5a22 c1        pop     bc
-5a23 cdfa29    call    29fah            ; LNUM_RANGE - Get specified line number range
-5a26 c5        push    bc
-5a27 21ffff    ld      hl,0ffffh
-5a2a 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
-5a2d e1        pop     hl
-5a2e d1        pop     de
-5a2f 4e        ld      c,(hl)
-5a30 23        inc     hl
-5a31 46        ld      b,(hl)
-5a32 23        inc     hl
-5a33 78        ld      a,b
-5a34 b1        or      c
-5a35 ca0329    jp      z,2903h
-5a38 cddbfe    call    0fedbh
-5a3b cd852c    call    2c85h
-5a3e c5        push    bc
-5a3f 4e        ld      c,(hl)
-5a40 23        inc     hl
-5a41 46        ld      b,(hl)
-5a42 23        inc     hl
-5a43 c5        push    bc
-5a44 e3        ex      (sp),hl
-5a45 eb        ex      de,hl
-5a46 df        rst     18h            ; DCOMPR - Compare HL with DE.
-5a47 c1        pop     bc
-5a48 da0229    jp      c,2902h
-5a4b e3        ex      (sp),hl
-5a4c e5        push    hl
-5a4d c5        push    bc
-5a4e eb        ex      de,hl
-5a4f 220cfe    ld      (0fe0ch),hl    ; Line No. in which error occured.
-5a52 cd191e    call    1e19h
-5a55 3e20      ld      a,20h
-5a57 e1        pop     hl
-5a58 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5a5b cd723a    call    3a72h
-5a5e 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
-5a61 cd693a    call    3a69h        ; Print message, text ptr in (HL)
-5a64 cde92f    call    2fe9h
-5a67 18be      jr      5a27h
-
-5a69 7e        ld      a,(hl)
-5a6a b7        or      a
-5a6b c8        ret     z
-5a6c cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5a6f 23        inc     hl
-5a70 18f7      jr      5a69h
-
-5a72 e5        push    hl
-5a73 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
-5a76 44        ld      b,h
-5a77 4d        ld      c,l
-5a78 e1        pop     hl
-5a79 16ff      ld      d,0ffh
-5a7b 1803      jr      5a80h
-
-5a7d 03        inc     bc
-5a7e 15        dec     d
-5a7f c8        ret     z
-5a80 7e        ld      a,(hl)
-5a81 b7        or      a
-5a82 23        inc     hl
-5a83 02        ld      (bc),a
-5a84 c8        ret     z
-5a85 f27d3a    jp      p,3a7dh
-5a88 fefb      cp      0fbh
-5a8a 2008      jr      nz,5a94h
-5a8c 0b        dec     bc
-5a8d 0b        dec     bc
-5a8e 0b        dec     bc
-5a8f 0b        dec     bc
-5a90 14        inc     d
-5a91 14        inc     d
-5a92 14        inc     d
-5a93 14        inc     d
-5a94 fe95      cp      95h
-5a96 cc8e19    call    z,198eh
-5a99 d67f      sub     7fh
-5a9b e5        push    hl
-5a9c 5f        ld      e,a
-5a9d 212e25    ld      hl,252eh
-5aa0 7e        ld      a,(hl)
-5aa1 b7        or      a
-5aa2 23        inc     hl
-5aa3 f2a03a    jp      p,3aa0h
-5aa6 1d        dec     e
-5aa7 20f7      jr      nz,5aa0h
-5aa9 e67f      and     7fh
-5aab 02        ld      (bc),a
-5aac 03        inc     bc
-5aad 15        dec     d
-5aae cacc37    jp      z,37cch
-5ab1 7e        ld      a,(hl)
-5ab2 23        inc     hl
-5ab3 b7        or      a
-5ab4 f2ab3a    jp      p,3aabh
-5ab7 e1        pop     hl
-5ab8 18c6      jr      5a80h
+3a02 cd103a    call    3a10h		; GETINT
+3a05 3248fc    ld      (0fc48h),a       ; INPORT - Current port for 'INP' function
+3a08 324bfc    ld      (0fc4bh),a		; OTPORT
+3a0b cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+3a0c 2c        defb    ','
+3a0d 1801      jr      3a10h		; GETINT
 
 
-;__DELETE:
-5aba cdfa29    call    29fah            ; LNUM_RANGE - Get specified line number range
-5abd d1        pop     de
-5abe c5        push    bc
-5abf c5        push    bc
-5ac0 cd162a    call    2a16h        ; FIND_LNUM - Search for line number
-5ac3 3005      jr      nc,5acah
-5ac5 54        ld      d,h
-5ac6 5d        ld      e,l
-5ac7 e3        ex      (sp),hl
-5ac8 e5        push    hl
-5ac9 df        rst     18h            ; DCOMPR - Compare HL with DE.
-5aca d2352d    jp      nc,2d35h            ; Error: Illegal function call (FC ERROR)
-5acd 211328    ld      hl,2813h
-5ad0 cd9b37    call    379bh			; Output a string
-5ad3 c1        pop     bc
-5ad4 21d229    ld      hl,29d2h
-5ad7 e3        ex      (sp),hl
-5ad8 eb        ex      de,hl
-5ad9 2a19fe    ld      hl,(0fe19h)        ; Addr of simple variables
-5adc 1a        ld      a,(de)
-5add 02        ld      (bc),a
-5ade 03        inc     bc
-5adf 13        inc     de
-5ae0 df        rst     18h            ; DCOMPR - Compare HL with DE.
-5ae1 20f9      jr      nz,5adch
-5ae3 60        ld      h,b
-5ae4 69        ld      l,c
-5ae5 2219fe    ld      (0fe19h),hl        ; Addr of simple variables
-5ae8 c9        ret     
+; FNDNUM - Load 'A' with the next nume in BASIC program
+3a0f d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
 
-5ae9 fe4d      cp      4dh
-5aeb ca4b08    jp      z,084bh
-5aee cd2b32    call    322bh			; EVAL
-5af1 e5        push    hl
-5af2 cd0739    call    3907h			; __ASC_0
-5af5 cd2307    call    0723h			; Cassette write on routine
-5af8 3ed3      ld      a,0d3h
-5afa cd3d07    call    073dh			; Cassette output routine
-5afd cd3a07    call    073ah
-5b00 1a        ld      a,(de)
-5b01 cd3d07    call    073dh			; Cassette output routine
-5b04 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
-5b07 eb        ex      de,hl
-5b08 2a19fe    ld      hl,(0fe19h)        ; Addr of simple variables
-5b0b 1a        ld      a,(de)
-5b0c 13        inc     de
-5b0d cd3d07    call    073dh			; Cassette output routine
-5b10 df        rst     18h            ; DCOMPR - Compare HL with DE.
-5b11 20f8      jr      nz,5b0bh
-5b13 cd8007    call    0780h			; Cassette off routine
-5b16 e1        pop     hl
-5b17 c9        ret
+; GETINT
+3a10 cd2b32    call    322bh			; EVAL
+; MAKINT
+3a13 cdf939    call    39f9h			; DEPINT - Get integer variable to DE, error if negative
+3a16 c2352d    jp      nz,2d35h            ; Error: Illegal function call (FC ERROR)
+3a19 2b        dec     hl
+3a1a d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+3a1b 7b        ld      a,e
+3a1c c9        ret
 
-5b18 7e        ld      a,(hl)
-5b19 fe4d      cp      4dh
-5b1b caa308    jp      z,08a3h
-5b1e d6b2      sub     0b2h
-5b20 2802      jr      z,5b24h
-5b22 af        xor     a
-5b23 012f23    ld      bc,232fh
-5b26 f5        push    af
-5b27 2b        dec     hl
-5b28 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-5b29 3e00      ld      a,00h
-5b2b 2807      jr      z,5b34h
-5b2d cd2b32    call    322bh			; EVAL
-5b30 cd0739    call    3907h			; __ASC_0
-5b33 1a        ld      a,(de)
-5b34 6f        ld      l,a
-5b35 f1        pop     af
-5b36 b7        or      a
-5b37 67        ld      h,a
-5b38 2241fe    ld      (0fe41h),hl        ; FACCU
-5b3b cc372a    call    z,2a37h
-5b3e 2a41fe    ld      hl,(0fe41h)        ; FACCU
-5b41 eb        ex      de,hl
-5b42 cd9e07    call    079eh		; Cassette read on routine
-5b45 0603      ld      b,03h
-5b47 cdc907    call    07c9h			; Casette read routine
-5b4a d6d3      sub     0d3h
-5b4c 20f7      jr      nz,5b45h
-5b4e 10f7      djnz    5b47h
-5b50 cdc907    call    07c9h			; Casette read routine
-5b53 1c        inc     e
-5b54 1d        dec     e
-5b55 2803      jr      z,5b5ah
-5b57 bb        cp      e
-5b58 2037      jr      nz,5b91h
-5b5a 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
-5b5d 0603      ld      b,03h
-5b5f cdc907    call    07c9h			; Casette read routine
-5b62 5f        ld      e,a
-5b63 96        sub     (hl)
-5b64 a2        and     d
-5b65 2021      jr      nz,5b88h
-5b67 73        ld      (hl),e
-5b68 cd5628    call    2856h
-5b6b 7e        ld      a,(hl)
-5b6c b7        or      a
-5b6d 23        inc     hl
-5b6e 20ed      jr      nz,5b5dh
-5b70 cd2108    call    0821h
-5b73 10ea      djnz    5b5fh
-5b75 2219fe    ld      (0fe19h),hl        ; Addr of simple variables
-5b78 211328    ld      hl,2813h
-5b7b cd9b37    call    379bh			; Output a string
-5b7e cd8007    call    0780h			; Cassette off routine
-5b81 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
-5b84 e5        push    hl
-5b85 c3d229    jp      29d2h
+; __LLIST
+3a1d 3e01      ld      a,01h
+3a1f 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+; __LIST
+3a22 c1        pop     bc
+3a23 cdfa29    call    29fah            ; LNUM_RANGE - Get specified line number range
+3a26 c5        push    bc
+3a27 21ffff    ld      hl,0ffffh
+3a2a 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
+3a2d e1        pop     hl
+3a2e d1        pop     de
+3a2f 4e        ld      c,(hl)
+3a30 23        inc     hl
+3a31 46        ld      b,(hl)
+3a32 23        inc     hl
+3a33 78        ld      a,b
+3a34 b1        or      c
+3a35 ca0329    jp      z,2903h
+3a38 cddbfe    call    0fedbh
+3a3b cd852c    call    2c85h
+3a3e c5        push    bc
+3a3f 4e        ld      c,(hl)
+3a40 23        inc     hl
+3a41 46        ld      b,(hl)
+3a42 23        inc     hl
+3a43 c5        push    bc
+3a44 e3        ex      (sp),hl
+3a45 eb        ex      de,hl
+3a46 df        rst     18h            ; DCOMPR - Compare HL with DE.
+3a47 c1        pop     bc
+3a48 da0229    jp      c,2902h
+3a4b e3        ex      (sp),hl
+3a4c e5        push    hl
+3a4d c5        push    bc
+3a4e eb        ex      de,hl
+3a4f 220cfe    ld      (0fe0ch),hl            ; Line No. in which error occured.
+3a52 cd191e    call    1e19h
+3a55 3e20      ld      a,20h		; ' '
+3a57 e1        pop     hl
+3a58 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+3a5b cd723a    call    3a72h
+3a5e 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
+3a61 cd693a    call    3a69h        ; Print message, text ptr in (HL)
+3a64 cde92f    call    2fe9h
+3a67 18be      jr      3a27h
 
-5b88 21a33b    ld      hl,3ba3h
-5b8b cd9b37    call    379bh			; Output a string
-5b8e c30229    jp      2902h
+; Print message, text ptr in (HL)
+3a69 7e        ld      a,(hl)
+3a6a b7        or      a			; end of string ?
+3a6b c8        ret     z
+3a6c cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+3a6f 23        inc     hl
+3a70 18f7      jr      3a69h        ; loop
 
-5b91 323e3c    ld      (3c3eh),a
-5b94 0603      ld      b,03h
-5b96 cdc907    call    07c9h			; Casette read routine
-5b99 b7        or      a
-5b9a 20f8      jr      nz,5b94h
-5b9c 10f8      djnz    5b96h
-5b9e cda107    call    07a1h
-5ba1 18a2      jr      5b45h
+3a72 e5        push    hl
+3a73 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
+3a76 44        ld      b,h
+3a77 4d        ld      c,l
+3a78 e1        pop     hl
+3a79 16ff      ld      d,0ffh
+3a7b 1803      jr      3a80h
 
-5ba3 42        ld      b,d
-5ba4 41        ld      b,c
-5ba5 44        ld      b,h
-5ba6 0d        dec     c
-5ba7 00        nop     
-5ba8 cde918    call    18e9h            ; GETWORD_HL: Floating point to Integer
-5bab 7e        ld      a,(hl)
-5bac c3ec36    jp      36ech			; UNSIGNED_RESULT_A
+3a7d 03        inc     bc
+3a7e 15        dec     d
+3a7f c8        ret     z
+3a80 7e        ld      a,(hl)
+3a81 b7        or      a
+3a82 23        inc     hl
+3a83 02        ld      (bc),a
+3a84 c8        ret     z
+3a85 f27d3a    jp      p,3a7dh
+3a88 fefb      cp      0fbh
+3a8a 2008      jr      nz,3a94h
+3a8c 0b        dec     bc
+3a8d 0b        dec     bc
+3a8e 0b        dec     bc
+3a8f 0b        dec     bc
+3a90 14        inc     d
+3a91 14        inc     d
+3a92 14        inc     d
+3a93 14        inc     d
+3a94 fe95      cp      95h
+3a96 cc8e19    call    z,198eh
+3a99 d67f      sub     7fh
+3a9b e5        push    hl
+3a9c 5f        ld      e,a
+3a9d 212e25    ld      hl,252eh		; TOKEN table position
+3aa0 7e        ld      a,(hl)
+3aa1 b7        or      a
+3aa2 23        inc     hl
+3aa3 f2a03a    jp      p,3aa0h
+3aa6 1d        dec     e
+3aa7 20f7      jr      nz,3aa0h
+3aa9 e67f      and     7fh
+3aab 02        ld      (bc),a
+3aac 03        inc     bc
+3aad 15        dec     d
+3aae cacc37    jp      z,37cch
+3ab1 7e        ld      a,(hl)
+3ab2 23        inc     hl
+3ab3 b7        or      a
+3ab4 f2ab3a    jp      p,3aabh
+3ab7 e1        pop     hl
+3ab8 18c6      jr      3a80h
 
-5baf cdf639    call    39f6h                ; GETINT/EVAL  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
-5bb2 d5        push    de
-5bb3 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-5bb4 2c        defb    ','
-5bb5 cd103a    call    3a10h		; GETINT
-5bb8 d1        pop     de
-5bb9 12        ld      (de),a
-5bba c9        ret
+; __DELETE
+3aba cdfa29    call    29fah            ; LNUM_RANGE - Get specified line number range
+3abd d1        pop     de
+3abe c5        push    bc
+3abf c5        push    bc
+3ac0 cd162a    call    2a16h            ; FIND_LNUM - Search for line number
+3ac3 3005      jr      nc,3acah
+3ac5 54        ld      d,h
+3ac6 5d        ld      e,l
+3ac7 e3        ex      (sp),hl
+3ac8 e5        push    hl
+3ac9 df        rst     18h            ; DCOMPR - Compare HL with DE.
+3aca d2352d    jp      nc,2d35h            ; Error: Illegal function call (FC ERROR)
+3acd 211328    ld      hl,2813h
+3ad0 cd9b37    call    379bh			; Output a string
+3ad3 c1        pop     bc
+3ad4 21d229    ld      hl,29d2h
+3ad7 e3        ex      (sp),hl
+3ad8 eb        ex      de,hl
+3ad9 2a19fe    ld      hl,(0fe19h)        ; Addr of simple variables
+3adc 1a        ld      a,(de)
+3add 02        ld      (bc),a
+3ade 03        inc     bc
+3adf 13        inc     de
+3ae0 df        rst     18h            ; DCOMPR - Compare HL with DE.
+3ae1 20f9      jr      nz,3adch
+3ae3 60        ld      h,b
+3ae4 69        ld      l,c
+3ae5 2219fe    ld      (0fe19h),hl        ; Addr of simple variables
+3ae8 c9        ret
 
-5bbb cd2c32    call    322ch
-5bbe cd5e19    call    195eh
-5bc1 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-5bc2 3b        dec     sp
-5bc3 eb        ex      de,hl
-5bc4 2a41fe    ld      hl,(0fe41h)        ; FACCU
-5bc7 1808      jr      5bd1h
-5bc9 3afefd    ld      a,(0fdfeh)        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
-5bcc b7        or      a
-5bcd 280c      jr      z,5bdbh
-5bcf d1        pop     de
-5bd0 eb        ex      de,hl
-5bd1 e5        push    hl
-5bd2 af        xor     a
-5bd3 32fefd    ld      (0fdfeh),a        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
-5bd6 ba        cp      d
-5bd7 f5        push    af
-5bd8 d5        push    de
-5bd9 46        ld      b,(hl)
-5bda b0        or      b
-5bdb ca352d    jp      z,2d35h            ; Error: Illegal function call (FC ERROR)
-5bde 23        inc     hl
-5bdf 4e        ld      c,(hl)
-5be0 23        inc     hl
-5be1 66        ld      h,(hl)
-5be2 69        ld      l,c
-5be3 181c      jr      5c01h
+3ae9 fe4d      cp      4dh
+3aeb ca4b08    jp      z,084bh
+3aee cd2b32    call    322bh			; EVAL
+3af1 e5        push    hl
+3af2 cd0739    call    3907h		; __ASC_0
+3af5 cd2307    call    0723h			; Cassette write on routine
+3af8 3ed3      ld      a,0d3h
+3afa cd3d07    call    073dh			; Cassette output routine
+3afd cd3a07    call    073ah
+3b00 1a        ld      a,(de)
+3b01 cd3d07    call    073dh			; Cassette output routine
+3b04 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
+3b07 eb        ex      de,hl
+3b08 2a19fe    ld      hl,(0fe19h)        ; Addr of simple variables
+3b0b 1a        ld      a,(de)
+3b0c 13        inc     de
+3b0d cd3d07    call    073dh			; Cassette output routine
+3b10 df        rst     18h            ; DCOMPR - Compare HL with DE.
+3b11 20f8      jr      nz,3b0bh
+3b13 cd8007    call    0780h			; Cassette off routine
+3b16 e1        pop     hl
+3b17 c9        ret
 
-5be5 58        ld      e,b
-5be6 e5        push    hl
-5be7 0e02      ld      c,02h
-5be9 7e        ld      a,(hl)
-5bea 23        inc     hl
-5beb fe25      cp      25h
-5bed ca153d    jp      z,3d15h
-5bf0 fe20      cp      20h
-5bf2 2003      jr      nz,5bf7h
-5bf4 0c        inc     c
-5bf5 10f2      djnz    5be9h
-5bf7 e1        pop     hl
-5bf8 43        ld      b,e
-5bf9 3e25      ld      a,25h
-5bfb cd473d    call    3d47h
-5bfe cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5c01 af        xor     a
-5c02 5f        ld      e,a
-5c03 57        ld      d,a
-5c04 cd473d    call    3d47h
-5c07 57        ld      d,a
-5c08 7e        ld      a,(hl)
-5c09 23        inc     hl
-5c0a fe21      cp      21h
-5c0c ca123d    jp      z,3d12h
-5c0f fe23      cp      23h
-5c11 2837      jr      z,5c4ah
-5c13 05        dec     b
-5c14 cafc3c    jp      z,3cfch
-5c17 fe2b      cp      2bh
-5c19 3e08      ld      a,08h
-5c1b 28e7      jr      z,5c04h
-5c1d 2b        dec     hl
-5c1e 7e        ld      a,(hl)
-5c1f 23        inc     hl
-5c20 fe2e      cp      2eh
-5c22 2840      jr      z,5c64h
-5c24 fe25      cp      25h
-5c26 28bd      jr      z,5be5h
-5c28 be        cp      (hl)
-5c29 20d0      jr      nz,5bfbh
-5c2b fe24      cp      24h
-5c2d 2814      jr      z,5c43h
-5c2f fe2a      cp      2ah
-5c31 20c8      jr      nz,5bfbh
-5c33 78        ld      a,b
-5c34 fe02      cp      02h
-5c36 23        inc     hl
-5c37 3803      jr      c,5c3ch
-5c39 7e        ld      a,(hl)
-5c3a fe24      cp      24h
-5c3c 3e20      ld      a,20h
-5c3e 2007      jr      nz,5c47h
-5c40 05        dec     b
-5c41 1c        inc     e
-5c42 feaf      cp      0afh
-5c44 c610      add     a,10h
-5c46 23        inc     hl
-5c47 1c        inc     e
-5c48 82        add     a,d
-5c49 57        ld      d,a
-5c4a 1c        inc     e
-5c4b 0e00      ld      c,00h
-5c4d 05        dec     b
-5c4e 2847      jr      z,5c97h
-5c50 7e        ld      a,(hl)
-5c51 23        inc     hl
-5c52 fe2e      cp      2eh
-5c54 2818      jr      z,5c6eh
-5c56 fe23      cp      23h
-5c58 28f0      jr      z,5c4ah
-5c5a fe2c      cp      ','
-5c5c 201a      jr      nz,5c78h
-5c5e 7a        ld      a,d
-5c5f f640      or      40h
-5c61 57        ld      d,a
-5c62 18e6      jr      5c4ah
-5c64 7e        ld      a,(hl)
-5c65 fe23      cp      23h
-5c67 3e2e      ld      a,2eh
-5c69 2090      jr      nz,5bfbh
-5c6b 0e01      ld      c,01h
-5c6d 23        inc     hl
-5c6e 0c        inc     c
-5c6f 05        dec     b
-5c70 2825      jr      z,5c97h
-5c72 7e        ld      a,(hl)
-5c73 23        inc     hl
-5c74 fe23      cp      23h
-5c76 28f6      jr      z,5c6eh
-5c78 d5        push    de
-5c79 11953c    ld      de,3c95h
-5c7c d5        push    de
-5c7d 54        ld      d,h
-5c7e 5d        ld      e,l
-5c7f fe5b      cp      5bh
-5c81 c0        ret     nz
-5c82 be        cp      (hl)
-5c83 c0        ret     nz
-5c84 23        inc     hl
-5c85 be        cp      (hl)
-5c86 c0        ret     nz
-5c87 23        inc     hl
-5c88 be        cp      (hl)
-5c89 c0        ret     nz
-5c8a 23        inc     hl
-5c8b 78        ld      a,b
-5c8c d604      sub     04h
-5c8e d8        ret     c
-5c8f d1        pop     de
-5c90 d1        pop     de
-5c91 47        ld      b,a
-5c92 14        inc     d
-5c93 23        inc     hl
-5c94 caebd1    jp      z,0d1ebh
-5c97 7a        ld      a,d
-5c98 2b        dec     hl
-5c99 1c        inc     e
-5c9a e608      and     08h
-5c9c 2015      jr      nz,5cb3h
-5c9e 1d        dec     e
-5c9f 78        ld      a,b
-5ca0 b7        or      a
-5ca1 2810      jr      z,5cb3h
-5ca3 7e        ld      a,(hl)
-5ca4 d62d      sub     2dh
-5ca6 2806      jr      z,5caeh
-5ca8 fefe      cp      0feh
-5caa 2007      jr      nz,5cb3h
-5cac 3e08      ld      a,08h
-5cae c604      add     a,04h
-5cb0 82        add     a,d
-5cb1 57        ld      d,a
-5cb2 05        dec     b
-5cb3 e1        pop     hl
-5cb4 f1        pop     af
-5cb5 2850      jr      z,5d07h
-5cb7 c5        push    bc
-5cb8 d5        push    de
-5cb9 cd2b32    call    322bh			; EVAL
-5cbc d1        pop     de
-5cbd c1        pop     bc
-5cbe c5        push    bc
-5cbf e5        push    hl
-5cc0 43        ld      b,e
-5cc1 78        ld      a,b
-5cc2 81        add     a,c
-5cc3 fe19      cp      19h
-5cc5 d2352d    jp      nc,2d35h            ; Error: Illegal function call (FC ERROR)
-5cc8 7a        ld      a,d
-5cc9 f680      or      80h
-5ccb cd281e    call    1e28h
-5cce cd9b37    call    379bh			; Output a string
-5cd1 e1        pop     hl
-5cd2 2b        dec     hl
-5cd3 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-5cd4 37        scf     
-5cd5 280d      jr      z,5ce4h
-5cd7 32fefd    ld      (0fdfeh),a        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
-5cda fe3b      cp      3bh
-5cdc 2805      jr      z,5ce3h
-5cde fe2c      cp      ','
-5ce0 c28128    jp      nz,2881h            ; Syntax Error (SN ERROR)
-5ce3 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-5ce4 c1        pop     bc
-5ce5 eb        ex      de,hl
-5ce6 e1        pop     hl
-5ce7 e5        push    hl
-5ce8 f5        push    af
-5ce9 d5        push    de
-5cea 7e        ld      a,(hl)
-5ceb 90        sub     b
-5cec 23        inc     hl
-5ced 4e        ld      c,(hl)
-5cee 23        inc     hl
-5cef 66        ld      h,(hl)
-5cf0 69        ld      l,c
-5cf1 1600      ld      d,00h
-5cf3 5f        ld      e,a
-5cf4 19        add     hl,de
-5cf5 78        ld      a,b
-5cf6 b7        or      a
-5cf7 c2013c    jp      nz,3c01h
-5cfa 1806      jr      5d02h
+3b18 7e        ld      a,(hl)
+3b19 fe4d      cp      4dh
+3b1b caa308    jp      z,08a3h
+3b1e d6b2      sub     0b2h
+3b20 2802      jr      z,3b24h
+3b22 af        xor     a
+3b23 012f23    ld      bc,232fh
+3b26 f5        push    af
+3b27 2b        dec     hl
+3b28 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+3b29 3e00      ld      a,00h
+3b2b 2807      jr      z,3b34h
+3b2d cd2b32    call    322bh			; EVAL
+3b30 cd0739    call    3907h		; __ASC_0
+3b33 1a        ld      a,(de)
+3b34 6f        ld      l,a
+3b35 f1        pop     af
+3b36 b7        or      a
+3b37 67        ld      h,a
+3b38 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+3b3b cc372a    call    z,2a37h
+3b3e 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+3b41 eb        ex      de,hl
+3b42 cd9e07    call    079eh		; Cassette read on routine
+3b45 0603      ld      b,03h
+3b47 cdc907    call    07c9h			; Casette read routine
+3b4a d6d3      sub     0d3h
+3b4c 20f7      jr      nz,3b45h
+3b4e 10f7      djnz    3b47h
+3b50 cdc907    call    07c9h			; Casette read routine
+3b53 1c        inc     e
+3b54 1d        dec     e
+3b55 2803      jr      z,3b5ah
+3b57 bb        cp      e
+3b58 2037      jr      nz,3b91h
+3b5a 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
+3b5d 0603      ld      b,03h
+3b5f cdc907    call    07c9h			; Casette read routine
+3b62 5f        ld      e,a
+3b63 96        sub     (hl)
+3b64 a2        and     d
+3b65 2021      jr      nz,3b88h
+3b67 73        ld      (hl),e
+3b68 cd5628    call    2856h
+3b6b 7e        ld      a,(hl)
+3b6c b7        or      a
+3b6d 23        inc     hl
+3b6e 20ed      jr      nz,3b5dh
+3b70 cd2108    call    0821h
+3b73 10ea      djnz    3b5fh
+3b75 2219fe    ld      (0fe19h),hl        ; Addr of simple variables
+3b78 211328    ld      hl,2813h
+3b7b cd9b37    call    379bh			; Output a string
+3b7e cd8007    call    0780h			; Cassette off routine
+3b81 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
+3b84 e5        push    hl
+3b85 c3d229    jp      29d2h
 
-5cfc cd473d    call    3d47h
-5cff cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5d02 e1        pop     hl
-5d03 f1        pop     af
-5d04 c2c93b    jp      nz,3bc9h
-5d07 dce92f    call    c,2fe9h
-5d0a e3        ex      (sp),hl
-5d0b cdd138    call    38d1h
-5d0e e1        pop     hl
-5d0f c35430    jp      3054h
+3b88 21a33b    ld      hl,3ba3h
+3b8b cd9b37    call    379bh			; Output a string
+3b8e c30229    jp      2902h
 
-5d12 0e01      ld      c,01h
-5d14 3ef1      ld      a,0f1h
-5d16 05        dec     b
-5d17 cd473d    call    3d47h
-5d1a e1        pop     hl
-5d1b f1        pop     af
-5d1c 28e9      jr      z,5d07h
-5d1e c5        push    bc
-5d1f cd2b32    call    322bh			; EVAL
-5d22 cd5e19    call    195eh
-5d25 c1        pop     bc
-5d26 c5        push    bc
-5d27 e5        push    hl
-5d28 2a41fe    ld      hl,(0fe41h)        ; FACCU
-5d2b 41        ld      b,c
-5d2c 0e00      ld      c,00h
-5d2e c5        push    bc
-5d2f cd5c39    call    395ch
-5d32 cd9e37    call    379eh
-5d35 2a41fe    ld      hl,(0fe41h)        ; FACCU
-5d38 f1        pop     af
-5d39 96        sub     (hl)
-5d3a 47        ld      b,a
-5d3b 3e20      ld      a,20h
-5d3d 04        inc     b
-5d3e 05        dec     b
-5d3f cad13c    jp      z,3cd1h
-5d42 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5d45 18f7      jr      5d3eh
-5d47 f5        push    af
-5d48 7a        ld      a,d
-5d49 b7        or      a
-5d4a 3e2b      ld      a,2bh
-5d4c c4a00b    call    nz,0ba0h        ; OUTC (alias OUTDO): print character
-5d4f f1        pop     af
-5d50 c9        ret
 
-5d51 324efc    ld      (0fc4eh),a            ; ERRFLG:  ERROR FLAG
-5d54 2a0afe    ld      hl,(0fe0ah)            ; ERRLIN: Line No. in which error occured.
-5d57 b4        or      h
-5d58 a5        and     l
-5d59 3c        inc     a
-5d5a eb        ex      de,hl
-5d5b c8        ret     z
-5d5c 1804      jr      5d62h
-5d5e cd3a2d    call    2d3ah                ; LNUM_PARM - Get specified line number
-5d61 c0        ret     nz
-5d62 e1        pop     hl
-5d63 eb        ex      de,hl
-5d64 220cfe    ld      (0fe0ch),hl            ; Line No. in which error occured.
-5d67 eb        ex      de,hl
-5d68 cd162a    call    2a16h                ; FIND_LNUM - Search for line number
-5d6b d2c42d    jp      nc,2dc4h
+3b91 323e3c    ld      (3c3eh),a
+3b94 0603      ld      b,03h
+3b96 cdc907    call    07c9h			; Casette read routine
+3b99 b7        or      a
+3b9a 20f8      jr      nz,3b94h
+3b9c 10f8      djnz    3b96h
+3b9e cda107    call    07a1h
+3ba1 18a2      jr      3b45h
 
-5d6e 60        ld      h,b
-5d6f 69        ld      l,c
-5d70 23        inc     hl
-5d71 23        inc     hl
-5d72 4e        ld      c,(hl)
-5d73 23        inc     hl
-5d74 46        ld      b,(hl)
-5d75 23        inc     hl
-5d76 c5        push    bc
-5d77 cd723a    call    3a72h
-5d7a e1        pop     hl
-5d7b e5        push    hl
-5d7c cd191e    call    1e19h
-5d7f 3e20      ld      a,20h
-5d81 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5d84 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
-5d87 3e16      ld      a,16h
-5d89 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5d8c e5        push    hl
-5d8d 0eff      ld      c,0ffh
-5d8f 0c        inc     c
-5d90 7e        ld      a,(hl)
-5d91 b7        or      a
-5d92 23        inc     hl
-5d93 20fa      jr      nz,5d8fh
-5d95 e1        pop     hl
-5d96 47        ld      b,a
-5d97 1600      ld      d,00h
-5d99 cdac09    call    09ach        ; Console input routine
-5d9c d630      sub     30h
-5d9e 380e      jr      c,5daeh
-5da0 fe0a      cp      0ah
-5da2 300a      jr      nc,5daeh
-5da4 5f        ld      e,a
-5da5 7a        ld      a,d
-5da6 07        rlca    
-5da7 07        rlca    
-5da8 82        add     a,d
-5da9 07        rlca    
-5daa 83        add     a,e
-5dab 57        ld      d,a
-5dac 18eb      jr      5d99h
-5dae e5        push    hl
-5daf 21973d    ld      hl,3d97h
-5db2 e3        ex      (sp),hl
-5db3 15        dec     d
-5db4 14        inc     d
-5db5 c2b93d    jp      nz,3db9h
-5db8 14        inc     d
-5db9 fed8      cp      0d8h
-5dbb cad03e    jp      z,3ed0h
-5dbe fedd      cp      0ddh
-5dc0 cade3e    jp      z,3edeh
-5dc3 fef0      cp      0f0h
-5dc5 2841      jr      z,5e08h
-5dc7 fe31      cp      31h
-5dc9 3802      jr      c,5dcdh
-5dcb d620      sub     20h
-5dcd fe21      cp      21h
-5dcf caf43e    jp      z,3ef4h
-5dd2 fe1c      cp      1ch
-5dd4 ca3e3e    jp      z,3e3eh
-5dd7 fe23      cp      23h
-5dd9 283f      jr      z,5e1ah
-5ddb fe19      cp      19h
-5ddd ca7b3e    jp      z,3e7bh
-5de0 fe14      cp      14h
-5de2 ca483e    jp      z,3e48h
-5de5 fe13      cp      13h
-5de7 ca633e    jp      z,3e63h
-5dea fe15      cp      15h
-5dec cae13e    jp      z,3ee1h
-5def fe28      cp      28h
-5df1 ca763e    jp      z,3e76h
-5df4 fe1b      cp      1bh
-5df6 281c      jr      z,5e14h
-5df8 fe18      cp      18h
-5dfa ca733e    jp      z,3e73h
-5dfd fe11      cp      11h
-5dff c0        ret     nz
-5e00 c1        pop     bc
-5e01 d1        pop     de
-5e02 cde92f    call    2fe9h
-5e05 c3633d    jp      3d63h
-5e08 7e        ld      a,(hl)
-5e09 b7        or      a
-5e0a c8        ret     z
-5e0b 04        inc     b
-5e0c cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5e0f 23        inc     hl
-5e10 15        dec     d
-5e11 20f5      jr      nz,5e08h
-5e13 c9        ret
+3ba3 42        ld      b,d
+3ba4 41        ld      b,c
+3ba5 44        ld      b,h
+3ba6 0d        dec     c
+3ba7 00        nop     
+3ba8 cde918    call    18e9h            ; GETWORD_HL: Floating point to Integer
+3bab 7e        ld      a,(hl)
+3bac c3ec36    jp      36ech			; UNSIGNED_RESULT_A
 
-5e14 e5        push    hl
-5e15 215d3e    ld      hl,3e5dh
-5e18 e3        ex      (sp),hl
-5e19 37        scf     
-5e1a f5        push    af
-5e1b cdac09    call    09ach        ; Console input routine
-5e1e 5f        ld      e,a
-5e1f f1        pop     af
-5e20 f5        push    af
-5e21 dc5d3e    call    c,3e5dh
-5e24 7e        ld      a,(hl)
-5e25 b7        or      a
-5e26 ca3c3e    jp      z,3e3ch
+3baf cdf639    call    39f6h            ; GETWORD - Get a number to DE (0..65535)
+3bb2 d5        push    de
+3bb3 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+3bb4 2c        defb    ','
+3bb5 cd103a    call    3a10h		; GETINT
+3bb8 d1        pop     de
+3bb9 12        ld      (de),a
+3bba c9        ret
 
-5e29 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5e2c f1        pop     af
-5e2d f5        push    af
-5e2e dc9f3e    call    c,3e9fh
-5e31 3802      jr      c,5e35h
-5e33 23        inc     hl
-5e34 04        inc     b
-5e35 7e        ld      a,(hl)
-5e36 bb        cp      e
-5e37 20eb      jr      nz,5e24h
-5e39 15        dec     d
-5e3a 20e8      jr      nz,5e24h
-5e3c f1        pop     af
-5e3d c9        ret     
+3bbb cd2c32    call    322ch
+3bbe cd5e19    call    195eh
+3bc1 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+3bc2 3b        dec     sp
+3bc3 eb        ex      de,hl
+3bc4 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+3bc7 1808      jr      3bd1h
 
-5e3e cd693a    call    3a69h        ; Print message, text ptr in (HL)
-5e41 cde92f    call    2fe9h
-5e44 c1        pop     bc
-5e45 c37a3d    jp      3d7ah
+3bc9 3afefd    ld      a,(0fdfeh)        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
+3bcc b7        or      a
+3bcd 280c      jr      z,3bdbh
+3bcf d1        pop     de
+3bd0 eb        ex      de,hl
+3bd1 e5        push    hl
+3bd2 af        xor     a
+3bd3 32fefd    ld      (0fdfeh),a        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
+3bd6 ba        cp      d
+3bd7 f5        push    af
+3bd8 d5        push    de
+3bd9 46        ld      b,(hl)
+3bda b0        or      b
+3bdb ca352d    jp      z,2d35h            ; Error: Illegal function call (FC ERROR)
+3bde 23        inc     hl
+3bdf 4e        ld      c,(hl)
+3be0 23        inc     hl
+3be1 66        ld      h,(hl)
+3be2 69        ld      l,c
+3be3 181c      jr      3c01h
 
-5e48 7e        ld      a,(hl)
-5e49 b7        or      a
-5e4a c8        ret     z
-5e4b 3e21      ld      a,21h
-5e4d cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5e50 7e        ld      a,(hl)
-5e51 b7        or      a
-5e52 2809      jr      z,5e5dh
-5e54 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5e57 cd9f3e    call    3e9fh
-5e5a 15        dec     d
-5e5b 20f3      jr      nz,5e50h
-5e5d 3e21      ld      a,21h
-5e5f cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5e62 c9        ret
+3be5 58        ld      e,b
+3be6 e5        push    hl
+3be7 0e02      ld      c,02h
+3be9 7e        ld      a,(hl)
+3bea 23        inc     hl
+3beb fe25      cp      25h
+3bed ca153d    jp      z,3d15h
+3bf0 fe20      cp      20h
+3bf2 2003      jr      nz,3bf7h
+3bf4 0c        inc     c
+3bf5 10f2      djnz    3be9h
+3bf7 e1        pop     hl
+3bf8 43        ld      b,e
+3bf9 3e25      ld      a,25h		; '%'
+3bfb cd473d    call    3d47h
+3bfe cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+3c01 af        xor     a
+3c02 5f        ld      e,a
+3c03 57        ld      d,a
+3c04 cd473d    call    3d47h
+3c07 57        ld      d,a
+3c08 7e        ld      a,(hl)
+3c09 23        inc     hl
+3c0a fe21      cp      21h
+3c0c ca123d    jp      z,3d12h
+3c0f fe23      cp      23h
+3c11 2837      jr      z,3c4ah
+3c13 05        dec     b
+3c14 cafc3c    jp      z,3cfch
+3c17 fe2b      cp      2bh
+3c19 3e08      ld      a,08h
+3c1b 28e7      jr      z,3c04h
+3c1d 2b        dec     hl
+3c1e 7e        ld      a,(hl)
+3c1f 23        inc     hl
+3c20 fe2e      cp      2eh
+3c22 2840      jr      z,3c64h
+3c24 fe25      cp      25h
+3c26 28bd      jr      z,3be5h
+3c28 be        cp      (hl)
+3c29 20d0      jr      nz,3bfbh
+3c2b fe24      cp      24h
+3c2d 2814      jr      z,3c43h
+3c2f fe2a      cp      2ah
+3c31 20c8      jr      nz,3bfbh
+3c33 78        ld      a,b
+3c34 fe02      cp      02h
+3c36 23        inc     hl
+3c37 3803      jr      c,3c3ch
+3c39 7e        ld      a,(hl)
+3c3a fe24      cp      24h
+3c3c 3e20      ld      a,20h
+3c3e 2007      jr      nz,3c47h
+3c40 05        dec     b
+3c41 1c        inc     e
+3c42 feaf      cp      0afh
+3c44 c610      add     a,10h
+3c46 23        inc     hl
+3c47 1c        inc     e
+3c48 82        add     a,d
+3c49 57        ld      d,a
+3c4a 1c        inc     e
+3c4b 0e00      ld      c,00h
+3c4d 05        dec     b
+3c4e 2847      jr      z,3c97h
+3c50 7e        ld      a,(hl)
+3c51 23        inc     hl
+3c52 fe2e      cp      2eh
+3c54 2818      jr      z,3c6eh
+3c56 fe23      cp      23h
+3c58 28f0      jr      z,3c4ah
+3c5a fe2c      cp      2ch
+3c5c 201a      jr      nz,3c78h
+3c5e 7a        ld      a,d
+3c5f f640      or      40h
+3c61 57        ld      d,a
+3c62 18e6      jr      3c4ah
+3c64 7e        ld      a,(hl)
+3c65 fe23      cp      23h
+3c67 3e2e      ld      a,2eh
+3c69 2090      jr      nz,3bfbh
+3c6b 0e01      ld      c,01h
+3c6d 23        inc     hl
+3c6e 0c        inc     c
+3c6f 05        dec     b
+3c70 2825      jr      z,3c97h
+3c72 7e        ld      a,(hl)
+3c73 23        inc     hl
+3c74 fe23      cp      23h
+3c76 28f6      jr      z,3c6eh
+3c78 d5        push    de
+3c79 11953c    ld      de,3c95h
+3c7c d5        push    de
+3c7d 54        ld      d,h
+3c7e 5d        ld      e,l
+3c7f fe5b      cp      5bh
+3c81 c0        ret     nz
+3c82 be        cp      (hl)
+3c83 c0        ret     nz
+3c84 23        inc     hl
+3c85 be        cp      (hl)
+3c86 c0        ret     nz
+3c87 23        inc     hl
+3c88 be        cp      (hl)
+3c89 c0        ret     nz
+3c8a 23        inc     hl
+3c8b 78        ld      a,b
+3c8c d604      sub     04h
+3c8e d8        ret     c
+3c8f d1        pop     de
+3c90 d1        pop     de
+3c91 47        ld      b,a
+3c92 14        inc     d
+3c93 23        inc     hl
+3c94 caebd1    jp      z,0d1ebh
+3c97 7a        ld      a,d
+3c98 2b        dec     hl
+3c99 1c        inc     e
+3c9a e608      and     08h
+3c9c 2015      jr      nz,3cb3h
+3c9e 1d        dec     e
+3c9f 78        ld      a,b
+3ca0 b7        or      a
+3ca1 2810      jr      z,3cb3h
+3ca3 7e        ld      a,(hl)
+3ca4 d62d      sub     2dh
+3ca6 2806      jr      z,3caeh
+3ca8 fefe      cp      0feh
+3caa 2007      jr      nz,3cb3h
+3cac 3e08      ld      a,08h
+3cae c604      add     a,04h
+3cb0 82        add     a,d
+3cb1 57        ld      d,a
+3cb2 05        dec     b
+3cb3 e1        pop     hl
+3cb4 f1        pop     af
+3cb5 2850      jr      z,3d07h
+3cb7 c5        push    bc
+3cb8 d5        push    de
+3cb9 cd2b32    call    322bh			; EVAL
+3cbc d1        pop     de
+3cbd c1        pop     bc
+3cbe c5        push    bc
+3cbf e5        push    hl
+3cc0 43        ld      b,e
+3cc1 78        ld      a,b
+3cc2 81        add     a,c
+3cc3 fe19      cp      19h
+3cc5 d2352d    jp      nc,2d35h            ; Error: Illegal function call (FC ERROR)
+3cc8 7a        ld      a,d
+3cc9 f680      or      80h
+3ccb cd281e    call    1e28h
+3cce cd9b37    call    379bh			; Output a string
+3cd1 e1        pop     hl
+3cd2 2b        dec     hl
+3cd3 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+3cd4 37        scf     
+3cd5 280d      jr      z,3ce4h
+3cd7 32fefd    ld      (0fdfeh),a        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
+3cda fe3b      cp      3bh
+3cdc 2805      jr      z,3ce3h
+3cde fe2c      cp      2ch
+3ce0 c28128    jp      nz,2881h            ; Syntax Error (SN ERROR)
+3ce3 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
+3ce4 c1        pop     bc
+3ce5 eb        ex      de,hl
+3ce6 e1        pop     hl
+3ce7 e5        push    hl
+3ce8 f5        push    af
+3ce9 d5        push    de
+3cea 7e        ld      a,(hl)
+3ceb 90        sub     b
+3cec 23        inc     hl
+3ced 4e        ld      c,(hl)
+3cee 23        inc     hl
+3cef 66        ld      h,(hl)
+3cf0 69        ld      l,c
+3cf1 1600      ld      d,00h
+3cf3 5f        ld      e,a
+3cf4 19        add     hl,de
+3cf5 78        ld      a,b
+3cf6 b7        or      a
+3cf7 c2013c    jp      nz,3c01h
+3cfa 1806      jr      3d02h
 
-5e63 7e        ld      a,(hl)
-5e64 b7        or      a
-5e65 c8        ret     z
-5e66 cdac09    call    09ach        ; Console input routine
-5e69 77        ld      (hl),a
-5e6a cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5e6d 23        inc     hl
-5e6e 04        inc     b
-5e6f 15        dec     d
-5e70 20f1      jr      nz,5e63h
-5e72 c9        ret
+3cfc cd473d    call    3d47h
+3cff cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+3d02 e1        pop     hl
+3d03 f1        pop     af
+3d04 c2c93b    jp      nz,3bc9h
+3d07 dce92f    call    c,2fe9h
+3d0a e3        ex      (sp),hl
+3d0b cdd138    call    38d1h
+3d0e e1        pop     hl
+3d0f c35430    jp      3054h
 
-5e73 3600      ld      (hl),00h
-5e75 48        ld      c,b
-5e76 16ff      ld      d,0ffh
-5e78 cd083e    call    3e08h
-5e7b cdac09    call    09ach        ; Console input routine
-5e7e b7        or      a
-5e7f ca7b3e    jp      z,3e7bh
-5e82 fe08      cp      08h
-5e84 280a      jr      z,5e90h
-5e86 fe0d      cp      0dh
-5e88 cade3e    jp      z,3edeh
-5e8b fe1b      cp      1bh
-5e8d c8        ret     z
-5e8e 201e      jr      nz,5eaeh
-5e90 3e08      ld      a,08h
-5e92 05        dec     b
-5e93 04        inc     b
-5e94 281f      jr      z,5eb5h
-5e96 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5e99 2b        dec     hl
-5e9a 05        dec     b
-5e9b 117b3e    ld      de,3e7bh
-5e9e d5        push    de
-5e9f e5        push    hl
-5ea0 0d        dec     c
-5ea1 7e        ld      a,(hl)
-5ea2 b7        or      a
-5ea3 37        scf     
-5ea4 cafa16    jp      z,16fah
-5ea7 23        inc     hl
-5ea8 7e        ld      a,(hl)
-5ea9 2b        dec     hl
-5eaa 77        ld      (hl),a
-5eab 23        inc     hl
-5eac 18f3      jr      5ea1h
-5eae f5        push    af
-5eaf 79        ld      a,c
-5eb0 feff      cp      0ffh
-5eb2 3803      jr      c,5eb7h
-5eb4 f1        pop     af
-5eb5 18c4      jr      5e7bh
-5eb7 90        sub     b
-5eb8 0c        inc     c
-5eb9 04        inc     b
-5eba c5        push    bc
-5ebb eb        ex      de,hl
-5ebc 6f        ld      l,a
-5ebd 2600      ld      h,00h
-5ebf 19        add     hl,de
-5ec0 44        ld      b,h
-5ec1 4d        ld      c,l
-5ec2 23        inc     hl
-5ec3 cd4228    call    2842h
-5ec6 c1        pop     bc
-5ec7 f1        pop     af
-5ec8 77        ld      (hl),a
-5ec9 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5ecc 23        inc     hl
-5ecd c37b3e    jp      3e7bh
 
-5ed0 78        ld      a,b
-5ed1 b7        or      a
-5ed2 c8        ret     z
-5ed3 05        dec     b
-5ed4 2b        dec     hl
-5ed5 3e08      ld      a,08h
-5ed7 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-5eda 15        dec     d
-5edb 20f3      jr      nz,5ed0h
-5edd c9        ret     
+3d12 0e01      ld      c,01h
+3d14 3ef1      ld      a,0f1h
+3d16 05        dec     b
+3d17 cd473d    call    3d47h
+3d1a e1        pop     hl
+3d1b f1        pop     af
+3d1c 28e9      jr      z,3d07h
+3d1e c5        push    bc
+3d1f cd2b32    call    322bh			; EVAL
+3d22 cd5e19    call    195eh
+3d25 c1        pop     bc
+3d26 c5        push    bc
+3d27 e5        push    hl
+3d28 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+3d2b 41        ld      b,c
+3d2c 0e00      ld      c,00h
+3d2e c5        push    bc
+3d2f cd5c39    call    395ch
+3d32 cd9e37    call    379eh
+3d35 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+3d38 f1        pop     af
+3d39 96        sub     (hl)
+3d3a 47        ld      b,a
+3d3b 3e20      ld      a,20h
+3d3d 04        inc     b
+3d3e 05        dec     b
+3d3f cad13c    jp      z,3cd1h
+3d42 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+3d45 18f7      jr      3d3eh
 
-5ede cd693a    call    3a69h        ; Print message, text ptr in (HL)
-5ee1 cde92f    call    2fe9h
-5ee4 c1        pop     bc
-5ee5 d1        pop     de
-5ee6 7a        ld      a,d
-5ee7 a3        and     e
-5ee8 3c        inc     a
-5ee9 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
-5eec 2b        dec     hl
-5eed c8        ret     z
-5eee 37        scf     
-5eef 23        inc     hl
-5ef0 f5        push    af
-5ef1 c38229    jp      2982h
+3d47 f5        push    af
+3d48 7a        ld      a,d
+3d49 b7        or      a
+3d4a 3e2b      ld      a,2bh		; '+'
+3d4c c4a00b    call    nz,0ba0h        ; OUTC (alias OUTDO): print character
+3d4f f1        pop     af
+3d50 c9        ret
 
-5ef4 c1        pop     bc
-5ef5 d1        pop     de
-5ef6 c30329    jp      2903h
+3d51 324efc    ld      (0fc4eh),a            ; ERRFLG
+3d54 2a0afe    ld      hl,(0fe0ah)            ; ERRLIN: Line No. in which error occured.
+3d57 b4        or      h
+3d58 a5        and     l
+3d59 3c        inc     a
+3d5a eb        ex      de,hl
+3d5b c8        ret     z
+3d5c 1804      jr      3d62h
 
-5ef9 00        nop     
-5efa c0        ret     nz
-5efb 00        nop     
-5efc f20b00    jp      p,000bh
-5eff f20b00    jp      p,000bh
-5f02 db50      in      a,(50h)        ; get system status
-5f04 cbaf      res     5,a
-5f06 d370      out     (70h),a        ; Set system status
-5f08 c38c28    jp      288ch        ; ERROR, E=error code
+3d5e cd3a2d    call    2d3ah        ; LNUM_PARM - Get specified line number
+3d61 c0        ret     nz
+3d62 e1        pop     hl
+3d63 eb        ex      de,hl
+3d64 220cfe    ld      (0fe0ch),hl            ; Line No. in which error occured.
+3d67 eb        ex      de,hl
+3d68 cd162a    call    2a16h            ; FIND_LNUM - Search for line number
+3d6b d2c42d    jp      nc,2dc4h
+3d6e 60        ld      h,b
+3d6f 69        ld      l,c
+3d70 23        inc     hl
+3d71 23        inc     hl
+3d72 4e        ld      c,(hl)
+3d73 23        inc     hl
+3d74 46        ld      b,(hl)
+3d75 23        inc     hl
+3d76 c5        push    bc
+3d77 cd723a    call    3a72h
+3d7a e1        pop     hl
+3d7b e5        push    hl
+3d7c cd191e    call    1e19h
+3d7f 3e20      ld      a,20h		; ' '
+3d81 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+3d84 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
+3d87 3e16      ld      a,16h
+3d89 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+3d8c e5        push    hl
+3d8d 0eff      ld      c,0ffh
+3d8f 0c        inc     c
+3d90 7e        ld      a,(hl)
+3d91 b7        or      a
+3d92 23        inc     hl
+3d93 20fa      jr      nz,3d8fh
+3d95 e1        pop     hl
+3d96 47        ld      b,a
+3d97 1600      ld      d,00h
+3d99 cdac09    call    09ach        ; Console input routine
+3d9c d630      sub     30h
+3d9e 380e      jr      c,3daeh
+3da0 fe0a      cp      0ah
+3da2 300a      jr      nc,3daeh
+3da4 5f        ld      e,a
+3da5 7a        ld      a,d
+3da6 07        rlca    
+3da7 07        rlca    
+3da8 82        add     a,d
+3da9 07        rlca    
+3daa 83        add     a,e
+3dab 57        ld      d,a
+3dac 18eb      jr      3d99h
 
-5f0b ff        rst     38h
-5f0c ff        rst     38h
-5f0d ff        rst     38h
-5f0e ff        rst     38h
-5f0f ff        rst     38h
+3dae e5        push    hl
+3daf 21973d    ld      hl,3d97h
+3db2 e3        ex      (sp),hl
+3db3 15        dec     d
+3db4 14        inc     d
+3db5 c2b93d    jp      nz,3db9h
+3db8 14        inc     d
+3db9 fed8      cp      0d8h
+3dbb cad03e    jp      z,3ed0h
+3dbe fedd      cp      0ddh
+3dc0 cade3e    jp      z,3edeh
+3dc3 fef0      cp      0f0h
+3dc5 2841      jr      z,3e08h
+3dc7 fe31      cp      31h
+3dc9 3802      jr      c,3dcdh
+3dcb d620      sub     20h
+3dcd fe21      cp      21h
+3dcf caf43e    jp      z,3ef4h
+3dd2 fe1c      cp      1ch
+3dd4 ca3e3e    jp      z,3e3eh
+3dd7 fe23      cp      23h
+3dd9 283f      jr      z,3e1ah
+3ddb fe19      cp      19h
+3ddd ca7b3e    jp      z,3e7bh
+3de0 fe14      cp      14h
+3de2 ca483e    jp      z,3e48h
+3de5 fe13      cp      13h
+3de7 ca633e    jp      z,3e63h
+3dea fe15      cp      15h
+3dec cae13e    jp      z,3ee1h
+3def fe28      cp      28h
+3df1 ca763e    jp      z,3e76h
+3df4 fe1b      cp      1bh
+3df6 281c      jr      z,3e14h
+3df8 fe18      cp      18h
+3dfa ca733e    jp      z,3e73h
+3dfd fe11      cp      11h
+3dff c0        ret     nz
+3e00 c1        pop     bc
+3e01 d1        pop     de
+3e02 cde92f    call    2fe9h
+3e05 c3633d    jp      3d63h
 
-5f10 3eff      ld      a,0ffh
-5f12 181c      jr      5f30h
-5f14 3efe      ld      a,0feh
-5f16 1818      jr      5f30h
-5f18 3efd      ld      a,0fdh
-5f1a 1814      jr      5f30h
-5f1c 3efc      ld      a,0fch
-5f1e 1810      jr      5f30h
-5f20 3efb      ld      a,0fbh
-5f22 180c      jr      5f30h
-5f24 3efa      ld      a,0fah
-5f26 1808      jr      5f30h
-5f28 3ef9      ld      a,0f9h
-5f2a 1804      jr      5f30h
-5f2c 3ef8      ld      a,0f8h
-5f2e 1800      jr      5f30h
-5f30 1822      jr      5f54h
-5f32 3ef7      ld      a,0f7h
-5f34 181e      jr      5f54h
-5f36 3ef6      ld      a,0f6h
-5f38 181a      jr      5f54h
-5f3a 3ef5      ld      a,0f5h
-5f3c 1816      jr      5f54h
-5f3e 3ef4      ld      a,0f4h
-5f40 1812      jr      5f54h
-5f42 1822      jr      5f66h
-5f44 180e      jr      5f54h
-5f46 3ef2      ld      a,0f2h
-5f48 180a      jr      5f54h
-5f4a 3ef1      ld      a,0f1h
-5f4c 1806      jr      5f54h
-5f4e 3ef0      ld      a,0f0h
-5f50 1802      jr      5f54h
+3e08 7e        ld      a,(hl)
+3e09 b7        or      a
+3e0a c8        ret     z
+3e0b 04        inc     b
+3e0c cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+3e0f 23        inc     hl
+3e10 15        dec     d
+3e11 20f5      jr      nz,3e08h
+3e13 c9        ret
 
-5f52 00        nop     
-5f53 00        nop     
-5f54 f5        push    af
-5f55 db50      in      a,(50h)        ; get system status
-5f57 cbef      set     5,a
-5f59 d370      out     (70h),a        ; Set system status
-5f5b f1        pop     af
-5f5c cd0003    call    0300h
-5f5f db50      in      a,(50h)        ; get system status
-5f61 cbaf      res     5,a
-5f63 d370      out     (70h),a        ; Set system status
-5f65 c9        ret     
-5f66 f5        push    af
-5f67 db50      in      a,(50h)        ; get system status
-5f69 cbef      set     5,a
-5f6b d370      out     (70h),a        ; Set system status
-5f6d f1        pop     af
-5f6e cd0303    call    0303h
-5f71 db50      in      a,(50h)        ; get system status
-5f73 cbaf      res     5,a
-5f75 d370      out     (70h),a        ; Set system status
-5f77 c9        ret     
-5f78 ff        rst     38h
-5f79 ff        rst     38h
-5f7a ff        rst     38h
-5f7b ff        rst     38h
-5f7c ff        rst     38h
-5f7d ff        rst     38h
-5f7e ff        rst     38h
-5f7f ff        rst     38h
-5f80 dd21933f  ld      ix,3f93h
-5f84 fde1      pop     iy
-5f86 dde5      push    ix
-5f88 fde5      push    iy
-5f8a f5        push    af
-5f8b db50      in      a,(50h)        ; get system status
-5f8d cbaf      res     5,a
-5f8f d370      out     (70h),a        ; Set system status
-5f91 f1        pop     af
-5f92 c9        ret     
-5f93 f5        push    af
-5f94 db50      in      a,(50h)        ; get system status
-5f96 cbef      set     5,a
-5f98 d370      out     (70h),a        ; Set system status
-5f9a f1        pop     af
-5f9b c9        ret     
-5f9c f5        push    af
-5f9d db50      in      a,(50h)        ; get system status
-5f9f cbef      set     5,a
-5fa1 d370      out     (70h),a        ; Set system status
-5fa3 f1        pop     af
-5fa4 c34503    jp      0345h
-5fa7 ff        rst     38h
-5fa8 ff        rst     38h
-5fa9 ff        rst     38h
-5faa ff        rst     38h
-5fab ff        rst     38h
-5fac ff        rst     38h
-5fad ff        rst     38h
-5fae ff        rst     38h
-5faf ff        rst     38h
-5fb0 ff        rst     38h
-5fb1 ff        rst     38h
-5fb2 ff        rst     38h
-5fb3 ff        rst     38h
-5fb4 ff        rst     38h
-5fb5 ff        rst     38h
-5fb6 ff        rst     38h
-5fb7 ff        rst     38h
-5fb8 ff        rst     38h
-5fb9 ff        rst     38h
-5fba ff        rst     38h
-5fbb ff        rst     38h
-5fbc ff        rst     38h
-5fbd ff        rst     38h
-5fbe ff        rst     38h
-5fbf ff        rst     38h
-5fc0 ff        rst     38h
-5fc1 ff        rst     38h
-5fc2 ff        rst     38h
-5fc3 ff        rst     38h
-5fc4 ff        rst     38h
-5fc5 ff        rst     38h
-5fc6 ff        rst     38h
-5fc7 ff        rst     38h
-5fc8 ff        rst     38h
-5fc9 ff        rst     38h
-5fca ff        rst     38h
-5fcb ff        rst     38h
-5fcc ff        rst     38h
-5fcd ff        rst     38h
-5fce ff        rst     38h
-5fcf ff        rst     38h
-5fd0 ff        rst     38h
-5fd1 ff        rst     38h
-5fd2 ff        rst     38h
-5fd3 ff        rst     38h
-5fd4 ff        rst     38h
-5fd5 ff        rst     38h
-5fd6 ff        rst     38h
-5fd7 ff        rst     38h
-5fd8 ff        rst     38h
-5fd9 ff        rst     38h
-5fda ff        rst     38h
-5fdb ff        rst     38h
-5fdc ff        rst     38h
-5fdd ff        rst     38h
-5fde ff        rst     38h
-5fdf ff        rst     38h
-5fe0 ff        rst     38h
-5fe1 ff        rst     38h
-5fe2 ff        rst     38h
-5fe3 ff        rst     38h
-5fe4 ff        rst     38h
-5fe5 ff        rst     38h
-5fe6 ff        rst     38h
-5fe7 ff        rst     38h
-5fe8 ff        rst     38h
-5fe9 ff        rst     38h
+3e14 e5        push    hl
+3e15 215d3e    ld      hl,3e5dh
+3e18 e3        ex      (sp),hl
+3e19 37        scf     
+3e1a f5        push    af
+3e1b cdac09    call    09ach        ; Console input routine
+3e1e 5f        ld      e,a
+3e1f f1        pop     af
+3e20 f5        push    af
+3e21 dc5d3e    call    c,3e5dh
+3e24 7e        ld      a,(hl)
+3e25 b7        or      a			; end of string ?
+3e26 ca3c3e    jp      z,3e3ch
+3e29 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+3e2c f1        pop     af
+3e2d f5        push    af
+3e2e dc9f3e    call    c,3e9fh
+3e31 3802      jr      c,3e35h
+3e33 23        inc     hl
+3e34 04        inc     b
+3e35 7e        ld      a,(hl)
+3e36 bb        cp      e
+3e37 20eb      jr      nz,3e24h
+3e39 15        dec     d
+3e3a 20e8      jr      nz,3e24h
+3e3c f1        pop     af
+3e3d c9        ret
 
-5fea cd9e1e    call    1e9eh
-5fed b6        or      (hl)
-5fee cd431e    call    1e43h
-5ff1 c9        ret     
+3e3e cd693a    call    3a69h        ; Print message, text ptr in (HL)
+3e41 cde92f    call    2fe9h
+3e44 c1        pop     bc
+3e45 c37a3d    jp      3d7ah
+3e48 7e        ld      a,(hl)
+3e49 b7        or      a
+3e4a c8        ret     z
+3e4b 3e21      ld      a,21h		; '!'
+3e4d cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+3e50 7e        ld      a,(hl)
+3e51 b7        or      a
+3e52 2809      jr      z,3e5dh
+3e54 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+3e57 cd9f3e    call    3e9fh
+3e5a 15        dec     d
+3e5b 20f3      jr      nz,3e50h
+3e5d 3e21      ld      a,21h		; '!'
+3e5f cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+3e62 c9        ret
 
-5ff2 7e        ld      a,(hl)
-5ff3 c9        ret     
+3e63 7e        ld      a,(hl)
+3e64 b7        or      a
+3e65 c8        ret     z
+3e66 cdac09    call    09ach        ; Console input routine
+3e69 77        ld      (hl),a
+3e6a cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+3e6d 23        inc     hl
+3e6e 04        inc     b
+3e6f 15        dec     d
+3e70 20f1      jr      nz,3e63h
+3e72 c9        ret
 
-5ff4 5e        ld      e,(hl)
-5ff5 23        inc     hl
-5ff6 56        ld      d,(hl)
-5ff7 c9        ret     
+3e73 3600      ld      (hl),00h
+3e75 48        ld      c,b
+3e76 16ff      ld      d,0ffh
+3e78 cd083e    call    3e08h
+3e7b cdac09    call    09ach        ; Console input routine
+3e7e b7        or      a
+3e7f ca7b3e    jp      z,3e7bh
+3e82 fe08      cp      08h
+3e84 280a      jr      z,3e90h
+3e86 fe0d      cp      0dh
+3e88 cade3e    jp      z,3edeh
+3e8b fe1b      cp      1bh
+3e8d c8        ret     z
+3e8e 201e      jr      nz,3eaeh
+3e90 3e08      ld      a,08h
+3e92 05        dec     b
+3e93 04        inc     b
+3e94 281f      jr      z,3eb5h
+3e96 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+3e99 2b        dec     hl
+3e9a 05        dec     b
+3e9b 117b3e    ld      de,3e7bh
+3e9e d5        push    de
+3e9f e5        push    hl
+3ea0 0d        dec     c
+3ea1 7e        ld      a,(hl)
+3ea2 b7        or      a
+3ea3 37        scf     
+3ea4 cafa16    jp      z,16fah
+3ea7 23        inc     hl
+3ea8 7e        ld      a,(hl)
+3ea9 2b        dec     hl
+3eaa 77        ld      (hl),a
+3eab 23        inc     hl
+3eac 18f3      jr      3ea1h
+3eae f5        push    af
+3eaf 79        ld      a,c
+3eb0 feff      cp      0ffh
+3eb2 3803      jr      c,3eb7h
+3eb4 f1        pop     af
+3eb5 18c4      jr      3e7bh
 
-5ff8 1a        ld      a,(de)
-5ff9 c9        ret     
+3eb7 90        sub     b
+3eb8 0c        inc     c
+3eb9 04        inc     b
+3eba c5        push    bc
+3ebb eb        ex      de,hl
+3ebc 6f        ld      l,a
+3ebd 2600      ld      h,00h
+3ebf 19        add     hl,de
+3ec0 44        ld      b,h
+3ec1 4d        ld      c,l
+3ec2 23        inc     hl
+3ec3 cd4228    call    2842h
+3ec6 c1        pop     bc
+3ec7 f1        pop     af
+3ec8 77        ld      (hl),a
+3ec9 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+3ecc 23        inc     hl
+3ecd c37b3e    jp      3e7bh
 
-5ffa dde9      jp      (ix)
+3ed0 78        ld      a,b
+3ed1 b7        or      a
+3ed2 c8        ret     z
+3ed3 05        dec     b
+3ed4 2b        dec     hl
+3ed5 3e08      ld      a,08h
+3ed7 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+3eda 15        dec     d
+3edb 20f3      jr      nz,3ed0h
+3edd c9        ret
 
-5ffc e1        pop     hl
-5ffd 2e65      ld      l,65h
-5fff 86        add     a,(hl)
+3ede cd693a    call    3a69h        ; Print message, text ptr in (HL)
+3ee1 cde92f    call    2fe9h
+3ee4 c1        pop     bc
+3ee5 d1        pop     de
+3ee6 7a        ld      a,d
+3ee7 a3        and     e
+3ee8 3c        inc     a
+3ee9 2ac7fd    ld      hl,(0fdc7h)        ; Pointer to address of keyboard buffer
+3eec 2b        dec     hl
+3eed c8        ret     z
+3eee 37        scf     
+3eef 23        inc     hl
+3ef0 f5        push    af
+3ef1 c38229    jp      2982h
 
-Disassembled 14180 instructions.
+
+3ef4 c1        pop     bc
+3ef5 d1        pop     de
+3ef6 c30329    jp      2903h
+
+
+3ef9 00        nop     
+3efa c0        ret     nz
+3efb 00        nop     
+3efc f20b00    jp      p,000bh
+3eff f20b00    jp      p,000bh
+3f02 db50      in      a,(50h)        ; get system status
+3f04 cbaf      res     5,a			; DISPEN - CRTC display enable signal
+3f06 d370      out     (70h),a        ; Set system status
+3f08 c38c28    jp      288ch        ; ERROR, E=error code
+
+3f0b ff        rst     38h
+3f0c ff        rst     38h
+3f0d ff        rst     38h
+3f0e ff        rst     38h
+3f0f ff        rst     38h
+3f10 3eff      ld      a,0ffh
+3f12 181c      jr      3f30h
+
+3f14 3efe      ld      a,0feh
+3f16 1818      jr      3f30h
+
+3f18 3efd      ld      a,0fdh
+3f1a 1814      jr      3f30h
+
+3f1c 3efc      ld      a,0fch
+3f1e 1810      jr      3f30h
+
+3f20 3efb      ld      a,0fbh
+3f22 180c      jr      3f30h
+
+3f24 3efa      ld      a,0fah
+3f26 1808      jr      3f30h
+
+3f28 3ef9      ld      a,0f9h
+3f2a 1804      jr      3f30h
+
+3f2c 3ef8      ld      a,0f8h
+3f2e 1800      jr      3f30h
+
+3f30 1822      jr      3f54h
+
+3f32 3ef7      ld      a,0f7h
+3f34 181e      jr      3f54h
+
+3f36 3ef6      ld      a,0f6h
+3f38 181a      jr      3f54h
+
+3f3a 3ef5      ld      a,0f5h
+3f3c 1816      jr      3f54h
+
+3f3e 3ef4      ld      a,0f4h
+3f40 1812      jr      3f54h
+
+3f42 1822      jr      3f66h		; __LOAD
+
+3f44 180e      jr      3f54h
+
+3f46 3ef2      ld      a,0f2h
+3f48 180a      jr      3f54h
+
+3f4a 3ef1      ld      a,0f1h
+3f4c 1806      jr      3f54h
+
+3f4e 3ef0      ld      a,0f0h
+3f50 1802      jr      3f54h
+
+3f52 00        nop     
+3f53 00        nop     
+3f54 f5        push    af
+3f55 db50      in      a,(50h)        ; get system status
+3f57 cbef      set     5,a			; DISPEN - CRTC display enable signal
+3f59 d370      out     (70h),a        ; Set system status
+3f5b f1        pop     af
+3f5c cd0003    call    0300h
+3f5f db50      in      a,(50h)        ; get system status
+3f61 cbaf      res     5,a			; DISPEN - CRTC display enable signal
+3f63 d370      out     (70h),a        ; Set system status
+3f65 c9        ret
+
+; pointed by __LOAD
+3f66 f5        push    af
+3f67 db50      in      a,(50h)        ; get system status
+3f69 cbef      set     5,a			; DISPEN - CRTC display enable signal
+3f6b d370      out     (70h),a        ; Set system status
+3f6d f1        pop     af
+3f6e cd0303    call    0303h
+3f71 db50      in      a,(50h)        ; get system status
+3f73 cbaf      res     5,a			; DISPEN - CRTC display enable signal
+3f75 d370      out     (70h),a        ; Set system status
+3f77 c9        ret
+
+3f78 ff        rst     38h
+3f79 ff        rst     38h
+3f7a ff        rst     38h
+3f7b ff        rst     38h
+3f7c ff        rst     38h
+3f7d ff        rst     38h
+3f7e ff        rst     38h
+3f7f ff        rst     38h
+3f80 dd21933f  ld      ix,3f93h
+3f84 fde1      pop     iy
+3f86 dde5      push    ix
+3f88 fde5      push    iy
+3f8a f5        push    af
+3f8b db50      in      a,(50h)        ; get system status
+3f8d cbaf      res     5,a			; DISPEN - CRTC display enable signal
+3f8f d370      out     (70h),a        ; Set system status
+3f91 f1        pop     af
+3f92 c9        ret
+
+3f93 f5        push    af
+3f94 db50      in      a,(50h)        ; get system status
+3f96 cbef      set     5,a			; DISPEN - CRTC display enable signal
+3f98 d370      out     (70h),a        ; Set system status
+3f9a f1        pop     af
+3f9b c9        ret
+
+3f9c f5        push    af
+3f9d db50      in      a,(50h)        ; get system status
+3f9f cbef      set     5,a			; DISPEN - CRTC display enable signal
+3fa1 d370      out     (70h),a        ; Set system status
+3fa3 f1        pop     af
+3fa4 c34503    jp      0345h
+
+3fa7 ff        rst     38h
+3fa8 ff        rst     38h
+3fa9 ff        rst     38h
+3faa ff        rst     38h
+3fab ff        rst     38h
+3fac ff        rst     38h
+3fad ff        rst     38h
+3fae ff        rst     38h
+3faf ff        rst     38h
+3fb0 ff        rst     38h
+3fb1 ff        rst     38h
+3fb2 ff        rst     38h
+3fb3 ff        rst     38h
+3fb4 ff        rst     38h
+3fb5 ff        rst     38h
+3fb6 ff        rst     38h
+3fb7 ff        rst     38h
+3fb8 ff        rst     38h
+3fb9 ff        rst     38h
+3fba ff        rst     38h
+3fbb ff        rst     38h
+3fbc ff        rst     38h
+3fbd ff        rst     38h
+3fbe ff        rst     38h
+3fbf ff        rst     38h
+3fc0 ff        rst     38h
+3fc1 ff        rst     38h
+3fc2 ff        rst     38h
+3fc3 ff        rst     38h
+3fc4 ff        rst     38h
+3fc5 ff        rst     38h
+3fc6 ff        rst     38h
+3fc7 ff        rst     38h
+3fc8 ff        rst     38h
+3fc9 ff        rst     38h
+3fca ff        rst     38h
+3fcb ff        rst     38h
+3fcc ff        rst     38h
+3fcd ff        rst     38h
+3fce ff        rst     38h
+3fcf ff        rst     38h
+3fd0 ff        rst     38h
+3fd1 ff        rst     38h
+3fd2 ff        rst     38h
+3fd3 ff        rst     38h
+3fd4 ff        rst     38h
+3fd5 ff        rst     38h
+3fd6 ff        rst     38h
+3fd7 ff        rst     38h
+3fd8 ff        rst     38h
+3fd9 ff        rst     38h
+3fda ff        rst     38h
+3fdb ff        rst     38h
+3fdc ff        rst     38h
+3fdd ff        rst     38h
+3fde ff        rst     38h
+3fdf ff        rst     38h
+3fe0 ff        rst     38h
+3fe1 ff        rst     38h
+3fe2 ff        rst     38h
+3fe3 ff        rst     38h
+3fe4 ff        rst     38h
+3fe5 ff        rst     38h
+3fe6 ff        rst     38h
+3fe7 ff        rst     38h
+3fe8 ff        rst     38h
+3fe9 ff        rst     38h
+
+3fea cd9e1e    call    1e9eh
+3fed b6        or      (hl)
+3fee cd431e    call    1e43h
+3ff1 c9        ret
+
+3ff2 7e        ld      a,(hl)
+3ff3 c9        ret
+
+3ff4 5e        ld      e,(hl)
+3ff5 23        inc     hl
+3ff6 56        ld      d,(hl)
+3ff7 c9        ret
+
+3ff8 1a        ld      a,(de)
+3ff9 c9        ret
+
+3ffa dde9      jp      (ix)
+3ffc e1        pop     hl
+3ffd 2e65      ld      l,65h
+3fff 86        add     a,(hl)
