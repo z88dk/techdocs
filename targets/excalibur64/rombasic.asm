@@ -109,7 +109,7 @@
 0040 c30d03    jp      030dh    ; Console output routine
 0043 c3ea09    jp      09eah    ; Console status routine
 0046 c3ac09    jp      09ach    ; Console input routine
-0049 c3fa08    jp      08fah    ; Console line input routine
+0049 c3fa08    jp      08fah    ; RINPUT - Console line input routine
 004c c36504    jp      0465h    ; Cursor on routine
 004f c36e04    jp      046eh    ; Cursor off routine
 0052 c37606    jp      0676h    ; LO-RES Selection routine
@@ -134,7 +134,7 @@
 008b c36f06    jp      066fh    ; Turns screen ram off
 008e c3e918    jp      18e9h    ; GETWORD_HL: Floating point to Integer
 0091 c31b19    jp      191bh    ; Integer to single precision
-0094 c3d61c    jp      1cd6h    ; ASCII to Binary conversion
+0094 c3d61c    jp      1cd6h    ; ASCTFP - ASCII to Binary conversion
 0097 c3281e    jp      1e28h    ; Floating point to ASCII
 009a c38015    jp      1580h    ; FPADD  - Single precision add (Add BCDE to FP reg)
 009d c37d15    jp      157dh    ; SUBCDE - Single precision subtract  (Subtract BCDE from FP reg)
@@ -142,7 +142,7 @@
 00a3 c38433    jp      3384h    ; Single precision division
 00a6 c37618    jp      1876h    ; Single precision compare
 00a9 c3e117    jp      17e1h    ; ABS - Absolute value
-00ac c3a119    jp      19a1h    ; Return Integer
+00ac c3a119    jp      19a1h    ; DBL_INT - Return Integer
 00af c32724    jp      2427h    ; ATN - Arctangent
 00b2 c3ab23    jp      23abh    ; COS - Cosine
 00b5 c3b123    jp      23b1h    ; SIN - Sine
@@ -156,7 +156,7 @@
 00cd c30135    jp      3501h    ; GETVAR: Find address of variable
 00d0 c39c2d    jp      2d9ch    ; Gosub routine
 00d3 c3ca2d    jp      2dcah    ; Return entry point
-00d6 c39b37    jp      379bh    ; Output a string
+00d6 c39b37    jp      379bh    ; PRS - Output a string
 00d9 c3693a    jp      3a69h    ; Print message, text ptr in (HL)
 
 00dc d9        exx
@@ -231,7 +231,7 @@
 014f cb46      bit     0,(hl)
 0151 c20702    jp      nz,0207h
 0154 21ce10    ld      hl,10ceh
-0157 cd0d11    call    110dh		; Output a string to video device
+0157 cd0d11    call    110dh		; PRS - Output a string to video device
 015a af        xor     a
 015b 3201fe    ld      (0fe01h),a    ; AUTFLG: Auto increment flag 0 = no auto mode, otherwise line number
 015e 010229    ld      bc,2902h
@@ -320,9 +320,9 @@
 020c 3e70      ld      a,70h
 020e 32e4fb    ld      (0fbe4h),a       ; COLOUR BYTE  copied into colour ram with every console output
 0211 21cd10    ld      hl,10cdh			; BEL, Excalibur 64 Extended Basic 1.1
-0214 cd9b37    call    379bh			; Output a string
+0214 cd9b37    call    379bh			; PRS - Output a string
 0217 216602    ld      hl,0266h			; "Memory Size"
-021a cd9b37    call    379bh			; Output a string
+021a cd9b37    call    379bh			; PRS - Output a string
 021d cd9d2a    call    2a9dh            ; INLIN
 0220 38f5      jr      c,0217h
 0222 d7        rst     10h                ; CHRGTB: Gets next character (or token) from BASIC text.
@@ -485,6 +485,7 @@
 02fd 3ebf      ld      a,0bfh
 02ff d361      out     (61h),a		; Keyboard row select
 0301 db00      in      a,(00h)		; **KEYBOARD_MATRIX_COLUMN_READ**
+
 0303 fedf      cp      0dfh
 0305 ccac09    call    z,09ach        ; Console input routine
 0308 fe13      cp      13h
@@ -712,6 +713,7 @@
 04c6 eb        ex      de,hl
 04c7 c9        ret
 
+; __CLS
 04c8 2819      jr      z,04e3h			; Clear screen routine
 04ca cdf639    call    39f6h        ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times
 04cd 7a        ld      a,d
@@ -1383,7 +1385,7 @@
 08f8 e1        pop     hl
 08f9 c9        ret     
 
-; Console line input routine
+; RINPUT - Console line input routine
 08fa af        xor     a
 08fb 324dfc    ld      (0fc4dh),a    ; Holds last character typed after break
 08fe 32c6fd    ld      (0fdc6h),a    ; CURPOS (a.k.a. TTYPOS) - Current cursor position (column number)
@@ -1423,7 +1425,7 @@
 
 0941 cdf202    call    02f2h
 0944 d1        pop     de
-0945 18b3      jr      08fah    ; Console line input routine
+0945 18b3      jr      08fah    ; RINPUT - Console line input routine
 
 0947 78        ld      a,b
 0948 b9        cp      c
@@ -1440,7 +1442,7 @@
 
 095c cd4709    call    0947h
 095f 20fb      jr      nz,095ch
-0961 1897      jr      08fah    ; Console line input routine
+0961 1897      jr      08fah    ; RINPUT - Console line input routine
 0963 e5        push    hl
 0964 c5        push    bc
 0965 cd2e04    call    042eh
@@ -1519,7 +1521,7 @@
 09d5 f1        pop     af
 09d6 2af4fd    ld      hl,(0fdf4h)
 09d9 77        ld      (hl),a
-09da c37837    jp      3778h		; TSTOPL
+09da c37837    jp      3778h		; TSTOPL - Temporary string to pool
 
 09dd 217202    ld      hl,0272h
 09e0 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
@@ -2055,6 +2057,8 @@
 0d23 3b        dec     sp
 0d24 c8        ret     z
 0d25 1898      jr      0cbfh
+
+; __RANDOM
 0d27 ed5f      ld      a,r
 0d29 32cbfd    ld      (0fdcbh),a
 0d2c c9        ret
@@ -2165,6 +2169,8 @@
 0dbc d323      out     (23h),a		;  8253 MODE CONTROL WORD
 0dbe c9        ret
 
+
+; __SET
 0dbf cdfe0d    call    0dfeh
 0dc2 d5        push    de
 0dc3 cd8f0d    call    0d8fh
@@ -2172,6 +2178,7 @@
 0dc7 00        nop     
 0dc8 180a      jr      0dd4h
 
+; __RESET
 0dca cdfe0d    call    0dfeh
 0dcd d5        push    de
 0dce cd890e    call    0e89h
@@ -2331,7 +2338,7 @@
 0ec7 e7        rst     20h			; GETYPR - Get the number type (FAC)
 0ec8 c28128    jp      nz,2881h            ; Syntax Error (SN ERROR)
 0ecb e5        push    hl
-0ecc cdce38    call    38ceh
+0ecc cdce38    call    38ceh			; GSTRCU - Get string pointed by FPREG
 0ecf cd2e18    call    182eh            ; LOADFP_0
 0ed2 7a        ld      a,d
 0ed3 b7        or      a
@@ -2349,11 +2356,11 @@
 0ee2 cdc902    call    02c9h			; Detect Disk Drive Controller
 0ee5 2809      jr      z,0ef0h
 0ee7 21a510    ld      hl,10a5h			; "No Controller"
-0eea cd9b37    call    379bh			; Output a string
+0eea cd9b37    call    379bh			; PRS - Output a string
 0eed c30000    jp      0000h
 
 0ef0 217410    ld      hl,1074h			; BEL, ESC, 'H', 16h, 1Ah
-0ef3 cd9b37    call    379bh			; Output a string
+0ef3 cd9b37    call    379bh			; PRS - Output a string
 0ef6 cda211    call    11a2h
 0ef9 1e01      ld      e,01h
 0efb 3ed0      ld      a,0d0h
@@ -2368,7 +2375,7 @@
 0f11 0d        dec     c
 0f12 20ef      jr      nz,0f03h
 0f14 217a10    ld      hl,107ah		; "INSERT DISK"
-0f17 cd9b37    call    379bh			; Output a string
+0f17 cd9b37    call    379bh			; PRS - Output a string
 0f1a cdea09    call    09eah        ; Console status routine
 0f1d b7        or      a
 0f1e c21b00    jp      nz,001bh
@@ -2397,7 +2404,7 @@
 0f48 cd540f    call    0f54h			; init disk with size bit enabled
 
 0f4b 218910    ld      hl,1089h			; "READ ERROR"
-0f4e cd9b37    call    379bh			; Output a string
+0f4e cd9b37    call    379bh			; PRS - Output a string
 0f51 c30000    jp      0000h
 
 ; init disk with size bit enabled
@@ -2485,7 +2492,7 @@
 0fef c31611    jp      1116h
 
 0ff2 21b710    ld      hl,10b7h
-0ff5 cd9b37    call    379bh			; Output a string
+0ff5 cd9b37    call    379bh			; PRS - Output a string
 0ff8 c30000    jp      0000h
 
 0ffb 3e83      ld      a,83h
@@ -2699,10 +2706,10 @@
 110b e1        pop     hl
 110c c9        ret
 
-; Output a string to video device
+; PRS - Output a string to video device
 110d 3e00      ld      a,00h
 110f 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
-1112 cd9b37    call    379bh			; Output a string
+1112 cd9b37    call    379bh			; PRS - Output a string
 1115 c9        ret
 
 1116 cd3a3f    call    3f3ah
@@ -3102,7 +3109,7 @@
 13af 3c        inc     a
 13b0 280d      jr      z,13bfh
 13b2 211328    ld      hl,2813h
-13b5 cd9b37    call    379bh			; Output a string
+13b5 cd9b37    call    379bh			; PRS - Output a string
 13b8 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
 13bb e5        push    hl
 13bc c3d229    jp      29d2h
@@ -3178,7 +3185,7 @@
 1445 2b        dec     hl
 1446 18e3      jr      142bh
 
-1448 cdce38    call    38ceh
+1448 cdce38    call    38ceh			; GSTRCU - Get string pointed by FPREG
 144b cd2e18    call    182eh            ; LOADFP_0
 144e 14        inc     d
 144f 15        dec     d
@@ -3272,7 +3279,7 @@
 14e8 163a      ld      d,3ah
 14ea 062c      ld      b,2ch
 14ec 2b        dec     hl
-14ed cd5d37    call    375dh
+14ed cd5d37    call    375dh		; DTSTR - Create String, termination char in D
 14f0 f1        pop     af
 14f1 eb        ex      de,hl
 14f2 210715    ld      hl,1507h
@@ -3285,8 +3292,8 @@
 14fc f5        push    af
 14fd 01f014    ld      bc,14f0h
 1500 c5        push    bc
-1501 dad61c    jp      c,1cd6h
-1504 c3cf1c    jp      1ccfh
+1501 dad61c    jp      c,1cd6h		; ASCII to Binary conversion
+1504 c3cf1c    jp      1ccfh		; DBL_ASCTFP - ASCII to Double precision FP number
 
 1507 eb        ex      de,hl
 1508 e1        pop     hl
@@ -3582,7 +3589,7 @@
 1692 216216    ld      hl,1662h			; UNITY - Constant ptr for number 1 in FP
 1695 cd7a15    call    157ah			; SUBPHL - SUBTRACT number at HL from BCDE
 1698 216616    ld      hl,1666h			; LOGTAB - Table used by LOG
-169b cd0423    call    2304h
+169b cd0423    call    2304h			; SUMSER - Evaluate sum of series
 169e 018080    ld      bc,8080h
 16a1 110000    ld      de,0000h
 16a4 cd8015    call    1580h			; FPADD  - Single precision add (Add BCDE to FP reg)
@@ -3811,7 +3818,7 @@
 ; INVSGN - Invert number sign
 17ec 2143fe    ld      hl,0fe43h		; LAST-FPREG - Last byte in Single Precision FP Register (+sign bit)
 17ef 7e        ld      a,(hl)
-17f0 ee80      xor     80h
+17f0 ee80      xor     80h				; invert sign
 17f2 77        ld      (hl),a
 17f3 c9        ret     
 
@@ -4059,6 +4066,8 @@
 1956 3e08      ld      a,08h
 1958 013e04    ld      bc,043eh
 195b c30919    jp      1909h
+
+; TSTSTR - Test a string, 'Type Error' if it is not
 195e e7        rst     20h			; GETYPR - Get the number type (FAC)
 195f c8        ret     z
 1960 1e18      ld      e,18h
@@ -4096,19 +4105,23 @@
 198d c0        ret     nz
 198e 0b        dec     bc
 198f c9        ret     
+
+; FIX - Double Precision to Integer conversion
 1990 e7        rst     20h			; GETYPR - Get the number type (FAC)
 1991 f8        ret     m
 1992 cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
-1995 f2a119    jp      p,19a1h
+1995 f2a119    jp      p,19a1h			; DBL_INT - Return Integer
 1998 cdec17    call    17ech			; INVSGN - Invert number sign
-199b cda119    call    19a1h
+199b cda119    call    19a1h			; DBL_INT - Return Integer
 199e c3e517    jp      17e5h        ; INVSGN
 
+; DBL_INT - Return Integer
 19a1 e7        rst     20h			; GETYPR - Get the number type (FAC)
 19a2 f8        ret     m
 19a3 301e      jr      nc,19c3h
 19a5 28b9      jr      z,1960h
 19a7 cdf818    call    18f8h
+; INT
 19aa 2144fe    ld      hl,0fe44h		; FPEXP - Floating Point Exponent
 19ad 7e        ld      a,(hl)
 19ae fe98      cp      98h
@@ -4132,7 +4145,7 @@
 19ce 4f        ld      c,a
 19cf 2b        dec     hl
 19d0 7e        ld      a,(hl)
-19d1 ee80      xor     80h
+19d1 ee80      xor     80h				; invert sign
 19d3 0606      ld      b,06h
 19d5 2b        dec     hl
 19d6 b6        or      (hl)
@@ -4169,7 +4182,9 @@
 1a0f b7        or      a
 1a10 23        inc     hl
 1a11 28fa      jr      z,1a0dh
-1a13 c9        ret     
+1a13 c9        ret
+
+; MLDEBC - Multiply DE by BC
 1a14 e5        push    hl
 1a15 210000    ld      hl,0000h
 1a18 78        ld      a,b
@@ -4219,6 +4234,8 @@
 1a55 eb        ex      de,hl
 1a56 cdd51a    call    1ad5h
 1a59 c3f91d    jp      1df9h
+
+; INT_MUL - Integer MULTIPLY
 1a5c 7c        ld      a,h
 1a5d b5        or      l
 1a5e ca0419    jp      z,1904h			; INT_RESULT_HL - Get back from function, result in HL
@@ -4248,7 +4265,7 @@
 1a84 d1        pop     de
 1a85 78        ld      a,b
 1a86 c3b71a    jp      1ab7h
-1a89 ee80      xor     80h
+1a89 ee80      xor     80h				; invert sign
 1a8b b5        or      l
 1a8c 2813      jr      z,1aa1h
 1a8e eb        ex      de,hl
@@ -4291,7 +4308,7 @@
 1ac5 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 1ac8 cdbb1a    call    1abbh
 1acb 7c        ld      a,h
-1acc ee80      xor     80h
+1acc ee80      xor     80h				; invert sign
 1ace b5        or      l
 1acf c0        ret     nz
 1ad0 eb        ex      de,hl
@@ -4299,10 +4316,13 @@
 1ad4 af        xor     a
 1ad5 0698      ld      b,98h
 1ad7 c3d317    jp      17d3h
+
+; DBL_SUB - Double precision SUB (formerly SUBCDE)
 1ada 214dfe    ld      hl,0fe4dh		; DBL_FPREG: Last byte in Double Precision FP register (+sign bit)
 1add 7e        ld      a,(hl)
-1ade ee80      xor     80h
+1ade ee80      xor     80h				; invert sign
 1ae0 77        ld      (hl),a
+; DBL_ADD - Double precision ADD (formerly FPADD)
 1ae1 214efe    ld      hl,0fe4eh
 1ae4 7e        ld      a,(hl)
 1ae5 b7        or      a
@@ -4495,6 +4515,7 @@
 1c08 20f9      jr      nz,1c03h
 1c0a c9        ret
 
+; DBL_MUL  Double precision MULTIPLY
 1c0b cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
 1c0e c8        ret     z
 1c0f cd7417    call    1774h
@@ -4535,6 +4556,8 @@
 1c46 113e1c    ld      de,1c3eh
 1c49 2147fe    ld      hl,0fe47h
 1c4c cd3d18    call    183dh
+
+; DBL_DIV - Double precision DIVIDE
 1c4f 3a4efe    ld      a,(0fe4eh)
 1c52 b7        or      a
 1c53 ca8428    jp      z,2884h
@@ -4599,12 +4622,13 @@
 1cc1 da1c16    jp      c,161ch            ; Overflow Error (OV ERROR)
 1cc4 77        ld      (hl),a
 1cc5 e5        push    hl
-1cc6 cde11a    call    1ae1h
+1cc6 cde11a    call    1ae1h			; DBL_ADD - Double precision ADD (formerly FPADD)
 1cc9 e1        pop     hl
 1cca 34        inc     (hl)
 1ccb c0        ret     nz
 1ccc c31c16    jp      161ch            ; Overflow Error (OV ERROR)
 
+; DBL_ASCTFP - ASCII to Double precision FP number
 1ccf cde215    call    15e2h
 1cd2 cd5619    call    1956h
 1cd5 f6af      or      0afh
@@ -4782,7 +4806,7 @@
 1de7 f1        pop     af
 1de8 cdce17    call    17ceh			; FLGREL - CY and A to FP, & normalise
 1deb cd4d19    call    194dh
-1dee cde11a    call    1ae1h
+1dee cde11a    call    1ae1h			; DBL_ADD - Double precision ADD (formerly FPADD)
 1df1 18c8      jr      1dbbh
 
 1df3 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
@@ -4807,14 +4831,15 @@
 ; LNUM_MSG
 1e11 e5        push    hl
 1e12 210e28    ld      hl,280eh
-1e15 cd9b37    call    379bh			; Output a string
+1e15 cd9b37    call    379bh			; PRS - Output a string
 1e18 e1        pop     hl
 1e19 cd0419    call    1904h			; INT_RESULT_HL - Get back from function, result in HL
 1e1c af        xor     a
 1e1d cd9e1e    call    1e9eh
 1e20 b6        or      (hl)
 1e21 cd431e    call    1e43h
-1e24 c39a37    jp      379ah
+1e24 c39a37    jp      379ah			; PRNUMS - Print number string
+
 1e27 af        xor     a
 1e28 cd9e1e    call    1e9eh
 1e2b e608      and     08h
@@ -6739,7 +6764,7 @@
 2944 dd212b32  ld      ix,322bh            ; IX = {EVAL}
 2948 cd9a1d    call    1d9ah
 294b e5        push    hl
-294c dd215e19  ld      ix,195eh
+294c dd215e19  ld      ix,195eh				; IX = {TSTSTR - Test a string, 'Type Error' if it is not}
 2950 cd9a1d    call    1d9ah
 2953 ed5b41fe  ld      de,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 2957 1a        ld      a,(de)
@@ -7165,6 +7190,7 @@
 2c59 22adfb    ld      (0fbadh),hl
 2c5c 22affb    ld      (0fbafh),hl
 2c5f 22abfb    ld      (0fbabh),hl
+; _CHRGTB - Pick next char from program
 2c62 cdf70c    call    0cf7h
 2c65 22affb    ld      (0fbafh),hl
 2c68 cd580d    call    0d58h
@@ -7348,6 +7374,8 @@
 2de9 da001d    jp      c,1d00h
 2dec 7b        ld      a,e
 2ded 325ffb    ld      (0fb5fh),a
+
+; __DATA 	- DATA statement: find next DATA program line..
 2df0 7e        ld      a,(hl)
 2df1 fe2c      cp      ','
 2df3 2010      jr      nz,2e05h
@@ -7433,7 +7461,7 @@
 2e8d 7e        ld      a,(hl)
 2e8e fe22      cp      22h
 2e90 2024      jr      nz,2eb6h
-2e92 dd215a37  ld      ix,375ah
+2e92 dd215a37  ld      ix,375ah			; IX ={QTSTR - Create quote terminated String}
 2e96 cd9a1d    call    1d9ah
 2e99 dd21c030  ld      ix,30c0h
 2e9d cd9a1d    call    1d9ah
@@ -7458,7 +7486,7 @@
 2ec7 e3        ex      (sp),hl
 2ec8 dd210135  ld      ix,3501h        ; GETVAR: Find address of variable
 2ecc cd9a1d    call    1d9ah
-2ecf dd215e19  ld      ix,195eh
+2ecf dd215e19  ld      ix,195eh				; IX = {TSTSTR - Test a string, 'Type Error' if it is not}
 2ed3 cd9a1d    call    1d9ah
 2ed6 eb        ex      de,hl
 2ed7 e3        ex      (sp),hl
@@ -7631,6 +7659,7 @@
 307a d1        pop     de
 307b e1        pop     hl
 307c c9        ret     
+
 307d e5        push    hl
 307e d5        push    de
 307f c5        push    bc
@@ -7639,6 +7668,7 @@
 3084 d1        pop     de
 3085 e1        pop     hl
 3086 c9        ret     
+
 3087 3a8afb    ld      a,(0fb8ah)
 308a cbdf      set     3,a
 308c 328afb    ld      (0fb8ah),a
@@ -8622,11 +8652,11 @@
 38c9 a7        and     a
 38ca c9        ret
 
-; GETSTR
+; GETSTR - Get string pointed by FPREG 'Type Error' if it is not
 38cb e5        push    hl
 38cc cd4c14    call    144ch
 38cf 210040    ld      hl,4000h
-; GSTRDE
+; GSTRDE - Get string pointed by DE
 38d2 01ff5f    ld      bc,5fffh
 38d5 cd0f1d    call    1d0fh
 38d8 7e        ld      a,(hl)
@@ -8780,6 +8810,7 @@
 ; GETINT
 3a10 28fa      jr      z,3a0ch        ; wait for CSYNC - Composite video sync.signal 
 3a12 1a        ld      a,(de)
+; MAKINT - Convert tmp string to int in A register
 3a13 13        inc     de
 3a14 77        ld      (hl),a
 3a15 23        inc     hl
@@ -9185,7 +9216,7 @@
 3d58 1840      jr      3d9ah
 3d5a dd212b32  ld      ix,322bh            ; IX = {EVAL}
 3d5e 183a      jr      3d9ah
-3d60 dd215e19  ld      ix,195eh
+3d60 dd215e19  ld      ix,195eh            ; IX = {TSTSTR - Test a string, 'Type Error' if it is not}
 3d64 1834      jr      3d9ah
 3d66 dd210135  ld      ix,3501h            ; IX= {GETVAR: Find address of variable}
 3d6a 182e      jr      3d9ah
@@ -9802,7 +9833,7 @@
 207a 11ce21    ld      de,21ceh
 207d 2147fe    ld      hl,0fe47h
 2080 cd3d18    call    183dh
-2083 cd0b1c    call    1c0bh
+2083 cd0b1c    call    1c0bh		; DBL_MUL  Double precision MULTIPLY
 2086 f1        pop     af
 2087 d60a      sub     0ah
 2089 f5        push    af
@@ -9899,7 +9930,7 @@
 2115 cd6618    call    1866h
 2118 21e621    ld      hl,21e6h
 211b cd6118    call    1861h
-211e cde11a    call    1ae1h
+211e cde11a    call    1ae1h			; DBL_ADD - Double precision ADD (formerly FPADD)
 2121 af        xor     a
 2122 cde519    call    19e5h
 2125 e1        pop     hl
@@ -10165,7 +10196,7 @@
 227a f28b22    jp      p,228bh
 227d d5        push    de
 227e c5        push    bc
-227f cdaa19    call    19aah
+227f cdaa19    call    19aah			; INT
 2282 c1        pop     bc
 2283 d1        pop     de
 2284 f5        push    af
@@ -10194,7 +10225,7 @@
 22af 3a44fe    ld      a,(0fe44h)		; FPEXP - Floating Point Exponent
 22b2 fe88      cp      88h
 22b4 d29b17    jp      nc,179bh
-22b7 cdaa19    call    19aah
+22b7 cdaa19    call    19aah			; INT
 22ba c680      add     a,80h
 22bc c602      add     a,02h
 22be da9b17    jp      c,179bh
@@ -10243,6 +10274,8 @@
 2301 00        nop     
 2302 00        nop     
 2303 81        add     a,c
+
+; SUMSER - Evaluate sum of series
 2304 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
 2307 119c1a    ld      de,1a9ch
 230a d5        push    de
@@ -10289,7 +10322,7 @@
 234e cdb116    call    16b1h			; FPMULT - Single precision multiply  (Multiply BCDE to FP reg)
 2351 216216    ld      hl,1662h			; UNITY - Constant ptr for number 1 in FP
 2354 cd7515    call    1575h			; ADDPHL - ADD number at HL to BCDE
-2357 c3aa19    jp      19aah
+2357 c3aa19    jp      19aah			; INT
 
 235a 2144fc    ld      hl,0fc44h
 235d e5        push    hl
@@ -10354,7 +10387,7 @@
 23be d1        pop     de
 23bf cd0c17    call    170ch			; DVBCDE - Divide FP by BCDE
 23c2 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
-23c5 cdaa19    call    19aah
+23c5 cdaa19    call    19aah			; INT
 23c8 c1        pop     bc
 23c9 d1        pop     de
 23ca cd7d15    call    157dh			; SUBCDE - Single precision subtract  (Subtract BCDE from FP reg)
@@ -10373,7 +10406,7 @@
 23eb f1        pop     af
 23ec d4ec17    call    nc,17ech			; INVSGN - Invert number sign
 23ef 21fd23    ld      hl,23fdh
-23f2 c30423    jp      2304h
+23f2 c30423    jp      2304h			; SUMSER - Evaluate sum of series
 
 
 ; HALFPI: PI/2 constant
@@ -10427,7 +10460,7 @@
 243f 217a15    ld      hl,157ah			; SUBPHL - SUBTRACT number at HL from BCDE
 2442 e5        push    hl
 2443 214d24    ld      hl,244dh
-2446 cd0423    call    2304h
+2446 cd0423    call    2304h			; SUMSER - Evaluate sum of series
 2449 21f523    ld      hl,23f5h			; HALFPI: ptr to PI/2 constant
 244c c9        ret
 
@@ -10471,7 +10504,7 @@
 2472 c3802b    jp      2b80h
 
 ; ->FBC3h (RST 10h jumps here)
-2475 c3622c    jp      2c62h
+2475 c3622c    jp      2c62h		; _CHRGTB - Pick next char from program
 
 ; ->FBC6h (RST 18h jumps here)
 2478 c37a2b    jp      2b7ah		; -> CPDEHL - compare DE and HL (aka DCOMPR)
@@ -11033,103 +11066,99 @@
 2707 a7        and     a
 2708 80        add     a,b
 2709 00        nop     
-270a 99        sbc     a,c
-270b 2c        inc     l
-270c 8b        adc     a,e
-270d 2b        dec     hl
-270e ca0dbf    jp      z,0bf0dh
-2711 0d        dec     c
-2712 c8        ret     z
-2713 04        inc     b
-2714 42        ld      b,d
-2715 3f        ccf     
-2716 27        daa     
-2717 0d        dec     c
-2718 aa        xor     d
-2719 31f02d    ld      sp,2df0h
-271c 85        add     a,l
-271d 30fc      jr      nc,271bh
-271f 34        inc     (hl)
-2720 da300c    jp      c,0c30h
-2723 2ead      ld      l,0adh
-2725 2d        dec     l
-2726 8e        adc     a,(hl)
-2727 2d        dec     l
-2728 24        inc     h
-2729 2f        cpl     
-272a 42        ld      b,d
-272b 3f        ccf     
-272c 9c        sbc     a,h
-272d 2d        dec     l
-272e c9        ret
 
-272f 2d        dec     l
-2730 f22d94    jp      p,942dh
-2733 2c        inc     l
-2734 f22de2    jp      p,0e22dh
-2737 2c        inc     l
-2738 e3        ex      (sp),hl
-2739 2c        inc     l
-273a eb        ex      de,hl
-273b 2c        inc     l
-273c ee2c      xor     2ch
-273e f1        pop     af
-273f 2c        inc     l
-2740 f42c96    call    p,962ch
-2743 0c        inc     c
-2744 5e        ld      e,(hl)
-2745 3d        dec     a
-2746 df        rst     18h            ; DCOMPR - Compare HL with DE.
-2747 2e9a      ld      l,9ah
-2749 2eef      ld      l,0efh
-274b 39        add     hl,sp
-274c 57        ld      d,a
-274d 2e48      ld      l,48h
-274f 112d0d    ld      de,0d2dh
-2752 1f        rra     
-2753 14        inc     d
-2754 82        add     a,d
-2755 11423f    ld      de,3f42h			; __LOAD
-2758 42        ld      b,d
-2759 3f        ccf     
-275a 3b        dec     sp
-275b 15        dec     d
-275c 42        ld      b,d
-275d 3f        ccf     
-275e 42        ld      b,d
-275f 3f        ccf     
-2760 42        ld      b,d
-2761 3f        ccf     
-2762 42        ld      b,d
-2763 3f        ccf     
-2764 42        ld      b,d
-2765 3f        ccf     
-2766 e20e52    jp      po,520eh
-2769 2f        cpl     
-276a 42        ld      b,d
-276b 3f        ccf     
-276c af        xor     a
-276d 3b        dec     sp
-276e 5a        ld      e,d
-276f 2f        cpl     
-2770 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-2771 2c        defb    ','
-2772 223a1d    ld      (1d3ah),hl
-2775 3aba3a    ld      a,(3abah)
-2778 f3        di      
-2779 2e65      ld      l,65h
-277b 2d        dec     l
-277c 183b      jr      27b9h
 
-277e e9        jp      (hl)
-277f 3a332a    ld      a,(2a33h)
-2782 79        ld      a,c
-2783 79        ld      a,c
-2784 7c        ld      a,h
-2785 7c        ld      a,h
-2786 7f        ld      a,a
-2787 50        ld      d,b
-2788 46        ld      b,(hl)
+; # JP table for statements
+;270a 99        sbc     a,c
+;270b 2c        inc     l
+;270c 8b        adc     a,e
+;270d 2b        dec     hl
+
+$2C99 - [128] END
+$2B8B - [129] FOR
+$0DCA - [130] RESET
+$0DBF - [131] SET
+$04C8 - [132] CLS
+	$3F42 - [133] CMD
+$0D27 - [134] RANDOM
+$31AA - [135] NEXT
+$2DF0 - [136] DATA
+$3085 - [137] INPUT
+$34FC - [138] DIM
+$30DA - [139] READ
+$2E0C - [140] LET
+$2DAD - [141] GOTO
+$2D8E - [142] RUN
+$2F24 - [143] IF
+	$3F42 - [144] RESTORE
+$2D9C - [145] GOSUB
+$2DC9 - [146] RETURN
+$2DF2 - [147] REM
+$2C94 - [148] STOP
+$2DF2 - [149] ELSE
+$2CE2 - [150] TRON
+$2CE3 - [151] TROFF
+$2CEB - [152] DEFSTR
+$2CEE - [153] DEFINT
+$2CF1 - [154] DEFSNG
+$2CF4 - [155] DEFDBL
+$0C96 - [156] PCGEN
+$3D5E - [157] EDIT
+$2EDF - [158] ERROR
+$2E9A - [159] RESUME
+$39EF - [160] OUT
+$2E57 - [161] ON
+$1148 - [162] OPEN
+$0D2D - [163] COLOUR
+$141F - [164] WRITE#
+$1182 - [165] CLOSE
+	$3F42 - [166] LOAD
+	$3F42 - [167] SAVE
+$153B - [168] KILL
+	$3F42 - [169] CIRCLE
+	$3F42 - [170] LINE
+	$3F42 - [171] SOUND
+	$3F42 - [172] HGR
+	$3F42 - [173] VPOKE
+$0EE2 - [174] SYSTEM
+$2F52 - [175] LPRINT
+	$3F42 - [176] DEF
+$3BAF - [177] POKE
+$2F5A - [178] PRINT
+$2CCF - [179] CONT
+$3A22 - [180] LIST
+$3A1D - [181] LLIST
+$3ABA - [182] DELETE
+$2EF3 - [183] AUTO
+$2D65 - [184] CLEAR
+$3B18 - [185] CLOAD
+$3AE9 - [186] CSAVE
+$2A33 - [187] NEW
+
+;277c 183b      jr      27b9h
+;277e e9        jp      (hl)
+;277f 3a332a    ld      a,(2a33h)
+
+; PRITAB - ARITHMETIC PRECEDENCE TABLE
+;2782 79        ld      a,c
+;2783 79        ld      a,c
+;2784 7c        ld      a,h
+;2785 7c        ld      a,h
+;2786 7f        ld      a,a
+;2787 50        ld      d,b
+;2788 46        ld      b,(hl)
+;(...)
+
+PRITAB:
+  DEFB $79  ; +   (Token code $F1)
+  DEFB $79  ; -
+  DEFB $7c  ; *
+  DEFB $7c  ; /
+  DEFB $7f  ; ^
+  DEFB $50  ; AND 
+  DEFB $46  ; OR
+  (...)
+
 2789 45        ld      b,l
 278a 19        add     hl,de
 278b 00        nop     
@@ -11352,6 +11381,7 @@
 2876 2014      jr      nz,288ch        ; ERROR, E=error code
 2878 c3ac2c    jp      2cach
 
+; DATSNR - 'SN err' entry for Input STMT
 287b 2afafd    ld      hl,(0fdfah)        ; Line No.  of last data statement
 287e 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
 ; Syntax Error (SN ERROR)
@@ -11412,7 +11442,7 @@
 28eb e5        push    hl
 28ec 2a0afe    ld      hl,(0fe0ah)            ; ERRLIN: Line No. in which error occured.
 28ef e3        ex      (sp),hl
-28f0 cd9b37    call    379bh			; Output a string
+28f0 cd9b37    call    379bh			; PRS - Output a string
 28f3 e1        pop     hl
 28f4 11feff    ld      de,0fffeh
 28f7 df        rst     18h            ; DCOMPR - Compare HL with DE.
@@ -11427,7 +11457,7 @@
 2909 cd8007    call    0780h			; Cassette off routine
 290c cde42f    call    2fe4h        ; CONSOLE_CRLF
 290f 211328    ld      hl,2813h
-2912 cd9b37    call    379bh			; Output a string
+2912 cd9b37    call    379bh			; PRS - Output a string
 2915 3a4efc    ld      a,(0fc4eh)            ; ERRFLG
 2918 d602      sub     02h
 291a cc513d    call    z,3d51h
@@ -11448,7 +11478,7 @@
 2937 3802      jr      c,293bh
 2939 3e20      ld      a,20h		; ' '
 293b cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-293e cdfa08    call    08fah            ; Console line input routine
+293e cdfa08    call    08fah            ; RINPUT - Console line input routine
 2941 d1        pop     de
 2942 3006      jr      nc,294ah
 2944 af        xor     a
@@ -11470,7 +11500,7 @@
 
 2960 3e3e      ld      a,3eh		; '>'
 2962 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-2965 cdfa08    call    08fah            ; Console line input routine
+2965 cdfa08    call    08fah            ; RINPUT - Console line input routine
 2968 da1d29    jp      c,291dh            ; PROMPT
 296b d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
 296c 3c        inc     a
@@ -11616,7 +11646,7 @@
 2a31 18e6      jr      2a19h
 
 2a33 c0        ret     nz
-2a34 cdc804    call    04c8h
+2a34 cdc804    call    04c8h			; __CLS
 2a37 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
 2a3a cde32c    call    2ce3h
 2a3d 3201fe    ld      (0fe01h),a        ; AUTFLG: Auto increment flag 0 = no auto mode, otherwise line number
@@ -11672,7 +11702,7 @@
 2a9f cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
 2aa2 3e20      ld      a,20h		; ' '
 2aa4 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-2aa7 c3fa08    jp      08fah            ; Console line input routine
+2aa7 c3fa08    jp      08fah            ; RINPUT - Console line input routine
 
 2aaa af        xor     a
 2aab 32d0fd    ld      (0fdd0h),a
@@ -11827,7 +11857,7 @@
 2b82 be        cp      (hl)
 2b83 23        inc     hl
 2b84 e3        ex      (sp),hl
-2b85 ca622c    jp      z,2c62h
+2b85 ca622c    jp      z,2c62h		; _CHRGTB - Pick next char from program
 2b88 c38128    jp      2881h            ; Syntax Error (SN ERROR)
 
 ; __FOR:
@@ -11845,7 +11875,7 @@
 2ba0 0e08      ld      c,08h
 2ba2 cd4d28    call    284dh			; CHKSTK - Check for C levels of stack
 2ba5 e5        push    hl
-2ba6 cdf02d    call    2df0h
+2ba6 cdf02d    call    2df0h				; __DATA 	- DATA statement: find next DATA program line..
 2ba9 e3        ex      (sp),hl
 2baa e5        push    hl
 2bab 2a56fc    ld      hl,(0fc56h)        ; CURLIN: Current line number
@@ -11884,7 +11914,7 @@
 2be5 fecc      cp      0cch
 2be7 3e01      ld      a,01h
 2be9 200e      jr      nz,2bf9h
-2beb cd2c32    call    322ch
+2beb cd2c32    call    322ch		; __EVAL__
 2bee e5        push    hl
 2bef cd1b19    call    191bh
 2bf2 cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
@@ -11946,7 +11976,7 @@
 2c55 4f        ld      c,a
 2c56 0600      ld      b,00h
 2c58 eb        ex      de,hl
-2c59 210a27    ld      hl,270ah
+2c59 210a27    ld      hl,270ah		; # JP table for statements
 2c5c 09        add     hl,bc
 2c5d 4e        ld      c,(hl)
 2c5e 23        inc     hl
@@ -11987,6 +12017,7 @@
 2c95 3c        inc     a
 2c96 c39f2c    jp      2c9fh
 
+; __END
 2c99 c0        ret     nz
 2c9a f5        push    af
 2c9b cca211    call    z,11a2h
@@ -12094,7 +12125,7 @@
 2d3d eb        ex      de,hl
 2d3e 2a0cfe    ld      hl,(0fe0ch)            ; Line No. in which error occured.
 2d41 eb        ex      de,hl
-2d42 ca622c    jp      z,2c62h
+2d42 ca622c    jp      z,2c62h		; _CHRGTB - Pick next char from program
 
 ; LNUM_PARM_0 - Get specified line number (2nd parameter)
 2d45 2b        dec     hl
@@ -12341,11 +12372,11 @@
 2ecf 7a        ld      a,d
 2ed0 a3        and     e
 2ed1 3c        inc     a
-2ed2 c2f02d    jp      nz,2df0h
+2ed2 c2f02d    jp      nz,2df0h				; __DATA 	- DATA statement: find next DATA program line..
 2ed5 3afdfd    ld      a,(0fdfdh)    ; Read flag: 0 = read statement active
 2ed8 3d        dec     a
 2ed9 caa92c    jp      z,2ca9h
-2edc c3f02d    jp      2df0h
+2edc c3f02d    jp      2df0h				; __DATA 	- DATA statement: find next DATA program line..
 
 2edf cd103a    call    3a10h		; GETINT
 2ee2 c0        ret     nz
@@ -12390,9 +12421,9 @@
 2f24 cd2b32    call    322bh			; EVAL
 2f27 7e        ld      a,(hl)
 2f28 fe2c      cp      2ch
-2f2a cc622c    call    z,2c62h
+2f2a cc622c    call    z,2c62h		; _CHRGTB - Pick next char from program
 2f2d feca      cp      0cah
-2f2f cc622c    call    z,2c62h
+2f2f cc622c    call    z,2c62h		; _CHRGTB - Pick next char from program
 2f32 2b        dec     hl
 2f33 e5        push    hl
 2f34 cdfe17    call    17feh		; _TSTSGN - Test sign in number
@@ -12403,7 +12434,7 @@
 2f3e c3492c    jp      2c49h
 
 2f41 1601      ld      d,01h
-2f43 cdf02d    call    2df0h
+2f43 cdf02d    call    2df0h				; __DATA 	- DATA statement: find next DATA program line..
 2f46 b7        or      a
 2f47 c8        ret     z
 2f48 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
@@ -12476,11 +12507,11 @@
 2fcf 86        add     a,(hl)
 2fd0 b8        cp      b
 2fd1 d4e92f    call    nc,2fe9h
-2fd4 cd9e37    call    379eh
-2fd7 3e20      ld      a,20h		; ' '
-2fd9 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
+2fd4 cd9e37    call    379eh			; PRS1 - Print string at HL
+2fd7 3e20      ld      a,20h			; ' '
+2fd9 cda00b    call    0ba0h    	    ; OUTC (alias OUTDO): print character
 2fdc b7        or      a
-2fdd cc9e37    call    z,379eh
+2fdd cc9e37    call    z,379eh			; PRS1 - Print string at HL
 2fe0 e1        pop     hl
 2fe1 c3862f    jp      2f86h
 
@@ -12567,17 +12598,18 @@
 3069 00        nop     
 306a 3afefd    ld      a,(0fdfeh)        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
 306d b7        or      a
-306e c27b28    jp      nz,287bh
+306e c27b28    jp      nz,287bh			; DATSNR - 'SN err' entry for Input STMT
 3071 3ac9fd    ld      a,(0fdc9h)        ; 0 if input from cassette else non-zero
 3074 b7        or      a
 3075 1e2a      ld      e,2ah
 3077 ca8c28    jp      z,288ch        ; ERROR, E=error code
 307a c1        pop     bc
 307b 216330    ld      hl,3063h
-307e cd9b37    call    379bh			; Output a string
+307e cd9b37    call    379bh			; PRS - Output a string
 3081 2a06fe    ld      hl,(0fe06h)            ; SAVTXT (During input:  ADDR of code string for current statement)
 3084 c9        ret
 
+; __INPUT
 3085 cd1c37    call    371ch
 3088 7e        ld      a,(hl)
 3089 cda902    call    02a9h
@@ -12606,11 +12638,11 @@
 30b7 c5        push    bc
 30b8 fe22      cp      22h
 30ba c0        ret     nz
-30bb cd5a37    call    375ah
+30bb cd5a37    call    375ah			; QTSTR - Create quote terminated String
 30be cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 30bf 3b        dec     sp
 30c0 e5        push    hl
-30c1 cd9e37    call    379eh
+30c1 cd9e37    call    379eh			; PRS1 - Print string at HL
 30c4 e1        pop     hl
 30c5 c9        ret
 
@@ -12650,7 +12682,7 @@
 30f9 2826      jr      z,3121h
 30fb 3afefd    ld      a,(0fdfeh)        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
 30fe b7        or      a
-30ff c28a31    jp      nz,318ah
+30ff c28a31    jp      nz,318ah			; FDTLP - Find next DATA statement
 3102 3ac9fd    ld      a,(0fdc9h)        ; 0 if input from cassette else non-zero
 3105 b7        or      a
 3106 1e06      ld      e,06h
@@ -12680,7 +12712,7 @@
 312f 163a      ld      d,3ah
 3131 062c      ld      b,2ch
 3133 2b        dec     hl
-3134 cd5d37    call    375dh
+3134 cd5d37    call    375dh					; DTSTR - Create String, termination char in D
 3137 f1        pop     af
 3138 eb        ex      de,hl
 3139 214e31    ld      hl,314eh
@@ -12694,7 +12726,7 @@
 3144 013731    ld      bc,3137h
 3147 c5        push    bc
 3148 dad61c    jp      c,1cd6h
-314b d2cf1c    jp      nc,1ccfh
+314b d2cf1c    jp      nc,1ccfh			; DBL_ASCTFP - ASCII to Double precision FP number
 314e 2b        dec     hl
 314f d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
 3150 2805      jr      z,3157h
@@ -12716,7 +12748,7 @@
 316c cddbfe    call    0fedbh
 316f b6        or      (hl)
 3170 217a31    ld      hl,317ah
-3173 c49b37    call    nz,379bh			; Output a string
+3173 c49b37    call    nz,379bh			; PRS - Output a string
 3176 e1        pop     hl
 3177 c35430    jp      3054h
 
@@ -12736,7 +12768,9 @@
 3187 64        ld      h,h
 3188 0d        dec     c
 3189 00        nop     
-318a cdf02d    call    2df0h
+
+; FDTLP - Find next DATA statement
+318a cdf02d    call    2df0h				; __DATA 	- DATA statement: find next DATA program line..
 318d b7        or      a
 318e 2012      jr      nz,31a2h
 3190 23        inc     hl
@@ -12754,9 +12788,10 @@
 31a1 eb        ex      de,hl
 31a2 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
 31a3 fe88      cp      88h
-31a5 20e3      jr      nz,318ah
+31a5 20e3      jr      nz,318ah			; FDTLP - Find next DATA statement
 31a7 c32131    jp      3121h
 
+; __NEXT
 31aa 110000    ld      de,0000h
 31ad c40135    call    nz,3501h        ; GETVAR: Find address of variable
 31b0 22fffd    ld      (0fdffh),hl
@@ -12838,19 +12873,27 @@
 3222 c2082c    jp      nz,2c08h
 3225 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
 3226 cdad31    call    31adh
+
+; OPNPAR - Chk Syntax, make sure '(' follows
 3229 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 322a 28        defb    '('
 
 ; EVAL
+; a.k.a. GETNUM, evaluate expression
 322b 2b        dec     hl
+; __EVAL__
 322c 1600      ld      d,00h
 
 ; EVAL1
+; Save precedence and eval until precedence break
 322e d5        push    de
+; __EVAL1__ - Save precedence and eval until precedence break
 322f 0e01      ld      c,01h
 3231 cd4d28    call    284dh			; CHKSTK - Check for C levels of stack
 3234 cd9333    call    3393h			; OPRND: Get next expression value
+; EVAL2 - Evaluate expression until precedence break
 3237 2213fe    ld      (0fe13h),hl    ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
+; EVAL3 - Evaluate expression until precedence break
 323a 2a13fe    ld      hl,(0fe13h)    ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
 323d c1        pop     bc
 323e 7e        ld      a,(hl)
@@ -12883,15 +12926,15 @@
 3268 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 326b d603      sub     03h
 326d b3        or      e
-326e ca8338    jp      z,3883h
-3271 218227    ld      hl,2782h
+326e ca8338    jp      z,3883h			; CONCAT - String concatenation
+3271 218227    ld      hl,2782h			; PRITAB - ARITHMETIC PRECEDENCE TABLE
 3274 19        add     hl,de
 3275 78        ld      a,b
 3276 56        ld      d,(hl)
 3277 ba        cp      d
 3278 d0        ret     nc
 3279 c5        push    bc
-327a 013a32    ld      bc,323ah
+327a 013a32    ld      bc,323ah				; EVAL3 - Evaluate expression until precedence break
 327d c5        push    bc
 327e 7a        ld      a,d
 327f fe7f      cp      7fh
@@ -13072,7 +13115,7 @@
 33ab fece      cp      0ceh
 33ad ca2634    jp      z,3426h		; OPRND_SUB
 33b0 fe22      cp      22h
-33b2 ca5a37    jp      z,375ah
+33b2 ca5a37    jp      z,375ah			; QTSTR - Create quote terminated String
 33b5 fecb      cp      0cbh
 33b7 cab834    jp      z,34b8h
 33ba fe26      cp      26h
@@ -13129,7 +13172,7 @@
 3418 ca75fe    jp      z,0fe75h
 341b d6d7      sub     0d7h
 341d d24234    jp      nc,3442h
-3420 cd2932    call    3229h
+3420 cd2932    call    3229h			; OPNPAR - Chk Syntax, make sure '(' follows
 3423 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 3424 29        defb  '('
 3425 c9        ret
@@ -13160,10 +13203,10 @@
 3448 79        ld      a,c
 3449 fe41      cp      41h
 344b 3816      jr      c,3463h
-344d cd2932    call    3229h
+344d cd2932    call    3229h			; OPNPAR - Chk Syntax, make sure '(' follows
 3450 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 3451 2c        defb    ','
-3452 cd5e19    call    195eh
+3452 cd5e19    call    195eh			; TSTSTR - Test a string, 'Type Error' if it is not
 3455 eb        ex      de,hl
 3456 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 3459 e3        ex      (sp),hl
@@ -13193,7 +13236,7 @@
 347d 66        ld      h,(hl)
 347e 69        ld      l,c
 347f e9        jp      (hl)
-3480 cdcb38    call    38cbh			; GETSTR
+3480 cdcb38    call    38cbh			; GETSTR - Get string pointed by FPREG 'Type Error' if it is not
 3483 7e        ld      a,(hl)
 3484 23        inc     hl
 3485 4e        ld      c,(hl)
@@ -13202,7 +13245,7 @@
 3488 d1        pop     de
 3489 c5        push    bc
 348a f5        push    af
-348b cdd238    call    38d2h		; GSTRDE
+348b cdd238    call    38d2h		; GSTRDE - Get string pointed by DE
 348e d1        pop     de
 348f 5e        ld      e,(hl)
 3490 23        inc     hl
@@ -13249,7 +13292,7 @@
 34c5 67        ld      h,a
 34c6 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 34c9 c1        pop     bc
-34ca c33a32    jp      323ah
+34ca c33a32    jp      323ah				; EVAL3 - Evaluate expression until precedence break
 
 ; GETYPR - Get the number type (FAC)
 34cd 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
@@ -13538,7 +13581,7 @@
 3659 70        ld      (hl),b
 365a 23        inc     hl
 365b f5        push    af
-365c cd141a    call    1a14h
+365c cd141a    call    1a14h				; MLDEBC - Multiply DE by BC
 365f f1        pop     af
 3660 3d        dec     a
 3661 20ed      jr      nz,3650h
@@ -13583,7 +13626,7 @@
 3694 f5        push    af
 3695 df        rst     18h            ; DCOMPR - Compare HL with DE.
 3696 d23136    jp      nc,3631h
-3699 cd141a    call    1a14h
+3699 cd141a    call    1a14h				; MLDEBC - Multiply DE by BC
 369c 19        add     hl,de
 369d f1        pop     af
 369e 3d        dec     a
@@ -13622,7 +13665,7 @@
 36cf 39        add     hl,sp
 36d0 e7        rst     20h			; GETYPR - Get the number type (FAC)
 36d1 200d      jr      nz,36e0h
-36d3 cdce38    call    38ceh
+36d3 cdce38    call    38ceh			; GSTRCU - Get string pointed by FPREG
 36d6 cdda37    call    37dah
 36d9 2a54fc    ld      hl,(0fc54h)        ; Address of string area boundary
 36dc eb        ex      de,hl
@@ -13653,7 +13696,7 @@
 36fe 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 3701 f5        push    af
 3702 fe03      cp      03h
-3704 ccce38    call    z,38ceh
+3704 ccce38    call    z,38ceh			; GSTRCU - Get string pointed by FPREG
 3707 f1        pop     af
 3708 eb        ex      de,hl
 3709 2a42fc    ld      hl,(0fc42h)        ; Address of USR subroutine
@@ -13679,15 +13722,17 @@
 3725 1e16      ld      e,16h
 3727 c38c28    jp      288ch        ; ERROR, E=error code
 
+; STR - STR BASIC function entry
 372a cd271e    call    1e27h
 372d cd5937    call    3759h
-3730 cdce38    call    38ceh
-3733 011f39    ld      bc,391fh		; TOPOOL
+3730 cdce38    call    38ceh			; GSTRCU - Get string pointed by FPREG
+; SAVSTR - Save string in string area
+3733 011f39    ld      bc,391fh		; TOPOOL - Save in string pool
 3736 c5        push    bc
 3737 7e        ld      a,(hl)
 3738 23        inc     hl
 3739 e5        push    hl
-373a cdb337    call    37b3h		; TESTR
+373a cdb337    call    37b3h		; TESTR - Test if enough room for string
 373d e1        pop     hl
 373e 4e        ld      c,(hl)
 373f 23        inc     hl
@@ -13695,12 +13740,12 @@
 3741 cd4e37    call    374eh		; CRTMST - Create temporary string entry
 3744 e5        push    hl
 3745 6f        ld      l,a
-3746 cdc238    call    38c2h		; TOSTRA
+3746 cdc238    call    38c2h		; TOSTRA - Move string in BC, (len in L) to string area
 3749 d1        pop     de
 374a c9        ret
 
 ; MKTMST - Make temporary string
-374b cdb337    call    37b3h		; TESTR
+374b cdb337    call    37b3h		; TESTR - Test if enough room for string
 
 ; CRTMST - Create temporary string entry
 374e 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
@@ -13714,8 +13759,10 @@
 3758 c9        ret
 
 3759 2b        dec     hl
-375a 0622      ld      b,22h
+; QTSTR - Create quote terminated String
+375a 0622      ld      b,22h			; '"'
 375c 50        ld      d,b
+; DTSTR - Create String, termination char in D
 375d e5        push    hl
 375e 0eff      ld      c,0ffh
 3760 23        inc     hl
@@ -13727,15 +13774,15 @@
 3767 2803      jr      z,376ch
 3769 b8        cp      b
 376a 20f4      jr      nz,3760h
-376c fe22      cp      22h
-376e cc622c    call    z,2c62h
+376c fe22      cp      22h			; '"'
+376e cc622c    call    z,2c62h		; _CHRGTB - Pick next char from program
 3771 e3        ex      (sp),hl
 3772 23        inc     hl
 3773 eb        ex      de,hl
 3774 79        ld      a,c
 3775 cd4e37    call    374eh		; CRTMST - Create temporary string entry
 
-; TSTOPL
+; TSTOPL - Temporary string to pool
 3778 11f3fd    ld      de,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
 377b 3ed5      ld      a,0d5h
 377d 2ad3fd    ld      hl,(0fdd3h)        ; TMSTPT: Address of next available location in LSPT
@@ -13752,11 +13799,14 @@
 3795 1e1e      ld      e,1eh
 3797 c38c28    jp      288ch        ; ERROR, E=error code
 
+
+; PRNUMS - Print number string
 379a 23        inc     hl
 
-; Output a string
+; PRS - Output a string
 379b cd5937    call    3759h
-379e cdce38    call    38ceh
+; PRS1 - Print string at HL
+379e cdce38    call    38ceh			; GSTRCU - Get string pointed by FPREG
 37a1 cd2e18    call    182eh            ; LOADFP_0
 37a4 14        inc     d
 37a5 15        dec     d
@@ -13768,7 +13818,7 @@
 37b0 03        inc     bc
 37b1 18f2      jr      37a5h
 
-; TESTR
+; TESTR - Test if enough room for string
 37b3 b7        or      a
 37b4 0ef1      ld      c,0f1h
 37b6 f5        push    af
@@ -13914,13 +13964,14 @@
 387f 2b        dec     hl
 3880 c3dd37    jp      37ddh
 
+; CONCAT - String concatenation
 3883 c5        push    bc
 3884 e5        push    hl
 3885 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 3888 e3        ex      (sp),hl
 3889 cd9333    call    3393h			; OPRND: Get next expression value
 388c e3        ex      (sp),hl
-388d cd5e19    call    195eh
+388d cd5e19    call    195eh			; TSTSTR - Test a string, 'Type Error' if it is not
 3890 7e        ld      a,(hl)
 3891 e5        push    hl
 3892 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
@@ -13930,19 +13981,20 @@
 3899 da8c28    jp      c,288ch        ; ERROR, E=error code
 389c cd4b37    call    374bh		; MKTMST - Make temporary string
 389f d1        pop     de
-38a0 cdd238    call    38d2h		; GSTRDE
+38a0 cdd238    call    38d2h		; GSTRDE - Get string pointed by DE
 38a3 e3        ex      (sp),hl
-38a4 cdd138    call    38d1h
+38a4 cdd138    call    38d1h			; GSTRHL - Get string pointed by HL
 38a7 e5        push    hl
 38a8 2af4fd    ld      hl,(0fdf4h)	; TMPSTR
 38ab eb        ex      de,hl
-38ac cdba38    call    38bah
-38af cdba38    call    38bah
+38ac cdba38    call    38bah				; SSTSA - Move string on stack to string area
+38af cdba38    call    38bah				; SSTSA - Move string on stack to string area
 38b2 213d32    ld      hl,323dh
 38b5 e3        ex      (sp),hl
 38b6 e5        push    hl
-38b7 c37837    jp      3778h		; TSTOPL
+38b7 c37837    jp      3778h		; TSTOPL - Temporary string to pool
 
+; SSTSA - Move string on stack to string area
 38ba e1        pop     hl
 38bb e3        ex      (sp),hl
 38bc 7e        ld      a,(hl)
@@ -13952,21 +14004,24 @@
 38c0 46        ld      b,(hl)
 38c1 6f        ld      l,a
 
-; TOSTRA
+; TOSTRA - Move string in BC, (len in L) to string area
 38c2 2c        inc     l
+; TSALP - TOSTRA loop
 38c3 2d        dec     l
 38c4 c8        ret     z
 38c5 0a        ld      a,(bc)
 38c6 12        ld      (de),a
 38c7 03        inc     bc
 38c8 13        inc     de
-38c9 18f8      jr      38c3h
+38c9 18f8      jr      38c3h				; TSALP - TOSTRA loop
 
-; GETSTR
-38cb cd5e19    call    195eh
+; GETSTR - Get string pointed by FPREG 'Type Error' if it is not
+38cb cd5e19    call    195eh			; TSTSTR - Test a string, 'Type Error' if it is not
+; GSTRCU - Get string pointed by FPREG
 38ce 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
+; GSTRHL - Get string pointed by HL
 38d1 eb        ex      de,hl
-; GSTRDE
+; GSTRDE - Get string pointed by DE
 38d2 cde938    call    38e9h
 38d5 eb        ex      de,hl
 38d6 c0        ret     nz
@@ -13999,7 +14054,7 @@
 ; __LEN
 38f7 01ec36    ld      bc,36ech			; UNSIGNED_RESULT_A
 38fa c5        push    bc
-38fb cdcb38    call    38cbh			; GETSTR
+38fb cdcb38    call    38cbh			; GETSTR - Get string pointed by FPREG 'Type Error' if it is not
 38fe af        xor     a
 38ff 57        ld      d,a
 3900 7e        ld      a,(hl)
@@ -14022,12 +14077,12 @@
 ; __CHR_S
 3913 3e01      ld      a,01h		; Make temporary string 1 byte long
 3915 cd4b37    call    374bh		; MKTMST - Make temporary string
-3918 cd133a    call    3a13h		; MAKINT
+3918 cd133a    call    3a13h		; MAKINT - Convert tmp string to int in A register
 391b 2af4fd    ld      hl,(0fdf4h)	; TMPSTR+1
 391e 73        ld      (hl),e
-; TOPOOL
+; TOPOOL - Save in string pool
 391f c1        pop     bc
-3920 c37837    jp      3778h		; TSTOPL
+3920 c37837    jp      3778h		; TSTOPL - Temporary string to pool
 
 ; FN_STRING
 3923 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
@@ -14044,7 +14099,7 @@
 3932 e5        push    hl
 3933 e7        rst     20h			; GETYPR - Get the number type (FAC)
 3934 2805      jr      z,393bh
-3936 cd133a    call    3a13h		; MAKINT
+3936 cd133a    call    3a13h		; MAKINT - Convert tmp string to int in A register
 3939 1803      jr      393eh		;FN_STRING_1
 ;FN_STRING_0
 393b cd0739    call    3907h		; __ASC_0
@@ -14058,13 +14113,13 @@
 3946 f1        pop     af
 3947 1c        inc     e
 3948 1d        dec     e
-3949 28d4      jr      z,391fh		; TOPOOL
+3949 28d4      jr      z,391fh		; TOPOOL - Save in string pool
 394b 2af4fd    ld      hl,(0fdf4h)	; TMPSTR+1
 394e 77        ld      (hl),a
 394f 23        inc     hl
 3950 1d        dec     e
 3951 20fb      jr      nz,394eh
-3953 18ca      jr      391fh		; TOPOOL
+3953 18ca      jr      391fh		; TOPOOL - Save in string pool
 
 ; __LEFT_S
 3955 cdd339    call    39d3h		; LFRGNM - number in program listing and check for ending ')'
@@ -14079,7 +14134,7 @@
 3962 78        ld      a,b
 3963 110e00    ld      de,000eh
 3966 c5        push    bc
-3967 cdb337    call    37b3h		; TESTR
+3967 cdb337    call    37b3h		; TESTR - Test if enough room for string
 396a c1        pop     bc
 396b e1        pop     hl
 396c e5        push    hl
@@ -14094,10 +14149,10 @@
 3976 4d        ld      c,l
 3977 cd4e37    call    374eh		; CRTMST - Create temporary string entry
 397a 6f        ld      l,a
-397b cdc238    call    38c2h		; TOSTRA
+397b cdc238    call    38c2h		; TOSTRA - Move string in BC, (len in L) to string area
 397e d1        pop     de
-397f cdd238    call    38d2h		; GSTRDE
-3982 c37837    jp      3778h		; TSTOPL
+397f cdd238    call    38d2h		; GSTRDE - Get string pointed by DE
+3982 c37837    jp      3778h		; TSTOPL - Temporary string to pool
 
 ; __RIGHT_S
 3985 cdd339    call    39d3h		; LFRGNM - number in program listing and check for ending ')'
@@ -14155,7 +14210,7 @@
 39c9 e3        ex      (sp),hl
 39ca c5        push    bc
 39cb 7e        ld      a,(hl)
-39cc cdcf1c    call    1ccfh
+39cc cdcf1c    call    1ccfh			; DBL_ASCTFP - ASCII to Double precision FP number
 39cf c1        pop     bc
 39d0 e1        pop     hl
 39d1 70        ld      (hl),b
@@ -14174,10 +14229,10 @@
 ; IN BASIC instruction
 39db fe7a      cp      7ah
 39dd c28128    jp      nz,2881h            ; Syntax Error (SN ERROR)
-39e0 c3423f    jp      3f42h			; __LOAD
+39e0 c3423f    jp      3f42h			; Exec command in FAR memory bank
 
 ; __INP
-39e3 cd133a    call    3a13h		; MAKINT
+39e3 cd133a    call    3a13h		; MAKINT - Convert tmp string to int in A register
 39e6 3248fc    ld      (0fc48h),a        ; INPORT - Current port for 'INP' function
 39e9 cd47fc    call    0fc47h
 39ec c3ec36    jp      36ech			; UNSIGNED_RESULT_A
@@ -14214,7 +14269,7 @@
 
 ; GETINT
 3a10 cd2b32    call    322bh			; EVAL
-; MAKINT
+; MAKINT - Convert tmp string to int in A register
 3a13 cdf939    call    39f9h			; DEPINT - Get integer variable to DE, error if negative
 3a16 c2352d    jp      nz,2d35h            ; Error: Illegal function call (FC ERROR)
 3a19 2b        dec     hl
@@ -14341,7 +14396,7 @@
 3ac9 df        rst     18h            ; DCOMPR - Compare HL with DE.
 3aca d2352d    jp      nc,2d35h            ; Error: Illegal function call (FC ERROR)
 3acd 211328    ld      hl,2813h
-3ad0 cd9b37    call    379bh			; Output a string
+3ad0 cd9b37    call    379bh			; PRS - Output a string
 3ad3 c1        pop     bc
 3ad4 21d229    ld      hl,29d2h
 3ad7 e3        ex      (sp),hl
@@ -14433,14 +14488,14 @@
 3b73 10ea      djnz    3b5fh
 3b75 2219fe    ld      (0fe19h),hl        ; Addr of simple variables
 3b78 211328    ld      hl,2813h
-3b7b cd9b37    call    379bh			; Output a string
+3b7b cd9b37    call    379bh			; PRS - Output a string
 3b7e cd8007    call    0780h			; Cassette off routine
 3b81 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
 3b84 e5        push    hl
 3b85 c3d229    jp      29d2h
 
 3b88 21a33b    ld      hl,3ba3h
-3b8b cd9b37    call    379bh			; Output a string
+3b8b cd9b37    call    379bh			; PRS - Output a string
 3b8e c30229    jp      2902h
 
 
@@ -14471,8 +14526,8 @@
 3bb9 12        ld      (de),a
 3bba c9        ret
 
-3bbb cd2c32    call    322ch
-3bbe cd5e19    call    195eh
+3bbb cd2c32    call    322ch		; __EVAL__
+3bbe cd5e19    call    195eh			; TSTSTR - Test a string, 'Type Error' if it is not
 3bc1 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 3bc2 3b        dec     sp
 3bc3 eb        ex      de,hl
@@ -14652,7 +14707,7 @@
 3cc8 7a        ld      a,d
 3cc9 f680      or      80h
 3ccb cd281e    call    1e28h
-3cce cd9b37    call    379bh			; Output a string
+3cce cd9b37    call    379bh			; PRS - Output a string
 3cd1 e1        pop     hl
 3cd2 2b        dec     hl
 3cd3 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
@@ -14692,7 +14747,7 @@
 3d04 c2c93b    jp      nz,3bc9h
 3d07 dce92f    call    c,2fe9h
 3d0a e3        ex      (sp),hl
-3d0b cdd138    call    38d1h
+3d0b cdd138    call    38d1h			; GSTRHL - Get string pointed by HL
 3d0e e1        pop     hl
 3d0f c35430    jp      3054h
 
@@ -14706,7 +14761,7 @@
 3d1c 28e9      jr      z,3d07h
 3d1e c5        push    bc
 3d1f cd2b32    call    322bh			; EVAL
-3d22 cd5e19    call    195eh
+3d22 cd5e19    call    195eh			; TSTSTR - Test a string, 'Type Error' if it is not
 3d25 c1        pop     bc
 3d26 c5        push    bc
 3d27 e5        push    hl
@@ -14715,7 +14770,7 @@
 3d2c 0e00      ld      c,00h
 3d2e c5        push    bc
 3d2f cd5c39    call    395ch
-3d32 cd9e37    call    379eh
+3d32 cd9e37    call    379eh			; PRS1 - Print string at HL
 3d35 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 3d38 f1        pop     af
 3d39 96        sub     (hl)
@@ -15054,7 +15109,8 @@
 3f3e 3ef4      ld      a,0f4h
 3f40 1812      jr      3f54h
 
-3f42 1822      jr      3f66h		; __LOAD
+; Exec command in FAR memory bank
+3f42 1822      jr      3f66h
 
 3f44 180e      jr      3f54h
 
@@ -15080,7 +15136,7 @@
 3f63 d370      out     (70h),a        ; Set system status
 3f65 c9        ret
 
-; pointed by __LOAD
+; __Exec command in FAR memory bank
 3f66 f5        push    af
 3f67 db50      in      a,(50h)        ; get system status
 3f69 cbef      set     5,a			; DISPEN - CRTC display enable signal
@@ -15100,9 +15156,11 @@
 3f7d ff        rst     38h
 3f7e ff        rst     38h
 3f7f ff        rst     38h
-3f80 dd21933f  ld      ix,3f93h
+
+; BANK SWITCHING - call the FAR function in stack
+3f80 dd21933f  ld      ix,3f93h		; restore original pages and return
 3f84 fde1      pop     iy
-3f86 dde5      push    ix
+3f86 dde5      push    ix			; restore original pages and return
 3f88 fde5      push    iy
 3f8a f5        push    af
 3f8b db50      in      a,(50h)        ; get system status
@@ -15111,6 +15169,7 @@
 3f91 f1        pop     af
 3f92 c9        ret
 
+; BANK SWITCHING - restore original pages and return
 3f93 f5        push    af
 3f94 db50      in      a,(50h)        ; get system status
 3f96 cbef      set     5,a			; DISPEN - CRTC display enable signal
