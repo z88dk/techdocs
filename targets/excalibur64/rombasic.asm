@@ -132,7 +132,7 @@
 0085 c3cc06    jp      06cch    ; Loads CRTC regs with B+1 bytes dwn from HL
 0088 c36806    jp      0668h    ; Turns screen ram on
 008b c36f06    jp      066fh    ; Turns screen ram off
-008e c3e918    jp      18e9h    ; __CINT: Floating point to Integer
+008e c3e918    jp      18e9h    ; __CINT: Floating point to Integer (e.g. get numeric argument from USR function and place in HL)
 0091 c31b19    jp      191bh    ; __CSNG: Integer to single precision
 0094 c3d61c    jp      1cd6h    ; ASCTFP - ASCII to Binary conversion
 0097 c3281e    jp      1e28h    ; Floating point to ASCII
@@ -147,15 +147,15 @@
 00b2 c3ab23    jp      23abh    ; COS - Cosine
 00b5 c3b123    jp      23b1h    ; SIN - Sine
 00b8 c31224    jp      2412h    ; TAN - Tangent
-00bb c31e18    jp      181eh    ; FPBCDE: Move SP value in BC/DE into WRA1
-00be c31b18    jp      181bh    ; PHLTFP - Move a SP value -> HL to WRA1
-00c1 c32c18    jp      182ch    ; LOADFP: Load SP value -> into BC/DE
-00c4 c32918    jp      1829h    ; BCDEFP: Load a SP value from WRA1 into BC/DE
-00c7 c30e18    jp      180eh    ; STAKFP: Move WRA1 to stack
+00bb c31e18    jp      181eh    ; FPBCDE: Move single precision value in BC/DE into FPREG
+00be c31b18    jp      181bh    ; PHLTFP - Move a single precision value -> HL to FPREG
+00c1 c32c18    jp      182ch    ; LOADFP: Load single precision value pointed by (HL) into BC/DE
+00c4 c32918    jp      1829h    ; BCDEFP: Load a single precision value from FPREG into BC/DE
+00c7 c30e18    jp      180eh    ; STAKFP: Move FPREG to stack
 00ca c3162a    jp      2a16h    ; FIND_LNUM - Search for line number
 00cd c30135    jp      3501h    ; GETVAR: Find address of variable
 00d0 c39c2d    jp      2d9ch    ; __GOSUB: Gosub routine
-00d3 c3ca2d    jp      2dcah    ; Return entry point
+00d3 c3ca2d    jp      2dcah    ; Return entry point - warm start of BASIC
 00d6 c39b37    jp      379bh    ; PRS - Output a string
 00d9 c3693a    jp      3a69h    ; Print message, text ptr in (HL)
 
@@ -345,7 +345,7 @@
 0241 19        add     hl,de
 0242 2254fc    ld      (0fc54h),hl        ; Address of string area boundary
 0245 cd372a    call    2a37h
-0248 c30329    jp      2903h
+0248 c30329    jp      2903h			; READY
 
 ; RS232 Output routine
 024b 08        ex      af,af'
@@ -1109,19 +1109,23 @@
 0730 af        xor     a
 0731 cd3d07    call    073dh			; Cassette output routine
 0734 10fa      djnz    0730h
-0736 3ea5      ld      a,0a5h
+0736 3ea5      ld      a,0a5h			; header byte
 0738 1803      jr      073dh			; Cassette output routine
 
+
 073a cd3d07    call    073dh			; Cassette output routine
+
 073d c5        push    bc
 073e cd5707    call    0757h
+
 0741 0608      ld      b,08h
 0743 c5        push    bc
-0744 cb0f      rrc     a
+0744 cb0f      rrc     a				; send first the rightmost bit
 0746 d45707    call    nc,0757h
 0749 dc6207    call    c,0762h
 074c c1        pop     bc
 074d 10f4      djnz    0743h
+
 074f cd6207    call    0762h
 0752 cd6207    call    0762h
 0755 c1        pop     bc
@@ -1139,6 +1143,7 @@
 0765 3ae3fb    ld      a,(0fbe3h)        ; CASSETTE SPEED 01 = 1200 baud 02 = 600 baud  04 = 300 baud
 0768 cb27      sla     a
 076a 4f        ld      c,a
+
 076b c5        push    bc
 076c 10fe      djnz    076ch
 076e c1        pop     bc
@@ -1159,6 +1164,7 @@
 0785 c8        ret     z
 0786 cbbf      res     7,a
 0788 32e3fb    ld      (0fbe3h),a        ; CASSETTE SPEED 01 = 1200 baud 02 = 600 baud  04 = 300 baud
+
 078b c5        push    bc
 078c 062e      ld      b,2eh
 078e c5        push    bc
@@ -1167,6 +1173,7 @@
 0793 01003d    ld      bc,3d00h
 0796 f5        push    af
 0797 18d2      jr      076bh
+
 0799 c1        pop     bc
 079a 10f2      djnz    078eh
 079c c1        pop     bc
@@ -1176,7 +1183,7 @@
 079e d9        exx     
 079f af        xor     a
 07a0 cdc907    call    07c9h			; Casette read routine
-07a3 fea5      cp      0a5h
+07a3 fea5      cp      0a5h				; header byte
 07a5 20f9      jr      nz,07a0h
 07a7 cd0f07    call    070fh
 07aa 2adffb    ld      hl,(0fbdfh)        ; CRTC value for "display start address"
@@ -1199,8 +1206,8 @@
 
 ; Casette read routine
 07c9 c5        push    bc
-07ca cd3a08    call    083ah
-07cd cd3a08    call    083ah
+07ca cd3a08    call    083ah			; get word from cassette (and throw it away)
+07cd cd3a08    call    083ah			; get word from cassette
 07d0 fe1d      cp      1dh
 07d2 38f9      jr      c,07cdh
 07d4 3ae3fb    ld      a,(0fbe3h)        ; CASSETTE SPEED 01 = 1200 baud 02 = 600 baud  04 = 300 baud
@@ -1280,8 +1287,9 @@
 0849 c1        pop     bc
 084a c9        ret
 
+; 'CSAVEM', part of _CSAVE
 084b d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-084c cdc40e    call    0ec4h
+084c cdc40e    call    0ec4h          ; Get parameters for 'CSAVEM'/'CLOADM'
 084f cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 0850 2c        defb    ','
 0851 7a        ld      a,d
@@ -1295,33 +1303,36 @@
 085d eb        ex      de,hl
 085e c1        pop     bc
 085f b7        or      a
-0860 ed42      sbc     hl,bc
+0860 ed42      sbc     hl,bc			; BC= program size
 0862 da1c16    jp      c,161ch            ; Overflow Error (OV ERROR)
 0865 e3        ex      (sp),hl
 0866 c5        push    bc
 0867 cd2307    call    0723h			; Cassette write on routine
-086a 3e2f      ld      a,2fh
+086a 3e2f      ld      a,2fh			; 'CLOADM' marker: 2F2F2F
 086c cd3d07    call    073dh			; Cassette output routine
-086f cd3a07    call    073ah
+086f cd3a07    call    073ah			; Cassette output routine x 2
 0872 08        ex      af,af'
 0873 47        ld      b,a
 0874 7e        ld      a,(hl)
-0875 cdd90e    call    0ed9h
+0875 cdd90e    call    0ed9h			; TO UPPER
 0878 23        inc     hl
 0879 cd3d07    call    073dh			; Cassette output routine
 087c 10f6      djnz    0874h
-087e 3e5c      ld      a,5ch
+087e 3e5c      ld      a,5ch			; filename end marker
 0880 cd3d07    call    073dh			; Cassette output routine
 0883 e1        pop     hl
 0884 c1        pop     bc
-0885 7c        ld      a,h
+
+0885 7c        ld      a,h				; HL = Program position  ...MSB
 0886 cd3d07    call    073dh			; Cassette output routine
-0889 7d        ld      a,l
+0889 7d        ld      a,l				; ..LSB
 088a cd3d07    call    073dh			; Cassette output routine
-088d 78        ld      a,b
+
+088d 78        ld      a,b				; HL = Program size  ...MSB
 088e cd3d07    call    073dh			; Cassette output routine
-0891 79        ld      a,c
+0891 79        ld      a,c				; ..LSB
 0892 cd3d07    call    073dh			; Cassette output routine
+
 0895 7e        ld      a,(hl)
 0896 23        inc     hl
 0897 cd3d07    call    073dh			; Cassette output routine
@@ -1329,52 +1340,65 @@
 089b 78        ld      a,b
 089c b1        or      c
 089d 20f6      jr      nz,0895h
+
 089f eb        ex      de,hl
 08a0 c9        ret
 
+
+
 08a1 e1        pop     hl
 08a2 2b        dec     hl
+
+; 'CLOADM'
 08a3 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 08a4 e5        push    hl
 08a5 f5        push    af
-08a6 2803      jr      z,08abh
-08a8 cdc40e    call    0ec4h
+08a6 2803      jr      z,08abh			; skip next call if no arguments
+08a8 cdc40e    call    0ec4h			; Get parameters for 'CSAVEM'/'CLOADM'
+
 08ab c5        push    bc
 08ac cd9e07    call    079eh			; Cassette read on routine
+
 08af 0603      ld      b,03h
 08b1 cdc907    call    07c9h			; Casette read routine
-08b4 fe2f      cp      2fh
+08b4 fe2f      cp      2fh				'CLOADM' marker: 2F2F2F
 08b6 20f7      jr      nz,08afh
 08b8 10f7      djnz    08b1h
+
 08ba c1        pop     bc
 08bb f1        pop     af
-08bc 3e20      ld      a,20h
+08bc 3e20      ld      a,20h			; ' '
 08be 2811      jr      z,08d1h
+
 08c0 cdc907    call    07c9h			; Casette read routine
 08c3 5f        ld      e,a
 08c4 0a        ld      a,(bc)
-08c5 cdd90e    call    0ed9h
+08c5 cdd90e    call    0ed9h			; TO UPPER
 08c8 bb        cp      e
 08c9 20d6      jr      nz,08a1h
+
 08cb 03        inc     bc
 08cc 15        dec     d
 08cd 20f1      jr      nz,08c0h
 08cf 3e01      ld      a,01h
+
 08d1 47        ld      b,a
 08d2 cdc907    call    07c9h			; Casette read routine
-08d5 fe5c      cp      5ch
+08d5 fe5c      cp      5ch				; filename end marker
 08d7 2804      jr      z,08ddh
 08d9 10f7      djnz    08d2h
 08db 18c4      jr      08a1h
+
 08dd e3        ex      (sp),hl
 08de cdc907    call    07c9h			; Casette read routine
-08e1 67        ld      h,a
+08e1 67        ld      h,a				; HL= program location ...MSB
 08e2 cdc907    call    07c9h			; Casette read routine
-08e5 6f        ld      l,a
+08e5 6f        ld      l,a				; ..LSB
 08e6 cdc907    call    07c9h			; Casette read routine
-08e9 47        ld      b,a
+08e9 47        ld      b,a				; BC= program size ...MSB
 08ea cdc907    call    07c9h			; Casette read routine
-08ed 4f        ld      c,a
+08ed 4f        ld      c,a				; ...LSB
+
 08ee cdc907    call    07c9h			; Casette read routine
 08f1 77        ld      (hl),a
 08f2 23        inc     hl
@@ -1384,6 +1408,7 @@
 08f6 20f6      jr      nz,08eeh
 08f8 e1        pop     hl
 08f9 c9        ret     
+
 
 ; RINPUT - Console line input routine
 08fa af        xor     a
@@ -1505,6 +1530,7 @@
 09bb c0        ret     nz
 09bc 18f5      jr      09b3h
 
+; FN_INKEY
 09be d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 09bf e5        push    hl
 09c0 3a4dfc    ld      a,(0fc4dh)    ; Holds last character typed after break
@@ -1526,7 +1552,7 @@
 09dd 217202    ld      hl,0272h
 09e0 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 09e3 3e03      ld      a,03h
-09e5 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+09e5 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 09e8 e1        pop     hl
 09e9 c9        ret     
 
@@ -1876,6 +1902,7 @@
 0bf3 2810      jr      z,0c05h
 0bf5 dd7e03    ld      a,(ix+03h)
 0bf8 dd9604    sub     (ix+04h)
+
 0bfb 47        ld      b,a
 0bfc 3e0a      ld      a,0ah
 0bfe cd2d0c    call    0c2dh             ; List routine
@@ -2015,7 +2042,7 @@
 0cda fe2c      cp      ','
 0cdc 2818      jr      z,0cf6h
 0cde cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-0cdf 3b        dec     sp
+0cdf 3b        defb    ';'
 0ce0 060c      ld      b,0ch
 0ce2 cd6806    call    0668h            ; Turns screen ram on
 0ce5 af        xor     a
@@ -2056,7 +2083,7 @@
 0d1d 10d9      djnz    0cf8h
 0d1f c38128    jp      2881h        ; Syntax Error (SN ERROR)
 0d22 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-0d23 3b        dec     sp
+0d23 3b        defb    ';'
 0d24 c8        ret     z
 0d25 1898      jr      0cbfh
 
@@ -2192,6 +2219,7 @@
 0ddf e1        pop     hl
 0de0 c9        ret
 
+; FN_POINT
 0de1 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 0de2 cdfe0d    call    0dfeh		; COORD_PARMS_DST - get X,Y parameters for graphics coordinates
 0de5 d5        push    de
@@ -2212,8 +2240,8 @@
 
 ; COORD_PARMS_DST - get X,Y parameters for graphics coordinates
 0dfe cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-0dff 28cd      jr      z,0dceh
-0e01 f639      or      39h
+0dff 28        defb    '('
+0e00 cdf639    call    39f6h        ; GETWORD - Get a number to DE (0..65535)
 0e03 c21c16    jp      nz,161ch            ; Overflow Error (OV ERROR)
 0e06 7b        ld      a,e
 0e07 3291fc    ld      (0fc91h),a    ; First warm start flag
@@ -2336,23 +2364,25 @@
 0ec2 eb        ex      de,hl
 0ec3 c9        ret
 
+; Get parameters for 'CSAVEM'/'CLOADM'
 0ec4 cd2b32    call    322bh			; EVAL
 0ec7 e7        rst     20h			; GETYPR - Get the number type (FAC)
 0ec8 c28128    jp      nz,2881h            ; Syntax Error (SN ERROR)
 0ecb e5        push    hl
 0ecc cdce38    call    38ceh			; GSTRCU - Get string pointed by FPREG
-0ecf cd2e18    call    182eh            ; LOADFP_0
+0ecf cd2e18    call    182eh            ; LOADFP_0 - move 3 bytes from (HL) to D,C,B
 0ed2 7a        ld      a,d
 0ed3 b7        or      a
 0ed4 ca8128    jp      z,2881h            ; Syntax Error (SN ERROR)
 0ed7 e1        pop     hl
 0ed8 c9        ret
 
-0ed9 fe61      cp      61h
+; simple TOUPPER conversion for CLOADM/CSAVEM
+0ed9 fe61      cp      61h		; 'a'
 0edb d8        ret     c
 0edc fe7b      cp      7bh
-0ede d0        ret     nc
-0edf e65f      and     5fh
+0ede d0        ret     nc		; 'z'+1
+0edf e65f      and     5fh		; TO UPPER
 0ee1 c9        ret     
 
 ; __SYSTEM
@@ -2577,7 +2607,7 @@
 1070 f3        di      
 1071 8a        adc     a,d
 1072 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-1073 87        add     a,a
+1073 87        defb    87h			; TK_NEXT
 1074 07        rlca    
 1075 1b        dec     de
 1076 48        ld      c,b
@@ -2767,7 +2797,7 @@
 1152 43        ld      b,e
 1153 cd5612    call    1256h
 1156 cd103f    call    3f10h
-1159 cd6712    call    1267h
+1159 cd6712    call    1267h		; get filename
 115c c2352d    jp      nz,2d35h            ; Error: Illegal function call (FC ERROR)
 115f 0e0f      ld      c,0fh
 1161 cd4d15    call    154dh
@@ -2852,13 +2882,14 @@
 11e9 c9        ret
 
 11ea cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-11eb 22ca81    ld      (81cah),hl
-11ee 28d7      jr      z,11c7h
+11eb 22        defb    '"'
+11ec ca        jp      z,2881h            ; Syntax Error (SN ERROR)
+11ef d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 11f0 b7        or      a
 11f1 ca8128    jp      z,2881h            ; Syntax Error (SN ERROR)
 11f4 2b        dec     hl
 11f5 2b        dec     hl
-11f6 fe3a      cp      3ah
+11f6 fe3a      cp      3ah            ; ':'
 11f8 3e00      ld      a,00h
 11fa 200f      jr      nz,120bh
 11fc d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
@@ -2904,13 +2935,16 @@
 1239 0604      ld      b,04h
 123b cd4212    call    1242h
 123e cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-123f 22d1c9    ld      (0c9d1h),hl
+123f 22        defb    '"'
+1240 d1        pop     de
+1240 c9        ret
+
 1242 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 1243 3808      jr      c,124dh
 1245 e65f      and     5fh
-1247 fe41      cp      41h
+1247 fe41      cp      41h			; 'A'
 1249 d8        ret     c
-124a fe5b      cp      5bh
+124a fe5b      cp      5bh			; 'Z'+1
 124c d0        ret     nc
 124d 1003      djnz    1252h
 124f c36515    jp      1565h
@@ -2930,6 +2964,7 @@
 1265 e1        pop     hl
 1266 c9        ret
 
+; get filename
 1267 e5        push    hl
 1268 0608      ld      b,08h
 126a 3a9dfc    ld      a,(0fc9dh)
@@ -2969,7 +3004,7 @@
 129d c1        pop     bc
 129e 08        ex      af,af'
 129f 18cc      jr      126dh
-12a1 fe4d      cp      4dh
+12a1 fe4d      cp      4dh			; 'M'
 12a3 2002      jr      nz,12a7h
 12a5 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 12a6 af        xor     a
@@ -2980,11 +3015,11 @@
 12af 280d      jr      z,12beh
 12b1 eb        ex      de,hl
 12b2 2189d8    ld      hl,0d889h
-12b5 3642      ld      (hl),42h
+12b5 3642      ld      (hl),42h		; 'B'
 12b7 23        inc     hl
-12b8 3641      ld      (hl),41h
+12b8 3641      ld      (hl),41h		; 'A'
 12ba 23        inc     hl
-12bb 3653      ld      (hl),53h
+12bb 3653      ld      (hl),53h		; 'S'
 12bd eb        ex      de,hl
 12be f5        push    af
 12bf 1180d8    ld      de,0d880h
@@ -3071,16 +3106,16 @@
 135f cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 1360 2c        defb    ','
 1361 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-1362 52        ld      d,d
+1362 52        defb    'R'			; autorun after load
 1363 3eff      ld      a,0ffh
 1365 3297fc    ld      (0fc97h),a
 1368 eb        ex      de,hl
 1369 2189d8    ld      hl,0d889h
-136c 3642      ld      (hl),42h
+136c 3642      ld      (hl),42h		; 'B'
 136e 23        inc     hl
-136f 3641      ld      (hl),41h
+136f 3641      ld      (hl),41h		; 'A'
 1371 23        inc     hl
-1372 3653      ld      (hl),53h
+1372 3653      ld      (hl),53h		; 'S'
 1374 eb        ex      de,hl
 1375 1180d8    ld      de,0d880h
 1378 0e0f      ld      c,0fh
@@ -3192,7 +3227,7 @@
 1446 18e3      jr      142bh
 
 1448 cdce38    call    38ceh			; GSTRCU - Get string pointed by FPREG
-144b cd2e18    call    182eh            ; LOADFP_0
+144b cd2e18    call    182eh            ; LOADFP_0 - move 3 bytes from (HL) to D,C,B
 144e 14        inc     d
 144f 15        dec     d
 1450 c8        ret     z
@@ -3336,7 +3371,7 @@
 ; __KILL
 153b 1180d8    ld      de,0d880h
 153e cd103f    call    3f10h
-1541 cd6712    call    1267h
+1541 cd6712    call    1267h		; get filename
 1544 c2352d    jp      nz,2d35h            ; Error: Illegal function call (FC ERROR)
 1547 0e13      ld      c,13h
 1549 cd4d15    call    154dh
@@ -3368,11 +3403,11 @@
 1572 21ea21    ld      hl,21eah			; HALF: Constant ptr for 0.5 in FP
 
 ; ADDPHL - ADD number at HL to BCDE
-1575 cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
+1575 cd2c18    call    182ch            ; LOADFP: Load single precision value pointed by (HL) into BC/DE
 1578 1806      jr      1580h			; FPADD  - Single precision add (Add BCDE to FP reg)
 
 ; SUBPHL - SUBTRACT number at HL from BCDE
-157a cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
+157a cd2c18    call    182ch            ; LOADFP: Load single precision value pointed by (HL) into BC/DE
 
 ; SUBCDE - Single precision subtract  (Subtract BCDE from FP reg)
 157d cdec17    call    17ech			; INVSGN - Invert number sign
@@ -3383,15 +3418,15 @@
 1582 c8        ret     z
 1583 3a44fe    ld      a,(0fe44h)		; FPEXP - Floating Point Exponent
 1586 b7        or      a
-1587 ca1e18    jp      z,181eh            ; FPBCDE: Move SP value in BC/DE into WRA1
+1587 ca1e18    jp      z,181eh            ; FPBCDE: Move single precision value in BC/DE into FPREG
 158a 90        sub     b
 158b 300c      jr      nc,1599h
 158d 2f        cpl     
 158e 3c        inc     a
 158f eb        ex      de,hl
-1590 cd0e18    call    180eh            ; STAKFP: Move WRA1 to stack
+1590 cd0e18    call    180eh            ; STAKFP: Move FPREG to stack
 1593 eb        ex      de,hl
-1594 cd1e18    call    181eh            ; FPBCDE: Move SP value in BC/DE into WRA1
+1594 cd1e18    call    181eh            ; FPBCDE: Move single precision value in BC/DE into FPREG
 1597 c1        pop     bc
 1598 d1        pop     de
 1599 fe19      cp      19h
@@ -3477,7 +3512,7 @@
 160b e680      and     80h
 160d a9        xor     c
 160e 4f        ld      c,a
-160f c31e18    jp      181eh            ; FPBCDE: Move SP value in BC/DE into WRA1
+160f c31e18    jp      181eh            ; FPBCDE: Move single precision value in BC/DE into FPREG
 
 1612 1c        inc     e
 1613 c0        ret     nz
@@ -3664,9 +3699,9 @@
 1700 c9        ret
 
 ; DIV10 - Divide FP by 10
-1701 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+1701 cd0e18    call    180eh                ; STAKFP: Move FPREG to stack
 1704 21421c    ld      hl,1c42h
-1707 cd1b18    call    181bh                ; PHLTFP - Move a SP value -> HL to WRA1
+1707 cd1b18    call    181bh                ; PHLTFP - Move a single precision value -> HL to FPREG
 
 ; DIV - Divide FP by number on stack
 170a c1        pop     bc
@@ -3776,7 +3811,7 @@
 17a5 c31c16    jp      161ch            ; Overflow Error (OV ERROR)
 
 ; MLSP10 - Multiply number in FPREG by 10
-17a8 cd2918    call    1829h            ; BCDEFP: Load a SP value from WRA1 into BC/DE
+17a8 cd2918    call    1829h            ; BCDEFP: Load a single precision value from FPREG into BC/DE
 17ab 78        ld      a,b
 17ac b7        or      a
 17ad c8        ret     z
@@ -3820,7 +3855,7 @@
 ; INVSGN
 17e5 e7        rst     20h			; GETYPR - Get the number type (FAC)
 17e6 fac51a    jp      m,1ac5h		; DBL_ABS - ABS (double precision BASIC variant)
-17e9 ca6019    jp      z,1960h
+17e9 ca6019    jp      z,1960h			;  TYPE_ERR
 
 ; INVSGN - Invert number sign
 17ec 2143fe    ld      hl,0fe43h		; LAST-FPREG - Last byte in Single Precision FP Register (+sign bit)
@@ -3840,7 +3875,7 @@
 
 ; _TSTSGN - Test sign in number
 17fe e7        rst     20h			; GETYPR - Get the number type (FAC)
-17ff ca6019    jp      z,1960h
+17ff ca6019    jp      z,1960h			;  TYPE_ERR
 1802 f2bf17    jp      p,17bfh			; TSTSGN - Test sign of FPREG
 1805 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 1808 7c        ld      a,h
@@ -3849,7 +3884,7 @@
 180b 7c        ld      a,h
 180c 18bb      jr      17c9h
 
-; STAKFP: Move WRA1 to stack
+; STAKFP: Move FPREG to stack
 180e eb        ex      de,hl
 180f 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 1812 e3        ex      (sp),hl
@@ -3860,10 +3895,10 @@
 1819 eb        ex      de,hl
 181a c9        ret     
 
-; PHLTFP - Move a SP value -> HL to WRA1
-181b cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
+; PHLTFP - Move a single precision value -> HL to FPREG
+181b cd2c18    call    182ch            ; LOADFP: Load single precision value pointed by (HL) into BC/DE
 
-; FPBCDE: Move SP value in BC/DE into WRA1
+; FPBCDE: Move single precision value in BC/DE into FPREG
 181e eb        ex      de,hl
 181f 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 1822 60        ld      h,b
@@ -3872,13 +3907,13 @@
 1827 eb        ex      de,hl
 1828 c9        ret
 
-; BCDEFP: Load a SP value from WRA1 into BC/DE
+; BCDEFP: Load a single precision value from FPREG into BC/DE
 1829 2141fe    ld      hl,0fe41h        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 
-; LOADFP: Load SP value -> into BC/DE
+; LOADFP: Load single precision value pointed by (HL) into BC/DE
 182c 5e        ld      e,(hl)
 182d 23        inc     hl
-; LOADFP_0
+; LOADFP_0 - move 3 bytes from (HL) to D,C,B
 182e 56        ld      d,(hl)
 182f 23        inc     hl
 1830 4e        ld      c,(hl)
@@ -3888,19 +3923,28 @@
 1833 23        inc     hl
 1834 c9        ret
 
+; DEC_FACCU2HL - copy number value from FPREG (FP accumulator) to HL
 1835 1141fe    ld      de,0fe41h        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 1838 0604      ld      b,04h
-183a 1805      jr      1841h
+183a 1805      jr      1841h			; CPY2HL - Copy B bytes from DE to HL
+
+
+; VAL2DE - Copy number value from HL to DE
 183c eb        ex      de,hl
-183d 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+
+; FP2HL - Copy number value from DE to HL
+183d 3acffd    ld      a,(0fdcfh)        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 1840 47        ld      b,a
+
+; CPY2HL - Copy B bytes from DE to HL
 1841 1a        ld      a,(de)
 1842 77        ld      (hl),a
 1843 13        inc     de
 1844 23        inc     hl
 1845 05        dec     b
 1846 20f9      jr      nz,1841h
-1848 c9        ret     
+1848 c9        ret
+
 1849 2143fe    ld      hl,0fe43h		; LAST-FPREG - Last byte in Single Precision FP Register (+sign bit)
 184c 7e        ld      a,(hl)
 184d 07        rlca    
@@ -3919,12 +3963,17 @@
 185a 4f        ld      c,a
 185b 1f        rra     
 185c ae        xor     (hl)
-185d c9        ret     
-185e 2147fe    ld      hl,0fe47h
-1861 113c18    ld      de,183ch
-1864 1806      jr      186ch
-1866 2147fe    ld      hl,0fe47h
-1869 113d18    ld      de,183dh
+185d c9        ret
+
+; FP_ARG2DE
+185e 2147fe    ld      hl,0fe47h		; ARG
+1861 113c18    ld      de,183ch			; VAL2DE - Copy number value from HL to DE
+1864 1806      jr      186ch			; FPCOPY_0
+
+; FP_ARG2HL
+1866 2147fe    ld      hl,0fe47h		; ARG
+1869 113d18    ld      de,183dh			; FP2HL - Copy number value from DE to HL
+; FPCOPY_0
 186c d5        push    de
 186d 1141fe    ld      de,0fe41h        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 1870 e7        rst     20h			; GETYPR - Get the number type (FAC)
@@ -3980,8 +4029,8 @@
 18ae 93        sub     e
 18af c2ca17    jp      nz,17cah
 18b2 c9        ret     
-18b3 2147fe    ld      hl,0fe47h
-18b6 cd3d18    call    183dh
+18b3 2147fe    ld      hl,0fe47h		; ARG
+18b6 cd3d18    call    183dh			; FP2HL - Copy number value from DE to HL
 
 ; XDCOMP
 18b9 114efe    ld      de,0fe4eh
@@ -4022,7 +4071,7 @@
 18e9 e7        rst     20h			; GETYPR - Get the number type (FAC)
 18ea 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 18ed f8        ret     m
-18ee ca6019    jp      z,1960h
+18ee ca6019    jp      z,1960h			;  TYPE_ERR
 18f1 d42319    call    nc,1923h
 18f4 211c16    ld      hl,161ch            ; Overflow Error (OV ERROR)
 18f7 e5        push    hl
@@ -4036,7 +4085,7 @@
 ; INT_RESULT_HL - Get back from function, result in HL
 1904 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 1907 3e02      ld      a,02h
-1909 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+1909 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 190c c9        ret
 
 190d 018090    ld      bc,9080h
@@ -4051,8 +4100,8 @@
 191b e7        rst     20h			; GETYPR - Get the number type (FAC)
 191c e0        ret     po
 191d fa3619    jp      m,1936h
-1920 ca6019    jp      z,1960h
-1923 cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
+1920 ca6019    jp      z,1960h			;  TYPE_ERR
+1923 cd2918    call    1829h		; BCDEFP: Load a single precision value from FPREG into BC/DE
 1926 cd5919    call    1959h
 1929 78        ld      a,b
 192a b7        or      a
@@ -4072,7 +4121,7 @@
 ; __CDBL
 1945 e7        rst     20h			; GETYPR - Get the number type (FAC)
 1946 d0        ret     nc
-1947 ca6019    jp      z,1960h
+1947 ca6019    jp      z,1960h			;  TYPE_ERR
 194a fc3619    call    m,1936h
 194d 210000    ld      hl,0000h
 1950 223dfe    ld      (0fe3dh),hl
@@ -4084,6 +4133,7 @@
 ; TSTSTR - Test a string, 'Type Error' if it is not
 195e e7        rst     20h			; GETYPR - Get the number type (FAC)
 195f c8        ret     z
+;  TYPE_ERR
 1960 1e18      ld      e,18h
 1962 c38c28    jp      288ch        ; ERROR, E=error code
 
@@ -4095,7 +4145,7 @@
 1969 b7        or      a
 196a c8        ret     z
 196b e5        push    hl
-196c cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
+196c cd2918    call    1829h		; BCDEFP: Load a single precision value from FPREG into BC/DE
 196f cd4918    call    1849h
 1972 ae        xor     (hl)
 1973 67        ld      h,a
@@ -4133,7 +4183,7 @@
 19a1 e7        rst     20h			; GETYPR - Get the number type (FAC)
 19a2 f8        ret     m
 19a3 301e      jr      nc,19c3h
-19a5 28b9      jr      z,1960h
+19a5 28b9      jr      z,1960h			;  TYPE_ERR
 19a7 cdf818    call    18f8h
 ; INT
 19aa 2144fe    ld      hl,0fe44h		; FPEXP - Floating Point Exponent
@@ -4172,7 +4222,7 @@
 19e2 feb8      cp      0b8h
 19e4 d0        ret     nc
 19e5 f5        push    af
-19e6 cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
+19e6 cd2918    call    1829h		; BCDEFP: Load a single precision value from FPREG into BC/DE
 19e9 cd4918    call    1849h
 19ec ae        xor     (hl)
 19ed 2b        dec     hl
@@ -4248,7 +4298,7 @@
 1a4d cd3919    call    1939h
 1a50 f1        pop     af
 1a51 e1        pop     hl
-1a52 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+1a52 cd0e18    call    180eh                ; STAKFP: Move FPREG to stack
 1a55 eb        ex      de,hl
 1a56 cdd51a    call    1ad5h
 1a59 c3f91d    jp      1df9h
@@ -4290,7 +4340,7 @@
 1a8f 01c1e1    ld      bc,0e1c1h
 1a92 cd3919    call    1939h
 1a95 e1        pop     hl
-1a96 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+1a96 cd0e18    call    180eh                ; STAKFP: Move FPREG to stack
 1a99 cd3919    call    1939h
 1a9c c1        pop     bc
 1a9d d1        pop     de
@@ -4351,7 +4401,7 @@
 1aea 1144fe    ld      de,0fe44h		; FPEXP - Floating Point Exponent
 1aed 1a        ld      a,(de)
 1aee b7        or      a
-1aef ca5e18    jp      z,185eh
+1aef ca5e18    jp      z,185eh			; FP_ARG2DE
 1af2 90        sub     b
 1af3 3016      jr      nc,1b0bh
 1af5 2f        cpl     
@@ -4454,7 +4504,7 @@
 1b9a 3680      ld      (hl),80h
 1b9c c9        ret
 
-1b9d 2147fe    ld      hl,0fe47h
+1b9d 2147fe    ld      hl,0fe47h		; ARG
 1ba0 113dfe    ld      de,0fe3dh
 1ba3 0e07      ld      c,07h
 1ba5 af        xor     a
@@ -4466,7 +4516,7 @@
 1bab 0d        dec     c
 1bac 20f8      jr      nz,1ba6h
 1bae c9        ret     
-1baf 2147fe    ld      hl,0fe47h
+1baf 2147fe    ld      hl,0fe47h		; ARG
 1bb2 113dfe    ld      de,0fe3dh
 1bb5 0e07      ld      c,07h
 1bb7 af        xor     a
@@ -4572,8 +4622,8 @@
 1c43 00        nop     
 1c44 2084      jr      nz,1bcah
 1c46 113e1c    ld      de,1c3eh
-1c49 2147fe    ld      hl,0fe47h
-1c4c cd3d18    call    183dh
+1c49 2147fe    ld      hl,0fe47h		; ARG
+1c4c cd3d18    call    183dh			; FP2HL - Copy number value from DE to HL
 
 ; DBL_DIV - Double precision DIVIDE
 1c4f 3a4efe    ld      a,(0fe4eh)
@@ -4587,14 +4637,14 @@
 1c61 71        ld      (hl),c
 1c62 41        ld      b,c
 1c63 116afe    ld      de,0fe6ah
-1c66 2147fe    ld      hl,0fe47h
+1c66 2147fe    ld      hl,0fe47h		; ARG
 1c69 cdb51b    call    1bb5h
 1c6c 1a        ld      a,(de)
 1c6d 99        sbc     a,c
 1c6e 3f        ccf     
 1c6f 380b      jr      c,1c7ch
 1c71 116afe    ld      de,0fe6ah
-1c74 2147fe    ld      hl,0fe47h
+1c74 2147fe    ld      hl,0fe47h		; ARG
 1c77 cda31b    call    1ba3h
 1c7a af        xor     a
 1c7b da1204    jp      c,0412h
@@ -4630,7 +4680,7 @@
 1cb3 05        dec     b
 1cb4 20f8      jr      nz,1caeh
 1cb6 c9        ret     
-1cb7 cd6618    call    1866h
+1cb7 cd6618    call    1866h			; FP_ARG2HL
 1cba eb        ex      de,hl
 1cbb 2b        dec     hl
 1cbc 7e        ld      a,(hl)
@@ -4820,14 +4870,14 @@
 
 1dde cd4d19    call    194dh
 1de1 cdb71c    call    1cb7h
-1de4 cd6618    call    1866h
+1de4 cd6618    call    1866h			; FP_ARG2HL
 1de7 f1        pop     af
 1de8 cdce17    call    17ceh			; FLGREL - CY and A to FP, & normalise
 1deb cd4d19    call    194dh
 1dee cde11a    call    1ae1h			; DBL_ADD - Double precision ADD (formerly FPADD)
 1df1 18c8      jr      1dbbh
 
-1df3 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+1df3 cd0e18    call    180eh                ; STAKFP: Move FPREG to stack
 1df6 cdce17    call    17ceh			; FLGREL - CY and A to FP, & normalise
 1df9 c1        pop     bc
 1dfa d1        pop     de
@@ -4881,7 +4931,7 @@
 1e46 3af8fd    ld      a,(0fdf8h)        ; 1: Index of last byte executed in current statement- 2: Edit flag during print using
 1e49 57        ld      d,a
 1e4a 17        rla     
-1e4b 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+1e4b 3acffd    ld      a,(0fdcfh)        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 1e4e da041f    jp      c,1f04h
 1e51 cafc1e    jp      z,1efch
 1e54 fe04      cp      04h
@@ -5969,13 +6019,13 @@
 237f cdc51c    call    1cc5h
 2382 cd5d0b    call    0b5dh
 2385 23        inc     hl
-2386 feb2      cp      0b2h
+2386 feb2      cp      0b2h			; TK_PRINT
 2388 cafb0b    jp      z,0bfbh
-238b fe52      cp      52h
+238b fe52      cp      52h			; 'R'
 238d caac03    jp      z,03ach
-2390 fe4d      cp      4dh
+2390 fe4d      cp      4dh			; 'M'
 2392 ca7e1a    jp      z,1a7eh
-2395 fedb      cp      0dbh
+2395 fedb      cp      0dbh			; ''
 2397 ca5905    jp      z,0559h
 239a fea0      cp      0a0h
 239c ca9605    jp      z,0596h
@@ -6209,11 +6259,11 @@
 2509 2b        dec     hl
 250a c38404    jp      0484h
 250d cd2f1d    call    1d2fh
-2510 dd210329  ld      ix,2903h
+2510 dd210329  ld      ix,2903h			; IX = {READY}
 2514 dde5      push    ix
-2516 dd214b2a  ld      ix,2a4bh
+2516 dd214b2a  ld      ix,2a4bh			; IX = {_CLVAR - Initialise RUN variables}
 251a dde5      push    ix
-251c c38a3f    jp      3f8ah
+251c c38a3f    jp      3f8ah			; BANK SWITCHING - flip ROM page
 
 251f e5        push    hl
 2520 c5        push    bc
@@ -6336,7 +6386,7 @@
 25e9 2b        dec     hl
 25ea cd5d0b    call    0b5dh
 25ed cd661d    call    1d66h
-25f0 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+25f0 3acffd    ld      a,(0fdcfh)        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 25f3 fe03      cp      03h
 25f5 c2fb1c    jp      nz,1cfbh
 25f8 d5        push    de
@@ -6347,7 +6397,7 @@
 2601 e5        push    hl
 2602 c5        push    bc
 2603 e1        pop     hl
-2604 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+2604 3acffd    ld      a,(0fdcfh)        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 2607 fe03      cp      03h
 2609 c2fb1c    jp      nz,1cfbh
 260c 0603      ld      b,03h
@@ -6366,11 +6416,11 @@
 261c 74        ld      (hl),h
 261d dd21e529  ld      ix,29e5h
 2621 cd9a1d    call    1d9ah
-2624 dd210329  ld      ix,2903h
+2624 dd210329  ld      ix,2903h			; IX = {READY}
 2628 dde5      push    ix
 262a dd21432a  ld      ix,2a43h
 262e dde5      push    ix
-2630 c38a3f    jp      3f8ah
+2630 c38a3f    jp      3f8ah			; BANK SWITCHING - flip ROM page
 
 2633 e5        push    hl
 2634 cdc51c    call    1cc5h
@@ -6420,7 +6470,7 @@
 2694 e1        pop     hl
 2695 cd5a1d    call    1d5ah
 2698 e5        push    hl
-2699 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+2699 3acffd    ld      a,(0fdcfh)        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 269c fe03      cp      03h
 269e cab506    jp      z,06b5h
 26a1 cd6c1d    call    1d6ch
@@ -6484,7 +6534,7 @@
 2715 cd2207    call    0722h
 2718 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 271b 3e02      ld      a,02h
-271d 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+271d 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 2720 e1        pop     hl
 2721 c9        ret
 
@@ -6492,7 +6542,7 @@
 2725 ed5b9dfb  ld      de,(0fb9dh)
 2729 19        add     hl,de
 272a 22a7fb    ld      (0fba7h),hl
-272d cd3a07    call    073ah
+272d cd3a07    call    073ah			; Cassette output routine x 2
 2730 2804      jr      z,2736h
 2732 210000    ld      hl,0000h
 2735 c9        ret     
@@ -6724,7 +6774,7 @@
 28ca 1600      ld      d,00h
 28cc ed5341fe  ld      (0fe41h),de        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 28d0 3e02      ld      a,02h
-28d2 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+28d2 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 28d5 cd1b1d    call    1d1bh
 28d8 e1        pop     hl
 28d9 c9        ret
@@ -6735,7 +6785,7 @@
 28e1 cd781d    call    1d78h
 28e4 ed5341fe  ld      (0fe41h),de        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 28e8 3e02      ld      a,02h
-28ea 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+28ea 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 28ed e1        pop     hl
 28ee c9        ret     
 28ef e5        push    hl
@@ -6762,7 +6812,7 @@
 291b 3e03      ld      a,03h
 
 ; PROMPT
-291d 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+291d 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 2920 e1        pop     hl
 2921 c9        ret
 
@@ -6835,7 +6885,7 @@
 29a9 10df      djnz    298ah
 29ab 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 29ae 3e02      ld      a,02h
-29b0 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+29b0 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 29b3 2a4efb    ld      hl,(0fb4eh)
 29b6 22d3fd    ld      (0fdd3h),hl        ; TMSTPT: Address of next available location in LSPT
 29b9 e1        pop     hl
@@ -6891,7 +6941,7 @@
 2a14 3e03      ld      a,03h
 
 ; FIND_LNUM - Search for line number
-2a16 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+2a16 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 2a19 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 2a1c e1        pop     hl
 2a1d c9        ret
@@ -6936,7 +6986,7 @@
 2a5d cd6d0a    call    0a6dh
 2a60 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
 2a63 3e03      ld      a,03h
-2a65 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+2a65 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 2a68 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 2a6b e1        pop     hl
 2a6c c9        ret
@@ -6980,7 +7030,7 @@
 2aa9 cdb90a    call    0ab9h
 2aac 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
 2aaf 3e03      ld      a,03h
-2ab1 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+2ab1 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 2ab4 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 2ab7 e1        pop     hl
 2ab8 c9        ret
@@ -7024,7 +7074,7 @@
 2af7 23        inc     hl
 2af8 77        ld      (hl),a
 2af9 3e02      ld      a,02h
-2afb 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+2afb 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 2afe e1        pop     hl
 2aff c9        ret
 
@@ -7054,7 +7104,7 @@
 2b37 caca17    jp      z,17cah
 2b3a fecb      cp      0cbh
 2b3c cacb18    jp      z,18cbh
-2b3f feb2      cp      0b2h
+2b3f feb2      cp      0b2h			; TK_PRINT
 2b41 ca470c    jp      z,0c47h
 2b44 fea1      cp      0a1h
 2b46 ca3b16    jp      z,163bh
@@ -7515,7 +7565,7 @@
 2ee3 af        xor     a
 2ee4 dd211d2e  ld      ix,2e1dh
 2ee8 dde5      push    ix
-2eea c38a3f    jp      3f8ah
+2eea c38a3f    jp      3f8ah			; BANK SWITCHING - flip ROM page
 
 2eed 2b        dec     hl
 2eee cd5d0b    call    0b5dh
@@ -7584,7 +7634,8 @@
 2f85 ed5377fb  ld      (0fb77h),de
 2f89 ed5379fb  ld      (0fb79h),de
 2f8d ed537bfb  ld      (0fb7bh),de
-2f91 c9        ret     
+2f91 c9        ret
+
 2f92 7e        ld      a,(hl)
 2f93 fe46      cp      46h
 2f95 ca1d10    jp      z,101dh
@@ -8058,11 +8109,13 @@
 33ed cd4c0b    call    0b4ch
 33f0 d2f513    jp      nc,13f5h
 33f3 180c      jr      3401h
+
 33f5 3a8afb    ld      a,(0fb8ah)
 33f8 cbcf      set     1,a
 33fa 328afb    ld      (0fb8ah),a
 33fd 210000    ld      hl,0000h
 3400 c9        ret     
+
 3401 2aadfb    ld      hl,(0fbadh)
 3404 3e07      ld      a,07h
 3406 a5        and     l
@@ -8716,7 +8769,7 @@
 3916 dd212b32  ld      ix,322bh            ; IX = {EVAL}
 391a cd9a1d    call    1d9ah
 391d e5        push    hl
-391e 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+391e 3acffd    ld      a,(0fdcfh)        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 3921 fe03      cp      03h
 3923 c2fb1c    jp      nz,1cfbh
 3926 2141fe    ld      hl,0fe41h        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
@@ -8985,7 +9038,7 @@
 3b53 d26d1b    jp      nc,1b6dh
 3b56 dd216b29  ld      ix,296bh
 3b5a dde5      push    ix
-3b5c c38a3f    jp      3f8ah
+3b5c c38a3f    jp      3f8ah			; BANK SWITCHING - flip ROM page
 
 3b5f 3ec9      ld      a,0c9h
 3b61 32b7fe    ld      (0feb7h),a
@@ -8997,9 +9050,9 @@
 3b72 21a33b    ld      hl,3ba3h
 3b75 dd219b37  ld      ix,379bh			; IX= {Output a string}
 3b79 cd9a1d    call    1d9ah
-3b7c dd210329  ld      ix,2903h
+3b7c dd210329  ld      ix,2903h			; IX = {READY}
 3b80 dde5      push    ix
-3b82 c38a3f    jp      3f8ah
+3b82 c38a3f    jp      3f8ah			; BANK SWITCHING - flip ROM page
 
 3b85 44        ld      b,h
 3b86 49        ld      c,c
@@ -9068,7 +9121,7 @@
 3bf6 21e1ff    ld      hl,0ffe1h
 3bf9 ed5341fe  ld      (0fe41h),de        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 3bfd 3e02      ld      a,02h
-3bff 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+3bff 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 3c02 010000    ld      bc,0000h
 3c05 dd219921  ld      ix,2199h
 3c09 cd9a1d    call    1d9ah
@@ -9159,9 +9212,9 @@
 3cb5 c2bb1c    jp      nz,1cbbh
 3cb8 c3bb1c    jp      1cbbh
 3cbb e1        pop     hl
-3cbc dd210329  ld      ix,2903h
+3cbc dd210329  ld      ix,2903h			; IX = {READY}
 3cc0 dde5      push    ix
-3cc2 c38a3f    jp      3f8ah
+3cc2 c38a3f    jp      3f8ah			; BANK SWITCHING - flip ROM page
 
 3cc5 e5        push    hl
 3cc6 f5        push    af
@@ -9221,15 +9274,15 @@
 3d33 c39a1d    jp      1d9ah
 3d36 dd212034  ld      ix,3420h
 3d3a 185e      jr      3d9ah
-3d3c dd213518  ld      ix,1835h
+3d3c dd213518  ld      ix,1835h            ; IX = {DEC_FACCU2HL - copy number value from FPREG (FP accumulator) to HL}
 3d40 1858      jr      3d9ah
-3d42 dd211b18  ld      ix,181bh            ; IX = {Move a SP value -> HL to WRA1}
+3d42 dd211b18  ld      ix,181bh            ; IX = {Move a single precision value -> HL to FPREG}
 3d46 1852      jr      3d9ah
-3d48 dd212c18  ld      ix,182ch            ; IX= {Load SP value -> into BC/DE}
+3d48 dd212c18  ld      ix,182ch            ; IX = {Load single precision value -> into BC/DE}
 3d4c 184c      jr      3d9ah
-3d4e dd21b116  ld      ix,16b1h            ; IX= {FPMULT - Single precision multiply  (Multiply BCDE to FP reg)}
+3d4e dd21b116  ld      ix,16b1h            ; IX = {FPMULT - Single precision multiply  (Multiply BCDE to FP reg)}
 3d52 1846      jr      3d9ah
-3d54 dd210c17  ld      ix,170ch            ; IX= {DVBCDE - Divide FP by BCDE}
+3d54 dd210c17  ld      ix,170ch            ; IX = {DVBCDE - Divide FP by BCDE}
 3d58 1840      jr      3d9ah
 3d5a dd212b32  ld      ix,322bh            ; IX = {EVAL}
 3d5e 183a      jr      3d9ah
@@ -9254,7 +9307,7 @@
 3d96 dd21f639  ld      ix,39f6h                ; GETWORD - Get a number to DE (0..65535)  (or ; LDIRVM - Block transfer to VRAM from memory (HL)->(DE), BC times)
 
 3d9a dde5      push    ix
-3d9c c3803f    jp      3f80h
+3d9c c3803f    jp      3f80h		; BANK SWITCHING - call the FAR function in stack
 
 3d9f cd0f1d    call    1d0fh
 3da2 db50      in      a,(50h)        ; get system status
@@ -9848,8 +9901,8 @@
 2075 fe91      cp      91h
 2077 d28c20    jp      nc,208ch
 207a 11ce21    ld      de,21ceh
-207d 2147fe    ld      hl,0fe47h
-2080 cd3d18    call    183dh
+207d 2147fe    ld      hl,0fe47h		; ARG
+2080 cd3d18    call    183dh			; FP2HL - Copy number value from DE to HL
 2083 cd0b1c    call    1c0bh		; DBL_MUL  Double precision MULTIPLY
 2086 f1        pop     af
 2087 d60a      sub     0ah
@@ -9944,7 +9997,7 @@
 2110 e25421    jp      po,2154h
 2113 c5        push    bc
 2114 e5        push    hl
-2115 cd6618    call    1866h
+2115 cd6618    call    1866h			; FP_ARG2HL
 2118 21e621    ld      hl,21e6h
 211b cd6118    call    1861h
 211e cde11a    call    1ae1h			; DBL_ADD - Double precision ADD (formerly FPADD)
@@ -9978,7 +10031,7 @@
 214a c5        push    bc
 214b e5        push    hl
 214c 213dfe    ld      hl,0fe3dh
-214f cd1b18    call    181bh            ; PHLTFP - Move a SP value -> HL to WRA1
+214f cd1b18    call    181bh            ; PHLTFP - Move a single precision value -> HL to FPREG
 2152 180c      jr      2160h
 
 
@@ -9987,7 +10040,7 @@
 2156 cd7215    call    1572h
 2159 3c        inc     a
 215a cd6519    call    1965h			; FPINT - Floating Point to Integer
-215d cd1e18    call    181eh            ; FPBCDE: Move SP value in BC/DE into WRA1
+215d cd1e18    call    181eh            ; FPBCDE: Move single precision value in BC/DE into FPREG
 2160 e1        pop     hl
 2161 c1        pop     bc
 2162 af        xor     a
@@ -9998,7 +10051,7 @@
 216b f5        push    af
 216c e5        push    hl
 216d d5        push    de
-216e cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
+216e cd2918    call    1829h		; BCDEFP: Load a single precision value from FPREG into BC/DE
 2171 e1        pop     hl
 2172 062f      ld      b,2fh
 2174 04        inc     b
@@ -10018,7 +10071,7 @@
 2182 30f0      jr      nc,2174h
 2184 cd2116    call    1621h			; PLUCDE - Add number pointed by HL to CDE
 2187 23        inc     hl
-2188 cd1e18    call    181eh            ; FPBCDE: Move SP value in BC/DE into WRA1
+2188 cd1e18    call    181eh            ; FPBCDE: Move single precision value in BC/DE into FPREG
 218b eb        ex      de,hl
 218c e1        pop     hl
 218d 70        ld      (hl),b
@@ -10188,13 +10241,13 @@
 2250 e9        jp      (hl)
 
 ; SQR
-2251 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+2251 cd0e18    call    180eh                ; STAKFP: Move FPREG to stack
 2254 21ea21    ld      hl,21eah			; HALF: Constant ptr for 0.5 in FP
-2257 cd1b18    call    181bh            ; PHLTFP - Move a SP value -> HL to WRA1
+2257 cd1b18    call    181bh            ; PHLTFP - Move a single precision value -> HL to FPREG
 225a 1803      jr      225fh
 
 ; POWER
-225c cd1b19    call    191bh
+225c cd1b19    call    191bh			; __CSNG: Integer to single precision
 225f c1        pop     bc
 2260 d1        pop     de
 2261 cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
@@ -10209,7 +10262,7 @@
 2273 c5        push    bc
 2274 79        ld      a,c
 2275 f67f      or      7fh
-2277 cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
+2277 cd2918    call    1829h		; BCDEFP: Load a single precision value from FPREG into BC/DE
 227a f28b22    jp      p,228bh
 227d d5        push    de
 227e c5        push    bc
@@ -10235,7 +10288,7 @@
 22a0 cdb116    call    16b1h			; FPMULT - Single precision multiply  (Multiply BCDE to FP reg)
 
 ; EXP
-22a3 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+22a3 cd0e18    call    180eh                ; STAKFP: Move FPREG to stack
 22a6 013881    ld      bc,8138h
 22a9 113baa    ld      de,0aa3bh
 22ac cdb116    call    16b1h			; FPMULT - Single precision multiply  (Multiply BCDE to FP reg)
@@ -10293,17 +10346,17 @@
 2303 81        add     a,c
 
 ; SUMSER - Evaluate sum of series
-2304 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+2304 cd0e18    call    180eh                ; STAKFP: Move FPREG to stack
 2307 119c1a    ld      de,1a9ch
 230a d5        push    de
 230b e5        push    hl
-230c cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
+230c cd2918    call    1829h		; BCDEFP: Load a single precision value from FPREG into BC/DE
 230f cdb116    call    16b1h			; FPMULT - Single precision multiply  (Multiply BCDE to FP reg)
 2312 e1        pop     hl
-2313 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+2313 cd0e18    call    180eh                ; STAKFP: Move FPREG to stack
 2316 7e        ld      a,(hl)
 2317 23        inc     hl
-2318 cd1b18    call    181bh            ; PHLTFP - Move a SP value -> HL to WRA1
+2318 cd1b18    call    181bh            ; PHLTFP - Move a single precision value -> HL to FPREG
 231b 06f1      ld      b,0f1h
 231d c1        pop     bc
 231e d1        pop     de
@@ -10315,7 +10368,7 @@
 2324 e5        push    hl
 2325 cdb116    call    16b1h			; FPMULT - Single precision multiply  (Multiply BCDE to FP reg)
 2328 e1        pop     hl
-2329 cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
+2329 cd2c18    call    182ch            ; LOADFP: Load single precision value pointed by (HL) into BC/DE
 232c e5        push    hl
 232d cd8015    call    1580h			; FPADD  - Single precision add (Add BCDE to FP reg)
 2330 e1        pop     hl
@@ -10329,7 +10382,7 @@
 233c ca5a23    jp      z,235ah
 233f e5        push    hl
 2340 cd5a23    call    235ah
-2343 cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
+2343 cd2918    call    1829h		; BCDEFP: Load a single precision value from FPREG into BC/DE
 2346 eb        ex      de,hl
 2347 e3        ex      (sp),hl
 2348 c5        push    bc
@@ -10396,14 +10449,14 @@
 23ab 21f523    ld      hl,23f5h			; HALFPI: ptr to PI/2 constant
 23ae cd7515    call    1575h			; ADDPHL - ADD number at HL to BCDE
 ; SIN - Sine
-23b1 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+23b1 cd0e18    call    180eh                ; STAKFP: Move FPREG to stack
 23b4 014983    ld      bc,8349h
 23b7 11db0f    ld      de,0fdbh
-23ba cd1e18    call    181eh            ; FPBCDE: Move SP value in BC/DE into WRA1
+23ba cd1e18    call    181eh            ; FPBCDE: Move single precision value in BC/DE into FPREG
 23bd c1        pop     bc
 23be d1        pop     de
 23bf cd0c17    call    170ch			; DVBCDE - Divide FP by BCDE
-23c2 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+23c2 cd0e18    call    180eh                ; STAKFP: Move FPREG to stack
 23c5 cdaa19    call    19aah			; INT
 23c8 c1        pop     bc
 23c9 d1        pop     de
@@ -10453,13 +10506,13 @@
 2411 83        add     a,e
 
 ; TAN - Tangent
-2412 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+2412 cd0e18    call    180eh                ; STAKFP: Move FPREG to stack
 2415 cdb123    call    23b1h			; SIN - Sine
 2418 c1        pop     bc
 2419 e1        pop     hl
-241a cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+241a cd0e18    call    180eh                ; STAKFP: Move FPREG to stack
 241d eb        ex      de,hl
-241e cd1e18    call    181eh            ; FPBCDE: Move SP value in BC/DE into WRA1
+241e cd1e18    call    181eh            ; FPBCDE: Move single precision value in BC/DE into FPREG
 2421 cdab23    call    23abh			; COS - Cosine
 2424 c30a17    jp      170ah			; DIV - Divide FP by number on stack
 
@@ -11457,7 +11510,7 @@ INT_OPR:
 28e1 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
 28e4 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
 28e5 cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
-28e8 210728    ld      hl,2807h
+28e8 210728    ld      hl,2807h		; "Error"
 28eb e5        push    hl
 28ec 2a0afe    ld      hl,(0fe0ah)            ; ERRLIN: Line No. in which error occured.
 28ef e3        ex      (sp),hl
@@ -11470,12 +11523,16 @@ INT_OPR:
 28fc a5        and     l
 28fd 3c        inc     a
 28fe c4111e    call    nz,1e11h            ; LNUM_MSG
-2901 3ec1      ld      a,0c1h
+;2901 3ec1      ld      a,0c1h
+				DEFB $3E  ; "LD A,n" to Mask the next byte
+; RESTART
+2902 c1        pop     bc
+; READY
 2903 cd200c    call    0c20h		; STOP_LPT
 2906 cdabfe    call    0feabh
 2909 cd8007    call    0780h			; Cassette off routine
 290c cde42f    call    2fe4h        ; CONSOLE_CRLF
-290f 211328    ld      hl,2813h
+290f 211328    ld      hl,2813h		; "READY"
 2912 cd9b37    call    379bh			; PRS - Output a string
 2915 3a4efc    ld      a,(0fc4eh)            ; ERRFLG
 2918 d602      sub     02h
@@ -11502,7 +11559,7 @@ INT_OPR:
 2942 3006      jr      nc,294ah
 2944 af        xor     a
 2945 3201fe    ld      (0fe01h),a        ; AUTFLG: Auto increment flag 0 = no auto mode, otherwise line number
-2948 18b9      jr      2903h
+2948 18b9      jr      2903h			; READY
 
 
 294a 2a04fe    ld      hl,(0fe04h)        ; AUTINC: Auto line increment
@@ -11627,12 +11684,13 @@ INT_OPR:
 2a04 d5        push    de
 2a05 280b      jr      z,2a12h
 2a07 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-2a08 ce11      adc     a,11h
-2a0a faffc4    jp      m,0c4ffh
-2a0d 3a2dc2    ld      a,(0c22dh)
-2a10 81        add     a,c
-2a11 28eb      jr      z,29feh
+2a08 ce        defb    TK_MINUS
+2a09 11faff    ld      de,0fffah		; -6
+2a0c c43a2d    call    nz,2d3ah        ; LNUM_PARM - Get specified line number
+2a0f c28128    jp      nz,2881h            ; Syntax Error (SN ERROR)
+2a12 eb        ex      de,hl
 2a13 d1        pop     de
+FIND_LNUM_0:
 2a14 e3        ex      (sp),hl
 2a15 e5        push    hl
 
@@ -11677,6 +11735,7 @@ INT_OPR:
 2a44 2219fe    ld      (0fe19h),hl        ; Addr of simple variables
 2a47 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
 2a4a 2b        dec     hl
+; _CLVAR - Initialise RUN variables
 2a4b 22fffd    ld      (0fdffh),hl
 2a4e 061a      ld      b,1ah
 2a50 2121fe    ld      hl,0fe21h        ; Variable declaration list. 26 entries, each containing a code inicating default mode for that initial letter
@@ -11733,25 +11792,25 @@ INT_OPR:
 2ab4 2b        dec     hl
 2ab5 eb        ex      de,hl
 2ab6 7e        ld      a,(hl)
-2ab7 fe20      cp      20h
-2ab9 ca452b    jp      z,2b45h
+2ab7 fe20      cp      20h		; ' '
+2ab9 ca452b    jp      z,2b45h			;
 2abc 47        ld      b,a
-2abd fe22      cp      22h
+2abd fe22      cp      22h		; '"'
 2abf ca612b    jp      z,2b61h
 2ac2 b7        or      a
 2ac3 ca672b    jp      z,2b67h
 2ac6 3ad0fd    ld      a,(0fdd0h)
 2ac9 b7        or      a
 2aca 7e        ld      a,(hl)
-2acb c2452b    jp      nz,2b45h
-2ace fe3f      cp      3fh
-2ad0 3eb2      ld      a,0b2h
-2ad2 ca452b    jp      z,2b45h
+2acb c2452b    jp      nz,2b45h			;
+2ace fe3f      cp      3fh				; '?'
+2ad0 3eb2      ld      a,0b2h			; TK_PRINT
+2ad2 ca452b    jp      z,2b45h			;
 2ad5 7e        ld      a,(hl)
-2ad6 fe30      cp      30h
+2ad6 fe30      cp      30h			; '0'
 2ad8 3805      jr      c,2adfh
-2ada fe3c      cp      3ch
-2adc da452b    jp      c,2b45h
+2ada fe3c      cp      3ch			; '<'
+2adc da452b    jp      c,2b45h			;
 2adf d5        push    de
 2ae0 112d25    ld      de,252dh
 2ae3 c5        push    bc
@@ -11763,7 +11822,7 @@ INT_OPR:
 2aed 3807      jr      c,2af6h
 2aef fe7b      cp      7bh
 2af1 3003      jr      nc,2af6h
-2af3 e65f      and     5fh
+2af3 e65f      and     5fh			; '_'
 2af5 77        ld      (hl),a
 2af6 4e        ld      c,(hl)
 2af7 eb        ex      de,hl
@@ -11825,6 +11884,7 @@ INT_OPR:
 2b42 181d      jr      2b61h
 
 2b44 eb        ex      de,hl
+;
 2b45 23        inc     hl
 2b46 12        ld      (de),a
 2b47 13        inc     de
@@ -11841,7 +11901,7 @@ INT_OPR:
 2b5b b7        or      a
 2b5c 2809      jr      z,2b67h
 2b5e b8        cp      b
-2b5f 28e4      jr      z,2b45h
+2b5f 28e4      jr      z,2b45h			;
 2b61 23        inc     hl
 2b62 12        ld      (de),a
 2b63 0c        inc     c
@@ -11901,10 +11961,10 @@ INT_OPR:
 2bab 2a56fc    ld      hl,(0fc56h)        ; CURLIN: Current line number
 2bae e3        ex      (sp),hl
 2baf cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-2bb0 bd        cp      l
+2bb0 bd        defb    0bdh         ; TK_TO
 2bb1 e7        rst     20h			; GETYPR - Get the number type (FAC)
-2bb2 ca6019    jp      z,1960h
-2bb5 d26019    jp      nc,1960h
+2bb2 ca6019    jp      z,1960h			;  If string type, TYPE_ERR
+2bb5 d26019    jp      nc,1960h			;  TYPE_ERR
 2bb8 f5        push    af
 2bb9 cd2b32    call    322bh			; EVAL
 2bbc f1        pop     af
@@ -11922,8 +11982,8 @@ INT_OPR:
 2bd1 cd0818    call    1808h
 2bd4 1822      jr      2bf8h
 
-2bd6 cd1b19    call    191bh
-2bd9 cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
+2bd6 cd1b19    call    191bh			; __CSNG: Integer to single precision
+2bd9 cd2918    call    1829h		; BCDEFP: Load a single precision value from FPREG into BC/DE
 2bdc e1        pop     hl
 2bdd c5        push    bc
 2bde d5        push    de
@@ -11936,8 +11996,8 @@ INT_OPR:
 2be9 200e      jr      nz,2bf9h
 2beb cd2c32    call    322ch		; __EVAL__
 2bee e5        push    hl
-2bef cd1b19    call    191bh
-2bf2 cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
+2bef cd1b19    call    191bh			; __CSNG: Integer to single precision
+2bf2 cd2918    call    1829h		; BCDEFP: Load a single precision value from FPREG into BC/DE
 2bf5 cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
 2bf8 e1        pop     hl
 2bf9 c5        push    bc
@@ -12197,7 +12257,7 @@ INT_OPR:
 2d63 18e4      jr      2d49h
 
 ; __CLEAR
-2d65 ca4b2a    jp      z,2a4bh
+2d65 ca4b2a    jp      z,2a4bh			; _CLVAR - Initialise RUN variables
 2d68 cd312d    call    2d31h
 2d6b 2b        dec     hl
 2d6c d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
@@ -12219,12 +12279,12 @@ INT_OPR:
 2d86 eb        ex      de,hl
 2d87 2254fc    ld      (0fc54h),hl        ; Address of string area boundary
 2d8a e1        pop     hl
-2d8b c34b2a    jp      2a4bh
+2d8b c34b2a    jp      2a4bh			; _CLVAR - Initialise RUN variables
 
 ; __RUN
 2d8e ca472a    jp      z,2a47h
 2d91 cdc3fe    call    0fec3h
-2d94 cd4b2a    call    2a4bh
+2d94 cd4b2a    call    2a4bh			; _CLVAR - Initialise RUN variables
 2d97 01082c    ld      bc,2c08h
 2d9a 1810      jr      2dach
 
@@ -12260,7 +12320,7 @@ INT_OPR:
 
 ; __RETURN
 2dc9 c0        ret     nz
-; Return entry point
+; Return entry point - warm start of BASIC
 2dca 16ff      ld      d,0ffh
 2dcc cd2028    call    2820h
 2dcf f9        ld      sp,hl
@@ -12311,7 +12371,7 @@ INT_OPR:
 ; __LET
 2e0c cd0135    call    3501h        ; GETVAR: Find address of variable
 2e0f cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-2e10 d5        push    de
+2e10 d5        defb    TK_EQUAL
 2e11 eb        ex      de,hl
 2e12 22fffd    ld      (0fdffh),hl
 2e15 eb        ex      de,hl
@@ -12348,22 +12408,22 @@ INT_OPR:
 2e4a cd3737    call    3737h
 2e4d cde938    call    38e9h
 2e50 e3        ex      (sp),hl
-2e51 cd3d18    call    183dh
+2e51 cd3d18    call    183dh			; FP2HL - Copy number value from DE to HL
 2e54 d1        pop     de
 2e55 e1        pop     hl
 2e56 c9        ret
 
 ; __ON
 2e57 fe9e      cp      9eh				; TK_ERROR
-2e59 2025      jr      nz,2e80h
+2e59 2025      jr      nz,2e80h		; ON_OTHER
 2e5b d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
 2e5c cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-2e5d 8d        adc     a,l
+2e5d 8d        TK_GOTO
 2e5e cd452d    call    2d45h            ; LNUM_PARM_0 - Get specified line number (2nd parameter)
 2e61 7a        ld      a,d
 2e62 b3        or      e
 2e63 2809      jr      z,2e6eh
-2e65 cd142a    call    2a14h
+2e65 cd142a    call    2a14h			; FIND_LNUM_0
 2e68 50        ld      d,b
 2e69 59        ld      e,c
 2e6a e1        pop     hl
@@ -12379,14 +12439,14 @@ INT_OPR:
 2e7c 5f        ld      e,a
 2e7d c39528    jp      2895h
 
-
+; ON_OTHER
 2e80 cd103a    call    3a10h		; GETINT
 2e83 7e        ld      a,(hl)
 2e84 47        ld      b,a
 2e85 fe91      cp      91h				; TK_GOSUB
 2e87 2803      jr      z,2e8ch
 2e89 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-2e8a 8d        adc     a,l
+2e8a 8d        cp      8dh				; TK_GOTO
 2e8b 2b        dec     hl
 2e8c 4b        ld      c,e
 2e8d 0d        dec     c
@@ -12708,7 +12768,7 @@ INT_OPR:
 30ba c0        ret     nz
 30bb cd5a37    call    375ah			; QTSTR - Create quote terminated String
 30be cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-30bf 3b        dec     sp
+30bf 3b        defb    ';'
 30c0 e5        push    hl
 30c1 cd9e37    call    379eh			; PRS1 - Print string at HL
 30c4 e1        pop     hl
@@ -12876,14 +12936,14 @@ INT_OPR:
 31c3 23        inc     hl
 31c4 b7        or      a
 31c5 fade31    jp      m,31deh
-31c8 cd1b18    call    181bh            ; PHLTFP - Move a SP value -> HL to WRA1
+31c8 cd1b18    call    181bh            ; PHLTFP - Move a single precision value -> HL to FPREG
 31cb e3        ex      (sp),hl
 31cc e5        push    hl
 31cd cd7515    call    1575h			; ADDPHL - ADD number at HL to BCDE
 31d0 e1        pop     hl
-31d1 cd3518    call    1835h
+31d1 cd3518    call    1835h			; DEC_FACCU2HL - copy number value from FPREG (FP accumulator) to HL
 31d4 e1        pop     hl
-31d5 cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
+31d5 cd2c18    call    182ch            ; LOADFP: Load single precision value pointed by (HL) into BC/DE
 31d8 e5        push    hl
 31d9 cd7618    call    1876h			; CMPNUM - Compare FP reg to BCDE
 31dc 1829      jr      3207h
@@ -12906,7 +12966,7 @@ INT_OPR:
 31eb 69        ld      l,c
 31ec 60        ld      h,b
 31ed cd3c1a    call    1a3ch
-31f0 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+31f0 3acffd    ld      a,(0fdcfh)        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 31f3 fe04      cp      04h
 31f5 ca1c16    jp      z,161ch            ; Overflow Error (OV ERROR)
 31f8 eb        ex      de,hl
@@ -12925,7 +12985,7 @@ INT_OPR:
 3207 e1        pop     hl
 3208 c1        pop     bc
 3209 90        sub     b
-320a cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
+320a cd2c18    call    182ch            ; LOADFP: Load single precision value pointed by (HL) into BC/DE
 320d 2809      jr      z,3218h
 320f eb        ex      de,hl
 3210 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
@@ -12991,7 +13051,7 @@ INT_OPR:
 3264 fe07      cp      07h
 3266 d0        ret     nc
 3267 5f        ld      e,a
-3268 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+3268 3acffd    ld      a,(0fdcfh)        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 326b d603      sub     03h
 326d b3        or      e
 326e ca8338    jp      z,3883h			; CONCAT - String concatenation
@@ -13011,11 +13071,11 @@ INT_OPR:
 3286 dad532    jp      c,32d5h
 3289 2141fe    ld      hl,0fe41h        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 328c b7        or      a
-328d 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+328d 3acffd    ld      a,(0fdcfh)        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 3290 3d        dec     a
 3291 3d        dec     a
 3292 3d        dec     a
-3293 ca6019    jp      z,1960h
+3293 ca6019    jp      z,1960h			;  TYPE_ERR
 3296 4e        ld      c,(hl)
 3297 23        inc     hl
 3298 46        ld      b,(hl)
@@ -13053,8 +13113,8 @@ INT_OPR:
 32c5 c32e32    jp      322eh        ; EVAL1
 
 
-32c8 cd1b19    call    191bh
-32cb cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+32c8 cd1b19    call    191bh			; __CSNG: Integer to single precision
+32cb cd0e18    call    180eh                ; STAKFP: Move FPREG to stack
 32ce 015c22    ld      bc,225ch
 32d1 167f      ld      d,7fh
 32d3 18ec      jr      32c1h
@@ -13088,7 +13148,7 @@ INT_OPR:
 32ff 78        ld      a,b
 3300 fe08      cp      08h
 3302 2828      jr      z,332ch
-3304 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+3304 3acffd    ld      a,(0fdcfh)        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 3307 fe08      cp      08h
 3309 ca5433    jp      z,3354h
 330c 57        ld      d,a
@@ -13097,7 +13157,7 @@ INT_OPR:
 3310 ca6633    jp      z,3366h
 3313 7a        ld      a,d
 3314 fe03      cp      03h
-3316 ca6019    jp      z,1960h
+3316 ca6019    jp      z,1960h			;  TYPE_ERR
 3319 d27033    jp      nc,3370h
 331c 21a727    ld      hl,27a7h			; INT_OPR - INTEGER ARITHMETIC OPERATIONS TABLE
 331f 0600      ld      b,00h
@@ -13112,14 +13172,14 @@ INT_OPR:
 332b c9        ret
 
 332c cd4519    call    1945h			; __CDBL
-332f cd6618    call    1866h
+332f cd6618    call    1866h			; FP_ARG2HL
 3332 e1        pop     hl
 3333 223ffe    ld      (0fe3fh),hl
 3336 e1        pop     hl
 3337 223dfe    ld      (0fe3dh),hl
 333a c1        pop     bc
 333b d1        pop     de
-333c cd1e18    call    181eh            ; FPBCDE: Move SP value in BC/DE into WRA1
+333c cd1e18    call    181eh            ; FPBCDE: Move single precision value in BC/DE into FPREG
 333f cd4519    call    1945h			; __CDBL
 3342 219327    ld      hl,2793h			; DEC_OPR: DOUBLE PRECISION ARITHMETIC OPERATIONS TABLE
 3345 3ad0fd    ld      a,(0fdd0h)
@@ -13135,16 +13195,16 @@ INT_OPR:
 3352 6f        ld      l,a
 3353 e9        jp      (hl)
 3354 c5        push    bc
-3355 cd6618    call    1866h
+3355 cd6618    call    1866h			; FP_ARG2HL
 3358 f1        pop     af
-3359 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+3359 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 335c fe04      cp      04h
 335e 28da      jr      z,333ah
 3360 e1        pop     hl
 3361 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 3364 18d9      jr      333fh
 
-3366 cd1b19    call    191bh
+3366 cd1b19    call    191bh			; __CSNG: Integer to single precision
 3369 c1        pop     bc
 336a d1        pop     de
 336b 219d27    ld      hl,279dh			; FLT_OPR - SINGLE PRECISION ARITHMETIC OPERATIONS TABLE
@@ -13152,9 +13212,9 @@ INT_OPR:
 
 
 3370 e1        pop     hl
-3371 cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+3371 cd0e18    call    180eh                ; STAKFP: Move FPREG to stack
 3374 cd3919    call    1939h
-3377 cd2918    call    1829h		; BCDEFP: Load a SP value from WRA1 into BC/DE
+3377 cd2918    call    1829h		; BCDEFP: Load a single precision value from FPREG into BC/DE
 337a e1        pop     hl
 337b 2243fe    ld      (0fe43h),hl		; LAST-FPREG - Last byte in Single Precision FP Register (+sign bit)
 337e e1        pop     hl
@@ -13165,7 +13225,7 @@ INT_OPR:
 3385 eb        ex      de,hl
 3386 cd3919    call    1939h
 3389 e1        pop     hl
-338a cd0e18    call    180eh                ; STAKFP: Move WRA1 to stack
+338a cd0e18    call    180eh                ; STAKFP: Move FPREG to stack
 338d cd3919    call    1939h
 3390 c30a17    jp      170ah			; DIV - Divide FP by number on stack
 
@@ -13176,20 +13236,22 @@ INT_OPR:
 3399 dad61c    jp      c,1cd6h
 339c cd282d    call    2d28h        ; IS_ALPHA_A
 339f d23434    jp      nc,3434h
-33a2 fecd      cp      0cdh
+33a2 fecd      cp      0cdh			; TK_PLUS
 33a4 28ed      jr      z,3393h		; OPRND: Get next expression value
-33a6 fe2e      cp      2eh
+33a6 fe2e      cp      2eh			; '.'
 33a8 cad61c    jp      z,1cd6h
-33ab fece      cp      0ceh
+33ab fece      cp      0ceh			; TK_MINUS
 33ad ca2634    jp      z,3426h		; OPRND_SUB
-33b0 fe22      cp      22h
+33b0 fe22      cp      22h			; '"'
 33b2 ca5a37    jp      z,375ah			; QTSTR - Create quote terminated String
-33b5 fecb      cp      0cbh
-33b7 cab834    jp      z,34b8h
-33ba fe26      cp      26h
-33bc ca203f    jp      z,3f20h
-33bf fec3      cp      0c3h
-33c1 200a      jr      nz,33cdh
+33b5 fecb      cp      0cbh			; TK_NOT
+33b7 cab834    jp      z,34b8h; 	: _NOT
+33ba fe26      cp      26h			; '&'
+33bc ca203f    jp      z,3f20h		; HEXTFP
+33bf fec3      cp      0c3h			; TK_ERR
+33c1 200a      jr      nz,33cdh		; OPRND_0
+
+; __ERR
 33c3 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
 33c4 3a4efc    ld      a,(0fc4eh)            ; ERRFLG
 33c7 e5        push    hl
@@ -13197,6 +13259,7 @@ INT_OPR:
 33cb e1        pop     hl
 33cc c9        ret
 
+; OPRND_0
 33cd fec2      cp      0c2h
 33cf 200a      jr      nz,33dbh
 33d1 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
@@ -13207,12 +13270,13 @@ INT_OPR:
 33da c9        ret
 
 33db fec0      cp      0c0h
-33dd 2014      jr      nz,33f3h
+33dd 2014      jr      nz,33f3h		; OPRND_2
 33df d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
 33e0 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-33e1 28cd      jr      z,33b0h
-33e3 0135cf    ld      bc,0cf35h
-33e6 29        add     hl,hl
+33e1 28        defb    '('
+33e2 cd0135    call    3501h        ; GETVAR: Find address of variable
+33e5 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
+33e6 29        defb    ')'
 33e7 e5        push    hl
 33e8 eb        ex      de,hl
 33e9 7c        ld      a,h
@@ -13222,22 +13286,23 @@ INT_OPR:
 33f1 e1        pop     hl
 33f2 c9        ret
 
-33f3 fec1      cp      0c1h
-33f5 caf236    jp      z,36f2h
-33f8 fec5      cp      0c5h
-33fa ca243f    jp      z,3f24h
-33fd fec8      cp      0c8h
-33ff cabd36    jp      z,36bdh
-3402 fec7      cp      0c7h
-3404 ca96fe    jp      z,0fe96h
-3407 fec6      cp      0c6h
-3409 cae10d    jp      z,0de1h
-340c fec9      cp      0c9h
-340e cabe09    jp      z,09beh
-3411 fec4      cp      0c4h
-3413 ca2339    jp      z,3923h
-3416 febe      cp      0beh
-3418 ca75fe    jp      z,0fe75h
+; OPRND_2
+33f3 fec1      cp      0c1h			; TK_USR
+33f5 caf236    jp      z,36f2h		; FN_USR
+33f8 fec5      cp      0c5h			; TK_INSTR
+33fa ca243f    jp      z,3f24h		; FN_INSTR
+33fd fec8      cp      0c8h			; TK_MEM
+33ff cabd36    jp      z,36bdh		; FN_MEM
+3402 fec7      cp      0c7h			; TK_TIME
+3404 ca96fe    jp      z,0fe96h		; FN_TIME
+3407 fec6      cp      0c6h			; TK_POINT
+3409 cae10d    jp      z,0de1h		; FN_POINT
+340c fec9      cp      0c9h			; TK_INKEY
+340e cabe09    jp      z,09beh		; FN_INKEY
+3411 fec4      cp      0c4h			; TK_STRING
+3413 ca2339    jp      z,3923h		; FN_STRING
+3416 febe      cp      0beh			; TK_FN
+3418 ca75fe    jp      z,0fe75h		; FN_FN
 341b d6d7      sub     0d7h
 341d d24234    jp      nc,3442h
 3420 cd2932    call    3229h			; OPNPAR - Chk Syntax, make sure '(' follows
@@ -13293,7 +13358,7 @@ INT_OPR:
 346a 3807      jr      c,3473h
 346c fe1b      cp      1bh
 346e e5        push    hl
-346f dc1b19    call    c,191bh
+346f dc1b19    call    c,191bh			; __CSNG: Integer to single precision
 3472 e1        pop     hl
 3473 113234    ld      de,3432h
 3476 d5        push    de
@@ -13349,6 +13414,7 @@ INT_OPR:
 34b3 cdf717    call    17f7h		; INT_RESULT_A  - Get back from function, result in A (signed)
 34b6 1812      jr      34cah
 
+; _NOT
 34b8 165a      ld      d,5ah
 34ba cd2e32    call    322eh        ; EVAL1
 34bd cde918    call    18e9h            ; __CINT: Floating point to Integer
@@ -13363,7 +13429,7 @@ INT_OPR:
 34ca c33a32    jp      323ah				; EVAL3 - Evaluate expression until precedence break
 
 ; GETYPR - Get the number type (FAC)
-34cd 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+34cd 3acffd    ld      a,(0fdcfh)        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 34d0 fe08      cp      08h
 34d2 3005      jr      nc,34d9h
 34d4 d603      sub     03h
@@ -13455,7 +13521,7 @@ INT_OPR:
 3545 c9        ret
 
 3546 7a        ld      a,d
-3547 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+3547 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 354a d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
 354b 3afcfd    ld      a,(0fdfch)        ; FOR flag (1 = 'for' in progress, 0 =  no 'for' in progress)
 354e b7        or      a
@@ -13593,7 +13659,7 @@ INT_OPR:
 3605 2a1dfe    ld      hl,(0fe1dh)        ; ARREND - Starting address of free space list (FSL)
 3608 eb        ex      de,hl
 3609 df        rst     18h            ; DCOMPR - Compare HL with DE.
-360a 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+360a 3acffd    ld      a,(0fdcfh)        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 360d 2827      jr      z,3636h
 360f be        cp      (hl)
 3610 23        inc     hl
@@ -13701,7 +13767,7 @@ INT_OPR:
 369f 44        ld      b,h
 36a0 4d        ld      c,l
 36a1 20eb      jr      nz,368eh
-36a3 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+36a3 3acffd    ld      a,(0fdcfh)        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 36a6 44        ld      b,h
 36a7 4d        ld      c,l
 36a8 29        add     hl,hl
@@ -13719,9 +13785,10 @@ INT_OPR:
 36b9 2a13fe    ld      hl,(0fe13h)    ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
 36bc c9        ret
 
+; FN_MEM
 36bd af        xor     a
 36be e5        push    hl
-36bf 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+36bf 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 36c2 cdc836    call    36c8h
 36c5 e1        pop     hl
 36c6 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
@@ -13755,13 +13822,14 @@ INT_OPR:
 36ef c30419    jp      1904h		; INT_RESULT_HL
 
 
+; FN_USR
 36f2 cda8fe    call    0fea8h
 36f5 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
 36f6 cd2034    call    3420h
 36f9 e5        push    hl
 36fa 21fa16    ld      hl,16fah
 36fd e5        push    hl
-36fe 3acffd    ld      a,(0fdcfh)        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+36fe 3acffd    ld      a,(0fdcfh)        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 3701 f5        push    af
 3702 fe03      cp      03h
 3704 ccce38    call    z,38ceh			; GSTRCU - Get string pointed by FPREG
@@ -13857,8 +13925,8 @@ INT_OPR:
 377d 2ad3fd    ld      hl,(0fdd3h)        ; TMSTPT: Address of next available location in LSPT
 3780 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 3783 3e03      ld      a,03h
-3785 32cffd    ld      (0fdcfh),a        ; Type flag for WRA1: 2 - Integer, 3 - String, 4 - Single, 5 - Double
-3788 cd3d18    call    183dh
+3785 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
+3788 cd3d18    call    183dh			; FP2HL - Copy number value from DE to HL
 378b 11f6fd    ld      de,0fdf6h        ; Pointer to next available loc. in string area.
 378e df        rst     18h            ; DCOMPR - Compare HL with DE.
 378f 22d3fd    ld      (0fdd3h),hl        ; TMSTPT: Address of next available location in LSPT
@@ -13876,7 +13944,7 @@ INT_OPR:
 379b cd5937    call    3759h
 ; PRS1 - Print string at HL
 379e cdce38    call    38ceh			; GSTRCU - Get string pointed by FPREG
-37a1 cd2e18    call    182eh            ; LOADFP_0
+37a1 cd2e18    call    182eh            ; LOADFP_0 - move 3 bytes from (HL) to D,C,B
 37a4 14        inc     d
 37a5 15        dec     d
 37a6 c8        ret     z
@@ -13953,7 +14021,7 @@ INT_OPR:
 381b ca5f38    jp      z,385fh
 381e 7e        ld      a,(hl)
 381f 23        inc     hl
-3820 cd2c18    call    182ch            ; LOADFP: Load SP value -> into BC/DE
+3820 cd2c18    call    182ch            ; LOADFP: Load single precision value pointed by (HL) into BC/DE
 3823 e5        push    hl
 3824 09        add     hl,bc
 3825 fe03      cp      03h
@@ -14363,7 +14431,7 @@ INT_OPR:
 3a32 23        inc     hl
 3a33 78        ld      a,b
 3a34 b1        or      c
-3a35 ca0329    jp      z,2903h
+3a35 ca0329    jp      z,2903h			; READY
 3a38 cddbfe    call    0fedbh
 3a3b cd852c    call    2c85h
 3a3e c5        push    bc
@@ -14483,15 +14551,16 @@ INT_OPR:
 3ae8 c9        ret
 
 ; __CSAVE
-3ae9 fe4d      cp      4dh
-3aeb ca4b08    jp      z,084bh
+3ae9 fe4d      cp      4dh			; 'M'
+3aeb ca4b08    jp      z,084bh		; JP if 'CSAVEM'
+
 3aee cd2b32    call    322bh			; EVAL
 3af1 e5        push    hl
 3af2 cd0739    call    3907h		; __ASC_0
-3af5 cd2307    call    0723h			; Cassette write on routine
-3af8 3ed3      ld      a,0d3h
-3afa cd3d07    call    073dh			; Cassette output routine
-3afd cd3a07    call    073ah
+3af5 cd2307    call    0723h			; Cassette write on routine  (-> output $A5)
+3af8 3ed3      ld      a,0d3h			; CLOAD MARKER: D3D3D3
+3afa cd3d07    call    073dh			; Cassette output routine   (-> output 0,0,0, $A5, $D3, D3, D3)
+3afd cd3a07    call    073ah			; Cassette output routine x 2
 3b00 1a        ld      a,(de)
 3b01 cd3d07    call    073dh			; Cassette output routine
 3b04 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
@@ -14508,9 +14577,10 @@ INT_OPR:
 
 ; __CLOAD
 3b18 7e        ld      a,(hl)
-3b19 fe4d      cp      4dh
-3b1b caa308    jp      z,08a3h
-3b1e d6b2      sub     0b2h
+3b19 fe4d      cp      4dh			; 'M'
+3b1b caa308    jp      z,08a3h		; 'CLOADM'
+
+3b1e d6b2      sub     0b2h			; TK_PRINT
 3b20 2802      jr      z,3b24h
 3b22 af        xor     a
 3b23 012f23    ld      bc,232fh
@@ -14532,16 +14602,18 @@ INT_OPR:
 3b41 eb        ex      de,hl
 3b42 cd9e07    call    079eh		; Cassette read on routine
 3b45 0603      ld      b,03h
-3b47 cdc907    call    07c9h			; Casette read routine
-3b4a d6d3      sub     0d3h
+3b47 cdc907    call    07c9h			; Casette read routine   (x3)
+3b4a d6d3      sub     0d3h				; CLOAD MARKER: D3D3D3
 3b4c 20f7      jr      nz,3b45h
 3b4e 10f7      djnz    3b47h
+
 3b50 cdc907    call    07c9h			; Casette read routine
 3b53 1c        inc     e
 3b54 1d        dec     e
 3b55 2803      jr      z,3b5ah
 3b57 bb        cp      e
 3b58 2037      jr      nz,3b91h
+
 3b5a 2a58fc    ld      hl,(0fc58h)        ; BASTXT - Address of BASIC Program
 3b5d 0603      ld      b,03h
 3b5f cdc907    call    07c9h			; Casette read routine
@@ -14601,7 +14673,7 @@ INT_OPR:
 3bbb cd2c32    call    322ch		; __EVAL__
 3bbe cd5e19    call    195eh			; TSTSTR - Test a string, 'Type Error' if it is not
 3bc1 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
-3bc2 3b        dec     sp
+3bc2 3b        defb    ';'
 3bc3 eb        ex      de,hl
 3bc4 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 3bc7 1808      jr      3bd1h
@@ -15126,7 +15198,7 @@ INT_OPR:
 
 3ef4 c1        pop     bc
 3ef5 d1        pop     de
-3ef6 c30329    jp      2903h
+3ef6 c30329    jp      2903h			; READY
 
 
 3ef9 00        nop     
@@ -15156,9 +15228,11 @@ INT_OPR:
 3f1c 3efc      ld      a,0fch
 3f1e 1810      jr      3f30h
 
+; HEXTFP
 3f20 3efb      ld      a,0fbh
 3f22 180c      jr      3f30h
 
+; FN_INSTR
 3f24 3efa      ld      a,0fah
 3f26 1808      jr      3f30h
 
@@ -15168,36 +15242,38 @@ INT_OPR:
 3f2c 3ef8      ld      a,0f8h
 3f2e 1800      jr      3f30h
 
-3f30 1822      jr      3f54h
+3f30 1822      jr      3f54h		; __Exec command in FAR memory bank (1)
 
 3f32 3ef7      ld      a,0f7h
-3f34 181e      jr      3f54h
+3f34 181e      jr      3f54h		; __Exec command in FAR memory bank (1)
 
 3f36 3ef6      ld      a,0f6h
-3f38 181a      jr      3f54h
+3f38 181a      jr      3f54h		; __Exec command in FAR memory bank (1)
 
 3f3a 3ef5      ld      a,0f5h
-3f3c 1816      jr      3f54h
+3f3c 1816      jr      3f54h		; __Exec command in FAR memory bank (1)
 
 3f3e 3ef4      ld      a,0f4h
-3f40 1812      jr      3f54h
+3f40 1812      jr      3f54h		; __Exec command in FAR memory bank (1)
 
 ; Exec command in FAR memory bank
 3f42 1822      jr      3f66h
 
-3f44 180e      jr      3f54h
+3f44 180e      jr      3f54h		; __Exec command in FAR memory bank (1)
 
 3f46 3ef2      ld      a,0f2h
-3f48 180a      jr      3f54h
+3f48 180a      jr      3f54h		; __Exec command in FAR memory bank (1)
 
 3f4a 3ef1      ld      a,0f1h
-3f4c 1806      jr      3f54h
+3f4c 1806      jr      3f54h		; __Exec command in FAR memory bank (1)
 
 3f4e 3ef0      ld      a,0f0h
-3f50 1802      jr      3f54h
+3f50 1802      jr      3f54h		; __Exec command in FAR memory bank (1)
 
 3f52 00        nop     
 3f53 00        nop     
+
+; __Exec command in FAR memory bank (1)
 3f54 f5        push    af
 3f55 db50      in      a,(50h)        ; get system status
 3f57 cbef      set     5,a			; DISPEN - CRTC display enable signal
@@ -15235,6 +15311,7 @@ INT_OPR:
 3f84 fde1      pop     iy
 3f86 dde5      push    ix			; restore original pages and return
 3f88 fde5      push    iy
+; BANK SWITCHING - flip ROM page
 3f8a f5        push    af
 3f8b db50      in      a,(50h)        ; get system status
 3f8d cbaf      res     5,a			; DISPEN - CRTC display enable signal
@@ -15242,7 +15319,7 @@ INT_OPR:
 3f91 f1        pop     af
 3f92 c9        ret
 
-; BANK SWITCHING - restore original pages and return
+; restore original pages and return
 3f93 f5        push    af
 3f94 db50      in      a,(50h)        ; get system status
 3f96 cbef      set     5,a			; DISPEN - CRTC display enable signal
