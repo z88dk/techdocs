@@ -1,6 +1,5 @@
 
 
-
 ; NOTE: the code listed in this disassembly is not complete, the ROM files hold folded program pages which had to be manually remapped.  
 ; Not all tbe proper bank mapping was considered !
 
@@ -306,7 +305,7 @@
 01e5 cd8f06    call    068fh
 01e8 cd6504    call    0465h            ; Cursor on routine
 01eb 3e70      ld      a,70h
-01ed 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
+01ed 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
 01f0 21a5a5    ld      hl,0a5a5h
 01f3 2216fc    ld      (0fc16h),hl
 01f6 215a7e    ld      hl,7e5ah
@@ -318,7 +317,7 @@
 0207 2190fc    ld      hl,0fc90h        ; ESCAPE FLAG REGISTER
 020a 3600      ld      (hl),00h
 020c 3e70      ld      a,70h
-020e 32e4fb    ld      (0fbe4h),a       ; COLOUR BYTE  copied into colour ram with every console output
+020e 32e4fb    ld      (0fbe4h),a       ; COLOUR BYTE  copied into colour ram with every console output
 0211 21cd10    ld      hl,10cdh			; BEL, Excalibur 64 Extended Basic 1.1
 0214 cd9b37    call    379bh			; PRS - Output a string
 0217 216602    ld      hl,0266h			; "Memory Size"
@@ -586,7 +585,7 @@
 03e1 08        ex      af,af'
 03e2 cd5e06    call    065eh
 03e5 cbdc      set     3,h
-03e7 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
+03e7 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
 03ea cd5e06    call    065eh
 03ed cd6f06    call    066fh            ; Turns screen ram off
 03f0 13        inc     de
@@ -724,10 +723,10 @@
 04d5 d21c16    jp      nc,161ch            ; Overflow Error (OV ERROR)
 04d8 07        rlca    
 04d9 47        ld      b,a
-04da 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
+04da 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
 04dd e6f0      and     0f0h
 04df b0        or      b
-04e0 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
+04e0 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
 
 ; Clear screen routine
 04e3 e5        push    hl
@@ -738,7 +737,7 @@
 04f0 3e20      ld      a,20h
 04f2 cd1005    call    0510h			; Fills BC bytes at HL with A
 04f5 01ff07    ld      bc,07ffh
-04f8 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
+04f8 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
 04fb cd1005    call    0510h			; Fills BC bytes at HL with A
 04fe cd6f06    call    066fh            ; Turns screen ram off
 0501 cdb606    call    06b6h			; Turns CRTC on
@@ -777,7 +776,7 @@
 0537 19        add     hl,de
 0538 cbec      set     5,h
 053a d5        push    de
-053b 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
+053b 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
 053e 5f        ld      e,a
 053f cd6806    call    0668h            ; Turns screen ram on
 0542 cb9c      res     3,h
@@ -908,10 +907,10 @@
 061c cb07      rlc     a
 061e cb07      rlc     a
 0620 47        ld      b,a
-0621 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
+0621 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
 0624 e60f      and     0fh
 0626 b0        or      b
-0627 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
+0627 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
 062a c9        ret
 
 062b cb8e      res     1,(hl)
@@ -923,13 +922,13 @@
 0635 d0        ret     nc
 0636 cb07      rlc     a
 0638 47        ld      b,a
-0639 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
+0639 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
 063c e6f1      and     0f1h
 063e b0        or      b
-063f 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
+063f 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
 0642 c9        ret
 
-0643 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
+0643 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
 0646 47        ld      b,a
 0647 e60e      and     0eh
 0649 cb07      rlc     a
@@ -942,7 +941,7 @@
 0655 cb0f      rrc     a
 0657 cb0f      rrc     a
 0659 b1        or      c
-065a 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
+065a 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
 065d c9        ret
 
 065e 08        ex      af,af'
@@ -1091,6 +1090,7 @@
 070c f0        ret     p
 070d 05        dec     b
 070e 14        inc     d
+
 070f ed5b8afc  ld      de,(0fc8ah)
 0713 012800    ld      bc,0028h
 0716 db50      in      a,(50h)        ; get system status
@@ -1186,6 +1186,7 @@
 07a3 fea5      cp      0a5h				; header byte
 07a5 20f9      jr      nz,07a0h
 07a7 cd0f07    call    070fh
+; Show '**' in green on the top-right corner
 07aa 2adffb    ld      hl,(0fbdfh)        ; CRTC value for "display start address"
 07ad 09        add     hl,bc
 07ae cb9c      res     3,h
@@ -1193,13 +1194,13 @@
 07b1 2b        dec     hl
 07b2 cbec      set     5,h
 07b4 cd6806    call    0668h            ; Turns screen ram on
-07b7 362a      ld      (hl),2ah
+07b7 362a      ld      (hl),2ah			; '*'
 07b9 cbdc      set     3,h
-07bb 36f0      ld      (hl),0f0h
+07bb 36f0      ld      (hl),0f0h		; green attribute
 07bd 23        inc     hl
-07be 36f0      ld      (hl),0f0h
+07be 36f0      ld      (hl),0f0h		; green attribute
 07c0 cb9c      res     3,h
-07c2 362a      ld      (hl),2ah
+07c2 362a      ld      (hl),2ah			; '*'
 07c4 cd6f06    call    066fh            ; Turns screen ram off
 07c7 d9        exx     
 07c8 c9        ret
@@ -1847,7 +1848,7 @@
 0b9f 26d9      ld      h,0d9h
 0ba1 4f        ld      c,a
 0ba2 cdbdfe    call    0febdh
-0ba5 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+0ba5 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
 0ba8 b7        or      a
 0ba9 79        ld      a,c
 0baa d9        exx     
@@ -1924,7 +1925,7 @@
 
 ; STOP_LPT
 0c20 af        xor     a
-0c21 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+0c21 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
 0c24 3a4ffc    ld      a,(0fc4fh)        ; No. of characters printed on this line
 0c27 b7        or      a
 0c28 c8        ret     z
@@ -2007,13 +2008,13 @@
 0ca8 fe46      cp      46h			; 'F'
 0caa 2012      jr      nz,0cbeh
 0cac d1        pop     de
-0cad 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
+0cad 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
 0cb0 cb87      res     0,a                ; set PCGEN ON/OFF flag (blank)
 0cb2 1805      jr      0cb9h
 
-0cb4 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
+0cb4 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
 0cb7 cbc7      set     0,a                ; set PCGEN ON/OFF flag (noblank)
-0cb9 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
+0cb9 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
 0cbc d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 0cbd c9        ret
 
@@ -2115,7 +2116,7 @@
 ; look for extra parameters in colour commands
 0d4c fe2c      cp      ','
 0d4e 2008      jr      nz,0d58h            ; no, try for other values
-0d50 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
+0d50 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
 0d53 e6f0      and     0f0h                ; mask background color
 0d55 f5        push    af                ; save foreground color
 0d56 181a      jr      0d72h            ; test next value
@@ -2133,7 +2134,7 @@
 0d67 2b        dec     hl            ; reset symbol pointer
 0d68 d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
 0d69 2007      jr      nz,0d72h
-0d6b 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
+0d6b 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
 0d6e e60e      and     0eh            ; mask foreground colour
 0d70 180f      jr      0d81h        ; go mix colours
 
@@ -2149,10 +2150,10 @@
 0d81 c1        pop     bc            ; get foreground colour
 0d82 b0        or      b            ; mix fore and back colours
 0d83 47        ld      b,a            ; temp store in B
-0d84 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
+0d84 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
 0d87 e601      and     01h                ; save PCGEN ON/OFF flag (blank)
 0d89 b0        or      b                ; mix it with colours
-0d8a 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
+0d8a 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
 0d8d 7e        ld      a,(hl)        ; fetch next symbol
 0d8e c9        ret
 
@@ -2213,7 +2214,7 @@
 0dce cd890e    call    0e89h
 0dd1 cd9f0d    call    0d9fh
 0dd4 cbdc      set     3,h
-0dd6 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
+0dd6 3ae4fb    ld      a,(0fbe4h)        ; COLOUR BYTE  copied into colour ram with every console output
 0dd9 cda30d    call    0da3h
 0ddc cd6f06    call    066fh            ; Turns screen ram off
 0ddf e1        pop     hl
@@ -2741,7 +2742,7 @@
 
 ; PRS - Output a string to video device
 110d 3e00      ld      a,00h
-110f 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+110f 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
 1112 cd9b37    call    379bh			; PRS - Output a string
 1115 c9        ret
 
@@ -4102,7 +4103,7 @@
 191d fa3619    jp      m,1936h
 1920 ca6019    jp      z,1960h			;  TYPE_ERR
 1923 cd2918    call    1829h		; BCDEFP: Load a single precision value from FPREG into BC/DE
-1926 cd5919    call    1959h
+1926 cd5919    call    1959h			; SETTYPE_INT
 1929 78        ld      a,b
 192a b7        or      a
 192b c8        ret     z
@@ -4111,7 +4112,7 @@
 1932 46        ld      b,(hl)
 1933 c30016    jp      1600h
 1936 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
-1939 cd5919    call    1959h
+1939 cd5919    call    1959h			; SETTYPE_INT
 193c 7c        ld      a,h
 193d 55        ld      d,l
 193e 1e00      ld      e,00h
@@ -4123,11 +4124,15 @@
 1946 d0        ret     nc
 1947 ca6019    jp      z,1960h			;  TYPE_ERR
 194a fc3619    call    m,1936h
+; ZERO_FACCU
 194d 210000    ld      hl,0000h
 1950 223dfe    ld      (0fe3dh),hl
 1953 223ffe    ld      (0fe3fh),hl
+; SETTYPE_DBL
 1956 3e08      ld      a,08h
-1958 013e04    ld      bc,043eh
+1958 01        defb    01h	; ld bc,nnnn   ..to skip the next 2 bytes
+; SETTYPE_INT
+1959 3e04      ld      a,04h
 195b c30919    jp      1909h
 
 ; TSTSTR - Test a string, 'Type Error' if it is not
@@ -4380,7 +4385,7 @@
 1ace b5        or      l
 1acf c0        ret     nz
 1ad0 eb        ex      de,hl
-1ad1 cd5919    call    1959h
+1ad1 cd5919    call    1959h			; SETTYPE_INT
 1ad4 af        xor     a
 1ad5 0698      ld      b,98h
 1ad7 c3d317    jp      17d3h
@@ -4698,7 +4703,7 @@
 
 ; DBL_ASCTFP - ASCII to Double precision FP number
 1ccf cde215    call    15e2h
-1cd2 cd5619    call    1956h
+1cd2 cd5619    call    1956h		; SETTYPE_DBL
 1cd5 f6af      or      0afh
 1cd7 eb        ex      de,hl
 1cd8 01ff00    ld      bc,00ffh
@@ -6807,7 +6812,7 @@
 2911 13        inc     de
 2912 c1        pop     bc
 2913 10f1      djnz    2906h
-2915 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
+2915 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
 2918 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 291b 3e03      ld      a,03h
 
@@ -6937,7 +6942,7 @@
 2a0c 77        ld      (hl),a
 2a0d d1        pop     de
 2a0e cd1e0a    call    0a1eh
-2a11 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
+2a11 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
 2a14 3e03      ld      a,03h
 
 ; FIND_LNUM - Search for line number
@@ -6984,7 +6989,7 @@
 2a5b 19        add     hl,de
 2a5c d1        pop     de
 2a5d cd6d0a    call    0a6dh
-2a60 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
+2a60 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
 2a63 3e03      ld      a,03h
 2a65 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 2a68 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
@@ -7028,7 +7033,7 @@
 2aa7 19        add     hl,de
 2aa8 d1        pop     de
 2aa9 cdb90a    call    0ab9h
-2aac 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
+2aac 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
 2aaf 3e03      ld      a,03h
 2ab1 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 2ab4 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
@@ -10431,7 +10436,7 @@
 238c 2165b0    ld      hl,0b065h
 238f 19        add     hl,de
 2390 22cafd    ld      (0fdcah),hl        ; Random number seeds
-2393 cd5919    call    1959h
+2393 cd5919    call    1959h			; SETTYPE_INT
 2396 3e05      ld      a,05h
 2398 89        adc     a,c
 2399 32ccfd    ld      (0fdcch),a
@@ -11454,7 +11459,7 @@ INT_OPR:
 2878 c3ac2c    jp      2cach
 
 ; DATSNR - 'SN err' entry for Input STMT
-287b 2afafd    ld      hl,(0fdfah)        ; Line No.  of last data statement
+287b 2afafd    ld      hl,(0fdfah)        ; Line No.  of last data statement
 287e 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
 ; Syntax Error (SN ERROR)
 2881 1e02      ld      e,02h
@@ -11465,14 +11470,14 @@ INT_OPR:
 288f 220afe    ld      (0fe0ah),hl            ; ERRLIN: Line No. in which error occured.
 2892 220cfe    ld      (0fe0ch),hl            ; Line No. in which error occured.
 2895 019e28    ld      bc,289eh
-2898 2a08fe    ld      hl,(0fe08h)            ; During execution: stack pointer value when statement execution begins.
+2898 2a08fe    ld      hl,(0fe08h)            ; During execution: stack pointer value when statement execution begins.
 289b c3842a    jp      2a84h
 
 289e c1        pop     bc
 289f 7b        ld      a,e
 28a0 4b        ld      c,e
 28a1 324efc    ld      (0fc4eh),a            ; ERRFLG
-28a4 2a06fe    ld      hl,(0fe06h)            ; SAVTXT (During input:  ADDR of code string for current statement)
+28a4 2a06fe    ld      hl,(0fe06h)            ; SAVTXT (During input:  ADDR of code string for current statement)
 28a7 220efe    ld      (0fe0eh),hl            ; ERRTXT
 28aa eb        ex      de,hl
 28ab 2a0afe    ld      hl,(0fe0ah)            ; ERRLIN: Line No. in which error occured.
@@ -11597,7 +11602,7 @@ INT_OPR:
 2983 cdaa2a    call    2aaah
 2986 d1        pop     de
 2987 f1        pop     af
-2988 2206fe    ld      (0fe06h),hl            ; SAVTXT (During input:  ADDR of code string for current statement)
+2988 2206fe    ld      (0fe06h),hl            ; SAVTXT (During input:  ADDR of code string for current statement)
 298b cdb1fe    call    0feb1h
 298e d2442c    jp      nc,2c44h
 2991 d5        push    de
@@ -11738,7 +11743,7 @@ FIND_LNUM_0:
 ; _CLVAR - Initialise RUN variables
 2a4b 22fffd    ld      (0fdffh),hl
 2a4e 061a      ld      b,1ah
-2a50 2121fe    ld      hl,0fe21h        ; Variable declaration list. 26 entries, each containing a code inicating default mode for that initial letter
+2a50 2121fe    ld      hl,0fe21h        ; Variable declaration list. 26 entries, each containing a code inicating default mode for that initial letter
 2a53 3604      ld      (hl),04h
 2a55 23        inc     hl
 2a56 10fb      djnz    2a53h
@@ -11759,7 +11764,7 @@ FIND_LNUM_0:
 2a7a 2a54fc    ld      hl,(0fc54h)        ; Address of string area boundary
 2a7d 2b        dec     hl
 2a7e 2b        dec     hl
-2a7f 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
+2a7f 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
 2a82 23        inc     hl
 2a83 23        inc     hl
 2a84 f9        ld      sp,hl
@@ -11770,7 +11775,7 @@ FIND_LNUM_0:
 2a91 af        xor     a
 2a92 67        ld      h,a
 2a93 6f        ld      l,a
-2a94 32fcfd    ld      (0fdfch),a        ; FOR flag (1 = 'for' in progress, 0 =  no 'for' in progress)
+2a94 32fcfd    ld      (0fdfch),a        ; FOR flag (1 = 'for' in progress, 0 =  no 'for' in progress)
 2a97 e5        push    hl
 2a98 c5        push    bc
 2a99 2afffd    ld      hl,(0fdffh)
@@ -11942,7 +11947,7 @@ FIND_LNUM_0:
 
 ; __FOR:
 2b8b 3e64      ld      a,64h
-2b8d 32fcfd    ld      (0fdfch),a        ; FOR flag (1 = 'for' in progress, 0 =  no 'for' in progress)
+2b8d 32fcfd    ld      (0fdfch),a        ; FOR flag (1 = 'for' in progress, 0 =  no 'for' in progress)
 2b90 cd0c2e    call    2e0ch			; __LET
 2b93 e3        ex      (sp),hl
 2b94 cd2028    call    2820h
@@ -11950,7 +11955,7 @@ FIND_LNUM_0:
 2b98 2005      jr      nz,2b9fh
 2b9a 09        add     hl,bc
 2b9b f9        ld      sp,hl
-2b9c 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
+2b9c 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
 2b9f eb        ex      de,hl
 2ba0 0e08      ld      c,08h
 2ba2 cd4d28    call    284dh			; CHKSTK - Check for C levels of stack
@@ -12015,8 +12020,8 @@ FIND_LNUM_0:
 2c08 cda309    call    09a3h
 2c0b b7        or      a
 2c0c c48a2c    call    nz,2c8ah
-2c0f 2206fe    ld      (0fe06h),hl            ; SAVTXT (During input:  ADDR of code string for current statement)
-2c12 ed7308fe  ld      (0fe08h),sp            ; During execution: stack pointer value when statement execution begins.
+2c0f 2206fe    ld      (0fe06h),hl            ; SAVTXT (During input:  ADDR of code string for current statement)
+2c12 ed7308fe  ld      (0fe08h),sp            ; During execution: stack pointer value when statement execution begins.
 2c16 7e        ld      a,(hl)
 2c17 fe3a      cp      3ah
 2c19 2829      jr      z,2c44h
@@ -12105,7 +12110,7 @@ FIND_LNUM_0:
 2c9b cca211    call    z,11a2h
 2c9e f1        pop     af
 ; __END_00
-2c9f 2206fe    ld      (0fe06h),hl            ; SAVTXT (During input:  ADDR of code string for current statement)
+2c9f 2206fe    ld      (0fe06h),hl            ; SAVTXT (During input:  ADDR of code string for current statement)
 2ca2 21d5fd    ld      hl,0fdd5h        ; TEMPST: LSPT (literal string pool table)
 2ca5 22d3fd    ld      (0fdd3h),hl        ; TMSTPT: Address of next available location in LSPT
 2ca8 21f6ff    ld      hl,0fff6h
@@ -12118,7 +12123,7 @@ FIND_LNUM_0:
 2cb3 3c        inc     a
 2cb4 2809      jr      z,2cbfh
 2cb6 2215fe    ld      (0fe15h),hl            ; OLDLIN: Last line number executed saved by stop/end
-2cb9 2a06fe    ld      hl,(0fe06h)            ; SAVTXT (During input:  ADDR of code string for current statement)
+2cb9 2a06fe    ld      hl,(0fe06h)            ; SAVTXT (During input:  ADDR of code string for current statement)
 2cbc 2217fe    ld      (0fe17h),hl            ; OLDTXT: Addr of last byte executed during error
 2cbf cd200c    call    0c20h		; STOP_LPT
 2cc2 cde42f    call    2fe4h        ; CONSOLE_CRLF
@@ -12193,7 +12198,7 @@ FIND_LNUM_0:
 2d12 d8        ret     c
 2d13 3c        inc     a
 2d14 e3        ex      (sp),hl
-2d15 2121fe    ld      hl,0fe21h        ; Variable declaration list. 26 entries, each containing a code inicating default mode for that initial letter
+2d15 2121fe    ld      hl,0fe21h        ; Variable declaration list. 26 entries, each containing a code inicating default mode for that initial letter
 2d18 0600      ld      b,00h
 2d1a 09        add     hl,bc
 2d1b 73        ld      (hl),e
@@ -12324,7 +12329,7 @@ FIND_LNUM_0:
 2dca 16ff      ld      d,0ffh
 2dcc cd2028    call    2820h
 2dcf f9        ld      sp,hl
-2dd0 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
+2dd0 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
 2dd3 fe91      cp      91h			; TK_GOSUB
 2dd5 1e04      ld      e,04h
 2dd7 c28c28    jp      nz,288ch        ; ERROR, E=error code
@@ -12571,7 +12576,7 @@ FIND_LNUM_0:
 
 ; __LPRINT
 2f52 3e01      ld      a,01h
-2f54 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+2f54 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
 2f57 c3862f    jp      2f86h
 
 ; __PRINT
@@ -12597,7 +12602,7 @@ FIND_LNUM_0:
 2f7d 2c        defb    ','
 2f7e cd2307    call    0723h			; Cassette write on routine
 2f81 3e80      ld      a,80h
-2f83 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+2f83 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
 2f86 2b        dec     hl
 2f87 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
 2f88 cce92f    call    z,2fe9h
@@ -12620,7 +12625,7 @@ FIND_LNUM_0:
 2fae cd5937    call    3759h
 2fb1 cdc9fe    call    0fec9h
 2fb4 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
-2fb7 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+2fb7 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
 2fba b7        or      a
 2fbb fad42f    jp      m,2fd4h
 2fbe 2808      jr      z,2fc8h
@@ -12654,7 +12659,7 @@ FIND_LNUM_0:
 2ff2 c9        ret
 
 2ff3 cdcffe    call    0fecfh
-2ff6 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+2ff6 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
 2ff9 b7        or      a
 2ffa f20430    jp      p,3004h
 2ffd 3e2c      ld      a,2ch		; ','
@@ -12687,7 +12692,7 @@ FIND_LNUM_0:
 302a 2b        dec     hl
 302b e5        push    hl
 302c cdcffe    call    0fecfh
-302f 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+302f 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
 3032 b7        or      a
 3033 fa352d    jp      m,2d35h            ; Error: Illegal function call (FC ERROR)
 3036 ca3e30    jp      z,303eh
@@ -12709,11 +12714,11 @@ FIND_LNUM_0:
 3050 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
 3051 c38b2f    jp      2f8bh
 
-3054 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+3054 3a50fc    ld      a,(0fc50h)        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
 3057 b7        or      a
 3058 fc8007    call    m,0780h			; Cassette off routine
 305b af        xor     a
-305c 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+305c 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
 305f cdbafe    call    0febah
 3062 c9        ret
 
@@ -12724,7 +12729,7 @@ FIND_LNUM_0:
 3067 4f        ld      c,a
 3068 0d        dec     c
 3069 00        nop     
-306a 3afefd    ld      a,(0fdfeh)        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
+306a 3afefd    ld      a,(0fdfeh)        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
 306d b7        or      a
 306e c27b28    jp      nz,287bh			; DATSNR - 'SN err' entry for Input STMT
 3071 3ac9fd    ld      a,(0fdc9h)        ; 0 if input from cassette else non-zero
@@ -12734,7 +12739,7 @@ FIND_LNUM_0:
 307a c1        pop     bc
 307b 216330    ld      hl,3063h
 307e cd9b37    call    379bh			; PRS - Output a string
-3081 2a06fe    ld      hl,(0fe06h)            ; SAVTXT (During input:  ADDR of code string for current statement)
+3081 2a06fe    ld      hl,(0fe06h)            ; SAVTXT (During input:  ADDR of code string for current statement)
 3084 c9        ret
 
 ; __INPUT
@@ -12796,7 +12801,7 @@ FIND_LNUM_0:
 30e3 e5        push    hl
 30e4 2a1ffe    ld      hl,(0fe1fh)        ; Points to byte following last char
 30e7 f6af      or      0afh
-30e9 32fefd    ld      (0fdfeh),a        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
+30e9 32fefd    ld      (0fdfeh),a        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
 30ec e3        ex      (sp),hl
 30ed 1802      jr      30f1h
 
@@ -12808,7 +12813,7 @@ FIND_LNUM_0:
 30f6 7e        ld      a,(hl)
 30f7 fe2c      cp      2ch
 30f9 2826      jr      z,3121h
-30fb 3afefd    ld      a,(0fdfeh)        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
+30fb 3afefd    ld      a,(0fdfeh)        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
 30fe b7        or      a
 30ff c28a31    jp      nz,318ah			; FDTLP - Find next DATA statement
 3102 3ac9fd    ld      a,(0fdc9h)        ; 0 if input from cassette else non-zero
@@ -12868,7 +12873,7 @@ FIND_LNUM_0:
 315e 3ac9fd    ld      a,(0fdc9h)        ; 0 if input from cassette else non-zero
 3161 b7        or      a
 3162 c8        ret     z
-3163 3afefd    ld      a,(0fdfeh)        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
+3163 3afefd    ld      a,(0fdfeh)        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
 3166 b7        or      a
 3167 eb        ex      de,hl
 3168 c2802c    jp      nz,2c80h
@@ -12912,7 +12917,7 @@ FIND_LNUM_0:
 319b 23        inc     hl
 319c 56        ld      d,(hl)
 319d eb        ex      de,hl
-319e 22fafd    ld      (0fdfah),hl        ; Line No.  of last data statement
+319e 22fafd    ld      (0fdfah),hl        ; Line No.  of last data statement
 31a1 eb        ex      de,hl
 31a2 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
 31a3 fe88      cp      88h
@@ -12926,7 +12931,7 @@ FIND_LNUM_0:
 31b3 cd2028    call    2820h
 31b6 c28728    jp      nz,2887h
 31b9 f9        ld      sp,hl
-31ba 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
+31ba 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
 31bd d5        push    de
 31be 7e        ld      a,(hl)
 31bf 23        inc     hl
@@ -12994,7 +12999,7 @@ FIND_LNUM_0:
 3215 c3042c    jp      2c04h
 
 3218 f9        ld      sp,hl
-3219 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
+3219 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
 321c 2afffd    ld      hl,(0fdffh)
 321f 7e        ld      a,(hl)
 3220 fe2c      cp      2ch
@@ -13513,7 +13518,7 @@ FIND_LNUM_0:
 353a 5f        ld      e,a
 353b 1600      ld      d,00h
 353d e5        push    hl
-353e 2121fe    ld      hl,0fe21h        ; Variable declaration list. 26 entries, each containing a code inicating default mode for that initial letter
+353e 2121fe    ld      hl,0fe21h        ; Variable declaration list. 26 entries, each containing a code inicating default mode for that initial letter
 3541 19        add     hl,de
 3542 56        ld      d,(hl)
 3543 e1        pop     hl
@@ -13523,14 +13528,14 @@ FIND_LNUM_0:
 3546 7a        ld      a,d
 3547 32cffd    ld      (0fdcfh),a        ; Type flag for FPREG: 2 - Integer, 3 - String, 4 - Single, 5 - Double
 354a d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
-354b 3afcfd    ld      a,(0fdfch)        ; FOR flag (1 = 'for' in progress, 0 =  no 'for' in progress)
+354b 3afcfd    ld      a,(0fdfch)        ; FOR flag (1 = 'for' in progress, 0 =  no 'for' in progress)
 354e b7        or      a
 354f c25835    jp      nz,3558h
 3552 7e        ld      a,(hl)
 3553 d628      sub     28h
 3555 cadd35    jp      z,35ddh			; SBSCPT - Sort out subscript
 3558 af        xor     a
-3559 32fcfd    ld      (0fdfch),a        ; FOR flag (1 = 'for' in progress, 0 =  no 'for' in progress)
+3559 32fcfd    ld      (0fdfch),a        ; FOR flag (1 = 'for' in progress, 0 =  no 'for' in progress)
 355c e5        push    hl
 355d d5        push    de
 355e 2a19fe    ld      hl,(0fe19h)        ; Addr of simple variables
@@ -13884,7 +13889,7 @@ FIND_LNUM_0:
 374b cdb337    call    37b3h		; TESTR - Test if enough room for string
 
 ; CRTMST - Create temporary string entry
-374e 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
+374e 21f3fd    ld      hl,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
 3751 e5        push    hl
 3752 77        ld      (hl),a
 3753 23        inc     hl
@@ -13920,7 +13925,7 @@ FIND_LNUM_0:
 3775 cd4e37    call    374eh		; CRTMST - Create temporary string entry
 
 ; TSTOPL - Temporary string to pool
-3778 11f3fd    ld      de,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
+3778 11f3fd    ld      de,0fdf3h        ; TMPSTR: 3 bytes used to hold length and addr of a string when moved to string area
 377b 3ed5      ld      a,0d5h
 377d 2ad3fd    ld      hl,(0fdd3h)        ; TMSTPT: Address of next available location in LSPT
 3780 2241fe    ld      (0fe41h),hl        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
@@ -14416,7 +14421,7 @@ FIND_LNUM_0:
 
 ; __LLIST
 3a1d 3e01      ld      a,01h
-3a1f 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
+3a1f 3250fc    ld      (0fc50h),a        ; Output device code 0 = Video, 1 = Printer, -1 = Cassette
 ; __LIST
 3a22 c1        pop     bc
 3a23 cdfa29    call    29fah            ; LNUM_RANGE - Get specified line number range
@@ -14678,14 +14683,14 @@ FIND_LNUM_0:
 3bc4 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 3bc7 1808      jr      3bd1h
 
-3bc9 3afefd    ld      a,(0fdfeh)        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
+3bc9 3afefd    ld      a,(0fdfeh)        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
 3bcc b7        or      a
 3bcd 280c      jr      z,3bdbh
 3bcf d1        pop     de
 3bd0 eb        ex      de,hl
 3bd1 e5        push    hl
 3bd2 af        xor     a
-3bd3 32fefd    ld      (0fdfeh),a        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
+3bd3 32fefd    ld      (0fdfeh),a        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
 3bd6 ba        cp      d
 3bd7 f5        push    af
 3bd8 d5        push    de
@@ -14857,7 +14862,7 @@ FIND_LNUM_0:
 3cd3 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
 3cd4 37        scf     
 3cd5 280d      jr      z,3ce4h
-3cd7 32fefd    ld      (0fdfeh),a        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
+3cd7 32fefd    ld      (0fdfeh),a        ; FLGINP: 1 = input statement active.  Also used in print using to hold seperator between string and variable.
 3cda fe3b      cp      3bh
 3cdc 2805      jr      z,3ce3h
 3cde fe2c      cp      2ch
