@@ -39,6 +39,7 @@
 ;      res     0,a
 ;      out     (70h),a        ; Set system status
 
+
 ; _____________________________________________________________________________
 
 
@@ -54,7 +55,7 @@
 ;   SYNCHR: Check syntax: next byte holds the byte to be found
 0008 c3c0fb    jp      0fbc0h
 
-000b 1e2c      ld      e,2ch
+000b 1e2c      ld      e,2ch		; ?L3 Error
 000d c38c28    jp      288ch        ; ERROR, E=error code
 
 ; CHRGTB: Gets next character (or token) from BASIC text.
@@ -217,7 +218,7 @@
 0133 ed52      sbc     hl,de
 0135 202d      jr      nz,0164h
 0137 21e3fb    ld      hl,0fbe3h        ; CASSETTE SPEED 01 = 1200 baud 02 = 600 baud  04 = 300 baud
-013a cbbe      res     7,(hl)
+013a cbbe      res     7,(hl)			; mask out the cassette flag bit
 013c 3ae2fb    ld      a,(0fbe2h)
 013f 47        ld      b,a
 0140 3a89fc    ld      a,(0fc89h)
@@ -593,7 +594,7 @@
 03f4 b7        or      a
 03f5 ed52      sbc     hl,de
 03f7 301f      jr      nc,0418h
-03f9 cd0f07    call    070fh
+03f9 cd0f07    call    070fh			; Get current video parameters (BC=text_colums, DE=?)
 03fc 2adffb    ld      hl,(0fbdfh)        ; CRTC value for "display start address"
 03ff 09        add     hl,bc
 0400 cb9c      res     3,h
@@ -621,7 +622,7 @@
 042d c9        ret
 
 042e 08        ex      af,af'
-042f cd0f07    call    070fh
+042f cd0f07    call    070fh			; Get current video parameters (BC=text_colums, DE=?)
 0432 2addfb    ld      hl,(0fbddh)        ; CURSOR POSITION relative to upper L.H. corner
 0435 b7        or      a
 0436 ed52      sbc     hl,de
@@ -685,7 +686,7 @@
 0493 c9        ret     
 
 0494 2addfb    ld      hl,(0fbddh)        ; CURSOR POSITION relative to upper L.H. corner
-0497 cd0f07    call    070fh
+0497 cd0f07    call    070fh			; Get current video parameters (BC=text_colums, DE=?)
 049a 09        add     hl,bc
 049b eb        ex      de,hl
 049c 218ffc    ld      hl,0fc8fh        ; No.of lines displayed by screen
@@ -702,7 +703,7 @@
 04b3 eb        ex      de,hl
 04b4 c9        ret     
 
-04b5 cd0f07    call    070fh
+04b5 cd0f07    call    070fh			; Get current video parameters (BC=text_colums, DE=?)
 04b8 2addfb    ld      hl,(0fbddh)        ; CURSOR POSITION relative to upper L.H. corner
 04bb b7        or      a
 04bc ed42      sbc     hl,bc
@@ -728,6 +729,12 @@
 04df b0        or      b
 04e0 32e4fb    ld      (0fbe4h),a        ; COLOUR BYTE  copied into colour ram with every console output
 
+;	// Workaround found in MAME:  fix a bug that causes screen to be filled with 'p'
+;	ROM_FILL(0x4ee, 1, 0)
+;	ROM_FILL(0x4ef, 1, 8)
+;	ROM_FILL(0x4f6, 1, 0)
+;	ROM_FILL(0x4f7, 1, 8)
+	
 ; Clear screen routine
 04e3 e5        push    hl
 04e4 cdae06    call    06aeh			; Turns CRTC off
@@ -1091,6 +1098,7 @@
 070d 05        dec     b
 070e 14        inc     d
 
+; Get current video parameters (BC=text_colums, DE=?)
 070f ed5b8afc  ld      de,(0fc8ah)
 0713 012800    ld      bc,0028h
 0716 db50      in      a,(50h)        ; get system status
@@ -1102,7 +1110,7 @@
 
 ; Cassette write on routine
 0723 3ae3fb    ld      a,(0fbe3h)        ; CASSETTE SPEED 01 = 1200 baud 02 = 600 baud  04 = 300 baud
-0726 cbff      set     7,a
+0726 cbff      set     7,a				 ; enable the "cassette write" flag bit
 0728 32e3fb    ld      (0fbe3h),a        ; CASSETTE SPEED 01 = 1200 baud 02 = 600 baud  04 = 300 baud
 072b cd8b07    call    078bh
 072e 0600      ld      b,00h
@@ -1113,60 +1121,71 @@
 0738 1803      jr      073dh			; Cassette output routine
 
 
+; Cassette output routine x2
 073a cd3d07    call    073dh			; Cassette output routine
-
+; Cassette output routine
 073d c5        push    bc
-073e cd5707    call    0757h
+073e cd5707    call    0757h			; long pulse (start bit)
 
-0741 0608      ld      b,08h
+0741 0608      ld      b,08h			; 1 byte
 0743 c5        push    bc
 0744 cb0f      rrc     a				; send first the rightmost bit
-0746 d45707    call    nc,0757h
-0749 dc6207    call    c,0762h
+0746 d45707    call    nc,0757h			; long pulse (bit=0)
+0749 dc6207    call    c,0762h			; short pulse (bit=1)
 074c c1        pop     bc
 074d 10f4      djnz    0743h
 
-074f cd6207    call    0762h
-0752 cd6207    call    0762h
+074f cd6207    call    0762h			; short pulse (stop bit)
+0752 cd6207    call    0762h			; .. x2  (stop bit)
 0755 c1        pop     bc
 0756 c9        ret     
 
+; send long pulse to cassette
 0757 f5        push    af
-0758 067d      ld      b,7dh
+0758 067d      ld      b,7dh			; 125
 075a 3ae3fb    ld      a,(0fbe3h)        ; CASSETTE SPEED 01 = 1200 baud 02 = 600 baud  04 = 300 baud
-075d cbbf      res     7,a
+075d cbbf      res     7,a				; mask out the "cassette write" flag bit
 075f 4f        ld      c,a
 0760 1809      jr      076bh
 
+; send short pulse to cassette
 0762 f5        push    af
-0763 063d      ld      b,3dh
+
+0763 063d      ld      b,3dh			; 61
 0765 3ae3fb    ld      a,(0fbe3h)        ; CASSETTE SPEED 01 = 1200 baud 02 = 600 baud  04 = 300 baud
-0768 cb27      sla     a
+0768 cb27      sla     a				; x2 ("cassette write" flag bit is wiped as well)
 076a 4f        ld      c,a
 
+; send pulse to cassette
 076b c5        push    bc
-076c 10fe      djnz    076ch
+076c 10fe      djnz    076ch			; delay
 076e c1        pop     bc
-076f 3e0e      ld      a,0eh
+
+076f 3e0e      ld      a,0eh			; cassette output signal=low
 0771 d363      out     (63h),a			; Parallel Port Interface Control word
+
 0773 c5        push    bc
-0774 10fe      djnz    0774h
+0774 10fe      djnz    0774h			; delay
 0776 c1        pop     bc
-0777 3e0f      ld      a,0fh
+
+0777 3e0f      ld      a,0fh			; cassette output signal=high
 0779 d363      out     (63h),a			; Parallel Port Interface Control word
+
 077b 0d        dec     c
-077c 20ed      jr      nz,076bh
+077c 20ed      jr      nz,076bh			; Repeat 'C' times
+
 077e f1        pop     af
 077f c9        ret
 
+; Cassette off routine
 0780 3ae3fb    ld      a,(0fbe3h)        ; CASSETTE SPEED 01 = 1200 baud 02 = 600 baud  04 = 300 baud
 0783 cb7f      bit     7,a
 0785 c8        ret     z
-0786 cbbf      res     7,a
+0786 cbbf      res     7,a				 ; turn off the "cassette write" flag bit
 0788 32e3fb    ld      (0fbe3h),a        ; CASSETTE SPEED 01 = 1200 baud 02 = 600 baud  04 = 300 baud
 
 078b c5        push    bc
-078c 062e      ld      b,2eh
+078c 062e      ld      b,2eh		;'*'
 078e c5        push    bc
 078f 019907    ld      bc,0799h
 0792 c5        push    bc
@@ -1185,7 +1204,7 @@
 07a0 cdc907    call    07c9h			; Casette read routine
 07a3 fea5      cp      0a5h				; header byte
 07a5 20f9      jr      nz,07a0h
-07a7 cd0f07    call    070fh
+07a7 cd0f07    call    070fh			; Get current video parameters (BC=text_colums, DE=?)
 ; Show '**' in green on the top-right corner
 07aa 2adffb    ld      hl,(0fbdfh)        ; CRTC value for "display start address"
 07ad 09        add     hl,bc
@@ -1205,17 +1224,17 @@
 07c7 d9        exx     
 07c8 c9        ret
 
-; Casette read routine
+; Casette read routine (get byte from tape)
 07c9 c5        push    bc
-07ca cd3a08    call    083ah			; get word from cassette (and throw it away)
-07cd cd3a08    call    083ah			; get word from cassette
+07ca cd3a08    call    083ah			; get pulse from cassette (and throw it away)
+07cd cd3a08    call    083ah			; get pulse from cassette
 07d0 fe1d      cp      1dh
 07d2 38f9      jr      c,07cdh
 07d4 3ae3fb    ld      a,(0fbe3h)        ; CASSETTE SPEED 01 = 1200 baud 02 = 600 baud  04 = 300 baud
 07d7 47        ld      b,a
 07d8 cb20      sla     b
 07da 05        dec     b
-07db cd3a08    call    083ah
+07db cd3a08    call    083ah			; get pulse from cassette
 07de 10fb      djnz    07dbh
 07e0 3e80      ld      a,80h
 07e2 cdeb07    call    07ebh
@@ -1230,8 +1249,8 @@
 07f0 47        ld      b,a
 07f1 0e00      ld      c,00h
 07f3 c5        push    bc
-07f4 cd3a08    call    083ah
-07f7 cd3a08    call    083ah
+07f4 cd3a08    call    083ah			; get pulse from cassette
+07f7 cd3a08    call    083ah			; get pulse from cassette
 07fa 81        add     a,c
 07fb 4f        ld      c,a
 07fc 10f9      djnz    07f7h
@@ -1252,7 +1271,7 @@
 0813 3d        dec     a
 0814 47        ld      b,a
 0815 2805      jr      z,081ch
-0817 cd3a08    call    083ah
+0817 cd3a08    call    083ah			; get pulse from cassette
 081a 10fb      djnz    0817h
 081c f1        pop     af
 081d c1        pop     bc
@@ -1260,8 +1279,9 @@
 081f c1        pop     bc
 0820 c9        ret
 
+; toggle top-right asterisk
 0821 d9        exx     
-0822 cd0f07    call    070fh
+0822 cd0f07    call    070fh			; Get current video parameters (BC=text_colums, DE=?)
 0825 2adffb    ld      hl,(0fbdfh)        ; CRTC value for "display start address"
 0828 09        add     hl,bc
 0829 2b        dec     hl
@@ -1275,6 +1295,7 @@
 0838 d9        exx     
 0839 c9        ret
 
+; get pulse from cassette
 083a c5        push    bc
 083b db62      in      a,(62h)			; Parallel and Cassette I/O port
 083d 4f        ld      c,a
@@ -1304,10 +1325,10 @@
 085d eb        ex      de,hl
 085e c1        pop     bc
 085f b7        or      a
-0860 ed42      sbc     hl,bc			; BC= program size
+0860 ed42      sbc     hl,bc			; HL= program size
 0862 da1c16    jp      c,161ch            ; Overflow Error (OV ERROR)
-0865 e3        ex      (sp),hl
-0866 c5        push    bc
+0865 e3        ex      (sp),hl			; (SP)='program size'
+0866 c5        push    bc				; (SP)='program position'
 0867 cd2307    call    0723h			; Cassette write on routine
 086a 3e2f      ld      a,2fh			; 'CLOADM' marker: 2F2F2F
 086c cd3d07    call    073dh			; Cassette output routine
@@ -1329,7 +1350,7 @@
 0889 7d        ld      a,l				; ..LSB
 088a cd3d07    call    073dh			; Cassette output routine
 
-088d 78        ld      a,b				; HL = Program size  ...MSB
+088d 78        ld      a,b				; BC = Program size  ...MSB
 088e cd3d07    call    073dh			; Cassette output routine
 0891 79        ld      a,c				; ..LSB
 0892 cd3d07    call    073dh			; Cassette output routine
@@ -1857,7 +1878,7 @@
 0bb0 f5        push    af
 0bb1 cde802    call    02e8h
 0bb4 d9        exx     
-0bb5 cd0f07    call    070fh
+0bb5 cd0f07    call    070fh			; Get current video parameters (BC=text_colums, DE=?)
 0bb8 2addfb    ld      hl,(0fbddh)        ; CURSOR POSITION relative to upper L.H. corner
 0bbb b7        or      a
 0bbc ed42      sbc     hl,bc
@@ -2894,11 +2915,11 @@
 11f8 3e00      ld      a,00h
 11fa 200f      jr      nz,120bh
 11fc d7        rst     10h            ; CHRGTB: Gets next character (or token) from BASIC text.
-11fd da6515    jp      c,1565h
+11fd da6515    jp      c,1565h		; ?FD Error
 1200 e65f      and     5fh
 1202 d641      sub     41h
 1204 fe0d      cp      0dh
-1206 d26515    jp      nc,1565h
+1206 d26515    jp      nc,1565h		; ?FD Error
 1209 3c        inc     a
 120a 23        inc     hl
 120b 12        ld      (de),a
@@ -2948,7 +2969,7 @@
 124a fe5b      cp      5bh			; 'Z'+1
 124c d0        ret     nc
 124d 1003      djnz    1252h
-124f c36515    jp      1565h
+124f c36515    jp      1565h		; ?FD Error
 
 1252 12        ld      (de),a
 1253 13        inc     de
@@ -3300,7 +3321,7 @@
 14c6 c1        pop     bc
 14c7 77        ld      (hl),a
 14c8 b7        or      a
-14c9 ca6a15    jp      z,156ah
+14c9 ca6a15    jp      z,156ah		; ?OD Error		(out of DATA)
 14cc fe2c      cp      ','
 14ce 2804      jr      z,14d4h
 14d0 10ef      djnz    14c1h
@@ -3356,7 +3377,7 @@
 1523 0e14      ld      c,14h
 1525 cd4d15    call    154dh
 1528 b7        or      a
-1529 203f      jr      nz,156ah
+1529 203f      jr      nz,156ah		; ?OD Error		(out of DATA)
 152b af        xor     a
 152c 4f        ld      c,a
 152d 0600      ld      b,00h
@@ -3391,9 +3412,11 @@
 1563 e1        pop     hl
 1564 c9        ret
 
-1565 1e2e      ld      e,2eh
+; ?FD Error
+1565 1e2e      ld      e,2eh		: ?FD Error
 1567 c38c28    jp      288ch        ; ERROR, E=error code
 
+; ?OD Error		(out of DATA)
 156a 1e06      ld      e,06h
 156c c38c28    jp      288ch        ; ERROR, E=error code
 
@@ -3710,7 +3733,7 @@
 
 ; DVBCDE - Divide FP by BCDE
 170c cdbf17    call    17bfh			; TSTSGN - Test sign of FPREG
-170f ca8428    jp      z,2884h
+170f ca8428    jp      z,2884h			; ?UL Error
 1712 2eff      ld      l,0ffh
 1714 cd7e17    call    177eh
 1717 34        inc     (hl)
@@ -4139,7 +4162,7 @@
 195e e7        rst     20h			; GETYPR - Get the number type (FAC)
 195f c8        ret     z
 ;  TYPE_ERR
-1960 1e18      ld      e,18h
+1960 1e18      ld      e,18h		; ?TM Error
 1962 c38c28    jp      288ch        ; ERROR, E=error code
 
 ; FPINT - Floating Point to Integer
@@ -4633,7 +4656,7 @@
 ; DBL_DIV - Double precision DIVIDE
 1c4f 3a4efe    ld      a,(0fe4eh)
 1c52 b7        or      a
-1c53 ca8428    jp      z,2884h
+1c53 ca8428    jp      z,2884h			; ?UL Error
 1c56 cd7117    call    1771h
 1c59 34        inc     (hl)
 1c5a 34        inc     (hl)
@@ -6348,19 +6371,20 @@
 25a3 23        inc     hl
 25a4 7e        ld      a,(hl)
 25a5 328cfb    ld      (0fb8ch),a
-25a8 0608      ld      b,08h
+
+25a8 0608      ld      b,08h			; 1 byte
 25aa cdd205    call    05d2h
 25ad 3a8cfb    ld      a,(0fb8ch)
 25b0 cb07      rlc     a
 25b2 328cfb    ld      (0fb8ch),a
 25b5 cb47      bit     0,a
 25b7 2808      jr      z,25c1h
-25b9 3e0e      ld      a,0eh
+25b9 3e0e      ld      a,0eh			; cassette output signal=low
 25bb d363      out     (63h),a			; Parallel Port Interface Control word
 25bd 10eb      djnz    25aah
 25bf 18dc      jr      259dh
 
-25c1 3e0f      ld      a,0fh
+25c1 3e0f      ld      a,0fh			; cassette output signal=high
 25c3 d363      out     (63h),a			; Parallel Port Interface Control word
 25c5 10e3      djnz    25aah
 25c7 18d4      jr      259dh
@@ -7069,7 +7093,7 @@
 2ae6 7b        ld      a,e
 2ae7 a0        and     b
 2ae8 f5        push    af
-2ae9 3a8bfb    ld      a,(0fb8bh)
+2ae9 3a8bfb    ld      a,(0fb8bh)		; Current system status
 2aec d370      out     (70h),a        ; Set system status
 2aee f1        pop     af
 2aef 2802      jr      z,2af3h
@@ -7297,7 +7321,7 @@
 2ca9 cd6c0d    call    0d6ch
 2cac af        xor     a
 2cad 328cfb    ld      (0fb8ch),a
-2cb0 2a85fb    ld      hl,(0fb85h)
+2cb0 2a85fb    ld      hl,(0fb85h)				; Max X resolution
 2cb3 2b        dec     hl
 2cb4 ed5badfb  ld      de,(0fbadh)
 2cb8 ed52      sbc     hl,de
@@ -7378,7 +7402,7 @@
 2d58 cdc813    call    13c8h
 2d5b a0        and     b
 2d5c f5        push    af
-2d5d 3a8bfb    ld      a,(0fb8bh)
+2d5d 3a8bfb    ld      a,(0fb8bh)		; Current system status
 2d60 d370      out     (70h),a        ; Set system status
 2d62 f1        pop     af
 2d63 c9        ret     
@@ -7490,7 +7514,7 @@
 2e38 28fa      jr      z,2e34h        ; wait for CSYNC - Composite video sync.signal 
 2e3a 78        ld      a,b
 2e3b 77        ld      (hl),a
-2e3c 3a8bfb    ld      a,(0fb8bh)
+2e3c 3a8bfb    ld      a,(0fb8bh)		; Current system status
 2e3f d370      out     (70h),a        ; Set system status
 2e41 e1        pop     hl
 2e42 c9        ret     
@@ -7932,7 +7956,8 @@
 323b 3a8afb    ld      a,(0fb8ah)
 323e cb9f      res     3,a
 3240 328afb    ld      (0fb8ah),a
-3243 c9        ret     
+3243 c9        ret
+
 3244 09        add     hl,bc
 3245 3a61fb    ld      a,(0fb61h)
 3248 a7        and     a
@@ -7943,7 +7968,8 @@
 3250 10fa      djnz    324ch
 3252 22affb    ld      (0fbafh),hl
 3255 cd5912    call    1259h
-3258 c9        ret     
+3258 c9        ret
+
 3259 c5        push    bc
 325a d5        push    de
 325b cdc813    call    13c8h
@@ -7976,7 +8002,7 @@
 3287 28fa      jr      z,3283h        ; wait for CSYNC - Composite video sync.signal 
 3289 78        ld      a,b
 328a 77        ld      (hl),a
-328b 3a8bfb    ld      a,(0fb8bh)
+328b 3a8bfb    ld      a,(0fb8bh)		; Current system status
 328e d370      out     (70h),a        ; Set system status
 3290 d1        pop     de
 3291 c1        pop     bc
@@ -8095,12 +8121,13 @@
 33c1 19        add     hl,de
 33c2 226dfb    ld      (0fb6dh),hl
 33c5 1899      jr      3360h
-33c7 c9        ret     
+33c7 c9        ret
+
 33c8 3a8afb    ld      a,(0fb8ah)
 33cb cb8f      res     1,a
 33cd 328afb    ld      (0fb8ah),a
 33d0 2aadfb    ld      hl,(0fbadh)
-33d3 ed5b85fb  ld      de,(0fb85h)
+33d3 ed5b85fb  ld      de,(0fb85h)				; Max X resolution
 33d7 3efc      ld      a,0fch
 33d9 a4        and     h
 33da 2019      jr      nz,33f5h
@@ -8196,8 +8223,8 @@
 347e 3a8afb    ld      a,(0fb8ah)
 3481 cb87      res     0,a
 3483 328afb    ld      (0fb8ah),a
-3486 118002    ld      de,0280h
-3489 ed5385fb  ld      (0fb85h),de
+3486 118002    ld      de,0280h			; 640
+3489 ed5385fb  ld      (0fb85h),de		; Max X resolution
 348d cd4c14    call    144ch
 3490 cd0f1d    call    1d0fh
 
@@ -8256,14 +8283,12 @@
 34f9 e5        push    hl
 34fa cd4b15    call    154bh
 34fd dd215200  ld      ix,0052h				; IX = {LO-RES Selection routine}
-
-; GETVAR: Find address of variable
 3501 cd9a1d    call    1d9ah
 3504 3a8afb    ld      a,(0fb8ah)
 3507 cbc7      set     0,a
 3509 328afb    ld      (0fb8ah),a
 350c 114001    ld      de,0140h
-350f ed5385fb  ld      (0fb85h),de
+350f ed5385fb  ld      (0fb85h),de				; Max X resolution
 3513 cd4c14    call    144ch
 3516 cd0f1d    call    1d0fh
 3519 210040    ld      hl,4000h
@@ -8710,7 +8735,7 @@
 38a6 2aadfb    ld      hl,(0fbadh)
 38a9 cb7c      bit     7,h
 38ab c0        ret     nz
-38ac ed5b85fb  ld      de,(0fb85h)
+38ac ed5b85fb  ld      de,(0fb85h)				; Max X resolution
 38b0 b7        or      a
 38b1 ed52      sbc     hl,de
 38b3 f2c718    jp      p,18c7h
@@ -9241,6 +9266,10 @@
 3ce3 7e        ld      a,(hl)
 3ce4 3c        inc     a
 3ce5 3c        inc     a
+
+;	Workaround observed in MAME:  patch out the protection
+;	ROM_FILL(0x3ce7, 1, 0)
+	
 3ce6 2007      jr      nz,3cefh
 3ce8 cd1b1d    call    1d1bh
 3ceb c1        pop     bc
@@ -9252,23 +9281,24 @@
 3cf2 c3f61c    jp      1cf6h
 
 3cf5 c9        ret     
-3cf6 1e02      ld      e,02h
-3cf8 c3023f    jp      3f02h
-3cfb 1e18      ld      e,18h
-3cfd c3023f    jp      3f02h
-3d00 1e08      ld      e,08h
-3d02 c3023f    jp      3f02h
-3d05 1e0e      ld      e,0eh
-3d07 c3023f    jp      3f02h
-3d0a 1e0c      ld      e,0ch
-3d0c c3023f    jp      3f02h
+3cf6 1e02      ld      e,02h		; ? SN Error
+3cf8 c3023f    jp      3f02h		; Flip ROM page and fire the error message
+3cfb 1e18      ld      e,18h		; ? DD Error
+3cfd c3023f    jp      3f02h		; Flip ROM page and fire the error message
+3d00 1e08      ld      e,08h		; ?FC Error
+3d02 c3023f    jp      3f02h		; Flip ROM page and fire the error message
+3d05 1e0e      ld      e,0eh		; ?UL Error
+3d07 c3023f    jp      3f02h		; Flip ROM page and fire the error message
+3d0a 1e0c      ld      e,0ch		; ?OM Error
+3d0c c3023f    jp      3f02h		; Flip ROM page and fire the error message
 3d0f db50      in      a,(50h)        ; get system status
-3d11 328bfb    ld      (0fb8bh),a
+3d11 328bfb    ld      (0fb8bh),a		; Current system status
 3d14 cbc7      set     0,a
 3d16 cb8f      res     1,a
 3d18 d370      out     (70h),a        ; Set system status
-3d1a c9        ret     
-3d1b 3a8bfb    ld      a,(0fb8bh)
+3d1a c9        ret
+
+3d1b 3a8bfb    ld      a,(0fb8bh)		; Current system status
 3d1e d370      out     (70h),a        ; Set system status
 3d20 c9        ret     
 3d21 dd21452d  ld      ix,2d45h            ; IX= {LNUM_PARM_0 - Get specified line number (2nd parameter)}
@@ -9277,7 +9307,7 @@
 3d2c c39a1d    jp      1d9ah
 3d2f dd21e229  ld      ix,29e2h
 3d33 c39a1d    jp      1d9ah
-3d36 dd212034  ld      ix,3420h
+3d36 dd212034  ld      ix,3420h		; OPRND_6
 3d3a 185e      jr      3d9ah
 3d3c dd213518  ld      ix,1835h            ; IX = {DEC_FACCU2HL - copy number value from FPREG (FP accumulator) to HL}
 3d40 1858      jr      3d9ah
@@ -9984,7 +10014,7 @@
 
 20fb 05        dec     b
 20fc 2008      jr      nz,2106h
-20fe 362e      ld      (hl),2eh
+20fe 362e      ld      (hl),2eh		; '*'
 2100 2213fe    ld      (0fe13h),hl    ; NXTOPR: Next operand, addr of decimal point in PBUF, etc..
 2103 23        inc     hl
 2104 48        ld      c,b
@@ -10260,7 +10290,7 @@
 2265 283c      jr      z,22a3h			; EXP
 2267 f26e22    jp      p,226eh
 226a b7        or      a
-226b ca8428    jp      z,2884h
+226b ca8428    jp      z,2884h			; ?UL Error
 226e b7        or      a
 226f cae315    jp      z,15e3h
 2272 d5        push    de
@@ -11444,7 +11474,7 @@ INT_OPR:
 2861 39        add     hl,sp
 2862 e1        pop     hl
 2863 d8        ret     c
-2864 1e0c      ld      e,0ch
+2864 1e0c      ld      e,0ch		; ?OM Error   (out of memory)
 2866 1824      jr      288ch        ; ERROR, E=error code
 
 2868 2a56fc    ld      hl,(0fc56h)        ; CURLIN: Current line number
@@ -11454,7 +11484,7 @@ INT_OPR:
 286e 2808      jr      z,2878h
 2870 3a12fe    ld      a,(0fe12h)        ; ONEFLG - Flag. FF during on error processing cleared by resume routine
 2873 b7        or      a
-2874 1e22      ld      e,22h
+2874 1e22      ld      e,22h			; ?ID Error
 2876 2014      jr      nz,288ch        ; ERROR, E=error code
 2878 c3ac2c    jp      2cach
 
@@ -11463,9 +11493,10 @@ INT_OPR:
 287e 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
 ; Syntax Error (SN ERROR)
 2881 1e02      ld      e,02h
-2883 011e14    ld      bc,141eh
-2886 011e00    ld      bc,001eh
-2889 011e24    ld      bc,241eh
+2883 011e14    ld      bc,141eh		; ?UL Error
+2886 011e00    ld      bc,001eh		; ?NF Error
+2889 011e24    ld      bc,241eh		; ?TM Error
+; ERROR, E=error code
 288c 2a56fc    ld      hl,(0fc56h)        ; CURLIN: Current line number
 288f 220afe    ld      (0fe0ah),hl            ; ERRLIN: Line No. in which error occured.
 2892 220cfe    ld      (0fe0ch),hl            ; Line No. in which error occured.
@@ -12136,7 +12167,7 @@ FIND_LNUM_0:
 2ccf 2a17fe    ld      hl,(0fe17h)            ; OLDTXT: Addr of last byte executed during error
 2cd2 7c        ld      a,h
 2cd3 b5        or      l
-2cd4 1e20      ld      e,20h
+2cd4 1e20      ld      e,20h			; ?CN Error
 2cd6 ca8c28    jp      z,288ch            ; ERROR, E=error code
 2cd9 eb        ex      de,hl
 2cda 2a15fe    ld      hl,(0fe15h)            ; OLDLIN: Last line number executed saved by stop/end
@@ -12320,7 +12351,7 @@ FIND_LNUM_0:
 2dc1 69        ld      l,c
 2dc2 2b        dec     hl
 2dc3 d8        ret     c
-2dc4 1e0e      ld      e,0eh
+2dc4 1e0e      ld      e,0eh		; ?UL Error
 2dc6 c38c28    jp      288ch        ; ERROR, E=error code
 
 ; __RETURN
@@ -12331,7 +12362,7 @@ FIND_LNUM_0:
 2dcf f9        ld      sp,hl
 2dd0 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
 2dd3 fe91      cp      91h			; TK_GOSUB
-2dd5 1e04      ld      e,04h
+2dd5 1e04      ld      e,04h		; ?RG Error
 2dd7 c28c28    jp      nz,288ch        ; ERROR, E=error code
 2dda e1        pop     hl
 2ddb 2256fc    ld      (0fc56h),hl        ; CURLIN: Current line number
@@ -12466,7 +12497,7 @@ FIND_LNUM_0:
 2e9a 1112fe    ld      de,0fe12h        ; ONEFLG - Flag. FF during on error processing cleared by resume routine
 2e9d 1a        ld      a,(de)
 2e9e b7        or      a
-2e9f ca8a28    jp      z,288ah
+2e9f ca8a28    jp      z,288ah				; ?TM Error
 2ea2 3c        inc     a
 2ea3 324efc    ld      (0fc4eh),a            ; ERRFLG
 2ea6 12        ld      (de),a
@@ -12516,7 +12547,7 @@ FIND_LNUM_0:
 2ee9 5f        ld      e,a
 2eea fe2f      cp      2fh
 2eec 3802      jr      c,2ef0h
-2eee 1e26      ld      e,26h
+2eee 1e26      ld      e,26h		; ?LS Error
 2ef0 c38c28    jp      288ch        ; ERROR, E=error code
 
 ; __AUTO:
@@ -12734,7 +12765,7 @@ FIND_LNUM_0:
 306e c27b28    jp      nz,287bh			; DATSNR - 'SN err' entry for Input STMT
 3071 3ac9fd    ld      a,(0fdc9h)        ; 0 if input from cassette else non-zero
 3074 b7        or      a
-3075 1e2a      ld      e,2ah
+3075 1e2a      ld      e,2ah		; ?FD Error
 3077 ca8c28    jp      z,288ch        ; ERROR, E=error code
 307a c1        pop     bc
 307b 216330    ld      hl,3063h
@@ -12818,7 +12849,7 @@ FIND_LNUM_0:
 30ff c28a31    jp      nz,318ah			; FDTLP - Find next DATA statement
 3102 3ac9fd    ld      a,(0fdc9h)        ; 0 if input from cassette else non-zero
 3105 b7        or      a
-3106 1e06      ld      e,06h
+3106 1e06      ld      e,06h		;?OD Error		(out of DATA)
 3108 ca8c28    jp      z,288ch        ; ERROR, E=error code
 310b 3e3f      ld      a,3fh		; '?'
 310d cda00b    call    0ba0h        ; OUTC (alias OUTDO): print character
@@ -12910,7 +12941,7 @@ FIND_LNUM_0:
 3191 7e        ld      a,(hl)
 3192 23        inc     hl
 3193 b6        or      (hl)
-3194 1e06      ld      e,06h
+3194 1e06      ld      e,06h		;?OD Error		(out of DATA)
 3196 ca8c28    jp      z,288ch        ; ERROR, E=error code
 3199 23        inc     hl
 319a 5e        ld      e,(hl)
@@ -12929,7 +12960,7 @@ FIND_LNUM_0:
 31ad c40135    call    nz,3501h        ; GETVAR: Find address of variable
 31b0 22fffd    ld      (0fdffh),hl
 31b3 cd2028    call    2820h
-31b6 c28728    jp      nz,2887h
+31b6 c28728    jp      nz,2887h			; ?NF Error (next without for)
 31b9 f9        ld      sp,hl
 31ba 2208fe    ld      (0fe08h),hl            ; During execution: stack pointer value when statement execution begins.
 31bd d5        push    de
@@ -13236,7 +13267,7 @@ FIND_LNUM_0:
 
 ; OPRND: Get next expression value
 3393 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
-3394 1e28      ld      e,28h
+3394 1e28      ld      e,28h		; ?LS Error
 3396 ca8c28    jp      z,288ch        ; ERROR, E=error code
 3399 dad61c    jp      c,1cd6h
 339c cd282d    call    2d28h        ; IS_ALPHA_A
@@ -13310,6 +13341,8 @@ FIND_LNUM_0:
 3418 ca75fe    jp      z,0fe75h		; FN_FN
 341b d6d7      sub     0d7h
 341d d24234    jp      nc,3442h
+
+; OPRND_6
 3420 cd2932    call    3229h			; OPNPAR - Chk Syntax, make sure '(' follows
 3423 cf        rst     08h            ;   SYNCHR: Check syntax: next byte holds the byte to be found
 3424 29        defb  '('
@@ -13356,7 +13389,7 @@ FIND_LNUM_0:
 3461 1814      jr      3477h
 
 
-3463 cd2034    call    3420h
+3463 cd2034    call    3420h			; OPRND_6
 3466 e3        ex      (sp),hl
 3467 7d        ld      a,l
 3468 fe0c      cp      0ch
@@ -13479,7 +13512,7 @@ FIND_LNUM_0:
 34ff c5        push    bc
 ;3500 f6af      or      0afh
 3500           defb    f6h        ; OR $AF
-; GETVAR
+; GETVAR: Find address of variable
 3501 af        xor     a
 3502 32cefd    ld      (0fdceh),a    ; DIMFLG aka LCRFLG (Locate/Create and Type
 3505 46        ld      b,(hl)
@@ -13684,12 +13717,12 @@ FIND_LNUM_0:
 3621 20e0      jr      nz,3603h
 3623 3acefd    ld      a,(0fdceh)    ; DIMFLG aka LCRFLG (Locate/Create and Type
 3626 b7        or      a
-3627 1e12      ld      e,12h
+3627 1e12      ld      e,12h		; ?DD Error
 3629 c28c28    jp      nz,288ch        ; ERROR, E=error code
 362c f1        pop     af
 362d 96        sub     (hl)
 362e ca8936    jp      z,3689h
-3631 1e10      ld      e,10h
+3631 1e10      ld      e,10h		; ?BS Error
 3633 c38c28    jp      288ch        ; ERROR, E=error code
 
 3636 77        ld      (hl),a
@@ -13830,7 +13863,7 @@ FIND_LNUM_0:
 ; FN_USR
 36f2 cda8fe    call    0fea8h
 36f5 d7        rst     10h            ; CHRGTB: Gets next character or token from BASIC text.
-36f6 cd2034    call    3420h
+36f6 cd2034    call    3420h		; OPRND_6
 36f9 e5        push    hl
 36fa 21fa16    ld      hl,16fah
 36fd e5        push    hl
@@ -13860,7 +13893,7 @@ FIND_LNUM_0:
 3722 b5        or      l
 3723 e1        pop     hl
 3724 c0        ret     nz
-3725 1e16      ld      e,16h
+3725 1e16      ld      e,16h		; ?ID Error
 3727 c38c28    jp      288ch        ; ERROR, E=error code
 
 ; STR - STR BASIC function entry
@@ -13938,7 +13971,7 @@ FIND_LNUM_0:
 3792 e1        pop     hl
 3793 7e        ld      a,(hl)
 3794 c0        ret     nz
-3795 1e1e      ld      e,1eh
+3795 1e1e      ld      e,1eh		; ?ST Error
 3797 c38c28    jp      288ch        ; ERROR, E=error code
 
 
@@ -13981,7 +14014,7 @@ FIND_LNUM_0:
 37cd c9        ret
 
 37ce f1        pop     af
-37cf 1e1a      ld      e,1ah
+37cf 1e1a      ld      e,1ah		; ?OS Error
 37d1 ca8c28    jp      z,288ch        ; ERROR, E=error code
 37d4 bf        cp      a
 37d5 f5        push    af
@@ -14119,7 +14152,7 @@ FIND_LNUM_0:
 3892 2a41fe    ld      hl,(0fe41h)        ; FPREG - Floating Point Register (FACCU, FACLOW on Ext. BASIC)
 3895 e5        push    hl
 3896 86        add     a,(hl)
-3897 1e1c      ld      e,1ch
+3897 1e1c      ld      e,1ch		; ?LS Error
 3899 da8c28    jp      c,288ch        ; ERROR, E=error code
 389c cd4b37    call    374bh		; MKTMST - Make temporary string
 389f d1        pop     de
@@ -14632,7 +14665,7 @@ FIND_LNUM_0:
 3b6c b7        or      a
 3b6d 23        inc     hl
 3b6e 20ed      jr      nz,3b5dh
-3b70 cd2108    call    0821h
+3b70 cd2108    call    0821h			; toggle top-right asterisk
 3b73 10ea      djnz    3b5fh
 3b75 2219fe    ld      (0fe19h),hl        ; Addr of simple variables
 3b78 211328    ld      hl,2813h
@@ -14783,7 +14816,7 @@ FIND_LNUM_0:
 3c62 18e6      jr      3c4ah
 3c64 7e        ld      a,(hl)
 3c65 fe23      cp      23h
-3c67 3e2e      ld      a,2eh
+3c67 3e2e      ld      a,2eh		; '*'
 3c69 2090      jr      nz,3bfbh
 3c6b 0e01      ld      c,01h
 3c6d 23        inc     hl
@@ -15211,6 +15244,7 @@ FIND_LNUM_0:
 3efb 00        nop     
 3efc f20b00    jp      p,000bh
 3eff f20b00    jp      p,000bh
+
 3f02 db50      in      a,(50h)        ; get system status
 3f04 cbaf      res     5,a			; DISPEN - CRTC display enable signal
 3f06 d370      out     (70h),a        ; Set system status
