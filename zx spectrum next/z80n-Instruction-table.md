@@ -1,1 +1,1 @@
-[https://specnext.dev/wiki/Z80_Instruction_Table](https://specnext.dev/wiki/Z80_Instruction_Table "Z80 Next Instruction Table")
+[https://specnext.dev/wiki/Extended_Z80_instruction_set](https://specnext.dev/wiki/Extended_Z80_instruction_set "Extended Z80 instruction set")
