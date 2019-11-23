@@ -1,0 +1,135 @@
+    STATEMENTS
+TOKEN   COMMAND     M100/M102   KC85 / M10  T200
+128     END         $409F       $407B       $4DBA
+129     FOR         $0726       $072D       $0751
+130     NEXT        $4174       $4150       $4E90
+131     DATA        $099E       $09A5       $09C9
+132     INPUT       $0CA3       $0CAA       $0CCE
+133     DIM         $478B       $4741       $563F
+134     READ        $0CD9       $0CE0       $0D04
+135     LET         $09C3       $09CA       $09EE
+136     GOTO        $0936       $093D       $0961
+137     RUN         $090F       $0916       $093A
+138     IF          $0B1A       $0B21       $0B45
+139     RESTORE     $407F       $405B       $4D9A
+140     GOSUB       $091E       $0925       $0949
+141     RETURN      $0966       $096D       $0991
+142     REM         $09A0       $09A7       $09CB
+143     STOP        $409A       $4076       $4DB5
+144     WIDTH       $1DC3       $1D8C       $28A9
+145     ELSE        $09A0       $09A7       $09CB
+146     LINE        $0C45       $0C4C       $0C70
+147     EDIT        $5E51       $5B59       $7207
+148     ERROR       $0B0F       $0B16       $0B3A
+149     RESUME      $0AB0       $0AB7       $0ADB
+150     OUT         $110C       $1113       $1136
+151     ON          $0A2F       $0A36       $0A5A
+152     DSKO$       $5071       $5020       $5F28
+153     OPEN        $4CCB       $4C81       $5B8A
+154     CLOSE       $4E28       $4DDE       $5CE7
+155     LOAD        $4D70       $4D26       $5C2F
+156     MERGE       $4D71       $4D27       $5C30
+157     FILES       $1F3A       $1F05       $2A2A
+158     SAVE        $4DCF       $4D85       $5C8E
+159     LFILES      $506F       $501E       $5F26
+160     LPRINT      $0B4E       $0B55       $0B79
+161     DEF         $0872       $0879       $089D
+162     POKE        $128B       $1294       $12B7
+163     PRINT       $0B56       $0B5D       $0B81
+164     CONT        $40DA       $40B6       $4DF5
+165     LIST        $1140       $1147       $116A
+166     LLIST       $113B       $1142       $1165
+167     CLEAR       $40F9       $40D5       $4E14
+168     CLOAD       $2377       $234F       $30E7
+169     CSAVE       $2280       $2258       $2FDB
+170     TIME$       $19AB       $1975       $1B0E
+171     DATE$       $19BD       $1987       $1B23
+172     DAY$        $19F1       $19BD       $1B67
+173     COM         $1A9E       $1A6A       $1C22
+174     MDM         $1A9E       $1A6A       $1C22
+175     KEY         $1BB8       $1B81       $269E
+176     CLS         $4231       $420D       $4F4D
+177     BEEP        $4229       $4205       $4F45
+178     SOUND       $1DC5       $1D8E       $28AB
+179     LCOPY       $1E5E       $1E29       $2946
+180     PSET        $1C57       $1C20       $273D
+181     PRESET      $1C66       $1C2F       $274C
+182     MOTOR       $1DEC       $1DB5       $28D2
+183     MAX         $7F0B       $7BBB       $9BC1
+184     POWER       $1419       $1422       $146A
+185     CALL        $1DFA       $1DC3       $28E0
+186     MENU        $5797       $54A4       $67A4
+187     IPL         $1A78       $1A44       $1BFC
+188     NAME        $2037       $2008       $2B40
+189     KILL        $1F91       $1F63       $2A88
+190     SCREEN      $1E22       $1DEB       $2908
+191     NEW         $20FE       $20CF       $2C1B
+                                
+    OPERATORS               
+192     TAB(                        
+193     TO                      
+194     USING                       
+195     VARPTR                      
+196     ERL                     
+197     ERR                     
+198     STRING$                     
+199     INSTR                       
+200     DSKI$                       
+201     INKEY$                      
+202     CSRLIN                      
+203     OFF                     
+204     HIMEM                       
+205     THEN                        
+206     NOT                     
+207     STEP                        
+208     +                       
+209     -                       
+210     *                       
+211     /                       
+212     ^                       
+213     AND                     
+214     OR                      
+215     XOR                     
+216     EQV                     
+217     IMP                     
+218     MOD                     
+219     \                       
+220     >                       
+221     =                       
+222     <                       
+                                
+    FUNCTIONS               
+TOKEN   COMMAND     M100/M102   KC85 / M10      T200
+223     SGN         $3407       $33E0           $4158
+224     INT         $3654       $362D           $43A8
+225     ABS         $33F2       $33CB           $4143
+226     FRE         $2B4C       $2B25           $38B2
+227     INP         $1100       $1107           $112A
+228     LPOS        $10C8       $10CF           $10F2
+229     POS         $10CE       $10D5           $10F8
+230     SQR         $305A       $3033           $3DD2
+231     RND         $313E       $3117           $3EB6
+232     LOG         $2FCF       $2FA8           $3D47
+233     EXP         $30A4       $307D           $3E1C
+234     COS         $2EEF       $2EC8           $3C67
+235     SIN         $2F09       $2EE2           $3C81
+236     TAN         $2F58       $2F31           $3CD0
+237     ATN         $2F71       $2F4A           $3CE9
+238     PEEK        $1284       $128D           $12B0
+239     EOF         $1889       $1856           $19F8
+240     LOC         $506D       $501C / $5034   $5F24
+241     LOF         $506B       $501A / $5032   $5F22
+242     CINT        $3501       $34DA           $4255
+243     CSNG        $352A       $3503           $427E
+244     CDBL        $35BA       $3593           $430E
+245     FIX         $3645       $361E           $4399
+246     LEN         $2943       $291C           $36A9
+247     STR$        $273A       $2713           $34A0
+248     VAL         $2A07       $29E0           $376D
+249     ASC         $294F       $2928           $36B5
+250     CHR$        $295F       $2938           $36C5
+251     SPACE$      $298E       $2967           $36F4
+252     LEFT$       $29AB       $2984           $3711
+253     RIGHT$      $29DC       $29B5           $3742
+254     MID$        $29E6       $29BF           $374C
+255     '           $4EC5       $4EC5           $4EC5
