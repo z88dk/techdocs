@@ -31,6 +31,7 @@ defc ERRTRP      = $F652
 defc ONGSBF      = $F654
 defc POWR_FLAG   = $F656
 defc DUPLEX      = $F658
+defc ECHO        = $F659
 defc RS232LF     = $F65A
 defc STAT        = $F65B
 defc PIVOTCALL   = $F660
@@ -52,6 +53,7 @@ defc BUFFER      = $F680
 defc INPBFR      = $F681
 defc BUFMIN      = $F684
 defc KBUF        = $F685
+defc SAVE_CSRX   = $F6E7
 defc TTYPOS      = $F788
 defc FNKSTR      = $F789
 defc PERM_END    = $F88C
@@ -94,8 +96,7 @@ defc PORT_A8     = $FAAE
 defc IPL_FNAME   = $FAAF
 defc LBLIST      = $FABA
 defc SP_POWER    = $FABE
-defc RAM         = $FAC0	; PROGND
-defc PROGND      = $FBB2
+defc RAM         = $FAC0
 
 defc CAPTUR      = $FAC2
 defc RST38_OFFS  = $FAC9
@@ -123,31 +124,31 @@ defc HGETP         = $FAF8  ; offset: 30, Hook 1 for Locate FCB
 defc HOOK_20       = $FAFA  ; offset: 32
 defc HBINS         = $FAFC  ; offset: 34, Hook 2 for "SAVE"
 defc HBINL         = $FAFE  ; offset: 36, Hook for "MERGE/LOAD"
-defc HSAVD         = $FB00	; offset: 38, Init Hook for LOC, LOF, EOF, FPOS
+defc HEOF          = $FB00	; offset: 38, Init Hook for LOC, LOF, EOF, FPOS
 defc HPARD         = $FB02  ; offset: 40, Hook 1 for "Parse device name" event
 defc HNODE         = $FB04  ; offset: 42, Hook 2 for "Parse device name" event
 defc HOOK_2C       = $FB06  ; offset: 44, Extra Hook for "Parse device name" event
 defc HPOSD         = $FB08  ; offset: 46, Hook 3 for "Parse device name" event
 defc HGEND         = $FB0A  ; offset: 48, I/O function dispatcher
-defc TERM_F6_VECT  = $FB0C  ; offset: 50, Terminal, hook for F6 function key
-defc TERM_F7_VECT  = $FB0E  ; offset: 52, Terminal, hook for F7 function key
+defc TERM_F6_VECT  = $FB0C  ; offset: 50, Terminal, F6 function key
+defc TERM_F7_VECT  = $FB0E  ; offset: 52, Terminal, F7 function key
 defc TERM_EOF_VECT = $FB10  ; offset: 54, Terminal, EOF related hook
 defc TXT_ESC_VECT  = $FB12  ; offset: 56, Terminal, ESC related hook
-defc HWIDT         = $FB14  ; offset: 58
-defc HOOK_3C       = $FB16  ; offset: 60, ($3C=
+defc HWIDT         = $FB14  ; offset: 58, Hook for "WIDTH" statemen
+defc HOOK_3C       = $FB16  ; offset: 60
 defc HSCRE         = $FB18  ; offset: 62, Hook for "SCREEN"
-defc CRT_OPN_VECT  = $FB1A  ; offset: 64
+defc CRT_OPN_VECT  = $FB1A  ; offset: 64, CRT open routine
  ; offset: 66
-defc CRT_OUT_VECT  = $FB1E  ; offset: 68
-defc W_OPN_VECT    = $FB20  ; offset: 70
-defc W_CLS_VECT    = $FB22  ; offset: 72
-defc W_GET_VECT    = $FB24  ; offset: 74
-defc W_IO_VECT     = $FB26	; offset: 76
-defc HLOF          = $FB28	; offset: 78
-defc HLOC          = $FB2A	; offset: 80
-defc HFILE         = $FB2C	; offset: 82
-defc HDSKI         = $FB2E	; offset: 84
-defc HDSKO         = $FB30	; offset: 86
+defc CRT_OUT_VECT  = $FB1E  ; offset: 68, CRT output file routine
+defc W_OPN_VECT    = $FB20  ; offset: 70, WAND Open routine
+defc W_CLS_VECT    = $FB22  ; offset: 72, WAND Close routine
+defc W_GET_VECT    = $FB24  ; offset: 74, WAND Get routine
+defc W_IO_VECT     = $FB26	; offset: 76, WAND Special I/O
+defc HLOF          = $FB28	; offset: 78, Hook for "LOF"
+defc HLOC          = $FB2A	; offset: 80, Hook for "LOC"
+defc HFILE         = $FB2C	; offset: 82, Hook for "LFILES"
+defc HDSKI         = $FB2E	; offset: 84, Hook for "DSKI$"
+defc HDSKO         = $FB30	; offset: 86, Hook for "DSKO$"
 defc HKILL         = $FB32	; offset: 88, Hook for "KILL"
 defc HNAME         = $FB34	; offset: 90, Hook for "NAME"
 defc HSAVEM        = $FB36	; offset: 92, Hook for "SAVEM"
@@ -179,6 +180,7 @@ defc OLDLIN      = $FBAA
 defc OLDTXT      = $FBAC
 defc DO_FILES    = $FBAE
 defc CO_FILES    = $FBB0
+defc PROGND      = $FBB2
 defc VAREND      = $FBB4
 defc ARREND      = $FBB6
 defc DATPTR      = $FBB8
@@ -780,7 +782,7 @@ SYSVARS_ROM:
   DEFW $0000
   DEFW MAXRAM
   DEFW $00C9
-  DEFW HSAVD
+  DEFW HEOF
   DEFW $00C9
   DEFW $00C9
   DEFW $C900
@@ -1152,13 +1154,13 @@ EXEC_HL:
 EXEC_HL_0:
   DEC HL
   LD A,(HL)
-  CP $20
+  CP ' '
   JP Z,EXEC_HL_0
   CP $09
   JP Z,EXEC_HL_0
   INC HL
   LD A,(HL)
-  CP $20
+  CP ' '
   CALL Z,LOADFP_1
   PUSH DE
   CALL TOKENIZE
@@ -1360,7 +1362,7 @@ TOKENIZE:
   LD DE,INPBFR
 TOKENIZE_0:
   LD A,(HL)
-  CP $20
+  CP ' '
   JP Z,TOKENIZE_10
   LD B,A
   CP $22
@@ -1736,7 +1738,7 @@ _CHRGTB2:
   LD A,(HL)
   CP ':'
   RET NC
-  CP $20
+  CP ' '
   JP Z,_CHRGTB
   CP $0B
   JP NC,_CHRGTB2_0
@@ -1887,7 +1889,7 @@ ATOH_2_0:
   ADD HL,DE
   ADD HL,HL
   POP AF
-  SUB $30
+  SUB $30	; '0'
   LD E,A
   LD D,$00
   ADD HL,DE
@@ -3748,7 +3750,7 @@ CHGET_4:
   JP Z,CHGET_6
   PUSH HL
   LD A,($FAA1)
-  CP $0D
+  CP $0D         ; CR
   CALL Z,RESFPT
   LD HL,(HAYASHI)
   POP DE
@@ -4820,7 +4822,7 @@ WAND_CTL:
 ; Routine at 6281
 __EOF:
   RST $38
-  DEFB $26	; HSAVD, Offset: 38
+  DEFB $26	; HEOF, Offset: 38
   
   CALL GETFLP
   JP Z,CFERR
@@ -5169,8 +5171,8 @@ __DAY_S_6:
   DEC DE
   LD A,(HL)
   INC HL
-  SUB $30
-  CP $0A
+  SUB $30	; '0'
+  CP $0A	; 10
   JP NC,SNERR
   AND $0F
   LD (DE),A
@@ -5434,7 +5436,7 @@ OUTS_B_CHARS:
   LD A,(HL)
   CP $7F
   JP Z,OUTS_B_CHARS_0
-  CP $20
+  CP ' '
   JP NC,OUTS_B_CHARS_1
 OUTS_B_CHARS_0:
   LD A,' '
@@ -7599,7 +7601,7 @@ PRS1_0:
   RET Z
   LD A,(BC)
   RST OUTC
-  CP $0D
+  CP $0D         ; CR
   CALL Z,CONSOLE_CRLF_1
   INC BC
   JP PRS1_0
@@ -10715,7 +10717,7 @@ _ASCTFP_7:
   ADD A,E
   RLCA
   ADD A,(HL)
-  SUB $30
+  SUB $30	; '0'
   LD E,A
   JP _ASCTFP_7
 _ASCTFP_8:
@@ -10800,7 +10802,7 @@ _ASCTFP_19:
   POP HL
   RET
 _ASCTFP_20:
-  SUB $30
+  SUB $30	; '0'
   JP NZ,_ASCTFP_21
   OR C
   JP Z,_ASCTFP_21
@@ -10822,7 +10824,7 @@ _ASCTFP_22:
   PUSH BC
   PUSH HL
   LD A,(HL)
-  SUB $30
+  SUB $30	; '0'
   PUSH AF
   RST GETYPR
   JP P,_ASCTFP_26
@@ -11106,7 +11108,7 @@ PUFOUT_20:
   SUB D
   RET Z
   LD A,(HL)
-  CP $20
+  CP ' '
   JP Z,PUFOUT_19
   CP $2A
   JP Z,PUFOUT_19
@@ -12367,7 +12369,7 @@ OUTDO_CRLF:
 
 ; Send LF to screen or printer
 OUTDO_LF:
-  LD A,$0A
+  LD A,$0A         ; LF
   RST OUTC
   RET
 
@@ -12491,7 +12493,7 @@ EXTREV:
 ; INSLIN, ERAEOL, _ESC_X, ENTREV and POSIT.
 ESCA:
   PUSH AF
-  LD A,$1B
+  LD A,$1B	; ESC
   RST OUTC
   POP AF
   RST OUTC
@@ -12563,7 +12565,8 @@ DSPFNK_0:
   LD HL,FNKSTR
   LD E,$08
   LD A,(REVERSE)
-  PUSH AF
+
+  PUSH AF			; Save "reverse" status
   CALL EXTREV
 DSPFNK_1:
   LD A,(ACTV_Y)
@@ -12591,8 +12594,9 @@ DSPFNK_3:
   CALL ERAEOL
   CALL L4235
   POP AF
+  
   AND A
-  CALL NZ,ENTREV
+  CALL NZ,ENTREV	; Restore previous "reverse" status
   POP HL
   CALL POSIT
   CALL _ESC_X
@@ -12657,7 +12661,7 @@ OUTC_SUB_4:
   JP Z,_TAB
   CP $7F		; 'DEL' key code
   JP Z,ESC_L_3
-  CP $20
+  CP ' '
   JP C,TTY_JP_0
   CALL ESC_J_1
   CALL ESC_X_1
@@ -13318,7 +13322,7 @@ L4655:
   RET C
   CP $7F
   JP Z,INLIN_CURS
-  CP $20
+  CP ' '
   JP NC,INLIN_TAB_0
   LD HL,$466D
   LD C,$07
@@ -13486,11 +13490,11 @@ INXD_8:
   CALL RDBYT
   JP C,INXD_11
   LD (HL),A
-  CP $0D
+  CP $0D         ; CR
   JP Z,INXD_10
   CP $09
   JP Z,INXD_9
-  CP $20
+  CP ' '
   JP C,INXD_8
 INXD_9:
   INC HL
@@ -13936,7 +13940,7 @@ USING_4:
   INC HL
   CP $5C
   JP Z,$4B07
-  CP $20
+  CP ' '
   JP NZ,USING_5
   INC C
   DEC B
@@ -14226,12 +14230,12 @@ OUTC_TABEXP_3:
   POP AF
 ; This entry point is used by the routine at INIT_OUTPUT.
 OUTC_TABEXP_4:
-  CP $0A
+  CP $0A	; LF
   JP NZ,OUTC_TABEXP_5
   PUSH BC
   LD B,A
   LD A,(LPRINT_CH)
-  CP $0D
+  CP $0D         ; CR
   LD A,B
   POP BC
 OUTC_TABEXP_5:
@@ -14290,9 +14294,9 @@ CONSOLE_CRLF:
   JP NZ,CONSOLE_CRLF_1
 ; This entry point is used by the routines at __PRINT, __LIST and USING.
 CONSOLE_CRLF_0:
-  LD A,$0D
+  LD A,$0D         ; CR
   RST OUTC
-  LD A,$0A
+  LD A,$0A         ; LF
   RST OUTC
 ; This entry point is used by the routines at __PRINT and PRS1.
 CONSOLE_CRLF_1:
@@ -14368,7 +14372,7 @@ FNAME_2:
   DEC E				; end of filespecification string ?
   JP Z,FNAME_7		; yep, fill remaining FILNAME with spaces
   CALL UCASE_HL
-  CP $20					; control characters ?
+  CP ' '					; control characters ?
   JP C,FNAME_4			; yep, bad filename error
   CP $7F
   JP Z,FNAME_4
@@ -15035,7 +15039,7 @@ L4F2E_3:
 L4F2E_4:
   CALL RDBYT
   JP C,EFERR
-  CP $20
+  CP ' '
   JP NZ,L4F2E_5
   INC D
   DEC D
@@ -15060,11 +15064,11 @@ L4F2E_7:
   CP $22
   LD A,C
   JP Z,L4F2E_9
-  CP $0D
+  CP $0D         ; CR
   PUSH HL
   JP Z,L4F2E_13
   POP HL
-  CP $0A
+  CP $0A         ; LF
   JP NZ,L4F2E_9
 L4F2E_8:
   LD C,A
@@ -15074,12 +15078,12 @@ L4F2E_8:
   CALL NZ,L4F2E_18
   CALL RDBYT
   JP C,L4F2E_11
-  CP $0A
+  CP $0A         ; LF
   JP Z,L4F2E_8
-  CP $0D
+  CP $0D         ; CR
   JP NZ,L4F2E_9
   LD A,E
-  CP $20
+  CP ' '
   JP Z,L4F2E_10
   CP ','
   LD A,$0D
@@ -15099,21 +15103,21 @@ L4F2E_11:
   PUSH HL
   CP $22
   JP Z,L4F2E_12
-  CP $20
+  CP ' '
   JP NZ,NOSKCR
 L4F2E_12:
   CALL RDBYT
   JP C,NOSKCR
-  CP $20
+  CP ' '
   JP Z,L4F2E_12
   CP ','
   JP Z,NOSKCR
-  CP $0D
+  CP $0D         ; CR
   JP NZ,L4F2E_14
 L4F2E_13:
   CALL RDBYT
   JP C,NOSKCR
-  CP $0A
+  CP $0A         ; LF
   JP Z,NOSKCR
 L4F2E_14:
   LD HL,(PTRFIL)
@@ -15430,14 +15434,14 @@ GET_DEVICE:
 ; Used by the routine at TEL_BYE.
 TELCOM:
   CALL UNLOCK
-  LD HL,L51A4
+  LD HL,TELCOM_BAR
   CALL STDSPF
   JP TEL_GET_STAT
 ; This entry point is used by the routines at TELCOM_RDY, TEL_SET_STAT,
 ; TEL_CALL and TEL_FIND.
 TELCOM_0:
   CALL __BEEP
-  LD HL,L51A4
+  LD HL,TELCOM_BAR
   CALL STFNK
 
 ; TELCOM Ready re-entry point for TELCOM commands
@@ -15487,7 +15491,7 @@ L51A1:
 L51A3:
   DEFB $FF
   
-L51A4:
+TELCOM_BAR:
   DEFM "Find"
   DEFB $A0
   DEFM "Call"
@@ -15679,6 +15683,7 @@ TEL_DISC_0:
   OR $80
   OUT ($BA),A
   RET
+
 ; This entry point is used by the routines at TEL_LIFT and TEL_LOGON.
 TEL_DISC_1:
   LD A,(PORT_A8)
@@ -15904,9 +15909,9 @@ TEL_DIAL_DGT:
 TEL_DIAL_DGT_0:
   LD A,(DIAL_SPEED)
   RRCA
-  LD DE,$161C
+  LD DE,$161C	; D=22, E=28
   JP NC,TEL_DIAL_DGT_1
-  LD DE,$2440
+  LD DE,$2440	; D=36, E=64
 TEL_DIAL_DGT_1:
   CALL TEL_DISC_0
 TEL_DIAL_DGT_2:
@@ -15925,22 +15930,21 @@ TEL_DIAL_DGT_3:
   AND $01
   INC A
   JP TMDELA
-  LD D,B
-  LD (HL),D
-  LD H,L
-  OR $44
-  LD L,A
-  LD (HL),A
-  XOR $20
-  LD D,L
-  RET P
-  ADD A,B
-  ADD A,B
-  ADD A,B
-  ADD A,B
-  LD B,D
-  LD A,C
-  PUSH HL
+
+; Message at 21571
+TERM_BAR:
+  DEFM "Pre"
+  DEFB $F6
+  DEFM "Dow"
+  DEFB $EE
+  DEFM " U"
+  DEFB $F0
+  DEFB $80
+  DEFB $80
+  DEFB $80
+  DEFB $80
+  DEFM "By"
+  DEFB $E5
 
 ; TELCOM TERM instruction routine
 TEL_TERM:
@@ -15962,11 +15966,11 @@ TEL_TERM_0:
   LD (CAPTUR),A
   LD ($FAC3),A
   CALL ESC_J_10
-  LD HL,$5443
+  LD HL,TERM_BAR
   CALL STFNK
-  CALL DUPDSP
-  CALL ECHDSP
-  CALL WATDSP
+  CALL DUPDSP		; Display terminal 'DUPLEX' status
+  CALL ECHDSP		; Display terminal 'ECHO' status
+  CALL WATDSP		; Display 'Wait' status/message
   CALL DSPFNK
   CALL CURSON
 ; This entry point is used by the routines at DWNLDR and TEL_BYE.
@@ -15978,10 +15982,10 @@ TEL_TERM_1:
   AND A
   JP Z,TEL_TERM_2
   LD A,(ENDLCD)
-  LD HL,$F7D9
+  LD HL,$F7D9				; ..inside the FN key definition area, also used as a status bar
   XOR (HL)
   RRCA
-  CALL C,WATDSP
+  CALL C,WATDSP		; Display 'Wait' status/message
 TEL_TERM_2:
   CALL CHSNS
   JP Z,TEL_TERM_3
@@ -16002,7 +16006,7 @@ TEL_TERM_3:
   JP C,TEL_TERM_1
   RST OUTC
   LD B,A
-  LD A,($F659)
+  LD A,(ECHO)
   AND A
   LD A,B
   CALL NZ,OUTC_TABEXP
@@ -16017,8 +16021,8 @@ TEL_TERM_5:
   JP TEL_TERM_1
   CALL __BEEP
   XOR A
-  LD ($F659),A
-  CALL ECHDSP
+  LD (ECHO),A
+  CALL ECHDSP		; Display terminal 'ECHO' status
   JP TEL_TERM_1
 TEL_TERM_6:
   LD E,A
@@ -16079,15 +16083,16 @@ TEL_DUPLEX:
 ; Routine at 21828
 ;
 ; Used by the routine at TEL_TERM.
+; Display terminal 'DUPLEX' status
 DUPDSP:
   LD A,(DUPLEX)
-  LD DE,$F7B9
+  LD DE,$F7B9		; ..inside the FN key definition area, also used as a status bar
   LD HL,FULLHALF_MSG
   JP CHGDSP
 
 ; TELCOM ECHO function routine
 TEL_ECHO:
-  LD HL,$F659
+  LD HL,ECHO
   LD A,(HL)
   CPL
   LD (HL),A
@@ -16095,9 +16100,10 @@ TEL_ECHO:
 ; Routine at 21846
 ;
 ; Used by the routine at TEL_TERM.
+; Display terminal 'ECHO' status
 ECHDSP:
-  LD A,($F659)
-  LD DE,$F7C9
+  LD A,(ECHO)
+  LD DE,$F7C9		; ..inside the FN key definition area, also used as a status bar
   LD HL,ECHO_MSG
   JP CHGDSP
 
@@ -16106,7 +16112,7 @@ ECHDSP:
 ; Used by the routine at TEL_TERM.
 WATDSP:
   LD A,(ENDLCD)
-  LD DE,$F7D9
+  LD DE,$F7D9		; ..inside the FN key definition area, also used as a status bar
   LD HL,WAIT_MSG
 
 ; Routine at 21867
@@ -16182,7 +16188,8 @@ UPLDR:
   LD A,$01
   LD ($FAC3),A
   LD ($F920),A
-  JP Z,$55FD
+  JP Z,L55FD		; JP if no extra args
+  
   CALL GETINT
   CP $0A
   RET C
@@ -16196,7 +16203,12 @@ UPLDR_0:
   LD ($FAC3),A
   POP AF
   POP DE
-  LD BC,$E1F1
+  
+  defb $01	; LD BC,NN
+L55FD:
+  POP AF
+  POP HL
+  
   PUSH DE
   PUSH HL
   CALL FNKSB
@@ -16231,13 +16243,13 @@ UPLDR_3:
   DEFB $36		; TERM_EOF_VECT, Offset: 54
 
   JP Z,L566C
-  CP $0A
+  CP $0A         ; LF
   JP NZ,UPLDR_4
   LD A,(RS232LF)
   AND A
   JP NZ,UPLDR_4
   LD A,($FAC6)
-  CP $0D
+  CP $0D         ; CR
 UPLDR_4:
   LD A,(HL)
   LD ($FAC6),A
@@ -16275,13 +16287,13 @@ TEL_DOWN:
   XOR $FF
   LD (CAPTUR),A
   JP Z,DWNLDR_2
-  LD HL,$56E2
+  LD HL,L56E2
 
 ; Routine at 22159
 DWNLDR:
   LD (ERRTRP),HL
   PUSH HL
-  LD HL,$5760
+  LD HL,DWNFMSG		; "File to Download"
   CALL PRINT_LINE
   CALL QINLIN
   RST CHRGTB
@@ -16324,6 +16336,8 @@ DWNLDR_4:
   CALL MCLEAR_4
   LD ($FAC4),HL
   RET NC
+
+L56E2:
   XOR A
   LD (CAPTUR),A
   CALL FNKSB
@@ -16344,15 +16358,15 @@ DWNLDR_6:
   RET Z
   CP $7F
   RET Z
-  CP $0A
+  CP $0A         ; LF
   JP NZ,DWNLDR_7
   LD A,($FAC6)
-  CP $0D
+  CP $0D         ; CR
 DWNLDR_7:
   LD A,C
   LD ($FAC6),A
   RET Z
-  CP $0D
+  CP $0D         ; CR
   SCF
   CCF
   RET NZ
@@ -16392,8 +16406,9 @@ UPLMSG_0:
 UPLMSG:
   DEFM "Upload"
   DEFB $00
+  
+DWNFMSG:
   DEFM "File to "
-
 DWNMSG:
   DEFM "Download"
   DEFB $00
@@ -16521,7 +16536,7 @@ __MENU_7:
 __MENU_8:
   CALL SHOW_TIME
   CALL CHGET_UCASE
-  CP $0D
+  CP $0D         ; CR
   JP Z,__MENU_15
   CP $08
   JP Z,__MENU_9
@@ -16529,7 +16544,7 @@ __MENU_8:
   JP Z,__MENU_9
   CP $15
   JP Z,__MENU_6
-  CP $20
+  CP ' '
   JP C,__MENU_11
   LD C,A
   LD A,($FDED)
@@ -16728,7 +16743,7 @@ DOTTED_FNAME_0:
   INC HL
   LD (HL),$00
   LD A,(DE)
-  CP $20
+  CP ' '
   RET Z
   LD (HL),$2E
   INC HL
@@ -17107,7 +17122,7 @@ L5B88:
 SCHEDL_DE_1:
   LD ($FDD7),HL
   CALL __CLS
-  LD HL,NOTE_MENU
+  LD HL,NOTE_BAR
   CALL STDSPF
   LD HL,$5BE2 
   LD (ERRTRP),HL
@@ -17135,7 +17150,7 @@ SCHEDL_DE_3:
   LD (PRTFLG),A
   CALL CONSOLE_CRLF
   CALL __BEEP
-  LD HL,NOTE_MENU
+  LD HL,NOTE_BAR
   CALL STFNK
   JP SCHEDL_DE_2
 
@@ -17233,22 +17248,23 @@ NEXT_CRLF:
 ; Used by the routines at TEL_FIND, TEL_LOGON, FIND_TEXT and NEXT_CRLF.
 IS_CRLF:
   LD A,(DE)
-  CP $0D
+  CP $0D         ; CR
   INC DE
   RET NZ
   LD A,(DE)
-  CP $0A
+  CP $0A         ; LF
   RET NZ
   INC DE
   RET
+
 ; This entry point is used by the routine at TEL_FIND.
 IS_CRLF_0:
   PUSH DE
-  LD HL,FNDTBL
+  LD HL,FIND_BAR
   CALL STFNK
   CALL IS_CRLF_5
   PUSH AF
-  LD HL,L51A4
+  LD HL,TELCOM_BAR
 IS_CRLF_1:
   CALL STFNK
   CALL SHOW_TIME_4
@@ -17258,17 +17274,19 @@ IS_CRLF_1:
 IS_CRLF_2:
   POP DE
   RET
+  
 ; This entry point is used by the routine at SHOW_TIME.
 IS_CRLF_3:
   PUSH DE
-  LD HL,$5D1E
+  LD HL,ADRSCL_BAR
   CALL STFNK
 IS_CRLF_4:
   CALL IS_CRLF_5
   CP $43
   JP Z,IS_CRLF_4
   PUSH AF
-  LD HL,NOTE_MENU
+  LD HL,NOTE_BAR
+  
   JP IS_CRLF_1
 IS_CRLF_5:
   CALL CHGET
@@ -17279,13 +17297,13 @@ IS_CRLF_5:
   CALL UCASE
   CP $51
   RET Z
-  CP $20
+  CP ' '
   RET Z
   CP $4D
   RET Z
   CP $43
   RET Z
-  CP $0D
+  CP $0D         ; CR
   JP NZ,IS_CRLF_5
   ADD A,$36
   RET
@@ -17328,7 +17346,7 @@ NOTE_DO:
   DEFM "NOTE.DO"
   DEFB $00
 
-NOTE_MENU:
+NOTE_BAR:
   DEFM "Find"
   DEFB $A0
   DEFB $80
@@ -17340,6 +17358,8 @@ NOTE_MENU:
   DEFB $80
   DEFM "Menu"
   DEFB $8D
+  
+ADRSCL_BAR:
   DEFB $80
   DEFB $80
   DEFM "Mor"
@@ -17350,8 +17370,8 @@ NOTE_MENU:
   DEFB $80
   DEFB $80
 
-; FNDTBL
-FNDTBL:
+
+FIND_BAR:
   DEFB $80
   DEFM "Call"
   DEFB $A0
@@ -17379,7 +17399,7 @@ L5D40:
 L5D40_0:
   LD A,(HL)
   INC HL
-  CP $20
+  CP ' '
   RET Z
   DEC HL
   RET
@@ -17531,7 +17551,7 @@ TEXT:
   CALL QINLIN
   RST CHRGTB
   AND A
-  JP Z,__MENU
+  JP Z,__MENU		; Bck to Menu if no args
   CALL OPENDO
   JP WAIT_SPC_1
   
@@ -17605,7 +17625,7 @@ __EDIT_1:
   LD A,(LABEL_LN)
   LD ($FACC),A
   LD HL,$0000
-  LD ($F6E7),HL		; SAVE_CSRX
+  LD (SAVE_CSRX),HL
 __EDIT_2:
   CALL RESFPT
   CALL CLR_ALLINT
@@ -17669,7 +17689,7 @@ __EDIT_4:
   LD L,A
   LD H,A
 __EDIT_5:
-  LD ($F6E7),HL		; SAVE_CSRX
+  LD (SAVE_CSRX),HL
   CALL L4F2E_1
   POP AF
   CP $07
@@ -17694,7 +17714,7 @@ __EDIT_7:
 ; Wait for a space to be entered on keyboard
 WAIT_SPC:
   CALL CHGET
-  CP $20
+  CP ' '
   JP NZ,WAIT_SPC
   RET
 
@@ -17722,7 +17742,7 @@ TEXT_TXT:
 WAIT_SPC_1:
   PUSH HL
   LD HL,$0000
-  LD ($F6E7),HL		; SAVE_CSRX
+  LD (SAVE_CSRX),HL
   LD A,$01
   LD HL,__MENU
 ; This entry point is used by the routine at __EDIT.
@@ -17765,7 +17785,7 @@ WAIT_SPC_4:
   CALL TXT_CTL_V_64
   CALL TXT_CTL_C_15
   POP DE
-  LD HL,($F6E7)		; SAVE_CSRX
+  LD HL,(SAVE_CSRX)
   ADD HL,DE
   CALL MCLEAR_6
   PUSH HL
@@ -17788,7 +17808,7 @@ WAIT_SPC_5:
   JP C,TXT_CTL_U_11
   CP $7F
   JP Z,TXT_CTL_H_0
-  CP $20
+  CP ' '
   JP NC,TXT_CTL_I
   LD C,A
   LD B,$00
@@ -17986,7 +18006,7 @@ TXT_CTL_H_1:
   CALL TXT_CTL_C_9
   POP HL
   LD A,(HL)
-  CP $1A
+  CP $1A         ; CTRL/Z  (EOF)
   RET Z
   PUSH AF
   PUSH HL
@@ -17998,14 +18018,15 @@ TXT_CTL_H_2:
   CALL $6256
   POP HL
   POP AF
-  CP $0D
+  CP $0D         ; CR
   JP NZ,TXT_CTL_H_3
   LD A,(HL)
-  CP $0A
+  CP $0A         ; LF
   JP NZ,TXT_CTL_H_3
   PUSH AF
   PUSH HL
   JP TXT_CTL_H_2
+  
 ; This entry point is used by the routine at TXT_CTL_I.
 TXT_CTL_H_3:
   PUSH HL
@@ -18653,11 +18674,11 @@ TXT_CTL_U_7:
   LD A,(DE)
   CP $1A
   JP Z,TXT_CTL_U_9
-  CP $0D
+  CP $0D         ; CR
   JP NZ,TXT_CTL_U_8
   INC DE
   LD A,(DE)
-  CP $0A
+  CP $0A         ; LF
   JP NZ,TXT_CTL_U_8
   INC BC
 TXT_CTL_U_8:
@@ -18683,6 +18704,7 @@ TXT_CTL_U_10:
   POP BC
   POP HL
   RET
+
 ; This entry point is used by the routines at WAIT_SPC and TXT_CTL_P.
 TXT_CTL_U_11:
   CALL TXT_CTL_C
@@ -18756,7 +18778,7 @@ TXT_CTL_N:
   POP HL
   RST CPDEHL
   JP C,TXT_CTL_N_0
-  CALL $6981
+  CALL L6981
   AND A
 TXT_CTL_N_0:
   CALL C,MOVE_TEXT_2
@@ -18866,7 +18888,7 @@ MOVE_TEXT_5:
   AND A
   JP Z,MOVE_TEXT_5
   POP HL
-  CP $0D
+  CP $0D         ; CR
   JP Z,MOVE_TEXT_7
   PUSH AF
   CALL MCLEAR_7
@@ -18886,7 +18908,7 @@ MOVE_TEXT_6:
   RET C
   CP $7F
   JP Z,INLIN_CURS
-  CP $20
+  CP ' '
   JP NC,MOVE_TEXT_9
   LD HL,$665B
   LD C,$07
@@ -18943,7 +18965,7 @@ TXT_CTL_Y:
   LD (ERRTRP),HL
   PUSH HL
   LD HL,(CSRX)
-  LD ($F6E7),HL		; SAVE_CSRX
+  LD (SAVE_CSRX),HL
   LD HL,WIDTH_MSG
   LD DE,$F64A
   CALL MOVE_TEXT_4
@@ -18980,7 +19002,7 @@ TXT_CTL_Y_0:
 TXT_CTL_Y_1:
   CALL MOVE_TEXT_2
 TXT_CTL_Y_2:
-  LD HL,($F6E7)		; SAVE_CSRX
+  LD HL,(SAVE_CSRX)
   CALL POSIT
   JP WAIT_SPC_5
 ; This entry point is used by the routines at TXT_CTL_G and TXT_CTL_V.
@@ -19035,7 +19057,7 @@ L673E:
   LD HL,TXT_CTL_Y_3
   LD (ERRTRP),HL
   LD HL,(CSRX)
-  LD ($F6E7),HL		; SAVE_CSRX
+  LD (SAVE_CSRX),HL
   POP HL
   CALL MOVE_TEXT_3
   RST CHRGTB
@@ -19063,7 +19085,7 @@ TXT_CTL_G_1:
 
 ; TEXT control V routine
 TXT_CTL_V:
-  LD DE,$67D4
+  LD DE,L67D4
   CALL L673E
   JP C,TXT_CTL_Y_3
   JP Z,TXT_CTL_Y_1
@@ -19071,7 +19093,7 @@ TXT_CTL_V:
   LD HL,$67CB
   LD (ERRTRP),HL
   LD HL,($FB62)
-  LD ($F6E7),HL		; SAVE_CSRX
+  LD (SAVE_CSRX),HL
   LD ($FAC6),A
   EX (SP),HL
   LD E,$01
@@ -19094,15 +19116,17 @@ TXT_CTL_V_2:
   CALL L4F2E_1
 TXT_CTL_V_3:
   CALL TXT_CTL_V_64
-  LD HL,($F6E7)		; SAVE_CSRX
+  LD HL,(SAVE_CSRX)
   PUSH HL
-  CALL $6981
+  CALL L6981
   POP HL
   CALL TXT_CTL_C_9
   JP WAIT_SPC_5
   CALL L4F2E_1
   CALL TXT_CTL_N_4
   JP TXT_CTL_V_3
+  
+L67D4:
   LD C,H
   LD L,A
   LD H,C
@@ -19122,15 +19146,16 @@ TXT_CTL_V_4:
   POP DE
   LD A,(DE)
   INC DE
-  CP $1A
-  JP Z,TXT_CTL_V_11
-  CP $0D
-  JP Z,TXT_CTL_V_12
-  CP $09
-  JP Z,TXT_CTL_V_5
-  CP $20
-  JP C,TXT_CTL_V_9
-TXT_CTL_V_5:
+  CP $1A		; EOF, CTRL/Z
+  JP Z,TXT_CTLZ_EOF
+  CP $0D         ; CR		; CR
+  JP Z,TXT_CR
+  CP $09		; TAB
+  JP Z,TXT_TAB
+  CP ' '
+  JP C,TXT_SPC
+  
+TXT_TAB:
   CALL TXT_CTL_V_13
   JP NC,TXT_CTL_V_4
   LD A,(DE)
@@ -19138,17 +19163,18 @@ TXT_CTL_V_5:
   JP NZ,TXT_CTL_V_6
   CALL TXT_CTL_V_8
   LD A,(DE)
-  CP $20
+  CP ' '
   RET NZ
   LD A,($F920)
   AND A
   RET Z
   INC DE
   LD A,(DE)
-  CP $20
+  CP ' '
   RET NZ
   DEC DE
   RET
+
 TXT_CTL_V_6:
   EX DE,HL
   LD (PERM_END),HL
@@ -19160,6 +19186,7 @@ TXT_CTL_V_6:
   INC DE
   CALL TXT_CTL_V_26
   JP Z,TXT_CTL_V_8
+
 TXT_CTL_V_7:
   DEC DE
   LD A,(DE)
@@ -19178,7 +19205,8 @@ TXT_CTL_V_8:
   DEC A
   JP Z,TXT_CTL_V_20
   RET
-TXT_CTL_V_9:
+
+TXT_SPC:
   PUSH AF
   LD A,$5E
   CALL TXT_CTL_V_13
@@ -19191,6 +19219,7 @@ TXT_CTL_V_9:
   AND A
   JP NZ,TXT_CTL_V_20
   RET
+
 TXT_CTL_V_10:
   POP AF
   DEC DE
@@ -19200,7 +19229,8 @@ TXT_CTL_V_10:
   LD HL,$F890
   DEC (HL)
   JP TXT_CTL_V_19
-TXT_CTL_V_11:
+
+TXT_CTLZ_EOF:
   LD A,($F920)
   AND A
   LD A,$9B
@@ -19208,11 +19238,12 @@ TXT_CTL_V_11:
   CALL TXT_CTL_V_19
   LD DE,$FFFF
   RET
-TXT_CTL_V_12:
+
+TXT_CR:
   LD A,(DE)
-  CP $0A
-  LD A,$0D
-  JP NZ,TXT_CTL_V_9
+  CP $0A         ; LF
+  LD A,$0D       ; CR
+  JP NZ,TXT_SPC
   PUSH DE
   CALL TXT_CTL_V_21
   POP DE
@@ -19223,11 +19254,12 @@ TXT_CTL_V_12:
   CALL TXT_CTL_V_19
   INC DE
   RET
+
 TXT_CTL_V_13:
   PUSH HL
   CALL TXT_CTL_V_16
   LD HL,$F890
-  CP $09
+  CP $09		; TAB
   JP Z,TXT_CTL_V_14
   INC (HL)
   JP TXT_CTL_V_15
@@ -19242,12 +19274,14 @@ TXT_CTL_V_15:
   CP (HL)
   POP HL
   RET
+
 TXT_CTL_V_16:
   LD HL,($F892)
   LD (HL),A
   INC HL
   LD ($F892),HL
   RET
+
 TXT_CTL_V_17:
   LD HL,($F892)
   DEC HL
@@ -19263,6 +19297,7 @@ TXT_CTL_V_18:
   LD HL,$F890
   DEC (HL)
   RET
+
 TXT_CTL_V_19:
   LD A,($F890)
   LD HL,$F922
@@ -19280,6 +19315,7 @@ TXT_CTL_V_20:
   CALL TXT_CTL_V_16
   LD A,$0A
   JP TXT_CTL_V_16
+  
 TXT_CTL_V_21:
   CALL TXT_CTL_C_6
   LD A,($F920)
@@ -19308,6 +19344,7 @@ TXT_CTL_V_22:
   INC A
   LD H,$70
   JP TXT_CTL_V_25
+  
 TXT_CTL_V_23:
   EX DE,HL
   RST CPDEHL
@@ -19338,7 +19375,7 @@ TXT_CTL_V_26:
   RET Z
 ; This entry point is used by the routine at TXT_CTL_A.
 TXT_CTL_V_27:
-  LD HL,$6977
+  LD HL,SYMBS_TXT
   LD B,$0A
 TXT_CTL_V_28:
   CP (HL)
@@ -19351,15 +19388,16 @@ TXT_CTL_V_28:
   RET NC
   DEC B
   RET
-  JR Z,TXT_CTL_V_32
-  INC A
-  LD A,$5B
-  LD E,L
-  DEC HL
-  DEC L
-  LD HL,($CD2F)
-  CALL $A763
+
+SYMBS_TXT:
+  DEFM "()<>[]+-*/"
+
+; Used by the routines at TXT_CTL_N and TXT_CTL_V.
+L6981:
+  CALL MCLEAR_6
+  AND A
   RRA
+
 ; This entry point is used by the routines at WAIT_SPC and TXT_CTL_U.
 TXT_CTL_V_29:
   CALL GETEND_1
@@ -19374,6 +19412,7 @@ TXT_CTL_V_30:
   JP NZ,TXT_CTL_V_30
   INC A
   JP TXT_CTL_V_34
+
 ; This entry point is used by the routine at TXT_CTL_H.
 TXT_CTL_V_31:
   PUSH AF
@@ -19428,6 +19467,7 @@ TXT_CTL_V_35:
   CALL TXT_CTL_V_44
   JP NZ,TXT_CTL_V_35
   RET
+
 TXT_CTL_V_36:
   CALL TXT_CTL_V_40
 TXT_CTL_V_37:
@@ -19460,6 +19500,7 @@ TXT_CTL_V_42:
   CALL Z,EXTREV
   POP DE
   RET
+
 TXT_CTL_V_43:
   PUSH DE
   CALL TXT_CTL_V_48
@@ -19480,6 +19521,7 @@ TXT_CTL_V_45:
   LD (HL),D
   LD A,C
   RET
+
 ; This entry point is used by the routines at TXT_CTL_Z, TXT_CTL_C, TXT_CTL_U
 ; and TXT_CTL_N.
 TXT_CTL_V_46:
@@ -19502,6 +19544,7 @@ TXT_CTL_V_48:
   LD D,(HL)
   DEC HL
   RET
+
 ; This entry point is used by the routine at TXT_CTL_C.
 TXT_CTL_V_49:
   CALL TXT_CTL_V_47
@@ -19512,6 +19555,7 @@ TXT_CTL_V_49:
   DEC HL
   LD E,(HL)
   RET
+
 ; This entry point is used by the routine at GETEND.
 TXT_CTL_V_50:
   LD HL,($F767)
@@ -19519,6 +19563,7 @@ TXT_CTL_V_50:
   JP C,TXT_CTL_V_51
   LD DE,$0000
   RET
+
 TXT_CTL_V_51:
   PUSH DE
   DEC DE
@@ -19529,14 +19574,14 @@ TXT_CTL_V_52:
   RST CPDEHL
   JP NC,TXT_CTL_V_53
   LD A,(DE)
-  CP $0A
+  CP $0A         ; LF
   JP NZ,TXT_CTL_V_52
   DEC DE
   RST CPDEHL
   JP NC,TXT_CTL_V_53
   LD A,(DE)
   INC DE
-  CP $0D
+  CP $0D         ; CR
   JP NZ,TXT_CTL_V_52
   INC DE
 TXT_CTL_V_53:
@@ -19564,7 +19609,7 @@ TXT_CTL_V_54:
   
 ; This entry point is used by the routines at TXT_CTL_R and TXT_CTL_C.
 TXT_CTL_V_55:
-  LD ($F6E7),HL		; SAVE_CSRX
+  LD (SAVE_CSRX),HL
   PUSH HL
   LD HL,$F6EB
   CALL MCLEAR_6
@@ -19575,7 +19620,7 @@ TXT_CTL_V_56:
   LD D,(HL)
   INC HL
   PUSH HL
-  LD HL,($F6E7)		; SAVE_CSRX
+  LD HL,(SAVE_CSRX)
   RST CPDEHL
   JP C,TXT_CTL_V_57
   POP HL
@@ -19605,7 +19650,7 @@ TXT_CTL_V_59:
   LD A,(HL)
   CALL TXT_CTL_V_13
   LD A,(HL)
-  CP $20
+  CP ' '
   JP NC,TXT_CTL_V_59
   CP $09
   JP Z,TXT_CTL_V_59
@@ -19638,11 +19683,11 @@ TXT_CTL_V_61:
 TXT_CTL_V_62:
   DEC DE
   LD A,(DE)
-  CP $0A
+  CP $0A         ; LF
   JP NZ,TXT_CTL_V_63
   DEC DE
   LD A,(DE)
-  CP $0D
+  CP $0D         ; CR
   JP Z,TXT_CTL_V_63
   INC DE
 TXT_CTL_V_63:
@@ -20923,7 +20968,7 @@ DATAR_26:
   LD HL,GETPNT
   LD A,(HL)
   
-  ; CP $20
+  ; CP ' '
   defb $fe		; CP NN
 
 ; Routine at 29161
@@ -21085,7 +21130,7 @@ BRKCHK:
   RET P
   PUSH HL
   PUSH BC
-  LD HL,$F7CA
+  LD HL,$F7CA		; ..inside the FN key definition area, also used as a status bar
   LD C,A
   LD B,$00
   ADD HL,BC
@@ -22077,948 +22122,14 @@ L7710:
   DEFB $00
 
 
+
 ; FONT: 5 bytes for 0..127, 6 bytes for 128..255, total 1408 bytes
 FONT:
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFM "O"
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $07
-  DEFB $00
-  DEFB $07
-  DEFB $00
-  DEFB $14
-  DEFB $7F
-  DEFB $14
-  DEFB $7F
-  DEFB $14
-  DEFM "$*"
-  DEFB $7F
-  DEFM "*"
-  DEFB $12
-  DEFM "#"
-  DEFB $13
-  DEFB $08
-  DEFM "db:EJ0("
-  DEFB $00
-  DEFB $04
-  DEFB $02
-  DEFB $01
-  DEFB $00
-  DEFB $00
-  DEFB $1C
-  DEFM "\"A"
-  DEFB $00
-  DEFB $00
-  DEFM "A\""
-  DEFB $1C
-  DEFB $00
-  DEFM "\""
-  DEFB $14
-  DEFB $7F
-  DEFB $14
-  DEFM "\""
-  DEFB $08
-  DEFB $08
-  DEFM ">"
-  DEFB $08
-  DEFB $08
-  DEFB $00
-  DEFB $80
-  DEFB $60
-  DEFB $00
-  DEFB $00
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $00
-  DEFB $60
-  DEFB $60
-  DEFB $00
-  DEFB $00
-  DEFM "@ "
-  DEFB $10
-  DEFB $08
-  DEFB $04
-  DEFM ">QIE>DB"
-  DEFB $7F
-  DEFM "@@bQQIF\"AII6"
-  DEFB $18
-  DEFB $14
-  DEFB $12
-  DEFB $7F
-  DEFB $10
-  DEFM "GEE)"
-  DEFB $11
-  DEFM "<JII0"
-  DEFB $03
-  DEFB $01
-  DEFM "y"
-  DEFB $05
-  DEFB $03
-  DEFM "6III6"
-  DEFB $06
-  DEFM "II)"
-  DEFB $1E
-  DEFB $00
-  DEFB $00
-  DEFM "$"
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $80
-  DEFM "d"
-  DEFB $00
-  DEFB $00
-  DEFB $08
-  DEFB $1C
-  DEFM "6cA"
-  DEFB $14
-  DEFB $14
-  DEFB $14
-  DEFB $14
-  DEFB $14
-  DEFM "Ac6"
-  DEFB $1C
-  DEFB $08
-  DEFB $02
-  DEFB $01
-  DEFM "Q"
-  DEFB $09
-  DEFB $06
-  DEFM "2IyA>|"
-  DEFB $12
-  DEFB $11
-  DEFB $12
-  DEFM "|A"
-  DEFB $7F
-  DEFM "II6"
-  DEFB $1C
-  DEFM "\"AA\"A"
-  DEFB $7F
-  DEFM "A\""
-  DEFB $1C
-  DEFB $7F
-  DEFM "IIIA"
-  DEFB $7F
-  DEFB $09
-  DEFB $09
-  DEFB $09
-  DEFB $01
-  DEFM ">AII:"
-  DEFB $7F
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $7F
-  DEFB $00
-  DEFM "A"
-  DEFB $7F
-  DEFM "A"
-  DEFB $00
-  DEFM "0@A?"
-  DEFB $01
-  DEFB $7F
-  DEFB $08
-  DEFB $14
-  DEFM "\"A"
-  DEFB $7F
-  DEFM "@@@@"
-  DEFB $7F
-  DEFB $02
-  DEFB $0C
-  DEFB $02
-  DEFB $7F
-  DEFB $7F
-  DEFB $06
-  DEFB $08
-  DEFM "0"
-  DEFB $7F
-  DEFM ">AAA>"
-  DEFB $7F
-  DEFB $09
-  DEFB $09
-  DEFB $09
-  DEFB $06
-  DEFM ">AQ!"
-  DEFB $5E
-  DEFB $7F
-  DEFB $09
-  DEFB $19
-  DEFM ")F&III2"
-  DEFB $01
-  DEFB $01
-  DEFB $7F
-  DEFB $01
-  DEFB $01
-  DEFM "?@@@?"
-  DEFB $0F
-  DEFM "0@0"
-  DEFB $0F
-  DEFB $7F
-  DEFM " "
-  DEFB $18
-  DEFM " "
-  DEFB $7F
-  DEFM "c"
-  DEFB $14
-  DEFB $08
-  DEFB $14
-  DEFM "c"
-  DEFB $07
-  DEFB $08
-  DEFM "x"
-  DEFB $08
-  DEFB $07
-  DEFM "aQIEC"
-  DEFB $00
-  DEFB $7F
-  DEFM "AA"
-  DEFB $00
-  DEFB $04
-  DEFB $08
-  DEFB $10
-  DEFM " @"
-  DEFB $00
-  DEFM "AA"
-
-; Routine at 30789
+	BINARY  "FONT_L.BIN"
 L7845:
-  DEFB $7F
-  DEFB $00
-  DEFB $04
-  DEFB $02
-  DEFB $01
-  DEFB $02
-  DEFB $04
-  DEFM "@@@@@"
-  DEFB $00
-  DEFB $01
-  DEFB $02
-  DEFB $04
-  DEFB $00
-  DEFM " TTTx"
-  DEFB $7F
-  DEFM "(DD88DDD(8DD("
-  DEFB $7F
-  DEFM "8TTT"
-  DEFB $18
-  DEFB $08
-  DEFB $08
-  DEFM "~"
-  DEFB $09
-  DEFB $0A
-  DEFB $18
-  DEFB $A4
-  DEFB $A4
-  DEFB $98
-  DEFM "|"
-  DEFB $7F
-  DEFB $04
-  DEFB $04
-  DEFB $04
-  DEFM "x"
-  DEFB $00
-  DEFM "D}@"
-  DEFB $00
-  DEFM "@"
-  DEFB $80
-  DEFB $84
-  DEFM "}"
-  DEFB $00
-  DEFB $00
-  DEFB $7F
-  DEFB $10
-  DEFM "(D"
-  DEFB $00
-  DEFM "A"
-  DEFB $7F
-  DEFM "@"
-  DEFB $00
-  DEFM "|"
-  DEFB $04
-  DEFM "x"
-  DEFB $04
-  DEFM "x|"
-  DEFB $08
-  DEFB $04
-  DEFB $04
-  DEFM "x8DDD8"
-  DEFB $FC
-  DEFB $18
-  DEFM "$$"
-  DEFB $18
-  DEFB $18
-  DEFM "$$"
-  DEFB $18
-  DEFB $FC
-  DEFM "|"
-  DEFB $08
-  DEFB $04
-  DEFB $04
-  DEFB $08
-  DEFM "XTTT$"
-  DEFB $04
-  DEFM "?DD <@@<@"
-  DEFB $1C
-  DEFM " @ "
-  DEFB $1C
-  DEFM "<@8@<D("
-  DEFB $10
-  DEFM "(D"
-  DEFB $1C
-  DEFB $A0
-  DEFB $A0
-  DEFB $90
-  DEFM "|DdTLD"
-  DEFB $00
-  DEFB $08
-  DEFM "6AA"
-  DEFB $00
-  DEFB $00
-  DEFM "w"
-  DEFB $00
-  DEFB $00
-  DEFM "AA6"
-  DEFB $08
-  DEFB $00
-  DEFB $02
-  DEFB $01
-  DEFB $02
-  DEFB $04
-  DEFB $02
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFM "fwIIwf"
-  DEFB $FC
-  DEFB $86
-  DEFB $D7
-  DEFB $EE
-  DEFB $FC
-  DEFB $00
-  DEFB $7F
-  DEFM "c"
-  DEFB $14
-  DEFB $08
-  DEFB $14
-  DEFB $00
-  DEFM "xvbJ"
-  DEFB $0E
-  DEFB $00
-  DEFB $EE
-  DEFM "D"
-  DEFB $FF
-  DEFB $FF
-  DEFM "D"
-  DEFB $EE
-  DEFB $0C
-  DEFM "L"
-  DEFB $7F
-  DEFM "L"
-  DEFB $0C
-  DEFB $00
-  DEFM "|V"
-  DEFB $7F
-  DEFM "V|"
-  DEFB $00
-  DEFM "}wGw"
-  DEFB $7F
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFM "}"
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $10
-  DEFM " "
-  DEFB $1C
-  DEFB $02
-  DEFB $02
-  DEFB $02
-  DEFM "T4"
-  DEFB $1C
-  DEFB $16
-  DEFB $15
-  DEFB $00
-  DEFM "AcUIc"
-  DEFB $00
-  DEFM "$"
-  DEFB $12
-  DEFB $12
-  DEFM "$"
-  DEFB $12
-  DEFB $00
-  DEFM "DD_DD"
-  DEFB $00
-  DEFB $00
-  DEFM "@>"
-  DEFB $01
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $08
-  DEFB $1C
-  DEFM ">"
-  DEFB $00
-  DEFB $00
-  DEFB $98
-  DEFB $F4
-  DEFB $12
-  DEFB $12
-  DEFB $F4
-  DEFB $98
-  DEFB $F8
-  DEFB $94
-  DEFB $12
-  DEFB $12
-  DEFB $94
-  DEFB $F8
-  DEFB $14
-  DEFM "\""
-  DEFB $7F
-  DEFM "\""
-  DEFB $14
-  DEFB $00
-  DEFB $A0
-  DEFM "V=V"
-  DEFB $A0
-  DEFB $00
-  DEFM "L*"
-  DEFB $1D
-  DEFM "*H"
-  DEFB $00
-  DEFM "8(9"
-  DEFB $05
-  DEFB $03
-  DEFB $0F
-  DEFB $00
-  DEFB $16
-  DEFM "="
-  DEFB $16
-  DEFB $00
-  DEFB $00
-  DEFM "B%"
-  DEFB $15
-  DEFM "(T\""
-  DEFB $04
-  DEFB $02
-  DEFM "?"
-  DEFB $02
-  DEFB $04
-  DEFB $00
-  DEFB $10
-  DEFM " ~ "
-  DEFB $10
-  DEFB $00
-  DEFB $08
-  DEFB $08
-  DEFM "*"
-  DEFB $1C
-  DEFB $08
-  DEFB $00
-  DEFB $08
-  DEFB $1C
-  DEFM "*"
-  DEFB $08
-  DEFB $08
-  DEFB $00
-  DEFB $1C
-  DEFM "WaW"
-  DEFB $1C
-  DEFB $00
-  DEFB $08
-  DEFB $14
-  DEFM "\""
-  DEFB $14
-  DEFB $08
-  DEFB $00
-  DEFB $1E
-  DEFM "\"D\""
-  DEFB $1E
-  DEFB $00
-  DEFB $1C
-  DEFB $12
-  DEFM "q"
-  DEFB $12
-  DEFB $1C
-  DEFB $00
-  DEFB $00
-  DEFB $04
-  DEFB $02
-  DEFB $01
-  DEFB $00
-  DEFB $00
-  DEFM " UVTx"
-  DEFB $00
-  DEFB $0E
-  DEFM "Q1"
-  DEFB $11
-  DEFB $0A
-  DEFB $00
-  DEFM "d"
-  DEFB $7F
-  DEFM "EE "
-  DEFB $00
-  DEFB $00
-  DEFB $01
-  DEFB $02
-  DEFB $04
-  DEFB $00
-  DEFB $00
-  DEFB $7F
-  DEFB $10
-  DEFB $10
-  DEFB $0F
-  DEFB $10
-  DEFB $00
-  DEFB $00
-  DEFB $02
-  DEFB $05
-  DEFB $02
-  DEFB $00
-  DEFB $00
-  DEFB $04
-  DEFB $0C
-  DEFB $1C
-  DEFB $0C
-  DEFB $04
-  DEFB $00
-  DEFB $00
-  DEFB $04
-  DEFB $7F
-  DEFB $04
-  DEFB $00
-  DEFB $00
-  DEFB $18
-  DEFB $A7
-  DEFB $A5
-  DEFB $E5
-  DEFB $18
-  DEFB $00
-  DEFB $7F
-  DEFM "AeQ"
-  DEFB $7F
-  DEFB $00
-  DEFB $7F
-  DEFM "A]I"
-  DEFB $7F
-  DEFB $00
-  DEFB $17
-  DEFB $08
-  DEFM "4\"q"
-  DEFB $00
-  DEFM "U?"
-  DEFB $10
-  DEFM "hD"
-  DEFB $E2
-  DEFB $17
-  DEFB $08
-  DEFB $04
-  DEFM "jY"
-  DEFB $00
-  DEFB $06
-  DEFB $09
-  DEFB $7F
-  DEFB $01
-  DEFB $7F
-  DEFB $01
+	BINARY  "FONT_H.BIN"
 
-; FONT: 6 bytes for 128..255
-L7A11:
-  DEFM ")*|*)"
-  DEFB $00
-  DEFM "p)$)p"
-  DEFB $00
-  DEFM "8EDE8"
-  DEFB $00
-  DEFM "<A@A<"
-  DEFB $00
-  DEFB $1C
-  DEFM "\""
-  DEFB $7F
-  DEFM "\""
-  DEFB $14
-  DEFB $00
-  DEFB $08
-  DEFB $04
-  DEFB $04
-  DEFB $08
-  DEFB $04
-  DEFB $00
-  DEFM " UTUx"
-  DEFB $00
-  DEFM "0JHJ0"
-  DEFB $00
-  DEFM "<A@!|"
-  DEFB $00
-  DEFM "@"
-  DEFB $7F
-  DEFM "II>"
-  DEFB $00
-  DEFM "q"
-  DEFB $11
-  DEFM "g"
-  DEFB $11
-  DEFM "q"
-  DEFB $00
-  DEFM "8TVU"
-  DEFB $18
-  DEFB $00
-  DEFM "<AB |"
-  DEFB $00
-  DEFM "8UVT"
-  DEFB $18
-  DEFB $00
-  DEFB $00
-  DEFB $04
-  DEFB $00
-  DEFB $04
-  DEFB $00
-  DEFB $00
-  DEFM "H~I"
-  DEFB $01
-  DEFB $02
-  DEFB $00
-  DEFM "@"
-  DEFB $AA
-  DEFB $A9
-  DEFB $AA
-  DEFB $F0
-  DEFB $00
-  DEFM "p"
-  DEFB $AA
-  DEFB $A9
-  DEFB $AA
-  DEFM "0"
-  DEFB $00
-  DEFB $00
-  DEFB $02
-  DEFB $E9
-  DEFB $02
-  DEFB $00
-  DEFB $00
-  DEFM "0JIJ0"
-  DEFB $00
-  DEFM "8BA\"x"
-  DEFB $00
-  DEFB $08
-  DEFB $04
-  DEFB $02
-  DEFB $04
-  DEFB $08
-  DEFB $00
-  DEFM "8UTU"
-  DEFB $18
-  DEFB $00
-  DEFB $00
-  DEFB $02
-  DEFM "h"
-  DEFB $02
-  DEFB $00
-  DEFB $00
-  DEFM " TVU|"
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFM "j"
-  DEFB $01
-  DEFB $00
-  DEFB $00
-  DEFM "0HJI0"
-  DEFB $00
-  DEFM "<@B!|"
-  DEFB $00
-  DEFB $0C
-  DEFM "PRQ<"
-  DEFB $00
-  DEFM "z"
-  DEFB $11
-  DEFB $09
-  DEFB $0A
-  DEFM "q"
-  DEFB $00
-  DEFM "B"
-  DEFB $A9
-  DEFB $A9
-  DEFB $AA
-  DEFB $F1
-  DEFB $00
-  DEFM "2IIJ1"
-  DEFB $00
-  DEFB $E0
-  DEFM "RIR"
-  DEFB $E0
-  DEFB $00
-  DEFB $F8
-  DEFB $AA
-  DEFB $A9
-  DEFB $AA
-  DEFB $88
-  DEFB $00
-  DEFB $00
-  DEFB $8A
-  DEFB $F9
-  DEFB $8A
-  DEFB $00
-  DEFB $00
-  DEFM "p"
-  DEFB $8A
-  DEFB $89
-  DEFB $8A
-  DEFM "p"
-  DEFB $00
-  DEFM "x"
-  DEFB $82
-  DEFB $81
-  DEFB $82
-  DEFM "x"
-  DEFB $00
-  DEFB $00
-  DEFM "E|E"
-  DEFB $00
-  DEFB $00
-  DEFM "|UTUD"
-  DEFB $00
-  DEFM "|TVUD"
-  DEFB $00
-  DEFB $E0
-  DEFM "PJQ"
-  DEFB $E0
-  DEFB $00
-  DEFB $00
-  DEFB $88
-  DEFB $FA
-  DEFB $89
-  DEFB $00
-  DEFB $00
-  DEFM "p"
-  DEFB $88
-  DEFB $8A
-  DEFB $89
-  DEFM "p"
-  DEFB $00
-  DEFM "<@BA<"
-  DEFB $00
-  DEFB $0C
-  DEFB $10
-  DEFM "b"
-  DEFB $11
-  DEFB $0C
-  DEFB $00
-  DEFM "<AB@<"
-  DEFB $00
-  DEFM "|UVTD"
-  DEFB $00
-  DEFB $E0
-  DEFM "QJP"
-  DEFB $E0
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $0F
-  DEFB $0F
-  DEFB $0F
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $0F
-  DEFB $0F
-  DEFB $0F
-  DEFB $F0
-  DEFB $F0
-  DEFB $F0
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $F0
-  DEFB $F0
-  DEFB $F0
-  DEFB $0F
-  DEFB $0F
-  DEFB $0F
-  DEFB $F0
-  DEFB $F0
-  DEFB $F0
-  DEFB $F0
-  DEFB $F0
-  DEFB $F0
-  DEFB $0F
-  DEFB $0F
-  DEFB $0F
-  DEFB $0F
-  DEFB $0F
-  DEFB $0F
-  DEFB $0F
-  DEFB $0F
-  DEFB $0F
-  DEFB $F0
-  DEFB $F0
-  DEFB $F0
-  DEFB $F0
-  DEFB $F0
-  DEFB $F0
-  DEFB $FF
-  DEFB $FF
-  DEFB $FF
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $FF
-  DEFB $FF
-  DEFB $FF
-  DEFB $FF
-  DEFB $FF
-  DEFB $FF
-  DEFB $0F
-  DEFB $0F
-  DEFB $0F
-  DEFB $0F
-  DEFB $0F
-  DEFB $0F
-  DEFB $FF
-  DEFB $FF
-  DEFB $FF
-  DEFB $FF
-  DEFB $FF
-  DEFB $FF
-  DEFB $F0
-  DEFB $F0
-  DEFB $F0
-  DEFB $F0
-  DEFB $F0
-  DEFB $F0
-  DEFB $FF
-  DEFB $FF
-  DEFB $FF
-  DEFB $FF
-  DEFB $FF
-  DEFB $FF
-  DEFB $FF
-  DEFB $FF
-  DEFB $FF
-  DEFB $00
-  DEFB $00
-  DEFB $F8
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $F8
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $08
-  DEFB $08
-  DEFB $F8
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $00
-  DEFB $00
-  DEFB $FF
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $00
-  DEFB $00
-  DEFB $FF
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $0F
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $0F
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $08
-  DEFB $08
-  DEFB $0F
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFB $FF
-  DEFB $00
-  DEFB $00
-  DEFB $00
-  DEFB $08
-  DEFB $08
-  DEFB $FF
-  DEFB $08
-  DEFB $08
-  DEFB $08
-  DEFM "?"
-  DEFB $1F
-  DEFB $0F
-  DEFB $07
-  DEFB $03
-  DEFB $01
-  DEFB $80
-  DEFB $C0
-  DEFB $E0
-  DEFB $F0
-  DEFB $F8
-  DEFB $FC
-  DEFB $01
-  DEFB $03
-  DEFB $07
-  DEFB $0F
-  DEFB $1F
-  DEFM "?"
-  DEFB $FC
-  DEFB $F8
-  DEFB $F0
-  DEFB $E0
-  DEFB $C0
-  DEFB $80
-  DEFM "U"
-  DEFB $AA
-  DEFM "U"
-  DEFB $AA
-  DEFM "U"
-L7BF0:
-  DEFB $AA
+
 
 ; End of LCD character generator shape table.
 
