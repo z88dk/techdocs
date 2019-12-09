@@ -3,8 +3,12 @@
 defc CR = 13
 defc LF = 10
 
+
 defc MAXRAM      = $F5F0
+defc PWR_FLG     = $F5F2
 defc HIMEM       = $F5F4
+defc BOOT_VECT   = $F5F6
+
 defc BARCODE     = $F5F9
 defc UART        = $F5FC
 defc TIMER       = $F5FF
@@ -2527,6 +2531,7 @@ __LINE_0:
 ; Routine at 3225
 ;
 ; Used by the routine at __INPUT.
+; INPUT#
 INPUT_h:
   CALL INIT_PRINT_h_3
   PUSH HL
@@ -3402,6 +3407,7 @@ DEPINT:
   LD A,D
   OR A
   RET
+
 ; This entry point is used by the routine at __OUT.
 DEPINT_0:
   CALL GETINT
@@ -3978,7 +3984,7 @@ TURN_OFF:
   ADD HL,SP
   LD (SP_POWER),HL
   LD HL,$9C0B
-  LD ($F5F2),HL
+  LD (PWR_FLG),HL
 ; This entry point is used by the routines at __POWER and LOW_PWR.
 TURN_OFF_0:
   DI
@@ -4933,7 +4939,7 @@ __EOF_6:
 TIME_S_FN:
   RST CHRGTB
   PUSH HL
-  CALL L1962_0
+  CALL GET_DAY_0
   CALL READ_TIME
   JP TSTOPL
 
@@ -4943,15 +4949,15 @@ TIME_S_FN:
 READ_TIME:
   CALL READ_CLOCK
   LD DE,HRS_2
-  CALL L1962_2
+  CALL GET_DAY_2
   LD (HL),$3A
   INC HL
-  CALL L1962_2
+  CALL GET_DAY_2
   LD (HL),$3A
-; This entry point is used by the routine at L192F.
+; This entry point is used by the routine at GET_DATE.
 READ_TIME_0:
   INC HL
-  JP L1962_2
+  JP GET_DAY_2
 
 ; DATE$ function (as in Tandy docs)
 ;
@@ -4959,30 +4965,30 @@ READ_TIME_0:
 DATE_S_FN:
   RST CHRGTB
   PUSH HL
-  CALL L1962_0
-  CALL L192F
+  CALL GET_DAY_0
+  CALL GET_DATE
   JP TSTOPL
 
 ; Read system date, HL=8 byte area: DATE(mm/dd/yy)
 ;
 ; Used by the routines at DATE_S_FN and PRINT_TDATE.
-L192F:
+GET_DATE:
   CALL READ_CLOCK
   LD DE,MONTH
   LD A,(DE)
   CP $0A
   LD B,$30
-  JP C,L192F_0
+  JP C,GET_DATE_0
   LD B,$31
   SUB $0A
-L192F_0:
+GET_DATE_0:
   LD (HL),B
   INC HL
-  CALL L1962_4
+  CALL GET_DAY_4
   DEC DE
   LD (HL),$2F
   INC HL
-  CALL L1962_2
+  CALL GET_DAY_2
   LD (HL),$2F
   LD DE,YEAR_2
   JP READ_TIME_0
@@ -4994,14 +5000,14 @@ DAY_S_FN:
   RST CHRGTB
   PUSH HL
   LD A,$03
-  CALL L1962_1
-  CALL L1962
+  CALL GET_DAY_1
+  CALL GET_DAY
   JP TSTOPL
 
 ; Read system date, HL=3 byte area: DAY(ddd)
 ;
 ; Used by the routines at DAY_S_FN and PRINT_TDATE.
-L1962:
+GET_DAY:
   CALL READ_CLOCK
   LD A,(DAY)
   LD C,A
@@ -5010,7 +5016,7 @@ L1962:
   LD C,A
   LD B,$00
   EX DE,HL
-  LD HL,$1978
+  LD HL,WEEK_DAYS
   ADD HL,BC
   LD B,$03
   JP LDIR_B
@@ -5021,20 +5027,20 @@ WEEK_DAYS:
 
 ; Routine at 6541
 ; This entry point is used by the routines at TIME_S_FN and DATE_S_FN.
-L1962_0:
+GET_DAY_0:
   LD A,$08
 ; This entry point is used by the routine at DAY_S_FN.
-L1962_1:
+GET_DAY_1:
   CALL MKTMST
   LD HL,($FB8A)
   RET
-; This entry point is used by the routines at READ_TIME and L192F.
-L1962_2:
-  CALL L1962_3
-L1962_3:
+; This entry point is used by the routines at READ_TIME and GET_DATE.
+GET_DAY_2:
+  CALL GET_DAY_3
+GET_DAY_3:
   LD A,(DE)
-; This entry point is used by the routine at L192F.
-L1962_4:
+; This entry point is used by the routine at GET_DATE.
+GET_DAY_4:
   OR $30
   LD (HL),A
   DEC DE
@@ -5046,7 +5052,7 @@ INXH:
 
 ; Update F923H with the time in the internal hw clock
 ;
-; Used by the routines at READ_TIME, L192F, L1962 and __DAY_S.
+; Used by the routines at READ_TIME, GET_DATE, GET_DAY and __DAY_S.
 READ_CLOCK:
   PUSH HL
   LD HL,SECS
@@ -5662,6 +5668,8 @@ LINE_GFX_8:
   LD C,$1C
 LINE_GFX_9:
   LD ($F663),A
+
+L1D02:
   LD A,C
   LD ($F665),A
   LD B,H
@@ -5755,7 +5763,7 @@ LINE_GFX_17:
   INC E
   CP E
   JP C,FCERR
-  EX DE,HL
+  EX DE,HL	; cursor coordinates
   CALL POSIT
   LD A,H
   DEC A
@@ -6547,6 +6555,7 @@ RESFPT_7:
   LD A,$02
   LD ($F809),A
   RET
+
 RESFPT_8:
   EX DE,HL
   CALL UPD_PTRS_0
@@ -6559,6 +6568,7 @@ RESFPT_8:
   LD A,$01
   LD ($F809),A
   RET
+
 ; This entry point is used by the routine at SAVEBA.
 RESFPT_9:
   LD HL,(PROGND)
@@ -6949,7 +6959,7 @@ LOAD_RECORD_0:
 ; This entry point is used by the routine at __CLOAD.
 LOAD_RECORD_1:
   CALL CLRPTR
-  LD HL,$0000
+  LD HL,L0000
   LD (ERRTRP),HL
   JP HEADER_0
 ; This entry point is used by the routine at __CLOAD.
@@ -7122,7 +7132,7 @@ CLOADM_8:
 ; Move memory pointed to by HL to the memory pointed to by DE for B number of
 ; bytes.
 ;
-; Used by the routines at RAM_IO, L1962, CHGDSP, TXT_CTL_L, LOAD_BA_LBL,
+; Used by the routines at RAM_IO, GET_DAY, CHGDSP, TXT_CTL_L, LOAD_BA_LBL,
 ; SET_CLOCK_HL and BOOT.
 LDIR_B:
   LD A,(HL)
@@ -7517,7 +7527,7 @@ SAVSTR_1:
 
 ; Make temporary string
 ;
-; Used by the routines at L1962, CONCAT, __SPACE_S and INPUT_S.
+; Used by the routines at GET_DAY, CONCAT, __SPACE_S and INPUT_S.
 MKTMST:
   CALL TESTR
 
@@ -11764,6 +11774,7 @@ INTEXP_9:
   CALL L31CA
   CALL POP_FAC1
   JP INTEXP_8
+  
 INTEXP_10:
   PUSH BC
   PUSH DE
@@ -12605,7 +12616,7 @@ ERAFNK:
   PUSH HL
   CALL ESCA_0
   CALL ERAEOL
-  POP HL
+  POP HL	; cursor coordinates
   CALL POSIT
   CALL _ESC_X
   XOR A
@@ -12627,7 +12638,7 @@ DSPFNK:
   JP NZ,DSPFNK_0
   PUSH HL
   CALL ESC_J_12
-  LD L,$01
+  LD L,$01	; cursor coordinates
   CALL POSIT
   CALL DELLIN
   POP HL
@@ -12671,7 +12682,7 @@ DSPFNK_3:
   
   AND A
   CALL NZ,ENTREV	; Restore previous "reverse" status
-  POP HL
+  POP HL	; cursor coordinates
   CALL POSIT
   CALL _ESC_X
   XOR A
@@ -16050,7 +16061,7 @@ TEL_TERM_0:
 ; This entry point is used by the routines at DWNLDR and TEL_BYE.
 TEL_TERM_1:
   CALL RESTAK
-  LD HL,$54EF
+  LD HL,L54EF
   LD (ERRTRP),HL
   LD A,(XONXOFF)
   AND A
@@ -16086,6 +16097,7 @@ TEL_TERM_3:
   CALL NZ,OUTC_TABEXP
   CALL DWNLDR_3
   JP TEL_TERM_1
+
 TEL_TERM_4:
   XOR A
   LD (ENDLCD),A
@@ -16093,15 +16105,17 @@ TEL_TERM_5:
   CALL BREAK
   JP C,TEL_TERM_5
   JP TEL_TERM_1
+L54EF:
   CALL __BEEP
   XOR A
   LD (ECHO),A
   CALL ECHDSP		; Display terminal 'ECHO' status
   JP TEL_TERM_1
+
 TEL_TERM_6:
   LD E,A
   LD D,$FF
-  LD HL,$551D
+  LD HL,TEL_F6
   ADD HL,DE
   ADD HL,DE
   LD A,(HL)
@@ -16227,7 +16241,7 @@ WAIT_MSG:
 
 ; TELCOM UP function routine
 TEL_UP:
-  LD HL,$56EF
+  LD HL,L56EF
 
 ; Routine at 21920
 UPLDR:
@@ -16417,6 +16431,8 @@ L56E2:
   CALL FNKSB
   LD HL,DWNMSG
   JP DWNLDR_5
+
+L56EF:
   LD HL,UPLMSG
 DWNLDR_5:
   CALL PRINT_LINE
@@ -16542,7 +16558,7 @@ __MENU_0:
   LD (ERRTRP),HL
   CALL CLRFLK
   CALL _PRINT_TDATE
-  LD HL,$1C01
+  LD HL,$1C01	; cursor coordinates
   CALL POSIT
   LD HL,COPYRIGHT_MSG
   CALL PRINT_TEXT
@@ -16588,14 +16604,14 @@ __MENU_5:
   LD ($FDEE),A
   LD L,A
   CALL DOTTED_FNAME_2
-  LD HL,$1808
+  LD HL,$1808	; cursor coordinates
   CALL POSIT
   CALL FREEMEM
 __MENU_6:
   CALL L5D40_1
-  LD HL,$5906
+  LD HL,L5906
   LD (ERRTRP),HL
-  LD HL,$0108
+  LD HL,$0108	; cursor coordinates
   CALL POSIT
   LD HL,SELECT_PROMPT
   CALL PRINT_TEXT
@@ -16670,7 +16686,7 @@ __MENU_11:
   POP DE
   LD L,D
   CALL DOTTED_FNAME_2
-  POP HL
+  POP HL	; cursor coordinates
   CALL POSIT
   POP HL
   RET
@@ -16700,6 +16716,7 @@ __MENU_14:
   SUB A
   LD D,A
   RET
+
 __MENU_15:
   LD A,($FDED)
   OR A
@@ -16707,8 +16724,12 @@ __MENU_15:
   LD (HL),$00
   CALL CHKF_0
   JP NZ,__MENU_19
+
+; Routine at 22790
+L5906:
   CALL __BEEP
   JP __MENU_6
+
 __MENU_16:
   LD A,($FDEE)
   LD HL,$FDA1
@@ -16845,7 +16866,7 @@ DOTTED_FNAME_1:
   LD D,A
   INC D
   INC D
-  EX DE,HL
+  EX DE,HL	; cursor coordinates
   CALL POSIT
   POP HL
   POP DE
@@ -16890,10 +16911,10 @@ _PRINT_TDATE:
 PRINT_TDATE:
   CALL CURS_HOME
   LD HL,$FD8B
-  CALL L192F
+  CALL GET_DATE
   LD (HL),' '
   INC HL
-  CALL L1962
+  CALL GET_DAY
   EX DE,HL
   LD (HL),' '
   INC HL
@@ -17198,7 +17219,7 @@ SCHEDL_DE_1:
   CALL __CLS
   LD HL,NOTE_BAR
   CALL STDSPF
-  LD HL,$5BE2 
+  LD HL,L5BE2 
   LD (ERRTRP),HL
 ; This entry point is used by the routine at SCL_LFND.
 SCHEDL_DE_2:
@@ -17220,6 +17241,9 @@ SCHEDL_DE_3:
   LD DE,SCH_JPTAB
   CALL LOAD_BA_LBL_1
   RET NZ
+
+; Routine at 23522
+L5BE2:
   SUB A
   LD (PRTFLG),A
   CALL CONSOLE_CRLF
@@ -17528,7 +17552,7 @@ SHOW_TIME:
   PUSH AF
   CALL Z,PRINT_TDATE
   POP AF
-  POP HL
+  POP HL	; cursor coordinates
   PUSH AF
   CALL POSIT
   POP AF
@@ -17613,11 +17637,14 @@ SHOW_TIME_8:
 
 ; Routine at 24046
 TEXT:
-  LD HL,$5DFB
+  LD HL,L5DFB
   LD (ERRTRP),HL
   LD HL,TEXT_EMPTYBAR
   CALL STFNK
   XOR A
+
+; Routine at 24059
+L5DFB:
   CALL NZ,__BEEP
   CALL STKINI
   LD HL,EDFILE_MSG
@@ -17680,12 +17707,12 @@ __EDIT_0:
   LD ($FC95),A
   LD HL,$2020
   LD ($FC99),HL
-  LD HL,$5EDA
+  LD HL,L5EDA
   LD (ERRTRP),HL
   LD DE,$F802
   LD HL,BLANK_BYTE
   CALL _OPEN
-  LD HL,$5ED5
+  LD HL,L5ED5
   LD (ERRTRP),HL
   POP AF
   POP HL
@@ -17713,11 +17740,12 @@ __EDIT_2:
   JP WAIT_SPC_2
   
   XOR A
-  LD HL,$5EEB
+  LD HL,L5EEB
   LD (ERRTRP),HL
   LD HL,BLANK_BYTE
   LD D,$F8
   JP __MERGE_1
+  
 ; This entry point is used by the routine at INXD.
 __EDIT_3:
   CALL __CLS
@@ -17732,9 +17760,15 @@ __EDIT_4:
   LD A,($FACC)
   LD (LABEL_LN),A
   JP BASIC_0
+
+; Routine at 24277
+L5ED5:
   PUSH DE
   CALL KILLASC_4
   POP DE
+
+; Routine at 24282
+L5EDA:
   PUSH DE
   XOR A
   LD ($F651),A
@@ -17744,6 +17778,9 @@ __EDIT_4:
   CALL L4F2E_1
   POP DE
   JP ERROR
+
+; Routine at 24299
+L5EEB:
   LD A,E
   PUSH AF
   LD HL,($FC87)
@@ -17833,12 +17870,13 @@ WAIT_SPC_2:
   LD A,($F651)
   AND A
   JP Z,WAIT_SPC_3
-  LD HL,FONT_SYMS
+  LD HL,$7845		; H=120, L=69
   LD ($F7F9),HL
-  LD HL,L746A-1 ; $7469
+  ;LD HL,L746A-1 ; $7469
+  LD HL,$7469		; H=116, L=105
   LD ($F7FB),HL
 WAIT_SPC_3:
-  LD HL,L5E4F
+  LD HL,L5E4F		; H=94='^',  L=79='O'
   LD ($F88A),HL
   LD A,(ACTV_Y)
   LD ($F922),A
@@ -17886,7 +17924,7 @@ WAIT_SPC_5:
   JP NC,TXT_CTL_I
   LD C,A
   LD B,$00
-  LD HL,$6016
+  LD HL,CTL_JPTAB
   ADD HL,BC
   ADD HL,BC
   LD C,(HL)
@@ -17898,12 +17936,11 @@ WAIT_SPC_5:
 TXT_NUL:
   RET
   
-  DEC D
-  LD H,B
-
 ; Start of TEXT control character vector table (WORD ptr list starting with
 ; ^A).
+; Data block at 24598
 CTL_JPTAB:
+  DEFW TXT_NUL
   DEFW TXT_CTL_A
   DEFW TXT_CTL_B
   DEFW TXT_CTL_C
@@ -18130,10 +18167,10 @@ TXT_CTL_E_1:
   CALL TXT_CTL_V_47
   LD HL,($F767)
   RST CPDEHL
-  POP HL
+  POP HL	; cursor coordinates
   CCF
   RET C
-  DEC L
+  DEC L		
   CALL Z,TXT_CTL_C_12
 ; This entry point is used by the routine at TXT_CTL_X.
 TXT_CTL_E_2:
@@ -18199,7 +18236,7 @@ TXT_CTL_T:
   CALL TXT_CTL_V_47
   EX DE,HL
   CALL TXT_CTL_Z_1
-  POP HL
+  POP HL	; cursor coordinates
 ; This entry point is used by the routines at TXT_CTL_B and TXT_CTL_Q.
 TXT_CTL_T_0:
   CALL POSIT
@@ -18235,7 +18272,7 @@ TXT_CTL_B_0:
 ; TEXT control R routine
 TXT_CTL_R:
   LD A,(ACTV_Y)
-  LD H,A
+  LD H,A	; cursor coordinates
   CALL POSIT
   CALL TXT_CTL_V_61
   CALL TXT_CTL_V_55
@@ -18440,7 +18477,7 @@ TXT_CTL_C_12:
 TXT_CTL_C_13:
   PUSH AF
   PUSH HL
-  CALL $65DF
+  CALL L65DF
   CALL HOME
   CALL INSLIN
   CALL TXT_CTL_V_49
@@ -18644,7 +18681,7 @@ MCLEAR_10:
   CALL TXT_CTL_V_34
   XOR A
   LD ($F6E1),A
-  POP HL
+  POP HL	; cursor coordinates
   CALL POSIT
   POP AF
   RET
@@ -18858,9 +18895,10 @@ TXT_CTL_N_0:
   CALL C,MOVE_TEXT_2
   SCF
 TXT_CTL_N_1:
-  LD HL,$65CE
+  LD HL,NOMATCH_MSG
   CALL NC,TXT_CTL_N_5
   JP TXT_CTL_Z_0
+
 ; This entry point is used by the routines at TXT_CTL_Y and TXT_CTL_G.
 TXT_CTL_N_2:
   CALL TXT_CTL_C
@@ -18874,6 +18912,7 @@ TXT_CTL_N_3:
   PUSH HL
   CALL TXT_CTL_L_3
   JP TXT_CTL_I_2
+
 ; This entry point is used by the routines at TXT_CTL_Y and TXT_CTL_V.
 TXT_CTL_N_4:
   LD HL,ABTMSG
@@ -18883,7 +18922,7 @@ TXT_CTL_N_5:
   LD ($F6E1),A
 ; This entry point is used by the routine at MOVE_TEXT.
 TXT_CTL_N_6:
-  CALL $65DF
+  CALL L65DF
   CALL PRS
 
 ; Routine at 26041
@@ -18909,23 +18948,24 @@ MOVE_TEXT_0:
   JP NZ,MOVE_TEXT_0
   POP HL
   RET
-  LD C,(HL)
-  LD L,A
-  JR NZ,$663F
-  LD H,C
-  LD (HL),H
-  LD H,E
-  LD L,B
-  NOP
+
+; Routine at 26062
+NOMATCH_MSG:
+  DEFM "No match"
+  DEFB $00
 
 STRG_MSG:
   DEFM "String:"
   DEFB $00
 
-; $65DF
+
+; Routine at 26079
+;
+; Used by the routines at TXT_CTL_C and TXT_CTL_N.
+L65DF:
   PUSH HL
   CALL MCLEAR_7
-  LD H,$01	; cursor coordinates
+  LD H,$01
   CALL POSIT
   POP HL
   JP ERAEOL
@@ -18967,7 +19007,7 @@ MOVE_TEXT_5:
   PUSH AF
   CALL MCLEAR_7
   LD A,($FACA)
-  LD H,A
+  LD H,A	; cursor coordinates
   CALL POSIT
   CALL ERAEOL
   POP AF
@@ -19076,9 +19116,10 @@ TXT_CTL_Y_0:
 TXT_CTL_Y_1:
   CALL MOVE_TEXT_2
 TXT_CTL_Y_2:
-  LD HL,(SAVE_CSRX)
+  LD HL,(SAVE_CSRX)	; cursor coordinates
   CALL POSIT
   JP WAIT_SPC_5
+
 ; This entry point is used by the routines at TXT_CTL_G and TXT_CTL_V.
 TXT_CTL_Y_3:
   CALL TXT_CTL_Y_4
@@ -19164,7 +19205,7 @@ TXT_CTL_V:
   JP C,TXT_CTL_Y_3
   JP Z,TXT_CTL_Y_1
   PUSH HL
-  LD HL,$67CB
+  LD HL,L67CB
   LD (ERRTRP),HL
   LD HL,($FB62)
   LD (SAVE_CSRX),HL
@@ -19196,6 +19237,8 @@ TXT_CTL_V_3:
   POP HL
   CALL TXT_CTL_C_9
   JP WAIT_SPC_5
+; Routine at 26571
+L67CB:
   CALL L4F2E_1
   CALL TXT_CTL_N_4
   JP TXT_CTL_V_3
@@ -19506,7 +19549,7 @@ TXT_CTL_V_32:
   DEC A
   JP Z,TXT_CTL_V_33
   LD L,A	; cursor coordinates
-  LD H,$01
+  LD H,$01	; cursor coordinates
   CALL POSIT
   CALL TXT_CTL_V_41
   LD A,D
@@ -19521,7 +19564,7 @@ TXT_CTL_V_33:
 ; MOVE_TEXT.
 TXT_CTL_V_34:
   LD L,A	; cursor coordinates
-  LD H,$01
+  LD H,$01	; cursor coordinates
   CALL POSIT
   CALL TXT_CTL_V_47
   LD A,E
@@ -21490,7 +21533,7 @@ SET_CLOCK_HL_11:
   EX DE,HL
   LD ($FFF4),HL
   LD A,C
-  LD DE,L7710
+  LD DE,FONT
   SUB $20
   JP Z,SET_CLOCK_HL_12
   INC DE
@@ -22193,17 +22236,11 @@ L770B:
   DEFB $00
   DEFB $00
   DEFB $01
-L7710:
-  DEFB $00
-
 
 
 ; FONT: 5 bytes for 0..127 (TEXT), 6 bytes for 128..255 (SYMBOLS), total 1408 bytes
 FONT:
-	BINARY  "FONT_L.BIN"
-	
-FONT_SYMS:
-	BINARY  "FONT_H.BIN"
+	BINARY  "FONT.BIN"
 
 
 
@@ -22489,16 +22526,16 @@ BOOT_1:
   LD HL,OPTROM
   CP (HL)
   JP NZ,BOOT_4
-  LD HL,($F5F2)
+  LD HL,(PWR_FLG)
   EX DE,HL
   LD HL,$0000
-  LD ($F5F2),HL
+  LD (PWR_FLG),HL
   LD HL,$9C0B
   RST CPDEHL
   JP NZ,BOOT_2
   LD HL,(SP_POWER)
   LD SP,HL
-  CALL $F5F6
+  CALL BOOT_VECT
   CALL $7DD0
   LD HL,($FFF8)
   PUSH HL
@@ -22522,7 +22559,7 @@ BOOT_3:
   LD (FNKMAC),HL
   LD HL,(STRBUF)
   LD SP,HL
-  CALL $F5F6
+  CALL BOOT_VECT
   CALL _CLREG_1
   LD HL,__MENU
   PUSH HL
