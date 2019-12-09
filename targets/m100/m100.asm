@@ -7679,11 +7679,14 @@ TESTR_3:
   LD HL,(ARREND)
   PUSH HL
   LD HL,TEMPST
+
+; Routine at 10242
+L2802:
   EX DE,HL
   LD HL,(TEMPPT)
   EX DE,HL
   RST CPDEHL
-  LD BC,$2802
+  LD BC,L2802
   JP NZ,TESTR_9
   LD HL,$FBD9
   LD ($FBE2),HL
@@ -7753,12 +7756,15 @@ TESTR_8:
   ADD HL,BC
   ADD HL,BC
   INC HL
+
+; Routine at 10363
+L287B:
   EX DE,HL
   LD HL,($FB90)
   EX DE,HL
   RST CPDEHL
   JP Z,TESTR_8
-  LD BC,$287B
+  LD BC,L287B
 TESTR_9:
   PUSH BC
 TESTR_10:
@@ -20973,10 +20979,10 @@ DATAR_14:
   RRCA
   JP C,DATAR_18
 DATAR_15:
-  LD HL,$7CEF
+  LD HL,L7CEF
   POP AF
   JP NC,DATAR_16
-  LD HL,$7CDB
+  LD HL,L7CDB
 DATAR_16:
   ADD HL,BC
   LD A,(HL)
@@ -20984,6 +20990,7 @@ DATAR_16:
   OR A
   RRA
   LD C,A
+
   JP NC,DATAR_26
   CP $08
   JP NC,DATAR_17
@@ -21003,6 +21010,7 @@ DATAR_16:
   LD A,C
   OR $80
   JP DATAR_25
+
 DATAR_17:
   DEC B
   JP DATAR_26
@@ -21014,12 +21022,13 @@ DATAR_19:
   RRCA
   PUSH AF
   JP C,POPALL_INT_1
+  
 ; This entry point is used by the routine at POPALL_INT.
 DATAR_20:
-  LD HL,$7C49
+  LD HL,L7C49
   RRCA
   JP C,DATAR_22
-  LD HL,$7CA1
+  LD HL,L7CA1
   RRCA
   JP C,DATAR_22
   RRCA
@@ -21167,7 +21176,7 @@ POPALL_INT_4:
 POPALL_INT_5:
   LD A,(HL)
   LD E,$06
-  LD HL,$7CF9
+  LD HL,L7CF9
 POPALL_INT_6:
   CP (HL)
   INC HL
@@ -22249,14 +22258,17 @@ FONT:
 
 
 ; Start of keyboard conversion matrix
+;L7BF1:
 KBD_MAP:
   DEFM "zxcvbnmlasdfghjkqwertyuiop[;',./1234567890-="
 
 ; Message at 31773
+;L7C1D:
 KBD_MAP2:
   DEFM "ZXCVBNMLASDFGHJKQWERTYUIOP]:\"<>?!@#$%"
   DEFB $5E
   DEFM "&*()_+"
+L7C49:
   DEFB $00
   DEFB $83
   DEFB $84
@@ -22343,6 +22355,7 @@ KBD_MAP2:
   DEFB $00
   DEFM "|"
   DEFB $00
+L7CA1:
   DEFB $CE
   DEFB $A1
   DEFB $A2
@@ -22481,7 +22494,6 @@ L7CF9:
   DEFB $85
   DEFB $86
   DEFB $87
-
 L7D2F:
   DEFM "QRWZ"
 
@@ -22492,12 +22504,14 @@ L7D2F:
 BOOT:
   DI
   LD SP,ALT_LCD
-  LD HL,$2710
-BOOT_0:
+  
+  LD HL,10000	; delay
+BOOT_DELAY:
   DEC HL
   LD A,H
   OR L
-  JP NZ,BOOT_0
+  JP NZ,BOOT_DELAY
+  
   LD A,$43
   OUT ($B8),A
   LD A,$EC
@@ -22624,7 +22638,7 @@ BOOT_6:
   LD ($F932),A
   LD A,$3A
   LD (BUFFER),A
-  LD HL,PRMSTK
+  LD HL,PRMSTK			; ptr to previous block definition on stack
   LD ($FBD9),HL
   LD (STRBUF),HL
   LD (FILE_BUFFR),HL
