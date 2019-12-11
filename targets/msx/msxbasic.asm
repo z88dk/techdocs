@@ -2181,11 +2181,11 @@ ENDIF
   PUSH AF
 _LPTOUT_0:
   CALL _BREAKX		; Set CY if STOP is pressed
-  JR C,L0878
+  JR C,LPTOUT_BRK
   CALL _LPTSTT
   JR Z,_LPTOUT_0
   POP AF
-; This entry point is used by the routine at L0878.
+; This entry point is used by the routine at LPTOUT_BRK.
 _LPTOUT_1:
   PUSH AF
   OUT (PRN_DATA),A
@@ -2201,7 +2201,7 @@ _LPTOUT_1:
 ; Routine at 2168
 ;
 ; Used by the routine at _LPTOUT.
-L0878:
+LPTOUT_BRK:
   XOR A
   LD (LPTPOS),A
   LD A,CR
@@ -2877,7 +2877,7 @@ ELSE
   CALL HERAF			; Hook for ERAFNK std routine(no param.)
 ENDIF
   XOR A
-  CALL L0B9C
+  CALL UPD_CNSDFG
   RET NC
   PUSH HL
   LD HL,(CRTCNT)
@@ -2904,7 +2904,7 @@ ELSE
   CALL HDSPF		; Hook for DSPFNK std routine(no param.)
 ENDIF
   LD A,$FF
-  CALL L0B9C
+  CALL UPD_CNSDFG
   RET NC
   PUSH HL
   LD A,(CSRY)
@@ -2979,7 +2979,7 @@ _FNKSB_8:
 ; Routine at 2972
 ;
 ; Used by the routines at _ERAFNK and _FNKSB.
-L0B9C:
+UPD_CNSDFG:
   LD (CNSDFG),A		; FN key status
 ; This entry point is used by the routines at CLS, _TOTEXT, _CHPUT, DISP_CURSOR, ERASE_CURSOR and _CHSNS.
 IS_TXT:
@@ -5933,14 +5933,16 @@ _TAPOUT:
   LD A,L
   SUB $0E
   LD L,A
+  ; start bit (HL=LOW)
   CALL TAPSEND_0
   POP AF
-  LD B,$08
+  LD B,$08		; 8 bits
 _TAPOUT_0:
   RRCA
-  CALL C,TAPSEND_HIGH_X2
-  CALL NC,TAPSEND_LOW
+  CALL C,TAPSEND_HIGH_X2    ; '1'
+  CALL NC,TAPSEND_LOW       ; '0'
   DJNZ _TAPOUT_0
+  ; stop bits
   CALL TAPSEND_HIGH_X2
   CALL TAPSEND_HIGH_X2
   JP _BREAKX		; Set CY if STOP is pressed
@@ -6976,7 +6978,7 @@ L26C1:
   JP M,L26F7
   LD A,(ARG+8)
   LD (FACCU+8),A
-  CALL L2759
+  CALL BCDADD
   JP NC,DECROU
   EX DE,HL
   LD A,(HL)
@@ -6991,7 +6993,7 @@ L26C1:
 ;
 ; Used by the routine at L26BA.
 L26F7:
-  CALL L276B
+  CALL BCDSUB
 ; This entry point is used by the routines at BNORM and __RND.
 DECNRM:
 ; Normalize FACCU
@@ -7077,44 +7079,48 @@ L270C_5:
 ; Routine at 10073
 ;
 ; Used by the routine at L26BA.
-L2759:
+; Add the BCD number in (HL) to (DE).  Result in (DE)
+BCDADD:
   LD HL,ARG+7
   LD DE,FACCU+7
   LD B,$07
 ; This entry point is used by the routine at DECMUL.
 DAA_PASS2:
   XOR A
-L2759_1:
+  
+; Add the BCD number in (HL) to (DE).  Result in (DE)
+BCDADD_1:
   LD A,(DE)
   ADC A,(HL)
   DAA
   LD (DE),A
   DEC DE
   DEC HL
-  DJNZ L2759_1
+  DJNZ BCDADD_1
   RET
 
 ; Routine at 10091
 ;
 ; Used by the routine at L26F7.
-L276B:
+; Subtract the BCD number in (HL) from (DE).
+BCDSUB:
   LD HL,ARG+8
   LD A,(HL)
   CP $50
-  JR NZ,L276B_0
+  JR NZ,BCDSUB_0
   INC (HL)
-L276B_0:
+BCDSUB_0:
   LD DE,FACCU+8
   LD B,$08
   XOR A
-L276B_1:
+BCDSUB_1:
   LD A,(DE)
   SBC A,(HL)
   DAA
   LD (DE),A
   DEC DE
   DEC HL
-  DJNZ L276B_1
+  DJNZ BCDSUB_1
   RET NC
   EX DE,HL
   LD A,(HL)
@@ -7123,13 +7129,13 @@ L276B_1:
   LD HL,FACCU+8
   LD B,$08
   XOR A
-L276B_2:
+BCDSUB_2:
   LD A,$00
   SBC A,(HL)
   DAA
   LD (HL),A
   DEC HL
-  DJNZ L276B_2
+  DJNZ BCDSUB_2
   RET
 
 ; Routine at 10135
@@ -7715,7 +7721,7 @@ __LOG_0:
   ADD A,A
   SBC A,A
   LD H,A
-  CALL L2FCB
+  CALL HL_CSNG
   CALL ZERO_FACCU
   CALL USTAKARG
   CALL DECADD
@@ -7936,7 +7942,7 @@ HL2FACCU:
 
 ; Routine at 11361
 L2C61:
-  CALL L2FCB
+  CALL HL_CSNG
   LD HL,RNDX
 ; This entry point is used by the routines at __EXP, __RND, SMSER1, L37DF and
 ; L3878.
@@ -8348,8 +8354,9 @@ DEC_FACCU2HL:
 ; Used by the routine at __NEXT.
 ARG2DE:
   LD DE,ARG
-VAL2DE:
+
 ; Copy number value from HL to DE
+VAL2DE:
   EX DE,HL
   
 ; This entry point is used by the routines at __LET, __SWAP, TSTOPL and _MID_S.
@@ -8557,7 +8564,7 @@ __CSNG:
   RST GETYPR 		; Get the number type (FAC)
 L2FB3:
   RET PO
-  JP M,L2FC8
+  JP M,INT_CSNG
   JP Z,TYPE_ERR				; If string type, Err $0D - "Type mismatch"
   CALL SETTYPE_SNG
   CALL L3752
@@ -8568,11 +8575,11 @@ L2FB3:
   LD B,A
   JP L2741
 
-  ; --- START PROC L2FC8 ---
-L2FC8:
+  ; --- START PROC INT_CSNG ---
+INT_CSNG:
   LD HL,(FACLOW)			; DECIMAL ACCUMULATOR + 2
-  ; --- START PROC L2FCB ---
-L2FCB:
+  ; --- START PROC HL_CSNG ---
+HL_CSNG:
   LD A,H
   ; --- START PROC L2FCC ---
 L2FCC:
@@ -8678,14 +8685,14 @@ L3034:
   RST KEYINT 		;  Performs hardware interrupt procedures
   
 
-; This entry point is used by the routines at __EXP, TO_DOUBLE, L375F, L3878, L4D26 and L4EFC.
+; This entry point is used by the routines at __EXP, TO_DOUBLE, L375F, L3878, L4D26 and OPRND_3.
 ; Position: $303A
 __CDBL:
   RST GETYPR 		; Get the number type (FAC)
   RET NC
   JP Z,TYPE_ERR				; If string type, Err $0D - "Type mismatch"
-  CALL M,L2FC8
-; This entry point is used by the routines at __LOG, L324B, FMULT, L3265 and
+  CALL M,INT_CSNG
+; This entry point is used by the routines at __LOG, L324B, FMULT, DIVIDE and
 ; L3878.
 ZERO_FACCU:
   LD HL,$0000
@@ -8708,7 +8715,7 @@ SETTYPE_SNG_0:
 
 ; Routine at 12376
 ;
-; Used by the routines at __LINE, L4EFC, L60B1, L61C4, CONCAT, GETSTR, FN_INSTR and _MID_S.
+; Used by the routines at __LINE, OPRND_3, USING, L61C4, CONCAT, GETSTR, FN_INSTR and _MID_S.
 TSTSTR:
   RST GETYPR 		; Get the number type (FAC)
   RET Z
@@ -8866,10 +8873,10 @@ __FIX_3:
   LD E,$00
 __FIX_4:
   DEC HL
-  LD A,(HL)					; Reading returns INVERTED! previous written value
+  LD A,(HL)
   LD D,A
   AND $F0
-  LD (HL),A					; WR Secondary slot select register
+  LD (HL),A
   CP D
   JR Z,__FIX_5
   INC E
@@ -8877,7 +8884,7 @@ __FIX_5:
   DEC B
   JR Z,__FIX_7
   XOR A
-  LD (HL),A					; WR Secondary slot select register
+  LD (HL),A
   CP D
   JR Z,__FIX_6
   INC E
@@ -8914,13 +8921,13 @@ MLDEBC:
   LD A,$10
 MLDEBC_0:
   ADD HL,HL
-  JP C,SBSCT_ERR
+  JP C,SBSCT_ERR		; "Subscript error"
   EX DE,HL
   ADD HL,HL
   EX DE,HL
   JR NC,MLDEBC_1
   ADD HL,BC
-  JP C,SBSCT_ERR
+  JP C,SBSCT_ERR		; "Subscript error"
 MLDEBC_1:
   DEC A
   JR NZ,MLDEBC_0
@@ -8961,11 +8968,11 @@ IADD_0:
   JP P,L2FA2_0
   PUSH BC
   EX DE,HL
-  CALL L2FCB
+  CALL HL_CSNG
   POP AF
   POP HL
   CALL STAKI
-  CALL L2FCB
+  CALL HL_CSNG
   POP BC
   POP DE
   JP FADD
@@ -9018,10 +9025,10 @@ IMULT_4:
   POP BC
   POP HL
 IMULT_5:
-  CALL L2FCB
+  CALL HL_CSNG
   POP HL
   CALL STAKI
-  CALL L2FCB
+  CALL HL_CSNG
   POP BC
   POP DE
   JP FMULT
@@ -9032,14 +9039,14 @@ IMULT_6:
   POP BC
   JP M,INT_RESULT_HL
   PUSH DE
-  CALL L2FCB
+  CALL HL_CSNG
   POP DE
   JP NEG
 
  
 ; Data block at 12774
-  ; --- START PROC L31E6 ---
-L31E6:
+  ; --- START PROC INT_DIV ---
+INT_DIV:
   LD A,H
 L31E7:
   OR L
@@ -9117,7 +9124,7 @@ DBL_ABS:
   XOR $80
   OR L
   RET NZ
-; This entry point is used by the routines at L46E6, OPRND, L4FC1, FN_TIME and
+; This entry point is used by the routines at L46E6, OPRND, IMP_0, FN_TIME and
 ; L7BA3.
 DBL_ABS_0:
   XOR A
@@ -9128,7 +9135,7 @@ DBL_ABS_0:
 ; Used by the routine at L4F78.
 IMOD:
   PUSH DE
-  CALL L31E6
+  CALL INT_DIV
   XOR A
   ADD A,D
   RRA
@@ -9166,7 +9173,7 @@ FMULT:
 ; Routine at 12901
 ;
 ; Used by the routine at IDIV.
-L3265:
+DIVIDE:
   POP BC
   POP DE
 ; This entry point is used by the routine at __CIRCLE.
@@ -9185,7 +9192,7 @@ FDIV:
 
 ; Routine at 12928
 ;
-; Used by the routines at L324B, FMULT and L3265.
+; Used by the routines at L324B, FMULT and DIVIDE.
 DEC_HL2ARG:
   EX DE,HL
   LD (ARG+2),HL
@@ -9200,14 +9207,14 @@ DEC_HL2ARG:
 ; Routine at 12947
 ;
 ; Used by the routine at L35F9.
-L3293:
+DCR_A:
   DEC A
   RET
 
 ; Routine at 12949
 ;
 ; Used by the routines at L34C2 and L35F9.
-L3295:
+DCXH:
   DEC HL
   RET
 
@@ -9440,7 +9447,7 @@ L339D:
   RST GETYPR 		; Get the number type (FAC)
   JP P,L33D1
   LD HL,(FACLOW)
-  LD DE,$0CCD		; 
+  LD DE,$0CCD		; const
   RST DCOMPR		; Compare HL with DE.
 
 L33B3:
@@ -9470,7 +9477,7 @@ L33CC:
   LD A,C
   PUSH AF
 L33CE:
-  CALL L2FC8
+  CALL INT_CSNG
 L33D1:
   POP AF
   POP HL
@@ -9548,10 +9555,10 @@ _PRNUM:
 FOUT:
   XOR A
 ; --- START PROC L3426 ---
-; Convert number/expression to string (format specified in 'A' register)
+; Convert number/expression to string ("PRINT USING" format specified in 'A' register)
 PUFOUT:
   CALL L375F
-  AND $08
+  AND $08	; bit 3 - Sign (+ or -) preceeds number
   JR Z,L342F
   LD (HL),'+'
 L342F:
@@ -9588,14 +9595,14 @@ L345D:
   LD C,' '
   LD A,(TEMP3)
   LD E,A
-  AND ' '
+  AND $20			; bit 5 - Asterisks fill  
   JR Z,L3477
   LD A,B
   CP C
   LD C,'*'
   JR NZ,L3477
   LD A,E
-  AND $04
+  AND $04			; bit 2 - Sign (+ or -) follows ASCII number  
   JR NZ,L3477
   LD B,C
 L3477:
@@ -9619,13 +9626,13 @@ L348F:
   LD (HL),'0'
 L3492:
   LD A,E
-  AND $10
+  AND $10		; bit 4 - Print leading '$'  
   JR Z,L349A
   DEC HL
   LD (HL),'$'
 L349A:
   LD A,E
-  AND $04
+  AND $04		; bit 2 - Sign (+ or -) follows ASCII number  
   RET NZ
   DEC HL
   LD (HL),B
@@ -9637,7 +9644,7 @@ L34A1:
   CALL L3752
   LD D,B
   INC D
-  LD BC,$0300			; 768	(32x24)
+  LD BC,$0300			; const
   LD A,(FACCU)
   SUB $3f				; '?'
   JR C,L34B9
@@ -9704,7 +9711,7 @@ L34F7:
   JP NC,L3566
   RRA
   JP C,L35EF
-  LD BC,$0603
+  LD BC,$0603		; const
   CALL L367A_1
   POP DE
   LD A,D
@@ -9714,7 +9721,7 @@ L34F7:
 L3513:
   LD A,E
   OR A
-  CALL Z,L3295
+  CALL Z,DCXH	; DEC HL, RET
   DEC A
   CALL P,L3666
 ; This entry point is used by the routines at L35EC and L35F9.
@@ -9743,8 +9750,9 @@ L34C2_8:
   JR Z,L34C2_7
   DEC HL
   PUSH HL
+L353C:
   PUSH AF
-  LD BC,$353C
+  LD BC,L353C
   PUSH BC
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   CP '-'
@@ -9825,7 +9833,7 @@ L35A6:
   LD E,A
   LD A,C
   OR A
-  CALL NZ,L3293
+  CALL NZ,DCR_A		; DEC A, RET
   ADD A,E
   JP M,L35B1
   XOR A
@@ -9876,7 +9884,7 @@ L35E6:
 L35EF:
   PUSH HL
   PUSH DE
-  CALL L2FC8
+  CALL INT_CSNG
   POP DE
 L35F5:
   CALL L3752
@@ -9894,7 +9902,7 @@ L35F9:
   LD A,C
   OR A
   PUSH AF
-  CALL NZ,L3293
+  CALL NZ,DCR_A		; DEC A, RET
   ADD A,B
   LD C,A
   LD A,D
@@ -9936,7 +9944,7 @@ L35F9_1:
   POP BC
   POP AF
   JR NZ,L35F9_2
-  CALL L3295
+  CALL DCXH	; DEC HL, RET
   LD A,(HL)
   CP '.'			; $2E
   CALL NZ,INCHL
@@ -10315,6 +10323,7 @@ FEXP:
   CALL STAKARG
   CALL XSTKFP
   CALL USTAKARG
+
 DECEXP:
   LD A,(ARG)
   OR A
@@ -10434,7 +10443,7 @@ L3878:
   LD HL,FBUFFR		; Buffer for fout
   CALL DBL_FACCU2HL
   POP HL
-  CALL L2FCB
+  CALL HL_CSNG
   CALL ZERO_FACCU
 ; This entry point is used by the routine at L37DF.
 L3878_0:
@@ -10473,7 +10482,7 @@ L38C3:
   CALL __CDBL
   CALL FACCU2ARG
   POP HL
-  CALL L2FCB
+  CALL HL_CSNG
   CALL ZERO_FACCU
   LD HL,FBUFFR		; Buffer for fout
   CALL DBL_FACCU2HL
@@ -10488,7 +10497,7 @@ L3878_2:
   CP $02		; Integer ?
   JR NZ,L3878_3
   PUSH BC
-  CALL L2FCB
+  CALL HL_CSNG
   CALL ZERO_FACCU
   POP BC
 L3878_3:
@@ -11675,7 +11684,7 @@ ERROR_MESSAGES:
   DEFB $00
 L3FD2:
   DEFM " in "
-L3FD6:
+NULL_STRING:
   DEFB $00
 L3FD7:
   DEFM "Ok"
@@ -11687,10 +11696,10 @@ L3FDC:
   DEFB $00
 
 ; Data block at 16353
-  ; --- START PROC L3FE2 ---
+  ; --- START PROC NEXT_UNSTACK ---
 ; search FOR block on stack (skip 2 words)
 ; Used by 'RETURN' and 'NEXT'
-L3FE2:
+NEXT_UNSTACK:
   LD HL,$0004
 L3FE5:
   ADD HL,SP
@@ -11698,7 +11707,7 @@ L3FE5:
 L3FE6:
   LD A,(HL)
   INC HL
-  CP $82		; TK_FOR ?
+  CP $82			; TK_FOR
   RET NZ
 L3FEB:
   LD C,(HL)
@@ -11713,10 +11722,11 @@ L3FF1:
   OR E
 L3FF4:
   EX DE,HL
-  JR Z,L3FF9
+  JR Z,L3FF9		; NEXT_UNSTACK_1
   EX DE,HL
   RST DCOMPR		; Compare HL with DE.
-
+  
+; NEXT_UNSTACK_1
 L3FF9:
   LD BC,$0016
   POP HL
@@ -11879,6 +11889,8 @@ ERROR_1:
   INC A
   JR Z,ERROR_2			; JR if in 'DIRECT' (immediate) mode
   LD (DOT),HL
+  
+; This entry point is also used by the routine at ON_ERROR.
 ERROR_2:		;(4096h)
   LD BC,L40A4
   JR WARM_BT_0
@@ -11923,7 +11935,7 @@ L40C0:
   ; We get here if the standard error handling is temporairly disabled (error trap).
   DEC(HL)
   EX DE,HL
-  JP NEW_STMT_1
+  JP EXEC_EVAL_1
 
 ERROR_REPORT:
   XOR A
@@ -12080,7 +12092,7 @@ L4195:
   INC HL
 L419F:
   PUSH DE
-  CALL L42B2
+  CALL TOKENIZE
   POP DE
   POP AF
   LD (SAVTXT),HL
@@ -12169,6 +12181,7 @@ L41F4:
   POP AF
   PUSH DE
   JR Z,L4237
+  
   POP DE
   LD HL,$0000
   LD (ONELIN),HL			; LINE to go when error
@@ -12218,7 +12231,7 @@ ENDIF
   POP DE
   CALL L4257
   LD HL,(PTRFIL)		; Points to file data of currently accessing file
-  LD (NXTOPR),HL		; Next operator in EVAL
+  LD (NXTOPR),HL		; Save I/O pointer before a possible file redirection (RUN "program")
   CALL RUN_FST
 IF NOHOOK
  IF PRESERVE_LOCATIONS
@@ -12227,16 +12240,16 @@ IF NOHOOK
 ELSE
   CALL HFINE			;  Hook 2 for Mainloop finished
 ENDIF
-  LD HL,(NXTOPR)		; Next operator in EVAL
+  LD HL,(NXTOPR)		; Restore I/O pointer
   LD (PTRFIL),HL
   JP PROMPT
 
-  ; --- START PROC L4253 ---
+  ; --- START PROC UPD_PTRS ---
 
 ; Routine at 16979
 ;
 ; Used by the routine at CHKSTK.
-L4253:
+UPD_PTRS:
   LD HL,(TXTTAB)
   EX DE,HL
 L4257:
@@ -12248,21 +12261,21 @@ L4257:
   RET Z
   INC HL
   INC HL
-L4253_1:
+UPD_PTRS_1:
   INC HL
   LD A,(HL)
-L4253_2:
+UPD_PTRS_2:
   OR A
-  JR Z,L4253_3
+  JR Z,UPD_PTRS_3
   CP ' '
-  JR NC,L4253_1
+  JR NC,UPD_PTRS_1
   CP $0B			; Not a number constant prefix ?
-  JR C,L4253_1
+  JR C,UPD_PTRS_1
   CALL __CHRCKB		; Gets current character (or token) from BASIC text.
   RST CHRGTB		; Gets next character (or token) from BASIC text.
-  JR L4253_2
+  JR UPD_PTRS_2
   
-L4253_3:
+UPD_PTRS_3:
   INC HL
   EX DE,HL
   LD (HL),E
@@ -12330,7 +12343,7 @@ CURRENT_LNUM:
   JR CURRENT_LNUM
 
 ; Routine at 17074
-L42B2:
+TOKENIZE:
   XOR A
   LD (DONUM),A
   LD (DORES),A		; Indicates whether stored word can be crunched
@@ -12341,15 +12354,15 @@ IF NOHOOK
 ELSE
   CALL HCRUN			; Hook 1 for Tokenise
 ENDIF
-  LD BC,WSLREG
+  LD BC,$013B		; 315
   LD DE,KBUF
 ; This entry point is used by the routine at L441D.
-L42B2_0:
+TOKENIZE_0:
   LD A,(HL)
   OR A
-  JR NZ,L42B2_2
+  JR NZ,TOKENIZE_2
 ; This entry point is used by the routine at L43C4.
-L42B2_1:
+TOKENIZE_1:
   LD HL,$0140
   LD A,L
   SUB C
@@ -12366,74 +12379,74 @@ L42B2_1:
   LD (DE),A
   RET
   
-L42B2_2:
+TOKENIZE_2:
   CP '"'
-  JP Z,L42B2_8
+  JP Z,TOKENIZE_8
   CP ' '
-  JR Z,L42B2_3
+  JR Z,TOKENIZE_3
   LD A,(DORES)		; Indicates whether stored word can be crunched
   OR A
   LD A,(HL)
-  JR Z,L42B2_11
+  JR Z,TOKENIZE_11
 ; This entry point is used by the routines at L441D and L44B4.
-L42B2_3:
+TOKENIZE_3:
   INC HL
   PUSH AF
   CP $01
-  JR NZ,L42B2_4
+  JR NZ,TOKENIZE_4
   LD A,(HL)
   AND A
   LD A,$01
-L42B2_4:
+TOKENIZE_4:
   CALL NZ,L44DE_0
   POP AF
   SUB $3A
-  JR Z,L42B2_5
+  JR Z,TOKENIZE_5
   CP $4A
-  JR NZ,L42B2_6
+  JR NZ,TOKENIZE_6
   LD A,$01
-L42B2_5:
+TOKENIZE_5:
   LD (DORES),A		; Indicates whether stored word can be crunched
   LD (DONUM),A
-L42B2_6:
+TOKENIZE_6:
   SUB $55
-  JR NZ,L42B2_0
+  JR NZ,TOKENIZE_0
   PUSH AF
-L42B2_7:
+TOKENIZE_7:
   LD A,(HL)
   OR A
   EX (SP),HL
   LD A,H
   POP HL
-  JR Z,L42B2_1
+  JR Z,TOKENIZE_1
   CP (HL)
-  JR Z,L42B2_3
-L42B2_8:
+  JR Z,TOKENIZE_3
+TOKENIZE_8:
   PUSH AF
   LD A,(HL)
 ; This entry point is used by the routine at L43C4.
-L42B2_9:
+TOKENIZE_9:
   INC HL
   CP $01
-  JR NZ,L42B2_10
+  JR NZ,TOKENIZE_10
   LD A,(HL)
   AND A
   LD A,$01
-L42B2_10:
+TOKENIZE_10:
   CALL NZ,L44DE_0
-  JR L42B2_7
-L42B2_11:
+  JR TOKENIZE_7
+TOKENIZE_11:
   INC HL
   OR A
-  JP M,L42B2_0
+  JP M,TOKENIZE_0
   CP $01
-  JR NZ,L42B2_12
+  JR NZ,TOKENIZE_12
   LD A,(HL)
   AND A
-  JR Z,L42B2_1
+  JR Z,TOKENIZE_1
   INC HL
-  JR L42B2_0
-L42B2_12:
+  JR TOKENIZE_0
+TOKENIZE_12:
   DEC HL
   CP '?'
   LD A,TK_PRINT
@@ -12466,9 +12479,9 @@ ENDIF
   LD D,(HL)
   POP HL
   INC HL
-L42B2_13:
+TOKENIZE_13:
   PUSH HL
-L42B2_14:
+TOKENIZE_14:
   CALL UCASE_HL		; Load A with char in 'HL' and make it uppercase
   LD C,A
   LD A,(DE)
@@ -12476,11 +12489,11 @@ L42B2_14:
   JP Z,L44EB
   INC HL
   CP C
-  JR NZ,L42B2_15
+  JR NZ,TOKENIZE_15
   LD A,(DE)
   INC DE
   OR A
-  JP P,L42B2_14
+  JP P,TOKENIZE_14
   POP AF
   LD A,(DE)
 IF NOHOOK
@@ -12491,7 +12504,7 @@ ELSE
   CALL HISRE				; Hook 3 for Tokenise
 ENDIF
   OR A
-  JP M,L42B2_17
+  JP M,TOKENIZE_17
   POP BC
   POP DE
   OR $80
@@ -12502,18 +12515,18 @@ ENDIF
   LD (DONUM),A
   POP AF
   CALL L44DE_0
-  JP L42B2_0
+  JP TOKENIZE_0
 
-L42B2_15:
+TOKENIZE_15:
   POP HL
-L42B2_16:
+TOKENIZE_16:
   LD A,(DE)
   INC DE
   OR A
-  JP P,L42B2_16
+  JP P,TOKENIZE_16
   INC DE
-  JR L42B2_13
-L42B2_17:
+  JR TOKENIZE_13
+TOKENIZE_17:
   DEC HL
 TOKEN_FOUND:
   PUSH AF
@@ -12526,13 +12539,13 @@ ELSE
 ENDIF
   LD DE,LNUM_TOKENS
   LD C,A
-L42B2_19:
+TOKENIZE_19:
   LD A,(DE)
   OR A
   JR Z,L43C4
   INC DE
   CP C
-  JR NZ,L42B2_19
+  JR NZ,TOKENIZE_19
   JR L43C5+1 ; $43C6 ;; L43C5+1  ???
 
 ; Routine at 17333
@@ -12553,7 +12566,7 @@ LNUM_TOKENS:
   DEFB TK_GOSUB
   DEFB $00
 
-; This entry point is used by the routine at L42B2.
+; This entry point is used by the routine at TOKENIZE.
 L43C4:
   XOR A
 L43C5:
@@ -12581,7 +12594,7 @@ L43C4_4:
   CALL UCASE_HL		; Load A with char in 'HL' and make it uppercase
   AND A
 L43C4_5:
-  JP Z,L42B2_1
+  JP Z,TOKENIZE_1
   JP M,L43C4_4
   CP $01
   JR NZ,L43C4_6
@@ -12610,11 +12623,11 @@ L43C4_7:
   PUSH HL
   LD HL,$0000
   EX (SP),HL
-  JP L42B2_9
+  JP TOKENIZE_9
 
 ; Routine at 17437
 ;
-; Used by the routine at L42B2.
+; Used by the routine at TOKENIZE.
 L441D:
   LD A,(HL)
   CP '.'
@@ -12629,12 +12642,12 @@ L441D_0:
   LD A,(HL)
   POP BC
   POP DE
-  JP M,L42B2_3
+  JP M,TOKENIZE_3
   JR Z,L441D_5
   CP '.'
 ; This entry point is used by the routine at L43C4.
 L441D_1:
-  JP Z,L42B2_3
+  JP Z,TOKENIZE_3
   LD A,$0E				; Line number prefix
   CALL L44DE_0
   PUSH DE
@@ -12651,7 +12664,7 @@ L441D_3:
 L441D_4:
   POP HL
   CALL L44DE_0
-  JP L42B2_0
+  JP TOKENIZE_0
 L441D_5:
   PUSH DE
   PUSH BC
@@ -12698,7 +12711,7 @@ L441D_8:
   DEC A
   JR NZ,L441D_8
   POP HL
-  JP L42B2_0
+  JP TOKENIZE_0
 L441D_9:
   LD DE,L3D26-1
 L441D_10:
@@ -12717,7 +12730,7 @@ L441D_10:
 ; Used by the routine at L43C4.
 L44B4:
   CP '&'		 ; $26
-  JP NZ,L42B2_3
+  JP NZ,TOKENIZE_3
   PUSH HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   POP HL
@@ -12727,7 +12740,7 @@ L44B4:
   CP 'O'		; &O ..octal prefix
   JR Z,L44B4_0
   LD A,'&'		 ; $26
-  JP L42B2_3
+  JP TOKENIZE_3
 
 L44B4_0:
   LD A,$0B		; Octal Number prefix
@@ -12748,7 +12761,7 @@ L44B4_2:
 ; Used by the routine at L43C4.
 L44DE:
   LD A,':'
-; This entry point is used by the routines at L42B2, L43C4, L441D and L44B4.
+; This entry point is used by the routines at TOKENIZE, L43C4, L441D and L44B4.
 L44DE_0:
   LD (DE),A
   INC DE
@@ -12761,7 +12774,7 @@ L44DE_0:
 
 ; Routine at 17643
 ;
-; Used by the routine at L42B2.
+; Used by the routine at TOKENIZE.
 L44EB:
 IF NOHOOK
  IF PRESERVE_LOCATIONS
@@ -12874,7 +12887,7 @@ __FOR_1:
   LD DE,$0001
   LD A,(HL)
   CP TK_STEP		; 'STEP'
-  CALL Z,FPSINT
+  CALL Z,GET_PSINT
   PUSH DE
   PUSH HL
   EX DE,HL
@@ -12970,13 +12983,13 @@ L45F6:
   EX (SP),HL
   ; --- START PROC L45FD ---
 L45FD:
-  LD B,$82		; TK_FOR ?
+  LD B,$82			; TK_FOR
   PUSH BC
   INC SP
 		
 		
-  ; --- START PROC NEW_STMT ---
-NEW_STMT:
+  ; --- START PROC EXEC_EVAL ---
+EXEC_EVAL: 
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -12989,18 +13002,18 @@ ENDIF
   LD A,(ONGSBF)
   OR A
   CALL NZ,L6389
-NEW_STMT_0:
+EXEC_EVAL_0:
   EI
   LD (SAVTXT),HL
   LD A,(HL)
   CP ':'
-  JR Z,NEXT_STMT
+  JR Z,EXEC
   OR A
   JP NZ,SN_ERR
   INC HL
 
 ;$4620
-NEW_STMT_1:
+EXEC_EVAL_1:
   LD A,(HL)
   INC HL
   OR (HL)
@@ -13013,7 +13026,7 @@ NEW_STMT_1:
   LD (CURLIN),HL
   LD A,(TRCFLG)		; 0 MEANS NO TRACE
   OR A
-  JR Z,NEW_STMT_2
+  JR Z,EXEC_EVAL_2
 
   PUSH DE
   LD A,'['
@@ -13024,16 +13037,16 @@ NEW_STMT_1:
   POP DE
 
 ;$463F
-NEW_STMT_2:
+EXEC_EVAL_2:
   EX DE,HL
   
 ;$4640
-NEXT_STMT:
+EXEC:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
-  LD DE,NEW_STMT
+  LD DE,EXEC_EVAL
   PUSH DE
   RET Z
-NEXT_STMT_0:
+EXEC_0:
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -13267,11 +13280,11 @@ L472F_1:
 
 ; Routine at 18261
 ; Get subscript
-FPSINT:
+GET_POSINT:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
 ; This entry point is used by the routine at __CLEAR.
-FPSINT_0:
-  CALL POSINT
+GET_POSINT_0:
+  CALL FPSINT
   RET P
 
 ; entry for '?FC ERROR'
@@ -13349,7 +13362,7 @@ __RUN:
   JP NZ,_LOAD
 __RUN_0:
   CALL _CLVAR
-  LD BC,NEW_STMT
+  LD BC,EXEC_EVAL
   JR GO_TO
 
 ; Routine at 18354
@@ -13364,7 +13377,7 @@ __GOSUB:
   EX (SP),HL
   LD BC,$0000
   PUSH BC
-  LD BC,NEW_STMT
+  LD BC,EXEC_EVAL
   LD A,$8D
   PUSH AF
   INC SP
@@ -13388,7 +13401,7 @@ L47CF:
   LD (SAVTXT),HL
   INC HL
   LD (SAVSTK),SP
-  JP NEW_STMT_1
+  JP EXEC_EVAL_1
 
 ; Routine at 18407
 ;
@@ -13448,7 +13461,7 @@ ELSE
 ENDIF
   LD (TEMP),HL
   LD D,$FF
-  CALL L3FE2			; search FOR block on stack (skip 2 words)
+  CALL NEXT_UNSTACK			; search FOR block on stack (skip 2 words)
   CP TK_GOSUB				; Token for 'GOSUB'
   JR Z,__RETURN_0
   DEC HL
@@ -13469,7 +13482,7 @@ __RETURN_0:
 __RETURN_1:
   POP BC
 ; L4846:
-  LD HL,NEW_STMT
+  LD HL,EXEC_EVAL
   EX (SP),HL
   EX DE,HL
   LD HL,(TEMP)
@@ -13696,7 +13709,7 @@ L492A_0:
 L492A_1:
   DEC C
   LD A,B
-  JP Z,NEXT_STMT_0
+  JP Z,EXEC_0
   CALL LNUM_PARM_1
   CP ','
   RET NZ
@@ -13819,7 +13832,7 @@ __IF_0:
   CP $0E				; TK_ATN ?  ..end of logical line ?
   JP Z,__GO_TO
   CP CR
-  JP NZ,NEXT_STMT_0
+  JP NZ,EXEC_0
   LD HL,(CONLO)			; Value of stored constant
   RET
 
@@ -13845,7 +13858,7 @@ __LPRINT:
 ; Data block at 18980
 __PRINT:
   LD C,$02
-  CALL L6D57		; Get stream number (C=default #channel)
+  CALL GET_CHNUM		; Get stream number (C=default #channel)
 L4A29:
   DEC HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
@@ -13854,7 +13867,7 @@ L4A29:
 L4A2E:
   JP Z,FINPRT
   CP TK_USING		; USING
-  JP Z,L60B1
+  JP Z,USING
   CP TK_TAB			; TAB(
   JP Z,L4AC6		; __TAB(   &   __SPC(
   CP TK_SPC			; SPC(
@@ -13938,7 +13951,7 @@ ENDIF
   JR L4A5A_4
   
 L4A5A_3:
-  LD A,(CLMLST)
+  LD A,(CLMLST)			; Column space
   LD B,A
   LD A,(TTYPOS)
   CP B
@@ -14010,7 +14023,7 @@ ENDIF
   PUSH HL
   LD H,A
   LD L,A
-  LD (PTRFIL),HL
+  LD (PTRFIL),HL		; Redirect I/O
   POP HL
   RET
 
@@ -14023,7 +14036,7 @@ __LINE:
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB TK_INPUT
   CP '#'
-  JP Z,L6D8F
+  JP Z,LINE_INPUT
   CALL __INPUT_0
   CALL GETVAR
   CALL TSTSTR
@@ -14175,7 +14188,7 @@ __READ_2:
   CALL DTSTR
 L4BF1:
   POP AF
-  ADD A,$03		; TK_MID_S ?
+  ADD A,$03
   EX DE,HL
   LD HL,L4C05
   EX (SP),HL
@@ -14262,11 +14275,11 @@ NEXT_PARENTH:
   ; --- START PROC L4C64 ---
 ; Evaluate expression
 ;
-; Used by the routines at __LET, __IF, FN_FN, FPSINT, FNDNUM, GETWORD, __CIRCLE,
+; Used by the routines at __LET, __IF, FN_FN, GET_POSINT, FNDNUM, GETWORD, __CIRCLE,
 ; CIRCLE_SUB, L61C4, FN_STRING, FN_INSTR, FILE_PARMS, L6F0B, __BASE and __VPOKE.
 EVAL:
   DEC HL
-; This entry point is used by the routine at L60B1.
+; This entry point is used by the routine at USING.
 ; $4C65
 EVAL_0:
   LD D,$00
@@ -14395,7 +14408,7 @@ NO_COMPARE_TK:
   RET NC
   PUSH BC
   PUSH DE
-  LD DE,L6405
+  LD DE,$6405		; const value
   LD HL,L4F57
   PUSH HL
   RST GETYPR 		; Get the number type (FAC)
@@ -14409,9 +14422,9 @@ NO_COMPARE_TK:
 L4D22:
   POP BC
   LD A,C
-  LD (OPRTYP),A			; Store operator number in the extended momentarily before operator application
+  LD (OPRTYP),A			; Temp operator number operations
   LD A,(VALTYP)		; VALTYP - type indicator
-  CP B				; type specified in 'B' is different ?
+  CP B				; is type specified in 'B' different ?
   JR NZ,L4D26_0
   CP $02			; Integer ?
   JR Z,L4D26_1
@@ -14501,7 +14514,7 @@ L4D26_10:
 L4D26_11:
   POP HL
   CALL STAKI
-  CALL L2FCB
+  CALL HL_CSNG
   CALL BCDEFP
   POP HL
   LD (FACCU),HL
@@ -14513,11 +14526,11 @@ L4D26_11:
 IDIV:
   PUSH HL
   EX DE,HL
-  CALL L2FCB
+  CALL HL_CSNG
   POP HL
   CALL STAKI
-  CALL L2FCB
-  JP L3265
+  CALL HL_CSNG
+  JP DIVIDE
 
 ; Routine at 19911
 ;
@@ -14527,7 +14540,7 @@ OPRND:
   JP Z,OPERAND_ERR		; Err $18
   JP C,DBL_ASCTFP
   CALL IS_ALPHA_A	; Check it is in the 'A'..'Z' range
-  JP NC,OPRND_8
+  JP NC,VAR_EVAL
   CP ' '
   JP C,L46B8
 IF NOHOOK
@@ -14538,7 +14551,7 @@ ELSE
   CALL HEVAL			; Hook 1 for Factor Evaluator
 ENDIF
   INC A
-  JP Z,L4EFC
+  JP Z,OPRND_3
   DEC A
   CP TK_PLUS		; Token for '+'
   JR Z,OPRND
@@ -14640,7 +14653,7 @@ OPRND_2:
   CP TK_FN			; Token for FN
   JP Z,FN_FN
 
-; This entry point is used by the routines at L4EFC and FN_USR.
+; This entry point is used by the routines at OPRND_3 and FN_USR.
 OPRND_6:
   CALL NEXT_PARENTH
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
@@ -14653,14 +14666,16 @@ OPRND_SUB:
   LD HL,(NXTOPR)		; Next operator in EVAL
   PUSH HL
   CALL INVSGN
-L4E99:
+
+_POPHLRT:
   POP HL
   RET
 
+
 ; This entry point is used by the routine at L575A.
-OPRND_8:
+VAR_EVAL:
   CALL GETVAR
-L4E9E:
+VAR_EVAL_1:
   PUSH HL
   EX DE,HL
   LD (FACLOW),HL
@@ -14671,7 +14686,7 @@ L4E9E:
 
 ; Routine at 20137
 ;
-; Used by the routines at L42B2, L43C4, L44EB, L55F8 and L6F3E.
+; Used by the routines at TOKENIZE, L43C4, L44EB, L55F8 and L6F3D.
 UCASE_HL:
   LD A,(HL)
 
@@ -14739,7 +14754,7 @@ HEXTFP_3:
 ; Routine at 20220
 ;
 ; Used by the routine at OPRND.
-L4EFC:
+OPRND_3:
   INC HL
   LD A,(HL)
   SUB $81
@@ -14750,7 +14765,7 @@ L4EFC:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   LD A,C
   CP $05			; TK_INT ?
-  JR NC,L4EFC_0
+  JR NC,OPRND_3_0
   CALL NEXT_PARENTH
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
@@ -14763,13 +14778,14 @@ L4EFC:
   CALL GETINT
   EX DE,HL
   EX (SP),HL
-  JR L4EFC_2
-L4EFC_0:
+  JR OPRND_3_2
+
+OPRND_3_0:
   CALL OPRND_6
   EX (SP),HL
   LD A,L
   CP $0C		; TK_COS ?
-  JR C,L4EFC_1
+  JR C,OPRND_3_1
   CP $1B
 IF NOHOOK
  IF PRESERVE_LOCATIONS
@@ -14778,17 +14794,17 @@ IF NOHOOK
 ELSE
   CALL HOKNO				; Hook 2 for Factor Evaluator
 ENDIF
-  JR NC,L4EFC_1
+  JR NC,OPRND_3_1
   RST GETYPR 		; Get the number type (FAC)
   
   PUSH HL
   CALL C,__CDBL
   POP HL
   
-L4EFC_1:
-  LD DE,L4E99		; point to POP HL / RET instructions
+OPRND_3_1:
+  LD DE,_POPHLRT		; point to POP HL / RET instructions
   PUSH DE
-L4EFC_2:
+OPRND_3_2:
   LD BC,L39DE		; LEFT_S ptr
 IF NOHOOK
  IF PRESERVE_LOCATIONS
@@ -14861,12 +14877,13 @@ L4F78:
   CP 'z'
   JP Z,IMOD
   CP 'z'+1
-  JP Z,L31E6
+  JP Z,INT_DIV
   LD BC,L4FD1 
   PUSH BC
   
   CP $46		; 70, 'F'
-  JR NZ,L4F78_0
+  JR NZ,OR_0
+OR:
   LD A,E
   OR L
   LD L,A
@@ -14874,9 +14891,11 @@ L4F78:
   OR D
   RET
 
-L4F78_0:
+OR_0:
   CP $50		; 80,  'P'
-  JR NZ,L4F78_1
+  JR NZ,AND_0
+  
+AND:
   LD A,E
   AND L
   LD L,A
@@ -14884,9 +14903,11 @@ L4F78_0:
   AND D
   RET
   
-L4F78_1:
+AND_0:
   CP $3C		; 60, '<'
-  JR NZ,L4F78_2
+  JR NZ,XOR_0
+
+XOR:
   LD A,E
   XOR L
   LD L,A
@@ -14894,9 +14915,11 @@ L4F78_1:
   XOR D
   RET
   
-L4F78_2:
+XOR_0:
   CP $32		; 50, '2'
-  JR NZ,L4F78_3
+  JR NZ,IMP
+
+EQV:
   LD A,E
   XOR L
   CPL
@@ -14906,7 +14929,7 @@ L4F78_2:
   CPL
   RET
   
-L4F78_3:
+IMP:
   LD A,L
   CPL
   AND E
@@ -14918,10 +14941,10 @@ L4F78_3:
   CPL
   RET
 
-; Routine at 20417
+; Routine at 20417 ($4FC1)
 ;
 ; Used by the routine at __FRE.
-L4FC1:
+IMP_0:
   OR A
   SBC HL,DE
   JP DBL_ABS_0
@@ -15346,17 +15369,17 @@ __WIDTH_4:
   CPL
   INC A
   ADD A,E
-  LD (CLMLST),A
+  LD (CLMLST),A			; Column space
   RET
 
 ; Routine at 21006
 ; $520E
-FPSINT:
+GET_PSINT:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
 ;
-; This entry point is used by the routines at FPSINT, COORD_PARMS and __CIRCLE.
+; This entry point is used by the routines at GET_POSINT, COORD_PARMS and __CIRCLE.
 ; $520F
-POSINT:
+FPSINT:
   CALL EVAL
 ;
 ; Get integer variable to DE, error if negative
@@ -15377,7 +15400,7 @@ DEPINT:
 FNDNUM:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
 ; This entry point is used by the routines at GTWORD_GTINT, __WAIT, L492A, __ERROR,
-; L4EFC, __WIDTH, __POKE, PAINT_PARMS, __PAINT, _MID_S, L69E4, L6A9E, __OPEN, L6BFB,
+; OPRND_3, __WIDTH, __POKE, PAINT_PARMS, __PAINT, _MID_S, L69E4, L6A9E, __OPEN, L6BFB,
 ; FN_INPUT, __SOUND, __LOCATE, L77D4, __COLOR, __SCREEN, L7A2D, PUT_SPRITE, __VDP,
 ; __VPOKE and __MAX.
 ; $521C
@@ -15494,26 +15517,26 @@ L5293:
   CP '"'
   JR NZ,L52AE
 L52A4:
-  LD A,(OPRTYP)		; Store operator number in the extended momentarily before operator application
+  LD A,(OPRTYP)		; Temp operator number operations
   XOR $01
-  LD (OPRTYP),A		; Store operator number in the extended momentarily before operator application
+  LD (OPRTYP),A		; Temp operator number operations
   LD A,'"'
 L52AE:
   CP ':'
   JR NZ,L52C0
-  LD A,(OPRTYP)		; Store operator number in the extended momentarily before operator application
+  LD A,(OPRTYP)		; Temp operator number operations
   RRA
   JR C,L52BE
   RLA
   AND $FD
-  LD (OPRTYP),A		; Store operator number in the extended momentarily before operator application
+  LD (OPRTYP),A		; Temp operator number operations
 L52BE:
   LD A,':'
 L52C0:
   OR A
 L52C1:
   JP P,L528F
-  LD A,(OPRTYP)		; Store operator number in the extended momentarily before operator application
+  LD A,(OPRTYP)		; Temp operator number operations
   RRA
   JR C,L52F8
   RRA
@@ -16192,7 +16215,8 @@ L55A7_6:
 
 ; Routine at 22008
 ;
-; Used by the routine at L6F3E.
+; Used by the routine at L6F3D.
+; NMERR, deal with exceptions/expansions
 L55F8:
   POP HL
   LD A,B
@@ -16487,7 +16511,7 @@ FCERR_D:
   CALL FCERR			; Err $05 - "Illegal function call"
 L575A_2:
   POP HL
-  JP OPRND_8
+  JP VAR_EVAL
 
 ; Routine at 22394
 ;
@@ -16542,11 +16566,11 @@ COORD_PARMS_DST:
   CALL Z,__CHRGTB  ; Gets next character (or token) from BASIC text.
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB '('
-  CALL POSINT
+  CALL FPSINT
   PUSH DE
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL POSINT
+  CALL FPSINT
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ')'
   POP BC
@@ -17164,7 +17188,7 @@ __CIRCLE:
   CALL COORD_PARMS
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL POSINT
+  CALL FPSINT
 DO_CIRC:
   PUSH HL
   EX DE,HL
@@ -17995,11 +18019,11 @@ L5F66:
   POP HL
   EX (SP),HL
   PUSH DE
-  LD DE,L5F60
+  LD DE,L5F60		; Just points to 'RET'
   RST DCOMPR		; Compare HL with DE.
   JR Z,L5F61
   
-  LD DE,L4E9E
+  LD DE,VAR_EVAL_1
   RST DCOMPR		; Compare HL with DE.
   POP DE
   JR Z,L5F66_2
@@ -18051,7 +18075,7 @@ L5F66_2:
   LD (FACLOW),HL
   RST GETYPR 		; Get the number type (FAC)
   JR NZ,L5F66_3		; JP if not string type, 
-  LD HL,L3FD6		; L3FD6 points to a NULL value (zeroed byte, string termination..)
+  LD HL,NULL_STRING
   LD (FACLOW),HL
 L5F66_3:
   POP HL
@@ -18066,7 +18090,7 @@ SBSCPT:
 SCPTLP:
   PUSH DE			; Save number of dimensions
   PUSH BC			; Save array name
-  CALL FPSINT		; Get subscript
+  CALL GET_POSINT		; Get subscript
   POP BC
   POP AF			; Get number of dimensions
   EX DE,HL
@@ -18229,10 +18253,6 @@ L608A:
   LD  C,L
   JR  NZ,L6081+1  ; reference not aligned to instruction
 
-		
-		
-		
-		
 ; Routine at 24726
 ;L6096:
   LD A,(VALTYP)
@@ -18257,7 +18277,7 @@ L60AD:
   RET
 
 ; Routine at 24753
-L60B1:
+USING:
   CALL EVAL_0
   CALL TSTSTR
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
@@ -18275,7 +18295,7 @@ L60BF:
   JR Z,L60BF_1
   POP DE
   EX DE,HL
-; This entry point is used by the routine at L60B1.
+; This entry point is used by the routine at USING.
 L60BF_0:
   PUSH HL
   XOR A
@@ -18426,9 +18446,13 @@ L6173:
   LD B,A
   INC D
   INC HL
+
+  
 L618F:
-	; L618F+1: EX DE,HL / POP DE
-  JP Z,$D1EB		; ??  perhaps 'Z' never happens ?   if so, this is a way to run this part two times
+  JP Z,$D1EB		; ??  probably 'Z' never happens 
+;L618F+1:
+;  EX DE,HL / POP DE
+
 L6192:
   LD A,D
   DEC HL
@@ -18623,7 +18647,7 @@ L6266:
   RET C
 ; This entry point is used by the routines at __CLEAR and L7E6B.
 OMERR:
-  CALL L4253
+  CALL UPD_PTRS
   LD HL,(STKTOP)
   DEC HL
   DEC HL
@@ -18676,7 +18700,7 @@ ENDIF
   ; --- START PROC L62A7 ---
 ; Clear registers
 _CLREG:
-  CALL L636E
+  CALL CLR_ALLINT
   LD B,1Ah
   LD HL,DEFTBL
 IF NOHOOK
@@ -18687,10 +18711,10 @@ ELSE
   CALL HLOPD			; Hook 3 for RUN-Clear
 ENDIF
 
-L628E_3:
+_CLREG_0:
   LD (HL),$08
   INC HL
-  DJNZ L628E_3
+  DJNZ _CLREG_0
   CALL L2C24
   XOR A
   LD (ONEFLG),A			; Clear 'on error' flag
@@ -18844,24 +18868,25 @@ L6358_1:
 ; Routine at 25454
 ;
 ; Used by the routine at L628E.
-L636E:
+; Clear all the interrupt trap tables definitions
+CLR_ALLINT:
   LD HL,TRPTBL
   LD B,$1A
   XOR A
-L636E_0:
+CLR_ALLINT_0:
   LD (HL),A
   INC HL
   LD (HL),A
   INC HL
   LD (HL),A
   INC HL
-  DJNZ L636E_0
+  DJNZ CLR_ALLINT_0
   LD HL,FNKFLG
   LD B,$0A
-L636E_1:
+CLR_ALLINT_1:
   LD (HL),A
   INC HL
-  DJNZ L636E_1
+  DJNZ CLR_ALLINT_1
   LD (ONGSBF),A
   RET
 
@@ -18890,6 +18915,7 @@ L6389_1:
 L6389_2:
   POP HL
   RET
+
 L6389_3:
   PUSH BC
   INC HL
@@ -18971,7 +18997,6 @@ L63FD:
 __END_1:
   LD HL,(CURLIN)		 ; Line number the Basic interpreter is working on, in direct mode it will be filled with #FFFF
   PUSH HL
-L6405:
   PUSH AF
   LD A,L
   AND H
@@ -19096,11 +19121,11 @@ L64A4:
 ; Load A with char in (HL) and check it is a letter:
 IS_ALPHA:
   LD A,(HL)
-; This entry point is used by the routines at L42B2, OPRND, L5683, L575A and
+; This entry point is used by the routines at TOKENIZE, OPRND, L5683, L575A and
 ; GETVAR.
 ; Check char in 'A' being in the 'A'..'Z' range
 IS_ALPHA_A:
-  CP $41
+  CP 'A'
   RET C
   CP $5B
   CCF
@@ -19109,7 +19134,7 @@ IS_ALPHA_A:
 ; Routine at 25775
 __CLEAR:
   JP Z,_CLVAR
-  CALL FPSINT_0
+  CALL GET_POSINT_0
   DEC HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   PUSH HL
@@ -19173,7 +19198,7 @@ __CLEAR_1:
   LD A,(MAXFIL)
   CALL L7E6B
   LD HL,(TEMP)
-  JP NEW_STMT
+  JP EXEC_EVAL
 
 ; Routine at 25888
 L6520:
@@ -19191,7 +19216,7 @@ __NEXT:
 __NEXT_0:
   CALL NZ,GETVAR			; not end of statement, locate variable
   LD (TEMP),HL				; save BASIC pointer
-  CALL L3FE2				; search FOR block on stack (skip 2 words)
+  CALL NEXT_UNSTACK				; search FOR block on stack (skip 2 words)
   JP NZ,NOFOR_ERR			; Err $01 - "NEXT without FOR"
   LD SP,HL
   PUSH DE
@@ -19286,7 +19311,7 @@ __NEXT_5:
   LD HL,(TEMP)
   LD A,(HL)
   CP ','
-  JP NZ,NEW_STMT
+  JP NZ,EXEC_EVAL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
 ;; L65C5:
   CALL __NEXT_0
@@ -19370,7 +19395,7 @@ SAVSTR_0:
   LD C,(HL)
   INC HL
   LD B,(HL)
-  CALL MK_1BYTE_TMST_1
+  CALL CRTMST
   PUSH HL
   LD L,A
   CALL TOSTRA
@@ -19445,7 +19470,8 @@ DTSTR_1:
 TSTOPL:
   LD DE,DSCTMP
 L6657:
-  LD A,$D5			; TK_IPL ?
+  LD A,$D5			; 
+  ; PUSH DE
   LD HL,(TEMPPT)
   LD (FACLOW),HL
   LD A,$03			; String ?
@@ -20121,6 +20147,7 @@ FN_INSTR_5:
   ADD A,C
   INC A
   RET
+
 FN_INSTR_6:
   POP BC
   POP DE
@@ -20247,12 +20274,12 @@ __FRE:
   LD HL,$0000
   ADD HL,SP
   RST GETYPR 		; Get the number type (FAC)
-  JP NZ,L4FC1		; JP if not string type
+  JP NZ,IMP_0		; JP if not string type
   CALL GSTRCU
   CALL TESTR_2
   LD DE,(STKTOP)
   LD HL,(FRETOP)
-  JP L4FC1
+  JP IMP_0
 
 ; Routine at 27150
 ;
@@ -20271,6 +20298,7 @@ FILE_PARMS:
   LD H,(HL)
   LD L,E			; pointer to string
   LD E,A			; size of string
+  
   CALL L6F15		; Parse Device Name
   PUSH AF
   LD BC,FILNAM
@@ -20346,11 +20374,12 @@ L6A61:
 GETFLP:
   CALL MAKINT
 ; This entry point is used by the routines at OPRND, L6A9E and __OPEN.
+; a.k.a. VARPTR_A
 GETPTR:
   LD L,A
   LD A,(MAXFIL)
   CP L
-  JP C,L6E7D			; Err $34 -  'Bad file number'
+  JP C,BNERR			; Err $34 -  'Bad file number'
   LD H,$00
   ADD HL,HL
   EX DE,HL
@@ -20379,7 +20408,7 @@ IF NOHOOK
 ELSE
   CALL HGETP				; Hook 1 for Locate FCB
 ENDIF
-  JP L6E80				; Err $33 - "Internal Error"
+  JP ERR_INTERNAL				; Err $33 - "Internal Error"
 
 GETFLP_1:
   POP HL
@@ -20403,7 +20432,7 @@ L6A9E:
 SETFIL:
   CALL GETPTR
   JP Z,L6E77			; Err $3B - "File not OPEN"
-  LD (PTRFIL),HL
+  LD (PTRFIL),HL		; Redirect I/O
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -20460,7 +20489,7 @@ __OPEN_2:
   CALL Z,__CHRGTB  ; Gets next character (or token) from BASIC text.
   CALL GETINT
   OR A
-  JP Z,L6E7D			; Err $34 -  'Bad file number'
+  JP Z,BNERR			; Err $34 -  'Bad file number'
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -20483,7 +20512,7 @@ L6AF9:
   JP NZ,L6E6E		; Err $36 - "File already open"
   POP DE
   LD A,D
-  CP $09			; TK_SIN ?
+  CP $09
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -20491,14 +20520,14 @@ IF NOHOOK
 ELSE
   CALL HNULO		; Hook for "OPEN"
 ENDIF
-  JP C,L6E80				; Err $33 - "Internal Error"
+  JP C,ERR_INTERNAL				; Err $33 - "Internal Error"
   PUSH HL
   LD BC,$0004
   ADD HL,BC
   LD (HL),D
   LD A,$00
   POP HL
-  CALL L6F8F
+  CALL GET_DEVICE
   POP AF
   POP HL
   RET
@@ -20514,10 +20543,10 @@ CLOSE:
   JP   NZ,L6CF3
 L6B30:
   CALL GETPTR
-  JR   Z,L6B4A
+  JR   Z,L6B4A 		; CLOSE_1
   LD   (PTRFIL),HL
   PUSH HL
-  JR   C,L6B41
+  JR   C,L6B41		; CLOSE_0
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -20525,13 +20554,15 @@ IF NOHOOK
 ELSE
   CALL HNTFL			; Hook for Close I/O buffer 0 event
 ENDIF
-  JP   L6E80			; Err $33 - "Internal Error"
+  JP   ERR_INTERNAL			; Err $33 - "Internal Error"
 
+ ; CLOSE_0
 L6B41:
   LD   A,$02
-  CALL L6F8F
+  CALL GET_DEVICE
   CALL CLRBUF
   POP  HL
+ ; CLOSE_1
 L6B4A:
   PUSH HL
   LD   DE,$0007
@@ -20539,7 +20570,7 @@ L6B4A:
   LD   (HL),A
   LD   H,A
   LD   L,A
-  LD (PTRFIL),HL
+  LD (PTRFIL),HL		; Redirect I/O
   POP HL
   ADD A,(HL)
   LD (HL),$00
@@ -20775,7 +20806,7 @@ GET_0:
   POP DE
   POP BC
   LD A,$04
-  JP L6F8F
+  JP GET_DEVICE
 
 ; Data block at 27720
 FILO:
@@ -20799,7 +20830,7 @@ L6C57:
   PUSH AF
   LD C,A
   LD A,$06
-  CALL L6F8F
+  CALL GET_DEVICE
   JP TAPON_SUB_RET_0
 
 ; Routine at 27746
@@ -20816,8 +20847,8 @@ L6C62:
   RET
 
 ; Data block at 27761
-  ; --- START PROC L6C71 ---
-L6C71:
+  ; --- START PROC RDBYT ---
+RDBYT:
   PUSH HL
 L6C72:
   PUSH DE
@@ -20831,12 +20862,12 @@ IF NOHOOK
 ELSE
   CALL HINDS				; Hook for "Sequential Input" exception
 ENDIF
-  JP   L6E80				; Err $33 - "Internal Error"
+  JP   ERR_INTERNAL				; Err $33 - "Internal Error"
 
 
 L6C7F:
   LD A,$08
-  CALL L6F8F
+  CALL GET_DEVICE
   JP TAPON_SUB_RET_1
 
 ; Routine at 27783
@@ -20852,7 +20883,7 @@ FN_INPUT:
   LD HL,(PTRFIL)
   PUSH HL
   LD HL,$0000
-  LD (PTRFIL),HL
+  LD (PTRFIL),HL		; Redirect I/O
   POP HL
   EX (SP),HL
   CALL GETINT
@@ -20872,7 +20903,7 @@ FN_INPUT_0:
   LD A,(HL)
 FN_INPUT_1:
   PUSH AF
-  RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
+  RST SYNCHR 		;   Check syntax: next byte holds the byte to be found\n
   DEFB ')'
   POP AF
   EX (SP),HL
@@ -20907,12 +20938,12 @@ IF NOHOOK
 ELSE
   CALL HRSLF				; Hook for "INPUT$"
 ENDIF
-  LD (PTRFIL),HL
+  LD (PTRFIL),HL		; Redirect I/O
   PUSH BC
   JP TSTOPL
 
 FN_INPUT_4:
-  CALL L6C71
+  CALL RDBYT
   JP C,L6E83		; Err $37 - "Input past END"
   JR FN_INPUT_3
 
@@ -20966,7 +20997,7 @@ IF NOHOOK
 ELSE
   CALL HLOC				; Hook for LOC
 ENDIF
-  JR __EOF_2
+  JR _ERR_INTERNAL
 
 ; Routine at 27924
 __LOF:
@@ -20988,7 +21019,7 @@ IF NOHOOK
 ELSE
   CALL HLOF				; Hook for LOF
 ENDIF
-  JR __EOF_2
+  JR _ERR_INTERNAL
 
 ; Routine at 27941
 __EOF:
@@ -21006,7 +21037,7 @@ __EOF_0:
   LD A,$0E
 ; This entry point is used by the routines at __LOC, __LOF and __FPOS.
 __EOF_1:
-  JP C,L6F8F
+  JP C,GET_DEVICE
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -21015,8 +21046,8 @@ ELSE
   CALL HEOF				; Hook for EOF
 ENDIF
 ; This entry point is used by the routines at __LOC, __LOF and __FPOS.
-__EOF_2:
-  JP L6E80				; Err $33 - "Internal Error"
+_ERR_INTERNAL:
+  JP ERR_INTERNAL				; Err $33 - "Internal Error"
 
 ; Routine at 27961
 __FPOS:
@@ -21037,12 +21068,12 @@ IF NOHOOK
 ELSE
   CALL HFPOS			; Hook for FPOS
 ENDIF
-  JR __EOF_2
+  JR _ERR_INTERNAL
 
 ; Routine at 27976
 CLOSE_FILEFEED:
   CALL ISFLIO
-  JP Z,NEXT_STMT
+  JP Z,EXEC
   XOR A
   CALL CLOSE
   JP L6E71		; Err $39 - Direct statement in a file
@@ -21054,7 +21085,7 @@ CLOSE_FILEFEED:
 L6D55:
   LD C,$01
 ; Get stream number (C=default #channel)
-L6D57:
+GET_CHNUM:
   CP '#'
   RET NZ
   PUSH BC
@@ -21076,7 +21107,7 @@ L6D57:
   LD A,C
   CP $02
 L6D55_0:
-  JP NZ,L6E7D			; Err $34 -  'Bad file number'
+  JP NZ,BNERR			; Err $34 -  'Bad file number'
 L6D55_1:
   LD A,(HL)
   RET
@@ -21102,11 +21133,11 @@ L6D83:
   JR L6DA3
 
 ; Data block at 28047
-L6D8F:
+LINE_INPUT:
   LD  BC,FINPRT
   PUSH BC
   CALL L6D55
-  CALL L5EA3+1   ; reference not aligned to instruction
+  CALL GETVAR
   CALL TSTSTR
   PUSH DE
   LD BC,L487B
@@ -21118,7 +21149,7 @@ L6DA3:
   PUSH BC
   PUSH HL
 L6DA6:
-  CALL L6C71
+  CALL RDBYT
   JP C,L6E83		; Err $37 - "Input past END"
   CP ' '
   JR NZ,L6DB4
@@ -21134,7 +21165,7 @@ L6DB4:
   JR NZ,L6DC6
   LD D,A
   LD E,A
-  CALL L6C71
+  CALL RDBYT
   JR C,L6E0D
 L6DC6:
   LD HL,BUF
@@ -21157,7 +21188,7 @@ L6DDC:
   CP ','
   LD A,C
   CALL NZ,L6E61
-  CALL L6C71
+  CALL RDBYT
   JR C,L6E0D
   CP LF
   JR Z,L6DDC
@@ -21178,7 +21209,7 @@ L6DFC:
   JR Z,L6E0D
   CALL L6E61
 L6E08:
-  CALL L6C71
+  CALL RDBYT
   JR NC,L6DCB
 L6E0D:
   PUSH HL
@@ -21187,7 +21218,7 @@ L6E0D:
   CP ' '
   JR NZ,NOSKCR
 L6E16:
-  CALL L6C71
+  CALL RDBYT
   JR C,NOSKCR
   CP ' '
   JR Z,L6E16
@@ -21196,7 +21227,7 @@ L6E16:
   CP CR
   JR NZ,L6E30
 L6E27:
-  CALL L6C71
+  CALL RDBYT
   JR C,NOSKCR
   CP LF
   JR Z,NOSKCR
@@ -21211,11 +21242,11 @@ IF NOHOOK
 ELSE
   CALL HBAKU			; Hook for "LINE INPUT#"
 ENDIF
-  JP L6E80			; Err $33 - "Internal Error"
+  JP ERR_INTERNAL			; Err $33 - "Internal Error"
 
 L6E3C:
   LD A,$12		; INS ?  .. TK_LEN ?
-  CALL L6F8F
+  CALL GET_DEVICE
 
 NOSKCR:
   POP HL
@@ -21283,11 +21314,11 @@ L6E7A:
   LD E,$32 ; - FIELD overflow
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
-L6E7D:
+BNERR:
   LD E,$34 ; - Bad file number
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
-L6E80:
+ERR_INTERNAL:
   LD E,$33 ; - Internal error
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
@@ -21375,7 +21406,7 @@ L6EE8:
   PUSH BC
   LD A,D
   CP $FF
-  JP Z,L7014
+  JP Z,L7014		; load data from tape (incl. header)
   JP DERBFN					; Err $38 -  'Bad file name'
 
 ; Routine at 28404
@@ -21464,9 +21495,6 @@ ENDIF
 
 L6F3D:
   LD A,D
-
-; Routine at 28478
-L6F3E:
   SUB E
   DEC A
   POP BC
@@ -21474,10 +21502,10 @@ L6F3E:
   PUSH BC
   LD C,A
   LD B,A
-  LD DE,L6F76
+  LD DE,DEVICE_TBL
   EX (SP),HL
   PUSH HL
-L6F3E_0:
+L6F3D_0:
   CALL UCASE_HL		; Load A with char in 'HL' and make it uppercase
   PUSH BC
   LD B,A
@@ -21486,37 +21514,37 @@ L6F3E_0:
   INC DE
   CP B
   POP BC
-  JR NZ,L6F3E_2
+  JR NZ,L6F3D_2
   DEC C
-  JR NZ,L6F3E_0
-L6F3E_1:
+  JR NZ,L6F3D_0
+L6F3D_1:
   LD A,(DE)
   OR A
-  JP P,L6F3E_2
+  JP P,L6F3D_2
   POP HL
   POP HL
   POP DE
   OR A
   RET
   
-L6F3E_2:
+L6F3D_2:
   OR A
-  JP M,L6F3E_1
-L6F3E_3:
+  JP M,L6F3D_1
+L6F3D_3:
   LD A,(DE)
   ADD A,A
   INC DE
-  JR NC,L6F3E_3
+  JR NC,L6F3D_3
   LD C,B
   POP HL
   PUSH HL
   LD A,(DE)
   OR A
-  JR NZ,L6F3E_0
-  JP L55F8
+  JR NZ,L6F3D_0
+  JP L55F8			; NMERR, deal with exceptions/expansions
 
 ; Message at 28534
-L6F76:
+DEVICE_TBL:
   DEFM "CAS"
   DEFB $FF
   DEFM "LPT"
@@ -21528,7 +21556,7 @@ L6F76:
   DEFB $00
 
 ; Table to define Token groups ?
-L6F87:
+DEVICE_VECT:
   DEFW CAS_DEV
   DEFW LPT_DEV
   DEFW CRT_DEV
@@ -21536,7 +21564,9 @@ L6F87:
 
 ; This entry point is used by the routines at __OPEN, GET, L6C50, L6C78,
 ; __EOF and L6E35.
-L6F8F:
+
+; Routine location: $6F8F
+GET_DEVICE:
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -21556,7 +21586,7 @@ ENDIF
   SUB (HL)
   ADD A,A
   LD E,A
-  LD HL,L6F87
+  LD HL,DEVICE_VECT
   ADD HL,DE
   LD E,(HL)
   INC HL
@@ -21600,20 +21630,20 @@ L6FD7:
   LD A,TK_BSAVE
   CALL SEND_CAS_FNAME
   XOR A
-  CALL TAPON_SUB
+  CALL TAPON_SUB		; start tape for writing
   POP HL
   PUSH HL
-  CALL L7003
+  CALL L7003			; send word to tape
   LD HL,(SAVEND)
   PUSH HL
-  CALL L7003
+  CALL L7003			; send word to tape
   LD HL,(SAVENT)
-  CALL L7003
+  CALL L7003			; send word to tape
   POP DE
   POP HL
 L6FD7_0:
   LD A,(HL)
-  CALL TAPOUT_SUB
+  CALL TAPOUT_SUB		; send byte to tape
   RST DCOMPR		; Compare HL with DE.
   JR NC,L6FD7_1
   INC HL
@@ -21626,42 +21656,45 @@ L6FD7_1:
 ; Routine at 28675
 ;
 ; Used by the routine at L6FD7.
+; send word to tape
 L7003:
   LD A,L
-  CALL TAPOUT_SUB
+  CALL TAPOUT_SUB		; send byte to tape
   LD A,H
-  JP TAPOUT_SUB
+  JP TAPOUT_SUB		; send byte to tape
 
 ; Routine at 28683
 ;
 ; Used by the routine at L7014.
+; get word from tape
 L700B:
-  CALL L72D4
+  CALL L72D4                   ; get byte from tape
   LD L,A
-  CALL L72D4
+  CALL L72D4                   ; get byte from tape
   LD H,A
   RET
 
 ; Routine at 28692
 ;
 ; Used by the routine at L6EE8.
+; load data from tape (incl. header)
 L7014:
   LD C,TK_BSAVE
   CALL L70B8
-  CALL L72E9
+  CALL L72E9                   ; start tape for reading
   POP BC
-  CALL L700B
+  CALL L700B                   ; get word from tape
   ADD HL,BC
   EX DE,HL
-  CALL L700B
+  CALL L700B                   ; get word from tape
   ADD HL,BC
   PUSH HL
-  CALL L700B
+  CALL L700B                   ; get word from tape
   LD (SAVENT),HL
   EX DE,HL
   POP DE
 L7014_0:
-  CALL L72D4
+  CALL L72D4                   ; get byte from tape
   LD (HL),A
   RST DCOMPR		; Compare HL with DE.
   JR Z,L7014_1
@@ -21760,27 +21793,27 @@ L70B6:
 ;
 ; Used by the routines at L7014, __CLOAD and L71D9.
 L70B8:
-  CALL L72E9
+  CALL L72E9                   ; start tape for reading
   LD B,$0A
 
 L70B8_0:
-  CALL L72D4
+  CALL L72D4         ; get byte from tape
   CP C
   JR NZ,L70B8
   DJNZ L70B8_0
   
   LD HL,FILNM2
   PUSH HL
-  LD B,$06
+  LD B,$06           ; 6 bytes
 L70B8_1:
-  CALL L72D4
+  CALL L72D4         ; get byte from tape
   LD (HL),A
   INC HL
   DJNZ L70B8_1
   POP HL
 
   LD DE,FILNAM
-  LD B,$06
+  LD B,$06           ; 6 bytes
 L70B8_2:
   LD A,(DE)
   INC DE
@@ -21791,7 +21824,7 @@ L70B8_2:
   
 CMP_FNAME:
   LD DE,FILNAM
-  LD B,$06
+  LD B,$06           ; 6 bytes
 CMP_FNAME_LOOP:
   LD A,(DE)
   CP (HL)
@@ -21840,17 +21873,17 @@ PRNAME_LOOP:
 ;
 ; Used by the routines at __CSAVE, L6FD7 and L71D9.
 SEND_CAS_FNAME:
-  CALL TAPON_SUB
+  CALL TAPON_SUB		; start tape for writing
   LD B,$0A
 SEND_CAS_FNAME_0:
-  CALL TAPOUT_SUB
+  CALL TAPOUT_SUB		; send byte to tape
   DJNZ SEND_CAS_FNAME_0
   LD B,$06
   LD HL,FILNAM
 SEND_CAS_FNAME_1:
   LD A,(HL)
   INC HL
-  CALL TAPOUT_SUB
+  CALL TAPOUT_SUB		; send byte to tape
   DJNZ SEND_CAS_FNAME_1
   JP TAPOOF
 
@@ -21861,18 +21894,18 @@ L713E:
   PUSH HL
   CALL L54EA
   XOR A
-  CALL TAPON_SUB
+  CALL TAPON_SUB		; start tape for writing
   POP DE
   LD HL,(SAVEND)
 L713E_0:
   LD A,(DE)
   INC DE
-  CALL TAPOUT_SUB
+  CALL TAPOUT_SUB		; send byte to tape
   RST DCOMPR		; Compare HL with DE.
   JR NZ,L713E_0
   LD L,$07
 L713E_1:
-  CALL TAPOUT_SUB
+  CALL TAPOUT_SUB		; send byte to tape
   DEC L
   JR NZ,L713E_1
   JP TAPOOF
@@ -21881,14 +21914,14 @@ L713E_1:
 ;
 ; Used by the routine at __CLOAD.
 L715D:
-  CALL L72E9
+  CALL L72E9                   ; start tape for reading
   SBC A,A
   CPL
   LD D,A
 L715D_0:
-  LD B,$0A
+  LD B,$0A       ; 10 bytes
 L715D_1:
-  CALL L72D4
+  CALL L72D4     ; get byte from tape
   LD E,A
   CALL L6266+1   ; $6267 = CHKSTK_0 (reference not aligned to instruction)
   LD A,E
@@ -21901,6 +21934,7 @@ L715D_1:
   INC HL
   JR NZ,L715D_0
   DJNZ L715D_1
+  
   LD BC,$FFFA		; -6
   ADD HL,BC
   XOR A
@@ -21953,7 +21987,7 @@ L71B6:
   CP $01
   JP Z,DERBFN					; Err $38 -  'Bad file name'
 ; This entry point is used by the routine at L71D9.
-L71BE:
+REDIRECT_IO:
   LD (PTRFIL),HL
   LD (HL),E
 L71C2:
@@ -21973,6 +22007,7 @@ CAS_DEV:
   DEFW L6E86
   DEFW L722A
   DEFW L723F
+  
   DEFW FCERR
   DEFW FCERR
   DEFW L726D
@@ -21999,7 +22034,7 @@ L71DB:
 L71D9_0:
   POP DE
   POP HL
-  JR L71BE
+  JR REDIRECT_IO
   
 L71D9_1:
   LD C,$EA			; TK_DSKI ?
@@ -22012,7 +22047,7 @@ L7205:
   LD A,(HL)
   CP $01
   JR Z,L7205_1
-  LD A,$1A
+  LD A,$1A		; EOF
   PUSH HL
   CALL L728B
   CALL Z,L722A_0
@@ -22022,7 +22057,7 @@ L7205:
   PUSH HL
   ADD HL,BC
 L7205_0:
-  LD (HL),$1A
+  LD (HL),$1A		; EOF
   INC HL
   INC C
   JR NZ,L7205_0
@@ -22041,11 +22076,11 @@ L722A:
 ; This entry point is used by the routine at L7205.
 L722A_0:
   XOR A
-  CALL TAPON_SUB
+  CALL TAPON_SUB		; start tape for writing
   LD B,$00
 L722A_1:
   LD A,(HL)
-  CALL TAPOUT_SUB
+  CALL TAPOUT_SUB		; send byte to tape
   INC HL
   DJNZ L722A_1
   JP TAPOOF
@@ -22061,11 +22096,11 @@ L723F:
   CALL L729B
   JR NZ,L723F_1
   PUSH HL
-  CALL L72E9
+  CALL L72E9                   ; start tape for reading
   POP HL
   LD B,$00
 L723F_0:
-  CALL L72D4
+  CALL L72D4                   ; get byte from tape
   LD (HL),A
   INC HL
   DJNZ L723F_0
@@ -22077,7 +22112,7 @@ L723F_1:
   LD C,A
   ADD HL,BC
   LD A,(HL)
-  CP $1A
+  CP $1A		; EOF
   SCF
   CCF
   RET NZ
@@ -22090,7 +22125,7 @@ L726D:
   CALL L723F
   LD HL,CASPRV
   LD (HL),A
-  SUB $1A
+  SUB $1A		; EOF
   SUB $01
   SBC A,A
   JP INT_RESULT_A
@@ -22177,7 +22212,7 @@ L72BE:
   RET Z
   INC SP
   INC SP
-  CP $1A
+  CP $1A		; EOF
   SCF
   CCF
   RET NZ
@@ -22197,17 +22232,19 @@ L72CD:
 ; Routine at 29396
 ;
 ; Used by the routines at L700B, L7014, L70B8, L715D and L723F.
+; get byte from tape
 L72D4:
   PUSH HL
   PUSH DE
   PUSH BC
-  CALL TAPIN
+  CALL TAPIN	; Get byte from cassette
   JR NC,TAPON_SUB_RET_1
   JR TAPE_ERROR
 
 ; Routine at 29406
 ;
 ; Used by the routines at L6FD7, L7003, SEND_CAS_FNAME, L713E and L722A.
+; send byte to tape
 TAPOUT_SUB:
   PUSH HL
   PUSH DE
@@ -22220,6 +22257,7 @@ TAPOUT_SUB:
 ; Routine at 29417
 ;
 ; Used by the routines at L7014, L70B8, L715D and L723F.
+; start tape for reading
 L72E9:
   PUSH HL
   PUSH DE
@@ -22235,6 +22273,7 @@ TAPE_ERROR:
 ; Routine at 29432
 ;
 ; Used by the routines at L6FD7, SEND_CAS_FNAME, L713E and L722A.
+; start tape for writing
 TAPON_SUB:
   PUSH HL
   PUSH DE
@@ -22332,7 +22371,7 @@ FN_INKEY:
   LD E,A
   CALL __CHR_S_0
 L735A:
-  LD HL,L3FD6		; Perhaps L3FD6?  it points to a NULL value (zeroed byte)
+  LD HL,NULL_STRING
   LD (FACLOW),HL
   LD A,$03			; String
   LD (VALTYP),A
@@ -22364,7 +22403,7 @@ ENDIF
   LD B,$FF
   LD HL,BUF
 L737C:
-  CALL L6C71
+  CALL RDBYT
   JR C,L7397
   LD (HL),A
   CP CR
@@ -22393,7 +22432,7 @@ L7397:
   AND A
   JP Z,RESTART
   CALL RUN_FST
-  JP NEW_STMT
+  JP EXEC_EVAL
 
 ; Routine at 29618
 ;
@@ -23026,7 +23065,7 @@ L7684_2:
   PUSH HL
   CALL MLDEBC
   EX DE,HL
-  CALL L2FCB
+  CALL HL_CSNG
   CALL FP_ARG2HL
   LD HL,L7754
   CALL PHLTFP
@@ -23273,7 +23312,7 @@ L77D4_0:
   POP HL
   POP AF
   RST CHRGTB		; Gets next character (or token) from BASIC text.
-  JP NEW_STMT_0
+  JP EXEC_EVAL_0
 
 ; Routine at 30696
 ;
@@ -24571,7 +24610,7 @@ L7D75_6:
   LD A,H
   LD (BASROM),A
   CALL RUN_FST
-  JP NEW_STMT
+  JP EXEC_EVAL
 
 ; Routine at 32282
 ;
@@ -24638,7 +24677,7 @@ __MAX:
   POP AF
   CALL L7E6B
   CALL _CLREG
-  JP NEW_STMT
+  JP EXEC_EVAL
 
 ; Routine at 32363
 ;
