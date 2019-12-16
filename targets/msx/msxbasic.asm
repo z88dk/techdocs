@@ -19746,7 +19746,7 @@ CONCAT:
   EX (SP),HL
   CALL GSTRHL
   PUSH HL
-  LD HL,(TMPSTR+2)
+  LD HL,(TMPSTR)
   EX DE,HL
   CALL SSTSA
   CALL SSTSA
@@ -19879,7 +19879,7 @@ __CHR_S:
   CALL MAKINT
 ; This entry point is used by the routine at FN_INKEY.
 __CHR_S_0:
-  LD HL,(TMPSTR+2)
+  LD HL,(TMPSTR)
   LD (HL),E
 
 ; Save in string pool
@@ -19926,7 +19926,7 @@ FN_STRING_2:
   INC B
   DEC B
   JR Z,TOPOOL
-  LD HL,(TMPSTR+2)
+  LD HL,(TMPSTR)
 FN_STRING_3:
   LD (HL),A
   INC HL
@@ -23863,7 +23863,7 @@ FN_SPRITE:
   LD B,$00
   PUSH BC
   CALL MKTMST			; Make temporary string
-  LD HL,(TMPSTR+2)
+  LD HL,(TMPSTR)
   EX DE,HL
   POP BC
   POP HL
