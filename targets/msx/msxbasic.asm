@@ -2893,6 +2893,7 @@ _FNKSB:
   LD A,(CNSDFG)		; FN key status
   AND A
   RET Z
+
 ; This entry point is used by the routines at DSPFNK and _CHSNS.
 ; Show the function key display.
 _DSPFNK:
@@ -7325,8 +7326,8 @@ DECMUL_7:
  
 DECMUL_8:
   LD B,$0F
-  LD DE,FACCU+14
-  LD HL,FACCU+15
+  LD DE,FACCU+14	; some declaration is missing here but the distances between
+  LD HL,FACCU+15	; the labels in this work area is the same on all the target computers
   CALL LDDR_DEHL
   LD (HL),$00
   POP DE
@@ -12354,7 +12355,7 @@ IF NOHOOK
 ELSE
   CALL HCRUN			; Hook 1 for Tokenise
 ENDIF
-  LD BC,$013B		; 315
+  LD BC,$013B		; $01, $3b
   LD DE,KBUF
 ; This entry point is used by the routine at L441D.
 TOKENIZE_0:
@@ -12363,7 +12364,7 @@ TOKENIZE_0:
   JR NZ,TOKENIZE_2
 ; This entry point is used by the routine at L43C4.
 TOKENIZE_1:
-  LD HL,$0140
+  LD HL,$0140		; $01, $40
   LD A,L
   SUB C
   LD C,A
@@ -12400,7 +12401,7 @@ TOKENIZE_3:
 TOKENIZE_4:
   CALL NZ,L44DE_0
   POP AF
-  SUB $3A
+  SUB $3A	; ':'
   JR Z,TOKENIZE_5
   CP $4A
   JR NZ,TOKENIZE_6
@@ -12829,7 +12830,7 @@ L4514:
 
 ; Data block at 17700
 __FOR:
-  LD A,$64
+  LD A,$64				; 100
   LD (SUBFLG),A			; Flag for array for USR fun.
   CALL __LET
   POP BC
@@ -12840,7 +12841,7 @@ __FOR:
   ADD HL,SP
 __FOR_0:				; L4538
   CALL L3FE6
-  JR NZ,__FOR_1+1
+  JR NZ,__FOR_1
   ADD HL,BC
   PUSH DE
   DEC HL
@@ -12858,9 +12859,12 @@ __FOR_0:				; L4538
   POP DE
   LD SP,HL
   LD (SAVSTK),HL
+  
+  defb $0e		;LD C,N
+
 __FOR_1:
-	; __FOR_1+1:  POP DE
-  LD C,$D1
+  POP DE
+  ;LD C,$D1
   EX DE,HL
   LD C,$0C
   CALL CHKSTK
@@ -13331,7 +13335,7 @@ LNUM_PARM_3:
   RET NC
   PUSH HL
   PUSH AF
-  LD HL,$1998
+  LD HL,$1998		; const
   RST DCOMPR		; Compare HL with DE.
   JR C,LNUM_PARM_4
   LD H,D
@@ -13378,7 +13382,7 @@ __GOSUB:
   LD BC,$0000
   PUSH BC
   LD BC,EXEC_EVAL
-  LD A,$8D
+  LD A,TK_GOSUB          ; Confirmed comparing to the M100 BASIC
   PUSH AF
   INC SP
   PUSH BC
@@ -13393,7 +13397,7 @@ L47CF:
   LD HL,(CURLIN)		 ; Line number the Basic interpreter is working on, in direct mode it will be filled with #FFFF
   EX (SP),HL
   PUSH BC
-  LD A,$8D
+  LD A,TK_GOSUB          ; Confirmed comparing to the M100 BASIC
   PUSH AF
   INC SP
   EX DE,HL
@@ -13471,7 +13475,7 @@ __RETURN_0:
   LD (SAVSTK),HL
   LD E,$03		; Err $03 - RETURN without GOSUB
   JP NZ,ERROR
-  
+
   POP HL
   LD A,H
   OR L
@@ -13592,7 +13596,7 @@ __LET_3:
   RST DCOMPR		; Compare HL with DE.. is string literal in program?
   POP DE
   JR NC,MVSTPT		; Yes - Set up pointer
-  LD HL,TMPSTR		; Guessing..  unknown system variable address, but on SpectraVideo it is still one byte less than DSCTMP !
+  LD HL,VARIABLES+14		; Guessing..  unknown system variable address, but on SpectraVideo it is still one byte less than DSCTMP !
   RST DCOMPR		; Compare HL with DE.
   JR C,__LET_4
   LD HL,TEMPPT+1
@@ -14082,7 +14086,7 @@ ENDIF
 ; Used by the routine at __INPUT.
 ; INPUT #
 L4B62:		; deal with '#' argument
-  CALL L6D55		; Get stream number (default #channel=1)
+  CALL GT_CHANNEL		; Get stream number (default #channel=1)
   PUSH HL
   LD HL,BUFMIN
   JP L4B8B_0
@@ -15396,7 +15400,7 @@ DEPINT:
 
 ; Routine at 21019
 ;
-; Used by the routines at L4A5A, OPRND and L6D55.
+; Used by the routines at L4A5A, OPRND and GT_CHANNEL.
 FNDNUM:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
 ; This entry point is used by the routines at GTWORD_GTINT, __WAIT, L492A, __ERROR,
@@ -17852,8 +17856,6 @@ L5E91:
 L5E9A:
   DEC HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
-
-L5E9C:
   RET Z
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
@@ -17920,7 +17922,7 @@ GETVAR_4:
   LD E,A
   LD D,$00
   PUSH HL
-  LD HL,$F689	; Unknown System variable or -2423
+  LD HL,VARIABLES	; Unknown System variable or -2423
   ADD HL,DE
   LD D,(HL)
   POP HL
@@ -17932,7 +17934,7 @@ GVAR:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   LD A,(SUBFLG)
   DEC A
-  JP Z,L5FE7+1
+  JP Z,L5FE8
   JP P,GVAR_0
   LD A,(HL)
   SUB $28	; '('
@@ -17973,6 +17975,7 @@ L5F23_0:
   INC DE
   LD H,$00
   ADD HL,DE
+  
 ; This entry point is used by the routine at GVAR.
 L5F23_1:
   EX DE,HL
@@ -18115,13 +18118,20 @@ L5FDD:
   LD (DIMFLG),HL
   LD E,$00
   PUSH DE
-L5FE7:
-	;; L5FE7+1: PUSH HL / PUSH AF
-  LD DE,$F5E5
+  
+  ;LD DE,$F5E5
+  defb $11	
+
+L5FE8:
+  PUSH HL
+  PUSH AF
   LD HL,(ARYTAB)
-L5FED:
-  LD A,$19
-;L5FED+1:  ADD HL,DE
+
+  ;LD A,$19
+  DEFB $3E  ; "LD A,n" to Mask the next byte
+
+L5FEE:
+  ADD HL,DE
   LD DE,(STREND)
   RST DCOMPR		; Compare HL with DE.
 
@@ -18144,7 +18154,7 @@ L6005:
   INC HL
   LD D,(HL)
   INC HL
-  JR NZ,L5FED+1  ; reference not aligned to instruction
+  JR NZ,L5FEE  ; reference not aligned to instruction
   LD A,(DIMFLG)
   OR A
   JP NZ,REDIM_ERR		; Err $0A - "Redimensioned array"
@@ -18386,10 +18396,12 @@ L613C:
   ; L613C+1:  XOR A
   ADD A,$10
   INC HL
-L6141:  INC E
+L6141:
+  INC E
   ADD A,D
   LD D,A
-L6144:  INC E
+L6144:
+  INC E
   LD C,$00
   DEC B
   JR Z,L6192
@@ -18411,12 +18423,14 @@ L615E:
   CP '#'
   LD A,'.'
   JP NZ,L60F2
+  
   LD C,$01
   INC HL
 L6169:
   INC C
   DEC B
   JR Z,L6192
+  
   LD A,(HL)
   INC HL
   CP '#'
@@ -18431,13 +18445,13 @@ L6173:
   RET NZ
   CP (HL)
   RET NZ
-  INC HL
+  INC HL		; +1
   CP (HL)
   RET NZ
-  INC HL
+  INC HL		; +2
   CP (HL)
   RET NZ
-  INC HL
+  INC HL		; +3
   LD A,B
   SUB $04
   RET C
@@ -18449,7 +18463,7 @@ L6173:
 
   
 L618F:
-  JP Z,$D1EB		; ??  probably 'Z' never happens 
+  JP Z,$D1EB		; ??  probably 'Z' never happens (same trick on M100)
 ;L618F+1:
 ;  EX DE,HL / POP DE
 
@@ -18652,6 +18666,7 @@ OMERR:
   DEC HL
   DEC HL
   LD (SAVSTK),HL
+_OMERR:
   LD DE,$0007			; Err $07 - "Out of memory"
   JP ERROR
 
@@ -18826,6 +18841,7 @@ L633E:
   JR NZ,L633E_0
   EI
   RET
+
 L633E_0:
   XOR $05
   JR Z,L634E_0
@@ -19157,12 +19173,12 @@ __CLEAR:
   AND A
   JP P,FCERR		; Err $05 - "Illegal function call"
   PUSH DE
-  LD DE,$F381
+  LD DE,MAXRAM+1	; Limit of CLEAR position
   RST DCOMPR		; Compare HL with DE.
   JP NC,FCERR		; Err $05 - "Illegal function call"
   POP DE
   PUSH HL
-  LD BC,$FEF5		; -267
+  LD BC,$FEF5		; -267 (same offset on Tandy model 100)
   LD A,(MAXFIL)
 __CLEAR_0:
   ADD HL,BC
@@ -19181,7 +19197,7 @@ __CLEAR_1:
   PUSH HL
   LD HL,(VARTAB)
   PUSH BC
-  LD BC,$00A0		; 160
+  LD BC,$00A0		; 160 (same offset on Tandy model 100)
   ADD HL,BC
   POP BC
   RST DCOMPR		; Compare HL with DE.
@@ -20428,7 +20444,7 @@ L6A9E:
   CALL GETINT
   EX (SP),HL
   PUSH HL
-; This entry point is used by the routines at _LOAD and L6D55.
+; This entry point is used by the routines at _LOAD and GT_CHANNEL.
 SETFIL:
   CALL GETPTR
   JP Z,L6E77			; Err $3B - "File not OPEN"
@@ -20500,6 +20516,7 @@ ENDIF
 L6AF9:
 ; +1 -> NULOPN
   LD E,$D5			; TK_IPL ?
+  ; PUSH DE
   DEC HL
   LD E,A
   RST CHRGTB		; Gets next character (or token) from BASIC text.
@@ -20831,7 +20848,7 @@ L6C57:
   LD C,A
   LD A,$06
   CALL GET_DEVICE
-  JP TAPON_SUB_RET_0
+  JP START_TAP_OUT_RET_0
 
 ; Routine at 27746
 L6C62:
@@ -20868,7 +20885,7 @@ ENDIF
 L6C7F:
   LD A,$08
   CALL GET_DEVICE
-  JP TAPON_SUB_RET_1
+  JP START_TAP_OUT_RET_1
 
 ; Routine at 27783
 ;
@@ -21082,7 +21099,7 @@ CLOSE_FILEFEED:
 ;
 ; Used by the routine at L4B62.
 ; Get stream number (default #channel=1
-L6D55:
+GT_CHANNEL:
   LD C,$01
 ; Get stream number (C=default #channel)
 GET_CHNUM:
@@ -21099,16 +21116,16 @@ GET_CHNUM:
   POP HL
   POP BC
   CP C
-  JR Z,L6D55_1
+  JR Z,GT_CHANNEL_1
   CP $04
-  JR Z,L6D55_1
+  JR Z,GT_CHANNEL_1
   CP $08
-  JR NZ,L6D55_0
+  JR NZ,GT_CHANNEL_0
   LD A,C
   CP $02
-L6D55_0:
+GT_CHANNEL_0:
   JP NZ,BNERR			; Err $34 -  'Bad file number'
-L6D55_1:
+GT_CHANNEL_1:
   LD A,(HL)
   RET
 
@@ -21136,7 +21153,7 @@ L6D83:
 LINE_INPUT:
   LD  BC,FINPRT
   PUSH BC
-  CALL L6D55
+  CALL GT_CHANNEL
   CALL GETVAR
   CALL TSTSTR
   PUSH DE
@@ -21250,7 +21267,6 @@ L6E3C:
 
 NOSKCR:
   POP HL
-
 ; This entry point is used by the routine at L6E61.
 L6E35_0:
   LD (HL),$00
@@ -21326,7 +21342,7 @@ L6E83:
   LD E,$37 ; - Input past end
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
-L6E86:
+ERR_NO_RNDACC:
   LD E,$3A ; - Sequential I/O Only
 
   XOR A
@@ -21418,7 +21434,7 @@ L6EF4:
   JR Z,SPSVEX
   XOR A
   CALL CLOSE
-  LD HL,$6CF3
+  LD HL,L6CF3
   PUSH HL
   LD HL,(SAVENT)
   JP (HL)
@@ -21630,7 +21646,7 @@ L6FD7:
   LD A,TK_BSAVE
   CALL SEND_CAS_FNAME
   XOR A
-  CALL TAPON_SUB		; start tape for writing
+  CALL START_TAP_OUT		; start tape for writing
   POP HL
   PUSH HL
   CALL L7003			; send word to tape
@@ -21681,7 +21697,7 @@ L700B:
 L7014:
   LD C,TK_BSAVE
   CALL L70B8
-  CALL L72E9                   ; start tape for reading
+  CALL START_TAP_IN                   ; start tape for reading
   POP BC
   CALL L700B                   ; get word from tape
   ADD HL,BC
@@ -21793,7 +21809,7 @@ L70B6:
 ;
 ; Used by the routines at L7014, __CLOAD and L71D9.
 L70B8:
-  CALL L72E9                   ; start tape for reading
+  CALL START_TAP_IN                   ; start tape for reading
   LD B,$0A
 
 L70B8_0:
@@ -21873,7 +21889,7 @@ PRNAME_LOOP:
 ;
 ; Used by the routines at __CSAVE, L6FD7 and L71D9.
 SEND_CAS_FNAME:
-  CALL TAPON_SUB		; start tape for writing
+  CALL START_TAP_OUT		; start tape for writing
   LD B,$0A
 SEND_CAS_FNAME_0:
   CALL TAPOUT_SUB		; send byte to tape
@@ -21894,7 +21910,7 @@ L713E:
   PUSH HL
   CALL L54EA
   XOR A
-  CALL TAPON_SUB		; start tape for writing
+  CALL START_TAP_OUT		; start tape for writing
   POP DE
   LD HL,(SAVEND)
 L713E_0:
@@ -21914,7 +21930,7 @@ L713E_1:
 ;
 ; Used by the routine at __CLOAD.
 L715D:
-  CALL L72E9                   ; start tape for reading
+  CALL START_TAP_IN                   ; start tape for reading
   SBC A,A
   CPL
   LD D,A
@@ -21945,10 +21961,11 @@ L715D_1:
 ; GRP: Device Table
 ; $7182
 GRP_DEV:
-  DEFW L71B6
-  DEFW L71C2
-  DEFW L6E86
-  DEFW L7196
+  DEFW DEVICE_OPEN
+  DEFW DO_NOTHING
+  DEFW ERR_NO_RNDACC
+  DEFW GRP_OUTPUT
+
   DEFW FCERR
   DEFW FCERR
   DEFW FCERR
@@ -21956,7 +21973,7 @@ GRP_DEV:
   DEFW FCERR
   DEFW FCERR
 
-L7196:
+GRP_OUTPUT:
   LD A,(SCRMOD)
   CP $02
   JP C,FCERR
@@ -21971,10 +21988,11 @@ L719F:
 ; CRT: Device Table
 ; $71A2
 CRT_DEV:
-  DEFW L71B6
-  DEFW L71C2
-  DEFW L6E86
-  DEFW L71C3
+  DEFW DEVICE_OPEN
+  DEFW DO_NOTHING
+  DEFW ERR_NO_RNDACC
+  DEFW CRT_OUTPUT
+  
   DEFW FCERR
   DEFW FCERR
   DEFW FCERR
@@ -21982,7 +22000,7 @@ CRT_DEV:
   DEFW FCERR
   DEFW FCERR
   
-L71B6:
+DEVICE_OPEN:
   CALL L72CD
   CP $01
   JP Z,DERBFN					; Err $38 -  'Bad file name'
@@ -21990,11 +22008,11 @@ L71B6:
 REDIRECT_IO:
   LD (PTRFIL),HL
   LD (HL),E
-L71C2:
+DO_NOTHING:
   RET
 
 ; Routine at 29123
-L71C3:
+CRT_OUTPUT:
   LD A,C
   JP CHPUT
 
@@ -22002,19 +22020,19 @@ L71C3:
 ; CAS: Device Table/Driver
 ;$71C7
 CAS_DEV:
-  DEFW L71DB
-  DEFW L7205
-  DEFW L6E86
-  DEFW L722A
-  DEFW L723F
+  DEFW CAS_OPEN
+  DEFW CAS_CLOSE
+  DEFW ERR_NO_RNDACC
+  DEFW CAS_OUTPUT
   
+  DEFW CAS_INPUT
   DEFW FCERR
   DEFW FCERR
   DEFW L726D
   DEFW FCERR
   DEFW L727C
 
-L71DB:
+CAS_OPEN:
   PUSH HL
   PUSH DE
   LD BC,$0006
@@ -22043,72 +22061,72 @@ L71D9_1:
   JR L71D9_0
   
 ; Routine at 29189
-L7205:
+CAS_CLOSE:
   LD A,(HL)
   CP $01
-  JR Z,L7205_1
+  JR Z,CAS_CLOSE_1
   LD A,$1A		; EOF
   PUSH HL
   CALL L728B
-  CALL Z,L722A_0
+  CALL Z,CAS_OUTPUT_0
   POP HL
   CALL L7281
-  JR Z,L7205_1
+  JR Z,CAS_CLOSE_1
   PUSH HL
   ADD HL,BC
-L7205_0:
+CAS_CLOSE_0:
   LD (HL),$1A		; EOF
   INC HL
   INC C
-  JR NZ,L7205_0
+  JR NZ,CAS_CLOSE_0
   POP HL
-  CALL L722A_0
-L7205_1:
+  CALL CAS_OUTPUT_0
+CAS_CLOSE_1:
   XOR A
   LD (CASPRV),A
   RET
 
 ; Routine at 29226
-L722A:
+CAS_OUTPUT:
   LD A,C
   CALL L728B
   RET NZ
-; This entry point is used by the routine at L7205.
-L722A_0:
+; This entry point is used by the routine at CAS_CLOSE.
+CAS_OUTPUT_0:
   XOR A
-  CALL TAPON_SUB		; start tape for writing
+  CALL START_TAP_OUT		; start tape for writing
   LD B,$00
-L722A_1:
+CAS_OUTPUT_1:
   LD A,(HL)
   CALL TAPOUT_SUB		; send byte to tape
   INC HL
-  DJNZ L722A_1
+  DJNZ CAS_OUTPUT_1
   JP TAPOOF
 
 ; Routine at 29247
 ;
 ; Used by the routine at L726D.
-L723F:
+CAS_INPUT:
   EX DE,HL
   LD HL,CASPRV
   CALL L72BE
   EX DE,HL
   CALL L729B
-  JR NZ,L723F_1
+  JR NZ,CAS_INPUT_1
   PUSH HL
-  CALL L72E9                   ; start tape for reading
+  CALL START_TAP_IN                   ; start tape for reading
   POP HL
   LD B,$00
-L723F_0:
+CAS_INPUT_0:
   CALL L72D4                   ; get byte from tape
   LD (HL),A
   INC HL
-  DJNZ L723F_0
+  DJNZ CAS_INPUT_0
   CALL TAPIOF
   DEC H
   XOR A
   LD B,A
-L723F_1:
+CAS_INPUT_1:
   LD C,A
   ADD HL,BC
   LD A,(HL)
@@ -22122,7 +22140,7 @@ L723F_1:
 
 ; Routine at 29293
 L726D:
-  CALL L723F
+  CALL CAS_INPUT
   LD HL,CASPRV
   LD (HL),A
   SUB $1A		; EOF
@@ -22138,7 +22156,7 @@ L727C:
 
 ; Routine at 29313
 ;
-; Used by the routine at L7205.
+; Used by the routine at CAS_CLOSE.
 L7281:
   LD BC,$0006
   ADD HL,BC
@@ -22149,7 +22167,7 @@ L7281:
 
 ; Routine at 29323
 ;
-; Used by the routines at L7205 and L722A.
+; Used by the routines at CAS_CLOSE and CAS_OUTPUT.
 L728B:
   LD E,A
   LD BC,$0006
@@ -22168,7 +22186,7 @@ L728B:
 
 ; Routine at 29339
 ;
-; Used by the routine at L723F.
+; Used by the routine at CAS_INPUT.
 L729B:
   LD BC,$0006
   ADD HL,BC
@@ -22186,10 +22204,11 @@ L729B_0:
 ; LPT: Device Table/Driver
 ; $72A6
 LPT_DEV:
-  DEFW L71B6
-  DEFW L71C2
-  DEFW L6E86
-  DEFW L72BA
+  DEFW DEVICE_OPEN
+  DEFW DO_NOTHING
+  DEFW ERR_NO_RNDACC
+  DEFW LPT_OUTPUT
+ 
   DEFW FCERR
   DEFW FCERR
   DEFW FCERR
@@ -22197,14 +22216,14 @@ LPT_DEV:
   DEFW FCERR
   DEFW FCERR
 
-L72BA:
+LPT_OUTPUT:
   LD A,C
   JP OUTDLP
 
 
 ; Routine at 29374
 ;
-; Used by the routine at L723F.
+; Used by the routine at CAS_INPUT.
 L72BE:
   LD A,(HL)
   LD (HL),$00
@@ -22231,19 +22250,19 @@ L72CD:
 
 ; Routine at 29396
 ;
-; Used by the routines at L700B, L7014, L70B8, L715D and L723F.
+; Used by the routines at L700B, L7014, L70B8, L715D and CAS_INPUT.
 ; get byte from tape
 L72D4:
   PUSH HL
   PUSH DE
   PUSH BC
   CALL TAPIN	; Get byte from cassette
-  JR NC,TAPON_SUB_RET_1
+  JR NC,START_TAP_OUT_RET_1
   JR TAPE_ERROR
 
 ; Routine at 29406
 ;
-; Used by the routines at L6FD7, L7003, SEND_CAS_FNAME, L713E and L722A.
+; Used by the routines at L6FD7, L7003, SEND_CAS_FNAME, L713E and CAS_OUTPUT.
 ; send byte to tape
 TAPOUT_SUB:
   PUSH HL
@@ -22251,20 +22270,20 @@ TAPOUT_SUB:
   PUSH BC
   PUSH AF
   CALL TAPOUT
-  JR NC,TAPON_SUB_RET_0
+  JR NC,START_TAP_OUT_RET_0
   JR TAPE_ERROR
 
 ; Routine at 29417
 ;
-; Used by the routines at L7014, L70B8, L715D and L723F.
+; Used by the routines at L7014, L70B8, L715D and CAS_INPUT.
 ; start tape for reading
-L72E9:
+START_TAP_IN:
   PUSH HL
   PUSH DE
   PUSH BC
   PUSH AF
   CALL TAPION
-  JR NC,TAPON_SUB_RET_0
+  JR NC,START_TAP_OUT_RET_0
 ; This entry point is used by the routines at L72D4 and TAPOUT_SUB.
 TAPE_ERROR:
   CALL TAPIOF
@@ -22272,19 +22291,19 @@ TAPE_ERROR:
 
 ; Routine at 29432
 ;
-; Used by the routines at L6FD7, SEND_CAS_FNAME, L713E and L722A.
+; Used by the routines at L6FD7, SEND_CAS_FNAME, L713E and CAS_OUTPUT.
 ; start tape for writing
-TAPON_SUB:
+START_TAP_OUT:
   PUSH HL
   PUSH DE
   PUSH BC
   PUSH AF
   CALL TAPOON
-; This entry point is used by the routines at L6C50, TAPOUT_SUB and L72E9.
-TAPON_SUB_RET_0:
+; This entry point is used by the routines at L6C50, TAPOUT_SUB and START_TAP_IN.
+START_TAP_OUT_RET_0:
   POP AF
 ; This entry point is used by the routines at L6C78 and L72D4.
-TAPON_SUB_RET_1:
+START_TAP_OUT_RET_1:
   POP BC
   POP DE
   POP HL
@@ -22436,7 +22455,7 @@ L7397:
 
 ; Routine at 29618
 ;
-; Used by the routines at L72E9 and LPTOUT_SAFE.
+; Used by the routines at START_TAP_IN and LPTOUT_SAFE.
 IO_ERR:
   LD E,$13				; Err $13 - "Device I/O error"
   JP ERROR
