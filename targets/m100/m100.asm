@@ -18,6 +18,7 @@ defc OPTROM      = $F62A
 defc DIAL_SPEED  = $F62B
 defc FNKMAC      = $F62C
 defc FNKSTAT     = $F630
+defc SCREEN      = $F638
 defc CSRX        = $F639
 defc CSRY        = $F63A
 defc ACTV_X      = $F63B
@@ -29,10 +30,14 @@ defc CSR_ROW     = $F640
 defc CSR_COL     = $F641
 defc ESCCNT      = $F646
 defc REVERSE     = $F648
+
+defc TXT_ASKBUF  = $F64A
+
 defc GR_X        = $F64E
 defc GR_Y        = $F64F
 defc ERRTRP      = $F652
 defc ONGSBF      = $F654
+defc ONDATEF     = $F655
 defc POWR_FLAG   = $F656
 defc DUPLEX      = $F658
 defc ECHO        = $F659
@@ -67,8 +72,12 @@ defc TTYPOS      = $F788
 defc FNKSTR      = $F789
 defc PERM_END    = $F88C
 
+defc TXT_COUNT   = $F890
+defc TXT_SAVPTR  = $F88E
 defc TXT_PTR	 = $F892
+defc TXT_BUF	 = $F894
 
+defc TXT_EDITING = $F920
 defc SECS        = $F923
 defc SECS_2      = $F924
 defc MINS        = $F925
@@ -97,12 +106,15 @@ defc ON_COM      = $F945
 defc ON_TIME_FLG = $F947
 defc ON_TIME     = $F948
 defc FNK_VECTBL  = $F94A
+
 defc DIRECTORY   = $F962
-defc END_DIR     = $FA81
-defc CAS_FLAGS   = $FA8E
-defc COM_FLAGS   = $FA8F
 defc SUZUKI      = $F99A
 defc HAYASHI     = $F9A5
+defc END_DIR     = $FA81
+
+defc CAS_FLAGS   = $FA8E
+defc COM_FLAGS   = $FA8F
+
 defc LPRINT_CH   = $FAAC
 defc LBL_LINE    = $FAAD
 defc PORT_A8     = $FAAE
@@ -112,7 +124,13 @@ defc SP_POWER    = $FABE
 defc RAM         = $FAC0
 
 defc CAPTUR      = $FAC2
+defc SV_TXTPOS   = $FAC4
+defc MENU_FLG    = $FAC8
+
 defc RST38_OFFS  = $FAC9
+defc SV_CSRY     = $FACA
+defc BLINK       = $FACB
+defc SV_LABEL_LN = $FACC
 defc LPT_FLAG    = $FACD
 defc TOP         = $FACE
 defc PRLEN       = $FAD0
@@ -121,7 +139,7 @@ defc EXE         = $FAD2
 
 defc RST38_VECT    = $FADA	; offset: 00, used by __CLEAR
 defc MAXRAM_VECT   = $FADC	; offset: 02
-defc HCHGE         = $FADE	; offset: 04
+defc HCHGE         = $FADE	; offset: 04, Allow access to other devices than the internal keyboard
 defc HCHSNS        = $FAE0	; offset: 06
 defc HOUTD         = $FAE2	; offset: 08
 defc HLPTO         = $FAE4	; offset: 10  Hook for LPTOUT std routine
@@ -177,8 +195,7 @@ defc FILE_BUFFR  = $FB67
 defc TEMPPT      = $FB69
 defc TEMPST      = $FB6B
 defc VARIABLES   = $FB79
-defc _BUFFER     = $FB88
-defc TMPSTR      = $FB89
+defc DSCTMP      = $FB89
 defc FRETOP      = $FB8C
 defc ENDFOR      = $FB92	; NEXT address of FOR statement
 defc DATLIN      = $FB94
@@ -205,8 +222,11 @@ defc DATPTR      = $FBB8
 defc DEFTBL      = $FBBA
 defc PRMSTK      = $FBD4
 defc PRMLEN      = $FBD6
+defc PRMPRV      = $FBD9
 defc PRMLN2      = $FBDB
+defc ARYTA2      = $FBDF
 defc NOFUNS      = $FBE1
+defc TEMP9       = $FBE2
 defc FUNACT      = $FBE4
 defc VLZDAT      = $FBE6
 defc FBUFFR      = $FBE7
@@ -234,7 +254,9 @@ defc ALT_LCD     = $FCC0
 defc ALT_LCD_END = $FDFF
 defc BEGLCD      = $FE00
 defc ENDLCD      = $FF40
-defc XONXOFF     = $FF42
+defc XONXOFF     = $FF41
+defc XONXOFF_FLG = $FF42
+defc RS232_FLG   = $FF43
 defc SOUND_FLG   = $FF44
 defc PORT_E8     = $FF45
 defc RS232_BUF   = $FF46
@@ -250,6 +272,7 @@ defc KB_SHIFT    = $FFA2
 defc GETPNT      = $FFAA
 defc PUTPNT      = $FFAB
 defc CURS_SHAPE  = $FFEC
+defc SAVSP       = $FFF8
 
 
 
@@ -282,7 +305,7 @@ SYNCHR:
 
 ; A=(HL), HL++, skip spaces
 ;
-; Used by the routines at L0493, EXEC_HL, TOKENIZE, STEP, EXEC, __DEF, DECLVAR,
+; Used by the routines at L0493, EXEC_HL, TOKENIZE, STEP, EXEC, __DEF, DEFVAL,
 ; ATOH_2, ON_ERROR, __RESUME, __IF, __PRINT, TAB, __LINE, __READ, FDTLP, EVAL3,
 ; OPRND, ERR, ERL, VARPTR, UCASE, L1112, FNDNUM, MAKINT, __POWER, POWER_CONT,
 ; TIME_S_FN, DATE_S_FN, DAY_S_FN, __MDM, __KEY, LINE_GFX, CSRLIN, MAX_FN,
@@ -290,7 +313,7 @@ SYNCHR:
 ; SAVEM, CSAVEM, __CLOAD, LOADM_RUNM, CLOADM, LDIR_B, PRPARM, STRING_S, __VAL,
 ; INSTR, _ASCTFP, PUFOUT, __CLEAR, __NEXT, INXD, GETVAR, SCPTLP, USING,
 ; INKEY_S, VARPTR_A, __OPEN, _OPEN, __MERGE, __SAVE, __CLOSE, INPUT_S, L4F2E,
-; TELCOM_RDY, TEL_STAT, TEL_SET_STAT, TEL_LOGON, TEL_TERM, UPLDR, DWNLDR,
+; TELCOM_RDY, TEL_STAT, TEL_SET_STAT, TEL_LOGON, TEL_TERM, TEL_UPLD, DWNLDR,
 ; TEL_BYE, TEXT, TXT_CTL_Y, TXT_CTL_G, LOAD_BA_LBL, KBD_MAP and BOOT.
 CHRGTB:
   JP _CHRGTB
@@ -307,7 +330,7 @@ CHRGTB_0:
 ; Used by the routines at NEXT_UNSTACK, FIND_LINE_FHL, __FOR, ATOH_2, __GOTO,
 ; __LET, __LIST, PRS_M100, RAM_INPUT, __EOF, __LCOPY, CATALOG, KILLASC, __NAME,
 ; FINDCO, RESFPT, CLOADM, TSTOPL, TESTR, GSTRDE, INSTR, TSTSTR, _ASCTFP,
-; INTEXP, __CLEAR, GETVAR, SCPTLP, BSERR, UPLDR, TXT_CTL_E, TXT_CTL_A,
+; INTEXP, __CLEAR, GETVAR, SCPTLP, BSERR, TEL_UPLD, TXT_CTL_E, TXT_CTL_A,
 ; TXT_CTL_Z, TXT_CTL_C, MCLEAR, TXT_CTL_U, TXT_CTL_N, TXT_CTL_V, GETEND, BASIC,
 ; IOINIT, KBD_MAP, BOOT and __MAX.
 CPDEHL:
@@ -330,7 +353,7 @@ OUT_SPC:
 ; OUTS_B_CHARS, CATALOG, PRS1, OUTDO_CRLF, OUTDO_LF, __BEEP, HOME, __CLS, ESCA,
 ; POSIT, _TAB, ESC_L, QINLIN, INLIN_BRK, INLIN_BS, INLIN_TAB, INXD, USING,
 ; CONSOLE_CRLF, TEL_GET_STAT, TEL_FIND, TEL_LOGON, TEL_DIAL_DGT, TEL_TERM,
-; UPLDR, __MENU, PRINT_TEXT, SHOW_TIME, MOVE_TEXT, TXT_CTL_G and TXT_CTL_V.
+; TEL_UPLD, __MENU, PRINT_TEXT, SHOW_TIME, MOVE_TEXT, TXT_CTL_G and TXT_CTL_V.
 OUTC:
   JP _OUTC
   NOP
@@ -364,11 +387,10 @@ TSTSGN:
   JP _TSTSGN
   NOP
 
-; 8085 RST 6.5 interrupt vector (happens when UART input is present), jumps to
-; UART
+; 8085 RST 6.5 interrupt vector (happens when UART input is present), jumps to UART
 RST65:
   DI
-  JP _RST65
+  JP _UART
 
 ; RAM vector table driver.The byte after the call determines the offset index
 ; for VECT_TBL
@@ -377,7 +399,7 @@ RST65:
 ; _MAXRAM, __WIDTH, __SCREEN, __KILL, __NAME, SAVEM, LOADM_RUNM, HL_CSNG,
 ; __CLEAR, OUTC_SUB, VARPTR_A, SELECT, __OPEN, _OPEN, CLOSE1, __MERGE, __SAVE,
 ; __CLOSE, RDBYT, INPUT_S, L4F2E, __LOF, __LOC, __LFILES, __DSKO_S, DSKI_S,
-; GET_DEVICE, TELCOM_RDY, TEL_TERM, UPLDR, TXT_ESC, FONT and KBD_MAP.
+; GET_DEVICE, TELCOM_RDY, TEL_TERM, TEL_UPLD, TXT_ESC, FONT and KBD_MAP.
 RST38H:
   JP _RST38H
   NOP
@@ -937,7 +959,7 @@ BASIC_MAIN:
   JP JPBC
 
 ; This entry point is used by the routine at EXEC_EVAL.
-BASIC_MAIN_0:
+PRG_END:
   LD HL,(CURLIN)
   LD A,H
   AND L
@@ -1386,34 +1408,34 @@ FIND_LINE_FHL:
 ; Used by the routine at EXEC_HL.
 TOKENIZE:
   XOR A
-  LD (OPRTYP),A
+  LD (OPRTYP),A		; other targets use DORES:  Indicates whether stored word can be crunched
   LD C,A
   LD DE,INPBFR
 TOKENIZE_0:
   LD A,(HL)
   CP ' '
-  JP Z,TOKENIZE_10
+  JP Z,TOKEN_FOUND
   LD B,A
   CP '"'
   JP Z,TOKENIZE_15
   OR A
-  JP Z,TOKENIZE_16
+  JP Z,TOKENIZE_END
   INC HL
   OR A
   JP M,TOKENIZE_0
   DEC HL
-  LD A,(OPRTYP)
+  LD A,(OPRTYP)		; other targets use DORES:  Indicates whether stored word can be crunched
   OR A
   LD A,(HL)
-  JP NZ,TOKENIZE_10
+  JP NZ,TOKEN_FOUND
   CP '?'
-  LD A,$A3
-  JP Z,TOKENIZE_10
+  LD A,$A3		; TK_PRINT
+  JP Z,TOKEN_FOUND
   LD A,(HL)
   CP '0'
   JP C,TOKENIZE_1
   CP '<'
-  JP C,TOKENIZE_10
+  JP C,TOKEN_FOUND
 TOKENIZE_1:
   PUSH DE
   LD DE,$007F
@@ -1424,9 +1446,9 @@ TOKENIZE_1:
   LD A,(HL)
   CP 'a'
   JP C,TOKENIZE_2
-  CP $7B
+  CP 'z'+1
   JP NC,TOKENIZE_2
-  AND $5F
+  AND $5F	  ; convert to uppercase
   LD (HL),A
 TOKENIZE_2:
   LD C,(HL)
@@ -1480,53 +1502,55 @@ L06CD:
   POP DE
   EX DE,HL
   CP $91		; TK_ELSE
-  LD (HL),':'	; ':'
+  LD (HL),':'
   JP NZ,TOKENIZE_8
   INC C
   INC HL
 TOKENIZE_8:
   CP $FF
   JP NZ,TOKENIZE_9
-  LD (HL),':'	; ':'
+  LD (HL),':'
   INC HL
-  LD B,$8E
+  LD B,$8E		; TK_REM
   LD (HL),B
   INC HL
   INC C
   INC C
 TOKENIZE_9:
   EX DE,HL
-TOKENIZE_10:
+TOKEN_FOUND:
   INC HL
-  LD (DE),A
+  LD (DE),A			; Add token code (or char) to buffer
   INC DE
   INC C
   SUB $3A	; ':'
   JP Z,TOKENIZE_11
-  CP $49
+  CP $49	; $49 + $3A = $83 -> TK_DATA
   JP NZ,TOKENIZE_12
 TOKENIZE_11:
-  LD (OPRTYP),A
+  LD (OPRTYP),A		; a.k.a. DORES, Indicates whether stored word can be crunched
 TOKENIZE_12:
-  SUB $54
+  SUB $54	; $54 + $3A = $8E -> TK_REM
   JP Z,TOKENIZE_13
-  SUB $71
+  SUB $71	; $71 + $8E = $FF
   JP NZ,TOKENIZE_0
 TOKENIZE_13:
   LD B,A
 TOKENIZE_14:
   LD A,(HL)
-  OR A
-  JP Z,TOKENIZE_16
+  OR A				; END of text ?
+  JP Z,TOKENIZE_END
   CP B
-  JP Z,TOKENIZE_10
+  JP Z,TOKEN_FOUND
+
 TOKENIZE_15:
   INC HL
-  LD (DE),A
+  LD (DE),A			; Add token code (or char) to buffer
   INC C
   INC DE
   JP TOKENIZE_14
-TOKENIZE_16:
+
+TOKENIZE_END:
   LD HL,$0005
   LD B,H
   ADD HL,BC
@@ -1729,7 +1753,7 @@ EXEC_EVAL_2:
   LD A,(HL)
   INC HL
   OR (HL)
-  JP Z,BASIC_MAIN_0
+  JP Z,PRG_END
   INC HL
   LD E,(HL)
   INC HL
@@ -1753,15 +1777,17 @@ EXEC_0:
 ;
 ; Used by the routine at ON_ERROR.
 STATEMENT:
-  SUB $80
-  JP C,__LET
+  SUB $80			; Normal Alphanum sequence ?
+  JP C,__LET		; Ok, assume an implicit "LET" statement
   CP $40
-  JP NC,IDOPRND_0
+  JP NC,MORE_STMT
+
+  ; We're in the token range between TK_END and ..
   RLCA
   LD C,A
   LD B,$00
   EX DE,HL
-  LD HL,FNCTAB
+  LD HL,FNCTAB		; JP table
   ADD HL,BC
   LD C,(HL)
   INC HL
@@ -1771,23 +1797,24 @@ STATEMENT:
 
 ; Pick next char from program
 ;
-; Used by the routines at CHRGTB, _CHRGTB2, EVAL_HL, __IF, DTSTR, VARPTR_A,
+; Used by the routines at CHRGTB, __CHRCKB, EVAL_HL, __IF, DTSTR, VARPTR_A,
 ; __OPEN and __CLOSE.
 _CHRGTB:
   INC HL
 
 ; Same as RST 10H but with no pre-increment of HL
-_CHRGTB2:
+; Gets current character (or token) from BASIC text.
+__CHRCKB:
   LD A,(HL)
   CP ':'
   RET NC
   CP ' '
   JP Z,_CHRGTB
-  CP $0B			; HOME
-  JP NC,_CHRGTB2_0
-  CP $09			; TAB
+  CP $0B				; Not a number constant prefix ?
+  JP NC,__CHRCKB_0		; ...then JP
+  CP $09
   JP NC,_CHRGTB
-_CHRGTB2_0:
+__CHRCKB_0:
   CP '0'
   CCF
   INC A
@@ -1807,11 +1834,11 @@ __DEF:
   DEFB 'L'
 DEFDBL:
   LD E,$08
-  JP DECLVAR
+  JP DEFVAL
 DEFINT:
   RST CHRGTB
   LD E,$02
-  JP DECLVAR
+  JP DEFVAL
   
 __DEF_0:
   RST SYNCHR
@@ -1825,7 +1852,7 @@ __DEF_0:
 
 DEFSNG:
   LD E,$04	; Single precision type
-  JP DECLVAR
+  JP DEFVAL
 
 __DEF_1:
   RST SYNCHR
@@ -1840,24 +1867,25 @@ DEFSTR:
 ; register
 ;
 ; Used by the routine at __DEF.
-DECLVAR:
+DEFVAL:
   CALL IS_ALPHA
   LD BC,SNERR
   PUSH BC
   RET C
-  SUB $41
+  SUB 'A'
   LD C,A
   LD B,A
+
   RST CHRGTB
   CP $D1		; TK_MINUS, '-'
-  JP NZ,DECLVAR_0
+  JP NZ,DEFVAL_0
   RST CHRGTB
   CALL IS_ALPHA
   RET C
-  SUB $41
+  SUB 'A'
   LD B,A
   RST CHRGTB
-DECLVAR_0:
+DEFVAL_0:
   LD A,B
   SUB C
   RET C
@@ -1866,17 +1894,17 @@ DECLVAR_0:
   LD HL,DEFTBL
   LD B,$00
   ADD HL,BC
-DECLVAR_1:
+DEFVAL_1:
   LD (HL),E
   INC HL
   DEC A
-  JP NZ,DECLVAR_1
+  JP NZ,DEFVAL_1
   POP HL
   LD A,(HL)
   CP ','
   RET NZ
   RST CHRGTB
-  JP DECLVAR
+  JP DEFVAL
 
 ; This entry point is used by the routine at SCPTLP.
 GET_POSINT:
@@ -1926,12 +1954,13 @@ ATOH_2_0:
   LD HL,$1998		; const
   RST CPDEHL
   JP C,ATOH_2_1
+
   LD H,D
   LD L,E
-  ADD HL,DE
-  ADD HL,HL
-  ADD HL,DE
-  ADD HL,HL
+  ADD HL,DE		; *2
+  ADD HL,HL		; ..*4
+  ADD HL,DE     ; ..*5
+  ADD HL,HL     ; ..*10
   POP AF
   SUB $30	; '0'
   LD E,A
@@ -1940,6 +1969,7 @@ ATOH_2_0:
   EX DE,HL
   POP HL
   JP ATOH_2_0
+
 ATOH_2_1:
   POP AF
   POP HL
@@ -2149,17 +2179,18 @@ __LET_3:
   LD D,(HL)				; MSB of string address
   LD HL,BUFMIN
   RST CPDEHL			; Compare HL with DE.. is string before program?
-  JP C,L0A1D
+  JP C,__LET_4+1
   LD HL,(ARREND)		; Compare HL with DE.. is string literal in program?
   RST CPDEHL
   POP DE
   JP NC,MVSTPT			; Yes - Set up pointer
-  LD HL,_BUFFER
+  LD HL,VARIABLES+15		; .. on MSX it is = VARIABLES+14
   RST CPDEHL
   JP C,__LET_4
-  LD HL,$FB6A		; Guessing..  TMPSTR ?  unknown system variable address, but on SpectraVideo it is still one byte less than DSCTMP !
+  LD HL,VARIABLES-15		; .. on MSX it is = VARIABLES-16
   RST CPDEHL
   JP C,MVSTPT
+  
 __LET_4:
   ;LD A,$D1
 	DEFB $3E  ; "LD A,n" to Mask the next byte
@@ -2167,7 +2198,6 @@ __LET_4:
 ; Routine at 2589
 ;
 ; Used by the routine at __LET.
-L0A1D:
   POP DE
   CALL BAKTMP
   EX DE,HL
@@ -2567,7 +2597,7 @@ REDO_MSG:
   DEFB CR, LF, $00
   
 ; This entry point is used by the routine at __READ.
-__LINE_0:
+ERR_INPUT:
   LD A,(FLGINP)
   OR A
   JP NZ,DATSNR
@@ -2715,11 +2745,10 @@ __READ_6:
 L0D45:
   DEC HL
 ; This entry point is used by the routine at INLIN.
-__READ_7:
   RST CHRGTB
   JP Z,__READ_8
   CP ','
-  JP NZ,__LINE_0
+  JP NZ,ERR_INPUT
 __READ_8:
   EX (SP),HL
   DEC HL
@@ -2735,7 +2764,7 @@ __READ_8:
   JP NZ,__READ_9
   LD A,(HL)
   OR A
-  LD HL,EXTRA_MSG
+  LD HL,EXTRA_MSG		; "?Extra ignored"
   CALL NZ,PRS
 __READ_9:
   POP HL
@@ -2760,7 +2789,7 @@ FDTLP:
   INC HL
   OR (HL)
   LD E,$04
-  JP Z,ERROR
+  JP Z,ERROR		; Err $04 - Out of DATA
   INC HL
   LD E,(HL)
   INC HL
@@ -2773,6 +2802,7 @@ FDTLP_0:
   CP $83		; TK_DATA, Token for DATA
   JP NZ,FDTLP
   JP __READ_3
+
 ; This entry point is used by the routine at INSTR.
 FDTLP_1:
   RST SYNCHR
@@ -2802,11 +2832,8 @@ EVAL_0:
 ; Save precedence and eval until precedence break
 ;
 ; Used by the routines at EVAL3, VARPTR_VAR and NOT.
-L0DAE:
-  PUSH DE
-
-; Save precedence and eval until precedence break
 EVAL1:
+  PUSH DE
   LD C,$01
   CALL CHKSTK
   CALL OPRND
@@ -2818,31 +2845,31 @@ EVAL2:
 ; Evaluate expression until precedence break
 ;
 ; Used by the routine at NOT.
-L0DBA:
-  LD HL,(NXTOPR)
-
-; Evaluate expression until precedence break
 EVAL3:
+  LD HL,(NXTOPR)
   POP BC
   LD A,(HL)
   LD (TEMP3),HL
   CP $D0		; TK_PLUS
   RET C
-  CP $DF
+  CP $DF		; '<' + 1
   RET NC
-  CP $DC
+  CP $DC		; '>' (TK_GREATER)
   JP NC,EVAL3_5
-  SUB $D0
+  SUB $D0		; '+'
   LD E,A
   JP NZ,EVAL3_0
+
   LD A,(VALTYP)
   CP $03				; String ?
   LD A,E
   JP Z,CONCAT
+
 EVAL3_0:
   LD HL,PRITAB			; ARITHMETIC PRECEDENCE TABLE
   LD D,$00
   ADD HL,DE
+
 ; This entry point is used by the routine at __READ.
 EVAL3_1:
   LD A,B
@@ -2850,14 +2877,15 @@ EVAL3_1:
   CP D
   RET NC
   PUSH BC
-  LD BC,L0DBA
+  LD BC,EVAL3
   PUSH BC
   LD A,D
-  CP $51
+  CP $51			; one less than AND as mapped in PRITAB
   JP C,EVAL3_7
   AND $FE
-  CP $7A			; 'z'
+  CP $7A			; MOD as mapped in PRITAB
   JP Z,EVAL3_7
+
 EVAL3_2:
   LD HL,DBL_FPREG
   LD A,(VALTYP)
@@ -2880,15 +2908,16 @@ EVAL3_3:
   LD B,A
   PUSH BC
   LD BC,L0E6C
+
 EVAL3_4:
   PUSH BC
   LD HL,(TEMP3)
-  JP L0DAE
+  JP EVAL1
 
 EVAL3_5:
   LD D,$00
 EVAL3_6:
-  SUB $DC		; TK_GREATER
+  SUB $DC		; TK_GREATER ('>')
   JP C,NO_COMPARE_TK
   CP $03		; TK_MID_S
   JP NC,NO_COMPARE_TK
@@ -2901,6 +2930,7 @@ EVAL3_6:
   LD (TEMP3),HL
   RST CHRGTB
   JP EVAL3_6
+
 EVAL3_7:
   PUSH DE
   CALL __CINT
@@ -3157,7 +3187,7 @@ VARPTR_VAR_2:
 ; This entry point is used by the routine at OPRND.
 OPRND_SUB:
   LD D,$7D
-  CALL L0DAE
+  CALL EVAL1
   LD HL,(NXTOPR)
   PUSH HL
   CALL INVSGN
@@ -3196,7 +3226,7 @@ UCASE_HL:
 UCASE:
   CP 'a'
   RET C
-  CP $7B
+  CP 'z'+1
   RET NC
   AND $5F
   RET
@@ -3286,7 +3316,7 @@ L1047:
 ; Used by the routine at OPRND.
 NOT:
   LD D,$5A
-  CALL L0DAE
+  CALL EVAL1
   CALL __CINT
   LD A,L
   CPL
@@ -3298,7 +3328,7 @@ NOT:
   POP BC
 ; This entry point is used by the routine at DCXH.
 NOT_0:
-  JP L0DBA
+  JP EVAL3
 
 ; RST 28H routine.  Return the number type (FAC)
 ;
@@ -3318,16 +3348,19 @@ L1072:
   CALL __CINT
   POP AF
   POP DE
-  CP $7A
+  
+  CP $7A		; MOD as mapped in PRITAB
   JP Z,IMOD
-  CP $7B
+  
+  CP $7B		; '\' as mapped in PRITAB
   JP Z,INT_DIV
-  LD BC,L10D3  ; Routine location to toad the integer into FAC1.
+  
+  LD BC,BOOL_RESULT  ; Routine location to toad the integer into FAC1.
   PUSH BC
-  CP $46
-  JP NZ,OR_0
+  CP $46		; OR as mapped in PRITAB
+  
+  JP NZ,SKIP_OR
 
-; OR Function
 OR:
   LD A,E
   OR L
@@ -3335,12 +3368,11 @@ OR:
   LD A,H
   OR D
   RET
-; This entry point is used by the routine at _GETYPR.
-OR_0:
-  CP $50
-  JP NZ,AND_0
 
-; AND Function
+SKIP_OR:
+  CP $50		; AND as mapped in PRITAB
+  JP NZ,SKIP_AND
+  
 AND:
   LD A,E
   AND L
@@ -3348,12 +3380,11 @@ AND:
   LD A,H
   AND D
   RET
-; This entry point is used by the routine at OR.
-AND_0:
-  CP '<'
-  JP NZ,XOR_0
+  
+SKIP_AND:
+  CP $3C		; XOR as mapped in PRITAB
+  JP NZ,SKIP_XOR
 
-; XOR Function
 XOR:
   LD A,E
   XOR L
@@ -3361,12 +3392,11 @@ XOR:
   LD A,H
   XOR D
   RET
-; This entry point is used by the routine at AND.
-XOR_0:
-  CP $32
+  
+SKIP_XOR:
+  CP $32		; EQU (=) as mapped in PRITAB
   JP NZ,IMP
 
-; EQV Function
 EQV:
   LD A,E
   XOR L
@@ -3376,10 +3406,7 @@ EQV:
   XOR D
   CPL
   RET
-
-; IMP Function
-;
-; Used by the routine at XOR.
+  
 IMP:
   LD A,L
   CPL
@@ -3391,8 +3418,9 @@ IMP:
   AND D
   CPL
   RET
+
 ; This entry point is used by the routine at __FRE.
-IMP_0:
+FRE_RESLT:
   LD A,L
   SUB E
   LD L,A
@@ -3418,7 +3446,7 @@ LDA_FAC1:
   XOR A
 
 ; Routine at 4307
-L10D3:
+BOOL_RESULT:
   LD H,A
   JP HL_FAC1            ;  (INT_RESULT_HL)
 ; This entry point is used by the routine at __LET.
@@ -3452,7 +3480,7 @@ IDERR:
   JP ERROR
 
 ; This entry point is used by the routine at STATEMENT.
-IDOPRND_0:
+MORE_STMT:
   CP $7E
   JP NZ,SNERR
   INC HL
@@ -3479,7 +3507,7 @@ L1112:
 
 ; Same as 1112H except that the evalutation starts at HL-1
 ;
-; Used by the routine at DECLVAR.
+; Used by the routine at DEFVAL.
 FPSINT:
   CALL EVAL
 
@@ -3514,7 +3542,7 @@ FNDNUM:
 ;
 ; Used by the routines at ON_ERROR, __ERROR, UCASE, DEPINT, __POKE, POWER_ON,
 ; __DATE_S, __MDM, OUTS_B_CHARS, LINE_GFX, __SOUND, __CALL, __SCREEN, INSTR,
-; VARPTR_A, __OPEN, __CLOSE, INPUT_S, TEL_SET_STAT, UPLDR, TXT_CTL_Y and __MAX.
+; VARPTR_A, __OPEN, __CLOSE, INPUT_S, TEL_SET_STAT, TEL_UPLD, TXT_CTL_Y and __MAX.
 GETINT:
   CALL EVAL
 
@@ -3815,7 +3843,7 @@ GETWORD_HL:
 
 ; A = Character (wait if no char, FN keys are remapped)  CY if special keys
 ;
-; Used by the routines at INLIN, INKEY_S, INPUT_S, TEL_TERM, TEL_PREV, UPLDR,
+; Used by the routines at INLIN, INKEY_S, INPUT_S, TEL_TERM, TEL_PREV, TEL_UPLD,
 ; IS_CRLF, CHGET_UCASE, WAIT_SPC, MCLEAR, TXT_CTL_N and MOVE_TEXT.
 CHGET:
   PUSH HL
@@ -3826,7 +3854,7 @@ CHGET:
 
 CHGET_0:
   RST $38
-  DEFB $04	; HCHGE, Offset: 04
+  DEFB $04	; HCHGE, Offset: 04  (allow access to other devices than the internal keyboard)
   
   LD HL,(FNKMAC)
   INC H
@@ -3895,7 +3923,7 @@ CHGET_5:
 CHGET_6:
   CALL CHSNS
   JP NZ,CHGET_8
-  CALL FNBAR_TOGGLE_3
+  CALL BLINK_CURS_SHOW
   LD A,$FF
   LD (POWR_FLAG),A
 CHGET_7:
@@ -3903,12 +3931,12 @@ CHGET_7:
   JP Z,CHGET_7
   XOR A
   LD (POWR_FLAG),A
-  CALL FNBAR_TOGGLE_4
+  CALL BLINK_CURS_HIDE
 CHGET_8:
   LD HL,$F932
   LD A,(HL)
   AND A
-  JP NZ,FNBAR_TOGGLE_1
+  JP NZ,POWER_DOWN
   CALL _RST75_6
   CALL KYREAD
   RET NC
@@ -3932,7 +3960,7 @@ CHGET_8:
   ADD HL,HL
   ADD HL,HL
   ADD HL,HL
-  ADD HL,HL
+  ADD HL,HL		; *16
   LD DE,$F809
   ADD HL,DE
   LD A,($F650)
@@ -3957,15 +3985,15 @@ FNBAR_TOGGLE:
   LD A,(LBL_LINE)
   AND A
   RET Z
-  LD A,(LABEL_LN)
+  LD A,(LABEL_LN)		; Label line/8th line protect status (0=off)
   XOR $FF
 ; This entry point is used by the routine at __SCREEN.
-FNBAR_TOGGLE_0:
+FNBAR_IF_NZ:
   JP Z,ERAFNK
   JP DSPFNK
 
 ; This entry point is used by the routine at CHGET.
-FNBAR_TOGGLE_1:
+POWER_DOWN:
   DI
   LD (HL),$00
   LD A,($F657)
@@ -3978,25 +4006,25 @@ FNBAR_TOGGLE_2:
   RET
 
 ; This entry point is used by the routines at CHGET and CHSNS.
-FNBAR_TOGGLE_3:
+BLINK_CURS_SHOW:
   LD A,(CSR_STATUS)
-  LD ($FACB),A
+  LD (BLINK),A
   AND A
   RET NZ
   CALL CURSON
-  JP _ESC_X
+  JP _ESC_X		; Refresh cursor
 
 ; This entry point is used by the routines at CHGET and CHSNS.
-FNBAR_TOGGLE_4:
-  LD A,($FACB)
+BLINK_CURS_HIDE:
+  LD A,(BLINK)
   AND A
   RET NZ
   CALL CURSOFF
-  JP _ESC_X
+  JP _ESC_X		; Refresh cursor
 
 ; Z if keyboard queue is empty
 ;
-; Used by the routines at CHGET, INKEY_S, TEL_TERM, TEL_PREV, UPLDR, SHOW_TIME
+; Used by the routines at CHGET, INKEY_S, TEL_TERM, TEL_PREV, TEL_UPLD, SHOW_TIME
 ; and TXT_CTL_N.
 CHSNS:
   LD A,($F62D)
@@ -4026,14 +4054,14 @@ CHSNS_0:
   JP Z,CHSNS_2
   CP $13
   RET NZ
-  CALL FNBAR_TOGGLE_3
+  CALL BLINK_CURS_SHOW
 CHSNS_1:
   CALL BRKCHK
   CP $13
-  JP Z,FNBAR_TOGGLE_4
+  JP Z,BLINK_CURS_HIDE
   CP $03
   JP NZ,CHSNS_1
-  CALL FNBAR_TOGGLE_4
+  CALL BLINK_CURS_HIDE
 CHSNS_2:
   XOR A
   LD (GETPNT),A
@@ -4116,12 +4144,12 @@ LPT_OUT:
   DEFB $0A		; HLPTO, offset: 10
   
   CALL PRINTR
-  JP NC,PNOTAB
+  JP NC,LPT_BREAK
   XOR A
   LD (LPT_FLAG),A
   JP IOERR
   
-PNOTAB:
+LPT_BREAK:
   PUSH AF
   LD A,$FF
   LD (LPT_FLAG),A
@@ -4148,6 +4176,7 @@ HEADER_0:
 IOERR:
   LD E,$12
   JP ERROR
+
 ; This entry point is used by the routine at CAS_OPNO_CO.
 IOOPRND_0:
   CALL CTON
@@ -4223,7 +4252,7 @@ LCD_CTL:
 LCDLPT_OPN:
   LD A,$02
   CP E
-  JP NZ,NMERR
+  JP NZ,NMERR			; NM error: bad file name
 
 ; This entry point is used by the routines at RAM_OPN, CAS_OPN and COM_OPN.
 REDIRECT_IO:
@@ -4577,7 +4606,7 @@ CAS_OPN:
   LD (CAS_FLAGS),A
   LD A,E
   CP $08
-  JP Z,NMERR
+  JP Z,NMERR			; NM error: bad file name
   CP $01
   JP Z,CAS_OPN_1
   CALL CAS_OPNO_DO
@@ -4756,7 +4785,7 @@ COM_OPN:
   POP DE
   LD A,E
   CP $08
-  JP Z,NMERR
+  JP Z,NMERR			; NM error: bad file name
   SUB $01
   JP NZ,COM_OPN_0
   LD (COM_FLAGS),A
@@ -4833,7 +4862,7 @@ MDM_CLS:
 ; Used by the routines at COM_OPN, TEL_SET_STAT, TEL_LOGON, TEL_TERM and BOOT.
 SETSER:
   PUSH AF
-  LD BC,NMERR
+  LD BC,NMERR			; NM error: bad file name
   PUSH BC
   JP NC,SETSER_0
   LD A,(HL)
@@ -4901,10 +4930,10 @@ SETSER_4:
   JP Z,SETSER_5
   CP $45
   RET NZ
-  CALL _XONXOFF
+  CALL _XONXOFF_FLG
   SCF
 SETSER_5:
-  CALL NC,_XONXOFF+1
+  CALL NC,_XONXOFF_FLG+1
   POP BC
   POP AF
   PUSH AF
@@ -4970,7 +4999,7 @@ __EOF:
   CALL GETFLP
   JP Z,CFERR
   CP $01
-  JP NZ,NMERR
+  JP NZ,NMERR			; NM error: bad file name
   PUSH HL
   CALL __EOF_1
   LD C,A
@@ -4983,12 +5012,12 @@ __EOF:
   INC HL
   LD A,(HL)
   LD HL,COM_FLAGS
-  CP $FC
+  CP $FC		; 'COM' device
   JP Z,__EOF_0
-  CP $F9
+  CP $F9		; 'MDM' device ?
   JP Z,__EOF_0
   CALL GET_RAM_PTR
-  CP $F8
+  CP $F8		; 'RAM' device ?
   JP Z,__EOF_0
   LD HL,CAS_FLAGS
 __EOF_0:
@@ -5184,9 +5213,9 @@ READ_CLOCK:
 
 ; TIME$ function (as in BASCK)
 __TIME_S:
-  CP $DD
+  CP $DD	; TK_EQUAL
   JP NZ,__MDM_0
-  CALL __DAY_S_5
+  CALL GET_TIME_ARG
 
 ; Update the internal clock chip with the values at F923H
 ;
@@ -5212,16 +5241,16 @@ __DATE_S:
   LD (DE),A
   RST SYNCHR
   DEFB '/'
-  DEC DE
-  CALL __DAY_S_6
+  DEC DE		; DAY
+  CALL DT_DIGIT
   CP $04
   JP NC,SNERR
-  CALL __DAY_S_6
+  CALL DT_DIGIT
   RST SYNCHR
   DEFB '/'
   LD DE,CSRITP
-  CALL __DAY_S_6
-  CALL __DAY_S_6
+  CALL DT_DIGIT
+  CALL DT_DIGIT
   XOR A
   LD ($F655),A
   JP SET_CLOCK
@@ -5254,6 +5283,7 @@ __DAY_S_1:
   SUB C
   LD (DAY),A
   JP SET_CLOCK
+
 __DAY_S_2:
   INC DE
   DEC B
@@ -5262,6 +5292,7 @@ __DAY_S_2:
   DEC C
   JP NZ,__DAY_S_0
   JP SNERR
+
 ; This entry point is used by the routine at __DATE_S.
 __DAY_S_3:
   RST SYNCHR
@@ -5281,8 +5312,9 @@ __DAY_S_4:
   LD L,E
   CP $08
   RET
+
 ; This entry point is used by the routines at __TIME_S and ON_TIME_S.
-__DAY_S_5:
+GET_TIME_ARG:
   CALL __DAY_S_3
   JP NZ,SNERR
   EX DE,HL
@@ -5291,11 +5323,11 @@ __DAY_S_5:
   PUSH HL
   EX DE,HL
   LD DE,DATE
-  CALL __DAY_S_6
+  CALL DT_DIGIT
   
   CP $03
   JP NC,SNERR
-  CALL __DAY_S_6
+  CALL DT_DIGIT
   
   RST SYNCHR
   DEFB ':'
@@ -5306,12 +5338,12 @@ __DAY_S_5:
   DEFB ':'
   
 L1A62:
-  CALL __DAY_S_6
+  CALL DT_DIGIT
   CP $06
   JP NC,SNERR
 
 ; $1A6A, This entry point is used by the routine at __DATE_S.
-__DAY_S_6:
+DT_DIGIT:
   DEC DE
   LD A,(HL)
   INC HL
@@ -5418,11 +5450,11 @@ KEY_STMTS_1:
 
 ; This entry point is used by the routine at __MDM.
 KEY_STMTS_2:
-  CP $97
+  CP $97		; TK_ON, token for 'ON' keyword
   JP Z,TIME_S_ON
-  CP $CB
+  CP $CB		; TK_OFF
   JP Z,TIME_S_OFF
-  CP $8F
+  CP $8F		; TK_STOP
   JP Z,TIME_S_STOP
   JP SNERR
 
@@ -5443,7 +5475,7 @@ KEY_STMTS_3:
 ; ON TIME$ Statement
 ON_TIME_S:
   INC HL
-  CALL __DAY_S_5
+  CALL GET_TIME_ARG
   LD HL,ON_TIME_TM
   LD B,$06
   CALL REV_LDIR_B
@@ -5532,31 +5564,33 @@ _RST75_2:
 ; Used by the routine at _RST75.
 L1B88:
   XOR A
-  LD ($F943),A
+  LD (ON_TIME_TM+6),A
 _RST75_3:
   LD A,($F93C)
   LD HL,$F655
   CP (HL)
   LD (HL),A
   JP NC,_RST75_4
+  
   LD HL,YEAR
+  INC (HL)		; YEAR_2
+  LD A,(HL)
+  SUB $0A
+  JP NZ,_RST75_4
+  LD (HL),A
+  INC HL		; CSRITP
   INC (HL)
   LD A,(HL)
   SUB $0A
   JP NZ,_RST75_4
   LD (HL),A
-  INC HL
-  INC (HL)
-  LD A,(HL)
-  SUB $0A
-  JP NZ,_RST75_4
-  LD (HL),A
+
 _RST75_4:
   CALL _CLICK_1
 _RST75_5:
   JP SET_CLOCK_HL_5
 
-; This entry point is used by the routines at CHGET, PNOTAB, LCD_OUTPUT and
+; This entry point is used by the routines at CHGET, LPT_BREAK, LCD_OUTPUT and
 ; TXT_CTL_U.
 _RST75_6:
   LD A,($F657)
@@ -5612,11 +5646,11 @@ OUTS_B_CHARS_1:
 OUTS_B_CHARS_2:
   CP $28	; 40, '(' ?
   JP Z,__MDM_3
-  CP $97
+  CP $97		; TK_ON, token for 'ON' keyword
   JP Z,KEY_STMTS
-  CP $CB
+  CP $CB		; TK_OFF
   JP Z,KEY_STMTS
-  CP $8F
+  CP $8F		; TK_STOP
   JP Z,KEY_STMTS
   CALL GETINT
   DEC A
@@ -5986,9 +6020,9 @@ __WIDTH:
 
 ; Routine at 7621
 __SOUND:
-  CP $97
+  CP $97		; TK_ON, token for 'ON' keyword
   JP Z,SOUND_ON
-  CP $CB
+  CP $CB		; TK_OFF
   JP Z,SOUND_OFF
   CALL GETWORD
   LD A,D
@@ -6021,7 +6055,7 @@ SOUND_ON:
 
 ; Routine at 7660
 __MOTOR:
-  SUB $CB
+  SUB $CB		; TK_OFF
   JP Z,MOTOR_OFF
 
 ; Routine at 7665
@@ -6070,7 +6104,7 @@ __CALL_1:
 ; Routine at 7714
 __SCREEN:
   CP ','
-  LD A,($F638)
+  LD A,(SCREEN)
   CALL NZ,GETINT
   CALL __SCREEN_0
   DEC HL
@@ -6081,21 +6115,21 @@ __SCREEN:
   CALL GETINT
   PUSH HL
   AND A
-  CALL FNBAR_TOGGLE_0
+  CALL FNBAR_IF_NZ
   POP HL
   RET
   
 ; This entry point is used by the routine at __MENU.
 __SCREEN_0:
   PUSH HL
-  LD ($F638),A
+  LD (SCREEN),A
   AND A
   LD DE,$2808		; D=40, E=8
   LD HL,(CSR_ROW)
   LD A,$0E
   JP Z,L1E52
   XOR A
-  LD ($F638),A
+  LD (SCREEN),A
   RST $38
   DEFB $3E		; HSCRE, Offset: 62
 
@@ -6133,20 +6167,20 @@ __LCOPY_1:
   RET
 
 ; This entry point is used by the routine at __MERGE.
-__LCOPY_2:
+MERGE_SUB:
   PUSH HL
   CALL RESFPT
   LD HL,(FILNAM+6)		; point to file name ext
   LD DE,$2020			; "  "
   RST CPDEHL
   PUSH AF
-  JP Z,__LCOPY_3
+  JP Z,_MERGE_SUB_3
   LD DE,'B'+'A'*$100			; "BA" (as in filename string)
   RST CPDEHL
-  JP NZ,__LCOPY_5
-__LCOPY_3:
+  JP NZ,_MERGE_SUB_5
+_MERGE_SUB_3:
   CALL FINDBA
-  JP Z,__LCOPY_5
+  JP Z,_MERGE_SUB_5
   POP AF
   POP BC
   POP AF
@@ -6161,7 +6195,7 @@ __LCOPY_3:
   POP HL
   LD A,(HL)
   CP ','
-  JP NZ,__LCOPY_4
+  JP NZ,_MERGE_SUB_4
   RST CHRGTB
   RST SYNCHR
   DEFB 'R'
@@ -6169,16 +6203,16 @@ __LCOPY_3:
   LD A,$80
   SCF
   PUSH AF
-__LCOPY_4:
+_MERGE_SUB_4:
   POP AF
   LD (NLONLY),A
   JP C,RUN_FST
   CALL RUN_FST
   JP READY
-__LCOPY_5:
+_MERGE_SUB_5:
   POP AF
   POP HL
-  LD D,$F8
+  LD D,$F8		; 'RAM' device
   JP NZ,__MERGE_0
   PUSH HL
   LD HL,$2020		; "  "
@@ -6201,7 +6235,7 @@ __LCOPY_6:
   LD DE,$2020		; "  "
   RST CPDEHL
   LD B,$02
-  JP NZ,NMERR
+  JP NZ,NMERR		; NM error: bad file name
 __LCOPY_7:
   POP HL
   PUSH BC
@@ -6214,10 +6248,10 @@ __LCOPY_7:
   DEFB 'A'
   POP BC
   DEC B
-  JP Z,NMERR
+  JP Z,NMERR		; NM error: bad file name
 __LCOPY_8:
   XOR A
-  LD DE,$F802
+  LD DE,$F802		; D = 'RAM' device, E = $02
   PUSH AF
   JP __SAVE_1
 
@@ -6314,7 +6348,7 @@ __KILL:
   RST CHRGTB
   JP NZ,SNERR
   LD A,D
-  CP $F8
+  CP $F8		; 'RAM' device ?
   JP Z,__KILL_0
   RST $38
   DEFB $58		; HKILL, Offset: 88
@@ -6323,7 +6357,7 @@ __KILL_0:
   PUSH HL
   XOR A
   LD (NLONLY),A
-  CALL __SAVE_4
+  CALL CLSALL
   CALL RESFPT
   CALL FINDFL
   JP Z,FFERR
@@ -6434,7 +6468,7 @@ __NAME:
   POP DE
   CP D
   JP NZ,FCERR
-  CP $F8
+  CP $F8		; D = 'RAM' device ?
   JP Z,__NAME_0
   RST $38
   DEFB $5A	; HNAME, Offset: 90
@@ -6465,7 +6499,7 @@ __NAME_0:
 __NAME_1:
   CALL FILE_PARMS
   RET NZ
-  LD D,$F8
+  LD D,$F8		; 'RAM' device
   RET
 
 ; This entry point is used by the routines at __LCOPY and __NEW.
@@ -6482,15 +6516,15 @@ FINDCO:
   LD BC,'C'*$100+'O'
   JP FIND_FILEXT
 
-; This entry point is used by the routines at RAM_OPN, MAKTXT and UPLDR.
+; This entry point is used by the routines at RAM_OPN, MAKTXT and TEL_UPLD.
 FINDCO_0:
   LD HL,(FILNAM+6)	; point to file name ext
   LD DE,$2020		; "  "
   RST CPDEHL
   JP Z,FINDDO
-  LD DE,'D'+'O'*$100		; "DO" (as in filename string)
+  LD DE,'D'+'O'*$100	; "DO" (as in filename string)
   RST CPDEHL
-  JP NZ,NMERR
+  JP NZ,NMERR			; NM error: bad file name
 
 ; Routine at 8352
 ;
@@ -6615,6 +6649,7 @@ __NEW_2:
   LD HL,(LBLIST)
   EX DE,HL
   LD HL,($FABC)
+  
 ; This entry point is used by the routine at KILLASC.
 __NEW_3:
   LD A,L
@@ -6633,12 +6668,12 @@ __NEW_3:
 ; Routine at 8518
 ;
 ; Used by the routines at CHGET, RAM_OPN, RAM_INPUT, __LCOPY, SAVEBA, __KILL,
-; KILLASC, __NEW, MAKTXT, SWAPNM, CSAVEM, CLOADM, UPLDR, TEL_DOWN, __MENU,
+; KILLASC, __NEW, MAKTXT, SWAPNM, CSAVEM, CLOADM, TEL_UPLD, TEL_DOWNLD, __MENU,
 ; __EDIT and TXT_CTL_U.
 RESFPT:
   XOR A
   LD ($F809),A
-  LD HL,(RAM)
+  LD HL,(RAM)		; Lowest RAM memory address used by system ($8000 if 32K RAM)
   INC HL
 RESFPT_0:
   PUSH HL
@@ -6763,7 +6798,7 @@ RESFPT_9:
 
 ; Count the number of characters in (HL), null terminated
 ;
-; Used by the routines at OPENDO, UPLDR and TXT_CTL_G.
+; Used by the routines at OPENDO, TEL_UPLD and TXT_CTL_G.
 COUNT_CHARS:
   PUSH HL
   LD E,$FF
@@ -6881,7 +6916,7 @@ SWAPNM_2:
 __CSAVE:
   CP $4D
   JP Z,CSAVEM
-  CALL PRPARM_4
+  CALL GETPARM_SAVE
 ; This entry point is used by the routine at __SAVE.
 __CSAVE_0:
   DEC HL
@@ -6940,9 +6975,9 @@ SAVEM:
   RST CHRGTB
   CALL __NAME_1
   LD A,D
-  CP $FD
+  CP $FD		; D = 'CAS' device ?
   JP Z,CSAVEM_0
-  CP $F8
+  CP $F8		; D = 'RAM' device ?
   JP Z,CSAVEM_1
   RST $38
   DEFB $5C	; HSAVEM, Offset: 92
@@ -6952,7 +6987,7 @@ SAVEM:
 ; Used by the routine at __CSAVE.
 CSAVEM:
   RST CHRGTB
-  CALL PRPARM_4
+  CALL GETPARM_SAVE
 ; This entry point is used by the routine at SAVEM.
 CSAVEM_0:
   CALL CSAVEM_2
@@ -7038,13 +7073,14 @@ CSAVEM_3:
 
 ; Routine at 9079
 __CLOAD:
-  CP $4D
+  CP 'M'
   JP Z,CLOADM
-  CP $A3
-  JP Z,LOAD_RECORD_3
-  CALL L25E7
+  CP $A3		 ; TK_PRINT  (=CLOAD?)
+  JP Z,CVERIFY
+  CALL GETPARM_LOAD
   OR $FF
   PUSH AF
+
 ; This entry point is used by the routine at __MERGE.
 __CLOAD_0:
   POP AF
@@ -7164,7 +7200,7 @@ LOAD_RECORD_2:
   INC HL
   INC HL
   INC HL
-  LD (HL),$FD
+  LD (HL),$FD		; 'CAS' device ?
   INC HL
   INC HL
   XOR A
@@ -7175,8 +7211,8 @@ LOAD_RECORD_2:
   JP __MERGE_3
 
 ; This entry point is used by the routine at __CLOAD.
-LOAD_RECORD_3:
-  CALL PRPARM_2
+CVERIFY:
+  CALL GETPARM_VRFY
   PUSH HL
   CALL CAS_OPNI_BA
   CALL CAS_OPNI_CO_10
@@ -7217,10 +7253,10 @@ LOADM_RUNM:
   JP Z,FCERR
   CALL __NAME_1
   LD A,D
-  CP $FD
-  JP Z,CLOADM_0
-  CP $F8
-  JP Z,CLOADM_2
+  CP $FD		; D = 'CAS' device ?
+  JP Z,CLOADM_CAS
+  CP $F8		; D = 'RAM' device ?
+  JP Z,CLOADM_RAM
   RST $38
   DEFB $5E	; HLOAD, Offset: 94
 
@@ -7229,13 +7265,14 @@ LOADM_RUNM:
 ; Used by the routine at __CLOAD.
 CLOADM:
   RST CHRGTB
-  CP $A3
-  JP Z,LDIR_B_2
-  CALL L25E7
+  CP $A3		 ; TK_PRINT  (=CLOADM?)
+  JP Z,CVERIFYM
+  CALL GETPARM_LOAD
   OR $FF
   PUSH AF
+  
 ; This entry point is used by the routine at LOADM_RUNM.
-CLOADM_0:
+CLOADM_CAS:
   DEC HL
   RST CHRGTB
   JP NZ,SNERR
@@ -7251,7 +7288,7 @@ CLOADM_0:
   PUSH HL
   JP C,FCERR
 CLOADM_1:
-  CALL CLOADM_5
+  CALL CLOAD_PRINT_PARM
   JP C,OMERR
   CALL CAS_OPNI_CO_10
   LD HL,(PRLEN)
@@ -7263,7 +7300,7 @@ CLOADM_1:
   JP CLOADM_4
 
 ; This entry point is used by the routine at LOADM_RUNM.
-CLOADM_2:
+CLOADM_RAM:
   PUSH HL
   CALL RESFPT
   CALL FINDCO
@@ -7283,7 +7320,7 @@ CLOADM_2:
   PUSH DE
   JP C,FCERR
 CLOADM_3:
-  CALL CLOADM_5
+  CALL CLOAD_PRINT_PARM
   JP C,OMERR
   LD HL,(PRLEN)
   LD B,H
@@ -7303,8 +7340,8 @@ CLOADM_4:
   LD HL,(TEMP)
   JP EXEC_EVAL
 
-CLOADM_5:
-  CALL LDIR_B_5
+CLOAD_PRINT_PARM:
+  CALL CLOAD_PRPARM
 ; This entry point is used by the routine at LDIR_B.
 CLOADM_6:
   LD HL,(HIMEM)
@@ -7358,9 +7395,9 @@ LDIR_B_1:
   JP __MENU
 
 ; This entry point is used by the routine at CLOADM.
-LDIR_B_2:
+CVERIFYM:
   RST CHRGTB
-  CALL L25E7
+  CALL GETPARM_LOAD
   PUSH HL
   CALL CAS_OPNI_CO
   CALL CAS_OPNI_CO_10
@@ -7391,7 +7428,7 @@ LDIR_B_4:
   RET
 
 ; This entry point is used by the routine at CLOADM.
-LDIR_B_5:
+CLOAD_PRPARM:
   LD HL,(CURLIN)
   INC HL
   LD A,H
@@ -7437,31 +7474,32 @@ EXE_MSG:
 
 ; Routine at 9703
 ; This entry point is used by the routines at __CLOAD, CLOADM and LDIR_B.
-L25E7:
+GETPARM_LOAD:
   DEC HL
 ; This entry point is used by the routine at LOAD_RECORD.
-PRPARM_2:
+GETPARM_VRFY:
   RST CHRGTB
-  JP NZ,PRPARM_4
+  JP NZ,GETPARM_SAVE
   LD B,$06		; 6 characters
   LD DE,FILNAM
   LD A,' '
-PRPARM_3:
+GETPARM_LOOP:
   LD (DE),A
   INC DE
   DEC B
-  JP NZ,PRPARM_3
-  JP PRPARM_5
+  JP NZ,GETPARM_LOOP
+  JP GETPARM_DEV
 
 ; This entry point is used by the routines at __CSAVE and CSAVEM.
-PRPARM_4:
+GETPARM_SAVE:
   CALL FILE_PARMS
-  JP NZ,PRPARM_6
-PRPARM_5:
-  LD D,$FD
-PRPARM_6:
+  JP NZ,GETPARM_6
+
+GETPARM_DEV:
+  LD D,$FD		; D = 'CAS' device
+GETPARM_6:
   LD A,D
-  CP $FD
+  CP $FD		; D = 'CAS' device ?
   JP NZ,FCERR
   RET
 
@@ -7613,6 +7651,7 @@ CAS_OPNI_CO_8:
 CAS_OPNI_CO_9:
   POP AF
   JP CAS_OPNI_CO_1
+
 ; This entry point is used by the routines at CAS_INPUT, __CLOAD, LOAD_RECORD,
 ; CLOADM and LDIR_B.
 CAS_OPNI_CO_10:
@@ -7621,6 +7660,7 @@ CAS_OPNI_CO_10:
   CP $8D
   JP NZ,HEADER_0
   RET
+
 ; This entry point is used by the routine at __CLOAD.
 CAS_OPNI_CO_11:
   LD DE,SKIP_MSG
@@ -7702,6 +7742,7 @@ __STR_S:
 SAVSTR:
   LD BC,TOPOOL
   PUSH BC
+
 ; This entry point is used by the routines at __LET and INSTR.
 SAVSTR_0:
   LD A,(HL)
@@ -7733,7 +7774,7 @@ MKTMST:
 ;
 ; Used by the routines at SAVSTR, DTSTR and __LEFT_S.
 CRTMST:
-  LD HL,TMPSTR
+  LD HL,DSCTMP
   PUSH HL
   LD (HL),A
   INC HL
@@ -7789,7 +7830,7 @@ DTSTR_1:
 ; Used by the routines at TIME_S_FN, DATE_S_FN, DAY_S_FN, CONCAT, TOPOOL and
 ; __LEFT_S.
 TSTOPL:
-  LD DE,TMPSTR
+  LD DE,DSCTMP
   LD A,$D5
   LD HL,(TEMPPT)
   LD (DBL_FPREG),HL
@@ -7887,14 +7928,14 @@ L2802:
   RST CPDEHL
   LD BC,L2802
   JP NZ,TESTR_9
-  LD HL,$FBD9
-  LD ($FBE2),HL
+  LD HL,PRMPRV
+  LD (TEMP9),HL
   LD HL,(VAREND)
-  LD ($FBDF),HL
+  LD (ARYTA2),HL
   LD HL,(PROGND)
 TESTR_4:
   EX DE,HL
-  LD HL,($FBDF)
+  LD HL,(ARYTA2)
   EX DE,HL
   RST CPDEHL
   JP Z,TESTR_6
@@ -7912,7 +7953,7 @@ TESTR_5:
   ADD HL,DE
   JP TESTR_4
 TESTR_6:
-  LD HL,($FBE2)
+  LD HL,(TEMP9)
   LD E,(HL)
   INC HL
   LD D,(HL)
@@ -7921,7 +7962,7 @@ TESTR_6:
   LD HL,(VAREND)
   JP Z,TESTR_8
   EX DE,HL
-  LD ($FBE2),HL
+  LD (TEMP9),HL
   INC HL
   INC HL
   LD E,(HL)
@@ -7930,7 +7971,7 @@ TESTR_6:
   INC HL
   EX DE,HL
   ADD HL,DE
-  LD ($FBDF),HL
+  LD (ARYTA2),HL
   EX DE,HL
   JP TESTR_4
 TESTR_7:
@@ -8605,14 +8646,14 @@ __FRE:
   LD HL,$0000
   ADD HL,SP
   RST GETYPR
-  JP NZ,IMP_0
+  JP NZ,FRE_RESLT	; JP if not string type
   CALL GSTRCU
   CALL TESTR_2
   EX DE,HL
   LD HL,(STRBUF)
   EX DE,HL
   LD HL,(FRETOP)
-  JP IMP_0
+  JP FRE_RESLT
 
 ; Double precision subtract (FAC1=FAC1-FAC2).
 ;
@@ -8652,7 +8693,7 @@ DECADD_0:
   INC A
   PUSH AF
   PUSH HL
-  LD B,$08
+  LD B,$08		; DBL number, 8 bytes
 DECADD_1:
   LD A,(DE)
   LD C,(HL)
@@ -8701,7 +8742,7 @@ DECADD_3:
 ; Single precision normalization
 DECNRM:
   LD HL,FACCU+1
-  LD BC,STEP_7
+  LD BC,$0800		; 2048
 DECADD_5:
   LD A,(HL)
   OR A
@@ -8727,7 +8768,7 @@ DECADD_7:
   PUSH BC
   LD C,B
   LD DE,FACCU+1
-  CALL DECDIV_17
+  CALL LDIR_C_BYTES
   POP BC
   POP AF
   LD B,A
@@ -9060,7 +9101,7 @@ NORMALIZE:
   JP DECNRM		; Single precision normalization
   
 DAA_PASS1:
-  LD HL,$FFF8
+  LD HL,$FFF8		; -8
   ADD HL,DE
   LD C,$03
 DECMUL_11:
@@ -9196,7 +9237,7 @@ DECDIV_8:
   INC B
   LD E,B
   LD D,$00
-  LD HL,$FC17
+  LD HL,FACCU-1
   ADD HL,DE
   CALL BCDADD_5
   POP BC
@@ -9242,10 +9283,10 @@ DECDIV_11:
   LD A,B
   JP DECDIV_13
 DECDIV_12:
-  LD A,($FC17)
+  LD A,(FACCU-1)
   LD E,A
   DEC A
-  LD ($FC17),A
+  LD (FACCU-1),A
   XOR E
   JP P,DECDIV_4
   JP _TSTSGN_4
@@ -9276,13 +9317,13 @@ DECDIV_16:
   JP NORMALIZE
 
 ; This entry point is used by the routine at DECADD.
-DECDIV_17:
+LDIR_C_BYTES:
   LD A,(HL)
   LD (DE),A
   INC HL
   INC DE
   DEC C
-  JP NZ,DECDIV_17
+  JP NZ,LDIR_C_BYTES
   RET
 
 ; Move (HL) to (DE), C times.
@@ -9595,7 +9636,7 @@ __RND_0:
   JP DECNRM		; Single precision normalization
   
 ; This entry point is used by the routine at _CLREG.
-__RND_1:
+INIT_RND:
   LD DE,RNDX_INIT
   LD HL,RNDX
   JP DBL2HL
@@ -10780,7 +10821,7 @@ INT_DIV:
   LD B,H
   LD C,L
   LD HL,$0000
-  LD A,$11
+  LD A,$11		; const
   PUSH AF
   OR A
   JP INT_DIV_2
@@ -11805,7 +11846,7 @@ L3D04:
   LD HL,FACCU+7
   LD B,$0E
   RET NC
-  LD HL,$FC1B
+  LD HL,DBL_FPREG+1
   LD B,$06
   RET
 
@@ -12179,14 +12220,15 @@ _OMERR_1:
 ; Used by the routine at __MAX.
 _CLREG:
   CALL CLR_ALLINT
-  LD B,$1A		; EOF
+  LD B,$1A
   LD HL,DEFTBL
 _CLREG_0:
   LD (HL),$08
   INC HL
   DEC B
   JP NZ,_CLREG_0
-  CALL __RND_1
+  
+  CALL INIT_RND
   XOR A
   LD (ONEFLG),A
   LD L,A
@@ -12199,7 +12241,7 @@ _CLREG_0:
   LD HL,(PROGND)
   LD (VAREND),HL
   LD (ARREND),HL
-  CALL __SAVE_4
+  CALL CLSALL		; Close all files
   LD A,(NLONLY)
   AND $01
   JP NZ,_CLREG_1
@@ -12471,7 +12513,7 @@ __END:
   XOR A
   LD (ONEFLG),A
   PUSH AF
-  CALL Z,__SAVE_4
+  CALL Z,CLSALL		; Close all files
   POP AF
 ; This entry point is used by the routine at __STOP.
 __END_0:
@@ -12524,7 +12566,7 @@ __CONT:
 
 ; Check to see if the current character in (HL) is an alpha character
 ;
-; Used by the routines at DECLVAR and GETVAR.
+; Used by the routines at DEFVAL and GETVAR.
 IS_ALPHA:
   LD A,(HL)
 
@@ -12700,6 +12742,7 @@ __NEXT_3:
   LD L,C
   LD H,B
   JP STEP_7
+
 __NEXT_4:
   CALL DECSUB_0
   POP HL
@@ -12775,56 +12818,56 @@ __CLS:
 ;
 ; Used by the routine at DSPFNK.
 L4235:
-  LD A,$54
+  LD A,'T'
   JP ESCA
 
 ; Unprotect line 8.  An ESC U is printed.
 ;
 ; Used by the routines at ERAFNK and DSPFNK.
 RSTSYS:
-  LD A,$55
+  LD A,'U'
   JP ESCA
 
 ; Stop automatic scrolling.  ( ESC V )
 ;
 ; Used by the routines at __MENU and WAIT_SPC.
 LOCK:
-  LD A,$56
+  LD A,'V'
   JP ESCA
 
 ; Resume automatic scrolling.  (ESC W)
 ;
 ; Used by the routines at TELCOM, __MENU and TXT_ESC.
 UNLOCK:
-  LD A,$57
+  LD A,'W'
   JP ESCA
 
 ; Turn the cursor on.  An ESC P is printed.
 ;
 ; Used by the routines at FNBAR_TOGGLE, TEL_TERM and TEL_PREV.
 CURSON:
-  LD A,$50
+  LD A,'P'
   JP ESCA
 
 ; Turn the cursor off.  An ESC Q is printed.
 ;
 ; Used by the routines at FNBAR_TOGGLE, TEL_PREV, TEL_BYE, __MENU and WAIT_SPC.
 CURSOFF:
-  LD A,$51
+  LD A,'Q'
   JP ESCA
 
 ; Delete current line on screen.  ( ESC M )
 ;
 ; Used by the routines at DSPFNK and TXT_CTL_L.
 DELLIN:
-  LD A,$4D
+  LD A,'M'
   JP ESCA
 
 ; Insert line at current line. (ESC L)
 ;
 ; Used by the routine at TXT_CTL_C.
 INSLIN:
-  LD A,$4C
+  LD A,'L'
   JP ESCA
 
 ; Erase from cursor to end of line.  (ESC K)
@@ -12832,33 +12875,34 @@ INSLIN:
 ; Used by the routines at CAS_OPNI_CO, ERAFNK, DSPFNK, INXD, MOVE_TEXT and
 ; TXT_CTL_V.
 ERAEOL:
-  LD A,$4B
+  LD A,'K'
   JP ESCA
 
-; calls ESC_X  (Set cursor position ?)
+; calls ESC_X
 ;
 ; Used by the routines at FNBAR_TOGGLE, ERAFNK, DSPFNK and TEL_PREV.
 _ESC_X:
-  LD A,$58
+  LD A,'X'
   JP ESCA
 
 ; This entry point is used by the routine at DSPFNK.
-_ESC_X_0:
-  OR (HL)
+; revert text only if "CAPTUR" (or "CAPTUR+1") is set
+ENTREV_COND:
+  OR (HL)	; test (CAPTUR) or (CAPTUR+1)
   RET Z
 
 ; calls ESC__p, Reverse mode
 ;
 ; Used by the routines at DSPFNK, ESC_L and INXD.
 ENTREV:
-  LD A,$70
+  LD A,'p'
   JP ESCA
 
 ; calls ESC__q, Exit reverse mode
 ;
 ; Used by the routines at DSPFNK, ESC_L, INXD, __MENU, WAIT_SPC and TXT_CTL_V.
 EXTREV:
-  LD A,$71
+  LD A,'q'
 
 ; print escape code in A
 ;
@@ -12897,7 +12941,7 @@ POSIT:
 ;
 ; Used by the routines at FNBAR_TOGGLE, __MENU, WAIT_SPC and TXT_ESC.
 ERAFNK:
-  LD A,(LABEL_LN)
+  LD A,(LABEL_LN)		; Label line/8th line protect status (0=off)
   AND A
   RET Z
   CALL RSTSYS
@@ -12941,27 +12985,27 @@ DSPFNK_0:
   LD A,(REVERSE)
 
   PUSH AF			; Save "reverse" status
-  CALL EXTREV
+  CALL EXTREV		; Exit from reverse mode
 DSPFNK_1:
   LD A,(ACTV_Y)
   CP 40
-  LD BC,$040C		; range for 40 columns
+  LD BC,$040C		; pos for 40 columns (4, 12)
   JP Z,DSPFNK_2
-  LD BC,$0907		; range
+  LD BC,$0907		; pos (9,7)
 DSPFNK_2:
   PUSH HL
-  LD HL,$FAC3
+  LD HL,CAPTUR+1		; CAPTUR+1
   LD A,E
-  SUB $06
+  SUB $06				; -6
   JP Z,DSPFNK_3
-  DEC A
-  DEC HL
+  DEC A					; -7
+  DEC HL				; CAPTUR
 DSPFNK_3:
-  CALL Z,_ESC_X_0
+  CALL Z,ENTREV_COND	; revert text only if (E=6 and "CAPTUR+1" is set) or if (E=7 and "CAPTUR" is set)
   POP HL
   CALL OUTS_B_CHARS
   ADD HL,BC
-  CALL EXTREV
+  CALL EXTREV		; Exit from reverse mode
   DEC E
   CALL NZ,OUT_SPC
   JP NZ,DSPFNK_1
@@ -12999,7 +13043,7 @@ OUTC_SUB_0:
   LD C,A
   XOR A
   LD ($FAC7),A
-  LD A,($F638)
+  LD A,(SCREEN)
   AND A
   JP NZ,OUTC_SUB_3
   CALL OUTC_SUB_1
@@ -13104,7 +13148,7 @@ TTY_JP_0_1:
   
 ; This entry point is used by the routines at ESC_M, ESC_L and ESC_J.
 TEXT_LINES:
-  LD A,(LABEL_LN)
+  LD A,(LABEL_LN)		; Label line/8th line protect status (0=off)
   ADD A,$08
   RET
 
@@ -13214,7 +13258,7 @@ ESC_CURS:
   LD DE,CSRY
   JP Z,ESC_CURS_0
   LD A,(ACTV_X)
-  LD HL,LABEL_LN
+  LD HL,LABEL_LN		; Label line/8th line protect status (0=off)
   ADD A,(HL)
   DEC DE
 ESC_CURS_0:
@@ -13247,7 +13291,7 @@ ESC_U:
 ; Protect line 8
 ESC_T:
   LD A,$FF
-  LD (LABEL_LN),A
+  LD (LABEL_LN),A		; Label line/8th line protect status (0=off)
   RET
 
 ; Stop automatic scrolling
@@ -13269,7 +13313,9 @@ ESC_W_0:
 ; ESC X
 ESC_X:
   LD HL,$F647
+  
 ; This entry point is used by the routine at DSKI_S.
+; (Erase last character ?)
 ESC_X_0:
   LD A,(HL)
   LD (HL),$00
@@ -13313,7 +13359,7 @@ ESC_A:
 ;
 ; Used by the routine at _LF.
 ESC_B:
-  CALL MCLEAR_6
+  CALL GET_BT_ROWPOS
   CP L
   RET Z
   JP C,ESC_B_1
@@ -13454,7 +13500,7 @@ ESC_L_2:
 ESC_L_3:
   LD A,(REVERSE)
   PUSH AF
-  CALL EXTREV
+  CALL EXTREV		; Exit from reverse mode
   LD A,$08
   RST OUTC
   LD A,' '
@@ -13691,7 +13737,7 @@ ESC_J_18:
 ; Input line and place at F685H.  Start with "? ". Print characters as they are
 ; entered
 ;
-; Used by the routines at __INPUT, __READ, UPLDR, DWNLDR, TEL_BYE and TEXT.
+; Used by the routines at __INPUT, __READ, TEL_UPLD, DWNLDR, TEL_BYE and TEXT.
 QINLIN:
   LD A,'?'
   RST OUTC
@@ -13700,12 +13746,12 @@ QINLIN:
 
 ; Routine at 17988
 ;
-; Used by the routines at PROMPT, __LINE, TELCOM_RDY, UPLDR and SCHEDL_DE.
+; Used by the routines at PROMPT, __LINE, TELCOM_RDY, TEL_UPLD and SCHEDL_DE.
 INLIN:
   CALL RINPUT       ; a.k.a. _ISFLIO
   JP NZ,INXD_6
   LD A,(CSRY)
-  LD ($FACA),A
+  LD (SV_CSRY),A
   LD DE,KBUF
   LD B,$01
 L4655:
@@ -13830,7 +13876,7 @@ INXD_0:
 ; This entry point is used by the routine at INLIN_BS.
 INXD_1:
   PUSH BC
-  LD A,($FACA)
+  LD A,(SV_CSRY)
   DEC B
   JP Z,INXD_5
   LD C,A
@@ -13867,19 +13913,19 @@ INXD_6:
   INC HL
   INC HL
   LD A,(HL)
-  SUB $F8
+  SUB $F8		; D = 'RAM' device ?
   JP NZ,INXD_7
   LD L,A
   LD H,A
   LD (PTRFIL),HL			; Redirect I/O
-  LD HL,$FAC4
+  LD HL,SV_TXTPOS
   INC (HL)
   LD A,(HL)
   RRCA
-  CALL NC,ENTREV
+  CALL NC,ENTREV	; Enter in reverse mode
   LD HL,CR_WAIT_MSG	; " Wait "
   CALL PRS
-  CALL EXTREV
+  CALL EXTREV		; Exit from reverse mode
 ;$4728
 INXD_7:
   POP HL
@@ -14799,7 +14845,7 @@ INKEY_S_0:
 
 ; Routine at 19467
 ;
-; Used by the routines at OPENDO, UPLDR and TXT_CTL_G.
+; Used by the routines at OPENDO, TEL_UPLD and TXT_CTL_G.
 FNAME:
   PUSH HL
   JP FNAME_1
@@ -14812,7 +14858,7 @@ FILE_PARMS:
   CALL GETSTR
   LD A,(HL)
   OR A
-  JP Z,FNAME_4
+  JP Z,_NMERR		; bad file name
   INC HL
   LD E,(HL)
   INC HL
@@ -14820,7 +14866,7 @@ FILE_PARMS:
   LD L,E			; pointer to string
   LD E,A			; size of string
 FNAME_1:
-  CALL L5075		; Parse Device Name
+  CALL PARSE_DEVNAME		; Parse Device Name, Z flag set if RAM device
   PUSH AF
   LD BC,FILNAM
   LD D,$09
@@ -14830,9 +14876,9 @@ FNAME_2:
   JP Z,FNAME_7		; yep, fill remaining FILNAME with spaces
   CALL UCASE_HL
   CP ' '					; control characters ?
-  JP C,FNAME_4			; yep, bad filename error
+  JP C,_NMERR			; yep, bad filename error
   CP $7F		; BS
-  JP Z,FNAME_4
+  JP Z,_NMERR			; bad file name
   CP '.'			; filename/extension seperator ?
   JP Z,FNAME_6		; yep, handle extension
   LD (BC),A
@@ -14846,13 +14892,13 @@ FNAME_3:
   LD D,A
   LD A,(FILNAM)
   INC A
-  JP Z,FNAME_4
+  JP Z,_NMERR		; bad file name
   POP AF
   POP HL
   RET
   
-FNAME_4:
-  JP NMERR
+_NMERR:
+  JP NMERR		; NM error: bad file name
   
 FNAME_5:
   INC HL
@@ -14861,9 +14907,9 @@ FNAME_5:
 FNAME_6:
   LD A,D
   CP $09
-  JP Z,FNAME_4
+  JP Z,_NMERR		; bad file name
   CP $03
-  JP C,FNAME_4
+  JP C,_NMERR		; bad file name
   JP Z,FNAME_5
   LD A,' '
   LD (BC),A
@@ -14877,8 +14923,9 @@ FNAME_7:
   DEC D
   JP NZ,FNAME_7
   JP FNAME_3
+
 ; This entry point is used by the routine at DSKI_S.
-FNAME_8:
+GET_FNAME_CHAR:
   LD A,(HL)
   INC HL
   DEC E
@@ -14955,7 +15002,7 @@ __OPEN:
   PUSH BC
   CALL FILE_PARMS
   JP NZ,__OPEN_0
-  LD D,$F8
+  LD D,$F8		; D = 'RAM' device ?
 __OPEN_0:
   RST SYNCHR
   DEFB $81			; TK_FOR
@@ -15048,17 +15095,21 @@ _OPEN_0:
 CLOSE1:
   PUSH HL
   OR A
-  JP NZ,CLOSE1_0
+  JP NZ,NTFL0
   LD A,(NLONLY)
   AND $01
   JP NZ,INPUT_S_7
-CLOSE1_0:
+
+; NTFL0 - "NoT FiLe number 0"
+NTFL0:
   CALL VARPTR_A
   JP Z,_CLOSE_0
+  
   LD (PTRFIL),HL			; Redirect I/O
   PUSH HL
   LD A,$02
   JP C,GET_DEVICE
+
   RST $38
   DEFB $14		; HNTFL, Offset: 20
   JP IEERR
@@ -15101,14 +15152,14 @@ __MERGE:
   PUSH AF
   DEC HL
   RST CHRGTB
-  CP $4D
+  CP 'M'
   JP Z,LOADM_RUNM
   CALL FILE_PARMS
-  JP Z,__LCOPY_2
+  JP Z,MERGE_SUB
   LD A,D
-  CP $F8
-  JP Z,__LCOPY_2
-  CP $FD
+  CP $F8				; D = 'RAM' device ?
+  JP Z,MERGE_SUB
+  CP $FD				; D = 'CAS' device ?
   JP Z,__CLOAD_0
   RST $38
   DEFB $1A		; HMERG, Offset: 26
@@ -15135,6 +15186,7 @@ __MERGE_2:
   XOR A
   LD E,$01
   CALL _OPEN
+
 ; This entry point is used by the routine at LOAD_RECORD.
 __MERGE_3:
   LD HL,(PTRFIL)
@@ -15154,7 +15206,7 @@ __MERGE_3:
   JP M,__SAVE_3
   POP AF
   CALL NZ,CLRPTR
-  CALL __SAVE_4
+  CALL CLSALL		; Close all files
   XOR A
   CALL SELECT
   JP PROMPT
@@ -15167,9 +15219,9 @@ __SAVE:
   CALL FILE_PARMS
   JP Z,__LCOPY_6
   LD A,D
-  CP $F8
+  CP $F8			; D = 'RAM' device ?
   JP Z,__LCOPY_6
-  CP $FD
+  CP $FD			; D = 'CAS' device ?
   JP Z,__CSAVE_0
   RST $38
   DEFB $16		; HSAVE, Offset: 22
@@ -15197,6 +15249,7 @@ __SAVE_0:
   POP AF
   XOR A
   PUSH AF
+  
 ; This entry point is used by the routines at __LCOPY and __CSAVE.
 __SAVE_1:
   XOR A
@@ -15220,7 +15273,8 @@ __SAVE_3:
   
 ; This entry point is used by the routines at __KILL, _CLREG, __END, __MERGE
 ; and __MAX.
-__SAVE_4:
+; Close all files
+CLSALL:
   LD A,(NLONLY)
   OR A
 ; This entry point is used by the routine at __CLOSE.
@@ -15701,25 +15755,30 @@ FLERR:
   LD E,$39
   JP ERROR
 
+
 ; LOF Function
 __LOF:
   RST $38
   DEFB $4E		; HLOF, Offset: 78
+
 
 ; LOC Function
 __LOC:
   RST $38
   DEFB $50		; HLOC, Offset: 80
 
+
 ; __LFILES
 __LFILES:
   RST $38
   DEFB $52		; HFILE, Offset: 82
 
+
 ; DSKO$
 __DSKO_S:
   RST $38
   DEFB $56		; HDSKO, Offset: 86
+
 
 ; DSKI$
 ; Used by the routine at VARPTR_VAR.
@@ -15727,26 +15786,25 @@ DSKI_S:
   RST $38
   DEFB $54		; HDSKI, Offset: 84
 
+
 ; Routine at 20597
 ; Used by the routine at FNAME.
-; Parse Device Name
-L5075:
+; Parse Device Name, Z flag set if RAM device
+PARSE_DEVNAME:
   RST $38
   DEFB $28		; HPARD, Offset: 40
 
-; Routine at 20599
-L5077:
   LD A,(HL)
   CP ':'
-  JP C,L5096
+  JP C,POSDSK
   PUSH HL
   LD D,E
-  CALL FNAME_8
+  CALL GET_FNAME_CHAR
   JP Z,L5077_1
 L5077_0:
   CP ':'
-  JP Z,L5098_0
-  CALL FNAME_8
+  JP Z,GET_DEVNAME
+  CALL GET_FNAME_CHAR
   JP P,L5077_0
 L5077_1:
   LD E,D
@@ -15759,33 +15817,33 @@ L5077_1:
 ; Routine at 20630
 ;
 ; Used by the routine at L5077.
-L5096:
+POSDSK:
   RST $38
   DEFB $2E		; HPOSD, Offset: 46
-  JP NMERR
+  JP NMERR		; NM error: bad file name
 
-L5098_0:
+GET_DEVNAME:
   LD A,D
   SUB E
   DEC A
-  CP $02
-  JP NC,DSKI_S_4
+  CP $02		; Continue only if dev name length >= 2
+  JP NC,MAP_DEVNAME
   RST $38
   DEFB $2C		; HOOK_2C, Offset: 44  
-  JP NMERR
+  JP NMERR		; NM error: bad file name
 
-DSKI_S_4:
-  CP $05
-  JP NC,NMERR
+MAP_DEVNAME:
+  CP $05		; Error if dev name length > 4
+  JP NC,NMERR	; NM error: bad file name
   POP BC
   PUSH DE
   PUSH BC
-  LD C,A
+  LD C,A		; dev name length
   LD B,A
   LD DE,DEVICE_TBL
   EX (SP),HL
   PUSH HL
-DSKI_S_5:
+DEVN_LOOP:
   CALL UCASE_HL
   PUSH BC
   LD B,A
@@ -15796,12 +15854,13 @@ DSKI_S_5:
   POP BC
   JP NZ,DSKI_S_8
   DEC C
-  JP NZ,DSKI_S_5
+  JP NZ,DEVN_LOOP
+
 DSKI_S_6:
   LD A,(DE)
   OR A
   JP M,DSKI_S_7
-  CP $31
+  CP '1'
   JP NZ,DSKI_S_8
   INC DE
   LD A,(DE)
@@ -15827,8 +15886,8 @@ DSKI_S_9:
   PUSH HL
   LD A,(DE)
   OR A
-  JP NZ,DSKI_S_5
-  JP NMERR
+  JP NZ,DEVN_LOOP
+  JP NMERR				; NM error: bad file name
   
 DEVICE_TBL:
   DEFM "LCD"              ; Start of device name table.  Each name ends with a
@@ -15907,7 +15966,7 @@ TELCOM:
 
 ; This entry point is used by the routines at TELCOM_RDY, TEL_SET_STAT,
 ; TEL_CALL and TEL_FIND.
-TELCOM_0:
+TELCOM_MAIN:
   CALL __BEEP
   LD HL,TELCOM_BAR
   CALL STFNK
@@ -15917,7 +15976,7 @@ TELCOM_0:
 ; Used by the routines at TEL_GET_STAT, TEL_SET_STAT, TEL_CALL and TEL_FIND.
 TELCOM_RDY:
   CALL STKINI
-  LD HL,TELCOM_0
+  LD HL,TELCOM_MAIN
   LD (ERRTRP),HL
   LD HL,TELCOM_PROMPT
   CALL PRINT_LINE
@@ -15927,7 +15986,7 @@ TELCOM_RDY:
   JP Z,TELCOM_RDY
   LD DE,TELCOM_TBL
   CALL LOAD_BA_LBL_1
-  JP Z,TELCOM_0
+  JP Z,TELCOM_MAIN
   RET
 
 
@@ -16020,7 +16079,7 @@ TEL_SET_STAT:
   JP Z,TEL_SET_STAT_1
   CALL UCASE
   CP $4D		; 'M', Modem
-  JP NZ,TELCOM_0
+  JP NZ,TELCOM_MAIN
   INC HL
 TEL_SET_STAT_0:
   CALL SETSER		;   HL = zero terminated setup string, e.g. "78E1E"
@@ -16036,7 +16095,7 @@ TEL_SET_STAT_1:
   CP $14
   JP Z,TEL_SET_STAT_2
   SUB $0A
-  JP NZ,TELCOM_0
+  JP NZ,TELCOM_MAIN
   INC A
 TEL_SET_STAT_2:
   LD (DIAL_SPEED),A
@@ -16047,7 +16106,7 @@ TEL_SET_STAT_3:
   CALL PRINT_TEXT
   POP DE
   CALL TEL_FIND_1
-  JP Z,TELCOM_0
+  JP Z,TELCOM_MAIN
   EX DE,HL
   defb $f6  ; OR $37
 
@@ -16059,7 +16118,7 @@ TEL_CALL:
   CALL C,PRINT_TEXT
   POP HL
   CALL TEL_LOGON
-  JP C,TELCOM_0
+  JP C,TELCOM_MAIN
   JP NZ,TELCOM_RDY
   JP TEL_TERM_0
 
@@ -16075,8 +16134,8 @@ TEL_FIND:
   SUB A
   CALL SHOW_TIME_3
   PUSH HL
-  CALL FNDFLO
-  JP Z,TELCOM_0
+  CALL FNDFLO		; Look for "ADDRS.DO"
+  JP Z,TELCOM_MAIN
   CALL GTXTTB
   EX DE,HL
   POP HL
@@ -16129,12 +16188,12 @@ TEL_FIND_4:
   RET Z
 TEL_FIND_5:
   CP $1A		; EOF
-  JP Z,TELCOM_0
+  JP Z,TELCOM_MAIN
   RET
 
 ; This entry point is used by the routines at TEL_CONN, TEL_LIFT and
 ; TEL_DIAL_DGT.
-TEL_FIND_6:
+TEL_LIFT_ON:
   IN A,($BA)
   AND $7F
   OUT ($BA),A
@@ -16147,7 +16206,7 @@ TEL_DISC:
   CALL TEL_CONN_0
   CALL TEL_LOGON_0
 ; This entry point is used by the routines at TEL_LOGON and TEL_DIAL_DGT.
-TEL_DISC_0:
+TEL_LIFT_OFF:
   IN A,($BA)
   OR $80
   OUT ($BA),A
@@ -16163,7 +16222,7 @@ TEL_DISC_1:
 ;
 ; Used by the routines at TEL_LIFT and TEL_LOGON.
 TEL_CONN:
-  CALL TEL_FIND_6
+  CALL TEL_LIFT_ON
   LD A,$03
   JP TEL_CONN_1
 ; This entry point is used by the routines at TEL_DISC and TEL_LOGON.
@@ -16191,9 +16250,10 @@ TEL_LIFT_0:
   CALL CARDET
   JP NZ,TEL_LIFT_0
   RET
+
 TEL_LIFT_1:
   CALL TEL_DISC_1
-  CALL TEL_FIND_6
+  CALL TEL_LIFT_ON
   NOP
   NOP
   NOP
@@ -16270,7 +16330,7 @@ TEL_LOGON_0:
 TEL_LOGON_1:
   XOR A
   LD (PORT_A8),A
-  CALL TEL_DISC_0
+  CALL TEL_LIFT_OFF
   CALL TEL_DISC_1
   CALL TMDELA_0
   CALL TEL_CONN
@@ -16323,7 +16383,7 @@ TEL_LOGON_3:
   CALL TEL_LIFT
   RET C
 TEL_LOGON_4:
-  CALL UPLDR_7
+  CALL TEL_UPLD_7
   CALL TEL_LOGON_10
   RET Z
   CP '>'
@@ -16369,32 +16429,38 @@ TEL_LOGON_10:
 ; Dial the digit that is present in the A register.
 ;
 ; Used by the routine at TEL_LOGON.
+; Pulse dialing loop
+;
 TEL_DIAL_DGT:
   RST OUTC
   DI
+  
   AND $0F
   LD C,A
-  JP NZ,TEL_DIAL_DGT_0
+  JP NZ,DIAL_DGT_LOOP1
   LD C,$0A
-TEL_DIAL_DGT_0:
+
+DIAL_DGT_LOOP1:
   LD A,(DIAL_SPEED)
   RRCA
   LD DE,$161C	; D=22, E=28
   JP NC,TEL_DIAL_DGT_1
   LD DE,$2440	; D=36, E=64
+
 TEL_DIAL_DGT_1:
-  CALL TEL_DISC_0
-TEL_DIAL_DGT_2:
+  CALL TEL_LIFT_OFF
+DIAL_DGT_LOOP2:
   CALL TMDELA_2
   DEC E
-  JP NZ,TEL_DIAL_DGT_2
-  CALL TEL_FIND_6
+  JP NZ,DIAL_DGT_LOOP2
+  CALL TEL_LIFT_ON
 TEL_DIAL_DGT_3:
   CALL TMDELA_2
   DEC D
   JP NZ,TEL_DIAL_DGT_3
   DEC C
-  JP NZ,TEL_DIAL_DGT_0
+  JP NZ,DIAL_DGT_LOOP1
+
   EI
   LD A,(DIAL_SPEED)
   AND $01
@@ -16427,14 +16493,15 @@ TEL_TERM:
   CCF
   CALL C,TEL_LIFT
   JP C,TEL_BYE_0
+
 ; This entry point is used by the routine at TEL_CALL.
 TEL_TERM_0:
   LD A,$40
   LD ($F650),A
   LD ($F67B),A
   XOR A
-  LD (CAPTUR),A
-  LD ($FAC3),A
+  LD (CAPTUR),A		;
+  LD (CAPTUR+1),A
   CALL CLR_ALTLCD
   LD HL,TERM_BAR
   CALL STFNK
@@ -16443,16 +16510,17 @@ TEL_TERM_0:
   CALL WATDSP		; Display 'Wait' status/message
   CALL DSPFNK
   CALL CURSON
+
 ; This entry point is used by the routines at DWNLDR and TEL_BYE.
-TEL_TERM_1:
+TEL_TERM_LOOP:
   CALL RESTAK
-  LD HL,L54EF
+  LD HL,TEL_TERM_TRAP
   LD (ERRTRP),HL
-  LD A,(XONXOFF)
+  LD A,(XONXOFF_FLG)
   AND A
   JP Z,TEL_TERM_2
   LD A,(ENDLCD)
-  LD HL,$F7D9				; ..inside the FN key definition area, also used as a status bar
+  LD HL,FNKSTR+80				; (same on KC85) ..inside the FN key definition area, also used as a status bar
   XOR (HL)
   RRCA
   CALL C,WATDSP		; Display 'Wait' status/message
@@ -16468,12 +16536,12 @@ TEL_TERM_2:
   CALL Z,_OUTC
   AND A
   CALL NZ,SD232C
-  JP C,TEL_TERM_4
+  JP C,TEL_TERM_INTRPT
 TEL_TERM_3:
   CALL RCVX
-  JP Z,TEL_TERM_1
+  JP Z,TEL_TERM_LOOP
   CALL RV232C
-  JP C,TEL_TERM_1
+  JP C,TEL_TERM_LOOP
   RST OUTC
   LD B,A
   LD A,(ECHO)
@@ -16481,21 +16549,22 @@ TEL_TERM_3:
   LD A,B
   CALL NZ,OUTC_TABEXP
   CALL DWNLDR_3
-  JP TEL_TERM_1
+  JP TEL_TERM_LOOP
 
-TEL_TERM_4:
+TEL_TERM_INTRPT:
   XOR A
   LD (ENDLCD),A
 TEL_TERM_5:
   CALL BREAK
   JP C,TEL_TERM_5
-  JP TEL_TERM_1
-L54EF:
+  JP TEL_TERM_LOOP
+
+TEL_TERM_TRAP:
   CALL __BEEP
   XOR A
   LD (ECHO),A
   CALL ECHDSP		; Display terminal 'ECHO' status
-  JP TEL_TERM_1
+  JP TEL_TERM_LOOP
 
 TEL_TERM_6:
   LD E,A
@@ -16507,15 +16576,15 @@ TEL_TERM_6:
   INC HL
   LD H,(HL)
   LD L,A
-  LD DE,TEL_TERM_1
+  LD DE,TEL_TERM_LOOP
   PUSH DE
   JP (HL)
   
 ; Start of function key vector table for TERM commands in TELCOM.
 TEL_JPTAB:
   DEFW TEL_PREV
-  DEFW TEL_DOWN
-  DEFW TEL_UP
+  DEFW TEL_DOWNLD
+  DEFW TEL_UPLD
   DEFW TEL_DUPLEX
   DEFW TEL_ECHO
   DEFW TEL_F6
@@ -16559,7 +16628,7 @@ TEL_DUPLEX:
 ; Display terminal 'DUPLEX' status
 DUPDSP:
   LD A,(DUPLEX)
-  LD DE,$F7B9		; ..inside the FN key definition area, also used as a status bar
+  LD DE,FNKSTR+48				; (same on KC85) ..inside the FN key definition area, also used as a status bar
   LD HL,FULLHALF_MSG
   JP CHGDSP
 
@@ -16576,7 +16645,7 @@ TEL_ECHO:
 ; Display terminal 'ECHO' status
 ECHDSP:
   LD A,(ECHO)
-  LD DE,$F7C9		; ..inside the FN key definition area, also used as a status bar
+  LD DE,FNKSTR+64				; (same on KC85) ..inside the FN key definition area, also used as a status bar
   LD HL,ECHO_MSG
   JP CHGDSP
 
@@ -16585,7 +16654,7 @@ ECHDSP:
 ; Used by the routine at TEL_TERM.
 WATDSP:
   LD A,(ENDLCD)
-  LD DE,$F7D9		; ..inside the FN key definition area, also used as a status bar
+  LD DE,FNKSTR+80				; (same on KC85) ..inside the FN key definition area, also used as a status bar
   LD HL,WAIT_MSG
 
 ; Routine at 21867
@@ -16626,16 +16695,13 @@ WAIT_MSG:
   DEFM "  "
 
 ; TELCOM UP function routine
-TEL_UP:
-  LD HL,L56EF
-
-; Routine at 21920
-UPLDR:
+TEL_UPLD:
+  LD HL,UPLOAD_ABORT
   LD (ERRTRP),HL
   PUSH HL
   LD A,(CAPTUR)
   AND A
-  RET NZ
+  RET NZ				; RET if something is found in it
   CALL RESFPT
   LD HL,UPLMSG_0
   CALL PRINT_LINE
@@ -16660,21 +16726,20 @@ UPLDR:
   RST CHRGTB
   AND A
   LD A,$01
-  LD ($FAC3),A
-  LD ($F920),A
-  JP Z,L55FD		; JP if no extra args
+  LD (CAPTUR+1),A			;
+  LD (TXT_EDITING),A
+  JP Z,L55FD			; JP if no extra args
   
   CALL GETINT
   CP $0A
   RET C
   CP $85
-; This entry point is used by the routine at CHGDSP.
-UPLDR_0:
   RET NC
-  LD HL,$F894
+
+  LD HL,TXT_BUF
   LD (TXT_PTR),HL
   LD ($F922),A
-  LD ($FAC3),A
+  LD (CAPTUR+1),A
   POP AF
   POP DE
   
@@ -16688,29 +16753,29 @@ L55FD:
   CALL FNKSB
   POP HL
   POP DE
-UPLDR_1:
-  LD A,($FAC3)
+TEL_UPLD_1:
+  LD A,(CAPTUR+1)
   DEC A
-  JP Z,UPLDR_3
+  JP Z,TEL_UPLD_3
   PUSH DE
   EX DE,HL
   LD HL,(TXT_PTR)
   EX DE,HL
   RST CPDEHL
   POP DE
-  JP NZ,UPLDR_3
+  JP NZ,TEL_UPLD_3
   CALL L67DF
   LD A,D
   AND E
   INC A
-  JP NZ,UPLDR_2
+  JP NZ,TEL_UPLD_2
   LD HL,(TXT_PTR)
   LD (HL),$1A	; EOF
   INC HL
   LD (TXT_PTR),HL
-UPLDR_2:
-  LD HL,$F894
-UPLDR_3:
+TEL_UPLD_2:
+  LD HL,TXT_BUF
+TEL_UPLD_3:
   LD A,(HL)
   CP $1A		; EOF
   RST $38
@@ -16718,50 +16783,50 @@ UPLDR_3:
 
   JP Z,L566C
   CP $0A         ; LF
-  JP NZ,UPLDR_4
+  JP NZ,TEL_UPLD_4
   LD A,(RS232LF)
   AND A
-  JP NZ,UPLDR_4
+  JP NZ,TEL_UPLD_4
   LD A,($FAC6)
   CP $0D         ; CR
-UPLDR_4:
+TEL_UPLD_4:
   LD A,(HL)
   LD ($FAC6),A
-  JP Z,UPLDR_5
+  JP Z,TEL_UPLD_5
   CALL SD232C
-  CALL UPLDR_7
-UPLDR_5:
+  CALL TEL_UPLD_7
+TEL_UPLD_5:
   INC HL
   CALL CHSNS
-  JP Z,UPLDR_1
+  JP Z,TEL_UPLD_1
   CALL CHGET
   CP $03
   JP Z,L566C
   CP $13
   CALL Z,CHGET
   CP $03
-  JP NZ,UPLDR_1
+  JP NZ,TEL_UPLD_1
 L566C:
   XOR A
-  LD ($FAC3),A
+  LD (CAPTUR+1),A
   JP FNKSB
 
 ; This entry point is used by the routine at TEL_LOGON.
-UPLDR_7:
+TEL_UPLD_7:
   CALL RCVX
   RET Z
   CALL RV232C
   RST OUTC
-  JP UPLDR_7
+  JP TEL_UPLD_7
 
 ; TELCOM DOWN function routine
-TEL_DOWN:
+TEL_DOWNLD:
   CALL RESFPT
   LD A,(CAPTUR)
   XOR $FF
   LD (CAPTUR),A
   JP Z,DWNLDR_2
-  LD HL,L56E2
+  LD HL,DOWNLOAD_ABORT
 
 ; Routine at 22159
 DWNLDR:
@@ -16779,20 +16844,23 @@ DWNLDR_0:
   PUSH HL
   CALL OPENDO
   JP C,DWNLDR_1
-  LD ($FAC4),HL
+  LD (SV_TXTPOS),HL
   CALL GETEND
   POP AF
   CALL TXT_CTL_C_15
   JP FNKSB
+ 
 DWNLDR_1:
   EX DE,HL
   CALL KILLASC+1
   POP HL
   JP DWNLDR_0
-; This entry point is used by the routine at TEL_DOWN.
+
+; This entry point is used by the routine at TEL_DOWNLD.
 DWNLDR_2:
   CALL FNKSB
-  JP MCLEAR_2
+  JP L6383
+
 ; This entry point is used by the routine at TEL_TERM.
 DWNLDR_3:
   LD C,A
@@ -16806,26 +16874,26 @@ DWNLDR_3:
   CALL DWNLDR_4
   LD A,$0A
 DWNLDR_4:
-  LD HL,($FAC4)
-  CALL TXT_SPLIT_LINE
-  LD ($FAC4),HL
-  RET NC
+  LD HL,(SV_TXTPOS)
+  CALL TXT_SPLIT_ROW
+  LD (SV_TXTPOS),HL
+  RET NC		; RET if at the end of text
 
-L56E2:
+DOWNLOAD_ABORT:
   XOR A
   LD (CAPTUR),A
   CALL FNKSB
   LD HL,DWNMSG
-  JP DWNLDR_5
+  JP PRS_ABORTMSG
 
-
-L56EF:
+UPLOAD_ABORT:
   LD HL,UPLMSG
-DWNLDR_5:
+
+PRS_ABORTMSG:
   CALL PRINT_LINE
   LD HL,ABTMSG
   CALL PRS
-  JP TEL_TERM_1
+  JP TEL_TERM_LOOP
 
 ; This entry point is used by the routine at TXT_CTL_V.
 DWNLDR_6:
@@ -16863,7 +16931,7 @@ TEL_BYE:
   JP Z,TEL_BYE_0
   LD HL,ABTMSG
   CALL PRINT_LINE
-  JP TEL_TERM_1
+  JP TEL_TERM_LOOP
 ; This entry point is used by the routine at TEL_TERM.
 TEL_BYE_0:
   XOR A
@@ -16911,7 +16979,7 @@ DISMSG:
 ; Print the buffer pointed to by HL till a null or '"' is found. CR if not at
 ; beginning of a line.
 ;
-; Used by the routines at LOAD_RECORD, PRPARM, CAS_OPNI_CO, TELCOM_RDY, UPLDR,
+; Used by the routines at LOAD_RECORD, PRPARM, CAS_OPNI_CO, TELCOM_RDY, TEL_UPLD,
 ; DWNLDR and TEL_BYE.
 PRINT_LINE:
   CALL CONSOLE_CRLF
@@ -16927,16 +16995,16 @@ __MENU:
   CALL CLSCOM
   CALL MCLEAR_0
   CALL RESFPT
-  CALL EXTREV
+  CALL EXTREV		; Exit from reverse mode
   CALL CURSOFF
 ; This entry point is used by the routine at TEL_BYE.
 __MENU_0:
   CALL ERAFNK
   CALL LOCK
-  LD A,($F638)
+  LD A,(SCREEN)
   LD ($FDFA),A
   LD A,$FF
-  LD ($FAC8),A
+  LD (MENU_FLG),A
   INC A
   LD ($F650),A
   LD (LBL_LINE),A
@@ -16996,9 +17064,9 @@ __MENU_5:
   LD HL,$1808	; cursor coordinates
   CALL POSIT
   CALL FREEMEM
-__MENU_6:
+__MENU_LOOP:
   CALL L5D40_1
-  LD HL,L5906
+  LD HL,__MENU_LOOP_ERR
   LD (ERRTRP),HL
   LD HL,$0108	; cursor coordinates
   CALL POSIT
@@ -17022,7 +17090,7 @@ __MENU_8:
   CP $7F		; BS
   JP Z,__MENU_9
   CP $15
-  JP Z,__MENU_6
+  JP Z,__MENU_LOOP
   CP ' '
   JP C,__MENU_11
   LD C,A
@@ -17123,9 +17191,9 @@ __MENU_15:
   JP NZ,__MENU_19
 
 ; Routine at 22790
-L5906:
+__MENU_LOOP_ERR:
   CALL __BEEP
-  JP __MENU_6
+  JP __MENU_LOOP
 
 __MENU_16:
   LD A,($FDEE)
@@ -17148,8 +17216,8 @@ __MENU_19:
   CALL __SCREEN_0
   LD A,$0C
   RST OUTC
-  SUB A
-  LD ($FAC8),A
+  SUB A		; 0
+  LD (MENU_FLG),A
   LD L,A
   LD H,L
   LD (ERRTRP),HL
@@ -17435,9 +17503,9 @@ STFNK_3:
 
 ; Display function keys on 8th line if enabled
 ;
-; Used by the routines at OUTS_B_CHARS, CHGDSP, UPLDR, DWNLDR and BASIC.
+; Used by the routines at OUTS_B_CHARS, CHGDSP, TEL_UPLD, DWNLDR and BASIC.
 FNKSB:
-  LD A,(LABEL_LN)
+  LD A,(LABEL_LN)		; Label line/8th line protect status (0=off)
   OR A
   CALL NZ,DSPFNK
   RET
@@ -17605,9 +17673,8 @@ SCHEDL_DE_0:
   JP NZ,SCHEDL_DE_1
   POP HL
   LD ($FDEE),HL
-
-L5B88:
-  LD HL,L5B88
+SCHEDL_TRAP:
+  LD HL,SCHEDL_TRAP
   LD (ERRTRP),HL
   CALL __CLS
   CALL __BEEP
@@ -17676,7 +17743,7 @@ SCL_LFND_1:
   CALL L67DF
   LD A,($FDEE)
   LD (PRTFLG),A
-  CALL TXT_CTL_V_41
+  CALL TXT_PRINTBLOCK		; Ouput text in the memory range between DE and HL
   SUB A
   LD (PRTFLG),A
   LD A,($FDEE)
@@ -18020,14 +18087,14 @@ SHOW_TIME_5:
   LD HL,ACTV_Y
   LD A,$FF
   LD ($F921),A
-  LD ($F920),A
+  LD (TXT_EDITING),A
   LD A,($FDEE)
   OR A
   JP Z,SHOW_TIME_7
   LD A,$01
 ; This entry point is used by the routine at TEXT.
 SHOW_TIME_6:
-  LD ($F920),A
+  LD (TXT_EDITING),A
   LD HL,$F649
 SHOW_TIME_7:
   LD A,(HL)
@@ -18116,7 +18183,7 @@ __EDIT_0:
   LD (FILNAM+6),HL	; point to file name ext
   LD HL,L5EDA
   LD (ERRTRP),HL
-  LD DE,$F802
+  LD DE,$F802	; D = 'RAM' device, E=02
   LD HL,BLANK_BYTE
   CALL _OPEN
   LD HL,L5ED5
@@ -18130,8 +18197,8 @@ __EDIT_0:
 __EDIT_1:
   CALL L4F2E_1
   CALL __NEW_2
-  LD A,(LABEL_LN)
-  LD ($FACC),A
+  LD A,(LABEL_LN)		; Label line/8th line protect status (0=off)
+  LD (SV_LABEL_LN),A
   LD HL,$0000
   LD (SAVE_CSRX),HL
 __EDIT_2:
@@ -18152,7 +18219,7 @@ L5EAB:
   LD HL,L5EEB
   LD (ERRTRP),HL
   LD HL,BLANK_BYTE
-  LD D,$F8
+  LD D,$F8		; 'RAM' device  ($F9 on KC85)
   JP __MERGE_1
   
 ; This entry point is used by the routine at INXD.
@@ -18166,8 +18233,8 @@ __EDIT_4:
   LD (ERRTRP),HL
   CALL KILLASC_4
   CALL _CLREG_1
-  LD A,($FACC)
-  LD (LABEL_LN),A
+  LD A,(SV_LABEL_LN)
+  LD (LABEL_LN),A		; Label line/8th line protect status (0=off)
   JP BASIC_0
 
 ; Routine at 24277
@@ -18269,7 +18336,7 @@ EDIT_TEXT:
 WAIT_SPC_2:
   LD ($F921),A
   LD ($F765),HL
-  CALL EXTREV
+  CALL EXTREV		; Exit from reverse mode
   CALL ERAFNK
   CALL LOCK
   CALL CURSOFF
@@ -18295,7 +18362,7 @@ WAIT_SPC_3:
   LD L,A
   LD H,A
   LD ($F6DF),A
-  LD ($F920),A
+  LD (TXT_EDITING),A
   LD ($F6E1),A
   LD ($F71F),A
   LD (TXT_SEL_BEG),HL
@@ -18308,7 +18375,7 @@ WAIT_SPC_4:
   POP DE
   LD HL,(SAVE_CSRX)
   ADD HL,DE
-  CALL MCLEAR_6
+  CALL GET_BT_ROWPOS
   PUSH HL
   CALL TXT_CTL_V_29
   POP HL
@@ -18397,10 +18464,10 @@ TXT_ESC:
   CALL L65B9
   CALL UNLOCK
   CALL ERAFNK
-  CALL MCLEAR_7
+  CALL L63DB
   CALL POSIT
   CALL OUTDO_CRLF
-  CALL MCLEAR_2
+  CALL L6383
   LD HL,($F765)
   JP (HL)
 
@@ -18428,8 +18495,8 @@ TXT_CTL_I:
   POP AF
 ; This entry point is used by the routine at TXT_CTL_M.
 TXT_CTL_I_0:
-  CALL TXT_SPLIT_LINE
-  JP C,TXT_CTL_I_1
+  CALL TXT_SPLIT_ROW
+  JP C,TXT_CTL_I_1		; JP if not at the end of text
   PUSH HL
   CALL TXT_CTL_L_0
   POP HL
@@ -18477,7 +18544,7 @@ TXT_CTL_M:
   CALL TXT_CTL_L_0
   CALL TXT_GET_CURPOS
   LD A,$0D		; CR
-  CALL TXT_SPLIT_LINE
+  CALL TXT_SPLIT_ROW
   LD A,$0A		; LF
   JP TXT_CTL_I_0
 
@@ -18511,7 +18578,7 @@ TXT_CTL_X_1:
   POP HL
   SCF
   RET Z
-  CALL MCLEAR_6
+  CALL GET_BT_ROWPOS
   CP L
   CALL C,TXT_CTL_C_10
   JP TXT_CTL_E_2
@@ -18583,6 +18650,7 @@ TXT_CTL_E_0:
   JP NZ,TXT_CTL_E_2
   LD A,(ACTV_Y)
   LD H,A
+
 TXT_CTL_E_1:
   PUSH HL
   CALL TXT_CTL_V_47
@@ -18673,7 +18741,7 @@ TXT_MOVE_CURSOR:
 TXT_CTL_B:
   PUSH HL
   INC L
-  CALL MCLEAR_6
+  CALL GET_BT_ROWPOS
   INC A
   CP L
   JP NZ,TXT_CTL_B_0
@@ -18741,7 +18809,7 @@ TXT_CTL_Z_0:
   
 ; This entry point is used by the routine at TXT_CTL_T.
 TXT_CTL_Z_1:
-  CALL MCLEAR_6
+  CALL GET_BT_ROWPOS
 ; This entry point is used by the routine at TXT_CTL_B.
 TXT_CTL_Z_2:
   CALL GETEND_1
@@ -18776,7 +18844,7 @@ TXT_CTL_L_0:
 ; Used by the routine at TXT_CTL_H.
 L6256:
   LD C,$80
-  CALL MCLEAR_6
+  CALL GET_BT_ROWPOS
   LD HL,CSRX
   SUB (HL)
   LD B,A
@@ -18808,7 +18876,7 @@ TXT_CTL_L_2:
 TXT_CTL_L_3:
   CALL HOME
   CALL DELLIN
-  CALL MCLEAR_6
+  CALL GET_BT_ROWPOS
 
 ; This entry point is used by the routine at MCLEAR.
 TXT_CTL_L_4:
@@ -18824,7 +18892,7 @@ TXT_CTL_L_4:
 ; TXT_CTL_O, TXT_CTL_U and TXT_CTL_N.
 ; Interrupt any type of function (Cancel SELECT, SAVE, LOAD, FIND or PRINT)
 TXT_CTL_C:
-  CALL TXT_CTL_C_6
+  CALL TXT_IS_SELECTING
   PUSH HL
   LD HL,$0000
   LD (TXT_SEL_BEG),HL
@@ -18835,7 +18903,7 @@ TXT_CTL_C:
 ; This entry point is used by the routines at TXT_CTL_X, TXT_CTL_E, TXT_CTL_A,
 ; TXT_CTL_T, TXT_CTL_W and TXT_CTL_Z.
 TXT_CTL_C_0:
-  CALL TXT_CTL_C_6
+  CALL TXT_IS_SELECTING
   CALL TXT_GET_CURPOS
   EX DE,HL
   LD HL,(TXT_SEL_END)
@@ -18854,7 +18922,7 @@ TXT_CTL_C_2:
   POP HL
   RST CPDEHL
   JP C,TXT_CTL_C_3
-  CALL MCLEAR_7
+  CALL L63DB
 TXT_CTL_C_3:
   CALL C,TXT_CTL_V_55
   LD H,L
@@ -18885,7 +18953,7 @@ TXT_CTL_C_5:
 
 ; This entry point is used by the routines at TXT_CTL_O, TXT_CTL_U and
 ; TXT_CTL_V.
-TXT_CTL_C_6:
+TXT_IS_SELECTING:
   LD HL,(TXT_SEL_BEG)
   LD A,H
   OR L
@@ -18919,7 +18987,7 @@ TXT_CTL_C_11:
   PUSH AF
   PUSH HL
   CALL TXT_CTL_L_3
-  CALL MCLEAR_6
+  CALL GET_BT_ROWPOS
   JP TXT_CTL_C_14
 
 ; This entry point is used by the routine at TXT_CTL_E.
@@ -19007,7 +19075,7 @@ MCLEAR_1:
 
 ; This entry point is used by the routines at DWNLDR, TXT_ESC, TXT_CTL_O and
 ; TXT_CTL_U.
-MCLEAR_2:
+L6383:
   LD HL,(TEXT_END)
   PUSH HL
   LD BC,$FFFF
@@ -19023,14 +19091,14 @@ MCLEAR_3:
 
 ; This entry point is used by the routines at DWNLDR, TXT_CTL_I, TXT_CTL_M and
 ; TXT_CTL_V.
-TXT_SPLIT_LINE:
+TXT_SPLIT_ROW:
   EX DE,HL
   LD HL,(TEXT_END)
   INC HL
   INC (HL)
   DEC (HL)
   SCF
-  RET NZ
+  RET NZ	; RET if not EOF
   PUSH AF
   LD (TEXT_END),HL
   EX DE,HL
@@ -19074,10 +19142,12 @@ MCLEAR_5:
 ; This entry point is used by the routines at ESC_B, WAIT_SPC, TXT_CTL_X,
 ; TXT_CTL_B, TXT_CTL_Z, TXT_CTL_L, TXT_CTL_C, TXT_CTL_U, TXT_CTL_N, MOVE_TEXT
 ; and TXT_CTL_V.
-MCLEAR_6:
+
+; Get bottom row position (7th or 8th depending on label line)
+GET_BT_ROWPOS:
   PUSH HL
   PUSH AF
-  LD HL,LABEL_LN
+  LD HL,LABEL_LN		; Label line/8th line protect status (0=off)
   LD A,(ACTV_X)
   ADD A,(HL)
   LD L,A
@@ -19088,10 +19158,10 @@ MCLEAR_6:
   
 ; This entry point is used by the routines at TXT_ESC, TXT_CTL_C, MOVE_TEXT and
 ; TXT_CTL_V.
-MCLEAR_7:
+L63DB:
   PUSH AF
   LD HL,(ACTV_X)
-  CALL MCLEAR_6
+  CALL GET_BT_ROWPOS
   LD L,A
   POP AF
   RET
@@ -19148,8 +19218,8 @@ MCLEAR_10:
 ; TEXT control O routine
 ; 'COPY' the selected text
 TXT_CTL_O:
-  CALL TXT_CTL_C_6
-  CALL MCLEAR_2
+  CALL TXT_IS_SELECTING
+  CALL L6383
   CALL TXT_CTL_U_6
   PUSH AF
   CALL TXT_CTL_C_15
@@ -19160,8 +19230,8 @@ TXT_CTL_O:
 ; TEXT control U routine
 ; same as CUT function
 TXT_CTL_U:
-  CALL TXT_CTL_C_6
-  CALL MCLEAR_2
+  CALL TXT_IS_SELECTING
+  CALL L6383
   CALL TXT_CTL_U_6
   PUSH AF
   CALL NC,MASDEL
@@ -19284,7 +19354,7 @@ TXT_CTL_U_10:
 ; This entry point is used by the routines at WAIT_SPC and TXT_CTL_P.
 TXT_CTL_U_11:
   CALL TXT_CTL_C
-  CALL MCLEAR_2
+  CALL L6383
   CALL RESFPT
   CALL TXT_GET_CURPOS
   LD (PERM_END),HL
@@ -19317,7 +19387,7 @@ TXT_CTL_U_12:
   CALL TXT_CTL_V_46
   POP HL
   RST CPDEHL
-  CALL MCLEAR_6
+  CALL GET_BT_ROWPOS
   PUSH HL
   CALL NC,TXT_CTL_V_29
   POP HL
@@ -19371,7 +19441,7 @@ TXT_CTL_N_2:
 ; This entry point is used by the routine at TXT_CTL_I.
 TXT_CTL_N_3:
   LD HL,(CSRX)
-  CALL MCLEAR_6
+  CALL GET_BT_ROWPOS
   CP L
   RET NZ
   DEC L
@@ -19430,7 +19500,7 @@ STRG_MSG:
 ; Used by the routines at TXT_CTL_C and TXT_CTL_N.
 L65DF:
   PUSH HL
-  CALL MCLEAR_7
+  CALL L63DB
   LD H,$01
   CALL POSIT
   POP HL
@@ -19447,7 +19517,7 @@ MOVE_TEXT_1:
 MOVE_TEXT_2:
   LD HL,(CSRX)
   PUSH HL
-  CALL MCLEAR_6
+  CALL GET_BT_ROWPOS
   CALL TXT_CTL_V_34
   JP TXT_CTL_I_2
 
@@ -19460,7 +19530,7 @@ ASK_TEXT:
   PUSH DE
   CALL TXT_CTL_N_6
   LD A,(CSRY)
-  LD ($FACA),A
+  LD (SV_CSRY),A
   POP HL
   PUSH HL
   CALL PRS
@@ -19473,8 +19543,8 @@ MOVE_TEXT_5:
   CP $0D         ; CR
   JP Z,MOVE_TEXT_7
   PUSH AF
-  CALL MCLEAR_7
-  LD A,($FACA)
+  CALL L63DB
+  LD A,(SV_CSRY)
   LD H,A	; cursor coordinates
   CALL POSIT
   CALL ERAEOL
@@ -19569,27 +19639,30 @@ TXT_CTL_Y:
   LD HL,(CSRX)
   LD (SAVE_CSRX),HL
   LD HL,WIDTH_MSG
-  LD DE,$F64A
+  LD DE,TXT_ASKBUF
   CALL ASK_TEXT
   RST CHRGTB
   XOR A
   CP (HL)
-  JP Z,TXT_CTL_Y_1		; JP if no text entered
+  JP Z,TXT_EXIT_ASK		; JP if no text entered
   LD ($F688),A
+
   CALL GETINT
   CP $0A
   RET C
   CP $85
   RET NC
+
   POP DE
   LD ($F649),A
   LD ($F922),A
   LD (PRTFLG),A
-  LD DE,$F64A
+
+  LD DE,TXT_ASKBUF
   LD HL,KBUF
   CALL MOVE_TEXT
   INC A
-  LD ($F920),A
+  LD (TXT_EDITING),A
   CALL OUTDO_CRLF
   LD HL,($F767)
   EX DE,HL
@@ -19600,8 +19673,9 @@ TXT_CTL_Y_0:
   INC A
   JP NZ,TXT_CTL_Y_0
   CALL TXT_CTL_Y_4
+  
 ; This entry point is used by the routines at TXT_CTL_G and TXT_CTL_V.
-TXT_CTL_Y_1:
+TXT_EXIT_ASK:
   CALL MOVE_TEXT_2
 TXT_CTL_Y_2:
   LD HL,(SAVE_CSRX)	; cursor coordinates
@@ -19620,7 +19694,7 @@ TXT_CTL_Y_4:
   LD ($F922),A
   XOR A
   LD (PRTFLG),A
-  LD ($F920),A
+  LD (TXT_EDITING),A
   RET
   
 ; Message at 26380
@@ -19634,7 +19708,7 @@ TXT_CTL_G:
   LD DE,SAVE_MSG
   CALL ASK_FILENAME
   JP C,TXT_CTL_Y_3
-  JP Z,TXT_CTL_Y_1
+  JP Z,TXT_EXIT_ASK
   LD E,$02
   CALL _OPEN
   LD HL,($F767)
@@ -19645,7 +19719,7 @@ TXT_CTL_G_0:
   CP $1A		; EOF
   JP NZ,TXT_CTL_G_0
   CALL L4F2E_1
-  JP TXT_CTL_Y_1
+  JP TXT_EXIT_ASK
   
   
 ; Message at 26421
@@ -19671,7 +19745,7 @@ ASK_FILENAME:
   CALL COUNT_CHARS
   CALL FNAME
   JP NZ,TXT_CTL_G_1
-  LD D,$FD
+  LD D,$FD				; D = 'CAS' device
 TXT_CTL_G_1:
   LD A,D
   CP $F8
@@ -19694,7 +19768,7 @@ TXT_CTL_V:
   LD DE,LOAD_MSG
   CALL ASK_FILENAME
   JP C,TXT_CTL_Y_3
-  JP Z,TXT_CTL_Y_1
+  JP Z,TXT_EXIT_ASK
   PUSH HL
   LD HL,L67CB
   LD (ERRTRP),HL
@@ -19711,10 +19785,10 @@ TXT_CTL_V_0:
   CALL DWNLDR_6
   JP Z,TXT_CTL_V_0
   JP NC,TXT_CTL_V_1
-  CALL TXT_SPLIT_LINE
+  CALL TXT_SPLIT_ROW
   LD A,$0A
 TXT_CTL_V_1:
-  CALL NC,TXT_SPLIT_LINE
+  CALL NC,TXT_SPLIT_ROW		; CALL if at the end of text
   JP NC,TXT_CTL_V_0
   CALL L4F2E_1
   CALL TXT_CTL_I_1
@@ -19747,11 +19821,12 @@ LOAD_MSG:
 ; Used by the routines at L55FD, SCL_LFND, L6981 and GETEND.
 L67DF:
   XOR A
-  LD ($F890),A
+  LD (TXT_COUNT),A
   LD ($F6E6),A
-  LD HL,$F894
+  LD HL,TXT_BUF
   LD (TXT_PTR),HL
-TXT_CTL_V_4:
+
+L67DF_LOOP:
   PUSH DE
   CALL TXT_CTL_V_21
   POP DE
@@ -19767,8 +19842,8 @@ TXT_CTL_V_4:
   JP C,TXT_SPC
   
 TXT_TAB:
-  CALL TXT_CTL_V_13
-  JP NC,TXT_CTL_V_4
+  CALL TXT_ADD_GRAPH
+  JP NC,L67DF_LOOP
   LD A,(DE)
   CALL TXT_CTL_V_26
   JP NZ,TXT_CTL_V_6
@@ -19776,7 +19851,7 @@ TXT_TAB:
   LD A,(DE)
   CP ' '
   RET NZ
-  LD A,($F920)
+  LD A,(TXT_EDITING)
   AND A
   RET Z
   INC DE
@@ -19791,7 +19866,7 @@ TXT_CTL_V_6:
   LD (PERM_END),HL
   EX DE,HL
   LD HL,(TXT_PTR)
-  LD ($F88E),HL
+  LD (TXT_SAVPTR),HL
   DEC DE
   LD A,(DE)
   INC DE
@@ -19807,28 +19882,29 @@ TXT_CTL_V_7:
   DEC DE
   CALL TXT_CTL_V_17
   JP NZ,TXT_CTL_V_7
-  LD HL,($F88E)
+  LD HL,(TXT_SAVPTR)
   LD (TXT_PTR),HL
   LD HL,(PERM_END)
   EX DE,HL
+
 TXT_CTL_V_8:
-  LD A,($F920)
+  LD A,(TXT_EDITING)
   DEC A
-  JP Z,TXT_CTL_V_20
+  JP Z,TXT_CRLF
   RET
 
 TXT_SPC:
   PUSH AF
-  LD A,$5E
-  CALL TXT_CTL_V_13
+  LD A,$5E		; '^'
+  CALL TXT_ADD_GRAPH
   JP C,TXT_CTL_V_10
   POP AF
   OR $40
-  CALL TXT_CTL_V_13
-  JP NC,TXT_CTL_V_4
-  LD A,($F920)
+  CALL TXT_ADD_GRAPH
+  JP NC,L67DF_LOOP
+  LD A,(TXT_EDITING)
   AND A
-  JP NZ,TXT_CTL_V_20
+  JP NZ,TXT_CRLF
   RET
 
 TXT_CTL_V_10:
@@ -19837,15 +19913,15 @@ TXT_CTL_V_10:
   LD HL,(TXT_PTR)
   DEC HL
   LD (TXT_PTR),HL
-  LD HL,$F890
+  LD HL,TXT_COUNT
   DEC (HL)
   JP TXT_CTL_V_19
 
 TXT_CTLZ_EOF:
-  LD A,($F920)
+  LD A,(TXT_EDITING)
   AND A
-  LD A,$9B
-  CALL Z,TXT_CTL_V_13
+  LD A,$9B	;  EOF Symbol in editor (left arrow)
+  CALL Z,TXT_ADD_GRAPH
   CALL TXT_CTL_V_19
   LD DE,$FFFF
   RET
@@ -19858,18 +19934,18 @@ TXT_CR:
   PUSH DE
   CALL TXT_CTL_V_21
   POP DE
-  LD A,($F920)
+  LD A,(TXT_EDITING)
   AND A
-  LD A,$8F
-  CALL Z,TXT_CTL_V_13
+  LD A,$8F	;  CR Symbol in editor (black triangle)
+  CALL Z,TXT_ADD_GRAPH
   CALL TXT_CTL_V_19
   INC DE
   RET
 
-TXT_CTL_V_13:
+TXT_ADD_GRAPH:
   PUSH HL
   CALL ADD_CHAR
-  LD HL,$F890
+  LD HL,TXT_COUNT
   CP $09		; TAB
   JP Z,ADD_TAB
   INC (HL)
@@ -19906,31 +19982,31 @@ TXT_CTL_V_17:
   INC HL
 TXT_CTL_V_18:
   LD (TXT_PTR),HL
-  LD HL,$F890
+  LD HL,TXT_COUNT
   DEC (HL)
   RET
 
 TXT_CTL_V_19:
-  LD A,($F890)
+  LD A,(TXT_COUNT)
   LD HL,$F922
   CP (HL)
   RET NC
-  LD A,($F920)
+  LD A,(TXT_EDITING)
   AND A
-  JP NZ,TXT_CTL_V_20
-  LD A,$1B		; ESC
+  JP NZ,TXT_CRLF
+  LD A,$1B		; ESC ..
   CALL ADD_CHAR
-  LD A,$4B		; 'K'
+  LD A,$4B		; ..'K', "erase in line"
   CALL ADD_CHAR
-TXT_CTL_V_20:
+TXT_CRLF:
   LD A,$0D		; CR
   CALL ADD_CHAR
   LD A,$0A		; LF
   JP ADD_CHAR
   
 TXT_CTL_V_21:
-  CALL TXT_CTL_C_6
-  LD A,($F920)
+  CALL TXT_IS_SELECTING
+  LD A,(TXT_EDITING)
   AND A
   RET NZ
   LD BC,$F6E6
@@ -19950,7 +20026,7 @@ TXT_CTL_V_21:
   RST CPDEHL
   JP NC,TEXT_NOREV
 
-ADD_ESC_p:
+TEXT_REV:
   LD A,(BC)
   AND A
   RET NZ
@@ -19966,7 +20042,7 @@ TXT_CTL_V_23:
   LD HL,(TXT_SEL_END)
   EX DE,HL
   RST CPDEHL
-  JP NC,ADD_ESC_p
+  JP NC,TEXT_REV
 
 TEXT_NOREV:
   LD A,(BC)
@@ -19991,13 +20067,13 @@ TXT_CTL_V_26:
 ; This entry point is used by the routine at TXT_CTL_A.
 TXT_CTL_V_27:
   LD HL,SYMBS_TXT
-  LD B,$0A
-TXT_CTL_V_28:
+  LD B,10
+SYMB_LOOP:
   CP (HL)
   RET Z
   INC HL
   DEC B
-  JP NZ,TXT_CTL_V_28
+  JP NZ,SYMB_LOOP
   CP '!'
   INC B
   RET NC
@@ -20009,7 +20085,7 @@ SYMBS_TXT:
 
 ; Used by the routines at TXT_CTL_N and TXT_CTL_V.
 L6981:
-  CALL MCLEAR_6
+  CALL GET_BT_ROWPOS
   AND A
   RRA
 
@@ -20017,7 +20093,7 @@ L6981:
 TXT_CTL_V_29:
   CALL GETEND_1
   LD ($F6EB),HL
-  CALL MCLEAR_6
+  CALL GET_BT_ROWPOS
   ADD A,A
   LD HL,$F6ED
 TXT_CTL_V_30:
@@ -20049,7 +20125,7 @@ TXT_CTL_V_32:
   LD L,A	; cursor coordinates
   LD H,$01	; cursor coordinates
   CALL POSIT
-  CALL TXT_CTL_V_41
+  CALL TXT_PRINTBLOCK		; Ouput text in the memory range between DE and HL
   LD A,D
   AND E
   INC A
@@ -20058,6 +20134,7 @@ TXT_CTL_V_32:
   PUSH BC
 TXT_CTL_V_33:
   POP AF
+
 ; This entry point is used by the routines at TXT_CTL_Z, TXT_CTL_C, MCLEAR and
 ; MOVE_TEXT.
 TXT_CTL_V_34:
@@ -20071,7 +20148,7 @@ TXT_CTL_V_34:
   JP Z,TXT_CTL_V_39
   CALL TXT_CTL_V_47
 TXT_CTL_V_35:
-  CALL MCLEAR_7
+  CALL L63DB
   CP L
   JP Z,TXT_CTL_V_36
   CALL TXT_CTL_V_40
@@ -20086,7 +20163,7 @@ TXT_CTL_V_35:
 TXT_CTL_V_36:
   CALL TXT_CTL_V_40
 TXT_CTL_V_37:
-  CALL MCLEAR_6
+  CALL GET_BT_ROWPOS
   INC A
   JP TXT_CTL_V_43
 
@@ -20102,19 +20179,20 @@ TXT_CTL_V_39:
 TXT_CTL_V_40:
   CALL L67DF
 ; This entry point is used by the routine at SCL_LFND.
-TXT_CTL_V_41:
+; Ouput text in the memory range between DE and HL
+TXT_PRINTBLOCK:
   PUSH DE
   LD HL,(TXT_PTR)
-  LD DE,$F894
+  LD DE,TXT_BUF
 TXT_CTL_V_42:
   LD A,(DE)
   RST OUTC
   INC DE
   RST CPDEHL
   JP NZ,TXT_CTL_V_42
-  LD A,($F920)
+  LD A,(TXT_EDITING)
   AND A
-  CALL Z,EXTREV
+  CALL Z,EXTREV		; Exit from reverse mode
   POP DE
   RET
 
@@ -20142,7 +20220,7 @@ TXT_CTL_V_45:
 ; This entry point is used by the routines at TXT_CTL_Z, TXT_CTL_C, TXT_CTL_U
 ; and TXT_CTL_N.
 TXT_CTL_V_46:
-  CALL MCLEAR_6
+  CALL GET_BT_ROWPOS
   INC A
   JP TXT_CTL_V_48
 
@@ -20230,7 +20308,7 @@ TXT_CTL_V_55:
   LD (SAVE_CSRX),HL
   PUSH HL
   LD HL,$F6EB
-  CALL MCLEAR_6
+  CALL GET_BT_ROWPOS
   LD B,A
 TXT_CTL_V_56:
   LD E,(HL)
@@ -20256,10 +20334,10 @@ TXT_CTL_V_57:
   POP HL
 TXT_CTL_V_58:
   PUSH HL
-  LD HL,$F894
+  LD HL,TXT_BUF
   LD (TXT_PTR),HL
   XOR A
-  LD ($F890),A
+  LD (TXT_COUNT),A
   POP HL
   DEC HL
 TXT_CTL_V_59:
@@ -20267,20 +20345,20 @@ TXT_CTL_V_59:
   RST CPDEHL
   JP NC,TXT_CTL_V_60
   LD A,(HL)
-  CALL TXT_CTL_V_13
+  CALL TXT_ADD_GRAPH
   LD A,(HL)
   CP ' '
   JP NC,TXT_CTL_V_59
   CP $09			; TAB
   JP Z,TXT_CTL_V_59
-  CALL TXT_CTL_V_13
+  CALL TXT_ADD_GRAPH
   JP TXT_CTL_V_59
 
 TXT_CTL_V_60:
-  LD A,($F890)
+  LD A,(TXT_COUNT)
   INC A
   LD H,A
-  CALL MCLEAR_6
+  CALL GET_BT_ROWPOS
   SUB B
   LD L,A
   RET
@@ -20548,7 +20626,7 @@ ROM_PROGS:
   DEFB $00
   DEFM "Hayashi"
   
-  DEFB 'H'
+  DEFB $48
   DEFW L0000
   DEFB $00
   DEFM "RickY  "
@@ -20762,12 +20840,12 @@ L6D6A:
 
 ; Check RS232 queue for characters, Z if no data, A = number of chars in queue
 ;
-; Used by the routines at EXEC_EVAL, TEL_TERM, UPLDR and RV232C.
+; Used by the routines at EXEC_EVAL, TEL_TERM, TEL_UPLD and RV232C.
 RCVX:
-  LD A,(XONXOFF)
+  LD A,(XONXOFF_FLG)
   OR A
   JP Z,RCVX_0
-  LD A,($FF41)
+  LD A,(XONXOFF)
   INC A
   RET Z
 RCVX_0:
@@ -20777,7 +20855,7 @@ RCVX_0:
 
 ; Get from RS232, A = char, Z if OK, CY if BREAK
 ;
-; Used by the routines at COM_INPUT, TEL_LOGON, TEL_TERM and UPLDR.
+; Used by the routines at COM_INPUT, TEL_LOGON, TEL_TERM and TEL_UPLD.
 RV232C:
   PUSH HL
   PUSH DE
@@ -20794,7 +20872,7 @@ RV232C_0:
   CALL C,SENDCQ
   DI
   DEC (HL)
-  CALL _RST65_2
+  CALL _UART_2
   LD A,(HL)
   EX DE,HL
   INC HL
@@ -20813,7 +20891,7 @@ RV232C_1:
 ; RST 6.5 (RS232 Interrupt on received character) routine
 ;
 ; Used by the routine at RST65.
-_RST65:
+_UART:
   CALL UART
   PUSH HL
   PUSH DE
@@ -20828,35 +20906,36 @@ _RST65:
   IN A,($D8)
   AND $0E
   LD B,A
-  JP NZ,_RST65_0
+  JP NZ,_UART_0
   LD A,C
-  CP $11
+  CP $11	; XON
   JP Z,L6DD1+1
-  CP $13
-  JP NZ,_RST65_0
+  CP $13	; XOFF
+  JP NZ,_UART_0
   
 L6DD1:
   LD A,$AF
 	; L6DD1+1:  XOR A
 
-; Used by the routine at _RST65.
+; Used by the routine at _UART.
   LD (ENDLCD),A
-  LD A,(XONXOFF)
+  LD A,(XONXOFF_FLG)
   OR A
   RET NZ
-_RST65_0:
+
+_UART_0:
   LD HL,RS232_COUNT
   LD A,(HL)
-  CP $40
+  CP $40	; 64 bytes max
   RET Z
   CP 40
 ; This entry point is used by the routine at PRINTR.
-_RST65_1:
+_UART_1:
   CALL NC,SENDCS
   PUSH BC
   INC (HL)
   INC HL
-  CALL _RST65_2
+  CALL _UART_2
   POP BC
   LD (HL),C
   LD A,B
@@ -20870,8 +20949,9 @@ _RST65_1:
   LD A,(RS232_COUNT)
   LD (HL),A
   RET
+  
 ; This entry point is used by the routine at RV232C.
-_RST65_2:
+_UART_2:
   INC HL
   LD C,(HL)
   LD A,C
@@ -20888,7 +20968,7 @@ _RST65_2:
 ;
 ; Used by the routine at RV232C.
 SENDCQ:
-  LD A,(XONXOFF)
+  LD A,(XONXOFF_FLG)
   AND A
   RET Z
   LD A,(CTRL_S_FLG)
@@ -20896,14 +20976,14 @@ SENDCQ:
   RET NZ
   LD (CTRL_S_FLG),A
   PUSH BC
-  LD C,$11
+  LD C,$11	; XON
   JP _SD232C
 
 ; Send CTRL-S character (X-OFF)
 ;
-; Used by the routine at _RST65.
+; Used by the routine at _UART.
 SENDCS:
-  LD A,(XONXOFF)
+  LD A,(XONXOFF_FLG)
   AND A
   RET Z
   LD A,(CTRL_S_FLG)
@@ -20912,12 +20992,12 @@ SENDCS:
   INC A
   LD (CTRL_S_FLG),A
   PUSH BC
-  LD C,$13
+  LD C,$13		; XOFF
   JP _SD232C
 
 ; Send to RS232, A = char
 ;
-; Used by the routines at COM_OUTPUT, TEL_LOGON, TEL_TERM and UPLDR.
+; Used by the routines at COM_OUTPUT, TEL_LOGON, TEL_TERM and TEL_UPLD.
 SD232C:
   PUSH BC
   LD C,A
@@ -20943,22 +21023,25 @@ _SD232C_0:
 
 ; This entry point is used by the routine at SD232C.
 _SD232C_1:
-  LD A,(XONXOFF)
+  LD A,(XONXOFF_FLG)
   OR A
   RET Z
   LD A,C
-  CP $11
+  CP $11	; XON
   JP NZ,_SD232C_2
   XOR A
   LD (CTRL_S_FLG),A
   JP _SD232C_3
+
 _SD232C_2:
-  SUB $13
+  SUB $13	; XOFF
   JP NZ,_SD232C_4
   DEC A
+
 _SD232C_3:
-  LD ($FF41),A
+  LD (XONXOFF),A
   RET
+
 _SD232C_4:
   CALL BREAK
   RET C
@@ -20974,7 +21057,7 @@ BAUDST:
   PUSH HL
   LD A,H
   RLCA
-  LD HL,$6E92	; const offset
+  LD HL,$6E92	; const offset, $6B9A on KC85
   LD D,$00
   LD E,A
   ADD HL,DE
@@ -21028,9 +21111,9 @@ INZCOM_0:
   LD A,L
   AND $1F
   OUT ($D8),A
-  CALL XONXOFF_0
-  DEC A
-  LD ($FF43),A
+  CALL XONXOFF_FLG_0
+  DEC A			; $FF
+  LD (RS232_FLG),A
   JP POPALL_INT
 
 ; Deactivate RS232C/modem
@@ -21041,8 +21124,9 @@ CLSCOM:
   OR $C0
   OUT ($BA),A
   XOR A
-  LD ($FF43),A
+  LD (RS232_FLG),A
   RET
+
 ; This entry point is used by the routine at CARDET.
 CLSCOM_0:
   LD E,$00
@@ -21107,7 +21191,7 @@ CARDET_1:
   LD A,H
   OR L
   JP NZ,CARDET_0
-  CALL XONXOFF_0
+  CALL XONXOFF_FLG_0
   POP HL
   ;JP NZ,$FFF6
   defb $C2	; JP NZ,NN (always false)
@@ -21120,16 +21204,16 @@ L6F2C:
 ; Enable XON/XOFFs when control Ss and Qs are sent
 ;
 ; Used by the routine at SETSER.
-_XONXOFF:
-	;XONXOFF+1: XOR A  ($6F32)
+_XONXOFF_FLG:
+	;XONXOFF_FLG+1: XOR A  ($6F32)
   LD A,$AF
   DI
-  LD (XONXOFF),A
+  LD (XONXOFF_FLG),A
   EI
   RET
 
 ; This entry point is used by the routines at INZCOM and CARDET.
-XONXOFF_0:
+XONXOFF_FLG_0:
   XOR A
   LD L,A
   LD H,A
@@ -21498,8 +21582,9 @@ DATAR_11:
   RRCA
   LD A,$03
   RET C
-  LD A,$13
+  LD A,$13	; XOFF ?
   RET
+
 DATAR_12:
 
   DEC HL
@@ -21837,12 +21922,12 @@ BRKCHK:
 ; _SD232C, DATAW, SYNCR, CASS_PROBE, MUSIC and _CLICK.
 BREAK:
   PUSH BC
-  IN A,($B9)
+  IN A,($B9)	; save value in porte $B9
   LD C,A
   CALL BRK_SCAN
   PUSH AF
   LD A,C
-  OUT ($B9),A
+  OUT ($B9),A	; restore value in porte $B9
   POP AF
   POP BC
   AND $81
@@ -22103,7 +22188,7 @@ SET_CLOCK_HL_11:
   CALL SETINT_1D
   LD HL,$0000
   ADD HL,SP
-  LD ($FFF8),HL
+  LD (SAVSP),HL
   DEC D
   DEC E
   EX DE,HL
@@ -22368,7 +22453,8 @@ UNPLOT_11:
 UNPLOT_12:
   LD C,$03
   CALL DELAY_C
-  LD HL,L7641
+  LD HL,L7641		; OUT ($B9),$FF ... OR $03
+
 UNPLOT_13:
   LD A,(HL)
   OUT ($B9),A
@@ -22645,31 +22731,19 @@ L7641:
 
 ; Table to build/edit the graphics symbols used by PLOT/UNPLOT
 PLOT_TBL:
-  DEFB $01
-  DEFB $00
-  DEFB $02
-  DEFB $00
-  DEFB $04
-  DEFB $00
-  DEFB $08
-  DEFB $00
-  DEFB $10
-  DEFB $00
+  DEFB $01, $00
+  DEFB $02, $00
+  DEFB $04, $00
+  DEFB $08, $00
+  DEFB $10, $00
 
 PLOT_TBL2:
-  DEFM $20
-  DEFB $00
-  DEFM $40
-  DEFB $00
-  DEFB $80
-  DEFB $00
-  DEFB $00
+  DEFM $20, $00
+  DEFM $40, $00
+  DEFB $80, $00
+  DEFB $00, $01
+  DEFB $00, $02
 
-; Routine at 30292
-L7654:
-  DEFB $01
-  DEFB $00
-  DEFB $02
 
 ; Routine at 30295
 ;
@@ -22835,9 +22909,8 @@ KBD_MAP:
 ; Message at 31773
 ;L7C1D:
 KBD_MAP2:
-  DEFM "ZXCVBNMLASDFGHJKQWERTYUIOP]:\"<>?!@#$%"
-  DEFB $5E
-  DEFM "&*()_+"
+  DEFM "ZXCVBNMLASDFGHJKQWERTYUIOP]:\"<>?!@#$%^&*()_+"
+
 L7C49:
   DEFB $00
   DEFB $83
@@ -23083,6 +23156,7 @@ BOOT_DELAY:
   
   LD A,$43
   OUT ($B8),A
+  
   LD A,$EC
   OUT ($BA),A
   LD A,$FF
@@ -23092,13 +23166,14 @@ BOOT_DELAY:
   LD A,$ED
   OUT ($BA),A
   JP Z,BOOT_4
+  
   LD HL,(MAXRAM)
   LD DE,$8A4D	; Value for MAXRAM
   RST CPDEHL
   JP NZ,BOOT_4
   LD A,($FAC1)
   LD D,A
-  CALL FREEMEM_2
+  CALL TEST_FREEMEM
   CP D
   JP NZ,BOOT_4
   CALL EXTROM_TST
@@ -23120,7 +23195,7 @@ BOOT_1:
   LD SP,HL
   CALL BOOT_VECT
   CALL L7DD0
-  LD HL,($FFF8)
+  LD HL,(SAVSP)
   PUSH HL
   CALL ESC_J_13
   POP HL
@@ -23129,6 +23204,7 @@ BOOT_1:
   JP Z,POPALL
   LD SP,HL
   JP SET_CLOCK_HL_15
+
 BOOT_2:
   LD A,($F651)
   AND A
@@ -23158,7 +23234,7 @@ L7DD0:
   CALL IOINIT
   XOR A
   LD (POWR_FLAG),A
-  LD A,($FF43)
+  LD A,(RS232_FLG)
   AND A
   RET Z
   LD HL,RS232LF
@@ -23168,8 +23244,8 @@ L7DD0:
 
 BOOT_4:
   LD SP,$F5E6
-  CALL FREEMEM_2
-  LD B,$90
+  CALL TEST_FREEMEM
+  LD B,$90			; $97 on KC85
   LD DE,MAXRAM
   LD HL,SYSVARS_ROM
   CALL LDIR_B
@@ -23181,10 +23257,13 @@ BOOT_4:
   LD HL,FNKTAB
   CALL STFNK
   CALL BASIC_3
-  LD B,$58
+  LD B,$58		; $42 on KC85
   LD DE,ROM_PROGS
   LD HL,DIRECTORY
   CALL REV_LDIR_B
+  
+  ; - Extra init code from KC85 goes here -
+  
   LD B,$D1
   XOR A
 BOOT_5:
@@ -23217,14 +23296,14 @@ BOOT_6:
   LD A,':'
   LD (BUFFER),A
   LD HL,PRMSTK			; ptr to previous block definition on stack
-  LD ($FBD9),HL
+  LD (PRMPRV),HL
   LD (STRBUF),HL
   LD (FILE_BUFFR),HL
   LD A,$01
   LD ($FBB3),A
   CALL __MAX_0
   CALL _CLREG_1
-  LD HL,(RAM)
+  LD HL,(RAM)		; Lowest RAM memory address used by system ($8000 if 32K RAM)
   XOR A
   LD (HL),A
   INC HL
@@ -23278,7 +23357,7 @@ FREEMEM:
 INIT_HOOKS:
   LD HL,RST38_VECT
   LD BC,$1D02	; B=29, C=2
-  LD DE,NULSUB	; 39 words initialized with NULSUB
+  LD DE,NULSUB	; 29 words initialized with NULSUB
 FREEMEM_1:
   LD (HL),E
   INC HL
@@ -23293,9 +23372,10 @@ FREEMEM_1:
   RET
 
 ; This entry point is used by the routine at BOOT.
-FREEMEM_2:
+; Put in (RAM) the lowest memory address used by system ($8000 if 32K RAM)
+TEST_FREEMEM:
   LD HL,$C000
-FREEMEM_3:
+FREEMEM_LOOP:
   LD A,(HL)
   CPL
   LD (HL),A
@@ -23303,13 +23383,13 @@ FREEMEM_3:
   CPL
   LD (HL),A
   LD A,H
-  JP NZ,FREEMEM_4
+  JP NZ,FREEMEM_DONE
   INC L
-  JP NZ,FREEMEM_3
+  JP NZ,FREEMEM_LOOP
   SUB $20
   LD H,A
-  JP M,FREEMEM_3
-FREEMEM_4:
+  JP M,FREEMEM_LOOP
+FREEMEM_DONE:
   LD L,$00
   ADD A,$20
   LD H,A
@@ -23342,7 +23422,7 @@ __MAX:
   JP NC,FCERR
   LD (TEMP),HL
   PUSH AF
-  CALL __SAVE_4
+  CALL CLSALL
   POP AF
   CALL __MAX_0
   CALL _CLREG
