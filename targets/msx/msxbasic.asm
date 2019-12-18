@@ -2920,7 +2920,7 @@ _FNKSB_1:
   LD HL,FNKSTR
   LD A,$01
   JR C,_FNKSB_2
-  LD HL,FNKSTR+$50
+  LD HL,FNKSTR+80
   XOR A
 _FNKSB_2:
   LD (FNKSWI),A
@@ -6921,7 +6921,7 @@ DECSUB:
   RET Z
   XOR $80
   LD (HL),A
-  JR L26A0
+  JR DECADD_0
 
   ; --- START PROC L2697 ---
 ARG2DE_DECADD:
@@ -6933,8 +6933,8 @@ DECADD:
   LD A,(HL)
   OR A
   RET  Z
-  ; --- START PROC L26A0 ---
-L26A0:
+  ; --- START PROC DECADD_0 ---
+DECADD_0:
   AND $7F   ;
   LD B,A
   LD DE,FACCU
@@ -6943,27 +6943,24 @@ L26A0:
   JP Z,FP_ARG2DE
   AND $7F   ; ABS?
   SUB B
-  JR NC,L26C1
+  JR NC,DECADD_2
   CPL
   INC A
   PUSH AF
   PUSH HL
   LD B,$08		; DBL number, 8 bytes
-L26B6:
+DECADD_1:
   LD A,(DE)
   LD C,(HL)
   LD (HL),A
   LD A,C
-
-; Routine at 9914
-L26BA:
   LD (DE),A
   INC DE
   INC HL
-  DJNZ L26B6
+  DJNZ DECADD_1
   POP HL
   POP AF
-L26C1:
+DECADD_2:
   CP $10
   RET NC
   PUSH AF
@@ -6992,7 +6989,7 @@ L26C1:
 
 ; Routine at 9975
 ;
-; Used by the routine at L26BA.
+; Used by the routine at DECADD.
 L26F7:
   CALL BCDSUB
 ; This entry point is used by the routines at BNORM and __RND.
@@ -7049,7 +7046,7 @@ L270C_2:
   XOR B
   JP M,OVERFLOW_ERR		; Err $06 -  "Overflow"
   RET Z
-; This entry point is used by the routines at L26BA and L3301.
+; This entry point is used by the routines at DECADD and L3301.
 ; Single precision rounding
 DECROU:
   LD HL,FACCU+8
@@ -7079,7 +7076,7 @@ L270C_5:
 
 ; Routine at 10073
 ;
-; Used by the routine at L26BA.
+; Used by the routine at DECADD.
 ; Add the BCD number in (HL) to (DE).  Result in (DE)
 BCDADD:
   LD HL,ARG+7
@@ -7156,7 +7153,7 @@ RLDLOOP:
 
 ; Routine at 10147
 ;
-; Used by the routine at L26BA.
+; Used by the routine at DECADD.
 L27A3:
   OR A
   RRA
@@ -7210,7 +7207,7 @@ L27A3_2:
 
 ; Routine at 10203
 ;
-; Used by the routines at L26BA, L35F9 and L377B.
+; Used by the routines at DECADD, L35F9 and L377B.
 DV16FACCU:
   LD HL,FACCU+1
 ; This entry point is used by the routine at DV16PHL_0.
@@ -7471,7 +7468,7 @@ L2925:
   INC B
   LD E,B
   LD D,$00
-  LD HL,DECCNT+1				; Unknown System Variable
+  LD HL,FACCU-1
   ADD HL,DE
   CALL L279A
   POP BC
@@ -7513,10 +7510,10 @@ L295F:
   JR L2973
 
 L2964:
-  LD A,(DECCNT+1)				; Unknown System Variable
+  LD A,(FACCU-1)
   LD E,A
   DEC A
-  LD (DECCNT+1),A				; Unknown System Variable
+  LD (FACCU-1),A
   XOR E
   JP P,L28F4
   JP L2E7D
@@ -7869,7 +7866,7 @@ L2C18:
 ; Routine at 11300
 ;
 ; Used by the routine at L628E.
-L2C24:
+INIT_RND:
   LD DE,RNDX_INIT
   LD HL,RNDX
   JR DBL2HL
@@ -7949,7 +7946,7 @@ L2C61:
 ; L3878.
 DBL_FACCU2HL:
   LD DE,FACCU
-; This entry point is used by the routines at __RND, L2C24 and FACCU2ARG.
+; This entry point is used by the routines at __RND, INIT_RND and FACCU2ARG.
 DBL2HL:
   LD B,$08
   JP CPY2HL   		; Copy B bytes from DE to HL
@@ -9062,7 +9059,7 @@ L31E7:
 ; Routine at 12789
 L31F5:
   LD HL,$0000
-  LD A,$11
+  LD A,$11		; const
   OR A
   JR L3206
 
@@ -9125,7 +9122,7 @@ DBL_ABS:
   XOR $80
   OR L
   RET NZ
-; This entry point is used by the routines at L46E6, OPRND, IMP_0, FN_TIME and
+; This entry point is used by the routines at L46E6, OPRND, FRE_RESLT, FN_TIME and
 ; L7BA3.
 DBL_ABS_0:
   XOR A
@@ -12357,13 +12354,15 @@ ELSE
 ENDIF
   LD BC,$013B		; $01, $3b
   LD DE,KBUF
+
 ; This entry point is used by the routine at L441D.
-TOKENIZE_0:
+TOKENIZE_NEXT:
   LD A,(HL)
-  OR A
+  OR A				; END of text ?
   JR NZ,TOKENIZE_2
+
 ; This entry point is used by the routine at L43C4.
-TOKENIZE_1:
+TOKENIZE_END:
   LD HL,$0140		; $01, $40
   LD A,L
   SUB C
@@ -12403,15 +12402,15 @@ TOKENIZE_4:
   POP AF
   SUB $3A	; ':'
   JR Z,TOKENIZE_5
-  CP $4A
+  CP $4A	; $4A + $3A = $84 -> TK_DATA
   JR NZ,TOKENIZE_6
   LD A,$01
 TOKENIZE_5:
   LD (DORES),A		; Indicates whether stored word can be crunched
   LD (DONUM),A
 TOKENIZE_6:
-  SUB $55
-  JR NZ,TOKENIZE_0
+  SUB $55	; $55 + $3A = $8F  -> TK_REM
+  JR NZ,TOKENIZE_NEXT
   PUSH AF
 TOKENIZE_7:
   LD A,(HL)
@@ -12419,9 +12418,10 @@ TOKENIZE_7:
   EX (SP),HL
   LD A,H
   POP HL
-  JR Z,TOKENIZE_1
+  JR Z,TOKENIZE_END
   CP (HL)
   JR Z,TOKENIZE_3
+
 TOKENIZE_8:
   PUSH AF
   LD A,(HL)
@@ -12439,14 +12439,15 @@ TOKENIZE_10:
 TOKENIZE_11:
   INC HL
   OR A
-  JP M,TOKENIZE_0
+  JP M,TOKENIZE_NEXT
   CP $01
   JR NZ,TOKENIZE_12
   LD A,(HL)
   AND A
-  JR Z,TOKENIZE_1
+  JR Z,TOKENIZE_END
   INC HL
-  JR TOKENIZE_0
+  JR TOKENIZE_NEXT
+
 TOKENIZE_12:
   DEC HL
   CP '?'
@@ -12516,7 +12517,7 @@ ENDIF
   LD (DONUM),A
   POP AF
   CALL L44DE_0
-  JP TOKENIZE_0
+  JP TOKENIZE_NEXT
 
 TOKENIZE_15:
   POP HL
@@ -12595,7 +12596,7 @@ L43C4_4:
   CALL UCASE_HL		; Load A with char in 'HL' and make it uppercase
   AND A
 L43C4_5:
-  JP Z,TOKENIZE_1
+  JP Z,TOKENIZE_END
   JP M,L43C4_4
   CP $01
   JR NZ,L43C4_6
@@ -12665,7 +12666,8 @@ L441D_3:
 L441D_4:
   POP HL
   CALL L44DE_0
-  JP TOKENIZE_0
+  JP TOKENIZE_NEXT
+
 L441D_5:
   PUSH DE
   PUSH BC
@@ -12712,7 +12714,8 @@ L441D_8:
   DEC A
   JR NZ,L441D_8
   POP HL
-  JP TOKENIZE_0
+  JP TOKENIZE_NEXT
+
 L441D_9:
   LD DE,L3D26-1
 L441D_10:
@@ -13032,6 +13035,7 @@ EXEC_EVAL_1:
   OR A
   JR Z,EXEC_EVAL_2
 
+  ; If "TRACE" is ON, then print current line number between brackets
   PUSH DE
   LD A,'['
   RST OUTDO  		; Output char to the current device
@@ -13311,9 +13315,11 @@ LNUM_PARM:
   CP '.'
   LD DE,(DOT)
   JP Z,__CHRGTB  ; Gets next character (or token) from BASIC text.
+
 ; This entry point is used by the routines at L441D, __GOSUB, GO_TO, __AUTO,
 ; L4EB3, __RENUM_0 and __RESTORE.
 ; Get specified line number
+; ASCII to Integer, result in DE
 LNUM_PARM_0:
   DEC HL
 ; This entry point is used by the routine at L492A.
@@ -13596,10 +13602,10 @@ __LET_3:
   RST DCOMPR		; Compare HL with DE.. is string literal in program?
   POP DE
   JR NC,MVSTPT		; Yes - Set up pointer
-  LD HL,VARIABLES+14		; Guessing..  unknown system variable address, but on SpectraVideo it is still one byte less than DSCTMP !
+  LD HL,VARIABLES+14		; ..  on TRS80 Model 100 it is VARIABLES+15
   RST DCOMPR		; Compare HL with DE.
   JR C,__LET_4
-  LD HL,TEMPPT+1
+  LD HL,VARIABLES-16		; ..  on TRS80 Model 100 it is VARIABLES-15
   RST DCOMPR		; Compare HL with DE.
   JR C,MVSTPT
 __LET_4:
@@ -14190,6 +14196,8 @@ __READ_1:
   DEC HL
 __READ_2:
   CALL DTSTR
+  
+  
 L4BF1:
   POP AF
   ADD A,$03
@@ -14209,7 +14217,6 @@ __READ_3:
 L4C05:
   DEC HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
-L4C07:
   JR Z,L4C05_0
   CP ','
   JP NZ,ERR_INPUT
@@ -14269,7 +14276,8 @@ NEXT_EQUAL:
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB TK_EQUAL			; Token for '='
 
-L4C61:
+; Chk Syntax, make sure '(' follows
+OPNPAR:
   ;; LD BC,28CFh
   DEFB 1		; "LD BC,n" to mask the next line
 NEXT_PARENTH:
@@ -14328,7 +14336,7 @@ EVAL3:
   LD A,E
   JP Z,CONCAT			; If so use '+' to join strings
 EVAL3_0:
-  CP $0C		; TK_COS ?
+  CP $0C		; ??
   RET NC
   LD HL,PRITAB			; ARITHMETIC PRECEDENCE TABLE
   LD D,$00
@@ -14348,10 +14356,10 @@ IF NOHOOK
 ELSE
   CALL HNTPL			; Hook 2 for Expression Evaluator
 ENDIF
-  CP $51			; 'Q'
+  CP $51			; one less than AND as mapped in PRITAB
   JR C,L4CAD_5
   AND $FE
-  CP $7A			; 'z'
+  CP $7A			; MOD as mapped in PRITAB
   JR Z,L4CAD_5
 L4CAD_0:
   LD HL,FACLOW
@@ -14375,6 +14383,7 @@ L4CAD_1:
   LD B,A
   PUSH BC
   LD BC,L4D22
+  
 L4CAD_2:
   PUSH BC
   LD HL,(TEMP3)
@@ -14702,7 +14711,7 @@ UCASE:
   RET C
   CP 'z'+1
   RET NC
-  AND '_'
+  AND $5F	; convert to uppercase
   RET
 
 ; Routine at 20147
@@ -14871,6 +14880,7 @@ NOT:
 NOT_0:
   JP EVAL3
 
+
 ; Routine at 20344
 L4F78:
   LD A,B
@@ -14878,15 +14888,18 @@ L4F78:
   CALL __CINT
   POP AF
   POP DE
-  CP 'z'
+  
+  CP $7A		; MOD as mapped in PRITAB
   JP Z,IMOD
-  CP 'z'+1
+  
+  CP $7B		; '\' as mapped in PRITAB
   JP Z,INT_DIV
-  LD BC,L4FD1 
+  
+  LD BC,BOOL_RESULT 
   PUSH BC
   
-  CP $46		; 70, 'F'
-  JR NZ,OR_0
+  CP $46		; OR as mapped in PRITAB
+  JR NZ,SKIP_OR
 OR:
   LD A,E
   OR L
@@ -14895,9 +14908,9 @@ OR:
   OR D
   RET
 
-OR_0:
-  CP $50		; 80,  'P'
-  JR NZ,AND_0
+SKIP_OR:
+  CP $50		; AND as mapped in PRITAB
+  JR NZ,SKIP_AND
   
 AND:
   LD A,E
@@ -14907,9 +14920,9 @@ AND:
   AND D
   RET
   
-AND_0:
-  CP $3C		; 60, '<'
-  JR NZ,XOR_0
+SKIP_AND:
+  CP $3C		; XOR as mapped in PRITAB
+  JR NZ,SKIP_XOR
 
 XOR:
   LD A,E
@@ -14919,8 +14932,8 @@ XOR:
   XOR D
   RET
   
-XOR_0:
-  CP $32		; 50, '2'
+SKIP_XOR:
+  CP $32		; EQU (=) as mapped in PRITAB
   JR NZ,IMP
 
 EQV:
@@ -14948,7 +14961,7 @@ IMP:
 ; Routine at 20417 ($4FC1)
 ;
 ; Used by the routine at __FRE.
-IMP_0:
+FRE_RESLT:
   OR A
   SBC HL,DE
   JP DBL_ABS_0
@@ -14966,7 +14979,8 @@ __POS:
 UNSIGNED_RESULT_A:
   LD L,A
   XOR A
-L4FD1:
+  
+BOOL_RESULT:
   LD H,A
   JP INT_RESULT_HL
 
@@ -16006,6 +16020,7 @@ L54F7:
   LD (PTRFLG),A
   LD HL,(TXTTAB)
   DEC HL
+
 L54FF:
   INC HL
   LD A,(HL)
@@ -18730,7 +18745,8 @@ _CLREG_0:
   LD (HL),$08
   INC HL
   DJNZ _CLREG_0
-  CALL L2C24
+  
+  CALL INIT_RND
   XOR A
   LD (ONEFLG),A			; Clear 'on error' flag
   LD L,A
@@ -19400,6 +19416,7 @@ __STR_S_0:
 SAVSTR:
   LD BC,TOPOOL
   PUSH BC
+
 ; This entry point is used by the routines at __LET and _MID_S.
 ; $6611
 SAVSTR_0:
@@ -20290,12 +20307,12 @@ __FRE:
   LD HL,$0000
   ADD HL,SP
   RST GETYPR 		; Get the number type (FAC)
-  JP NZ,IMP_0		; JP if not string type
+  JP NZ,FRE_RESLT	; JP if not string type
   CALL GSTRCU
   CALL TESTR_2
   LD DE,(STKTOP)
   LD HL,(FRETOP)
-  JP IMP_0
+  JP FRE_RESLT
 
 ; Routine at 27150
 ;
@@ -20514,7 +20531,7 @@ ELSE
   CALL HNOFO		; Hook for "OPEN": not found event
 ENDIF
 L6AF9:
-; +1 -> NULOPN
+; +1 -> NULOPN  ("NULL file OPEN")
   LD E,$D5			; TK_IPL ?
   ; PUSH DE
   DEC HL
@@ -20554,11 +20571,13 @@ ENDIF
 CLOSE:
   PUSH HL
   OR   A
-  JR   NZ,L6B30
+  JR   NZ,NTFL0
   LD   A,(NLONLY)		; <>0 when loading program
   AND  $01
   JP   NZ,L6CF3
-L6B30:
+  
+; NTFL0 - "NoT FiLe number 0"
+NTFL0:
   CALL GETPTR
   JR   Z,L6B4A 		; CLOSE_1
   LD   (PTRFIL),HL
@@ -20628,7 +20647,7 @@ _LOAD_0:
   PUSH AF
   XOR A
   LD E,$01
-  CALL L6AF9+1		; NULOPN
+  CALL L6AF9+1		; NULOPN  ("NULL file OPEN")
   LD HL,(PTRFIL)
   LD BC,$0007
   ADD HL,BC
@@ -20771,6 +20790,7 @@ L6BFB_0:
   PUSH DE
   SCF
   JP (HL)
+
 __CLOSE:
   LD BC,CLOSE
   LD A,(MAXFIL)
