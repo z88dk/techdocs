@@ -15289,7 +15289,10 @@ L518E:
 ; Routine at 20883
 ;
 ; Used by the routine at __DEF.
-; Error if in 'DIRECT' (immediate) mode
+;
+; Check for a running program (Z if so).  If a program is not running, generate
+; an Illegal Direct (ID) error.
+;
 NO_DIRECT:
   PUSH HL
   LD HL,(CURLIN)		 ; Line number the Basic interpreter is working on, in direct mode it will be filled with #FFFF
@@ -18674,7 +18677,7 @@ L6266:
   ADD HL,SP
   POP HL
   RET C
-; This entry point is used by the routines at __CLEAR and L7E6B.
+; This entry point is used by the routines at __CLEAR and MAXFILES.
 OMERR:
   CALL UPD_PTRS
   LD HL,(STKTOP)
@@ -19228,7 +19231,7 @@ __CLEAR_1:
   POP HL
   CALL _CLVAR
   LD A,(MAXFIL)
-  CALL L7E6B
+  CALL MAXFILES
   LD HL,(TEMP)
   JP EXEC_EVAL
 
@@ -19556,7 +19559,7 @@ L668F:
   ;L668F+1: POP AF
   LD C,$F1
   PUSH AF
-  LD HL,(STKTOP)
+  LD HL,(STKTOP)	; Start of string buffer for BASIC
   EX DE,HL
   LD HL,(FRETOP)
   CPL
@@ -24435,7 +24438,7 @@ ENDIF
   LD (MEMSIZ),HL
   LD A,$01
   LD (VARTAB+1),A
-  CALL L7E6B
+  CALL MAXFILES
   CALL CLREG  		; Clear registers and warm boot
   LD HL,(BOTTOM)
   XOR A
@@ -24714,7 +24717,7 @@ __MAX:
   PUSH AF
   CALL CLSALL		; Close all files
   POP AF
-  CALL L7E6B
+  CALL MAXFILES
   CALL _CLREG
   JP EXEC_EVAL
 
@@ -24722,14 +24725,14 @@ __MAX:
 ;
 ; Used by the routines at __CLEAR, _CSTART and __MAX.
 ; clear files ?
-L7E6B:
+MAXFILES:
   PUSH AF
   LD HL,(HIMEM)
   LD DE,$FEF5		; -267
-L7E6B_0:
+MAXFILES_0:
   ADD HL,DE
   DEC A
-  JP P,L7E6B_0
+  JP P,MAXFILES_0
   EX DE,HL
   LD HL,(STKTOP)
   LD B,H
@@ -24782,7 +24785,7 @@ L7E6B_0:
   EX DE,HL
   PUSH DE
   LD BC,$0109		; 265
-L7E6B_1:
+MAXFILES_1:
   LD (HL),E
   INC HL
   LD (HL),D
@@ -24792,7 +24795,7 @@ L7E6B_1:
   ADD HL,BC
   EX DE,HL
   DEC A
-  JP P,L7E6B_1
+  JP P,MAXFILES_1
   POP HL
   LD BC,$0009
   ADD HL,BC
