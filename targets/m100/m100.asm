@@ -286,6 +286,8 @@ defc KB_SHIFT    = $FFA2
 defc GETPNT      = $FFAA
 defc PUTPNT      = $FFAB
 defc CURS_SHAPE  = $FFEC
+defc LCD_ADDR    = $FFF4
+defc GFX_TEMP    = $FFF6
 defc SAVSP       = $FFF8
 
 
@@ -12549,7 +12551,7 @@ __END_0:
   LD (SAVTXT),HL
   LD HL,TEMPST
   LD (TEMPPT),HL
-  ;LD HL,$FFF6
+  ;LD HL,GFX_TEMP
   defb $21	 ;	LD HL,NN
 
 ; Routine at 16563
@@ -21219,7 +21221,7 @@ CARDET_1:
   JP NZ,CARDET_0
   CALL RES_RS232_FLAGS
   POP HL
-  ;JP NZ,$FFF6
+  ;JP NZ,GFX_TEMP
   defb $C2	; JP NZ,NN (always false)
   
 ; Routine at 28460
@@ -22218,7 +22220,7 @@ SET_CLOCK_HL_11:
   DEC D
   DEC E
   EX DE,HL
-  LD ($FFF4),HL
+  LD (LCD_ADDR),HL
   LD A,C
   LD DE,FONT
   SUB $20
@@ -22280,7 +22282,7 @@ MOVE_CURSOR:
   DEC D
   DEC E
   EX DE,HL
-  LD ($FFF4),HL
+  LD (LCD_ADDR),HL
   JP SET_CLOCK_HL_16
 
 ; Plot point on screen  (D,E)
@@ -22363,7 +22365,7 @@ L7497:
 L74A2:
   PUSH HL
   LD E,$06
-  LD A,($FFF5)
+  LD A,(LCD_ADDR+1)
   CP $08
   JP Z,UNPLOT_3
   CP $10
@@ -22382,19 +22384,19 @@ UNPLOT_5:
   ADD A,C
   LD C,A
   LD B,$00
-  LD A,($FFF4)
+  LD A,(LCD_ADDR)
   RRA
   RRA
   RRA
-  LD HL,L75C9
+  LD HL,GFX_VECT2
   JP C,UNPLOT_6
-  LD HL,L7551
+  LD HL,GFX_VECT
   
 UNPLOT_6:
   ADD HL,BC
   LD B,A
   CALL UNPLOT_13
-  LD ($FFF6),HL
+  LD (GFX_TEMP),HL
   LD A,B
   OR (HL)
   LD B,A
@@ -22407,7 +22409,7 @@ UNPLOT_6:
   RET Z
   LD E,A
   PUSH HL
-  LD HL,($FFF6)
+  LD HL,(GFX_TEMP)
   INC HL
   CALL UNPLOT_13
   POP HL
@@ -22506,7 +22508,7 @@ UNPLOT_15:
 
 
 ; Message at 30033
-L7551:
+GFX_VECT:
   DEFB $01, $00, $00
   DEFB $01, $00, $06
   DEFB $01, $00, $0C
@@ -22548,7 +22550,7 @@ L7551:
   DEFB $10, $00, $1C
   DEFB $10, $00, $22
   
-L75C9:
+GFX_VECT2:
   DEFB $20, $00, $00
   DEFB $20, $00, $06
   DEFB $20, $00, $0C
