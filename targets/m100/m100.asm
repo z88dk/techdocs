@@ -5,7 +5,7 @@ defc LF = 10
 
 
 defc MAXRAM      = $F5F0
-defc ATIDSV     = $F5F2
+defc ATIDSV      = $F5F2
 defc HIMEM       = $F5F4
 defc BOOT_VECT   = $F5F6
 
@@ -1255,7 +1255,7 @@ EXEC_HL_0:
 EXEC_HL_1:
   PUSH BC
   JP NC,EXEC_HL_2
-  CALL PRS_M100_15
+  CALL DETOKEN_NEXT5
   LD A,C
   SUB E
   LD C,A
@@ -3629,7 +3629,7 @@ __LIST_0:
   LD A,' '
   RST OUTC
 __LIST_1:
-  CALL PRS_M100_0
+  CALL DETOKEN_LIST
   LD HL,KBUF
   CALL PRS_M100
   CALL CONSOLE_CRLF_0
@@ -3639,7 +3639,7 @@ __LIST_2:
   POP BC
 
 __LIST_END:
-  LD A,($F651)
+  LD A,(ERRTRP-1)
   AND A
   JP NZ,__EDIT_1
   LD A,$1A		; EOF
@@ -3658,57 +3658,59 @@ PRS_M100:
   JP PRS_M100
   
 ; This entry point is used by the routine at __LIST.
-PRS_M100_0:
+DETOKEN_LIST:
   LD BC,KBUF
-  LD D,$FF
+  LD D,$FF		; init line byte counter in D
   XOR A
-  LD (OPRTYP),A
-  JP PRS_M100_2
+  LD (OPRTYP),A		; a.k.a. DORES, indicates whether stored word can be crunched, etc..
+  JP DETOKEN_NEXT_1
   
-PRS_M100_1:
+DETOKEN_NEXT:
   INC BC
   DEC D
   RET Z
-PRS_M100_2:
+DETOKEN_NEXT_1:
   LD A,(HL)
   INC HL
   OR A
   LD (BC),A
   RET Z
   CP '"'
-  JP NZ,PRS_M100_3
+  JP NZ,DETOKEN_NEXT_2
   LD A,(OPRTYP)
   XOR $01
   LD (OPRTYP),A
   LD A,'"'
-PRS_M100_3:
+DETOKEN_NEXT_2:
   CP ':'
-  JP NZ,PRS_M100_5
+  JP NZ,DETOKEN_NEXT_4
   LD A,(OPRTYP)
   RRA
-  JP C,PRS_M100_4
+  JP C,DETOKEN_NEXT_3
   RLA
   AND $FD
   LD (OPRTYP),A
-PRS_M100_4:
+DETOKEN_NEXT_3:
   LD A,':'       ;  ':'
-PRS_M100_5:
+DETOKEN_NEXT_4:
   OR A
-  JP P,PRS_M100_1
+  JP P,DETOKEN_NEXT
   LD A,(OPRTYP)
   RRA
-  JP C,PRS_M100_1
+  JP C,DETOKEN_NEXT
   DEC HL
   RRA
   RRA
   JP NC,DETOKEN
   LD A,(HL)
-  CP $FF
+  CP $FF			; TK_APOSTROPHE: COMMENT, check if line ends with the apostrophe..
   PUSH HL
   PUSH BC
-  LD HL,L121A
+  LD HL,__DETOKEN_NEXT
   PUSH HL
   RET NZ
+  
+  ; ..or with the ':REM' sequence..
   DEC BC
   LD A,(BC)
   CP $4D         ; 'M'
@@ -3730,40 +3732,41 @@ PRS_M100_5:
 ; This entry point is used by the routine at FONT.
 PRS_M100_6:
   POP HL
-  INC D
+  INC D		; add 4 to line byte counter D
   INC D
   INC D
   INC D
   JP DETOKEN_0
 
-L121A:
+__DETOKEN_NEXT:
   POP BC
   POP HL
   LD A,(HL)
 PRS_M100_7:
   INC HL
-  JP PRS_M100_1
-PRS_M100_8:
-  LD A,(OPRTYP)
+  JP DETOKEN_NEXT
+
+SET_DATA_FLAG:
+  LD A,(OPRTYP)	; Indicates whether stored word can be crunched
   OR $02
-PRS_M100_9:
+UPD_OPRTYP:
   LD (OPRTYP),A
   XOR A
   RET
   
-PRS_M100_10:
+SET_REM_FLAG:
   LD A,(OPRTYP)
   OR $04
-  JP PRS_M100_9
+  JP UPD_OPRTYP
 
 DETOKEN:
   RLA
   JP C,PRS_M100_7
   LD A,(HL)
   CP $83		; TK_DATA
-  CALL Z,PRS_M100_8
+  CALL Z,SET_DATA_FLAG
   CP $8E		; TK_REM
-  CALL Z,PRS_M100_10
+  CALL Z,SET_REM_FLAG
 DETOKEN_0:
   LD A,(HL)
   INC HL
@@ -3773,15 +3776,15 @@ DETOKEN_0:
   PUSH HL
   LD E,A
   LD HL,TOKEN
-PRS_M100_13:
+DETOKEN_NEXT3:
   LD A,(HL)
   INC HL
   OR A
-  JP P,PRS_M100_13
+  JP P,DETOKEN_NEXT3
   DEC E
-  JP NZ,PRS_M100_13
+  JP NZ,DETOKEN_NEXT3
   AND $7F
-PRS_M100_14:
+DETOKEN_NEXT4:
   LD (BC),A
   INC BC
   DEC D
@@ -3789,21 +3792,21 @@ PRS_M100_14:
   LD A,(HL)
   INC HL
   OR A
-  JP P,PRS_M100_14
+  JP P,DETOKEN_NEXT4
   POP HL
-  JP PRS_M100_2
+  JP DETOKEN_NEXT_1
   
 ; This entry point is used by the routine at EXEC_HL.
-PRS_M100_15:
+DETOKEN_NEXT5:
   EX DE,HL
   LD HL,(PROGND)
-PRS_M100_16:
+DETOKEN_NEXT6:
   LD A,(DE)
   LD (BC),A
   INC BC
   INC DE
   RST CPDEHL
-  JP NZ,PRS_M100_16
+  JP NZ,DETOKEN_NEXT6
   LD H,B
   LD L,C
   LD (PROGND),HL
@@ -4374,9 +4377,9 @@ RAM_OPN_2:
   JP REDIRECT_IO
 
 RAM_OPN_3:
-  LD A,($F651)
+  LD A,(ERRTRP-1)
   AND A
-  LD HL,$F9AF			; -1617 ?
+  LD HL,SUZUKI+21
   CALL Z,FINDCO_0
   JP Z,FFERR
   EX DE,HL
@@ -6440,7 +6443,7 @@ KILLASC_4:
   CALL RESFPT
   LD HL,($F9B0)
   EX DE,HL
-  LD HL,$F9AF
+  LD HL,SUZUKI+21
   JP KILLASC+1
 
 ; This entry point is used by the routine at __KILL.
@@ -6622,11 +6625,11 @@ NXTDIR:
 
 ; This entry point is used by the routines at SAVEBA, MAKTXT and CSAVEM.
 NXTDIR_0:
-  LD A,($F651)
+  LD A,(ERRTRP-1)
   AND A
-  LD HL,$F9AF
+  LD HL,SUZUKI+21
   RET NZ
-  LD HL,$F9AF
+  LD HL,SUZUKI+21
   LD BC,$000B		; 11
 NXTDIR_1:
   ADD HL,BC
@@ -7311,7 +7314,7 @@ CLOADM_CAS:
   PUSH HL
   JP C,FCERR
 CLOADM_1:
-  CALL CLOAD_PRINT_PARM
+  CALL CLOAD_PARMS
   JP C,OMERR
   CALL CAS_OPNI_CO_10
   LD HL,(PRLEN)
@@ -7343,7 +7346,7 @@ CLOADM_RAM:
   PUSH DE
   JP C,FCERR
 CLOADM_3:
-  CALL CLOAD_PRINT_PARM
+  CALL CLOAD_PARMS
   JP C,OMERR
   LD HL,(PRLEN)
   LD B,H
@@ -7363,7 +7366,7 @@ CLOADM_4:
   LD HL,(TEMP)
   JP EXEC_EVAL
 
-CLOAD_PRINT_PARM:
+CLOAD_PARMS:
   CALL CLOAD_PRPARM
 ; This entry point is used by the routine at LDIR_B.
 CLOADM_6:
@@ -14004,7 +14007,7 @@ INXD_11:
   JP EXEC_EVAL
 
 INXD_12:
-  LD A,($F651)
+  LD A,(ERRTRP-1)
   AND A
   JP NZ,__EDIT_3
   JP RESTART
@@ -18213,7 +18216,7 @@ __EDIT:
   JP Z,__EDIT_0
   LD A,$FF
 __EDIT_0:
-  LD ($F651),A
+  LD (ERRTRP-1),A
   XOR A
   LD ($FC95),A
   LD HL,$2020		; "  "
@@ -18264,7 +18267,7 @@ __EDIT_3:
   CALL __CLS
 __EDIT_4:
   XOR A
-  LD ($F651),A
+  LD (ERRTRP-1),A
   LD L,A
   LD H,A
   LD (ERRTRP),HL
@@ -18284,7 +18287,7 @@ L5ED5:
 L5EDA:
   PUSH DE
   XOR A
-  LD ($F651),A
+  LD (ERRTRP-1),A
   LD L,A
   LD H,A
   LD (ERRTRP),HL
@@ -18380,7 +18383,7 @@ WAIT_SPC_2:
   CALL L65B9
   LD HL,TEXT_FNBAR
   CALL STFNK
-  LD A,($F651)
+  LD A,(ERRTRP-1)
   AND A
   JP Z,WAIT_SPC_3
   LD HL,$7845		; H=120, L=69
@@ -22324,14 +22327,14 @@ L746A:
 L746D:
   ADD HL,BC
   LD B,A
-  CALL UNPLOT_13
+  CALL SET_LCD_ADDR
   LD A,B
   AND $C0
   OR D
   LD B,A
   LD E,$01
   LD HL,CURS_SHAPE
-  CALL L74F5
+  CALL SET_LCD
   POP DE
   LD D,B
   LD A,E
@@ -22395,7 +22398,7 @@ UNPLOT_5:
 UNPLOT_6:
   ADD HL,BC
   LD B,A
-  CALL UNPLOT_13
+  CALL SET_LCD_ADDR
   LD (GFX_TEMP),HL
   LD A,B
   OR (HL)
@@ -22411,7 +22414,7 @@ UNPLOT_6:
   PUSH HL
   LD HL,(GFX_TEMP)
   INC HL
-  CALL UNPLOT_13
+  CALL SET_LCD_ADDR
   POP HL
   LD A,B
   AND $C0
@@ -22422,7 +22425,7 @@ UNPLOT_6:
   ;JP C,$AFF6
   defb $da		; JP C,NN
 
-L74F5:
+SET_LCD:
 	DEFB $F6	;OR $AF (masks XOR A)
 
 ; This entry point is used by the routine at UNPLOT.
@@ -22485,7 +22488,7 @@ UNPLOT_12:
   CALL DELAY_C
   LD HL,L7641		; OUT ($B9),$FF, OR $03
 
-UNPLOT_13:
+SET_LCD_ADDR:
   LD A,(HL)
   OUT ($B9),A
   INC HL
@@ -23073,7 +23076,7 @@ BOOT_1:
   JP SET_CLOCK_HL_15
 
 BOOT_2:
-  LD A,($F651)
+  LD A,(ERRTRP-1)
   AND A
   JP Z,BOOT_3
   CALL L7DD0
