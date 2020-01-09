@@ -11863,7 +11863,7 @@ OPERAND_ERR:
 TYPE_ERR:
   LD E,$0D	; "Type mismatch"
 
-; This entry point is used by the routines at PRG_END, L44DE, FCERR, ULERR,
+; This entry point is used by the routines at PRG_END, TOKENIZE_COLON, FCERR, ULERR,
 ; __ERROR, FDTLP, NO_DIRECT, CHKSTK, __CONT, TSTOPL, TESTR, CONCAT, DERBFN, __CLOAD and IO_ERR.
 ERROR:
 IF NOHOOK
@@ -12348,7 +12348,7 @@ FIND_LINE_FHL:
 TOKENIZE:
   XOR A
   LD (DONUM),A
-  LD (DORES),A		; Indicates whether stored word can be crunched
+  LD (DORES),A		; a.k.a. OPRTYP, indicates whether stored word can be crunched, etc..
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -12365,7 +12365,7 @@ TOKENIZE_NEXT:
   OR A				; END of text ?
   JR NZ,TOKENIZE_2
 
-; This entry point is used by the routine at L43C4.
+; This entry point is used by the routine at TOKEN_BUILT.
 TOKENIZE_END:
   LD HL,$0140		; $01, $40
   LD A,L
@@ -12388,7 +12388,7 @@ TOKENIZE_2:
   JP Z,TOKENIZE_8
   CP ' '
   JR Z,TOKENIZE_3
-  LD A,(DORES)		; Indicates whether stored word can be crunched
+  LD A,(DORES)		; a.k.a. OPRTYP, indicates whether stored word can be crunched, etc..
   OR A
   LD A,(HL)
   JR Z,TOKENIZE_11
@@ -12396,21 +12396,23 @@ TOKENIZE_2:
 TOKENIZE_3:
   INC HL
   PUSH AF
+  
   CP $01
   JR NZ,TOKENIZE_4
   LD A,(HL)
   AND A
   LD A,$01
 TOKENIZE_4:
-  CALL NZ,L44DE_0
+
+  CALL NZ,TOKENIZE_ADD
   POP AF
   SUB $3A	; ':'
-  JR Z,TOKENIZE_5
+  JR Z,HAVE_TOKEN
   CP $4A	; $4A + $3A = $84 -> TK_DATA
   JR NZ,TOKENIZE_6
   LD A,$01
-TOKENIZE_5:
-  LD (DORES),A		; Indicates whether stored word can be crunched
+HAVE_TOKEN:
+  LD (DORES),A		; a.k.a. OPRTYP, indicates whether stored word can be crunched, etc..
   LD (DONUM),A
 TOKENIZE_6:
   SUB $55	; $55 + $3A = $8F  -> TK_REM
@@ -12429,7 +12431,7 @@ TOKENIZE_7:
 TOKENIZE_8:
   PUSH AF
   LD A,(HL)
-; This entry point is used by the routine at L43C4.
+; This entry point is used by the routine at TOKEN_BUILT.
 TOKENIZE_9:
   INC HL
   CP $01
@@ -12438,7 +12440,7 @@ TOKENIZE_9:
   AND A
   LD A,$01
 TOKENIZE_10:
-  CALL NZ,L44DE_0
+  CALL NZ,TOKENIZE_ADD
   JR TOKENIZE_7
   
 TOKENIZE_11:
@@ -12517,11 +12519,11 @@ ENDIF
   OR $80
   PUSH AF
   LD A,$FF
-  CALL L44DE_0
+  CALL TOKENIZE_ADD
   XOR A
   LD (DONUM),A
   POP AF
-  CALL L44DE_0
+  CALL TOKENIZE_ADD
   JP TOKENIZE_NEXT
 
 TOKENIZE_15:
@@ -12533,6 +12535,7 @@ TOKENIZE_16:
   JP P,TOKENIZE_16
   INC DE
   JR TOKENIZE_13
+
 TOKENIZE_17:
   DEC HL
 TOKEN_FOUND:
@@ -12549,11 +12552,11 @@ ENDIF
 TOKENIZE_19:
   LD A,(DE)
   OR A
-  JR Z,L43C4
+  JR Z,TOKEN_BUILT
   INC DE
   CP C
   JR NZ,TOKENIZE_19
-  JR L43C6
+  JR TOKENIZE_LNUM
 
 ; Routine at 17333
 LNUM_TOKENS:
@@ -12574,60 +12577,58 @@ LNUM_TOKENS:
   DEFB $00
 
 ; This entry point is used by the routine at TOKENIZE.
-L43C4:
+TOKEN_BUILT:
   XOR A
   defb $C2	; JP NZ,NN (always false), masks the next 2 bytes
-L43C6:
+TOKENIZE_LNUM:
   LD A,1
 
-; This entry point is used by the routine at L44FA.
-L43C4_1:
+TOKEN_BUILT_1:
   LD (DONUM),A
   POP AF
-; This entry point is used by the routine at L44EB.
-L43C4_2:
+TOKEN_BUILT_2:
   POP BC
   POP DE
   CP TK_ELSE
   PUSH AF
-  CALL Z,L44DE
+  CALL Z,TOKENIZE_COLON
   POP AF
-  CP TK_CALL
-  JR Z,L43C4_3
+  CP TK_CALL	; $CA
+  JR Z,TOKEN_BUILT_3
   CP '_'		; $5F
-  JR NZ,L43C4_7
-L43C4_3:
-  CALL NC,L44DE_0
-L43C4_4:
+  JR NZ,TOKEN_BUILT_7
+TOKEN_BUILT_3:
+  CALL NC,TOKENIZE_ADD
+TOKEN_BUILT_4:
   INC HL
   CALL UCASE_HL		; Load A with char in 'HL' and make it uppercase
   AND A
-L43C4_5:
+TOKEN_BUILT_5:
   JP Z,TOKENIZE_END
-  JP M,L43C4_4
+  JP M,TOKEN_BUILT_4
   CP $01
-  JR NZ,L43C4_6
+  JR NZ,TOKEN_BUILT_6
   INC HL
   LD A,(HL)
   AND A
-  JR Z,L43C4_5
-  JR L43C4_4
-L43C4_6:
+  JR Z,TOKEN_BUILT_5
+  JR TOKEN_BUILT_4
+TOKEN_BUILT_6:
   CP ' '
-  JR Z,L43C4_3
+  JR Z,TOKEN_BUILT_3
   CP ':'
   JR Z,DETOKEN_MORE_1
   CP '('
   JR Z,DETOKEN_MORE_1
   CP '0'
-  JR L43C4_3
-L43C4_7:
+  JR TOKEN_BUILT_3
+TOKEN_BUILT_7:
   CP TK_APOSTROPHE
   JP NZ,L44B4
   PUSH AF
-  CALL L44DE
+  CALL TOKENIZE_COLON
   LD A,TK_REM
-  CALL L44DE_0
+  CALL TOKENIZE_ADD
   POP AF
   PUSH HL
   LD HL,$0000
@@ -12654,11 +12655,11 @@ DETOKEN_MORE_0:
   JP M,TOKENIZE_3
   JR Z,DETOKEN_MORE_5
   CP '.'
-; This entry point is used by the routine at L43C4.
+; This entry point is used by the routine at TOKEN_BUILT.
 DETOKEN_MORE_1:
   JP Z,TOKENIZE_3
   LD A,$0E				; Line number prefix
-  CALL L44DE_0
+  CALL TOKENIZE_ADD
   PUSH DE
   CALL LNUM_PARM_0		; Get specified line number
   CALL L4514
@@ -12668,11 +12669,11 @@ DETOKEN_MORE_2:
   EX DE,HL
 DETOKEN_MORE_3:
   LD A,L
-  CALL L44DE_0
+  CALL TOKENIZE_ADD
   LD A,H
 DETOKEN_MORE_4:
   POP HL
-  CALL L44DE_0
+  CALL TOKENIZE_ADD
   JP TOKENIZE_NEXT
 
 DETOKEN_MORE_5:
@@ -12704,7 +12705,7 @@ DETOKEN_MORE_6:
   PUSH AF
   RRCA
   ADD A,$1B
-  CALL L44DE_0
+  CALL TOKENIZE_ADD
   LD HL,FACCU
   LD A,(VALTYP)
   CP $02		; Integer ?
@@ -12715,7 +12716,7 @@ DETOKEN_MORE_7:
 DETOKEN_MORE_8:
   PUSH AF
   LD A,(HL)
-  CALL L44DE_0
+  CALL TOKENIZE_ADD
   POP AF
   INC HL
   DEC A
@@ -12738,7 +12739,7 @@ DETOKEN_MORE_10:
 
 ; Routine at 17588
 ;
-; Used by the routine at L43C4.
+; Used by the routine at TOKEN_BUILT.
 L44B4:
   CP '&'		 ; $26
   JP NZ,TOKENIZE_3
@@ -12760,7 +12761,7 @@ L44B4_0:
 L44B4_1:
   LD A,$0C		; Hex Number prefix
 L44B4_2:
-  CALL L44DE_0
+  CALL TOKENIZE_ADD
   PUSH DE
   PUSH BC
   CALL HEXTFP
@@ -12769,11 +12770,11 @@ L44B4_2:
 
 ; Routine at 17630
 ;
-; Used by the routine at L43C4.
-L44DE:
+; Used by the routine at TOKEN_BUILT.
+TOKENIZE_COLON:
   LD A,':'
-; This entry point is used by the routines at TOKENIZE, L43C4, DETOKEN_MORE and L44B4.
-L44DE_0:
+; This entry point is used by the routines at TOKENIZE, TOKEN_BUILT, DETOKEN_MORE and L44B4.
+TOKENIZE_ADD:
   LD (DE),A
   INC DE
   DEC BC
@@ -12799,7 +12800,7 @@ ENDIF
   DEC A
   LD (DONUM),A
   CALL UCASE_HL		; Load A with char in 'HL' and make it uppercase
-  JP L43C4_2
+  JP TOKEN_BUILT_2
 
 ; Routine at 17658
 ;
@@ -12821,7 +12822,7 @@ L44FA_0:
   JR Z,L44FA_1
   DEC A
 L44FA_1:
-  JP L43C4_1
+  JP TOKEN_BUILT_1
 
 ; Routine at 17684
 ;
@@ -14499,7 +14500,7 @@ L4D26_5:
   CALL __CDBL
   LD HL,DEC_OPR
 L4D26_6:
-  LD A,(DORES)		; Indicates whether stored word can be crunched
+  LD A,(DORES)		; a.k.a. OPRTYP, indicates whether stored word can be crunched, etc..
   RLCA
   ADD A,L
   LD L,A
@@ -14707,7 +14708,7 @@ VAR_EVAL_1:
 
 ; Routine at 20137
 ;
-; Used by the routines at TOKENIZE, L43C4, L44EB, L55F8 and L6F3D.
+; Used by the routines at TOKENIZE, TOKEN_BUILT, L44EB, L55F8 and L6F3D.
 UCASE_HL:
   LD A,(HL)
 
@@ -15499,7 +15500,7 @@ __LLIST_0:
   LD A,' '
   RST OUTDO  		; Output char to the current device
 __LLIST_1:
-  CALL L5284
+  CALL DETOKEN_LIST
   LD HL,BUF
   CALL L527B
   CALL OUTDO_CRLF
@@ -15519,55 +15520,53 @@ L527B:
 ; Routine at 21124
 ;
 ; Used by the routine at __LLIST.
-L5284:
+DETOKEN_LIST:
   LD BC,BUF
-  LD D,$FF
+  LD D,$FF		; init line byte counter in D
   XOR A
-  LD (DORES),A		; Indicates whether stored word can be crunched
-  JR L5293
+  LD (DORES),A		; a.k.a. OPRTYP, indicates whether stored word can be crunched, etc..
+  JR DETOKEN_NEXT_1
 
 ;  block at 21135
-  ; --- START PROC L528F ---
-L528F:
+  ; --- START PROC DETOKEN_NEXT ---
+DETOKEN_NEXT:
   INC BC
   INC HL
-  DEC D
+  DEC D		; decrement line byte counter in D
   RET Z
-  ; --- START PROC L5293 ---
-L5293:
+  ; --- START PROC DETOKEN_NEXT_1 ---
+DETOKEN_NEXT_1:
   LD A,(HL)
   OR A
   LD (BC),A
   RET Z
   CP $0B			; Not a number constant prefix ?
-  JR C,L52C0		;..then JP
+  JR C,DETOKEN_NEXT_4		;..then JP
   CP ' '
   JP C,L5361
   CP '"'
-  JR NZ,L52AE
-L52A4:
+  JR NZ,DETOKEN_NEXT_2
   LD A,(OPRTYP)		; Temp operator number operations
   XOR $01
   LD (OPRTYP),A		; Temp operator number operations
   LD A,'"'
-L52AE:
+DETOKEN_NEXT_2:
   CP ':'
-  JR NZ,L52C0
+  JR NZ,DETOKEN_NEXT_4
   LD A,(OPRTYP)		; Temp operator number operations
   RRA
-  JR C,L52BE
+  JR C,DETOKEN_NEXT_3
   RLA
   AND $FD
   LD (OPRTYP),A		; Temp operator number operations
-L52BE:
+DETOKEN_NEXT_3:
   LD A,':'
-L52C0:
+DETOKEN_NEXT_4:
   OR A
-L52C1:
-  JP P,L528F
+  JP P,DETOKEN_NEXT
   LD A,(OPRTYP)		; Temp operator number operations
   RRA
-  JR C,L52F8
+  JR C,_DETOKEN_NEXT
   RRA
   RRA
   JR NC,DETOKEN
@@ -15575,7 +15574,7 @@ L52C1:
   CP TK_APOSTROPHE	  ; COMMENT, check if line ends with the apostrophe..
   PUSH HL
   PUSH BC
-  LD HL,L52F5
+  LD HL,__DETOKEN_NEXT
   PUSH HL
   RET NZ
   
@@ -15600,50 +15599,50 @@ L52C1:
   POP AF
   POP AF
   POP HL
-  INC D
+  INC D		; add 4 to line byte counter D
   INC D
   INC D
   INC D
   JR L531A
 
 ; Routine at 21237
-L52F5:
+__DETOKEN_NEXT:
   POP BC
   POP HL
   LD A,(HL)
 ; This entry point is used by the routine at DETOKEN.
-L52F8:
-  JP L528F
+_DETOKEN_NEXT:
+  JP DETOKEN_NEXT
 
 ; Routine at 21243
 ;
 ; Used by the routine at DETOKEN.
-L52FB:
-  LD A,(DORES)	; Indicates whether stored word can be crunched
+SET_DATA_FLAG:
+  LD A,(DORES)	; a.k.a. OPRTYP, indicates whether stored word can be crunched, etc..
   OR $02
-; This entry point is used by the routine at L5305.
-L52FB_0:
-  LD (DORES),A	; Indicates whether stored word can be crunched
+; This entry point is used by the routine at SET_REM_FLAG.
+UPD_OPRTYP:
+  LD (DORES),A	; a.k.a. OPRTYP, indicates whether stored word can be crunched, etc..
   XOR A
   RET
 
 ; Routine at 21253
 ;
 ; Used by the routine at DETOKEN.
-L5305:
-  LD A,(DORES)	; Indicates whether stored word can be crunched
+SET_REM_FLAG:
+  LD A,(DORES)	; a.k.a. OPRTYP, indicates whether stored word can be crunched, etc..
   OR $04
-  JR L52FB_0
+  JR UPD_OPRTYP
 
 ; Routine at 21260
 DETOKEN:
   RLA
-  JR C,L52F8
+  JR C,_DETOKEN_NEXT
   LD A,(HL)
   CP TK_DATA
-  CALL Z,L52FB
+  CALL Z,SET_DATA_FLAG
   CP TK_REM
-  CALL Z,L5305
+  CALL Z,SET_REM_FLAG
 L531A:
   LD A,(HL)
   INC A	
@@ -15707,7 +15706,7 @@ DETOKEN_6:
   OR E
   JP P,DETOKEN_5
   POP HL
-  JP L5293
+  JP DETOKEN_NEXT_1
 
 ; Routine at 21345
 L5361:
@@ -15799,7 +15798,7 @@ L537E_6:
   RET Z
 L537E_7:
   LD HL,(CONTXT)
-  JP L5293
+  JP DETOKEN_NEXT_1
 
 ; Routine at 21474
 __DELETE:
