@@ -1865,7 +1865,7 @@ _GSPSIZ:
 
 ; Routine at 1807
 ;
-; Used by the routines at LDIRMV and L0BAA.
+; Used by the routines at LDIRMV and ESC_L_2.
 _LDIRMV:
   CALL _SETRD
   EX (SP),HL
@@ -1916,7 +1916,7 @@ COPY_FONT_0:
 
 ; Routine at 1860
 ;
-; Used by the routines at LDIRVM and L0BC3.
+; Used by the routines at LDIRVM and RESET_CONSOLE.
 _LDIRVM:
   EX DE,HL
   CALL _SETWRT
@@ -2770,9 +2770,9 @@ ESC_M_0:
 ESC_M_1:
   PUSH AF
   INC L
-  CALL L0BAA
+  CALL ESC_L_2
   DEC L
-  CALL L0BC3
+  CALL RESET_CONSOLE
   INC L
   POP AF
   DEC A
@@ -2808,9 +2808,9 @@ ESC_L_0:
 ESC_L_1:
   PUSH AF
   DEC L
-  CALL L0BAA
+  CALL ESC_L_2
   INC L
-  CALL L0BC3
+  CALL RESET_CONSOLE
   DEC L
   POP AF
   DEC A
@@ -2972,7 +2972,7 @@ _FNKSB_7:
   JR NZ,L0B75
 _FNKSB_8:
   LD HL,(CRTCNT)
-  CALL L0BC3
+  CALL RESET_CONSOLE
   POP HL
   RET
 
@@ -2993,19 +2993,19 @@ IS_TXT:
 RD_CURSOR_PIC:
   PUSH HL
   LD C,$08		; 8 bytes for cursor "shape"
-  JR L0BAA_0
+  JR ESC_L_2_0
 
 ; Routine at 2986
 ;
 ; Used by the routines at ESC_M and ESC_L.
-L0BAA:
+ESC_L_2:
   PUSH HL
   LD H,$01
   CALL TXT_LOC
   LD A,(LINLEN)
   LD C,A
 ; This entry point is used by the routine at RD_CURSOR_PIC.
-L0BAA_0:
+ESC_L_2_0:
   LD B,$00		; byte counter in C only
   LD DE,LINWRK
   CALL _LDIRMV	; VRAM to DE
@@ -3018,19 +3018,19 @@ L0BAA_0:
 WR_CURSOR_PIC:
   PUSH HL
   LD C,$08			; 8 bytes for cursor "shape"
-  JR L0BC3_0
+  JR RESET_CONSOLE_0
 
 ; Routine at 3011
 ;
 ; Used by the routines at ESC_M, ESC_L and _FNKSB.
-L0BC3:
+RESET_CONSOLE:
   PUSH HL
   LD H,$01
   CALL TXT_LOC
   LD A,(LINLEN)
   LD C,A
 ; This entry point is used by the routine at WR_CURSOR_PIC.
-L0BC3_0:
+RESET_CONSOLE_0:
   LD B,$00
   EX DE,HL
   LD HL,LINWRK
@@ -3067,7 +3067,7 @@ OUT_CHAR:
 
 ; Routine at 3058
 ;
-; Used by the routines at ESC_CLINE, L0BAA, L0BC3, L0BD8 and OUT_CHAR.
+; Used by the routines at ESC_CLINE, ESC_L_2, RESET_CONSOLE, L0BD8 and OUT_CHAR.
 TXT_LOC:
   PUSH BC
   LD E,H
@@ -3212,7 +3212,7 @@ _KEYINT_1:
   INC A
   CP $03
   JR C,_KEYINT_1
-  LD HL,SCNCNT
+  LD HL,SCNCNT		; a.k.a. KYREPT, Wait count for repeat
   DEC (HL)
   JR NZ,_KEYINT_2
   LD (HL),$01
@@ -6356,7 +6356,7 @@ _INLIN_0:
   LD (INTFLG),A
 _INLIN_1:
   CALL _CHGET
-  LD HL,TTYTB3-2
+  LD HL,INLIN_TBL-2
 IF SPECTRUM_SKIN
   ; Unbind CHR$(127) and make it printable
   LD C,10
@@ -6433,7 +6433,7 @@ L242D:
 
   
 ; Third TTY JP table (11 entries)
-TTYTB3:
+INLIN_TBL:
   DEFB $08		; BS, backspace
   DEFW L2561
   
@@ -6999,14 +6999,14 @@ DECNRM:
 ; Normalize FACCU
   LD HL,FACCU+1
   LD BC,$0800		; 2048
-L26F7_1:
+DECNRM_0:
   LD A,(HL)
   OR A
   JR NZ,L270C
   INC HL
   DEC C
   DEC C
-  DJNZ L26F7_1
+  DJNZ DECNRM_0
   JP CLEAR_EXPONENT
 
 ; Routine at 9996
@@ -7033,10 +7033,10 @@ L270C_0:
   POP AF
   LD B,A
   XOR A
-L270C_1:
+DECADD_8:
   LD (DE),A
   INC DE
-  DJNZ L270C_1
+  DJNZ DECADD_8
 L270C_2:
   LD A,C
   OR A
@@ -7048,13 +7048,14 @@ L270C_2:
   XOR B
   JP M,OVERFLOW_ERR		; Err $06 -  "Overflow"
   RET Z
+
 ; This entry point is used by the routines at DECADD and L3301.
 ; Single precision rounding
 DECROU:
   LD HL,FACCU+8
   LD B,$07
 ; This entry point is used by the routine at L377B.
-L2741:
+BNORM_8:
   LD A,(HL)
   CP $50
   RET C
@@ -8420,7 +8421,7 @@ FPCOPY_0:
 
 ; Routine at 12065
 ;
-; Used by the routines at L2FA2, GETWORD_HL, FCOMP_UNITY and __NEXT.
+; Used by the routines at INT_RESULT_HL_2, GETWORD_HL, FCOMP_UNITY and __NEXT.
 ; Formerly known as "CMPNUM"
 FCOMP:
   LD A,C
@@ -8532,7 +8533,7 @@ __CINT:
   CALL CINT
   JP C,OVERFLOW_ERR			; Err $06 -  "Overflow"
   EX DE,HL
-; This entry point is used by the routines at __SGN, L2FA2, __FIX, IMULT,
+; This entry point is used by the routines at __SGN, INT_RESULT_HL_2, __FIX, IMULT,
 ; INT_DIV_3, LNUM_MSG, OPRND, HEXTFP, __POS, FN_POINT, __CIRCLE and CIRCLE_SUB.
 INT_RESULT_HL:
   LD (FACLOW),HL
@@ -8547,14 +8548,14 @@ SETTYPE:
 ; Routine at 12194
 ;
 ; Used by the routine at L3301.
-L2FA2:
+INT_RESULT_HL_2:
   LD BC,$32C5		; BCDE = -32768 (float)
   LD DE,$8076
   CALL FCOMP
   RET NZ
   LD HL,$8000		; HL = 32768
 ; This entry point is used by the routine at IADD.
-L2FA2_0:
+INT_RESULT_HL_2_0:
   POP DE
   JR INT_RESULT_HL		; L2F99
 
@@ -8573,7 +8574,7 @@ L2FB3:
   OR A
   RRA
   LD B,A
-  JP L2741
+  JP BNORM_8
 
   ; --- START PROC INT_CSNG ---
 INT_CSNG:
@@ -8965,7 +8966,7 @@ IADD_0:
   ADC A,B
   RRCA
   XOR H
-  JP P,L2FA2_0
+  JP P,INT_RESULT_HL_2_0
   PUSH BC
   EX DE,HL
   CALL HL_CSNG
@@ -9348,7 +9349,7 @@ L3301_4:
   PUSH HL
   LD HL,POPHLRT		; (POP HL / RET)
   PUSH HL
-  CALL L2FA2
+  CALL INT_RESULT_HL_2
   RET
 
 L3301_5:
@@ -10272,7 +10273,7 @@ L377B_0:
   LD A,B
   RRCA
   LD B,A
-  CALL L2741
+  CALL BNORM_8
   CALL L37B4
 L377B_1:
   POP BC
@@ -14134,7 +14135,7 @@ __INPUT_0:
 ; Routine at 19339
 L4B8B:
   PUSH HL
-  CALL QINLIN
+  CALL QINLIN			; User interaction with question mark, HL = resulting text 
   POP BC
   JP C,L63FD+1	; __END_1 - 3
   INC HL
@@ -14173,7 +14174,7 @@ _READ_00:
   JP NZ,FDTLP
   LD A,'?'
   RST OUTDO  		; Output char to the current device
-  CALL QINLIN
+  CALL QINLIN			; User interaction with question mark, HL = resulting text 
   POP DE
   POP BC
   JP C,L63FD+1	; __END_1 - 3
@@ -24739,7 +24740,7 @@ __MAX:
 MAXFILES:
   PUSH AF
   LD HL,(HIMEM)
-  LD DE,$FEF5		; -267
+  LD DE,$FEF5		; -267 (same offset on Tandy model 100)
 MAXFILES_0:
   ADD HL,DE
   DEC A
@@ -24958,7 +24959,7 @@ ENDIF
 
 L7FFF:
   DEFW KEYBUF	; PUTPNT: Keyboard buffer write position
-  DEFW KEYBUF	; PUTPNT: Keyboard buffer read position
+  DEFW KEYBUF	; GETPNT: Keyboard buffer read position
 
 ; CS120 Cassette I/O parameters to use for 1200 baud 
  DEFW $5C53		; LOW - Signal delay when writing a 0 to tape 
