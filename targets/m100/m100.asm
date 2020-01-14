@@ -68,9 +68,12 @@ defc KBUF        = $F685
 
 defc TXT_SEL_BEG = $F6E2
 defc TXT_SEL_END = $F6E4
-defc TXT_BUFLAG  = $F6E6		; 
+defc TXT_BUFLAG  = $F6E6
 
 defc SAVE_CSRX   = $F6E7
+
+defc STRG_ASKBUF = $F71F
+defc CUR_TXTFILE = $F767
 defc ENDBUF      = $F787
 defc TTYPOS      = $F788
 defc FNKSTR      = $F789
@@ -126,6 +129,7 @@ defc DIRPNT      = $FA8C
 defc CASPRV      = $FA8E
 defc COMPRV      = $FA8F
 
+defc RAMFILE     = $FAA2
 defc LPRINT_CH   = $FAAC
 defc LBL_LINE    = $FAAD
 defc PORT_A8     = $FAAE
@@ -136,6 +140,7 @@ defc RAM         = $FAC0
 
 defc CAPTUR      = $FAC2
 defc SV_TXTPOS   = $FAC4
+defc FNAME_END   = $FAC6
 defc MENU_FLG    = $FAC8
 
 defc RST38_OFFS  = $FAC9
@@ -272,20 +277,27 @@ defc XONXOFF     = $FF41
 defc XONXOFF_FLG = $FF42
 defc RS232_FLG   = $FF43
 defc SOUND_FLG   = $FF44
-defc PORT_E8     = $FF45
+defc ROMSEL      = $FF45
 defc RS232_BUF   = $FF46
 defc RS232_COUNT = $FF86
 defc CTRL_S_FLG  = $FF8A
-defc RS232_BAUD   = $FF8B
+defc RS232_BAUD  = $FF8B
 defc CASS_HILO   = $FF8E
 defc KBSITP      = $FF8F
-defc KB_FLAGS    = $FF97
-defc KB_FNK      = $FF98
-defc PKGFF       = $FF99
+;defc KB_FLAGS    = $FF97
+;defc KB_FNK      = $FF98
+defc REPCNT      = $FF90
+defc KYDATA      = $FF91
+; 
 defc KB_SHIFT    = $FFA2
-defc GETPNT      = $FFAA
-defc PUTPNT      = $FFAB
+defc KYHOW       = $FFA3
+defc KYREPT      = $FFA4
+defc KYBCNT      = $FFAA
+defc KYRDBF      = $FFAB
+defc BRKCHR      = $FFEB
 defc CURS_SHAPE  = $FFEC
+defc CSRSTS      = $FFF2
+defc CSRCNT      = $FFF3
 defc LCD_ADDR    = $FFF4
 defc GFX_TEMP    = $FFF6
 defc SAVSP       = $FFF8
@@ -368,7 +380,7 @@ OUT_SPC:
 ;
 ; Used by the routines at L0493, TAB, __READ, __LIST, PRS_M100, __KEY,
 ; OUTS_B_CHARS, CATALOG, PRS1, OUTDO_CRLF, OUTDO_LF, __BEEP, HOME, __CLS, ESCA,
-; POSIT, _TAB, ESC_L, QINLIN, INLIN_BRK, INLIN_BS, INLIN_TAB, INXD, USING,
+; POSIT, _TAB, ESC_L, Q_INLIN, _INLIN_BRK, _INLIN_BS, _INLIN_TAB, INXD, USING,
 ; CONSOLE_CRLF, TEL_GET_STAT, TEL_FIND, TEL_LOGON, TEL_DIAL_DGT, TEL_TERM,
 ; TEL_UPLD, __MENU, PRINT_TEXT, SHOW_TIME, MOVE_TEXT, TXT_CTL_G and TXT_CTL_V.
 OUTC:
@@ -1162,7 +1174,7 @@ JPBC_4:
   RST OUTC
   LD A,(HL)
   RST OUTC
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   RST OUTC
   LD HL,ERR_MSG
   PUSH HL
@@ -1205,20 +1217,21 @@ PROMPT:
   LD (CURLIN),HL
   LD HL,ENDPRG
   LD (SAVTXT),HL
-  CALL INLIN		; Line input, FN keys are supported.
+  CALL _INLIN		; Line input, FN keys are supported.
   JP C,PROMPT
 
 ; Perform operation in (HL) buffer and return to BASIC ready.
 EXEC_HL:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   INC A
   DEC A
   JP Z,PROMPT
   PUSH AF
   CALL ATOH
   JP NC,EXEC_HL_0
-  CALL _ISFLIO       ; a.k.a. _ISFLIO
+  CALL _ISFLIO       ; Tests if I/O to device is taking place
   JP Z,SNERR
+  
 EXEC_HL_0:
   DEC HL
   LD A,(HL)
@@ -1240,17 +1253,17 @@ EXEC_HL_0:
   PUSH BC
   XOR A
   LD ($FB97),A
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   OR A
   PUSH AF
   EX DE,HL
   LD (DOT),HL
   EX DE,HL
-  CALL FIND_LINE
+  CALL FIND_LINE		; Get first line number
   JP C,EXEC_HL_1
   POP AF
   PUSH AF
-  JP Z,ULERR
+  JP Z,ULERR			; Error: "Undefined line number"
   OR A
 EXEC_HL_1:
   PUSH BC
@@ -1491,7 +1504,7 @@ TOKENIZE_4:
   LD A,B
   CP $88
   JP NZ,TOKENIZE_5
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   DEC HL
 TOKENIZE_5:
   INC HL
@@ -1673,7 +1686,7 @@ STEP_0:
   LD DE,FP_UNITY
   LD A,$01
   JP NZ,STEP_1
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CALL EVAL
   PUSH HL
   CALL __CDBL
@@ -1783,7 +1796,7 @@ EXEC_EVAL_2:
 ;
 ; Used by the routines at EXEC_EVAL and INIT_PRINT_h.
 EXEC:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   LD DE,EXEC_EVAL
   PUSH DE
 ; This entry point is used by the routine at __IF.
@@ -1844,7 +1857,7 @@ __DEF:
   JP Z,DEFINT
   CP $44	; 'D'
   JP NZ,__DEF_0
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   RST SYNCHR
   DEFB 'B'
   RST SYNCHR
@@ -1853,7 +1866,7 @@ DEFDBL:
   LD E,$08
   JP DEFVAL
 DEFINT:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   LD E,$02
   JP DEFVAL
   
@@ -1863,7 +1876,7 @@ __DEF_0:
   CP $4E	; 'N'
   JP NZ,__DEF_1	; not 'DEFS..NG', try 'DEFS..TR'
 
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   RST SYNCHR
   DEFB 'G'
 
@@ -1893,15 +1906,15 @@ DEFVAL:
   LD C,A
   LD B,A
 
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CP $D1		; TK_MINUS, '-'
   JP NZ,DEFVAL_0
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CALL IS_ALPHA  		; Load A with char in (HL) and check it is a letter
   RET C
   SUB 'A'
   LD B,A
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
 DEFVAL_0:
   LD A,B
   SUB C
@@ -1920,12 +1933,12 @@ DEFVAL_1:
   LD A,(HL)
   CP ','
   RET NZ
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP DEFVAL
 
 ; This entry point is used by the routine at SCPTLP.
 GET_POSINT:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
 ; This entry point is used by the routine at __CLEAR.
 GET_POSINT_0:
   CALL FPSINT
@@ -1964,7 +1977,7 @@ ATOH:
 ATOH_2:
   LD DE,$0000
 ATOH_2_0:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   RET NC
   PUSH HL
   PUSH AF
@@ -2236,7 +2249,7 @@ __ON:
 
 ; Routine at 2612
 ON_ERROR:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   RST SYNCHR
   DEFB $88	; TK_GOTO
   
@@ -2267,7 +2280,7 @@ ON_OTHER:
   CALL KEY_STMTS_3
   JP C,ON_ERROR_4
   PUSH BC
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   RST SYNCHR
   DEFB $8C
   XOR A
@@ -2294,7 +2307,7 @@ ON_ERROR_3:
   PUSH BC
   CALL ON_TIME_S_0
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   POP BC
   POP DE
   RET Z
@@ -2354,7 +2367,7 @@ __RESUME_0:
   RET
   
 __RESUME_1:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   RET NZ
   JP __RESUME_3
   
@@ -2415,7 +2428,7 @@ L0B2B:
   POP HL
   JP Z,__IF_1
 __IF_0:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP C,__GOTO
   JP EXEC_0
 __IF_1:
@@ -2424,7 +2437,7 @@ __IF_2:
   CALL __DATA
   OR A
   RET Z
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CP $91		; TK_ELSE
   JP NZ,__IF_2
   DEC D
@@ -2446,7 +2459,7 @@ __PRINT:
 ; This entry point is used by the routine at __LPRINT.
 __PRINT_0:
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CALL Z,CONSOLE_CRLF_0
 ; This entry point is used by the routine at TAB.
 __PRINT_1:
@@ -2470,7 +2483,7 @@ __PRINT_1:
   LD (HL),' '
   LD HL,(DBL_FPREG)
   INC (HL)
-  CALL _ISFLIO       ; a.k.a. _ISFLIO
+  CALL _ISFLIO       ; Tests if I/O to device is taking place
   JP NZ,__PRINT_4
   LD HL,(DBL_FPREG)
   LD A,(PRTFLG)
@@ -2506,7 +2519,7 @@ __PRINT_6:
   LD BC,SYNCHR
   LD HL,(PTRFIL)
   ADD HL,BC
-  CALL _ISFLIO       ; a.k.a. _ISFLIO
+  CALL _ISFLIO       ; Tests if I/O to device is taking place
   LD A,(HL)
   JP NZ,__PRINT_9
   LD A,(PRTFLG)
@@ -2542,7 +2555,7 @@ TAB:
   LD BC,SYNCHR
   LD HL,(PTRFIL)
   ADD HL,BC
-  CALL _ISFLIO       ; a.k.a. _ISFLIO
+  CALL _ISFLIO       ; Tests if I/O to device is taking place
   LD A,(HL)
   JP NZ,TAB_1
   LD A,(PRTFLG)
@@ -2568,7 +2581,7 @@ TAB_3:
 ; This entry point is used by the routine at __PRINT.
 TAB_4:
   POP HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP __PRINT_1
 
 ; This entry point is used by the routines at __PRINT, __READ, _CLREG and
@@ -2587,7 +2600,7 @@ FINPRT:
 __LINE:
   CP $84		; TK_INPUT, Token for INPUT to support the "LINE INPUT" statement
   JP NZ,LINE_GFX
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CP '#'
   JP Z,LINE_INPUT
   CALL CHK_RUNNING
@@ -2597,7 +2610,7 @@ __LINE:
   CALL TSTSTR
   PUSH DE
   PUSH HL
-  CALL INLIN		; Line input, FN keys are supported.
+  CALL _INLIN		; Line input, FN keys are supported.
   POP DE
   POP BC
   JP C,L40B3	; 	__END_1 - 3
@@ -2661,7 +2674,7 @@ __INPUT_0:
 ; Routine at 3268
 L0CC4:
   PUSH HL
-  CALL QINLIN
+  CALL Q_INLIN			; User interaction with question mark, HL = resulting text 
   POP BC
   JP C,L40B3
   INC HL
@@ -2709,7 +2722,7 @@ __READ_2:
   JP NZ,FDTLP
   LD A,'?'
   RST OUTC
-  CALL QINLIN
+  CALL Q_INLIN			; User interaction with question mark, HL = resulting text 
   POP DE
   POP BC
   JP C,L40B3
@@ -2722,12 +2735,12 @@ __READ_2:
   PUSH DE
 ; This entry point is used by the routine at FDTLP.
 __READ_3:
-  CALL _ISFLIO       ; a.k.a. _ISFLIO
+  CALL _ISFLIO       ; Tests if I/O to device is taking place
   JP NZ,L4F2E_2
   RST GETYPR
   PUSH AF
   JP NZ,__READ_6	; JP if not string type
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   LD D,A
   LD B,A
   CP '"'
@@ -2754,7 +2767,7 @@ L0D31:
   JP __LET_1
 
 __READ_6:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   LD BC,L0D31
   PUSH BC
   JP DBL_ASCTFP
@@ -2762,15 +2775,15 @@ __READ_6:
 ; Routine at 3397
 L0D45:
   DEC HL
-; This entry point is used by the routine at INLIN.
-  RST CHRGTB
+; This entry point is used by the routine at _INLIN.
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP Z,__READ_8
   CP ','
   JP NZ,ERR_INPUT
 __READ_8:
   EX (SP),HL
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP NZ,__READ_0
   POP DE
   LD A,(FLGINP)
@@ -2778,7 +2791,7 @@ __READ_8:
   EX DE,HL
   JP NZ,__RESTORE_1
   PUSH DE
-  CALL _ISFLIO       ; a.k.a. _ISFLIO
+  CALL _ISFLIO       ; Tests if I/O to device is taking place
   JP NZ,__READ_9
   LD A,(HL)
   OR A
@@ -2816,7 +2829,7 @@ FDTLP:
   LD (DATLIN),HL
   EX DE,HL
 FDTLP_0:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CP $83		; TK_DATA, Token for DATA
   JP NZ,FDTLP
   JP __READ_3
@@ -2946,7 +2959,7 @@ EVAL3_6:
   LD D,A
   JP C,SNERR
   LD (TEMP3),HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP EVAL3_6
 
 EVAL3_7:
@@ -3086,7 +3099,7 @@ IDIV:
 ;
 ; Used by the routines at EVAL1 and CONCAT.
 OPRND:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP Z,MOERR
   JP C,DBL_ASCTFP
   CALL IS_ALPHA_A
@@ -3106,7 +3119,7 @@ OPRND:
 
 ; ERR Function
 ERR:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   LD A,(ERR_CODE)
   PUSH HL
   CALL LDA_FAC1
@@ -3120,7 +3133,7 @@ OPRND_0:
 
 ; ERRL Function
 ERL:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   PUSH HL
   LD HL,(ERRLIN)
   CALL DBL_ABS_0
@@ -3144,7 +3157,7 @@ OPRND_1:
 
 ; VARPTR Function
 VARPTR:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   RST SYNCHR
   DEFB '('
   CP '#'
@@ -3255,7 +3268,7 @@ OPRND_3:
   RLCA
   LD C,A
   PUSH BC
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   LD A,C
   CP $39			; TK_INT ?
   JP C,OPRND_3_0
@@ -3521,7 +3534,7 @@ __OUT:
 ;
 ; Used by the routines at STEP and LINE_GFX.
 L1112:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
 
 ; Same as 1112H except that the evalutation starts at HL-1
 ;
@@ -3554,7 +3567,7 @@ GTIO_PARMS:
 ;
 ; Used by the routines at TAB, VARPTR_BUF and L4F2E.
 FNDNUM:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
 
 ; Get a number to 'A'
 ;
@@ -3571,7 +3584,7 @@ MAKINT:
   CALL DEPINT
   JP NZ,FCERR
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   LD A,E
   RET
 
@@ -3603,7 +3616,7 @@ __LIST_0:
   LD A,B
   OR C
   JP Z,__LIST_END
-  CALL _ISFLIO       ; a.k.a. _ISFLIO
+  CALL _ISFLIO       ; Tests if I/O to device is taking place
   CALL Z,CHSNS_0
   PUSH BC
   LD C,(HL)
@@ -3865,7 +3878,7 @@ GETWORD_HL:
 
 ; A = Character (wait if no char, FN keys are remapped)  CY if special keys
 ;
-; Used by the routines at INLIN, INKEY_S, INPUT_S, TEL_TERM, TEL_PREV, TEL_UPLD,
+; Used by the routines at _INLIN, INKEY_S, INPUT_S, TEL_TERM, TEL_PREV, TEL_UPLD,
 ; IS_CRLF, CHGET_UCASE, WAIT_SPC, MCLEAR, TXT_CTL_N and MOVE_TEXT.
 CHGET:
   PUSH HL
@@ -3916,7 +3929,7 @@ CHGET_4:
   LD A,($FAA1)
   CP $0D         ; CR
   CALL Z,RESFPT
-  LD HL,(HAYASHI)
+  LD HL,(HAYASHI)		; Paste buffer file
   POP DE
   ADD HL,DE
   LD A,(HL)
@@ -3961,16 +3974,17 @@ CHGET_8:
   JP NZ,POWER_DOWN
   CALL _RST75_6
   CALL KYREAD
-  RET NC
-  SUB $0B			; HOME
-  JP Z,CHGET_3
-  JP NC,FNBAR_TOGGLE_2
-  INC A
-  JP Z,CHGET_10		; SHIFT-PRINT
-  INC A
-  JP Z,__LCOPY
-  INC A
-  JP Z,FNBAR_TOGGLE
+  RET NC			; return if not special keys
+  ; 8=LABEL, 9=PRINT, $0A=SH-PRINT, $0B=PASTE
+  SUB $0B				
+  JP Z,CHGET_3			; PASTE
+  JP NC,INVALID_CH		; > $0B ?
+  INC A					; $0A
+  JP Z,CHGET_10			; SHIFT-PRINT
+  INC A					; $09
+  JP Z,__LCOPY			; PRINT
+  INC A					; $08 (LABEL)
+  JP Z,FNBAR_TOGGLE		; LABEL
   LD E,A
   LD A,(FNK_FLAG)
   ADD A,A
@@ -4022,8 +4036,9 @@ POWER_DOWN:
   DEC HL
   LD (HL),A
   CALL TURN_OFF
+  
 ; This entry point is used by the routine at CHGET.
-FNBAR_TOGGLE_2:
+INVALID_CH:
   XOR A
   RET
 
@@ -4073,7 +4088,7 @@ CHSNS_0:
   CALL BRKCHK
   RET Z
   CP $03
-  JP Z,CHSNS_2
+  JP Z,CTL_C
   CP $13
   RET NZ
   CALL BLINK_CURS_SHOW
@@ -4084,18 +4099,19 @@ CHSNS_1:
   CP $03
   JP NZ,CHSNS_1
   CALL BLINK_CURS_HIDE
-CHSNS_2:
+
+CTL_C:
   XOR A
-  LD (GETPNT),A
+  LD (KYBCNT),A
   JP __STOP
 
 ; POWER statement
 __POWER:
   SUB $A4
   JP Z,POWER_CONT
-  CP $27
+  CP $27	; $A4+$27=$CB: TOKEN for "OFF"
   JP NZ,POWER_ON
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP Z,TURN_OFF_0
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
@@ -4142,7 +4158,7 @@ TURN_OFF_0:
 POWER_CONT:
   CALL POWER_ON_0
   LD (TMOFLG),A
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   RET
 
 ; POWER ON Statement
@@ -4474,7 +4490,7 @@ RAM_INPUT:
   CALL INIT_INPUT
   JP NZ,RAM_INPUT_1
   EX DE,HL
-  LD HL,($FC87)
+  LD HL,(FILTAB+4)
   RST CPDEHL
   PUSH AF
   PUSH DE
@@ -4540,7 +4556,7 @@ RAM_INPUT_2:
   PUSH BC
   PUSH HL
   EX DE,HL
-  LD HL,($FC87)
+  LD HL,(FILTAB+4)
   RST CPDEHL
   CALL NZ,RESFPT
   POP HL
@@ -4587,7 +4603,7 @@ RAM_INPUT_3:
   DEC C
   JP NZ,RAM_INPUT_3
   POP DE
-  LD HL,($FC87)
+  LD HL,(FILTAB+4)
   RST CPDEHL
   RET Z
   JP RESFPT
@@ -4602,7 +4618,7 @@ RAM_INPUT_4:
 ; This entry point is used by the routines at RAM_OPN, RAM_CLS and __EOF.
 GET_RAM_PTR:
   PUSH DE
-  LD HL,($FAA2)
+  LD HL,(RAMFILE)
   LD DE,$FA91			; -1391
   ADD HL,DE
   POP DE
@@ -5108,7 +5124,7 @@ __EOF_6:
 ;
 ; Used by the routine at ERL.
 TIME_S_FN:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   PUSH HL
   CALL GET_DAY_0
   CALL READ_TIME
@@ -5134,7 +5150,7 @@ READ_TIME_0:
 ;
 ; Used by the routine at ERL.
 DATE_S_FN:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   PUSH HL
   CALL GET_DAY_0
   CALL GET_DATE
@@ -5168,7 +5184,7 @@ GET_DATE_0:
 ;
 ; Used by the routine at ERL.
 DAY_S_FN:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   PUSH HL
   LD A,$03
   CALL GET_DAY_1
@@ -5424,7 +5440,7 @@ __MDM_1:
 __MDM_2:
   POP HL
   POP AF
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP EXEC_EVAL_0
 
 ; This entry point is used by the routine at OUTS_B_CHARS.
@@ -5610,7 +5626,7 @@ _RST75_3:
 _RST75_4:
   CALL _CLICK_1
 _RST75_5:
-  JP SET_CLOCK_HL_5
+  JP _RST75_7
 
 ; This entry point is used by the routines at CHGET, LPT_BREAK, LCD_OUTPUT and
 ; TXT_CTL_U.
@@ -5623,7 +5639,7 @@ _RST75_6:
 __KEY:
   CP $A5
   JP NZ,OUTS_B_CHARS_2
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   PUSH HL
   LD HL,FNKSTR
   LD C,$04
@@ -5724,7 +5740,7 @@ OUTS_B_CHARS_4:
 OUTS_B_CHARS_5:
   LD (HL),C
   CALL FNKSB
-  CALL BASIC_3
+  CALL SAVE_BA_LBL
   POP HL
   RET
 
@@ -5775,7 +5791,7 @@ LINE_GFX:
   LD DE,UNPLOT
 LINE_GFX_0:
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
 LINE_GFX_1:
   EX DE,HL
   LD (LASTCALL),HL
@@ -5921,14 +5937,14 @@ LINE_GFX_13:
   POP AF
   LD D,A
   EX DE,HL
-; This entry point is used by the routines at INLIN and MOVE_TEXT.
+; This entry point is used by the routines at _INLIN and MOVE_TEXT.
 LINE_GFX_14:
   LD (GR_X),HL
   EX DE,HL
   LD A,(HL)
   CP ')'
   JP NZ,LINE_GFX_15
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   LD A,$01
   RET
 
@@ -5988,14 +6004,14 @@ CSRLIN:
 CSRLIN_0:
   CALL INT_RESULT_A
   POP HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   RET
 
 ; Routine at 7579
 ;
 ; Used by the routine at ERL.
 MAX_FN:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CP $9D		; TK_FILES, token for "FILES" keyword
   JP Z,MAXFILES
   RST SYNCHR
@@ -6032,7 +6048,7 @@ _HIMEM:
   LD HL,(HIMEM)
   CALL DBL_ABS_0
   POP HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   RET
 
 ; Routine at 7619
@@ -6072,7 +6088,7 @@ SOUND_OFF:
 SOUND_ON:
   XOR A
   LD (SOUND_FLG),A
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   RET
 
 ; Routine at 7660
@@ -6092,7 +6108,7 @@ MOTOR_ON:
 ; Used by the routine at __MOTOR.
 MOTOR_OFF:
   LD E,A
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP DATAR_1
 
 ; Routine at 7674
@@ -6102,7 +6118,7 @@ __CALL:
   LD (LASTCALL),HL
   EX DE,HL
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP Z,__CALL_1
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
@@ -6130,7 +6146,7 @@ __SCREEN:
   CALL NZ,GETINT
   CALL __SCREEN_0
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   RET Z
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
@@ -6218,7 +6234,7 @@ _MERGE_SUB_3:
   LD A,(HL)
   CP ','
   JP NZ,_MERGE_SUB_4
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   RST SYNCHR
   DEFB 'R'
   POP AF
@@ -6264,7 +6280,7 @@ __LCOPY_7:
   POP HL
   PUSH BC
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP Z,__LCOPY_9
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
@@ -6369,7 +6385,7 @@ CATALOG_3:
 __KILL:
   CALL __NAME_1
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP NZ,SNERR
   LD A,D
   CP $F8		; 'RAM' device ?
@@ -6406,7 +6422,7 @@ KILLASC_0:
   INC BC
   CP $1A		; EOF
   JP NZ,KILLASC_0
-  CALL MASDEL
+  CALL MASDEL		; Delete specified no of characters, BC=number, HL=address
 KILLASC_1:
   CALL __EOF_4
   CALL RESFPT
@@ -6433,7 +6449,7 @@ KILLBIN_0:
   LD B,H
   LD C,L
   POP HL
-  CALL MASDEL
+  CALL MASDEL		; Delete specified no of characters, BC=number, HL=address
   POP HL
   LD (CO_FILES),HL
   JP KILLASC_1
@@ -6531,7 +6547,7 @@ __NAME_1:
 ; This entry point is used by the routines at __LCOPY and __NEW.
 __NAME_2:
   LD HL,(DIRPNT)
-  LD DE,$F999
+  LD DE,SUZUKI-1
   RST CPDEHL
   RET
 
@@ -6649,7 +6665,7 @@ __NEW:
 CLRPTR:
   CALL __NAME_2
   CALL NZ,RESFPT
-  LD HL,$F999
+  LD HL,SUZUKI-1
   LD (DIRPNT),HL
   LD HL,(SUZUKI)
   LD (BASTXT),HL
@@ -6685,7 +6701,7 @@ __NEW_3:
   SBC A,D
   LD B,A
   EX DE,HL
-  CALL MASDEL
+  CALL MASDEL		; Delete specified no of characters, BC=number, HL=address
   LD HL,(DO_FILES)
   ADD HL,BC
   LD (DO_FILES),HL
@@ -6926,7 +6942,7 @@ SWAPNM_1:
   LD ($F62E),HL
   LD B,H
   LD C,L
-  LD HL,(HAYASHI)
+  LD HL,(HAYASHI)		; Paste buffer file
   PUSH HL
   LD A,$1A		; EOF
 SWAPNM_2:
@@ -6935,7 +6951,7 @@ SWAPNM_2:
   INC HL
   JP NZ,SWAPNM_2
   POP HL
-  CALL MASDEL
+  CALL MASDEL		; Delete specified no of characters, BC=number, HL=address
   JP RESFPT
 
 ; Routine at 8832
@@ -6946,7 +6962,7 @@ __CSAVE:
 ; This entry point is used by the routine at __SAVE.
 __CSAVE_0:
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP Z,__CSAVE_1
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
@@ -6998,7 +7014,7 @@ SAVE_BUFFER_0:
 ;
 ; Used by the routine at __SAVE.
 SAVEM:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CALL __NAME_1
   LD A,D
   CP $FD		; D = 'CAS' device ?
@@ -7012,7 +7028,7 @@ SAVEM:
 ;
 ; Used by the routine at __CSAVE.
 CSAVEM:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CALL GETPARM_SAVE
 ; This entry point is used by the routine at SAVEM.
 CSAVEM_0:
@@ -7070,11 +7086,11 @@ CSAVEM_2:
   CALL CSAVEM_3
   PUSH DE
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   LD DE,$0000
   CALL NZ,CSAVEM_3
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP NZ,SNERR
   EX DE,HL
   LD (EXE),HL
@@ -7113,11 +7129,11 @@ __CLOAD_0:
   PUSH AF
   JP NZ,__CLOAD_1
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP NZ,FCERR
 __CLOAD_1:
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   LD A,$00
   SCF
   CCF
@@ -7273,7 +7289,7 @@ VRFY_ERRM:
 ;
 ; Used by the routine at __MERGE.
 LOADM_RUNM:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   POP AF
   PUSH AF
   JP Z,FCERR
@@ -7290,7 +7306,7 @@ LOADM_RUNM:
 ;
 ; Used by the routine at __CLOAD.
 CLOADM:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CP $A3		 ; TK_PRINT  (=CLOADM?)
   JP Z,CVERIFYM
   CALL GETPARM_LOAD
@@ -7300,7 +7316,7 @@ CLOADM:
 ; This entry point is used by the routine at LOADM_RUNM.
 CLOADM_CAS:
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP NZ,SNERR
   PUSH HL
   CALL CAS_OPNI_CO
@@ -7369,7 +7385,7 @@ CLOADM_4:
 CLOAD_PARMS:
   CALL CLOAD_PRPARM
 ; This entry point is used by the routine at LDIR_B.
-CLOADM_6:
+_CLOAD_PARMS:
   LD HL,(HIMEM)
   EX DE,HL
   LD HL,(TOP)
@@ -7401,8 +7417,8 @@ LDIR_B:
 LDIR_B_0:
   CALL CLOADM_7
   PUSH HL
-  CALL CLOADM_6
-  JP C,LDIR_B_1
+  CALL _CLOAD_PARMS
+  JP C,CLOAD_STOP
   EX DE,HL
   LD HL,(PRLEN)
   LD B,H
@@ -7416,13 +7432,13 @@ LDIR_B_0:
   CALL NZ,PIVOTCALL
   JP __MENU
 
-LDIR_B_1:
+CLOAD_STOP:
   CALL __BEEP
   JP __MENU
 
 ; This entry point is used by the routine at CLOADM.
 CVERIFYM:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CALL GETPARM_LOAD
   PUSH HL
   CALL CAS_OPNI_CO
@@ -7504,7 +7520,7 @@ GETPARM_LOAD:
   DEC HL
 ; This entry point is used by the routine at LOAD_RECORD.
 GETPARM_VRFY:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP NZ,GETPARM_SAVE
   LD B,$06		; 6 characters
   LD DE,FILNAM
@@ -7572,8 +7588,8 @@ CAS_OPNO_CO_1:
   LD A,C
   CPL
   INC A
-  CALL CSOUT		; 20
-  LD B,$14
+  CALL CSOUT
+  LD B,$14			; 20
 CAS_OPNO_CO_2:
   XOR A
   CALL CSOUT
@@ -8266,7 +8282,7 @@ TOPOOL:
 ;
 ; Used by the routine at VARPTR_VAR.
 STRING_S:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   RST SYNCHR
   DEFB '('
   CALL GETINT
@@ -8414,7 +8430,7 @@ __VAL:
   EX (SP),HL
   PUSH BC
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CALL DBL_ASCTFP
   LD HL,$0000
   LD (VLZADR),HL
@@ -8445,7 +8461,7 @@ MIDNUM:
 ;
 ; Used by the routine at VARPTR_VAR.
 INSTR:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CALL OPNPAR
   RST GETYPR
   LD A,$01
@@ -8769,18 +8785,18 @@ DECADD_3:
 DECNRM:
   LD HL,FACCU+1
   LD BC,$0800		; 2048
-DECADD_5:
+DECNRM_0:
   LD A,(HL)
   OR A
-  JP NZ,DECADD_6
+  JP NZ,DECNRM_1
   INC HL
   DEC C
   DEC C
   DEC B
-  JP NZ,DECADD_5
+  JP NZ,DECNRM_0
   JP CLEAR_EXPONENT
 
-DECADD_6:
+DECNRM_1:
   AND $F0
   JP NZ,DECADD_7
   PUSH HL
@@ -8822,7 +8838,7 @@ DECROU:
   LD HL,FACCU+8
   LD B,$07
 ; This entry point is used by the routines at __CSNG and PUFOUT.
-DECADD_11:
+BNORM_8:
   LD A,(HL)
   CP $50
   RET C
@@ -10322,7 +10338,7 @@ __CINT:
   RST GETYPR
   LD HL,(DBL_FPREG)
   RET M
-  JP Z,TMERR
+  JP Z,TMERR		; If string type, "Type mismatch"
   CALL CINT
   JP C,OVERR
   EX DE,HL
@@ -10370,7 +10386,7 @@ __CSNG:
   OR A
   RRA
   LD B,A
-  JP DECADD_11
+  JP BNORM_8
 
 ; Convert the signed integer in FAC1 to single precision.
 ;
@@ -11036,7 +11052,7 @@ _ASCTFP:
   JP Z,_ASCTFP_0
   DEC HL
 _ASCTFP_0:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP C,_ASCTFP_20
   CP '.'
   JP Z,_ASCTFP_14
@@ -11046,7 +11062,7 @@ _ASCTFP_0:
 _ASCTFP_1:
   JP NZ,_ASCTFP_4
   PUSH HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CP $6C
   JP Z,_ASCTFP_2
   CP $4C
@@ -11078,14 +11094,14 @@ _ASCTFP_5:
   OR A
 _ASCTFP_6:
   CALL _ASCTFP_19
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   PUSH DE
   LD D,$00
   CALL UCASE_5
   LD C,D
   POP DE
 _ASCTFP_7:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP NC,_ASCTFP_9
   LD A,E
   CP $0C
@@ -11154,7 +11170,7 @@ _ASCTFP_14:
 _ASCTFP_15:
   JP _ASCTFP_0
 _ASCTFP_16:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   POP AF
   PUSH HL
   LD HL,BCDEFP_ARG_2
@@ -11167,7 +11183,7 @@ _ASCTFP_17:
   OR A
 _ASCTFP_18:
   CALL _ASCTFP_19
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP _ASCTFP_10
 _ASCTFP_19:
   PUSH HL
@@ -11368,7 +11384,7 @@ PUFOUT_2:
   LD B,C
 PUFOUT_3:
   LD (HL),C
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP Z,PUFOUT_4
   CP 'E'
   JP Z,PUFOUT_4
@@ -11510,7 +11526,7 @@ L3B12:
   PUSH AF
   LD BC,L3B12
   PUSH BC
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CP '-'
   RET Z
   CP '+'
@@ -11521,7 +11537,7 @@ L3B12:
   CP '0'
   JP NZ,PUFOUT_23
   INC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP NC,PUFOUT_23
   DEC HL
   JP PUFOUT_22
@@ -11923,7 +11939,7 @@ PUFOUT_61:
   LD A,B
   RRCA
   LD B,A
-  CALL DECADD_11
+  CALL BNORM_8
   CALL PUFOUT_64
 PUFOUT_62:
   POP BC
@@ -12620,14 +12636,14 @@ __CLEAR:
   CALL SWAPNM_1
   POP HL
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP Z,_OMERR_1
   RST $38
   DEFB $00		; RST38_VECT, offset: 00, Hook for CLEAR
   
   CALL GET_POSINT_0
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   PUSH HL
   LD HL,(HIMEM)
   LD B,H
@@ -12640,7 +12656,7 @@ __CLEAR:
   PUSH DE
   CALL GETWORD
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP NZ,SNERR		; "Syntax error"
   EX (SP),HL
   EX DE,HL
@@ -12648,7 +12664,7 @@ __CLEAR:
   AND A
   JP P,FCERR		; "Illegal function call" error
   PUSH DE
-  LD DE,MAXRAM+1
+  LD DE,MAXRAM+1	; Limit of CLEAR position
   RST CPDEHL
   JP NC,FCERR		; "Illegal function call" error
   POP DE
@@ -12786,6 +12802,7 @@ __NEXT_4:
   PUSH DE
   CALL XDCOMP
   JP __NEXT_3
+
 __NEXT_5:
   LD SP,HL
   LD (SAVSTK),HL
@@ -12794,12 +12811,12 @@ __NEXT_5:
   LD A,(HL)
   CP ','
   JP NZ,EXEC_EVAL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CALL __NEXT_0
 
 ; Line input
 ;
-; Used by the routines at EXEC_HL, __PRINT, TAB, __READ, __LIST, INLIN, _OUTC,
+; Used by the routines at EXEC_HL, __PRINT, TAB, __READ, __LIST, _INLIN, _OUTC,
 ; CONSOLE_CRLF and INIT_PRINT_h.
 _ISFLIO:
   PUSH HL
@@ -12811,7 +12828,7 @@ _ISFLIO:
 
 ; Send CRLF to screen or printer
 ;
-; Used by the routines at __KEY, CATALOG, INLIN_BRK, INLIN_ENTER, TEL_FIND,
+; Used by the routines at __KEY, CATALOG, _INLIN_BRK, _INLIN_ENTER, TEL_FIND,
 ; TXT_ESC, TXT_CTL_Y and TXT_CTL_V.
 OUTDO_CRLF:
   LD A,$0D			; CR
@@ -13127,7 +13144,7 @@ OUTC_SUB_4:
 TTY_JP_0:
   LD HL,ESCTBL-2  ;$4388
   LD C,$08
-; This entry point is used by the routines at IN_ESC, INLIN and MOVE_TEXT.
+; This entry point is used by the routines at IN_ESC, _INLIN and MOVE_TEXT.
 TTY_JP:
   INC HL
   INC HL
@@ -13165,7 +13182,7 @@ ESCTBL:
   DEFW _CLS
 
   DEFB $0D
-  DEFW _CR
+  DEFW CURS_CR
 
   DEFB $1B
   DEFW ESC_MODE
@@ -13215,7 +13232,7 @@ ESCFN:
   DEFW ESC_J
 
   DEFM "l"
-  DEFW ESC_LL		; ESC,"l", clear line
+  DEFW ESC_CLINE		; ESC,"l", clear line
 
   DEFM "L"
   DEFW ESC_L
@@ -13398,7 +13415,7 @@ ESC_B:
   RET Z
   JP C,ESC_B_1
   INC L
-; This entry point is used by the routines at ESC_X, ESC_C, ESC_A, _LF and _CR.
+; This entry point is used by the routines at ESC_X, ESC_C, ESC_A, _LF and CURS_CR.
 UPD_COORDS:
   LD (CSRX),HL
   RET
@@ -13449,7 +13466,7 @@ ESC_H:
 ; Move cursor to beginning
 ;
 ; Used by the routines at ESC_M and ESC_L.
-_CR:
+CURS_CR:
   LD H,$01
   JP UPD_COORDS
 
@@ -13469,14 +13486,14 @@ ESC_Q:
 
 ; Erase current line
 ESC_M:
-  CALL _CR
+  CALL CURS_CR
 ; This entry point is used by the routine at _LF.
 ESC_M_0:
   CALL TTY_JP_0_1
   CALL TEXT_LINES
   SUB L
   RET C
-  JP Z,ESC_LL		; ESC,"l", clear line
+  JP Z,ESC_CLINE		; ESC,"l", clear line
 ESC_M_1:
   PUSH AF
   LD H,40
@@ -13484,24 +13501,24 @@ ESC_M_2:
   INC L
   CALL ESC_L_2
   DEC L
-  CALL ESC_J_2
+  CALL RESET_CONSOLE
   DEC H
   JP NZ,ESC_M_2
   INC L
   POP AF
   DEC A
   JP NZ,ESC_M_1
-  JP ESC_LL		; ESC,"l", clear line
+  JP ESC_CLINE		; ESC,"l", clear line
 
 ; Insert line
 ESC_L:
-  CALL _CR
+  CALL CURS_CR
   CALL TTY_JP_0_1
   CALL TEXT_LINES
   LD H,A
   SUB L
   RET C
-  JP Z,ESC_LL		; ESC,"l", clear line
+  JP Z,ESC_CLINE		; ESC,"l", clear line
   LD L,H
 ESC_L_0:
   PUSH AF
@@ -13510,14 +13527,14 @@ ESC_L_1:
   DEC L
   CALL ESC_L_2
   INC L
-  CALL ESC_J_2
+  CALL RESET_CONSOLE
   DEC H
   JP NZ,ESC_L_1
   DEC L
   POP AF
   DEC A
   JP NZ,ESC_L_0
-  JP ESC_LL		; ESC,"l", clear line
+  JP ESC_CLINE		; ESC,"l", clear line
 
 ; This entry point is used by the routines at ESC_M and ESC_J.
 ESC_L_2:
@@ -13550,7 +13567,7 @@ ESC_L_3:
 ;
 ; Used by the routines at ESC_M and ESC_L.
 ; ESC,"l", clear line
-ESC_LL:
+ESC_CLINE:
   LD H,$01
 
 ; Escape K routine (erase from cursor to the end of the screen)
@@ -13562,7 +13579,7 @@ ESC_K:
 ESC_K_0:
   LD C,' '
   XOR A
-  CALL ESC_J_2
+  CALL RESET_CONSOLE
   INC H
   LD A,H
   CP 41
@@ -13598,7 +13615,7 @@ ESC_J_1:
   LD A,(REVERSE)
 
 ; This entry point is used by the routines at ESC_M, ESC_L and ESC_K.
-ESC_J_2:
+RESET_CONSOLE:
   PUSH HL
   PUSH AF
   PUSH HL
@@ -13608,7 +13625,7 @@ ESC_J_2:
   CALL ESC_J_4
   LD (HL),C
   POP DE
-  CALL SET_CLOCK_HL_11
+  CALL INIT_LCD
   POP AF
   AND A
   POP HL
@@ -13734,7 +13751,7 @@ ESC_J_14:
   LD H,$01
 ESC_J_15:
   CALL ESC_L_2
-  CALL ESC_J_2
+  CALL RESET_CONSOLE
   INC H
   LD A,H
   CP 41				; 'A'
@@ -13754,7 +13771,7 @@ ESC_J_18:
   PUSH HL
   PUSH DE
   LD C,(HL)
-  CALL SET_CLOCK_HL_11
+  CALL INIT_LCD
   POP DE
   POP HL
   INC HL
@@ -13772,7 +13789,7 @@ ESC_J_18:
 ; entered
 ;
 ; Used by the routines at __INPUT, __READ, TEL_UPLD, DWNLDR, TEL_BYE and TEXT.
-QINLIN:
+Q_INLIN:
   LD A,'?'
   RST OUTC
   LD A,' '
@@ -13781,54 +13798,54 @@ QINLIN:
 ; Routine at 17988
 ;
 ; Used by the routines at PROMPT, __LINE, TELCOM_RDY, TEL_UPLD and SCHEDL_DE.
-INLIN:
-  CALL _ISFLIO       ; a.k.a. _ISFLIO
+_INLIN:
+  CALL _ISFLIO       ; Tests if I/O to device is taking place
   JP NZ,INXD_6
   LD A,(CSRY)
   LD (SV_CSRY),A
   LD DE,KBUF
   LD B,$01
-L4655:
+_INLIN_1:
   CALL CHGET
-  LD HL,L4655
+  LD HL,_INLIN_1
   PUSH HL
   RET C
   CP $7F		; BS
-  JP Z,INLIN_BS
+  JP Z,_INLIN_BS
   CP ' '
-  JP NC,INLIN_TAB_0
+  JP NC,_INLIN_TAB_0
   LD HL,INLIN_TBL-2
   LD C,$07
   JP TTY_JP
 
 INLIN_TBL:
   DEFB $03
-  DEFW _INLIN_BRK
+  DEFW __INLIN_BRK
   
   DEFB $08
-  DEFW INLIN_BS
+  DEFW _INLIN_BS
 
   DEFB $09
-  DEFW INLIN_TAB
+  DEFW _INLIN_TAB
 
   DEFB $0D
-  DEFW INLIN_ENTER
+  DEFW _INLIN_ENTER
 
   DEFB $15
-  DEFW INLIN_CTL_UX
+  DEFW _INLIN_CTL_UX
 
   DEFB $18
-  DEFW INLIN_CTL_UX
+  DEFW _INLIN_CTL_UX
 
   DEFB $1D
-  DEFW INLIN_BS
+  DEFW _INLIN_BS
 
 ; Routine at 18052
-_INLIN_BRK:
+__INLIN_BRK:
   POP HL
 
-; INLIN Control C handler
-INLIN_BRK:
+; _INLIN Control C handler
+_INLIN_BRK:
   LD A,$5E
   RST OUTC
   LD A,$43
@@ -13840,8 +13857,8 @@ INLIN_BRK:
   SCF
   RET
 
-; INLIN ENTER handler
-INLIN_ENTER:
+; _INLIN ENTER handler
+_INLIN_ENTER:
   POP HL
   CALL OUTDO_CRLF
   XOR A
@@ -13849,10 +13866,10 @@ INLIN_ENTER:
   LD HL,BUFMIN
   RET
 
-; INLIN  backspace, left arrow, control H handler
+; _INLIN  backspace, left arrow, control H handler
 ;
-; Used by the routines at INLIN, INLIN_CTL_UX and MOVE_TEXT.
-INLIN_BS:
+; Used by the routines at _INLIN, _INLIN_CTL_UX and MOVE_TEXT.
+_INLIN_BS:
   LD A,B
   DEC A
   SCF
@@ -13860,7 +13877,7 @@ INLIN_BS:
   DEC B
   DEC DE
   CALL INXD_1
-INLIN_BS_0:
+_INLIN_BS_0:
   PUSH AF
   LD A,$7F
   RST OUTC
@@ -13869,29 +13886,29 @@ INLIN_BS_0:
   DEC H
   LD A,H
   OR L
-  JP Z,INLIN_BS_1
+  JP Z,_INLIN_BS_1
   LD HL,CSRY
   POP AF
   CP (HL)
-  JP NZ,INLIN_BS_0
+  JP NZ,_INLIN_BS_0
   RET
 
-INLIN_BS_1:
+_INLIN_BS_1:
   POP AF
   SCF
   RET
 
-; INLIN CTRL-U handler
-INLIN_CTL_UX:
-  CALL INLIN_BS
-  JP NC,INLIN_CTL_UX
+; _INLIN CTRL-U handler
+_INLIN_CTL_UX:
+  CALL _INLIN_BS
+  JP NC,_INLIN_CTL_UX
   RET
 
-; INLIN TAB handler
-INLIN_TAB:
+; _INLIN TAB handler
+_INLIN_TAB:
   LD A,$09
-; This entry point is used by the routine at INLIN.
-INLIN_TAB_0:
+; This entry point is used by the routine at _INLIN.
+_INLIN_TAB_0:
   INC B
   JP Z,INXD_0
   RST OUTC
@@ -13902,12 +13919,12 @@ INXD:
   INC DE
   RET
   
-; This entry point is used by the routine at INLIN_TAB.
+; This entry point is used by the routine at _INLIN_TAB.
 INXD_0:
   DEC B
   JP __BEEP
   
-; This entry point is used by the routine at INLIN_BS.
+; This entry point is used by the routine at _INLIN_BS.
 INXD_1:
   PUSH BC
   LD A,(SV_CSRY)
@@ -13938,7 +13955,7 @@ INXD_5:
   POP BC
   RET
 
-; This entry point is used by the routine at INLIN.
+; This entry point is used by the routine at _INLIN.
 INXD_6:
   LD HL,(PTRFIL)
   PUSH HL
@@ -13968,8 +13985,8 @@ INXD_7:
   LD HL,KBUF
 INXD_8:
   XOR A
-  LD ($FAA2),A
-  LD ($FAA3),A
+  LD (RAMFILE),A
+  LD (RAMFILE+1),A
   CALL RDBYT
   JP C,INXD_11
   LD (HL),A
@@ -14015,7 +14032,7 @@ INXD_12:
 ; Routine at 18310
 L4786:
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   RET Z
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
@@ -14039,14 +14056,14 @@ GETVAR:
   JP C,SNERR
   XOR A
   LD B,A
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP C,GETVAR_0
   CALL IS_ALPHA_A
   JP C,GETVAR_2
 GETVAR_0:
   LD B,A
 GETVAR_1:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP C,GETVAR_1
   CALL IS_ALPHA_A
   JP NC,GETVAR_1
@@ -14084,7 +14101,7 @@ GETVAR_3:
 GVAR:
   LD A,D
   LD (VALTYP),A
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   LD A,(SUBFLG)
   DEC A
   JP Z,SBSCPT_1
@@ -14238,7 +14255,7 @@ SCPTLP:
   CP ']'
   JP NZ,SNERR
 SCPTLP_0:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   LD (NXTOPR),HL
   POP HL
   LD (DIMFLG),HL
@@ -14636,7 +14653,7 @@ USING_17:
 USING_18:
   POP HL
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   SCF
   JP Z,USING_20
   LD (FLGINP),A
@@ -14645,7 +14662,7 @@ USING_18:
   CP ','
   JP NZ,SNERR
 USING_19:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
 USING_20:
   POP BC
   EX DE,HL
@@ -14731,7 +14748,7 @@ USING_26:
 _OUTC:
   PUSH AF
   PUSH HL
-  CALL _ISFLIO       ; a.k.a. _ISFLIO
+  CALL _ISFLIO       ; Tests if I/O to device is taking place
   JP NZ,OUTC_FOUT
   POP HL
   LD A,(PRTFLG)
@@ -14829,7 +14846,7 @@ CONSOLE_CRLF:
   JP CONSOLE_CRLF_0
 
   LD (HL),$00
-  CALL _ISFLIO       ; a.k.a. _ISFLIO
+  CALL _ISFLIO       ; Tests if I/O to device is taking place
   LD HL,BUFMIN
   JP NZ,CONSOLE_CRLF_1
 ; This entry point is used by the routines at __PRINT, __LIST and USING.
@@ -14840,7 +14857,7 @@ CONSOLE_CRLF_0:
   RST OUTC
 ; This entry point is used by the routines at __PRINT and PRS1.
 CONSOLE_CRLF_1:
-  CALL _ISFLIO       ; a.k.a. _ISFLIO
+  CALL _ISFLIO       ; Tests if I/O to device is taking place
   JP Z,CONSOLE_CRLF_2
   XOR A
   RET
@@ -14862,7 +14879,7 @@ CONSOLE_CRLF_3:
 ;
 ; Used by the routine at VARPTR_VAR.
 INKEY_S:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   PUSH HL
   CALL CHSNS
   JP Z,INKEY_S_0
@@ -14980,7 +14997,7 @@ VARPTR_A:
   CP L
   JP C,BNERR
   LD H,$00
-  LD ($FAA2),HL
+  LD (RAMFILE),HL
   ADD HL,HL
   EX DE,HL
   LD HL,(FILTAB)
@@ -15014,7 +15031,7 @@ VARPTR_A_0:
 ; This entry point is used by the routine at INPUT_S.
 VARPTR_A_1:
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CP '#'
   CALL Z,_CHRGTB
   CALL GETINT
@@ -15062,7 +15079,7 @@ __OPEN_0:
   JP __OPEN_2
   
 __OPEN_OUTPUT:
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   RST SYNCHR
   DEFB 'P'
   RST SYNCHR
@@ -15074,7 +15091,7 @@ __OPEN_OUTPUT:
   DEFB $3E  ; "LD A,n" to Mask the next byte
 
 __OPEN_INPUT:
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
+  RST CHRGTB		; Gets next character (or token) from BASIC text.		; Gets next character (or token) from BASIC text.
 __OPEN_2:
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB 'A'
@@ -15102,7 +15119,7 @@ _OPEN:
   PUSH DE
   DEC HL
   LD E,A
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP NZ,SNERR
   EX (SP),HL
   LD A,E
@@ -15189,7 +15206,7 @@ __MERGE:
   XOR A
   PUSH AF
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CP 'M'
   JP Z,LOADM_RUNM
   CALL FILE_PARMS
@@ -15211,7 +15228,7 @@ __MERGE_0:
   SUB ','
   OR A
   JP NZ,__MERGE_2
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   RST SYNCHR
   DEFB 'R'
   POP AF
@@ -15265,7 +15282,7 @@ __SAVE:
   DEFB $16		; HSAVE, Offset: 22
   
   DEC HL
-  RST CHRGTB  
+  RST CHRGTB		; Gets next character (or token) from BASIC text.  
   LD E,$80
   SCF
   JP Z,__SAVE_0
@@ -15295,7 +15312,7 @@ __SAVE_1:
   POP AF
   JP C,__SAVE_2
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP __LIST
   
 __SAVE_2:
@@ -15350,7 +15367,7 @@ __CLOSE_1:
   LD A,(HL)
   CP ','
   RET NZ
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP __CLOSE_1
   
 ; This entry point is used by the routine at _OUTC.
@@ -15412,7 +15429,7 @@ RDBYT_0:
 ;
 ; Used by the routine at VARPTR_VAR.
 INPUT_S:
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
+  RST CHRGTB		; Gets next character (or token) from BASIC text.		; Gets next character (or token) from BASIC text.
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB '$'
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
@@ -15429,7 +15446,7 @@ INPUT_S:
   LD A,(HL)
   CP ','
   JP NZ,INPUT_S_1
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CALL VARPTR_A_1
   CP $01
   JP Z,INPUT_S_0
@@ -15525,7 +15542,7 @@ INIT_PRINT_h_1:
   
 ; This entry point is used by the routine at EXEC_HL.
 INIT_PRINT_h_2:
-  CALL _ISFLIO       ; a.k.a. _ISFLIO
+  CALL _ISFLIO       ; Tests if I/O to device is taking place
   JP Z,EXEC
   XOR A
   CALL CLOSE1
@@ -15703,7 +15720,7 @@ L4F2E_16:
 L4F2E_17:
   RST GETYPR
   PUSH AF
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   POP AF
   PUSH AF
   CALL C,DBL_ASCTFP
@@ -16018,8 +16035,8 @@ TELCOM_RDY:
   LD (ERRTRP),HL
   LD HL,TELCOM_PROMPT
   CALL PRINT_LINE
-  CALL INLIN		; Line input, FN keys are supported.
-  RST CHRGTB
+  CALL _INLIN		; Line input, FN keys are supported.
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   AND A
   JP Z,TELCOM_RDY
   LD DE,TELCOM_TBL
@@ -16074,7 +16091,7 @@ TELCOM_BAR:
 ; TELCOM STAT instruction routine
 TEL_STAT:
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   INC A
   DEC A
   JP NZ,TEL_SET_STAT
@@ -16123,7 +16140,7 @@ TEL_SET_STAT_0:
   CALL SETSER		;   HL = zero terminated setup string, e.g. "78E1E"
   CALL CLSCOM
   DEC HL
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   AND A
   JP Z,TELCOM_RDY
 TEL_SET_STAT_1:
@@ -16387,7 +16404,7 @@ TEL_LOGON_2:
   JP Z,TEL_LOGON_3
   CP $1A		; EOF
   JP Z,TEL_LOGON_3
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP Z,TEL_LOGON_3
   PUSH AF
   CALL C,TEL_DIAL_DGT
@@ -16523,7 +16540,7 @@ TERM_BAR:
 ; TELCOM TERM instruction routine
 TEL_TERM:
   LD HL,RS232LF
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CALL NC,INCHL
   PUSH AF
   CALL SETSER
@@ -16720,7 +16737,6 @@ FULLHALF_MSG:
 
 ECHO_MSG:
   DEFM "Echo    "
-
  
 CR_WAIT_MSG:
   DEFB $0D
@@ -16743,35 +16759,35 @@ TEL_UPLD:
   CALL RESFPT
   LD HL,UPLMSG_0
   CALL PRINT_LINE
-  CALL QINLIN
-  RST CHRGTB
+  CALL Q_INLIN			; User interaction with question mark, HL = resulting text 
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   AND A
   RET Z
-  LD ($FAC6),A
+  LD (FNAME_END),A
   CALL COUNT_CHARS
   CALL FNAME
   RET NZ
   CALL FINDCO_0
-  LD HL,FNTFND
+  LD HL,FNTFND		; "No file" (file not found)
   JP Z,PRINT_LINE
   EX DE,HL
   EX (SP),HL
   PUSH HL
   LD HL,WIDTH_MSG
   CALL PRINT_LINE
-  CALL INLIN			; Line input, FN keys are supported.
+  CALL _INLIN			; Line input, FN keys are supported.
   RET C
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   AND A
   LD A,$01
   LD (CAPTUR+1),A			;
   LD (TXT_EDITING),A
-  JP Z,L55FD			; JP if no extra args
+  JP Z,TEL_UPLD_0			; JP if no extra args
   
   CALL GETINT
-  CP $0A
+  CP $0A		; 10
   RET C
-  CP $85
+  CP $85		; 133
   RET NC
 
   LD HL,TXT_BUF
@@ -16782,7 +16798,7 @@ TEL_UPLD:
   POP DE
   
   defb $01	; LD BC,NN
-L55FD:
+TEL_UPLD_0:
   POP AF
   POP HL
   
@@ -16825,11 +16841,11 @@ TEL_UPLD_3:
   LD A,(RS232LF)
   AND A
   JP NZ,TEL_UPLD_4
-  LD A,($FAC6)
+  LD A,(FNAME_END)
   CP $0D         ; CR
 TEL_UPLD_4:
   LD A,(HL)
-  LD ($FAC6),A
+  LD (FNAME_END),A
   JP Z,TEL_UPLD_5
   CALL SD232C
   CALL TEL_UPLD_7
@@ -16872,11 +16888,11 @@ DWNLDR:
   PUSH HL
   LD HL,DWNFMSG		; "File to Download"
   CALL PRINT_LINE
-  CALL QINLIN
-  RST CHRGTB
+  CALL Q_INLIN			; User interaction with question mark, HL = resulting text 
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   AND A
   RET Z
-  LD ($FAC6),A
+  LD (FNAME_END),A
   POP AF
 DWNLDR_0:
   PUSH HL
@@ -16897,7 +16913,7 @@ DWNLDR_1:
 ; This entry point is used by the routine at TEL_DOWNLD.
 DWNLDR_2:
   CALL FNKSB
-  JP L6383
+  JP TXT_WIPE_END
 
 ; This entry point is used by the routine at TEL_TERM.
 DWNLDR_3:
@@ -16910,7 +16926,7 @@ DWNLDR_3:
   RET Z
   JP NC,DWNLDR_4
   CALL DWNLDR_4
-  LD A,$0A
+  LD A,$0A		; 10
 DWNLDR_4:
   LD HL,(SV_TXTPOS)
   CALL TXT_SPLIT_ROW
@@ -16944,11 +16960,11 @@ DWNLDR_6:
   RET Z
   CP $0A         ; LF
   JP NZ,DWNLDR_7
-  LD A,($FAC6)
+  LD A,(FNAME_END)
   CP $0D         ; CR
 DWNLDR_7:
   LD A,C
-  LD ($FAC6),A
+  LD (FNAME_END),A
   RET Z
   CP $0D         ; CR
   SCF
@@ -16962,8 +16978,8 @@ DWNLDR_7:
 TEL_BYE:
   LD HL,DISMSG
   CALL PRINT_LINE
-  CALL QINLIN
-  RST CHRGTB
+  CALL Q_INLIN			; User interaction with question mark, HL = resulting text 
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CALL UCASE
   CP $59
   JP Z,TEL_BYE_0
@@ -16986,7 +17002,6 @@ TEL_BYE_0:
 
 UPLMSG_0:
   DEFM "File to "
-  
 UPLMSG:
   DEFM "Upload"
   DEFB $00
@@ -17035,8 +17050,6 @@ __MENU:
   CALL RESFPT
   CALL EXTREV		; Exit from reverse mode
   CALL CURSOFF
-; This entry point is used by the routine at TEL_BYE.
-__MENU_0:
   CALL ERAFNK
   CALL LOCK
   LD A,(SCREEN)
@@ -17124,7 +17137,7 @@ __MENU_8:
   CALL SHOW_TIME
   CALL CHGET_UCASE
   CP $0D         ; CR
-  JP Z,SELECT_CR
+  JP Z,SELECTCURS_CR
   CP $08
   JP Z,SELECT_BS
   CP $7F		; BS
@@ -17222,7 +17235,7 @@ __MENU_14:
   LD D,A
   RET
 
-SELECT_CR:
+SELECTCURS_CR:
   LD A,(PROMPT_CNT)
   OR A
   JP Z,__MENU_16
@@ -17269,7 +17282,7 @@ __MENU_19:
   CP $A0
   JP Z,LDIR_B_0
   CP $B0
-  JP Z,__MENU_20
+  JP Z,CALLHL
   CP $F0
   JP Z,$F624
   CP $C0
@@ -17285,7 +17298,7 @@ __MENU_19:
   CALL RUN_FST
   JP EXEC_EVAL
 
-__MENU_20:
+CALLHL:
   JP (HL)
 
 __MENU_21:
@@ -17350,7 +17363,7 @@ DOTTED_FNAME_0:
   RET Z
   LD (HL),'.'
   INC HL
-  CALL PRINT_TEXT_0
+  CALL MOVE_2_BYTES
   LD (HL),$00
   RET
 
@@ -17449,7 +17462,7 @@ PRINT_TDATE_0:
   INC DE
   INC DE
   INC HL
-  CALL PRINT_TEXT_0
+  CALL MOVE_2_BYTES
   LD (HL),','
   INC HL
   LD (HL),$32
@@ -17470,8 +17483,8 @@ PRINT_TEXT:
   JP PRINT_TEXT
   
 ; This entry point is used by the routines at DOTTED_FNAME and PRINT_TDATE.
-PRINT_TEXT_0:
-  LD A,$02
+MOVE_2_BYTES:
+  LD A,$02		; 6 on PC8201 and KC85
 
 ; Move A bytes from (DE) to (HL)
 ;
@@ -17745,7 +17758,7 @@ SCHEDL_DE_2:
   LD HL,ADR_SCHD
 SCHEDL_DE_3:
   CALL PRINT_TEXT
-  CALL INLIN		; Line input, FN keys are supported.
+  CALL _INLIN		; Line input, FN keys are supported.
   INC HL
   LD A,(HL)
   OR A
@@ -18163,8 +18176,8 @@ L5DFB:
   CALL STKINI
   LD HL,EDFILE_MSG
   CALL PRS
-  CALL QINLIN
-  RST CHRGTB
+  CALL Q_INLIN			; User interaction with question mark, HL = resulting text 
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   AND A
   JP Z,__MENU		; Bck to Menu if no args
   CALL OPENDO
@@ -18221,12 +18234,12 @@ __EDIT_0:
   LD ($FC95),A
   LD HL,$2020		; "  "
   LD (FILNAM+6),HL	; point to file name ext
-  LD HL,L5EDA
+  LD HL,EDIT_OPN_TRP
   LD (ERRTRP),HL
   LD DE,$F802	; D = 'RAM' device, E=02
   LD HL,BLANK_BYTE
   CALL _OPEN
-  LD HL,L5ED5
+  LD HL,EDIT_TRP
   LD (ERRTRP),HL
   POP AF
   POP HL
@@ -18250,7 +18263,7 @@ __EDIT_2:
   JP Z,__EDIT_4
   PUSH HL
   XOR A
-  LD HL,L5EAB
+  LD HL,L5EAB		; trap location in case of errors
   JP WAIT_SPC_2
 
 ; Routine at 24235
@@ -18259,7 +18272,7 @@ L5EAB:
   LD HL,L5EEB
   LD (ERRTRP),HL
   LD HL,BLANK_BYTE
-  LD D,$F8		; 'RAM' device  ($F9 on KC85)
+  LD D,$F8		; 'RAM' device  ($F9 on KC85 and PC8201)
   JP __MERGE_1
   
 ; This entry point is used by the routine at INXD.
@@ -18277,14 +18290,15 @@ __EDIT_4:
   LD (LABEL_LN),A		; Label line/8th line protect status (0=off)
   JP BASIC_0
 
+; Trap exit address for errors during EDITing
 ; Routine at 24277
-L5ED5:
+EDIT_TRP:
   PUSH DE
   CALL KILLASC_4
   POP DE
 
 ; Routine at 24282
-L5EDA:
+EDIT_OPN_TRP:
   PUSH DE
   XOR A
   LD (ERRTRP-1),A
@@ -18299,7 +18313,7 @@ L5EDA:
 L5EEB:
   LD A,E
   PUSH AF
-  LD HL,($FC87)
+  LD HL,(FILTAB+4)
   DEC HL
   LD B,(HL)
   DEC B
@@ -18403,11 +18417,11 @@ WAIT_SPC_3:
   LD ($F6DF),A
   LD (TXT_EDITING),A
   LD ($F6E1),A
-  LD ($F71F),A
+  LD (STRG_ASKBUF),A
   LD (TXT_SEL_BEG),HL
 WAIT_SPC_4:
   POP HL
-  LD ($F767),HL
+  LD (CUR_TXTFILE),HL
   PUSH HL
   CALL TXT_CTL_V_64
   CALL TXT_CTL_C_15
@@ -18492,9 +18506,9 @@ CTL_JPTAB:
 ; TEXT ESCape routine
 TXT_ESC:
   LD A,($F6E0)
-  SUB $1B
+  SUB $1B	; 27
   RET NZ
-  LD L,A
+  LD L,A	; clear ERRTRP
   LD H,A
   LD (ERRTRP),HL
   RST $38
@@ -18503,10 +18517,10 @@ TXT_ESC:
   CALL L65B9
   CALL UNLOCK
   CALL ERAFNK
-  CALL L63DB
+  CALL GO_BOTTOMROW
   CALL POSIT
   CALL OUTDO_CRLF
-  CALL L6383
+  CALL TXT_WIPE_END
   LD HL,($F765)
   JP (HL)
 
@@ -18683,7 +18697,7 @@ TXT_CTL_E_0:
 TXT_CTL_E_1:
   PUSH HL
   CALL TXT_CTL_V_47
-  LD HL,($F767)
+  LD HL,(CUR_TXTFILE)
   RST CPDEHL
   POP HL	; cursor coordinates
   CCF
@@ -18734,7 +18748,7 @@ TXT_CTL_A_3:
   JP TXT_CTL_A_5
 TXT_CTL_A_4:
   EX DE,HL
-  LD HL,($F767)
+  LD HL,(CUR_TXTFILE)
   EX DE,HL
   RST CPDEHL
   POP BC
@@ -18814,7 +18828,7 @@ TXT_CTL_Q:
 ; TEXT control W routine
 ; Move the cursor to beginning of the current file
 TXT_CTL_W:
-  LD HL,($F767)
+  LD HL,(CUR_TXTFILE)
   CALL TXT_CTL_Z_3
   CALL HOME
   JP TXT_CTL_C_0
@@ -18951,7 +18965,7 @@ TXT_CTL_C_2:
   POP HL
   RST CPDEHL
   JP C,TXT_CTL_C_3
-  CALL L63DB
+  CALL GO_BOTTOMROW
 TXT_CTL_C_3:
   CALL C,TXT_CTL_V_55
   LD H,L
@@ -19025,7 +19039,7 @@ TXT_CTL_C_12:
 TXT_CTL_C_13:
   PUSH AF
   PUSH HL
-  CALL L65DF
+  CALL CLR_BOTTOMROW
   CALL HOME
   CALL INSLIN
   CALL TXT_CTL_V_49
@@ -19104,19 +19118,19 @@ MCLEAR_1:
 
 ; This entry point is used by the routines at DWNLDR, TXT_ESC, TXT_CTL_O and
 ; TXT_CTL_U.
-L6383:
+TXT_WIPE_END:
   LD HL,(TEXT_END)
   PUSH HL
   LD BC,$FFFF
   XOR A
-MCLEAR_3:
+TXT_WIPE_END_0:
   INC HL
   INC BC
   CP (HL)
-  JP Z,MCLEAR_3
+  JP Z,TXT_WIPE_END_0
   POP HL
   INC HL
-  JP MASDEL
+  JP MASDEL		; Delete specified no of characters, BC=number, HL=address
 
 ; This entry point is used by the routines at DWNLDR, TXT_CTL_I, TXT_CTL_M and
 ; TXT_CTL_V.
@@ -19187,7 +19201,7 @@ GET_BT_ROWPOS:
   
 ; This entry point is used by the routines at TXT_ESC, TXT_CTL_C, MOVE_TEXT and
 ; TXT_CTL_V.
-L63DB:
+GO_BOTTOMROW:
   PUSH AF
   LD HL,(ACTV_X)
   CALL GET_BT_ROWPOS
@@ -19248,7 +19262,7 @@ MCLEAR_10:
 ; 'COPY' the SETFILed text
 TXT_CTL_O:
   CALL TXT_IS_SETFILING
-  CALL L6383
+  CALL TXT_WIPE_END
   CALL TXT_CTL_U_6
   PUSH AF
   CALL TXT_CTL_C_15
@@ -19260,10 +19274,10 @@ TXT_CTL_O:
 ; same as CUT function
 TXT_CTL_U:
   CALL TXT_IS_SETFILING
-  CALL L6383
+  CALL TXT_WIPE_END
   CALL TXT_CTL_U_6
   PUSH AF
-  CALL NC,MASDEL
+  CALL NC,MASDEL		; Delete specified no of characters, BC=number, HL=address
   POP AF
   JP NC,TXT_CTL_U_2
   LD A,B
@@ -19298,21 +19312,21 @@ TXT_CTL_U_3:
   PUSH HL
   PUSH BC
   EX DE,HL
-  LD HL,($FC87)
+  LD HL,(FILTAB+4)
   EX DE,HL
   CALL _LDIR
   POP BC
   POP HL
   PUSH HL
   PUSH BC
-  CALL MASDEL
-  LD HL,(HAYASHI)
+  CALL MASDEL		; Delete specified no of characters, BC=number, HL=address
+  LD HL,(HAYASHI)		; Paste buffer file
   ADD HL,BC
   EX DE,HL
   POP BC
   CALL MAKHOL_0
   EX DE,HL
-  LD HL,($FC87)
+  LD HL,(FILTAB+4)
   CALL _LDIR
   POP HL
   RET
@@ -19332,10 +19346,10 @@ TXT_CTL_U_5:
 ; This entry point is used by the routine at TXT_CTL_O.
 TXT_CTL_U_6:
   CALL SWAPNM_1
-  LD HL,(HAYASHI)
+  LD HL,(HAYASHI)		; Paste buffer file
   LD (PASTE_BUF),HL
   XOR A
-  LD ($F6E6),A
+  LD (TXT_BUFLAG),A
   CALL TXT_CTL_U_4
   DEC DE
 TXT_CTL_U_7:
@@ -19368,7 +19382,7 @@ TXT_CTL_U_9:
   EX DE,HL
   POP HL
   RET C
-  LD A,($F6E6)
+  LD A,(TXT_BUFLAG)
   AND A
   JP Z,TXT_CTL_U_10
   ADD HL,BC
@@ -19383,13 +19397,13 @@ TXT_CTL_U_10:
 ; This entry point is used by the routines at WAIT_SPC and TXT_CTL_P.
 TXT_CTL_U_11:
   CALL TXT_CTL_C
-  CALL L6383
+  CALL TXT_WIPE_END
   CALL RESFPT
   CALL TXT_GET_CURPOS
   LD (PASTE_BUF),HL
   LD A,H
-  LD ($F6E6),A
-  LD HL,(HAYASHI)
+  LD (TXT_BUFLAG),A
+  LD HL,(HAYASHI)		; Paste buffer file
   LD A,(HL)
   CP $1A		; EOF
   JP Z,TXT_CTL_C_15
@@ -19429,7 +19443,7 @@ TXT_CTL_N:
   CALL TXT_GET_CURPOS
   PUSH HL
   LD HL,STRG_MSG
-  LD DE,$F71F
+  LD DE,STRG_ASKBUF
   PUSH DE
   CALL ASK_TEXT
   POP DE
@@ -19487,7 +19501,7 @@ TXT_ERROR:
   LD ($F6E1),A
 ; This entry point is used by the routine at MOVE_TEXT.
 TXT_CTL_N_6:
-  CALL L65DF
+  CALL CLR_BOTTOMROW
   CALL PRS	; prints error message in HL
 
 ; Routine at 26041
@@ -19527,9 +19541,9 @@ STRG_MSG:
 ; Routine at 26079
 ;
 ; Used by the routines at TXT_CTL_C and TXT_CTL_N.
-L65DF:
+CLR_BOTTOMROW:
   PUSH HL
-  CALL L63DB
+  CALL GO_BOTTOMROW
   LD H,$01
   CALL POSIT
   POP HL
@@ -19572,7 +19586,7 @@ MOVE_TEXT_5:
   CP $0D         ; CR
   JP Z,MOVE_TEXT_7
   PUSH AF
-  CALL L63DB
+  CALL GO_BOTTOMROW
   LD A,(SV_CSRY)
   LD H,A	; cursor coordinates
   CALL POSIT
@@ -19590,7 +19604,7 @@ MOVE_TEXT_6:
   PUSH HL
   RET C
   CP $7F		; BS
-  JP Z,INLIN_BS
+  JP Z,_INLIN_BS
   CP ' '
   JP NC,MOVE_TEXT_9
   LD HL,INLIN_TBL2-2
@@ -19606,33 +19620,33 @@ MOVE_TEXT_7:
 
 INLIN_TBL2:
   DEFB $03
-  DEFW INLIN_STOP_EDIT
+  DEFW _INLIN_STOP_EDIT
 
   DEFB $08
-  DEFW INLIN_BS
+  DEFW _INLIN_BS
 
   DEFB $09
   DEFW L667C
 
   DEFB $0D
-  DEFW INLIN_NEWLINE
+  DEFW _INLIN_NEWLINE
 
   DEFB $15
-  DEFW INLIN_CTL_UX
+  DEFW _INLIN_CTL_UX
 
   DEFB $18
-  DEFW INLIN_CTL_UX
+  DEFW _INLIN_CTL_UX
 
   DEFB $1D
-  DEFW INLIN_BS
+  DEFW _INLIN_BS
 
 
 
-INLIN_STOP_EDIT:
+_INLIN_STOP_EDIT:
   LD DE,KBUF
 
 ; Routine at 26229
-INLIN_NEWLINE:
+_INLIN_NEWLINE:
   POP HL
   XOR A
   LD (DE),A
@@ -19662,7 +19676,7 @@ MOVE_TEXT_9:
 ; print the entire file
 TXT_CTL_Y:
   CALL TXT_CTL_N_2
-  LD HL,TXT_CTL_Y_3
+  LD HL,TXT_ERR_NOFILE
   LD (ERRTRP),HL
   PUSH HL
   LD HL,(CSRX)
@@ -19670,7 +19684,7 @@ TXT_CTL_Y:
   LD HL,WIDTH_MSG
   LD DE,TXT_ASKBUF
   CALL ASK_TEXT
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   XOR A
   CP (HL)
   JP Z,TXT_EXIT_ASK		; JP if no text entered
@@ -19693,7 +19707,7 @@ TXT_CTL_Y:
   INC A
   LD (TXT_EDITING),A
   CALL OUTDO_CRLF
-  LD HL,($F767)
+  LD HL,(CUR_TXTFILE)
   EX DE,HL
 TXT_CTL_Y_0:
   CALL TXT_CTL_V_40
@@ -19712,7 +19726,7 @@ TXT_CTL_Y_2:
   JP WAIT_SPC_5
 
 ; This entry point is used by the routines at TXT_CTL_G and TXT_CTL_V.
-TXT_CTL_Y_3:
+TXT_ERR_NOFILE:
   CALL TXT_CTL_Y_4
   CALL L4F2E_1
   CALL TXT_ABT_ERROR
@@ -19736,11 +19750,11 @@ WIDTH_MSG:
 TXT_CTL_G:
   LD DE,SAVE_MSG
   CALL ASK_FILENAME
-  JP C,TXT_CTL_Y_3
+  JP C,TXT_ERR_NOFILE
   JP Z,TXT_EXIT_ASK
   LD E,$02
   CALL _OPEN
-  LD HL,($F767)
+  LD HL,(CUR_TXTFILE)
 TXT_CTL_G_0:
   LD A,(HL)
   RST OUTC
@@ -19762,13 +19776,13 @@ SAVE_MSG:
 ASK_FILENAME:
   PUSH DE
   CALL TXT_CTL_N_2
-  LD HL,TXT_CTL_Y_3
+  LD HL,TXT_ERR_NOFILE
   LD (ERRTRP),HL
   LD HL,(CSRX)
   LD (SAVE_CSRX),HL
   POP HL
   CALL MOVE_TEXT_3
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   AND A
   RET Z
   CALL COUNT_CHARS
@@ -19796,14 +19810,14 @@ TXT_CTL_G_1:
 TXT_CTL_V:
   LD DE,LOAD_MSG
   CALL ASK_FILENAME
-  JP C,TXT_CTL_Y_3
+  JP C,TXT_ERR_NOFILE
   JP Z,TXT_EXIT_ASK
   PUSH HL
   LD HL,L67CB
   LD (ERRTRP),HL
   LD HL,(TEXT_END)
   LD (SAVE_CSRX),HL
-  LD ($FAC6),A
+  LD (FNAME_END),A
   EX (SP),HL
   LD E,$01
   CALL _OPEN
@@ -19847,11 +19861,11 @@ LOAD_MSG:
 
 ; Routine at 26591
 ;
-; Used by the routines at L55FD, SCL_LFND, L6981 and GETEND.
+; Used by the routines at TEL_UPLD_0, SCL_LFND, L6981 and GETEND.
 L67DF:
   XOR A
   LD (TXT_COUNT),A
-  LD ($F6E6),A
+  LD (TXT_BUFLAG),A
   LD HL,TXT_BUF
   LD (TXT_PTR),HL
 
@@ -19864,7 +19878,7 @@ L67DF_LOOP:
   CP $1A		; EOF, CTRL/Z
   JP Z,TXT_CTLZ_EOF
   CP $0D         ; CR
-  JP Z,TXT_CR
+  JP Z,TXTCURS_CR
   CP $09		; TAB
   JP Z,TXT_TAB
   CP ' '
@@ -19955,7 +19969,7 @@ TXT_CTLZ_EOF:
   LD DE,$FFFF
   RET
 
-TXT_CR:
+TXTCURS_CR:
   LD A,(DE)
   CP $0A         ; LF
   LD A,$0D       ; CR
@@ -20038,7 +20052,7 @@ TXT_CTL_V_21:
   LD A,(TXT_EDITING)
   AND A
   RET NZ
-  LD BC,$F6E6
+  LD BC,TXT_BUFLAG
   PUSH DE
   EX DE,HL
   LD HL,(TXT_SEL_END)
@@ -20177,7 +20191,7 @@ TXT_CTL_V_34:
   JP Z,TXT_CTL_V_39
   CALL TXT_CTL_V_47
 TXT_CTL_V_35:
-  CALL L63DB
+  CALL GO_BOTTOMROW
   CP L
   JP Z,TXT_CTL_V_36
   CALL TXT_CTL_V_40
@@ -20283,7 +20297,7 @@ TXT_CTL_V_49:
 
 ; This entry point is used by the routine at GETEND.
 TXT_CTL_V_50:
-  LD HL,($F767)
+  LD HL,(CUR_TXTFILE)
   RST CPDEHL
   JP C,TXT_CTL_V_51
   LD DE,$0000
@@ -20430,7 +20444,7 @@ TXT_CTL_V_63:
 
 ; This entry point is used by the routines at WAIT_SPC and TXT_CTL_U.
 TXT_CTL_V_64:
-  LD HL,($F767)
+  LD HL,(CUR_TXTFILE)
 
 ; Point HL to chr$(26)
 ;
@@ -20449,7 +20463,7 @@ GETEND_0:
 GETEND_1:
   PUSH AF
   EX DE,HL
-  LD HL,($F767)
+  LD HL,(CUR_TXTFILE)
   EX DE,HL
 GETEND_2:
   PUSH HL
@@ -20471,7 +20485,7 @@ GETEND_3:
   POP BC
   LD A,D
   OR E
-  LD HL,($F767)
+  LD HL,(CUR_TXTFILE)
   RET Z
   DEC B
   JP NZ,GETEND_3
@@ -20514,7 +20528,7 @@ MAKHOL:
 ; This entry point is used by the routines at RESFPT, TXT_CTL_C and TXT_CTL_U.
 MAKHOL_0:
   PUSH BC
-  CALL MASDEL_0
+  CALL MASDEL_0		; Delete specified no of characters, BC=number, HL=address
   LD HL,(ARREND)
   LD A,L
   SUB E
@@ -20538,9 +20552,7 @@ MAKHOL_0:
   POP BC
   RET
 
-; Delete specified no of characters, BC = number, HL = address at which to
-; begin deleting.
-;
+; Delete specified no of characters, BC=number, HL=address
 ; Used by the routines at KILLASC, __NEW, SWAPNM, MCLEAR and TXT_CTL_U.
 MASDEL:
   LD A,B
@@ -20663,8 +20675,8 @@ ROM_PROGS:
 ; Entry to BASIC   (6c4eh?)
 BASIC:
   CALL BASIC_1
-  CALL BOOT_7
-  LD HL,$F999
+  CALL PRINT_COPYRIGHT
+  LD HL,SUZUKI-1
   LD (DIRPNT),HL
   LD HL,(SUZUKI)
   LD (BASTXT),HL
@@ -20702,7 +20714,7 @@ BASIC_2:
   RET
 
 ; This entry point is used by the routines at OUTS_B_CHARS and BOOT.
-BASIC_3:
+SAVE_BA_LBL:
   LD HL,FNKSTR
   LD DE,$F80A
   JP LOAD_BA_LBL_0
@@ -20721,28 +20733,28 @@ LOAD_BA_LBL_0:
 ; This entry point is used by the routines at TELCOM_RDY and SCHEDL_DE.
 PARSE_COMMAND:
   DEC HL
-  RST CHRGTB
-LOAD_BA_LBL_2:
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
+PARSE_COMMAND_0:
   LD A,(DE)
   INC A
   RET Z
   PUSH HL
   LD B,$04
-LOAD_BA_LBL_3:
+PARSE_COMMAND_1:
   LD A,(DE)
   LD C,A
   CALL UCASE_HL
   CP C
   INC DE
   INC HL
-  JP NZ,LOAD_BA_LBL_5
+  JP NZ,PARSE_COMMAND_3
   DEC B
-  JP NZ,LOAD_BA_LBL_3
+  JP NZ,PARSE_COMMAND_1
   POP AF
   PUSH HL
   EX DE,HL
 ; This entry point is used by the routine at IOINIT.
-LOAD_BA_LBL_4:
+PARSE_COMMAND_2:
   LD E,(HL)
   INC HL
   LD D,(HL)
@@ -20755,13 +20767,13 @@ LOAD_BA_LBL_4:
   DEC H
   RET
 
-LOAD_BA_LBL_5:
+PARSE_COMMAND_3:
   INC DE
   DEC B
-  JP NZ,LOAD_BA_LBL_5
+  JP NZ,PARSE_COMMAND_3
   INC DE
   POP HL
-  JP LOAD_BA_LBL_2
+  JP PARSE_COMMAND_0
 
 ; Cold start, Re-initialize system.  User files are not lost.
 ;
@@ -20769,7 +20781,7 @@ LOAD_BA_LBL_5:
 INITIO:
   DI
   LD HL,ENDLCD
-  LD B,$BD
+  LD B,189			; 132 on PC8201, 126 ok KC85
   CALL ZERO_MEM
   INC A
 
@@ -20780,7 +20792,7 @@ IOINIT:
   PUSH AF
   DI
   LD A,$19
-  JR NC,LOAD_BA_LBL_4
+  JR NC,PARSE_COMMAND_2
   RET Z
   LD A,$43
   OUT ($B8),A
@@ -20792,7 +20804,7 @@ IOINIT:
 ; Routine at 27891
 L6CF3:
   XOR A
-  LD (PORT_E8),A
+  LD (ROMSEL),A
   OUT ($E8),A
   OUT ($A8),A
   CALL _CLICK_1
@@ -20849,7 +20861,7 @@ PRINTR_0:
   CALL SETINT_1D
   LD A,C
   OUT ($B9),A
-  LD A,(PORT_E8)
+  LD A,(ROMSEL)
   LD B,A
   OR $02
   OUT ($E8),A
@@ -21461,9 +21473,10 @@ DATAR_0:
   JP NZ,DATAR_0
   XOR A
   RET
+
 ; This entry point is used by the routines at CTOFF and MOTOR_OFF.
 DATAR_1:
-  LD A,(PORT_E8)
+  LD A,(ROMSEL)
   AND $F1
   INC E
   DEC E
@@ -21471,18 +21484,18 @@ DATAR_1:
   OR $08
 DATAR_2:
   OUT ($E8),A
-  LD (PORT_E8),A
+  LD (ROMSEL),A
   RET
   
 ; Routine at 28757
 L7055:
-  LD HL,DATAR_28
+  LD HL,_RST75_END
   PUSH HL
   LD HL,KBSITP
   DEC (HL)
   RET NZ
   LD (HL),$03
-  LD HL,PKGFF
+  LD HL,KYDATA+8
   LD DE,KB_SHIFT
   CALL BRK_SCAN
   CPL
@@ -21530,15 +21543,15 @@ DATAR_4:
   LD HL,($FFA8)
   AND (HL)
   RET Z
-  LD A,(GETPNT)
+  LD A,(KYBCNT)
   CP $02
   RET NC
-  LD HL,$FFA4
+  LD HL,KYREPT		; a.k.a. SCNCNT on MSX, wait count for repeat
   DEC (HL)
   RET NZ
   LD (HL),$06
   LD A,$01
-  LD ($FFF3),A
+  LD (CSRCNT),A		; Set time til next cursor blink
   JP DATAR_13
 
 DATAR_5:
@@ -21617,7 +21630,6 @@ DATAR_11:
   RET
 
 DATAR_12:
-
   DEC HL
   LD (HL),$54		; 'T'
   DEC HL
@@ -21633,7 +21645,7 @@ DATAR_13:
   LD HL,$FFA7
   LD (HL),B
 DATAR_14:
-  LD A,($FFA3)
+  LD A,(KYHOW)
   RRCA
   PUSH AF
   LD A,C
@@ -21750,16 +21762,16 @@ L71C4:
   JP NZ,DATAR_26
   LD A,C
 DATAR_25:
-  LD ($FFEB),A
+  LD (BRKCHR),A
   CP $03
   RET NZ
-  LD HL,GETPNT
+  LD HL,KYBCNT
   LD (HL),$01
   INC HL
   JP DATAR_27
 
 DATAR_26:
-  LD HL,GETPNT
+  LD HL,KYBCNT
   LD A,(HL)
   
   ; CP ' '
@@ -21779,11 +21791,12 @@ DATAR_27:
   INC HL
   LD (HL),B
   POP AF
+  
 ; This entry point is used by the routine at SET_CLOCK_HL.
-DATAR_28:
+_RST75_END:
   LD A,$09
   
-  ; THIS IS A VERY COMPLEX OPTIMIZATION,
+  ; THIS IS A COMPLEX OPTIMIZATION,
   ; THE RELATIVE JP OFFSET IS EQUIVALENT TO "POP AF" !
   ;
   ; Moving the code in this ROM is not definitely a beginner's task..
@@ -21805,10 +21818,10 @@ POPALL_INT:
   
 ; This entry point is used by the routine at DATAR.
 POPALL_INT_0:
-  LD HL,$FF90
+  LD HL,REPCNT
   DEC (HL)
   RET NZ
-  LD HL,$FF91
+  LD HL,KYDATA
   LD B,$11
   JP ZERO_MEM
   
@@ -21856,14 +21869,15 @@ POPALL_INT_6:
   RET
 
 ; A = Character (if any), Z if no key.  CY if special keys
+;     When CY is set, A=0..7 for F1..F8, 8=LABEL, 9=PRINT, $0A=SH-PRINT, $0B=PASTE
 ;
 ; Used by the routine at CHGET.
 KYREAD:
   CALL SETINT_1D
-  LD A,(GETPNT)
+  LD A,(KYBCNT)
   OR A
   JP Z,EI_NORM
-  LD HL,$FFAC
+  LD HL,KYRDBF+1
   LD A,(HL)
   ADD A,$02
   DEC HL
@@ -21875,7 +21889,7 @@ KYREAD:
   RLCA
   LD C,A
   INC HL
-  LD DE,$FFAD
+  LD DE,KYRDBF+2
 KYREAD_0:
   DEC C
   
@@ -21918,7 +21932,7 @@ KEYX:
   RET
 
 KEYX_0:
-  LD A,(GETPNT)
+  LD A,(KYBCNT)
   OR A
   RET
 
@@ -21927,7 +21941,7 @@ KEYX_0:
 ; Used by the routines at CHSNS and KEYX.
 BRKCHK:
   PUSH HL
-  LD HL,$FFEB
+  LD HL,BRKCHR
   LD A,(HL)
   LD (HL),$00
   POP HL
@@ -22005,7 +22019,7 @@ MUSIC_0:
   CALL BREAK
   JP NC,MUSIC_1
   LD A,$03
-  LD ($FFEB),A
+  LD (BRKCHR),A
   JP MUSIC_3
 MUSIC_1:
   LD C,$64
@@ -22131,7 +22145,7 @@ SET_CLOCK_HL_3:
 ; This entry point is used by the routine at IOINIT.
 SET_CLOCK_HL_4:
   OUT ($B9),A
-  LD A,(PORT_E8)
+  LD A,(ROMSEL)
   OR $04
   OUT ($E8),A
   AND $FB
@@ -22139,20 +22153,20 @@ SET_CLOCK_HL_4:
   RET
   
 ; This entry point is used by the routine at _RST75.
-SET_CLOCK_HL_5:
+_RST75_7:
   CALL SETINT_1D
   LD HL,L7055
   PUSH HL
-  LD HL,$FFF3
+  LD HL,CSRCNT		; Time til next cursor blink
   DEC (HL)
   RET NZ
   LD (HL),$7D
   DEC HL
   LD A,(HL)
   OR A
-  JP P,SET_CLOCK_HL_6
+  JP P,_RST75_8
   RET PO
-SET_CLOCK_HL_6:
+_RST75_8:
   XOR $01
   LD (HL),A
   
@@ -22191,19 +22205,19 @@ L73C5:
 
 ; Routine at 29644
 L73CC:
-  LD HL,$FFF2
+  LD HL,CSRSTS
   LD A,(HL)
   RRCA
   CALL C,SET_CURSOR_SHAPE
   LD (HL),$80
-  JP DATAR_28
+  JP _RST75_END
   
 ; This entry point is used by the routines at OUTC_SUB and ESC_P.
 SET_CLOCK_HL_10:
   PUSH AF
   PUSH HL
   CALL SETINT_1D
-  LD HL,$FFF2
+  LD HL,CSRSTS
   LD A,(HL)
   AND $7F
   LD (HL),A
@@ -22215,7 +22229,7 @@ SET_CLOCK_HL_10:
   RET
   
 ; This entry point is used by the routine at ESC_J.
-SET_CLOCK_HL_11:
+INIT_LCD:
   CALL SETINT_1D
   LD HL,$0000
   ADD HL,SP
@@ -22225,7 +22239,7 @@ SET_CLOCK_HL_11:
   EX DE,HL
   LD (LCD_ADDR),HL
   LD A,C
-  LD DE,FONT
+  LD DE,FONT-1
   SUB $20
   JP Z,SET_CLOCK_HL_12
   INC DE
@@ -22364,7 +22378,7 @@ L7497:
   
 ; Routine at 29858
 ;
-; Used by the routines at SET_CLOCK_HL and L7409.
+; Used by the routines at SET_CLOCK_HL and L7409, D=??.
 L74A2:
   PUSH HL
   LD E,$06
@@ -22762,11 +22776,15 @@ L770B:
   DEFB $00
   DEFB $00
   DEFB $01
+  DEFB $00
 
-; FONT: 5 bytes for 0..127 (TEXT), 6 bytes for 128..255 (SYMBOLS), total 1408 bytes
+; FONT: 5 bytes for 0..127 (ASCII), 6 bytes for 128..255 (GRAPHICS), total 1248 bytes
 FONT:
-	BINARY  "FONT.BIN"
-
+; 480 bytes for ASCII FONT
+	BINARY  "FONT_L.BIN"
+	;BINARY  "NECFONT_L.BIN"
+; 768 bytes for GFX SYMBOLS
+	BINARY  "FONT_H.BIN"
 
 
 ; End of LCD character generator shape table.
@@ -23108,7 +23126,7 @@ L7DD0:
   AND A
   RET Z
   LD HL,RS232LF
-  RST CHRGTB
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
   CALL NC,INCHL
   JP SETSER
 
@@ -23126,7 +23144,7 @@ BOOT_4:
   LD (TIMINT),A
   LD HL,FNKTAB
   CALL STFNK
-  CALL BASIC_3
+  CALL SAVE_BA_LBL
   LD B,$58		; $42 on KC85
   LD DE,ROM_PROGS
   LD HL,DIRECTORY
@@ -23170,7 +23188,7 @@ BOOT_6:
   LD (STKTOP),HL
   LD (MEMSIZ),HL
   LD A,$01
-  LD ($FBB3),A
+  LD (PROGND+1),A
   CALL __MAX_0
   CALL _CLREG_1
   LD HL,(RAM)		; Lowest RAM memory address used by system ($8000 if 32K RAM)
@@ -23184,12 +23202,12 @@ BOOT_6:
   LD (HL),A
   INC HL
   LD (DO_FILES),HL
-  LD (HAYASHI),HL
+  LD (HAYASHI),HL		; Paste buffer file
   LD (HL),$1A		; EOF
   INC HL
   LD (CO_FILES),HL
   LD (PROGND),HL
-  LD HL,$F999
+  LD HL,SUZUKI-1
   LD (DIRPNT),HL
   CALL CLRPTR
   CALL INITIO
@@ -23200,7 +23218,7 @@ BOOT_6:
   JP __MENU
 
 ; This entry point is used by the routine at BASIC.
-BOOT_7:
+PRINT_COPYRIGHT:
   LD HL,PROMPT_MSG
   CALL PRS
 
@@ -23217,7 +23235,7 @@ FREEMEM:
   LD A,H
   SBC A,D
   LD H,A
-  LD BC,$FFF2	; -14
+  LD BC,CSRSTS	; -14
   ADD HL,BC
   CALL NUMPRT
   LD HL,FREE_MSG
@@ -23302,7 +23320,7 @@ __MAX:
 __MAX_0:
   PUSH AF
   LD HL,(HIMEM)
-  LD DE,$FEF5
+  LD DE,$FEF5		; -267 (same offset on MSX)
 __MAX_1:
   ADD HL,DE
   DEC A
@@ -23373,7 +23391,7 @@ __MAX_2:
   POP HL
   LD BC,$0009
   ADD HL,BC
-  LD ($FC87),HL
+  LD (FILTAB+4),HL
   RET
 
 ; Message at 32664
@@ -23400,8 +23418,6 @@ _RST38H:
   PUSH AF
   LD A,(HL)
   LD (RST38_OFFS),A
-; This entry point is used by the routine at __MAX.
-_RST38H_0:
   POP AF
   INC HL
   EX (SP),HL
