@@ -19,6 +19,7 @@ defc OPTROM      = $F62A
 defc DIAL_SPEED  = $F62B
 defc FNKPNT      = $F62C
 defc PASPNT      = $F62E
+defc FNKSWI      = $F62F
 defc FNKSTAT     = $F630
 defc SCREEN      = $F638
 defc CSRX        = $F639
@@ -120,7 +121,7 @@ defc ON_COM_FLG  = $F944
 defc ON_COM      = $F945
 defc ON_TIME_FLG = $F947
 defc ON_TIME     = $F948
-defc FNK_VECTBL  = $F94A
+defc TRPTBL  = $F94A
 
 defc DIRECTORY   = $F962
 defc SUZUKI      = $F99A
@@ -134,6 +135,7 @@ defc CASPRV      = $FA8E
 defc COMPRV      = $FA8F
 defc RAMPRV      = $FA91
 
+defc PASPRV      = $FAA1
 defc RAMFILE     = $FAA2
 defc LPRINT_CH   = $FAAC
 defc LBL_LINE    = $FAAD
@@ -4000,7 +4002,7 @@ CHGET_3:
   LD HL,$0000
   LD (PASPNT),HL
   LD A,$0D         ; CR
-  LD ($FAA1),A
+  LD (PASPRV),A
 CHGET_4:
   LD HL,(PASPNT)
   LD A,L
@@ -4008,14 +4010,14 @@ CHGET_4:
   INC A
   JP Z,CHGET_6
   PUSH HL
-  LD A,($FAA1)
+  LD A,(PASPRV)
   CP $0D         ; CR
   CALL Z,RESFPT
   LD HL,(HAYASHI)		; Paste buffer file
   POP DE
   ADD HL,DE
   LD A,(HL)
-  LD ($FAA1),A
+  LD (PASPRV),A
   LD B,A
   CP $1A		; EOF
   LD A,$00
@@ -5503,7 +5505,7 @@ __IPL_0:
 ERASE_IPL:
   XOR A
   LD (IPL_FNAME),A
-  LD ($FAB0),A
+  LD (IPL_FNAME+1),A
   RET
 
 ; COM and MDM Statements
@@ -5518,6 +5520,7 @@ __MDM_0:
   LD HL,ON_TIME_FLG
 __MDM_1:
   CALL KEY_STMTS_2
+  
 ; This entry point is used by the routine at KEY_STMTS.
 __MDM_2:
   POP HL
@@ -5555,10 +5558,10 @@ KEY_STMTS_0:
 ; This entry point is used by the routine at __MDM.
 KEY_STMTS_1:
   LD D,$00
-  LD HL,$F62F		; -2513
+  LD HL,FNKSWI		; -2513
   ADD HL,DE
   PUSH HL
-  LD HL,ON_TIME_FLG
+  LD HL,TRPTBL-3
   ADD HL,DE
   ADD HL,DE
   ADD HL,DE
@@ -5719,8 +5722,8 @@ _RST75_6:
 
 ; Routine at 7096
 __KEY:
-  CP $A5
-  JP NZ,OUTS_B_CHARS_2
+  CP $A5		; TK_LIST, "KEY LIST" command ?
+  JP NZ,KEY_CONFIG
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   PUSH HL
   LD HL,FNKSTR
@@ -5763,15 +5766,17 @@ OUTS_B_CHARS_1:
   RET
 
 ; This entry point is used by the routine at __KEY.
-OUTS_B_CHARS_2:
-  CP $28	; 40, '(' ?
+KEY_CONFIG:
+  CP '('
   JP Z,__MDM_3
+  
   CP $97		; TK_ON, token for 'ON' keyword
   JP Z,KEY_STMTS
   CP $CB		; TK_OFF
   JP Z,KEY_STMTS
   CP $8F		; TK_STOP
   JP Z,KEY_STMTS
+  
   CALL GETINT
   DEC A
   CP $08
@@ -5783,7 +5788,7 @@ OUTS_B_CHARS_2:
   ADD HL,HL
   ADD HL,HL
   ADD HL,HL			; *16
-  LD BC,FNKSTR
+  LD BC,FNKSTR		; FUNCTION KEY AREA
   ADD HL,BC
   PUSH HL
   EX DE,HL
@@ -5802,8 +5807,8 @@ OUTS_B_CHARS_2:
   LD C,$0F
   LD A,B
   AND A
-  JP Z,OUTS_B_CHARS_4
-OUTS_B_CHARS_3:
+  JP Z,KEY_CONFIG_1
+KEY_CONFIG_0:
   LD A,(DE)
   AND A
   JP Z,FCERR
@@ -5811,15 +5816,15 @@ OUTS_B_CHARS_3:
   INC DE
   INC HL
   DEC C
-  JP Z,OUTS_B_CHARS_5
+  JP Z,KEY_CONFIG_2
   DEC B
-  JP NZ,OUTS_B_CHARS_3
-OUTS_B_CHARS_4:
+  JP NZ,KEY_CONFIG_0
+KEY_CONFIG_1:
   LD (HL),B
   INC HL
   DEC C
-  JP NZ,OUTS_B_CHARS_4
-OUTS_B_CHARS_5:
+  JP NZ,KEY_CONFIG_1
+KEY_CONFIG_2:
   LD (HL),C
   CALL FNKSB
   CALL SAVE_BA_LBL
@@ -12553,7 +12558,7 @@ L402B:
   JP Z,CLR_ALLINT_5
   DEC B
   JP NZ,CLR_ALLINT_7
-  LD HL,ON_TIME_FLG
+  LD HL,TRPTBL-3
   LD B,$09
 CLR_ALLINT_3:
   LD A,(HL)
