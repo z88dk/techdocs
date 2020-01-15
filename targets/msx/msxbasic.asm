@@ -1,23 +1,21 @@
 
 ; How to build (use the z80asm variant in z88dk):
 ;
-; z80asm -a msxbasic
+; z80asm -b msxbasic
 ;
 
 ; Variant with HOOKs disabled:
 ;
-; z80asm -DNOHOOK -a msxbasic
+; z80asm -DNOHOOK -b msxbasic
 ;
 ; No HOOKs but same ROM addresses:
-; z80asm -DNOHOOK -DPRESERVE_LOCATIONS-a msxbasic
+; z80asm -DNOHOOK -DPRESERVE_LOCATIONS -b msxbasic
 ;
 
 ; MOD demonstration (ZX Spectrum skin variant):
 ;
-; z80asm -DSPECTRUM_SKIN -DNOHOOK -a msxbasic
+; z80asm -DSPECTRUM_SKIN -DNOHOOK -b msxbasic
 ; 
-
-; MSX ROM patched to disable all the MSX
 
 
 ; NON WORKING attempt to adapt this ROM to a 32K Spectravideo SVI:
@@ -31,7 +29,8 @@ defc FF     =  $0C		; Form Feed / CLS
 defc ESC    =  $1B		; Escape
 
 
-defc STACK_INIT = $F376
+;defc STACK_INIT = $F376
+defc STACK_INIT = MAXRAM-10
 
   INCLUDE "msxbasic.def"
   INCLUDE "msxhook.def"
@@ -3848,6 +3847,7 @@ L104E:
 L1058:
   DEC L
   INC L
+  
 L105A:
 	;L105A+1:  XOR A
   LD L,$AF
@@ -9537,7 +9537,7 @@ L3406:
 ; $340A:
 LNUM_MSG:
   PUSH HL
-  LD HL,L3FD2		; " in "
+  LD HL,IN_MSG		; " in "
   CALL PRS
   POP HL
 
@@ -10143,16 +10143,8 @@ L370A:
 
 ; Routine at 14096
 L3710:
-  DJNZ L3722_3
-  RET PE
-  INC BC
-  LD H,H
-  NOP
-  LD A,(BC)
-  NOP
-  
-  DEFB $01	; "LD BC,nn" to jump over the next word without executing it
-  NOP
+  DEFB $10,$27,$e8,$03,$64,$00,$0a,$00,$01,$00
+
   
 ; This entry point is used by __BIN$.
 BIN_STR:
@@ -11686,16 +11678,20 @@ ERROR_MESSAGES:
   ; Err $23
   DEFM "File not OPEN"
   DEFB $00
-L3FD2:
+  
+IN_MSG:
   DEFM " in "
+
 NULL_STRING:
   DEFB $00
-L3FD7:
+
+OK_MSG:
   DEFM "Ok"
   DEFB CR
   DEFB LF
   DEFB $00
-L3FDC:
+
+BREAK_MSG:
   DEFM "Break"
   DEFB $00
 
@@ -12020,7 +12016,7 @@ ELSE
   CALL HREAD				; Hook 1 for Mainloop ("OK")
 ENDIF
   CALL CONSOLE_CRLF
-  LD HL,L3FD7				; "Ok" Message
+  LD HL,OK_MSG				; "Ok" Message
   CALL PRS
   ; --- START PROC L4134 ---
 PROMPT:
@@ -13746,7 +13742,7 @@ L495D:
 
 __RESUME_0:
   INC A
-  LD (ENDPRG+5),A		;  "Resume" pivot code in the system variables area
+  LD (ERRFLG),A		;(a.k.a. ERRFLG) Error code of last error
   LD A,(HL)
   CP TK_NEXT
   JR Z,__RESUME_SUB
@@ -15819,7 +15815,7 @@ __DELETE:
   RST DCOMPR			; Compare HL with DE.
 __DELETE_0:
   JP NC,FCERR			; Err $05 - "Illegal function call"
-  LD HL,L3FD7				; "Ok" Message
+  LD HL,OK_MSG				; "Ok" Message
   CALL PRS
   POP BC
   LD HL,L4237
@@ -19052,7 +19048,7 @@ __END_2:
   CALL STOP_LPT
   CALL CONSOLE_CRLF
   POP AF
-  LD HL,L3FDC		; "Break" message
+  LD HL,BREAK_MSG		; "Break" message
   JP NZ,L40FD
   JP RESTART
 
@@ -21785,7 +21781,7 @@ L7044:
   JR NZ,__CLOAD_1
   LD (VARTAB),HL
 __CLOAD_0:
-  LD HL,L3FD7				; "Ok" Message
+  LD HL,OK_MSG				; "Ok" Message
   CALL PRS
   LD HL,(TXTTAB)
   PUSH HL
@@ -23350,7 +23346,7 @@ _TRIG:
 ; This entry point is used by the routines at L77A5, L77AB and _INTERVAL.
 _TRIG_0:
   CALL L77FE
-  JR L77D4_0
+  JR __MDM_2
 
 ; Routine at 30676
 ; This entry point is used by the routine at _TRIG and KEY_CONFIG.
@@ -23362,7 +23358,8 @@ L77D4:
   LD A,(HL)
   PUSH HL
   CALL L77E8
-L77D4_0:
+
+__MDM_2:
   POP HL
   POP AF
   RST CHRGTB		; Gets next character (or token) from BASIC text.
@@ -23376,7 +23373,7 @@ L77E8:
   LD HL,FNKSWI
   ADD HL,DE
   PUSH HL
-  LD HL,BOTTOM+1
+  LD HL,TRPTBL-3		; BOTTOM+1
   ADD HL,DE
   ADD HL,DE
   ADD HL,DE
@@ -23575,8 +23572,8 @@ KEY_CONFIG:
   LD C,$0F
   LD A,B
   AND A
-  JR Z,L78F5
-L78E8:
+  JR Z,KEY_CONFIG_1
+KEY_CONFIG_0:
   LD A,(DE)
   AND A
   JP Z,FCERR
@@ -23584,14 +23581,14 @@ L78E8:
   INC DE
   INC HL
   DEC C
-  JR Z,L78EE_1
-  DJNZ L78E8
-L78F5:
+  JR Z,KEY_CONFIG_2
+  DJNZ KEY_CONFIG_0
+KEY_CONFIG_1:
   LD (HL),B
   INC HL
   DEC C
-  JR NZ,L78F5
-L78EE_1:
+  JR NZ,KEY_CONFIG_1
+KEY_CONFIG_2:
   LD (HL),C
   CALL FNKSB
   POP HL
@@ -24984,7 +24981,7 @@ L7FFF:
 ; 
   DEFB ':'	; SAVTXT often points to this value (copied to "ENDPRG" in RAM)
 L7FB7:
-  LD DE,PROCNM
+  LD DE,PROCNM		; $FD89
   AND A
   RET NZ
   INC B
