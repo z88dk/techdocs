@@ -3,8 +3,9 @@
 defc CR = 13
 defc LF = 10
 
-
+defc STACK_INIT  = $F5E6
 defc MAXRAM      = $F5F0
+
 defc ATIDSV      = $F5F2
 defc HIMEM       = $F5F4
 defc BOOT_VECT   = $F5F6
@@ -16,7 +17,8 @@ defc _TRAP       = $F602
 defc EXTROM_TST  = $F605
 defc OPTROM      = $F62A
 defc DIAL_SPEED  = $F62B
-defc FNKMAC      = $F62C
+defc FNKPNT      = $F62C
+defc PASPNT      = $F62E
 defc FNKSTAT     = $F630
 defc SCREEN      = $F638
 defc CSRX        = $F639
@@ -29,6 +31,7 @@ defc CSR_STATUS  = $F63F
 defc CSR_ROW     = $F640
 defc CSR_COL     = $F641
 defc ESCCNT      = $F646
+defc ESCSAV      = $F647
 defc REVERSE     = $F648
 defc FNK_FLAG    = $F650
 defc PWRINT      = $F657
@@ -141,8 +144,8 @@ defc RAM         = $FAC0
 defc CAPTUR      = $FAC2
 defc SV_TXTPOS   = $FAC4
 defc FNAME_END   = $FAC6
+defc CRTFLG      = $FAC7
 defc MENU_FLG    = $FAC8
-
 defc RST38_OFFS  = $FAC9
 defc SV_CSRY     = $FACA
 defc BLINK       = $FACB
@@ -153,14 +156,17 @@ defc PRLEN       = $FAD0
 defc EXE         = $FAD2
 
 
-defc RST38_VECT    = $FADA	; offset: 00, used by __CLEAR
-defc MAXRAM_VECT   = $FADC	; offset: 02
+defc RST38_VECT    = HCLEAR	; -----  HOOK CODE VECTOR (NEC equivalent listed) -----
+
+defc HCLEAR        = $FADA	; offset: 00, used by __CLEAR
+defc HMAXRAM       = $FADC	; offset: 02
 defc HCHGE         = $FADE	; offset: 04, Allow access to other devices than the internal keyboard
 defc HCHSNS        = $FAE0	; offset: 06
 defc HOUTD         = $FAE2	; offset: 08
+;    HLCDPUT                ; 
 defc HLPTO         = $FAE4	; offset: 10  Hook for LPTOUT std routine
 defc HSETF         = $FAE6  ; offset: 12, Hook 2 for Locate FCB
-defc HOOK_0E       = $FAE8  ; offset: 14, Hook for "read byte"
+defc HINDSKC       = $FAE8  ; offset: 14, Hook for "read byte"
 defc HRSLF         = $FAEA  ; offset: 16, Hook for "INPUT$"
 defc HBAKU         = $FAEC  ; offset: 18, Hook for "LINE INPUT#"
 defc HNTFL         = $FAEE  ; offset: 20, Close I/O buffer
@@ -169,29 +175,50 @@ defc HNOFO         = $FAF2	; offset: 24, "OPEN": not found
 defc HMERG         = $FAF4  ; offset: 26, Hook for "MERGE/LOAD"
 defc HNULO         = $FAF6  ; offset: 28, Hook for "OPEN"
 defc HGETP         = $FAF8  ; offset: 30, Hook 1 for Locate FCB
-defc HOOK_20       = $FAFA  ; offset: 32
+defc HFILOU        = $FAFA  ; offset: 32
 defc HBINS         = $FAFC  ; offset: 34, Hook 2 for "SAVE"
 defc HBINL         = $FAFE  ; offset: 36, Hook for "MERGE/LOAD"
 defc HEOF          = $FB00	; offset: 38, Init Hook for LOC, LOF, EOF, FPOS
 defc HPARD         = $FB02  ; offset: 40, Hook 1 for "Parse device name" event
 defc HNODE         = $FB04  ; offset: 42, Hook 2 for "Parse device name" event
-defc HOOK_2C       = $FB06  ; offset: 44, Extra Hook for "Parse device name" event
+defc HDEVNAM       = $FB06  ; offset: 44, Extra Hook for "Parse device name" event
 defc HPOSD         = $FB08  ; offset: 46, Hook 3 for "Parse device name" event
 defc HGEND         = $FB0A  ; offset: 48, I/O function dispatcher
-defc TERM_F6_VECT  = $FB0C  ; offset: 50, Terminal, F6 function key
-defc TERM_F7_VECT  = $FB0E  ; offset: 52, Terminal, F7 function key
-defc TERM_EOF_VECT = $FB10  ; offset: 54, Terminal, EOF related hook
-defc TXT_ESC_VECT  = $FB12  ; offset: 56, Terminal, ESC related hook
+;    HFILES                 ; 
+;    HCHGCON                ; 
+;    HMSVB                  ; 
+;    HMSVC                  ; 
+;    HMLDB                  ; 
+;    HMLDC                  ; 
+;    HPCPINL                ; 
+;    HPCINL                 ; 
+;    HCHKHIM                ; 
+;    HESCAPE                ; 
+;    HTELFNK                ; 
+;    HTRMST                 ; 
+defc HTRMF6        = $FB0C  ; offset: 50, Terminal, F6 function key
+defc HTRMF7        = $FB0E  ; offset: 52, Terminal, F7 function key
+;    HTRMEND                ; 
+;    HCOMOPN                ; 
+;    HCOMCLS                ; 
+;    HSD232C                ; 
+;    HMPXSEL                ; 
+;    HTELERR                ; 
+;    HPRTTTL                ; 
+defc HUPLD         = $FB10  ; offset: 54, Terminal, EOF/UPLOAD related hook
+defc HTEXT         = $FB12  ; offset: 56, Terminal, ESC/TEXT handling related hook
 defc HWIDT         = $FB14  ; offset: 58, Hook for "WIDTH" statemen
 defc HOOK_3C       = $FB16  ; offset: 60
 defc HSCRE         = $FB18  ; offset: 62, Hook for "SCREEN"
-defc CRT_OPN_VECT  = $FB1A  ; offset: 64, CRT open routine
- ; offset: 66
-defc CRT_OUT_VECT  = $FB1E  ; offset: 68, CRT output file routine
-defc W_OPN_VECT    = $FB20  ; offset: 70, WAND Open routine
-defc W_CLS_VECT    = $FB22  ; offset: 72, WAND Close routine
-defc W_GET_VECT    = $FB24  ; offset: 74, WAND Get routine
-defc W_IO_VECT     = $FB26	; offset: 76, WAND Special I/O
+defc HTVOPN        = $FB1A  ; offset: 64, CRT open routine
+;    HTVCLS        = $????  ; offset: 66, CRT close routine
+defc HTVOUT        = $FB1E  ; offset: 68, CRT output file routine
+;    HTVINP                 ; 
+;    HTVBCK                 ; 
+defc HWAOPN        = $FB20  ; offset: 70, WAND Open routine
+defc HWACLS        = $FB22  ; offset: 72, WAND Close routine
+defc HWAINP        = $FB24  ; offset: 74, WAND Get routine
+defc HWABCK        = $FB26	; offset: 76, WAND Special I/O
 defc HLOF          = $FB28	; offset: 78, Hook for "LOF"
 defc HLOC          = $FB2A	; offset: 80, Hook for "LOC"
 defc HFILE         = $FB2C	; offset: 82, Hook for "LFILES"
@@ -199,8 +226,8 @@ defc HDSKI         = $FB2E	; offset: 84, Hook for "DSKI$"
 defc HDSKO         = $FB30	; offset: 86, Hook for "DSKO$"
 defc HKILL         = $FB32	; offset: 88, Hook for "KILL"
 defc HNAME         = $FB34	; offset: 90, Hook for "NAME"
-defc HSAVEM        = $FB36	; offset: 92, Hook for "SAVEM"
-defc HLOAD         = $FB38	; offset: 94, Hook for "LOAD"
+defc HMSAVE        = $FB36	; offset: 92, Hook for "SAVEM"
+defc HMLOAD        = $FB38	; offset: 94, Hook for "LOAD"
 
 defc TEXT_END    = $FB62
 
@@ -303,11 +330,62 @@ defc GFX_TEMP    = $FFF6
 defc SAVSP       = $FFF8
 
 
+; Hook Code (byte offset) values
+
+defc HC_CLEAR   = 00
+defc HC_MAXRAM  = 02
+defc HC_CHGE    = 04
+defc HC_CHSNS   = 06
+defc HC_OUTD    = 08
+defc HC_LPTO    = 10
+defc HC_SETF    = 12
+defc HC_INDSKC  = 14
+defc HC_RSLF    = 16
+defc HC_BAKU    = 18
+defc HC_NTFL    = 20
+defc HC_SAVE    = 22
+defc HC_NOFO    = 24
+defc HC_MERG    = 26
+defc HC_NULO    = 28
+defc HC_GETP    = 30
+defc HC_FILOU   = 32
+defc HC_BINS    = 34
+defc HC_BINL    = 36
+defc HC_EOF     = 38
+defc HC_PARD    = 40
+defc HC_NODE    = 42
+defc HC_DEVNAM  = 44
+defc HC_POSD    = 46
+defc HC_GEND    = 48
+defc HC_TRMF6   = 50
+defc HC_TRMF7   = 52
+defc HC_UPLD    = 54
+defc HC_TEXT    = 56
+defc HC_WIDT    = 58
+defc HC_HOOK_3C = 60
+defc HC_SCRE    = 62
+defc HC_TVOPN   = 64
+;defc HC_TVCLS     = 66
+defc HC_TVOUT   = 68
+defc HC_WAOPN   = 70
+defc HC_WACLS   = 72
+defc HC_WAINP   = 74
+defc HC_WABCK   = 76
+defc HC_LOF     = 78
+defc HC_LOC     = 80
+defc HC_FILE    = 82
+defc HC_DSKI    = 84
+defc HC_DSKO    = 86
+defc HC_KILL    = 88
+defc HC_NAME    = 90
+defc HC_MSAVE   = 92
+defc HC_MLOAD   = 94
+
+
 
   ORG $0000
 
 ; Reset
-L0000:
   JP BOOT
   
   LD C,L
@@ -858,7 +936,7 @@ SYSVARS_ROM:
   DEFW $0000
   DEFW MAXRAM
   DEFW $00C9
-  DEFW HEOF
+  DEFW HEOF		; $FB00
   DEFW $00C9
   DEFW $00C9
   DEFW $C900
@@ -3889,9 +3967,9 @@ CHGET:
 
 CHGET_0:
   RST $38
-  DEFB $04	; HCHGE, Offset: 04  (allow access to other devices than the internal keyboard)
+  DEFB HC_CHGE ; Offset: 04  (allow access to other devices than the internal keyboard)
   
-  LD HL,(FNKMAC)
+  LD HL,(FNKPNT)
   INC H
   DEC H
   JP Z,CHGET_4
@@ -3906,7 +3984,7 @@ CHGET_0:
 CHGET_1:
   LD H,A
 CHGET_2:
-  LD (FNKMAC),HL
+  LD (FNKPNT),HL
   LD A,B
   RET
   
@@ -3916,11 +3994,11 @@ CHGET_3:
   ADD A,A
   RET C
   LD HL,$0000
-  LD ($F62E),HL
+  LD (PASPNT),HL
   LD A,$0D         ; CR
   LD ($FAA1),A
 CHGET_4:
-  LD HL,($F62E)
+  LD HL,(PASPNT)
   LD A,L
   AND H
   INC A
@@ -3944,7 +4022,7 @@ CHGET_4:
   LD A,(HL)
   EX DE,HL
   INC HL
-  LD ($F62E),HL
+  LD (PASPNT),HL
   CP $1A		; EOF
   LD A,B
   SCF
@@ -3952,7 +4030,7 @@ CHGET_4:
   RET NZ
 CHGET_5:
   LD HL,$FFFF
-  LD ($F62E),HL
+  LD (PASPNT),HL
   RET
 
 CHGET_6:
@@ -4007,7 +4085,7 @@ CHGET_8:
   INC HL
   INC HL		; +4
 CHGET_9:
-  LD (FNKMAC),HL
+  LD (FNKPNT),HL
   JP CHGET_0
 
 CHGET_10:
@@ -4064,21 +4142,21 @@ BLINK_CURS_HIDE:
 ; Used by the routines at CHGET, INKEY_S, TEL_TERM, TEL_PREV, TEL_UPLD, SHOW_TIME
 ; and TXT_CTL_N.
 CHSNS:
-  LD A,($F62D)
+  LD A,(FNKPNT+1)
   AND A
   RET NZ
   LD A,(TMOFLG)
   AND A
   RET NZ
   PUSH HL
-  LD HL,($F62E)
+  LD HL,(PASPNT)
   LD A,L
   AND H
   INC A
   POP HL
   RET NZ
   RST $38
-  DEFB $06	; HCHSNS, Offset: 06
+  DEFB HC_CHSNS		; Offset: 06
   
   JP KEYX
 
@@ -4179,7 +4257,7 @@ POWER_ON_0:
 ; Used by the routines at __LCOPY and OUTC_TABEXP.
 LPT_OUT:
   RST $38
-  DEFB $0A		; HLPTO, offset: 10
+  DEFB HC_LPTO		; Offset: 10
   
   CALL PRINTR
   JP NC,LPT_BREAK
@@ -4332,12 +4410,12 @@ CRT_CTL:
 ; Routine at 5368
 CRT_OPN:
   RST $38
-  DEFB $40		; CRT_OPN_VECT, Offset: 64
+  DEFB HC_TVOPN		; Offset: 64
 
 ; Routine at 5370
 CRT_OUTPUT:
   RST $38
-  DEFB $44		; CRT_OUT_VECT, Offset: 68
+  DEFB HC_TVOUT		; Offset: 68
 
 ; RAM Device control block
 RAM_CTL:
@@ -5015,25 +5093,25 @@ WAND_CTL:
 
 WND_OPN:
   RST $38
-  DEFB $46	; , Offset: 70
+  DEFB HC_WAOPN		; Offset: 70
 
 WND_CLS:
   RST $38
-  DEFB $48	; , Offset: 72
+  DEFB HC_WACLS		; Offset: 72
 
 WND_INPUT:
   RST $38
-  DEFB $4A	; , Offset: 74
+  DEFB HC_WAINP		; Offset: 74
 
 WND_IO:
   RST $38
-  DEFB $4C	; , Offset: 76
+  DEFB HC_WABCK		; Offset: 76
 
 
 ; Routine at 6281
 __EOF:
   RST $38
-  DEFB $26	; HEOF, Offset: 38
+  DEFB HC_EOF		; Offset: 38
   
   CALL GETFLP
   JP Z,CFERR
@@ -6025,7 +6103,7 @@ MAX_FN:
 _MAXRAM:
   PUSH HL
   RST $38
-  DEFB $02	; Offset: 02, MAXRAM_VECT
+  DEFB HC_MAXRAM
   
   LD HL,MAXRAM
   CALL DBL_ABS_0
@@ -6054,7 +6132,7 @@ _HIMEM:
 ; Routine at 7619
 __WIDTH:
   RST $38
-  DEFB $3A		; HWIDT, Offset: 58
+  DEFB HC_WIDT		; Offset: 58
 
 ; Routine at 7621
 __SOUND:
@@ -6142,7 +6220,7 @@ __CALL_1:
 ; Routine at 7714
 __SCREEN:
   CP ','
-  LD A,(SCREEN)
+  LD A,(SCREEN)		; Console type 0=LCD 1=CRT
   CALL NZ,GETINT
   CALL __SCREEN_0
   DEC HL
@@ -6160,16 +6238,16 @@ __SCREEN:
 ; This entry point is used by the routine at __MENU.
 __SCREEN_0:
   PUSH HL
-  LD (SCREEN),A
+  LD (SCREEN),A		; Console type 0=LCD 1=CRT
   AND A
   LD DE,$2808		; D=40, E=8
   LD HL,(CSR_ROW)
   LD A,$0E
   JP Z,L1E52
   XOR A
-  LD (SCREEN),A
+  LD (SCREEN),A		; Console type 0=LCD 1=CRT
   RST $38
-  DEFB $3E		; HSCRE, Offset: 62
+  DEFB HC_SCRE		; Offset: 62
 
 ; Routine at 7762
 ;
@@ -6391,7 +6469,7 @@ __KILL:
   CP $F8		; 'RAM' device ?
   JP Z,__KILL_0
   RST $38
-  DEFB $58		; HKILL, Offset: 88
+  DEFB HC_KILL		; Offset: 88
   
 __KILL_0:
   PUSH HL
@@ -6513,7 +6591,7 @@ __NAME:
   JP Z,__NAME_0
 
   RST $38
-  DEFB $5A	; HNAME, Offset: 90
+  DEFB HC_NAME		; Offset: 90
   
 __NAME_0:
   PUSH HL
@@ -6683,7 +6761,7 @@ __NEW_1:
   ADD HL,BC
   LD ($FAD8),HL
   LD HL,$FFFF
-  LD ($F62E),HL
+  LD (PASPNT),HL
   JP RUN_FST
 
 ; This entry point is used by the routine at __EDIT.
@@ -6939,7 +7017,7 @@ SWAPNM_0:
 SWAPNM_1:
   CALL RESFPT
   LD HL,$FFFF
-  LD ($F62E),HL
+  LD (PASPNT),HL
   LD B,H
   LD C,L
   LD HL,(HAYASHI)		; Paste buffer file
@@ -7022,7 +7100,7 @@ SAVEM:
   CP $F8		; D = 'RAM' device ?
   JP Z,CSAVEM_1
   RST $38
-  DEFB $5C	; HSAVEM, Offset: 92
+  DEFB HC_MSAVE		; Offset: 92
 
 ; CSAVEM Statement
 ;
@@ -7223,7 +7301,7 @@ LOAD_RECORD_0:
 ; This entry point is used by the routine at __CLOAD.
 LOAD_RECORD_1:
   CALL CLRPTR
-  LD HL,L0000
+  LD HL,$0000
   LD (ERRTRP),HL
   JP HEADER_0
 
@@ -7300,7 +7378,7 @@ LOADM_RUNM:
   CP $F8		; D = 'RAM' device ?
   JP Z,CLOADM_RAM
   RST $38
-  DEFB $5E	; HLOAD, Offset: 94
+  DEFB HC_MLOAD		; Offset: 94
 
 ; Routine at 9383
 ;
@@ -11848,7 +11926,7 @@ PUFOUT_56:
   EX (SP),HL
   EX DE,HL
   LD HL,(DBL_FPREG)
-  LD B,$2F
+  LD B,'0'-1  ; $2F, '/'
 PUFOUT_57:
   INC B
   LD A,L
@@ -11874,18 +11952,11 @@ PUFOUT_58:
   POP DE
   RET
 
+
 ; Data at 15610
 L3CFA:
-  DEFB $10
-  DEFM "'"
-  DEFB $E8
-  DEFB $03
-  DEFM "d"
-  DEFB $00
-  DEFB $0A
-  DEFB $00
-  DEFB $01
-  DEFB $00
+  DEFB $10,$27,$e8,$03,$64,$00,$0a,$00,$01,$00
+
 
 ; Routine at 15620
 ;
@@ -12639,7 +12710,7 @@ __CLEAR:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP Z,_OMERR_1
   RST $38
-  DEFB $00		; RST38_VECT, offset: 00, Hook for CLEAR
+  DEFB HC_CLEAR		; offset: 00, Hook for CLEAR
   
   CALL GET_POSINT_0
   DEC HL
@@ -13084,7 +13155,7 @@ OUTC_SUB0:
 ; Involved by $0020, uses HOUTD
 OUTC_SUB:
   RST $38
-  DEFB $08		; HOUTD, Offset: 08
+  DEFB HC_OUTD		; Offset: 08
   
   CALL OUTC_SUB_0
   JP POPALL
@@ -13093,8 +13164,8 @@ OUTC_SUB:
 OUTC_SUB_0:
   LD C,A
   XOR A
-  LD ($FAC7),A
-  LD A,(SCREEN)
+  LD (CRTFLG),A
+  LD A,(SCREEN)		; Console type 0=LCD 1=CRT
   AND A
   JP NZ,OUTC_SUB_3
   CALL OUTC_SUB_1
@@ -13117,7 +13188,7 @@ OUTC_SUB_2:
 
 OUTC_SUB_3:
   RST $38
-  DEFB $3C	; HOOK_3C, Offset: 60
+  DEFB HC_HOOK_3C		; Offset: 60
   
 OUTC_SUB_4:
   LD HL,ESCCNT
@@ -13191,7 +13262,7 @@ ESCTBL:
 ; This entry point is used by the routines at ESC_P, ESC_Q, ESC_M, ESC_L,
 ; ESC_K, ESC_J and TEL_PREV.
 TTY_JP_0_1:
-  LD A,($FAC7)
+  LD A,(CRTFLG)
   AND A
   RET Z
   POP AF
@@ -13363,7 +13434,7 @@ ESC_W_0:
 
 ; ESC X
 ESC_X:
-  LD HL,$F647
+  LD HL,ESCSAV
   
 ; This entry point is used by the routine at DSKI_S.
 ; (Erase last character ?)
@@ -15016,7 +15087,7 @@ VARPTR_A:
   CP $09
   JP NC,VARPTR_A_0
   RST $38
-  DEFB $1E		; HGETP, Offset: 30
+  DEFB HC_GETP		; Offset: 30, Hook 1 for Locate FCB
   
   JP IEERR
 
@@ -15046,7 +15117,7 @@ SETFIL:
   JP Z,CFERR
   LD (PTRFIL),HL			; Redirect I/O
   RST $38
-  DEFB $0C		; HSETF, Offset: 12
+  DEFB HC_SETF		; Offset: 12
   RET
 
 ; Routine at 19659
@@ -15105,7 +15176,7 @@ __OPEN_2:
   OR A
   JP Z,BNERR
   RST $38
-  DEFB $18		; HNOFO, Offset: 24
+  DEFB HC_NOFO		; Offset: 24
 
 ;L4D11:
 ;  LD E,$D5
@@ -15131,7 +15202,7 @@ _OPEN:
   LD A,D
   CP $09
   RST $38
-  DEFB $1C		; HNULO, Offset: 28
+  DEFB HC_NULO		; Offset: 28
   
   JP C,IEERR
   PUSH HL
@@ -15166,7 +15237,7 @@ NTFL0:
   JP C,GET_DEVICE
 
   RST $38
-  DEFB $14		; HNTFL, Offset: 20
+  DEFB HC_NTFL		; Offset: 20
   JP IEERR
 
 ; LCD, CRT, and LPT file close routine
@@ -15217,7 +15288,7 @@ __MERGE:
   CP $FD				; D = 'CAS' device ?
   JP Z,__CLOAD_0
   RST $38
-  DEFB $1A		; HMERG, Offset: 26
+  DEFB HC_MERG		; Offset: 26
   
 ; This entry point is used by the routine at __LCOPY.
 __MERGE_0:
@@ -15279,7 +15350,7 @@ __SAVE:
   CP $FD			; D = 'CAS' device ?
   JP Z,__CSAVE_0
   RST $38
-  DEFB $16		; HSAVE, Offset: 22
+  DEFB HC_SAVE		; Offset: 22
   
   DEC HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.  
@@ -15317,13 +15388,13 @@ __SAVE_1:
   
 __SAVE_2:
   RST $38
-  DEFB $22		; HBINS, Offset: 34
+  DEFB HC_BINS		; Offset: 34, Hook 2 for "SAVE"
   JP NMERR
   
 ; This entry point is used by the routine at __MERGE.
 __SAVE_3:
   RST $38
-  DEFB $24		; HBINL Offset: 36
+  DEFB HC_BINL 		; Offset: 36, Hook for "MERGE/LOAD"
   JP NMERR
   
 ; This entry point is used by the routines at __KILL, _CLREG, __END, __MERGE
@@ -15382,7 +15453,7 @@ OUTC_FOUT:
   LD A,$04
   CALL __CLOSE_3
   RST $38
-  DEFB $20		; HOOK_20 Offset: 32
+  DEFB HC_FILOU 		; Offset: 32
   JP NMERR
   
   
@@ -15414,7 +15485,7 @@ RDBYT:
   LD A,$06
   CALL __CLOSE_3
   RST $38
-  DEFB $0E		; Offset: 14
+  DEFB HC_INDSKC
   JP NMERR
 
 ; This entry point is used by the routines at RAM_INPUT, CAS_INPUT, COM_INPUT and
@@ -15486,7 +15557,7 @@ INPUT_S_3:
   POP BC
   POP HL
   RST $38
-  DEFB $10		; HRSLF, Offset: 16
+  DEFB HC_RSLF		; Offset: 16
   
   LD (PTRFIL),HL			; Redirect I/O
   PUSH BC
@@ -15700,7 +15771,7 @@ L4F2E_14:
   LD A,$08
   CALL __CLOSE_3
   RST $38
-  DEFB $12		; HBAKU, Offset: 18
+  DEFB HC_BAKU		; Offset: 18
   JP NMERR
 
 ; This entry point is used by the routine at COM_IO.
@@ -15814,32 +15885,32 @@ FLERR:
 ; LOF Function
 __LOF:
   RST $38
-  DEFB $4E		; HLOF, Offset: 78
+  DEFB HC_LOF		; Offset: 78
 
 
 ; LOC Function
 __LOC:
   RST $38
-  DEFB $50		; HLOC, Offset: 80
+  DEFB HC_LOC		; Offset: 80
 
 
 ; __LFILES
 __LFILES:
   RST $38
-  DEFB $52		; HFILE, Offset: 82
+  DEFB HC_FILE		; Offset: 82
 
 
 ; DSKO$
 __DSKO_S:
   RST $38
-  DEFB $56		; HDSKO, Offset: 86
+  DEFB HC_DSKO		; Offset: 86
 
 
 ; DSKI$
 ; Used by the routine at VARPTR_VAR.
 DSKI_S:
   RST $38
-  DEFB $54		; HDSKI, Offset: 84
+  DEFB HC_DSKI		; Offset: 84
 
 
 ; Routine at 20597
@@ -15847,7 +15918,7 @@ DSKI_S:
 ; Parse Device Name, Z flag set if RAM device
 PARSE_DEVNAME:
   RST $38
-  DEFB $28		; HPARD, Offset: 40
+  DEFB HC_PARD		; Offset: 40, Hook 1 for "Parse device name" event
 
   LD A,(HL)
   CP ':'
@@ -15866,7 +15937,7 @@ L5077_1:
   POP HL
   XOR A
   RST $38
-  DEFB $2A		; HNODE, Offset: 42
+  DEFB HC_NODE		; Offset: 42, Hook 2 for "Parse device name" event
   RET
   
 ; Routine at 20630
@@ -15874,7 +15945,7 @@ L5077_1:
 ; Used by the routine at L5077.
 POSDSK:
   RST $38
-  DEFB $2E		; HPOSD, Offset: 46
+  DEFB HC_POSD		; Offset: 46
   JP NMERR		; NM error: bad file name
 
 GET_DEVNAME:
@@ -15884,7 +15955,7 @@ GET_DEVNAME:
   CP $02		; Continue only if dev name length >= 2
   JP NC,MAP_DEVNAME
   RST $38
-  DEFB $2C		; HOOK_2C, Offset: 44  
+  DEFB HC_DEVNAM		; Offset: 44  
   JP NMERR		; NM error: bad file name
 
 MAP_DEVNAME:
@@ -15980,7 +16051,7 @@ DEVICE_VECT:
 ; Used by the routines at __EOF, _OPEN, CLOSE1 and __CLOSE.
 GET_DEVICE:
   RST $38
-  DEFB $30		; HGEND, Offset: 48
+  DEFB HC_GEND		; Offset: 48
   
   PUSH HL
   PUSH DE
@@ -16648,16 +16719,17 @@ TEL_JPTAB:
 
 TEL_F6:
   RST $38
-  DEFB $32		; TERM_F6_VECT, Offset: 50
+  DEFB HC_TRMF6		; Offset: 50
   RET
   
 TEL_F7:
   RST $38
-  DEFB $34		; TERM_F7_VECT, Offset: 52
+  DEFB HC_TRMF7		; Offset: 52
   RET
 
 
 ; TELCOM PREV function routine
+; Display previously received text
 TEL_PREV:
   CALL TTY_JP_0_1
   CALL CURSOFF
@@ -16833,7 +16905,7 @@ TEL_UPLD_3:
   LD A,(HL)
   CP $1A		; EOF
   RST $38
-  DEFB $36		; TERM_EOF_VECT, Offset: 54
+  DEFB HC_UPLD		; Offset: 54
 
   JP Z,L566C
   CP $0A         ; LF
@@ -17917,7 +17989,7 @@ IS_CRLF_5:
   CALL CHGET
   PUSH AF
   SUB A
-  LD ($F62D),A
+  LD (FNKPNT+1),A
   POP AF
   CALL UCASE
   CP $51
@@ -18512,7 +18584,7 @@ TXT_ESC:
   LD H,A
   LD (ERRTRP),HL
   RST $38
-  DEFB $38		; TXT_ESC_VECT, Offset: 56
+  DEFB HC_TEXT		; Offset: 56
   
   CALL L65B9
   CALL UNLOCK
@@ -20658,17 +20730,17 @@ ROM_PROGS:
   DEFB $00
   
   DEFB $88
-  DEFW L0000
+  DEFW $0000
   DEFB $00
   DEFM "Suzuki "
   
   DEFB $C8
-  DEFW L0000
+  DEFW $0000
   DEFB $00
   DEFM "Hayashi"
   
   DEFB $48
-  DEFW L0000
+  DEFW $0000
   DEFB $00
   DEFM "RickY  "
 
@@ -22061,6 +22133,7 @@ MUSIC_3:
   INC HL
   LD A,(HL)
   OUT ($72),A
+
 MUSIC_4:
   LD A,B
   OR C
@@ -23104,7 +23177,7 @@ BOOT_2:
 
 BOOT_3:
   LD HL,IPL_FNAME
-  LD (FNKMAC),HL
+  LD (FNKPNT),HL
   LD HL,(STKTOP)
   LD SP,HL
   CALL BOOT_VECT
@@ -23131,7 +23204,7 @@ L7DD0:
   JP SETSER
 
 BOOT_4:
-  LD SP,$F5E6
+  LD SP,STACK_INIT
   CALL TEST_FREEMEM
   LD B,$90			; $97 on KC85, $E1 on PC8021
   LD DE,MAXRAM
