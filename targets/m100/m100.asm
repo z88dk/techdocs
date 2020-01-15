@@ -3,8 +3,8 @@
 defc CR = 13
 defc LF = 10
 
-defc STACK_INIT  = $F5E6
 defc MAXRAM      = $F5F0
+defc STACK_INIT  = MAXRAM-10
 
 defc ATIDSV      = $F5F2
 defc HIMEM       = $F5F4
@@ -125,12 +125,14 @@ defc FNK_VECTBL  = $F94A
 defc DIRECTORY   = $F962
 defc SUZUKI      = $F99A
 defc HAYASHI     = $F9A5
+defc EDTDIR      = $F9B0
 defc USRDIR      = $F9BA
 defc END_DIR     = $FA81
 
 defc DIRPNT      = $FA8C
 defc CASPRV      = $FA8E
 defc COMPRV      = $FA8F
+defc RAMPRV      = $FA91
 
 defc RAMFILE     = $FAA2
 defc LPRINT_CH   = $FAAC
@@ -309,6 +311,7 @@ defc RS232_BUF   = $FF46
 defc RS232_COUNT = $FF86
 defc CTRL_S_FLG  = $FF8A
 defc RS232_BAUD  = $FF8B
+defc COMMSK      = $FF8D
 defc CASS_HILO   = $FF8E
 defc KBSITP      = $FF8F
 ;defc KB_FLAGS    = $FF97
@@ -319,6 +322,7 @@ defc KYDATA      = $FF91
 defc KB_SHIFT    = $FFA2
 defc KYHOW       = $FFA3
 defc KYREPT      = $FFA4
+defc KYWHAT      = $FFA5
 defc KYBCNT      = $FFAA
 defc KYRDBF      = $FFAB
 defc BRKCHR      = $FFEB
@@ -4697,7 +4701,7 @@ RAM_INPUT_4:
 GET_RAM_PTR:
   PUSH DE
   LD HL,(RAMFILE)
-  LD DE,$FA91			; -1391
+  LD DE,RAMPRV
   ADD HL,DE
   POP DE
   RET
@@ -5033,7 +5037,7 @@ SETSER_3:
   LD E,A
   LD A,$FF
 SETSER_4:
-  LD ($FF8D),A
+  LD (COMMSK),A
   INC HL
   LD A,(HL)
   SUB $31
@@ -6535,7 +6539,7 @@ KILLBIN_0:
 ; This entry point is used by the routine at __EDIT.
 KILLASC_4:
   CALL RESFPT
-  LD HL,($F9B0)
+  LD HL,(EDTDIR)
   EX DE,HL
   LD HL,SUZUKI+21
   JP KILLASC+1
@@ -18329,7 +18333,7 @@ __EDIT_1:
 __EDIT_2:
   CALL RESFPT
   CALL CLR_ALLINT
-  LD HL,($F9B0)
+  LD HL,(EDTDIR)
   LD A,(HL)
   CP $1A		; EOF
   JP Z,__EDIT_4
@@ -21015,7 +21019,7 @@ _UART:
   LD HL,POPALL_INT
   PUSH HL
   IN A,($C8)
-  LD HL,$FF8D
+  LD HL,COMMSK
   AND (HL)
   LD C,A
   IN A,($D8)
@@ -21606,13 +21610,13 @@ DATAR_4:
   JP P,DATAR_3
   DEC HL
   LD (HL),$02
-  LD HL,$FFA5
+  LD HL,KYWHAT
   DEC (HL)
   JP Z,DATAR_12
   INC (HL)
   RET M
-  LD A,($FFA7)
-  LD HL,($FFA8)
+  LD A,(KYWHAT+2)
+  LD HL,(KYWHAT+3)
   AND (HL)
   RET Z
   LD A,(KYBCNT)
@@ -21653,7 +21657,7 @@ DATAR_8:
   RET
 
 DATAR_9:
-  LD HL,$FFA5
+  LD HL,KYWHAT
   INC A
   CP (HL)
   JP NZ,DATAR_10
@@ -21675,7 +21679,7 @@ DATAR_10:
   LD (HL),D
   POP DE
   EX DE,HL
-  LD ($FFA8),HL
+  LD (KYWHAT+3),HL
   EX DE,HL
   JP DATAR_8
   
@@ -21708,13 +21712,13 @@ DATAR_12:
   LD A,(KB_SHIFT)
   LD (HL),A
 DATAR_13:
-  LD A,($FFA6)
+  LD A,(KYWHAT+1)
   LD C,A
   LD DE,RST55
   LD B,D
   CP $33			; '3'
   JP C,DATAR_14
-  LD HL,$FFA7
+  LD HL,KYWHAT+2
   LD (HL),B
 DATAR_14:
   LD A,(KYHOW)
