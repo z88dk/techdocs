@@ -81,16 +81,18 @@ defc CUR_TXTFILE = $F767
 defc ENDBUF      = $F787
 defc TTYPOS      = $F788
 defc FNKSTR      = $F789
+defc IPLBBUF     = $F80A
 defc PASTE_BUF   = $F88C
+;defc PASTE_BUF   = KBUF		; Hack: the NEC target uses KBUF for the PASTE buffer
 
 defc SHFT_PRINT  = $F88A
 defc TXT_SAVPTR  = $F88E
 defc TXT_COUNT   = $F890
 defc TXT_PTR	 = $F892
 defc TXT_BUF	 = $F894
-
-
 defc TXT_EDITING = $F920
+defc TXT_YRNG    = $F922
+
 defc SECS        = $F923
 defc SECS_2      = $F924
 defc MINS        = $F925
@@ -103,6 +105,7 @@ defc DAY         = $F92B
 defc MONTH       = $F92C
 defc YEAR        = $F92D
 defc YEAR_2      = $F92E
+
 defc CSRITP      = $F92F
 defc TIMCN2      = $F930
 defc TIMINT      = $F931
@@ -117,11 +120,20 @@ defc CLOCK_DT1   = $F939
 defc CLOCK_DT2   = $F93A
 defc CLOCK_DAY   = $F93B
 defc ON_TIME_TM  = $F93D
+
+; --------------------------------------------------------------------------
+; TRPTBL () - Data table for the interrupt facilities (78 bytes on MSX).
+; *_FLG byte meaning (on MSX):
+;                  Bit 7-3 - unused
+;                  Bit 2   - Interrupt occurred Y/N   1= Yes
+;                  Bit 1   - Interrupt STOP  Y/N      1= Yes
+;                  Bit 0   - Interrupt OFF Y/N        1= No
+
 defc ON_COM_FLG  = $F944
 defc ON_COM      = $F945
 defc ON_TIME_FLG = $F947
 defc ON_TIME     = $F948
-defc TRPTBL  = $F94A
+defc TRPTBL      = $F94A
 
 defc DIRECTORY   = $F962
 defc SUZUKI      = $F99A
@@ -300,7 +312,8 @@ defc FILNM2      = $FC9C
 defc NLONLY      = $FCA7
 
 defc ALT_LCD     = $FCC0
-defc PROMPT_CNT  = $FDED
+
+defc MENUVARS    = $FDD7
 
 defc BEGLCD      = $FE00
 defc ENDLCD      = $FF40
@@ -328,7 +341,7 @@ defc KYWHAT      = $FFA5
 defc KYBCNT      = $FFAA
 defc KYRDBF      = $FFAB
 defc BRKCHR      = $FFEB
-defc CURS_SHAPE  = $FFEC
+defc SHAPE       = $FFEC
 defc CSRSTS      = $FFF2
 defc CSRCNT      = $FFF3
 defc LCD_ADDR    = $FFF4
@@ -1298,7 +1311,7 @@ READY:
 ; Used by the routines at EXEC_HL and __MERGE.
 PROMPT:
   LD HL,$FFFF
-  LD (CURLIN),HL
+  LD (CURLIN),HL		; Set interpreter in 'DIRECT' (immediate) mode
   LD HL,ENDPRG
   LD (SAVTXT),HL
   CALL _INLIN		; Line input, FN keys are supported.
@@ -1848,7 +1861,7 @@ EXEC_EVAL:
   CALL NZ,L402B
 ; This entry point is used by the routine at __MDM.
 EXEC_EVAL_0:
-  CALL CHSNS_0
+  CALL ISCNTC
   LD (SAVTXT),HL
   EX DE,HL
   LD HL,$0000
@@ -2995,7 +3008,7 @@ EVAL3_1:
   LD BC,EVAL3
   PUSH BC
   LD A,D
-  CP $51			; one less than AND as mapped in PRITAB
+  CP 'Q'			; one less than AND as mapped in PRITAB
   JP C,EVAL3_7
   AND $FE
   CP $7A			; MOD as mapped in PRITAB
@@ -3022,7 +3035,7 @@ EVAL3_3:
   LD C,E
   LD B,A
   PUSH BC
-  LD BC,L0E6C
+  LD BC,EVAL_VALTYP
 
 EVAL3_4:
   PUSH BC
@@ -3067,23 +3080,23 @@ NO_COMPARE_TK:
   JP NZ,EVAL3_2		; JP if not string type
   LD HL,(DBL_FPREG)
   PUSH HL
-  LD BC,L270C
+  LD BC,EVAL_STR
   JP EVAL3_4
 
 ; Routine at 3692
-L0E6C:
+EVAL_VALTYP:
   POP BC
   LD A,C
   LD (OPRTYP),A			; Temp operator number operations
   LD A,(VALTYP)
   CP B				; is type specified in 'B' different ?
-  JP NZ,EVAL3_9
+  JP NZ,EVAL_VALTYP_0
   CP $02			; Integer ?
   JP Z,EVAL3_10
   CP $04			; single precision ?
   JP Z,EVAL3_18
   JP NC,EVAL3_12
-EVAL3_9:
+EVAL_VALTYP_0:
   LD D,A
   LD A,B
   CP $08			; Double precision ?
@@ -3139,13 +3152,14 @@ EVAL3_15:
   LD H,(HL)
   LD L,A
   JP (HL)
+  
 EVAL3_16:
   LD A,B
   PUSH AF
   CALL FP_ARG2HL
   POP AF
   LD (VALTYP),A
-  CP $04
+  CP $04			; single precision ?
   JP Z,EVAL3_13
   POP HL
   LD (DBL_FPREG),HL
@@ -3450,10 +3464,10 @@ NOT_0:
 ; Used by the routine at GETYPR.
 _GETYPR:
   LD A,(VALTYP)
-  CP $08
+  CP $08	; set M,PO.. flags
   DEC A
   DEC A
-  DEC A
+  DEC A		; String ?
   RET
 
 ; Routine at 4210
@@ -3689,7 +3703,7 @@ __LIST:
   LD (LBLIST),HL
 __LIST_0:
   LD HL,$FFFF
-  LD (CURLIN),HL
+  LD (CURLIN),HL		; Set interpreter in 'DIRECT' (immediate) mode
   POP HL
   LD ($FABC),HL 
   POP DE
@@ -3701,7 +3715,7 @@ __LIST_0:
   OR C
   JP Z,__LIST_END
   CALL _ISFLIO       ; Tests if I/O to device is taking place
-  CALL Z,CHSNS_0
+  CALL Z,ISCNTC
   PUSH BC
   LD C,(HL)
   INC HL
@@ -4166,27 +4180,28 @@ CHSNS:
   
   JP KEYX
 
-
+;
+; Check the status of the BREAK key(s).
 ; This entry point is used by the routines at EXEC_EVAL, __LIST and CATALOG.
-CHSNS_0:
+ISCNTC:
   CALL BRKCHK
   RET Z
   CP $03
   JP Z,CTL_C
-  CP $13
+  CP $13	; PAUSE ?
   RET NZ
   CALL BLINK_CURS_SHOW
-CHSNS_1:
+ISCNTC_0:
   CALL BRKCHK
   CP $13
   JP Z,BLINK_CURS_HIDE
   CP $03
-  JP NZ,CHSNS_1
+  JP NZ,ISCNTC_0
   CALL BLINK_CURS_HIDE
 
 CTL_C:
   XOR A
-  LD (KYBCNT),A
+  LD (KYBCNT),A		; Empty keyboard buffer
   JP __STOP
 
 ; POWER statement
@@ -4289,7 +4304,7 @@ HEADER:
   RET NC
 ; This entry point is used by the routines at CASIN, CSOUT, CAS_INPUT,
 ; LOAD_RECORD, CLOADM and CAS_OPNI_CO.
-HEADER_0:
+CAS_ERR_EXIT:
   CALL CTOFF
 
 ; Generate I/O error
@@ -4334,7 +4349,7 @@ CASIN:
   PUSH HL
   PUSH BC
   CALL DATAR
-  JP C,HEADER_0
+  JP C,CAS_ERR_EXIT
   LD A,D
   POP BC
   ADD A,C
@@ -4356,7 +4371,7 @@ CSOUT:
   PUSH BC
   LD A,D
   CALL DATAW
-  JP C,HEADER_0
+  JP C,CAS_ERR_EXIT
   POP BC
   POP HL
   POP DE
@@ -4777,7 +4792,7 @@ CAS_INPUT:
   CALL INIT_INPUT
   JP NZ,CAS_INPUT_1
   PUSH HL
-  CALL CAS_OPNI_CO_10
+  CALL CAS_LOAD_BIN
   POP HL
   LD BC,$0000
 CAS_INPUT_0:
@@ -4789,7 +4804,7 @@ CAS_INPUT_0:
   CALL CASIN
   LD A,C
   AND A
-  JP NZ,HEADER_0
+  JP NZ,CAS_ERR_EXIT
   CALL CTOFF
   DEC H
   XOR A
@@ -4989,9 +5004,9 @@ SETSER:
   PUSH BC
   JP NC,SETSER_0
   LD A,(HL)
-  SUB $31	; '1'
+  SUB $31	; '1', get data bits..
   CP $09
-  RET NC
+  RET NC	; exit if > 8
   INC A
   LD D,A
   INC HL
@@ -4999,7 +5014,7 @@ SETSER_0:
   LD A,(HL)
   SUB $36	; '6'
   CP $03
-  RET NC
+  RET NC	; exit if < 7
 ; This entry point is used by the routine at WAND_CTL.
 SETSER_1:
   INC A
@@ -5009,8 +5024,8 @@ SETSER_1:
   LD E,A
   INC HL
   CALL UCASE_HL
-  CP $49
-  JP NZ,SETSER_2
+  CP 'I'
+  JP NZ,SETSER_PARITY
   LD A,E
   CP $18
   RET Z
@@ -5021,13 +5036,12 @@ SETSER_1:
   ADD A,A
   ADD A,A
   OR $3F
-  JP SETSER_4
-  
-SETSER_2:
-  CP $45
+  JP SETSER_STOP
+SETSER_PARITY:
+  CP 'E'
   LD B,$02
   JP Z,SETSER_3
-  SUB $4E
+  SUB 'N'
   LD B,$04
   JP Z,SETSER_3
   DEC A
@@ -5038,21 +5052,21 @@ SETSER_3:
   OR E
   LD E,A
   LD A,$FF
-SETSER_4:
+SETSER_STOP:
   LD (COMMSK),A
   INC HL
   LD A,(HL)
-  SUB $31
+  SUB '1'
   CP $02
   RET NC
   OR E
   LD E,A
   INC HL
   CALL UCASE_HL
-  CP $44
+  CP $44	; 'D'
   JP Z,SETSER_5
   CP $45
-  RET NZ
+  RET NZ	; 'E'
   CALL _XONXOFF_FLG
   SCF
 SETSER_5:
@@ -5071,7 +5085,7 @@ SETSER_6:
   LD B,$05
   LD A,(HL)
   JP C,SETSER_7
-  LD A,$4D
+  LD A,$4D	;'M'
 SETSER_7:
   LD (DE),A
   INC HL
@@ -5617,7 +5631,7 @@ ON_TIME_S_0:
   ADD A,B
   LD L,A
   LD H,$00
-  LD BC,ON_COM
+  LD BC,TRPTBL-5		; First entry in the table for interrupt services
   ADD HL,BC
   LD (HL),E
   INC HL
@@ -6465,7 +6479,7 @@ CATALOG_3:
   DEC C
   JP NZ,CATALOG_1
   CALL OUTDO_CRLF
-  CALL CHSNS_0
+  CALL ISCNTC
   JP CATALOG_0
 
 ; Routine at 8081
@@ -6758,8 +6772,6 @@ CLRPTR:
   LD (BASTXT),HL
   XOR A
   LD (HL),A
-; This entry point is used by the routine at FP_LOGTAB2.
-__NEW_1:
   INC HL
   LD (HL),A
   INC HL
@@ -7224,7 +7236,7 @@ __CLOAD_1:
   LD A,$00
   SCF
   CCF
-  JP Z,__CLOAD_2
+  JP Z,CLOAD_NO_AUTORUN
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
   RST SYNCHR
@@ -7234,7 +7246,7 @@ __CLOAD_1:
   SCF
   PUSH AF
   LD A,$80
-__CLOAD_2:
+CLOAD_NO_AUTORUN:
   PUSH AF
   LD (NLONLY),A
 __CLOAD_3:
@@ -7243,8 +7255,8 @@ __CLOAD_3:
   JP Z,__CLOAD_5
   CP $9C			; DO type?
   JP Z,LOAD_RECORD_2
-__CLOAD_4:
-  CALL CAS_OPNI_CO_11
+CLOAD_SKIP:
+  CALL CAS_OPNI_SKIP
   JP __CLOAD_3
 
 __CLOAD_5:
@@ -7252,12 +7264,12 @@ __CLOAD_5:
   POP AF
   PUSH AF
   PUSH BC
-  JP Z,__CLOAD_4
+  JP Z,CLOAD_SKIP
   POP AF
   POP AF
   SBC A,A
   LD (FILFLG),A
-  CALL CAS_OPNI_CO_12
+  CALL CAS_OPNI_FOUND
   CALL CLRPTR
   LD HL,(PRLEN)
   PUSH HL
@@ -7272,7 +7284,7 @@ __CLOAD_5:
   LD HL,(DO_FILES)
   ADD HL,BC
   LD (DO_FILES),HL
-  CALL CAS_OPNI_CO_10
+  CALL CAS_LOAD_BIN
   POP HL
   POP DE
   CALL LOAD_RECORD
@@ -7312,11 +7324,11 @@ LOAD_RECORD_1:
   CALL CLRPTR
   LD HL,$0000
   LD (ERRTRP),HL
-  JP HEADER_0
+  JP CAS_ERR_EXIT
 
 ; This entry point is used by the routine at __CLOAD.
 LOAD_RECORD_2:
-  CALL CAS_OPNI_CO_12
+  CALL CAS_OPNI_FOUND
   CALL CONSOLE_CRLF
   LD HL,(FILTAB)
   LD A,(HL)
@@ -7344,7 +7356,7 @@ CVERIFY:
   CALL GETPARM_VRFY
   PUSH HL
   CALL CAS_OPNI_BA
-  CALL CAS_OPNI_CO_10
+  CALL CAS_LOAD_BIN
   LD HL,(PRLEN)
   EX DE,HL
   LD HL,(BASTXT)
@@ -7419,12 +7431,12 @@ CLOADM_CAS:
 CLOADM_1:
   CALL CLOAD_PARMS
   JP C,OMERR
-  CALL CAS_OPNI_CO_10
+  CALL CAS_LOAD_BIN
   LD HL,(PRLEN)
   EX DE,HL
   LD HL,(TOP)
   CALL LOAD_RECORD
-  JP NZ,HEADER_0
+  JP NZ,CAS_ERR_EXIT
   CALL CTOFF
   JP CLOADM_4
 
@@ -7529,7 +7541,7 @@ CVERIFYM:
   CALL GETPARM_LOAD
   PUSH HL
   CALL CAS_OPNI_CO
-  CALL CAS_OPNI_CO_10
+  CALL CAS_LOAD_BIN
   LD HL,(PRLEN)
   EX DE,HL
   LD HL,(TOP)
@@ -7716,8 +7728,8 @@ CAS_OPNI_CO_0:
   CALL CAS_OPNI_CO_1
   POP BC
   CP B
-  JP Z,CAS_OPNI_CO_12
-  CALL CAS_OPNI_CO_11
+  JP Z,CAS_OPNI_FOUND
+  CALL CAS_OPNI_SKIP
   JP CAS_OPNI_CO_0
 ; This entry point is used by the routine at __CLOAD.
 CAS_OPNI_CO_1:
@@ -7776,28 +7788,28 @@ CAS_OPNI_CO_7:
   RET
 
 CAS_OPNI_CO_8:
-  CALL CAS_OPNI_CO_11
+  CALL CAS_OPNI_SKIP
 CAS_OPNI_CO_9:
   POP AF
   JP CAS_OPNI_CO_1
 
 ; This entry point is used by the routines at CAS_INPUT, __CLOAD, LOAD_RECORD,
 ; CLOADM and LDIR_B.
-CAS_OPNI_CO_10:
+CAS_LOAD_BIN:
   CALL HEADER
   CALL CASIN
-  CP $8D
-  JP NZ,HEADER_0
+  CP $8D		; binary byte stream ?
+  JP NZ,CAS_ERR_EXIT
   RET
 
 ; This entry point is used by the routine at __CLOAD.
-CAS_OPNI_CO_11:
+CAS_OPNI_SKIP:
   LD DE,SKIP_MSG
-  JP CAS_OPNI_CO_13
+  JP CAS_OPNI_FOUND_0
 ; This entry point is used by the routines at __CLOAD and LOAD_RECORD.
-CAS_OPNI_CO_12:
+CAS_OPNI_FOUND:
   LD DE,FOUND_MSG
-CAS_OPNI_CO_13:
+CAS_OPNI_FOUND_0:
   LD HL,(CURLIN)
   INC HL
   LD A,H
@@ -7821,7 +7833,7 @@ SKIP_MSG:
   DEFB $00
 
 ; Routine at 9996
-L270C:
+EVAL_STR:
   CALL GETSTR
   LD A,(HL)
   INC HL
@@ -7840,7 +7852,7 @@ L270C:
   INC HL
   LD B,(HL)
   POP HL
-CAS_OPNI_CO_14:
+EVAL_STR_0:
   LD A,E
   OR D
   RET Z
@@ -7857,9 +7869,9 @@ CAS_OPNI_CO_14:
   INC BC
   CP (HL)
   INC HL
-  JP Z,CAS_OPNI_CO_14
+  JP Z,EVAL_STR_0
   CCF
-  JP ISZ_RESULT
+  JP EVAL_RESULT
 
 ; STR BASIC function entry
 __STR_S:
@@ -9503,7 +9515,7 @@ __SIN_0:
   CP $40
   JP C,__SIN_2
   LD A,(FACCU+1)
-  CP '%'
+  CP $25
   JP C,__SIN_2
   CP $75
   JP NC,__SIN_1
@@ -10100,7 +10112,7 @@ _TSTSGN_0:
 SGN_RESULT:
   RLA
 ; This entry point is used by the routines at CAS_OPNI_CO and ICOMP.
-ISZ_RESULT:
+EVAL_RESULT:
   SBC A,A
   RET NZ
 ; This entry point is used by the routine at FP_SINTAB.
@@ -10376,7 +10388,7 @@ ICOMP:
   SUB E
   RET Z
 ICOMP_0:
-  JP ISZ_RESULT
+  JP EVAL_RESULT
 
 ; This entry point is used by the routines at ADDPHL, DECCOMP, INTEXP and
 ; __NEXT.
@@ -11126,7 +11138,7 @@ DBL_ASCTFP:
   LD BC,$00FF
   LD H,B
   LD L,B
-  CALL INT_RESULT_HL            ;  (HL_FAC1)
+  CALL INT_RESULT_HL		;  (HL_FAC1)
   EX DE,HL
   LD A,(HL)
 
@@ -11140,23 +11152,23 @@ _ASCTFP:
   DEC HL
 _ASCTFP_0:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
-  JP C,_ASCTFP_20
+  JP C,_ASCTFP_DIGITS
   CP '.'
-  JP Z,_ASCTFP_14
-  CP $65
-  JP Z,_ASCTFP_1
-  CP $45
-_ASCTFP_1:
+  JP Z,DECIMAL
+  CP 'e'
+  JP Z,EXPONENTIAL
+  CP 'E'
+EXPONENTIAL:
   JP NZ,_ASCTFP_4
   PUSH HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
-  CP $6C
+  CP 'l'
   JP Z,_ASCTFP_2
-  CP $4C
+  CP 'L'
   JP Z,_ASCTFP_2
-  CP $71
+  CP 'q'
   JP Z,_ASCTFP_2
-  CP $51
+  CP 'Q'
 _ASCTFP_2:
   POP HL
   JP Z,_ASCTFP_3
@@ -11244,7 +11256,7 @@ _ASCTFP_12:
 
 _ASCTFP_13:
   JP OVERR
-_ASCTFP_14:
+DECIMAL:
   RST GETYPR
   INC C
   JP NZ,_ASCTFP_10
@@ -11272,6 +11284,7 @@ _ASCTFP_18:
   CALL _ASCTFP_19
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP _ASCTFP_10
+
 _ASCTFP_19:
   PUSH HL
   PUSH DE
@@ -11285,7 +11298,7 @@ _ASCTFP_19:
   POP HL
   RET
 
-_ASCTFP_20:
+_ASCTFP_DIGITS:
   SUB $30	; '0'
   JP NZ,_ASCTFP_21
   OR C
@@ -11449,7 +11462,7 @@ PUFOUT_1:
   LD A,(VALTYP)
   JP C,PUFOUT_15
   JP Z,PUFOUT_13
-  CP $04
+  CP $04			; single precision ?
   JP NC,PUFOUT_7
   LD BC,$0000
   CALL PUFOUT_55
@@ -12692,6 +12705,7 @@ __CONT:
   LD (CURLIN),HL
   EX DE,HL
   RET
+
   JP FCERR
 
 ; Check to see if the current character in (HL) is an alpha character
@@ -13057,6 +13071,7 @@ ESCA_0:
 ; Used by the routines at LINE_GFX, ERAFNK, DSPFNK, __MENU, DOTTED_FNAME,
 ; CURS_HOME, SHOW_TIME, TXT_ESC, TXT_CTL_I, TXT_CTL_E, TXT_CTL_T, TXT_CTL_R,
 ; TXT_CTL_C, MCLEAR, MOVE_TEXT, TXT_CTL_Y and TXT_CTL_V.
+; H=X position, L=Y position
 POSIT:
   LD A,$59
   CALL ESCA
@@ -13211,7 +13226,7 @@ OUTC_SUB_4:
   CP $7F			; BS
   JP Z,ESC_L_3
   CP ' '
-  JP C,TTY_JP_0
+  JP C,TTY_VECT_JP_0
   CALL ESC_J_1
   CALL ESC_X_1
   RET NZ
@@ -13221,18 +13236,18 @@ OUTC_SUB_4:
 ; Control code routine for LCD output (RST 20H)
 ;
 ; Used by the routine at OUTC_SUB.
-TTY_JP_0:
+TTY_VECT_JP_0:
   LD HL,ESCTBL-2  ;$4388
   LD C,$08
 ; This entry point is used by the routines at IN_ESC, _INLIN and MOVE_TEXT.
-TTY_JP:
+TTY_VECT_JP:
   INC HL
   INC HL
   DEC C
   RET M
   CP (HL)
   INC HL
-  JP NZ,TTY_JP
+  JP NZ,TTY_VECT_JP
   LD A,(HL)
   INC HL
   LD H,(HL)
@@ -13270,7 +13285,7 @@ ESCTBL:
   
 ; This entry point is used by the routines at ESC_P, ESC_Q, ESC_M, ESC_L,
 ; ESC_K, ESC_J and TEL_PREV.
-TTY_JP_0_1:
+TEST_CRTLCD:
   LD A,(CRTFLG)
   AND A
   RET Z
@@ -13373,14 +13388,14 @@ IN_ESC:
   LD A,C
   CP $1B		; ESC
   LD A,(HL)
-  JP Z,ESC_W_0
+  JP Z,DOUBLE_ESC	; ESC pressed twice
   AND A
   JP P,ESC_CURS
   CALL ESC_MODE+1
   LD A,C
   LD HL,ESCFN-2
   LD C,$16
-  JP TTY_JP
+  JP TTY_VECT_JP
 
 ESC_CURS:
   DEC A
@@ -13436,7 +13451,8 @@ ESC_W:
   RET
 
 ; This entry point is used by the routine at IN_ESC.
-ESC_W_0:
+; ESC pressed twice
+DOUBLE_ESC:
   INC HL
   LD (HL),A
   JP ESC_MODE
@@ -13554,14 +13570,14 @@ CURS_CR:
 ESC_P:
   LD A,$01
   LD (CSR_STATUS),A
-  CALL TTY_JP_0_1
+  CALL TEST_CRTLCD
   JP SET_CLOCK_HL_10
 
 ; Turn cursor off
 ESC_Q:
   XOR A
   LD (CSR_STATUS),A
-  CALL TTY_JP_0_1
+  CALL TEST_CRTLCD
   JP L73C5
 
 ; Erase current line
@@ -13569,7 +13585,7 @@ ESC_M:
   CALL CURS_CR
 ; This entry point is used by the routine at _LF.
 ESC_M_0:
-  CALL TTY_JP_0_1
+  CALL TEST_CRTLCD
   CALL TEXT_LINES
   SUB L
   RET C
@@ -13593,7 +13609,7 @@ ESC_M_2:
 ; Insert line
 ESC_L:
   CALL CURS_CR
-  CALL TTY_JP_0_1
+  CALL TEST_CRTLCD
   CALL TEXT_LINES
   LD H,A
   SUB L
@@ -13655,7 +13671,7 @@ ESC_CLINE:
 ; Used by the routine at ESC_J.
 ; erase in line
 ESC_K:
-  CALL TTY_JP_0_1
+  CALL TEST_CRTLCD
 ESC_K_0:
   LD C,' '
   XOR A
@@ -13674,7 +13690,7 @@ _CLS:
 ; Erase from the cursor to the bottom of the screen
 ; "erase in display"
 ESC_J:
-  CALL TTY_JP_0_1
+  CALL TEST_CRTLCD
 ;ESC_J+1:  ($454F)		; ???
   ;AND D
   ;LD B,E
@@ -13691,7 +13707,7 @@ ESC_J_0:
   
 ; This entry point is used by the routine at OUTC_SUB.
 ESC_J_1:
-  CALL TTY_JP_0_1
+  CALL TEST_CRTLCD
   LD A,(REVERSE)
 
 ; This entry point is used by the routines at ESC_M, ESC_L and ESC_K.
@@ -13714,7 +13730,7 @@ ESC_J_3:
   DI
   LD A,$0D		; CR
   JR NC,ESC_J_3
-  CALL SET_CURSOR_SHAPE
+  CALL PUT_SHAPE
   LD A,$09		; TAB
   JR NC,ESC_J+1		; ???
 
@@ -13795,7 +13811,7 @@ ESC_J_9:
 
 ; This entry point is used by the routines at _CLS and TEL_TERM.
 CLR_ALTLCD:
-  CALL TTY_JP_0_1
+  CALL TEST_CRTLCD
   LD A,(FNK_FLAG)
   ADD A,A
   RET P
@@ -13814,7 +13830,7 @@ ESC_J_11:
 
 ; This entry point is used by the routines at DSPFNK and _LF.
 SCROLL_ALTLCD:
-  CALL TTY_JP_0_1
+  CALL TEST_CRTLCD
   LD A,(FNK_FLAG)
   ADD A,A
   RET P
@@ -13841,13 +13857,14 @@ ESC_J_15:
   CP $09			; TAB
   JP NZ,ESC_J_14
   JP OUTC_SUB_2
+  
 ; This entry point is used by the routine at TEL_PREV.
-ESC_J_16:
+TEL_PREV_SUB:
   LD HL,ALT_LCD
   LD E,$01
-ESC_J_17:
+TEL_PREV_SUB_0:
   LD D,$01
-ESC_J_18:
+TEL_PREV_SUB_1:
   PUSH HL
   PUSH DE
   LD C,(HL)
@@ -13857,12 +13874,12 @@ ESC_J_18:
   INC HL
   INC D
   LD A,D
-  CP 41				; 'A'
-  JP NZ,ESC_J_18
+  CP 41		; 'A'
+  JP NZ,TEL_PREV_SUB_1
   INC E
   LD A,E
-  CP $09			; TAB
-  JP NZ,ESC_J_17
+  CP $09	; TAB
+  JP NZ,TEL_PREV_SUB_0
   RET
 
 ; Input line and place at F685H.  Start with "? ". Print characters as they are
@@ -13880,7 +13897,7 @@ Q_INLIN:
 ; Used by the routines at PROMPT, __LINE, TELCOM_RDY, TEL_UPLD and SCHEDL_DE.
 _INLIN:
   CALL _ISFLIO       ; Tests if I/O to device is taking place
-  JP NZ,INXD_6
+  JP NZ,_INLIN_FILE
   LD A,(CSRY)
   LD (SV_CSRY),A
   LD DE,KBUF
@@ -13896,7 +13913,7 @@ _INLIN_1:
   JP NC,_INLIN_TAB_0
   LD HL,INLIN_TBL-2
   LD C,$07
-  JP TTY_JP
+  JP TTY_VECT_JP
 
 INLIN_TBL:
   DEFB $03
@@ -13926,9 +13943,9 @@ __INLIN_BRK:
 
 ; _INLIN Control C handler
 _INLIN_BRK:
-  LD A,$5E
+  LD A,'^'
   RST OUTC
-  LD A,$43
+  LD A,'C'
   RST OUTC
   CALL OUTDO_CRLF
   LD HL,KBUF
@@ -14036,7 +14053,7 @@ INXD_5:
   RET
 
 ; This entry point is used by the routine at _INLIN.
-INXD_6:
+_INLIN_FILE:
   LD HL,(PTRFIL)
   PUSH HL
   INC HL
@@ -14045,7 +14062,7 @@ INXD_6:
   INC HL
   LD A,(HL)
   SUB $F8		; D = 'RAM' device ?
-  JP NZ,INXD_7
+  JP NZ,_INLIN_FILE_0
   LD L,A
   LD H,A
   LD (PTRFIL),HL			; Redirect I/O
@@ -14058,12 +14075,12 @@ INXD_6:
   CALL PRS
   CALL EXTREV		; Exit from reverse mode
 ;$4728
-INXD_7:
+_INLIN_FILE_0:
   POP HL
   LD (PTRFIL),HL			; Redirect I/O
   LD B,$00
   LD HL,KBUF
-INXD_8:
+_INLIN_FILE_1:
   XOR A
   LD (RAMFILE),A
   LD (RAMFILE+1),A
@@ -14071,16 +14088,16 @@ INXD_8:
   JP C,INXD_11
   LD (HL),A
   CP $0D         	; CR
-  JP Z,INXD_10
+  JP Z,_INLIN_FILE_3
   CP $09			; TAB
-  JP Z,INXD_9
+  JP Z,_INLIN_FILE_2
   CP ' '
-  JP C,INXD_8
-INXD_9:
+  JP C,_INLIN_FILE_1
+_INLIN_FILE_2:
   INC HL
   DEC B
-  JP NZ,INXD_8
-INXD_10:
+  JP NZ,_INLIN_FILE_1
+_INLIN_FILE_3:
   XOR A
   LD (HL),A
   LD HL,BUFMIN
@@ -14089,7 +14106,7 @@ INXD_10:
 INXD_11:
   LD A,B
   AND A
-  JP NZ,INXD_10
+  JP NZ,_INLIN_FILE_3
   LD A,(NLONLY)
   AND $80
   LD (NLONLY),A
@@ -15195,6 +15212,7 @@ __OPEN_2:
 ; Routine at 19730
 ;
 ; Used by the routines at __MERGE, __SAVE, __EDIT, TXT_CTL_G and TXT_CTL_V.
+; File must be specified in FILNAM, A=open mode(1=input, 2=output, $10=append)
 _OPEN:
   PUSH DE
   DEC HL
@@ -16738,11 +16756,11 @@ TEL_F7:
 
 
 ; TELCOM PREV function routine
-; Display previously received text
+; Display previously received text page
 TEL_PREV:
-  CALL TTY_JP_0_1
+  CALL TEST_CRTLCD
   CALL CURSOFF
-  CALL ESC_J_16
+  CALL TEL_PREV_SUB
 TEL_PREV_0:
   CALL CHSNS
   JP Z,TEL_PREV_0
@@ -16873,7 +16891,7 @@ TEL_UPLD:
 
   LD HL,TXT_BUF
   LD (TXT_PTR),HL
-  LD ($F922),A
+  LD (TXT_YRNG),A
   LD (CAPTUR+1),A
   POP AF
   POP DE
@@ -16888,6 +16906,7 @@ TEL_UPLD_0:
   CALL FNKSB
   POP HL
   POP DE
+  
 TEL_UPLD_1:
   LD A,(CAPTUR+1)
   DEC A
@@ -16916,7 +16935,7 @@ TEL_UPLD_3:
   RST $38
   DEFB HC_UPLD		; Offset: 54
 
-  JP Z,L566C
+  JP Z,TEL_UPLD_STOP
   CP $0A         ; LF
   JP NZ,TEL_UPLD_4
   LD A,(RS232LF)
@@ -16935,13 +16954,13 @@ TEL_UPLD_5:
   CALL CHSNS
   JP Z,TEL_UPLD_1
   CALL CHGET
-  CP $03
-  JP Z,L566C
-  CP $13
+  CP $03		; CTL_C ?
+  JP Z,TEL_UPLD_STOP
+  CP $13		; PAUSE ?
   CALL Z,CHGET
-  CP $03
+  CP $03		; CTL_C ?
   JP NZ,TEL_UPLD_1
-L566C:
+TEL_UPLD_STOP:
   XOR A
   LD (CAPTUR+1),A
   JP FNKSB
@@ -17151,7 +17170,7 @@ __MENU:
   LD HL,COPYRIGHT_MSG
   CALL PRINT_TEXT
   LD HL,$FDA1
-  LD ($FDD7),HL
+  LD (MENUVARS),HL
   LD B,$36
 __MENU_1:
   LD (HL),$FF
@@ -17159,7 +17178,7 @@ __MENU_1:
   DEC B
   JP NZ,__MENU_1
   LD L,B
-  LD DE,L5B1E
+  LD DE,MENUTAB_TBL
 __MENU_2:
   LD A,(DE)
   OR A
@@ -17175,18 +17194,19 @@ __MENU_3:
   LD A,L
   DEC A
   LD ($FDEF),A
-  CP $17
+  CP $17		; CTRL-HOME, move the cursor to beginning of the current file
   JP Z,__MENU_5
 __MENU_4:
   CALL DOTTED_FNAME_1
   PUSH HL
-  LD HL,L5B1A
+  LD HL,NOFILE_MRK		; "-.-"
   CALL PRINT_TEXT
   POP HL
   INC L
   LD A,L
-  CP $18
+  CP $18	; TEXT down arrow
   JP NZ,__MENU_4
+
 __MENU_5:
   SUB A
   LD ($FDD9),A
@@ -17208,7 +17228,7 @@ __MENU_LOOP:
   LD HL,$0908	; cursor coordinates
   CALL POSIT
   SUB A
-  LD (PROMPT_CNT),A
+  LD (MENUVARS+22),A
   LD HL,$FDD9
   INC A
   
@@ -17228,9 +17248,9 @@ __MENU_8:
   CP ' '
   JP C,__MENU_11
   LD C,A
-  LD A,(PROMPT_CNT)
+  LD A,(MENUVARS+22)
   CALL Z,__MENU_10
-  CP $09			; TAB
+  CP $09		; TAB
   JP Z,SELECT_LOOP
   CALL SHOW_TIME_0
   JP __MENU_8
@@ -17317,7 +17337,7 @@ __MENU_14:
   RET
 
 SELECTCURS_CR:
-  LD A,(PROMPT_CNT)
+  LD A,(MENUVARS+22)
   OR A
   JP Z,__MENU_16
   LD (HL),$00
@@ -17395,7 +17415,7 @@ __MENU_22:
   PUSH BC
   PUSH DE
   PUSH HL
-  LD HL,($FDD7)
+  LD HL,(MENUVARS)
   LD (HL),E
   INC HL
   LD (HL),D
@@ -17403,7 +17423,7 @@ __MENU_22:
   INC DE
   INC DE
   INC DE
-  LD ($FDD7),HL
+  LD (MENUVARS),HL
   POP HL
   CALL DOTTED_FNAME_1
   PUSH HL
@@ -17491,7 +17511,7 @@ DOTTED_FNAME_3:
   EX DE,HL
   CALL MOVE_CURSOR
   DI
-  CALL SET_CURSOR_SHAPE
+  CALL PUT_SHAPE
   EI
   POP DE
   LD HL,CSRY
@@ -17726,11 +17746,11 @@ COPYRIGHT_MSG:
   DEFB $00
 
 
-L5B1A:
+NOFILE_MRK:
   DEFM "-.-"
   DEFB $00
 
-L5B1E:
+MENUTAB_TBL:
   DEFB $B0
   DEFB $F0
   DEFB $C0
@@ -17799,7 +17819,7 @@ SCHEDL_DE:
   LD A,$FF
 ; This entry point is used by the routine at ADDRSS_DE.
 SCHEDL_DE_0:
-  LD (PROMPT_CNT),A
+  LD (MENUVARS+22),A
   CALL DISABLE_SH_PRINT
   PUSH DE
   CALL CHKDOC
@@ -17821,7 +17841,7 @@ SCHEDL_TRAP:
   JP __MENU
 
 SCHEDL_DE_1:
-  LD ($FDD7),HL
+  LD (MENUVARS),HL
   CALL __CLS
   LD HL,NOTE_BAR
   CALL STDSPF
@@ -17833,7 +17853,7 @@ SCHEDL_DE_2:
   SUB A
   LD (PRTFLG),A
   LD HL,ADR_ADRS
-  LD A,(PROMPT_CNT)
+  LD A,(MENUVARS+22)
   OR A
   JP Z,SCHEDL_DE_3
   LD HL,ADR_SCHD
@@ -17975,7 +17995,7 @@ IS_CRLF_1:
   CALL STFNK
   CALL SHOW_TIME_4
   POP AF
-  CP $51
+  CP 'Q'
 ; This entry point is used by the routine at FIND_TEXT.
 IS_CRLF_2:
   POP DE
@@ -18001,7 +18021,7 @@ IS_CRLF_5:
   LD (FNKPNT+1),A
   POP AF
   CALL UCASE
-  CP $51
+  CP 'Q'
   RET Z
   CP ' '
   RET Z
@@ -18120,7 +18140,7 @@ DISABLE_SH_PRINT:
 ; Used by the routines at TELCOM_RDY, TEXT, WAIT_SPC and BOOT.
 STKINI:
   LD HL,$FFFF
-  LD (CURLIN),HL
+  LD (CURLIN),HL		; Set interpreter in 'DIRECT' (immediate) mode
   INC HL
   LD (CAPTUR),HL
 
@@ -18173,7 +18193,7 @@ SHOW_TIME_0:
   LD (HL),C
   INC HL
   PUSH HL
-  LD HL,PROMPT_CNT
+  LD HL,MENUVARS+22
   INC (HL)
   LD A,C
   RST OUTC
@@ -18183,7 +18203,7 @@ SHOW_TIME_0:
   RET
   
 ISZ_PROMPT:
-  LD A,(PROMPT_CNT)
+  LD A,(MENUVARS+22)	; PROMPT offset (no. of entered bytes)
   OR A
   RET
   
@@ -18192,7 +18212,7 @@ _SELECT_BS:
   CALL ISZ_PROMPT
   RET Z
   DEC A
-  LD (PROMPT_CNT),A
+  LD (MENUVARS+22),A
   DEC HL
   PUSH HL
   LD HL,BACKSPACE_PROMPT
@@ -18206,7 +18226,7 @@ SHOW_TIME_3:
   LD ($FDEE),A
   CALL L5D40_0
   EX DE,HL
-  LD HL,($FDD7)
+  LD HL,(MENUVARS)
   EX DE,HL
 ; This entry point is used by the routine at IS_CRLF.
 SHOW_TIME_4:
@@ -18232,7 +18252,7 @@ SHOW_TIME_6:
   LD HL,$F649
 SHOW_TIME_7:
   LD A,(HL)
-  LD ($F922),A
+  LD (TXT_YRNG),A
   RET
   
 ; This entry point is used by the routine at SCL_LFND.
@@ -18240,7 +18260,7 @@ SHOW_TIME_8:
   LD HL,$FDEF
   DEC (HL)
   CALL Z,IS_CRLF_3
-  CP $51
+  CP 'Q'
   RET
 
 ; Routine at 24046
@@ -18410,6 +18430,7 @@ L5EEB:
   JP C,__EDIT_5
   LD L,A
   LD H,A
+  
 __EDIT_5:
   LD (SAVE_CSRX),HL
   CALL L4F2E_1
@@ -18489,7 +18510,7 @@ WAIT_SPC_3:
   LD HL,L5E4F
   LD ($F88A),HL		; ptr to entry for SHIFT-PRINT shortcut
   LD A,(ACTV_Y)
-  LD ($F922),A
+  LD (TXT_YRNG),A
   LD A,$80			; Disable top FN key row (incl. BREAK)
   LD (FNK_FLAG),A
   XOR A
@@ -18504,7 +18525,7 @@ WAIT_SPC_4:
   POP HL
   LD (CUR_TXTFILE),HL
   PUSH HL
-  CALL TXT_CTL_V_64
+  CALL GETEND_CURTXT
   CALL TXT_CTL_C_15
   POP DE
   LD HL,(SAVE_CSRX)
@@ -18551,38 +18572,38 @@ TXT_NUL:
 ; ^A).
 ; Data block at 24598
 CTL_JPTAB:
-  DEFW TXT_NUL
-  DEFW TXT_CTL_A
-  DEFW TXT_CTL_B
-  DEFW TXT_CTL_C
-  DEFW TXT_CTL_D
-  DEFW TXT_CTL_E
-  DEFW TXT_CTL_F
-  DEFW TXT_CTL_G
-  DEFW TXT_CTL_H
-  DEFW TXT_CTL_I
-  DEFW TXT_NUL
-  DEFW TXT_NUL
-  DEFW TXT_CTL_L		; enter in SETFIL mode
-  DEFW TXT_CTL_M		; CR/LF  (= ENTER)
-  DEFW TXT_CTL_N
-  DEFW TXT_CTL_O
-  DEFW TXT_CTL_P
-  DEFW TXT_CTL_Q
-  DEFW TXT_CTL_R
-  DEFW TXT_CTL_S
-  DEFW TXT_CTL_T
-  DEFW TXT_CTL_U
-  DEFW TXT_CTL_V
-  DEFW TXT_CTL_W
-  DEFW TXT_CTL_X
-  DEFW TXT_CTL_Y
-  DEFW TXT_CTL_Z
-  DEFW TXT_ESC
-  DEFW TXT_CTL_D
-  DEFW TXT_CTL_S
-  DEFW TXT_CTL_E
-  DEFW TXT_CTL_X
+  DEFW TXT_NUL		; $00
+  DEFW TXT_CTL_A	; $01
+  DEFW TXT_CTL_B	; $02
+  DEFW TXT_CTL_C	; $03
+  DEFW TXT_CTL_D	; $04, TEXT right arrow
+  DEFW TXT_CTL_E	; $05, TEXT up arrow
+  DEFW TXT_CTL_F	; $06
+  DEFW TXT_CTL_G	; $07
+  DEFW TXT_CTL_H	; $08
+  DEFW TXT_CTL_I	; $09
+  DEFW TXT_NUL		; $0A
+  DEFW TXT_NUL		; $0B
+  DEFW TXT_CTL_L	; $0C, enter in SETFIL mode
+  DEFW TXT_CTL_M	; $0D, CR/LF  (= ENTER)
+  DEFW TXT_CTL_N	; $0E
+  DEFW TXT_CTL_O	; $0F
+  DEFW TXT_CTL_P	; $10
+  DEFW TXT_CTL_Q	; $11
+  DEFW TXT_CTL_R	; $12
+  DEFW TXT_CTL_S	; $13, TEXT left arrow
+  DEFW TXT_CTL_T	; $14
+  DEFW TXT_CTL_U	; $15
+  DEFW TXT_CTL_V	; $16
+  DEFW TXT_CTL_W	; $17, move the cursor to beginning of the current file
+  DEFW TXT_CTL_X	; $18, TEXT down arrow (and control X routine)
+  DEFW TXT_CTL_Y	; $19
+  DEFW TXT_CTL_Z	; $1A
+  DEFW TXT_ESC		; $1B
+  DEFW TXT_CTL_D	; $1C
+  DEFW TXT_CTL_S	; $1D
+  DEFW TXT_CTL_E	; $1E
+  DEFW TXT_CTL_X	; $1F
 
 ; TEXT ESCape routine
 TXT_ESC:
@@ -19386,7 +19407,7 @@ TXT_CTL_U_2:
   CALL TXT_CTL_V_29
   POP HL
   CALL TXT_CTL_C_9
-  CALL TXT_CTL_V_64
+  CALL GETEND_CURTXT
   JP TXT_CTL_C_15
 
 TXT_CTL_U_3:
@@ -19499,7 +19520,7 @@ TXT_CTL_U_12:
   CALL TXT_CTL_U_7
   PUSH AF
   PUSH DE
-  CALL TXT_CTL_V_64
+  CALL GETEND_CURTXT
   CALL TXT_CTL_C_15
   POP DE
   POP AF
@@ -19690,7 +19711,7 @@ MOVE_TEXT_6:
   JP NC,MOVE_TEXT_9
   LD HL,INLIN_TBL2-2
   LD C,$07
-  JP TTY_JP
+  JP TTY_VECT_JP
 
   
 MOVE_TEXT_7:
@@ -19707,7 +19728,7 @@ INLIN_TBL2:
   DEFW _INLIN_BS
 
   DEFB $09
-  DEFW L667C
+  DEFW __INLIN_TAB
 
   DEFB $0D
   DEFW _INLIN_NEWLINE
@@ -19737,7 +19758,7 @@ MOVE_TEXT_8:
 
 
 ; Routine at 26236
-L667C:
+__INLIN_TAB:
   LD A,$09
 MOVE_TEXT_9:
   LD C,A
@@ -19779,7 +19800,7 @@ TXT_CTL_Y:
 
   POP DE
   LD ($F649),A
-  LD ($F922),A
+  LD (TXT_YRNG),A
   LD (PRTFLG),A
 
   LD DE,TXT_ASKBUF
@@ -19815,7 +19836,7 @@ TXT_ERR_NOFILE:
 
 TXT_CTL_Y_4:
   LD A,(ACTV_Y)
-  LD ($F922),A
+  LD (TXT_YRNG),A
   XOR A
   LD (PRTFLG),A
   LD (TXT_EDITING),A
@@ -19919,7 +19940,7 @@ TXT_CTL_V_1:
 TXT_CTL_V_2:
   CALL L4F2E_1
 TXT_CTL_V_3:
-  CALL TXT_CTL_V_64
+  CALL GETEND_CURTXT
   LD HL,(SAVE_CSRX)
   PUSH HL
   CALL L6981
@@ -20066,6 +20087,7 @@ TXTCURS_CR:
   INC DE
   RET
 
+; Control characters can be shown with special symbols
 TXT_ADD_GRAPH:
   PUSH HL
   CALL ADD_CHAR
@@ -20081,7 +20103,7 @@ ADD_TAB:
   AND $07
   JP NZ,ADD_TAB
 TXT_CTL_V_15:
-  LD A,($F922)
+  LD A,(TXT_YRNG)
   DEC A
   CP (HL)
   POP HL
@@ -20112,7 +20134,7 @@ TXT_CTL_V_18:
 
 TXT_CTL_V_19:
   LD A,(TXT_COUNT)
-  LD HL,$F922
+  LD HL,TXT_YRNG
   CP (HL)
   RET NC
   LD A,(TXT_EDITING)
@@ -20524,7 +20546,7 @@ TXT_CTL_V_63:
   RET
 
 ; This entry point is used by the routines at WAIT_SPC and TXT_CTL_U.
-TXT_CTL_V_64:
+GETEND_CURTXT:
   LD HL,(CUR_TXTFILE)
 
 ; Point HL to chr$(26)
@@ -20797,14 +20819,14 @@ BASIC_2:
 ; This entry point is used by the routines at OUTS_B_CHARS and BOOT.
 SAVE_BA_LBL:
   LD HL,FNKSTR
-  LD DE,$F80A
+  LD DE,IPLBBUF
   JP LOAD_BA_LBL_0
 
 ; LOAD BA LABEL
 ;
 ; Used by the routines at __MENU and BASIC.
 LOAD_BA_LBL:
-  LD HL,$F80A
+  LD HL,IPLBBUF
   LD DE,FNKSTR
 ; This entry point is used by the routine at BASIC.
 LOAD_BA_LBL_0:
@@ -20881,22 +20903,19 @@ IOINIT:
   CALL SET_CLOCK_HL_4
   LD A,$ED
   OUT ($BA),A
-
-; Routine at 27891
-L6CF3:
   XOR A
   LD (ROMSEL),A
   OUT ($E8),A
   OUT ($A8),A
   CALL _CLICK_1
-  CALL UNPLOT_12
+  CALL INIT_LCD_ADDR
   XOR A
   OUT ($FE),A
-  CALL UNPLOT_12
+  CALL INIT_LCD_ADDR
   LD A,$3B
   OUT ($FE),A
-  CALL UNPLOT_11
-  CALL UNPLOT_12
+  CALL LCD_INIT_3E
+  CALL INIT_LCD_ADDR
   LD A,$39
   OUT ($FE),A
   EI
@@ -22083,6 +22102,7 @@ BRK_SCAN:
 ; Make tone, DE=freq, B=duration
 ;
 ; Used by the routine at __SOUND.
+; DE=frequency (must be < $C000), B=duration, (1..256)
 MUSIC:
   DI
   LD A,E
@@ -22253,25 +22273,23 @@ _RST75_8:
   LD (HL),A
   
 ; This entry point is used by the routines at ESC_J and DOTTED_FNAME.
-SET_CURSOR_SHAPE:
+PUT_SHAPE:
   PUSH HL
-  LD HL,CURS_SHAPE
+  LD HL,SHAPE
   LD D,$00
-  CALL L74A2
-
+  CALL LOAD_SHAPE
   LD B,$06
   DEC HL
-SET_CLOCK_HL_8:
+PUT_SHAPE_0:
   LD A,(HL)
   CPL
   LD (HL),A
   DEC HL
   DEC B
-  JP NZ,SET_CLOCK_HL_8
-  
+  JP NZ,PUT_SHAPE_0
   INC HL
   LD D,$01
-  CALL L74A2
+  CALL LOAD_SHAPE
   POP HL
   RET
   
@@ -22290,7 +22308,7 @@ L73CC:
   LD HL,CSRSTS
   LD A,(HL)
   RRCA
-  CALL C,SET_CURSOR_SHAPE
+  CALL C,PUT_SHAPE
   LD (HL),$80
   JP _RST75_END
   
@@ -22343,30 +22361,30 @@ SET_CLOCK_HL_12:
   LD C,L
   ADD HL,HL
   ADD HL,HL
-  ADD HL,BC
+  ADD HL,BC		; *5
   POP AF
   PUSH AF
-  JP C,SET_CLOCK_HL_13
-  ADD HL,BC
-SET_CLOCK_HL_13:
+  JP C,ASCII_SYMBOL
+  ADD HL,BC		; *6
+ASCII_SYMBOL:
   ADD HL,DE
   POP AF
-  JP NC,SET_CLOCK_HL_14
-  LD DE,CURS_SHAPE
+  JP NC,GFX_SYMBOL
+  LD DE,SHAPE
   PUSH DE
   LD B,$05
   CALL LDIR_B
   XOR A
-  LD (DE),A
+  LD (DE),A		; Character spacing
   POP HL
-SET_CLOCK_HL_14:
+GFX_SYMBOL:
   LD D,$01
-  CALL L74A2
+  CALL LOAD_SHAPE
 ; This entry point is used by the routine at BOOT.
 SET_CLOCK_HL_15:
   XOR A
-  LD ($FFF9),A
-  CALL UNPLOT_11
+  LD (GFX_TEMP+3),A
+  CALL LCD_INIT_3E
 
 ; This entry point is used by the routines at MOVE_CURSOR, UNPLOT and _BEEP.
 SET_CLOCK_HL_16:
@@ -22387,6 +22405,8 @@ MOVE_CURSOR:
 ; Plot point on screen  (D,E)
 ;
 ; Used by the routine at __PSET.
+;
+; D = X position (0..239), E = Y position (0..63)
 PLOT:
   defb $f6		; OR $AF
 
@@ -22429,7 +22449,7 @@ L746D:
   OR D
   LD B,A
   LD E,$01
-  LD HL,CURS_SHAPE
+  LD HL,SHAPE
   CALL SET_LCD
   POP DE
   LD D,B
@@ -22442,7 +22462,7 @@ L746D:
   ADD HL,BC
   POP AF			; Restore flags to choose between PLOT and UNPLOT
   LD A,(HL)
-  LD HL,CURS_SHAPE
+  LD HL,SHAPE
   JP NZ,L7497		; JP to PLOT
   
   CPL				; UNPLOT
@@ -22461,23 +22481,23 @@ L7497:
 ; Routine at 29858
 ;
 ; Used by the routines at SET_CLOCK_HL and L7409, D=??.
-L74A2:
+LOAD_SHAPE:
   PUSH HL
   LD E,$06
   LD A,(LCD_ADDR+1)
   CP $08
-  JP Z,UNPLOT_3
+  JP Z,LOAD_SHAPE_0
   CP $10
-  JP Z,UNPLOT_4
+  JP Z,LOAD_SHAPE_1
   CP $21
-  JP NZ,UNPLOT_5
-UNPLOT_3:
+  JP NZ,LOAD_SHAPE_2
+LOAD_SHAPE_0:
   DEC E
   DEC E
-UNPLOT_4:
+LOAD_SHAPE_1:
   DEC E
   DEC E
-UNPLOT_5:
+LOAD_SHAPE_2:
   LD C,A
   ADD A,C
   ADD A,C
@@ -22488,10 +22508,10 @@ UNPLOT_5:
   RRA
   RRA
   LD HL,GFX_VECT2
-  JP C,UNPLOT_6
+  JP C,LOAD_SHAPE_3
   LD HL,GFX_VECT
   
-UNPLOT_6:
+LOAD_SHAPE_3:
   ADD HL,BC
   LD B,A
   CALL SET_LCD_ADDR
@@ -22572,14 +22592,14 @@ DO_GET_LCD:
   RET
   
 ; This entry point is used by the routines at IOINIT and SET_CLOCK_HL.
-UNPLOT_11:
-  CALL UNPLOT_12
+LCD_INIT_3E:
+  CALL INIT_LCD_ADDR
   LD A,$3E
   OUT ($FE),A
   RET
   
 ; This entry point is used by the routine at IOINIT.
-UNPLOT_12:
+INIT_LCD_ADDR:
   LD C,$03
   CALL DELAY_C
   LD HL,L7641		; OUT ($B9),$FF, OR $03
