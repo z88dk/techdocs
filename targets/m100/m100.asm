@@ -257,6 +257,7 @@ defc VARIABLES   = $FB79
 defc DSCTMP      = $FB89
 defc TMPSTR      = $FB8A
 defc FRETOP      = $FB8C
+defc TEMP8       = $FB90
 defc ENDFOR      = $FB92	; NEXT address of FOR statement
 defc DATLIN      = $FB94
 defc SUBFLG      = $FB96
@@ -3008,7 +3009,7 @@ EVAL3_1:
   LD BC,EVAL3
   PUSH BC
   LD A,D
-  CP 'Q'			; one less than AND as mapped in PRITAB
+  CP $51	; one more than AND as mapped in PRITAB (not 'Q')
   JP C,EVAL3_7
   AND $FE
   CP $7A			; MOD as mapped in PRITAB
@@ -8130,7 +8131,7 @@ TESTR_8:
   ADD HL,BC
   CP $03
   JP NZ,TESTR_7
-  LD ($FB90),HL
+  LD (TEMP8),HL
   POP HL
   LD C,(HL)
   LD B,$00
@@ -8141,7 +8142,7 @@ TESTR_8:
 ; Routine at 10363
 L287B:
   EX DE,HL
-  LD HL,($FB90)
+  LD HL,(TEMP8)
   EX DE,HL
   RST CPDEHL
   JP Z,TESTR_8
@@ -12095,12 +12096,12 @@ DECEXP:
   CALL INTEXP_15
   JP C,DECEXP_1
   EX DE,HL
-  LD ($FB90),HL
+  LD (TEMP8),HL
   CALL __CDBL_1
   CALL POP_ARG
   CALL INTEXP_15
   CALL __CDBL_1
-  LD HL,($FB90)
+  LD HL,(TEMP8)
   JP NC,INTEXP_5
   LD A,(ARG)
   PUSH AF
@@ -12161,7 +12162,7 @@ INTEXP_4:
 
 ; This entry point is used by the routine at DECEXP.
 INTEXP_5:
-  LD ($FB90),HL
+  LD (TEMP8),HL
   PUSH DE
   LD A,H
   OR A
@@ -12258,7 +12259,7 @@ INTEXP_12:
   LD A,(FACCU)
   OR A
   JP NZ,INTEXP_13
-  LD HL,($FB90)
+  LD HL,(TEMP8)
   OR H
   RET P
   LD A,L
@@ -13882,7 +13883,7 @@ TEL_PREV_SUB_1:
   JP NZ,TEL_PREV_SUB_0
   RET
 
-; Input line and place at F685H.  Start with "? ". Print characters as they are
+; Input line and place at KBUF.  Start with "? ". Print characters as they are
 ; entered
 ;
 ; Used by the routines at __INPUT, __READ, TEL_UPLD, DWNLDR, TEL_BYE and TEXT.
@@ -15478,14 +15479,14 @@ OUTC_FOUT:
   PUSH AF
   LD HL,(PTRFIL)
   LD A,$04
-  CALL __CLOSE_3
+  CALL OUTC_FOUT_0
   RST $38
   DEFB HC_FILOU 		; Offset: 32
   JP NMERR
   
   
 ; This entry point is used by the routines at RDBYT and L4F2E.
-__CLOSE_3:
+OUTC_FOUT_0:
   PUSH AF
   PUSH DE
   EX DE,HL
@@ -15510,7 +15511,7 @@ RDBYT:
   PUSH DE
   LD HL,(PTRFIL)
   LD A,$06
-  CALL __CLOSE_3
+  CALL OUTC_FOUT_0
   RST $38
   DEFB HC_INDSKC
   JP NMERR
@@ -15796,7 +15797,7 @@ L4F2E_14:
   LD HL,(PTRFIL)
   LD C,A
   LD A,$08
-  CALL __CLOSE_3
+  CALL OUTC_FOUT_0
   RST $38
   DEFB HC_BAKU		; Offset: 18
   JP NMERR
@@ -16301,7 +16302,7 @@ TEL_FIND_0:
   CALL TEL_FIND_1
   CALL NZ,TEL_FIND_2
   CALL OUTDO_CRLF
-  CALL IS_CRLF_0
+  CALL FIND_OPTIONS
   JP Z,TELCOM_RDY
   CP $43	; 'C'
   JP Z,TEL_SET_STAT_3
@@ -17193,7 +17194,7 @@ __MENU_2:
 __MENU_3:
   LD A,L
   DEC A
-  LD ($FDEF),A
+  LD (MENUVARS+24),A
   CP $17		; CTRL-HOME, move the cursor to beginning of the current file
   JP Z,__MENU_5
 __MENU_4:
@@ -17209,8 +17210,8 @@ __MENU_4:
 
 __MENU_5:
   SUB A
-  LD ($FDD9),A
-  LD ($FDEE),A
+  LD (MENUVARS+2),A
+  LD (MENUVARS+23),A
   LD L,A
   CALL DOTTED_FNAME_2
   LD HL,$1808	; cursor coordinates
@@ -17229,7 +17230,7 @@ __MENU_LOOP:
   CALL POSIT
   SUB A
   LD (MENUVARS+22),A
-  LD HL,$FDD9
+  LD HL,MENUVARS+2
   INC A
   
 SELECT_LOOP:
@@ -17267,7 +17268,7 @@ __MENU_10:
   LD A,$1C
 __MENU_11:
   PUSH AF
-  LD A,($FDEE)
+  LD A,(MENUVARS+23)
   LD E,A
   POP AF
   SUB $1C
@@ -17285,14 +17286,14 @@ __MENU_11:
   LD A,E
   ADD A,$04
   LD D,A
-  LD A,($FDEF)
+  LD A,(MENUVARS+24)
   CP D
   RET M
   LD A,D
 
 ; Routine at 22723
 L58C3:
-  LD ($FDEE),A
+  LD (MENUVARS+23),A
   PUSH HL
   LD HL,(CSRX)
   PUSH HL
@@ -17320,7 +17321,7 @@ __MENU_13:
   DEC A
   LD D,A
   RET P
-  LD A,($FDEF)
+  LD A,(MENUVARS+24)
   LD D,A
   RET
   
@@ -17328,7 +17329,7 @@ __MENU_14:
   LD A,E
   INC A
   LD D,A
-  LD A,($FDEF)
+  LD A,(MENUVARS+24)
   CP D
   LD A,D
   RET P
@@ -17350,7 +17351,7 @@ __MENU_LOOP_ERR:
   JP __MENU_LOOP
 
 __MENU_16:
-  LD A,($FDEE)
+  LD A,(MENUVARS+23)
   LD HL,$FDA1
   LD DE,$0002
 __MENU_17:
@@ -17427,7 +17428,7 @@ __MENU_22:
   POP HL
   CALL DOTTED_FNAME_1
   PUSH HL
-  LD HL,$FDD9
+  LD HL,MENUVARS+2
   PUSH HL
   CALL DOTTED_FNAME
   POP HL
@@ -17679,7 +17680,7 @@ CHKDOC:
 
 ; Routine at 23211
 CHKF:
-  LD HL,$FDD9
+  LD HL,MENUVARS+2
   CALL MOVE_MEM
 ; This entry point is used by the routine at __MENU.
 CHKF_0:
@@ -17687,7 +17688,7 @@ CHKF_0:
   LD DE,DIRECTORY
 ; This entry point is used by the routine at INRC.
 CHKF_1:
-  LD HL,$FDF0
+  LD HL,MENUVARS+25
   LD A,(DE)
   INC A
   RET Z
@@ -17701,7 +17702,7 @@ CHKF_1:
   CALL DOTTED_FNAME
   POP HL
   LD C,$09
-  LD DE,$FDD9
+  LD DE,MENUVARS+2
   CALL COMP_MEM
   JP NZ,INRC_0
   POP HL
@@ -17826,13 +17827,13 @@ SCHEDL_DE_0:
   CALL GTXTTB
   JP NZ,SCHEDL_DE_1
   POP HL
-  LD ($FDEE),HL
+  LD (MENUVARS+23),HL
 SCHEDL_TRAP:
   LD HL,SCHEDL_TRAP
   LD (ERRTRP),HL
   CALL __CLS
   CALL __BEEP
-  LD HL,($FDEE)
+  LD HL,(MENUVARS+23)
   CALL PRINT_TEXT
   LD HL,ADR_NOT_FOUND
   CALL PRINT_TEXT
@@ -17895,12 +17896,12 @@ SCL_LFND_0:
   CALL SHOW_TIME_5
 SCL_LFND_1:
   CALL L67DF
-  LD A,($FDEE)
+  LD A,(MENUVARS+23)
   LD (PRTFLG),A
   CALL TXT_PRINTBLOCK		; Ouput text in the memory range between DE and HL
   SUB A
   LD (PRTFLG),A
-  LD A,($FDEE)
+  LD A,(MENUVARS+23)
   OR A
   JP NZ,SCL_LFND_2
   CALL SHOW_TIME_8
@@ -17984,11 +17985,11 @@ IS_CRLF:
 
 
 ; This entry point is used by the routine at TEL_FIND.
-IS_CRLF_0:
+FIND_OPTIONS:
   PUSH DE
   LD HL,FIND_BAR
   CALL STFNK
-  CALL IS_CRLF_5
+  CALL CMQ_OPTIONS
   PUSH AF
   LD HL,TELCOM_BAR
 IS_CRLF_1:
@@ -18002,19 +18003,19 @@ IS_CRLF_2:
   RET
   
 ; This entry point is used by the routine at SHOW_TIME.
-IS_CRLF_3:
+ADRSCL_OPTIONS:
   PUSH DE
   LD HL,ADRSCL_BAR
   CALL STFNK
-IS_CRLF_4:
-  CALL IS_CRLF_5
-  CP $43
-  JP Z,IS_CRLF_4
+MQ_OPTIONS:
+  CALL CMQ_OPTIONS
+  CP 'C'
+  JP Z,MQ_OPTIONS
   PUSH AF
-  LD HL,NOTE_BAR
-  
+  LD HL,NOTE_BAR  
   JP IS_CRLF_1
-IS_CRLF_5:
+
+CMQ_OPTIONS:
   CALL CHGET
   PUSH AF
   SUB A
@@ -18025,12 +18026,12 @@ IS_CRLF_5:
   RET Z
   CP ' '
   RET Z
-  CP $4D
+  CP 'M'
   RET Z
-  CP $43
+  CP 'C'
   RET Z
-  CP $0D         ; CR
-  JP NZ,IS_CRLF_5
+  CP $0D	; CR
+  JP NZ,CMQ_OPTIONS
   ADD A,$36
   RET
   
@@ -18223,17 +18224,18 @@ _SELECT_BS:
   
 ; This entry point is used by the routines at TEL_FIND and SCL_LFND.
 SHOW_TIME_3:
-  LD ($FDEE),A
+  LD (MENUVARS+23),A
   CALL L5D40_0
   EX DE,HL
   LD HL,(MENUVARS)
   EX DE,HL
+
 ; This entry point is used by the routine at IS_CRLF.
 SHOW_TIME_4:
   LD A,(ACTV_X)
   DEC A
   DEC A
-  LD ($FDEF),A
+  LD (MENUVARS+24),A
   RET
   
 ; This entry point is used by the routines at TEL_FIND and SCL_LFND.
@@ -18242,7 +18244,7 @@ SHOW_TIME_5:
   LD A,$FF
   LD ($F921),A
   LD (TXT_EDITING),A
-  LD A,($FDEE)
+  LD A,(MENUVARS+23)
   OR A
   JP Z,SHOW_TIME_7
   LD A,$01
@@ -18257,10 +18259,10 @@ SHOW_TIME_7:
   
 ; This entry point is used by the routine at SCL_LFND.
 SHOW_TIME_8:
-  LD HL,$FDEF
+  LD HL,MENUVARS+24
   DEC (HL)
-  CALL Z,IS_CRLF_3
-  CP 'Q'
+  CALL Z,ADRSCL_OPTIONS
+  CP $51	; 'Q'
   RET
 
 ; Routine at 24046
@@ -18332,7 +18334,7 @@ __EDIT:
 __EDIT_0:
   LD (ERRTRP-1),A
   XOR A
-  LD ($FC95),A
+  LD (FILNAM+2),A
   LD HL,$2020		; "  "
   LD (FILNAM+6),HL	; point to file name ext
   LD HL,EDIT_OPN_TRP
@@ -19793,9 +19795,9 @@ TXT_CTL_Y:
   LD ($F688),A
 
   CALL GETINT
-  CP $0A
+  CP $0A	; 10
   RET C
-  CP $85
+  CP $85	; 133
   RET NC
 
   POP DE
