@@ -1,4 +1,5 @@
 ; TANDY M100 disassembly
+; z80asm.exe -b -m (-DNO_TELCOM) m100_target.asm
 
 defc CR = 13
 defc LF = 10
@@ -4905,6 +4906,15 @@ LPT_OUTPUT:
   CALL OUTC_TABEXP
   JP LCD_OUTPUT_0
 
+IF NO_TELCOM
+
+; This entry point is used by the routines at RAM_INPUT and CAS_INPUT.
+DEV_IO_SUB:
+  LD (HL),C
+  JP NOSKCR
+
+ELSE
+
 ; COM device control block
 COM_CTL:
   DEFW COM_OPN
@@ -5001,6 +5011,7 @@ MDM_CLS:
   CALL TEL_DISC
   JP COM_CLS
 
+ENDIF
 
 
 ; Set RS232 parameters, HL = zero terminated setup string, e.g. "78E1E"
@@ -16077,10 +16088,18 @@ DEVICE_VECT:
   DEFW LCD_CTL
   DEFW CRT_CTL
   DEFW CAS_CTL
+IFDEF NO_TELCOM
+  DEFW WAND_CTL
+ELSE
   DEFW COM_CTL
+ENDIF
   DEFW WAND_CTL
   DEFW LPT_CTL
+IFDEF NO_TELCOM
+  DEFW WAND_CTL
+ELSE
   DEFW MDM_CTL
+ENDIF
   DEFW RAM_CTL
 
 ; Routine at 20771
@@ -16117,6 +16136,61 @@ GET_DEVICE:
   EX (SP),HL
   RET
 
+
+IF NO_TELCOM
+
+CR_WAIT_MSG:
+  DEFB $0D
+  DEFM " "
+
+ABTMSG:
+  DEFM " aborted"
+  DEFB $0D
+  DEFB $0A
+  DEFB $00
+
+TELCOM_BAR:
+  DEFM "Find"
+  DEFB $A0
+  DEFM "Call"
+  DEFB $A0
+  DEFM "Stat"
+  DEFB $A0
+  DEFM "Term"
+  DEFB $8D
+  DEFB $80
+  DEFB $80
+  DEFB $80
+  DEFM "Menu"
+  DEFB $8D
+
+
+; This entry point is used by the routine at TXT_CTL_V.
+DWNLDR_6:
+  LD C,A
+  AND A
+  RET Z
+  CP $1A		; EOF
+  RET Z
+  CP $7F		; BS
+  RET Z
+  CP $0A         ; LF
+  JP NZ,DWNLDR_7
+  LD A,(FNAME_END)
+  CP $0D         ; CR
+DWNLDR_7:
+  LD A,C
+  LD (FNAME_END),A
+  RET Z
+  CP $0D         ; CR
+  SCF
+  CCF
+  RET NZ
+  AND A
+  SCF
+  RET
+  
+ELSE
 
 ; Entry to TELCOM
 ;
@@ -17140,6 +17214,11 @@ FNTFND:
 DISMSG:
   DEFM "Disconnect"       ; Disconnected
   DEFB $00
+
+
+; (excluded with NO_TELCOM)
+ENDIF
+
 
 
 ; Print the buffer pointed to by HL till a null or '"' is found. CR if not at
@@ -20761,6 +20840,8 @@ ROM_PROGS:
   DEFM "TEXT   "
   DEFB $00
   
+IF NO_TELCOM
+ELSE
   DEFB $B0
   DEFW TELCOM
   DEFM "TELCOM "
@@ -20775,6 +20856,7 @@ ROM_PROGS:
   DEFW SCHEDL
   DEFM "SCHEDL "
   DEFB $00
+ENDIF
   
   DEFB $88
   DEFW $0000
@@ -20790,6 +20872,8 @@ ROM_PROGS:
   DEFW $0000
   DEFB $00
   DEFM "RickY  "
+
+
 
 ; Entry to BASIC   (6c4eh?)
 BASIC:
@@ -21590,6 +21674,8 @@ DATAR_0:
   XOR A
   RET
 
+
+
 ; This entry point is used by the routines at CTOFF and MOTOR_OFF.
 DATAR_1:
   LD A,(ROMSEL)
@@ -21907,7 +21993,7 @@ DATAR_27:
   INC HL
   LD (HL),B
   POP AF
-  
+
 ; This entry point is used by the routine at SET_CLOCK_HL.
 _RST75_END:
   LD A,$09
@@ -21984,6 +22070,8 @@ POPALL_INT_6:
   JP P,POPALL_INT_6
   RET
 
+
+
 ; A = Character (if any), Z if no key.  CY if special keys
 ;     When CY is set, A=0..7 for F1..F8, 8=LABEL, 9=PRINT, $0A=SH-PRINT, $0B=PASTE
 ;
@@ -22006,6 +22094,15 @@ KYREAD:
   LD C,A
   INC HL
   LD DE,KYRDBF+2
+  
+
+IF NO_TELCOM
+BASIC_ALIGN:
+  DEFS $725E-BASIC_ALIGN
+ELSE
+ENDIF
+
+
 KYREAD_0:
   DEC C
   
@@ -22035,6 +22132,8 @@ EI_NORM:
   JR NC,L7260
   RET
 
+  
+
 ; Z if keyboard queue is empty, CY if BREAK
 ;
 ; Used by the routine at CHGET.
@@ -22051,6 +22150,7 @@ KEYX_0:
   LD A,(KYBCNT)
   OR A
   RET
+
 
 ; Test for CRTL-C or CRTL-S (pause), CY set in both the cases
 ;
