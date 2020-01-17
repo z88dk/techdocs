@@ -8196,7 +8196,7 @@ SGN_RESULT_CPL:
 SGN_RESULT:
   RLA
   ; --- START PROC L2E79 ---
-ISZ_RESULT:
+EVAL_RESULT:
   SBC A,A
   RET NZ
   INC A
@@ -8479,7 +8479,7 @@ ICOMP:
   SUB E
   RET Z
 ICOMP_0:
-  JP ISZ_RESULT
+  JP EVAL_RESULT
 
 ; Routine at 12124
 ;
@@ -9251,16 +9251,16 @@ _ASCTFP:
   CP '+'
   JR Z,_ASCTFP_0
   DEC HL
-; This entry point is used by the routine at L334F.
+; This entry point is used by the routine at DECIMAL.
 _ASCTFP_0:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
-  JP C,L3386
+  JP C,_ASCTFP_DIGITS
   CP '.'
-  JP Z,L334F
+  JP Z,DECIMAL
   CP 'e'
-  JR Z,_ASCTFP_1
+  JR Z,EXPONENTIAL
   CP 'E'
-_ASCTFP_1:
+EXPONENTIAL:
   JR NZ,_ASCTFP_4
   PUSH HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
@@ -9324,7 +9324,7 @@ L3301_2:
   XOR A
   SUB E
   LD E,A
-; This entry point is used by the routines at _ASCTFP, L334F, L3362 and L3370.
+; This entry point is used by the routines at _ASCTFP, DECIMAL, L3362 and L3370.
 L3301_3:
   RST GETYPR 		; Get the number type (FAC)
   JP M,L3301_4
@@ -9366,17 +9366,17 @@ L334C:
 ; Routine at 13135
 ;
 ; Used by the routine at _ASCTFP.
-L334F:
+DECIMAL:
   RST GETYPR 		; Get the number type (FAC)
   INC C
   JR NZ,L3301_3
-  JR NC,L334F_0
+  JR NC,DECIMAL_0
   CALL TO_DOUBLE
   LD A,(FACCU)
   OR A
-  JR NZ,L334F_0
+  JR NZ,DECIMAL_0
   LD D,A
-L334F_0:
+DECIMAL_0:
   JP _ASCTFP_0
 
 ; Routine at 13154
@@ -9406,7 +9406,7 @@ L3370_0:
 
 ; Routine at 13175
 ;
-; Used by the routines at _ASCTFP, L334F and L3370.
+; Used by the routines at _ASCTFP, DECIMAL and L3370.
 TO_DOUBLE:
   PUSH HL
   PUSH DE
@@ -9421,7 +9421,7 @@ TO_DOUBLE:
   RET
 
 ; Data block at 13190
-L3386:
+_ASCTFP_DIGITS:
   SUB '0'
   JP NZ,L3393
   OR C
@@ -14389,7 +14389,7 @@ L4CAD_1:
   LD C,E
   LD B,A
   PUSH BC
-  LD BC,L4D22
+  LD BC,EVAL_VALTYP
   
 L4CAD_2:
   PUSH BC
@@ -14435,23 +14435,23 @@ NO_COMPARE_TK:
   JP NZ,L4CAD_0		; JP if not string type
   LD HL,(FACLOW)
   PUSH HL
-  LD BC,L65C8
+  LD BC,EVAL_STR
   JR L4CAD_2
 
 ; Data block at 19746
-L4D22:
+EVAL_VALTYP:
   POP BC
   LD A,C
   LD (OPRTYP),A			; Temp operator number operations
   LD A,(VALTYP)		; VALTYP - type indicator
   CP B				; is type specified in 'B' different ?
-  JR NZ,L4D26_0
+  JR NZ,EVAL_VALTYP_0
   CP $02			; Integer ?
   JR Z,L4D26_1
   CP $04			; single precision ?
   JP Z,L4D26_9
   JR NC,L4D26_3
-L4D26_0:
+EVAL_VALTYP_0:
   LD D,A
   LD A,B
   CP $08			; Double precision ?
@@ -14705,7 +14705,7 @@ VAR_EVAL_1:
 
 ; Routine at 20137
 ;
-; Used by the routines at TOKENIZE, TOKEN_BUILT, L44EB, L55F8 and L6F3D.
+; Used by the routines at TOKENIZE, TOKEN_BUILT, L44EB, L55F8 and GET_DEVNAME.
 UCASE_HL:
   LD A,(HL)
 
@@ -16165,7 +16165,7 @@ __SYNCHR:
 ; 
 __GETYPR:
   LD A,(VALTYP)
-  CP $08
+  CP $08		; set M,PO.. flags
   JR NC,__GETYPR_0
   SUB $03		; String ?
   OR A
@@ -16241,7 +16241,7 @@ L55A7_6:
 
 ; Routine at 22008
 ;
-; Used by the routine at L6F3D.
+; Used by the routine at GET_DEVNAME.
 ; NMERR, deal with exceptions/expansions
 L55F8:
   POP HL
@@ -17509,6 +17509,7 @@ L5CEB:
   RET NZ
   EX DE,HL
   RET
+
 L5CEB_0:
   LD C,D
   LD D,$00
@@ -19354,7 +19355,8 @@ __NEXT_5:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
 ;; L65C5:
   CALL __NEXT_0
-L65C8:
+
+EVAL_STR:
   CALL GETSTR
   LD A,(HL)
   INC HL
@@ -19373,7 +19375,7 @@ L65C8:
   INC HL
   LD B,(HL)
   POP HL
-__NEXT_6:
+EVAL_STR_0:
   LD A,E
   OR D
   RET Z
@@ -19390,9 +19392,9 @@ __NEXT_6:
   INC BC
   CP (HL)
   INC HL
-  JR Z,__NEXT_6
+  JR Z,EVAL_STR_0
   CCF
-  JP ISZ_RESULT
+  JP EVAL_RESULT
 
 
 ; Routine at 26101
@@ -21501,7 +21503,7 @@ ELSE
 ENDIF
   LD A,(HL)
   CP ':'
-  JR C,L6F37
+  JR C,POSDSK
   PUSH HL
   LD D,E
   LD A,(HL)
@@ -21510,7 +21512,7 @@ ENDIF
   JR Z,L6F2E
 L6F24:
   CP ':'
-  JR Z,L6F3D
+  JR Z,GET_DEVNAME
   LD A,(HL)
   INC  HL
   DEC  E
@@ -21530,7 +21532,7 @@ ENDIF
   RET
 
  
-L6F37:
+POSDSK:
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -21540,19 +21542,19 @@ ELSE
 ENDIF
   JP DERBFN					; Err $38 -  'Bad file name'
 
-L6F3D:
+GET_DEVNAME:
   LD A,D
   SUB E
   DEC A
   POP BC
   PUSH DE
   PUSH BC
-  LD C,A
+  LD C,A		; dev name length
   LD B,A
   LD DE,DEVICE_TBL
   EX (SP),HL
   PUSH HL
-L6F3D_0:
+DEVN_LOOP:
   CALL UCASE_HL		; Load A with char in 'HL' and make it uppercase
   PUSH BC
   LD B,A
@@ -21561,33 +21563,33 @@ L6F3D_0:
   INC DE
   CP B
   POP BC
-  JR NZ,L6F3D_2
+  JR NZ,GET_DEVNAME_2
   DEC C
-  JR NZ,L6F3D_0
-L6F3D_1:
+  JR NZ,DEVN_LOOP
+GET_DEVNAME_1:
   LD A,(DE)
   OR A
-  JP P,L6F3D_2
+  JP P,GET_DEVNAME_2
   POP HL
   POP HL
   POP DE
   OR A
   RET
   
-L6F3D_2:
+GET_DEVNAME_2:
   OR A
-  JP M,L6F3D_1
-L6F3D_3:
+  JP M,GET_DEVNAME_1
+GET_DEVNAME_3:
   LD A,(DE)
   ADD A,A
   INC DE
-  JR NC,L6F3D_3
+  JR NC,GET_DEVNAME_3
   LD C,B
   POP HL
   PUSH HL
   LD A,(DE)
   OR A
-  JR NZ,L6F3D_0
+  JR NZ,DEVN_LOOP
   JP L55F8			; NMERR, deal with exceptions/expansions
 
 ; Message at 28534
@@ -21753,7 +21755,7 @@ L7014_1:
 
 ; Routine at 28735
 __CLOAD:
-  SUB $91
+  SUB $91		 ; TK_PRINT  (=CLOAD?)
   JR Z,L7044+1
   XOR A
 L7044:
@@ -22547,9 +22549,9 @@ ENDIF
   LD A,$00
   LD (PRSCNT),A		; Used by PLAY command in BASIC	
   LD HL,$FFF6		; -10
-  ADD  HL,SP
+  ADD HL,SP
   LD (SAVSP),HL		; Used by PLAY command in BASIC
-  POP  HL
+  POP HL
   PUSH AF
 L73FD:
   CALL EVAL
@@ -23466,12 +23468,12 @@ ON_INTERVAL:
 ; Used by the routine at L492A.
 L785C:
   PUSH HL
-  LD B,A
+  LD B,A	; compute (B*3)+IENTRY_F1
   ADD A,A
   ADD A,B
   LD L,A
   LD H,$00
-  LD BC,IENTRY_F1		; F1 Key - Interrupt related code
+  LD BC,TRPTBL+1		; First entry in the table for interrupt services
   ADD HL,BC
   LD (HL),E
   INC HL
