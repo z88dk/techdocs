@@ -70,13 +70,15 @@ defc INPBFR      = $F681
 defc BUFMIN      = $F684
 defc KBUF        = $F685
 
+defc TXT_ERRFLG  = $F6E1
 defc TXT_SEL_BEG = $F6E2
 defc TXT_SEL_END = $F6E4
 defc TXT_BUFLAG  = $F6E6
 
 defc SAVE_CSRX   = $F6E7
-
 defc STRG_ASKBUF = $F71F
+
+defc TXT_ESCADDR = $F765
 defc CUR_TXTFILE = $F767
 defc ENDBUF      = $F787
 defc TTYPOS      = $F788
@@ -91,7 +93,8 @@ defc TXT_COUNT   = $F890
 defc TXT_PTR	 = $F892
 defc TXT_BUF	 = $F894
 defc TXT_EDITING = $F920
-defc TXT_YRNG    = $F922
+defc BASICMODE   = $F921
+defc TRM_WIDTH   = $F922
 
 defc SECS        = $F923
 defc SECS_2      = $F924
@@ -154,6 +157,7 @@ defc LBL_LINE    = $FAAD
 defc PORT_A8     = $FAAE
 defc IPL_FNAME   = $FAAF
 defc LBLIST      = $FABA
+defc LBEDIT      = $FABC
 defc STAKSV      = $FABE
 defc RAM         = $FAC0
 
@@ -170,6 +174,7 @@ defc LPT_FLAG    = $FACD
 defc TOP         = $FACE
 defc PRLEN       = $FAD0
 defc EXE         = $FAD2
+defc RAM_FILES   = $FAD8
 
 
 defc RST38_VECT    = HCLEAR	; -----  HOOK CODE VECTOR (NEC equivalent listed) -----
@@ -315,6 +320,8 @@ defc NLONLY      = $FCA7
 defc ALT_LCD     = $FCC0
 
 defc MENUVARS    = $FDD7
+defc SV_SCREEN   = $FDFA
+
 
 defc BEGLCD      = $FE00
 defc ENDLCD      = $FF40
@@ -1379,9 +1386,9 @@ EXEC_HL_1:
   LD HL,(CO_FILES)
   ADD HL,BC
   LD (CO_FILES),HL
-  LD HL,($FAD8)
+  LD HL,(RAM_FILES)
   ADD HL,BC
-  LD ($FAD8),HL
+  LD (RAM_FILES),HL
 EXEC_HL_2:
   POP DE
   POP AF
@@ -1418,9 +1425,9 @@ EXEC_HL_2:
   LD HL,(CO_FILES)
   ADD HL,BC
   LD (CO_FILES),HL
-  LD HL,($FAD8)
+  LD HL,(RAM_FILES)
   ADD HL,BC
-  LD ($FAD8),HL
+  LD (RAM_FILES),HL
   POP HL
 EXEC_HL_3:
   LD A,(DE)
@@ -2109,7 +2116,7 @@ __RUN:
   JP NC,_RUN
 ; This entry point is used by the routine at FP_SINTAB.
 __RUN_0:
-  CALL _OMERR_1
+  CALL __CLREG
   LD BC,EXEC_EVAL
   JP __GOSUB_0
 
@@ -3706,7 +3713,7 @@ __LIST_0:
   LD HL,$FFFF
   LD (CURLIN),HL		; Set interpreter in 'DIRECT' (immediate) mode
   POP HL
-  LD ($FABC),HL 
+  LD (LBEDIT),HL 
   POP DE
   LD C,(HL)
   INC HL
@@ -3787,7 +3794,7 @@ DETOKEN_NEXT_1:
   OR A
   LD (BC),A
   RET Z
-  CP '"'
+  CP '"'			; Not a number ?
   JP NZ,DETOKEN_NEXT_2
   LD A,(OPRTYP)
   XOR $01
@@ -3803,7 +3810,7 @@ DETOKEN_NEXT_2:
   AND $FD
   LD (OPRTYP),A
 DETOKEN_NEXT_3:
-  LD A,':'       ;  ':'
+  LD A,':'
 DETOKEN_NEXT_4:
   OR A
   JP P,DETOKEN_NEXT
@@ -4110,7 +4117,7 @@ CHGET_9:
   JP CHGET_0
 
 CHGET_10:
-  LD HL,($F88A)		; SHIFT-PRINT shortcut
+  LD HL,(SHFT_PRINT)		; SHIFT-PRINT shortcut
   JP CHGET_9
 
 ; Toggle function key label line if enabled.
@@ -4504,7 +4511,7 @@ RAM_OPN_3:
   LD (HL),A
   LD L,A
   LD H,A
-  LD ($FAD8),HL
+  LD (RAM_FILES),HL
   JP RAM_OPN_1
 
 RAM_OPN_4:
@@ -4610,7 +4617,7 @@ RAM_INPUT:
   JP NZ,RAM_INPUT_0
   PUSH DE
   EX DE,HL
-  LD HL,($FAD8)
+  LD HL,(RAM_FILES)
   EX DE,HL
   ADD HL,DE
   POP DE
@@ -5390,7 +5397,7 @@ __DATE_S:
   CALL DT_DIGIT
   CALL DT_DIGIT
   XOR A
-  LD ($F655),A
+  LD (ONDATEF),A
   JP SET_CLOCK
 
 ; Routine at 6641
@@ -5705,7 +5712,7 @@ L1B88:
   LD (ON_TIME_TM+6),A
 _RST75_3:
   LD A,($F93C)
-  LD HL,$F655
+  LD HL,ONDATEF
   CP (HL)
   LD (HL),A
   JP NC,_RST75_4
@@ -6411,11 +6418,11 @@ SAVEBA:
   CALL RESFPT
   CALL NXTDIR_0
   LD (DIRPNT),HL
-  LD A,$80
+  LD A,$80			; BA file type
   EX DE,HL
   LD HL,(BASTXT)
   EX DE,HL
-  CALL MAKTXT_0
+  CALL ADD_DIR_ENTRY
   CALL RESFPT_9
   JP READY
 
@@ -6572,7 +6579,7 @@ KILLASC_5:
   POP HL
   JP Z,FCERR
   CALL KILLASC_6
-  CALL _OMERR_1
+  CALL __CLREG
   JP READY
 
 ; This entry point is used by the routine at SAVEBA.
@@ -6779,9 +6786,9 @@ CLRPTR:
   EX DE,HL
   LD HL,(DO_FILES)
   CALL __NEW_3
-  LD HL,($FAD8)
+  LD HL,(RAM_FILES)
   ADD HL,BC
-  LD ($FAD8),HL
+  LD (RAM_FILES),HL
   LD HL,$FFFF
   LD (PASPNT),HL
   JP RUN_FST
@@ -6790,7 +6797,7 @@ CLRPTR:
 __NEW_2:
   LD HL,(LBLIST)
   EX DE,HL
-  LD HL,($FABC)
+  LD HL,(LBEDIT)
   
 ; This entry point is used by the routine at KILLASC.
 __NEW_3:
@@ -6982,9 +6989,9 @@ MAKTXT:
   POP HL
   PUSH HL
   PUSH DE
-  LD A,$C0
+  LD A,$C0		; DO file type
   DEC DE
-  CALL MAKTXT_0
+  CALL ADD_DIR_ENTRY
   CALL RESFPT
   POP HL
   POP DE
@@ -6992,7 +6999,7 @@ MAKTXT:
   RET
 
 ; This entry point is used by the routines at SAVEBA and CSAVEM.
-MAKTXT_0:
+ADD_DIR_ENTRY:
   PUSH DE
   LD (HL),A
   INC HL
@@ -7172,11 +7179,11 @@ CSAVEM_1:
   POP HL
   LD (CO_FILES),HL
   POP HL
-  LD A,$A0
+  LD A,$A0			; CO file type
   EX DE,HL
   LD HL,(TEMP)
   EX DE,HL
-  CALL MAKTXT_0
+  CALL ADD_DIR_ENTRY
   CALL RESFPT
   JP READY
 
@@ -7474,8 +7481,8 @@ CLOADM_3:
 CLOADM_4:
   POP HL
   POP AF
-  JP NC,_OMERR_1
-  CALL _OMERR_1
+  JP NC,__CLREG
+  CALL __CLREG
   LD HL,(EXE)
   LD (LASTCALL),HL
   CALL PIVOTCALL
@@ -7514,7 +7521,8 @@ LDIR_B:
   RET
 
 ; This entry point is used by the routine at __MENU.
-LDIR_B_0:
+; Load CO program and execute it
+MENU_LDEXEC:
   CALL CLOADM_7
   PUSH HL
   CALL _CLOAD_PARMS
@@ -12353,9 +12361,10 @@ _OMERR:
 RUN_FST:
   LD HL,(BASTXT)
   DEC HL
+
 ; This entry point is used by the routines at __RUN, KILLASC, CLOADM, __CLEAR,
 ; __SAVE and __MENU.
-_OMERR_1:
+__CLREG:
   LD (TEMP),HL
 
 ; Routine at 16175
@@ -12732,7 +12741,7 @@ __CLEAR:
   POP HL
   DEC HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
-  JP Z,_OMERR_1
+  JP Z,__CLREG
   RST $38
   DEFB HC_CLEAR		; offset: 00, Hook for CLEAR
   
@@ -12798,7 +12807,7 @@ __CLEAR_2:
   POP HL
   LD (MEMSIZ),HL
   POP HL
-  CALL _OMERR_1
+  CALL __CLREG
   LD A,(MAXFIL)
   CALL __MAX_0
   LD HL,(TEMP)
@@ -15369,7 +15378,7 @@ __MERGE_3:
 __SAVE:
   CP $4D
   JP Z,SAVEM
-  CALL _OMERR_1
+  CALL __CLREG
   CALL FILE_PARMS
   JP Z,__LCOPY_6
   LD A,D
@@ -16254,6 +16263,7 @@ TEL_SET_STAT_1:
 TEL_SET_STAT_2:
   LD (DIAL_SPEED),A
   JP TELCOM_RDY
+ 
 ; This entry point is used by the routine at TEL_FIND.
 TEL_SET_STAT_3:
   LD HL,CALMSG
@@ -16298,7 +16308,7 @@ TEL_FIND_0:
   JP NC,TELCOM_RDY
   PUSH HL
   PUSH DE
-  CALL SHOW_TIME_5
+  CALL NO_TEXTMODE
   CALL TEL_FIND_1
   CALL NZ,TEL_FIND_2
   CALL OUTDO_CRLF
@@ -16873,7 +16883,7 @@ TEL_UPLD:
   EX DE,HL
   EX (SP),HL
   PUSH HL
-  LD HL,WIDTH_MSG
+  LD HL,WIDTH_MSG		; "Width:"
   CALL PRINT_LINE
   CALL _INLIN			; Line input, FN keys are supported.
   RET C
@@ -16890,9 +16900,11 @@ TEL_UPLD:
   CP $85		; 133
   RET NC
 
+  ; A = 10..132
+
   LD HL,TXT_BUF
   LD (TXT_PTR),HL
-  LD (TXT_YRNG),A
+  LD (TRM_WIDTH),A
   LD (CAPTUR+1),A
   POP AF
   POP DE
@@ -17145,7 +17157,7 @@ PRINT_LINE:
 __MENU:
   LD HL,(MEMSIZ)
   LD (STKTOP),HL
-  CALL _OMERR_1
+  CALL __CLREG
   CALL CLSCOM
   CALL MCLEAR_0
   CALL RESFPT
@@ -17154,7 +17166,7 @@ __MENU:
   CALL ERAFNK
   CALL LOCK
   LD A,(SCREEN)
-  LD ($FDFA),A
+  LD (SV_SCREEN),A
   LD A,$FF
   LD (MENU_FLG),A
   INC A
@@ -17367,7 +17379,7 @@ __MENU_19:
   PUSH HL
   CALL __CLS
   CALL UNLOCK
-  LD A,($FDFA)
+  LD A,(SV_SCREEN)
   CALL __SCREEN_0
   LD A,$0C
   RST OUTC
@@ -17381,15 +17393,15 @@ __MENU_19:
   POP HL
   LD A,(HL)
   CALL GTXTTB
-  CP $A0
-  JP Z,LDIR_B_0
-  CP $B0
+  CP $A0			; CO file type ?
+  JP Z,MENU_LDEXEC
+  CP $B0			; System file ?
   JP Z,CALLHL
-  CP $F0
+  CP $F0			; (pehaps cold boot file type?)
   JP Z,$F624
-  CP $C0
+  CP $C0			; DO file type ?
   JP Z,EDIT_TEXT
-  LD (BASTXT),HL
+  LD (BASTXT),HL	; Otherwise, consider it a BAsic program
   DEC DE
   DEC DE
   EX DE,HL
@@ -17893,7 +17905,7 @@ SCL_LFND_0:
   JP NC,SCHEDL_DE_2
   PUSH HL
   PUSH DE
-  CALL SHOW_TIME_5
+  CALL NO_TEXTMODE
 SCL_LFND_1:
   CALL L67DF
   LD A,(MENUVARS+23)
@@ -18134,7 +18146,7 @@ L5D40_0:
 ; This entry point is used by the routines at __MENU and SCHEDL_DE.
 DISABLE_SH_PRINT:
   LD HL,NULL_DATA
-  LD ($F88A),HL		; ptr to entry for SHIFT-PRINT shortcut
+  LD (SHFT_PRINT),HL		; ptr to entry for SHIFT-PRINT shortcut
 
 ; Routine at 23891
 ;
@@ -18239,22 +18251,20 @@ SHOW_TIME_4:
   RET
   
 ; This entry point is used by the routines at TEL_FIND and SCL_LFND.
-SHOW_TIME_5:
+NO_TEXTMODE:
   LD HL,ACTV_Y
   LD A,$FF
-  LD ($F921),A
+  LD (BASICMODE),A
   LD (TXT_EDITING),A
   LD A,(MENUVARS+23)
   OR A
   JP Z,SHOW_TIME_7
   LD A,$01
-; This entry point is used by the routine at TEXT.
-SHOW_TIME_6:
   LD (TXT_EDITING),A
   LD HL,$F649
 SHOW_TIME_7:
   LD A,(HL)
-  LD (TXT_YRNG),A
+  LD (TRM_WIDTH),A
   RET
   
 ; This entry point is used by the routine at SCL_LFND.
@@ -18365,12 +18375,12 @@ __EDIT_2:
   CP $1A		; EOF
   JP Z,__EDIT_4
   PUSH HL
-  XOR A
-  LD HL,L5EAB		; trap location in case of errors
-  JP WAIT_SPC_2
+  XOR A				; Text editor in BASIC mode
+  LD HL,TXT_TO_BASIC		; Return location to get back from editor
+  JP EDIT_TEXT_0
 
 ; Routine at 24235
-L5EAB:
+TXT_TO_BASIC:
   XOR A
   LD HL,L5EEB
   LD (ERRTRP),HL
@@ -18491,9 +18501,9 @@ EDIT_TEXT:
   LD A,$01
   LD HL,__MENU
 ; This entry point is used by the routine at __EDIT.
-WAIT_SPC_2:
-  LD ($F921),A
-  LD ($F765),HL
+EDIT_TEXT_0:
+  LD (BASICMODE),A
+  LD (TXT_ESCADDR),HL
   CALL EXTREV		; Exit from reverse mode
   CALL ERAFNK
   CALL LOCK
@@ -18504,15 +18514,15 @@ WAIT_SPC_2:
   LD A,(ERRTRP-1)
   AND A
   JP Z,WAIT_SPC_3
-  LD HL,$7845		; H=120, L=69
-  LD ($F7F9),HL
-  LD HL,$7469		; H=116, L=105   (same const on PC8201 etc..)
-  LD ($F7FB),HL
+  LD HL,$7845		; 'E', 'x', ..
+  LD (FNKSTR+$70),HL
+  LD HL,$7469		;        ..'i', t'
+  LD (FNKSTR+$72),HL
 WAIT_SPC_3:
   LD HL,L5E4F
-  LD ($F88A),HL		; ptr to entry for SHIFT-PRINT shortcut
+  LD (SHFT_PRINT),HL		; ptr to entry for SHIFT-PRINT shortcut
   LD A,(ACTV_Y)
-  LD (TXT_YRNG),A
+  LD (TRM_WIDTH),A
   LD A,$80			; Disable top FN key row (incl. BREAK)
   LD (FNK_FLAG),A
   XOR A
@@ -18520,7 +18530,7 @@ WAIT_SPC_3:
   LD H,A
   LD ($F6DF),A
   LD (TXT_EDITING),A
-  LD ($F6E1),A
+  LD (TXT_ERRFLG),A
   LD (STRG_ASKBUF),A
   LD (TXT_SEL_BEG),HL
 WAIT_SPC_4:
@@ -18625,7 +18635,7 @@ TXT_ESC:
   CALL POSIT
   CALL OUTDO_CRLF
   CALL TXT_WIPE_END
-  LD HL,($F765)
+  LD HL,(TXT_ESCADDR)
   JP (HL)
 
 ; TEXT control P routine
@@ -18666,9 +18676,10 @@ TXT_CTL_I_1:
   PUSH HL
   LD HL,ERR_MEMORY
   CALL TXT_ERROR
+  
 ; This entry point is used by the routines at TXT_CTL_C, TXT_CTL_N and
 ; MOVE_TEXT.
-TXT_CTL_I_2:
+_POSIT:
   POP HL
   JP POSIT
 
@@ -19096,7 +19107,7 @@ TXT_CTL_C_5:
   POP AF
   DEC A
   JP P,TXT_CTL_C_5
-  JP TXT_CTL_I_2
+  JP _POSIT
 
 ; This entry point is used by the routines at TXT_CTL_O, TXT_CTL_U and
 ; TXT_CTL_V.
@@ -19356,7 +19367,7 @@ MCLEAR_10:
   DEC A
   CALL TXT_CTL_V_34
   XOR A
-  LD ($F6E1),A
+  LD (TXT_ERRFLG),A
   POP HL	; cursor coordinates
   CALL POSIT
   POP AF
@@ -19594,7 +19605,7 @@ TXT_CTL_N_3:
   DEC L
   PUSH HL
   CALL TXT_CTL_L_3
-  JP TXT_CTL_I_2
+  JP _POSIT
 
 ; This entry point is used by the routines at TXT_CTL_Y and TXT_CTL_V.
 TXT_ABT_ERROR:
@@ -19602,7 +19613,7 @@ TXT_ABT_ERROR:
 ; This entry point is used by the routine at TXT_CTL_I.
 TXT_ERROR:
   LD A,$01
-  LD ($F6E1),A
+  LD (TXT_ERRFLG),A
 ; This entry point is used by the routine at MOVE_TEXT.
 TXT_CTL_N_6:
   CALL CLR_BOTTOMROW
@@ -19655,18 +19666,19 @@ CLR_BOTTOMROW:
 
 ; This entry point is used by the routine at WAIT_SPC.
 MOVE_TEXT_1:
-  LD HL,$F6E1
+  LD HL,TXT_ERRFLG
   XOR A
   CP (HL)
   RET Z
   LD (HL),A
+
 ; This entry point is used by the routines at TXT_CTL_N and TXT_CTL_Y.
 MOVE_TEXT_2:
   LD HL,(CSRX)
   PUSH HL
   CALL GET_BT_ROWPOS
   CALL TXT_CTL_V_34
-  JP TXT_CTL_I_2
+  JP _POSIT
 
 ; This entry point is used by the routine at TXT_CTL_G.
 MOVE_TEXT_3:
@@ -19785,24 +19797,25 @@ TXT_CTL_Y:
   PUSH HL
   LD HL,(CSRX)
   LD (SAVE_CSRX),HL
-  LD HL,WIDTH_MSG
+  LD HL,WIDTH_MSG	; "Width:"
   LD DE,TXT_ASKBUF
   CALL ASK_TEXT
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   XOR A
   CP (HL)
   JP Z,TXT_EXIT_ASK		; JP if no text entered
-  LD ($F688),A
-
+  LD (KBUF+3),A
   CALL GETINT
   CP $0A	; 10
   RET C
   CP $85	; 133
   RET NC
 
+  ; A = 10..132
+  
   POP DE
   LD ($F649),A
-  LD (TXT_YRNG),A
+  LD (TRM_WIDTH),A
   LD (PRTFLG),A
 
   LD DE,TXT_ASKBUF
@@ -19838,7 +19851,7 @@ TXT_ERR_NOFILE:
 
 TXT_CTL_Y_4:
   LD A,(ACTV_Y)
-  LD (TXT_YRNG),A
+  LD (TRM_WIDTH),A
   XOR A
   LD (PRTFLG),A
   LD (TXT_EDITING),A
@@ -20105,7 +20118,7 @@ ADD_TAB:
   AND $07
   JP NZ,ADD_TAB
 TXT_CTL_V_15:
-  LD A,(TXT_YRNG)
+  LD A,(TRM_WIDTH)
   DEC A
   CP (HL)
   POP HL
@@ -20136,7 +20149,7 @@ TXT_CTL_V_18:
 
 TXT_CTL_V_19:
   LD A,(TXT_COUNT)
-  LD HL,TXT_YRNG
+  LD HL,TRM_WIDTH
   CP (HL)
   RET NC
   LD A,(TXT_EDITING)
@@ -20208,7 +20221,7 @@ ADD_ESC_SEQ:
 
 TXT_CTL_V_26:
   LD B,A
-  LD A,($F921)
+  LD A,(BASICMODE)
   AND A
   LD A,B
   RET Z
@@ -20376,6 +20389,7 @@ TXT_CTL_V_46:
 ; TXT_CTL_L and TXT_CTL_C.
 TXT_CTL_V_47:
   LD A,(CSRX)
+  
 ; This entry point is used by the routines at TXT_CTL_X, TXT_CTL_B and MCLEAR.
 TXT_CTL_V_48:
   LD E,A
@@ -20794,7 +20808,7 @@ BASIC_0:
   INC A
   LD (LBL_LINE),A
   LD HL,LLIST_STMT		;"llist"
-  LD ($F88A),HL			; prepare the shortcut for SHIFT-PRINT
+  LD (SHFT_PRINT),HL			; prepare the shortcut for SHIFT-PRINT
   CALL UPD_PTRS
   CALL RUN_FST
   JP READY
