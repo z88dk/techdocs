@@ -727,7 +727,7 @@ ISFLIO:
 ;
 ; Printer output
 OUTDLP:
-  JP _OUTDLP
+  JP OUTC_TABEXP
 
 ; Routine at 336
 ;
@@ -2243,7 +2243,7 @@ _POSIT: 		; Locate cursor at the specified position
 
 ; Routine at 2205
 ;
-; Used by the routines at SNVCHR, CHPUT_CONT, _FNKSB and _OUTDLP.
+; Used by the routines at SNVCHR, CHPUT_CONT, _FNKSB and OUTC_TABEXP.
 ; A.K.A. CNVCHR (Convert Character)
 _SNVCHR:
   PUSH HL
@@ -3748,7 +3748,7 @@ L0FDF:
   JR Z,L0FDF_0
   CP 'a'
   JR C,L0FDF_2
-  CP $7B
+  CP 'z'+1
   JR NC,L0FDF_2
   AND $DF		; TK_SPC ?
 L0FDF_0:
@@ -3774,7 +3774,7 @@ L1008:
   BIT 5,D
   JR NZ,L0FC1
 L0FDF_2:
-  LD C,$1F
+  LD C,$1F	; 31
   LD HL,L109D
   CPDR
   JR NZ,L0FC1
@@ -3884,9 +3884,6 @@ L109D:
   DEFM "YA"
   DEFB $90
   DEFM "IOUAEIOU"
-
-; Data block at 4275
-L10B3:
   DEFB $B0,$B2,$B4,$B6,$A5,$8F,$80,$92
   DEFB $B8,$59,$00,$00,$00,$00,$00
   
@@ -6217,16 +6214,16 @@ OUTDO_NOFILE:
   POP AF
 
 ; This entry point is used by the routine at OUTDLP.
-_OUTDLP:
+OUTC_TABEXP:
   PUSH AF
   CP TAB
   JR NZ,NO_TAB
-_OUTDLP_1:
+TABEXP_LOOP:
   LD A,' '
-  CALL _OUTDLP
+  CALL OUTC_TABEXP
   LD A,(LPTPOS)
   AND $07
-  JR NZ,_OUTDLP_1
+  JR NZ,TABEXP_LOOP
   POP AF
   RET
 
@@ -7228,7 +7225,7 @@ DV16PHL_0:
 
 ; Routine at 10214
 ;
-; Used by the routines at __LOG, MULPHL, SUMSER, FMULT and L37DF.
+; Used by the routines at __LOG, MULPHL, SUMSER, FMULT and DECEXP.
 DECMUL:
   CALL SIGN			; test FP number sign
   RET Z
@@ -7670,7 +7667,7 @@ __ATN_1:
 
 ; Routine at 10866
 ;
-; Used by the routine at L37DF.
+; Used by the routine at DECEXP.
 __LOG:
   CALL SIGN			; test FP number sign
   JP M,FCERR			; Err $05 - "Illegal function call"
@@ -7767,7 +7764,7 @@ __SQR_0:
 
 ; Routine at 11082
 ;
-; Used by the routine at L37DF.
+; Used by the routine at DECEXP.
 __EXP:
   LD HL,FP_LOG10E
   CALL MULPHL
@@ -7921,6 +7918,7 @@ FACCU2ARG:
   LD HL,FACCU
 ; This entry point is used by the routines at __SIN, __EXP, __RND, ADDPHL,
 ; SUBPHL, MULPHL, DIVPHL, CMPPHL and SMSER1.
+
 HL2ARG:
   LD DE,ARG
 ; This entry point is used by the routine at ARG2FACCU.
@@ -7932,20 +7930,22 @@ FP2DE:
 
 ; Routine at 11353
 ;
-; Used by the routines at __SQR, XSTKFP, L37DF, L3878 and L391A.
+; Used by the routines at __SQR, XSTKFP, DECEXP, L3878 and L391A.
 ARG2FACCU:
   LD HL,ARG
 ; This entry point is used by the routines at __SIN, __ATN, __EXP, __RND,
-; SMSER1, L375F, L37DF and L3878.
+; SMSER1, L375F, DECEXP and L3878.
 HL2FACCU:
   LD DE,FACCU
   JR FP2DE
 
-; Routine at 11361
-L2C61:
+; Routine at 11361 ($2C61)
+; ..how is this called ?
+GET_RNDX:
   CALL HL_CSNG
   LD HL,RNDX
-; This entry point is used by the routines at __EXP, __RND, SMSER1, L37DF and
+  
+; This entry point is used by the routines at __EXP, __RND, SMSER1, DECEXP and
 ; L3878.
 DBL_FACCU2HL:
   LD DE,FACCU
@@ -7956,7 +7956,7 @@ DBL2HL:
 
 ; Routine at 11375
 ;
-; Used by the routines at __TAN, __ATN, __LOG, __EXP and L37DF.
+; Used by the routines at __TAN, __ATN, __LOG, __EXP and DECEXP.
 ; Exchange stack and FP value (ARG is used and left = FACCU)
 XSTKFP:
   POP HL
@@ -8027,7 +8027,7 @@ STAKARG:
 ; Routine at 11468
 ;
 ; Used by the routines at __SIN, __TAN, __ATN, __LOG, __SQR, __EXP, XSTKFP,
-; SUMSER, L37DF and L3878.
+; SUMSER, DECEXP and L3878.
 STAKFP:
   LD HL,FACCU+7
 ; This entry point is used by the routine at STAKARG.
@@ -8047,27 +8047,27 @@ STAKFP_1:
 
 
 ; This entry point is used by the routines at __TAN, __ATN, __LOG, __SQR,
-; __EXP, XSTKFP, SUMSER, L37DF and L391A.
+; __EXP, XSTKFP, SUMSER, DECEXP and L391A.
 USTAKARG:
   LD HL,ARG
-  JR L2CE4
+  JR USTAK_SUB
 
   ; --- START PROC USTAKFP ---
 USTAKFP:
   LD HL,FACCU
 
-  ; --- START PROC L2CE4 ---
-L2CE4:
+  ; --- START PROC USTAK_SUB ---
+USTAK_SUB:
   LD A,$04
   POP DE
-L2CE7:
+USTAK_SUB_0:
   POP BC
   LD (HL),C
   INC HL
   LD (HL),B
   INC HL
   DEC A
-  JR NZ,L2CE7
+  JR NZ,USTAK_SUB_0
   EX DE,HL
   JP (HL)
 
@@ -8239,7 +8239,7 @@ INVSGN_1:
 ; Routine at 11927
 __SGN:
   CALL _TSTSGN
-; This entry point is used by the routines at L4F57, L726D, FN_PLAY and __STRIG.
+; This entry point is used by the routines at L4F57, CAS_EOF, FN_PLAY and __STRIG.
 ; Signed char to signed int conversion, then return
 INT_RESULT_A:
   LD L,A
@@ -8256,8 +8256,8 @@ _TSTSGN:
   JP Z,TYPE_ERR				; If string type, Err $0D - "Type mismatch"
   JP P,SIGN			; test FP number sign
   LD HL,(FACLOW)
-  ; --- START PROC L2EAB ---
-L2EAB:		;_TSTSGN_2
+  ; --- START PROC __TSTSGN_0 ---
+__TSTSGN_0:
   LD A,H
   OR L
   RET Z
@@ -8367,7 +8367,7 @@ FP2HL:
   LD A,(VALTYP)
   LD B,A
   
-; This entry point is used by the routines at __RND, L2C61, DEC_FACCU2HL and L46C0.
+; This entry point is used by the routines at __RND, GET_RNDX, DEC_FACCU2HL and L46C0.
 ; Copy B bytes from DE to HL
   ; --- START PROC L2EF7 ---
 CPY2HL:
@@ -8702,7 +8702,7 @@ ZERO_FACCU:
   LD A,H
   LD (FACCU+8),A
 
-; This entry point is used by the routines at __EXP and L37DF.
+; This entry point is used by the routines at __EXP and DECEXP.
 SETTYPE_DBL:
   LD A,$08
   JR SETTYPE_SNG_0
@@ -8725,7 +8725,7 @@ TSTSTR:
 ; Data block at 12381
   ; --- START PROC CINT ---
 CINT:
-  LD HL,L30BA
+  LD HL,CINT_RET2
   PUSH HL
   LD HL,FACCU
   LD A,(HL)
@@ -8733,33 +8733,33 @@ CINT:
   CP $46
   RET NC
   SUB $41
-  JR NC,L3074
+  JR NC,CINT_SUB
   OR A
   POP DE
   LD DE,$0000
   RET
 
-L3074:
+CINT_SUB:
   INC A
   LD B,A
   LD DE,$0000
   LD C,D
   INC HL
-L307B:
+CINT_SUB_0:
   LD A,C
   INC C
   RRA
   LD A,(HL)
-  JR C,L3087
+  JR C,CINT_SUB_1
   RRA
   RRA
   RRA
   RRA
-  JR L3088
+  JR CINT_SUB_2
 
-L3087:
+CINT_SUB_1:
   INC HL
-L3088:
+CINT_SUB_2:
   AND $0F
   LD (DECTMP),HL
   LD H,D
@@ -8778,14 +8778,12 @@ L3088:
   RET C
   EX DE,HL
   LD HL,(DECTMP)
-  DJNZ L307B
+  DJNZ CINT_SUB_0
   LD HL,$8000		; 32768
   RST DCOMPR		; Compare HL with DE.
-
-L30A6:
   LD A,(FACCU)
   RET C
-  JR Z,L30B6
+  JR Z,CINT_RET1
   POP HL
   OR A
   RET P
@@ -8795,7 +8793,7 @@ L30A6:
   OR A
   RET
 
-L30B6:
+CINT_RET1:
   OR A
   RET P
   POP HL
@@ -8803,12 +8801,12 @@ L30B6:
 
 
 ; Routine at 12474
-L30BA:
+CINT_RET2:
   SCF
   RET
 
 ; Routine at 12476
-L30BC:
+DETOKEN_ELSE:
   DEC BC
   RET
 
@@ -10312,7 +10310,7 @@ L37B4_1:
   POP BC
   RET
 
-; Data block at 14280
+; Single precision exponential function
 FEXP:
   CALL DEC_HL2ARG
   CALL ZERO_FACCU
@@ -10320,19 +10318,18 @@ FEXP:
   CALL XSTKFP
   CALL USTAKARG
 
+; Double precision exponential function
 DECEXP:
   LD A,(ARG)
   OR A
-  JP Z,L3843		; SIGN - test FP number sign
+  JP Z,INTEXP_0		; SIGN - test FP number sign
   LD H,A
-; Routine at 14303
-L37DF:
   LD A,(FACCU)
   OR A
-  JP Z,L384D
+  JP Z,INTEXP_2
   CALL STAKFP
   CALL L391A
-  JR C,L37DF_1
+  JR C,DECEXP_1
   EX DE,HL
   LD (TEMP8),HL
   CALL SETTYPE_DBL
@@ -10353,7 +10350,7 @@ L37DF:
   LD A,H
   OR A
   PUSH AF
-  JP P,L37DF_0
+  JP P,DECEXP_0
   XOR A
   LD C,A
   SUB L
@@ -10361,11 +10358,11 @@ L37DF:
   LD A,C
   SBC A,H
   LD H,A
-L37DF_0:
+DECEXP_0:
   PUSH HL
   JP L3878_0
 
-L37DF_1:
+DECEXP_1:
   CALL SETTYPE_DBL
   CALL ARG2FACCU
   CALL XSTKFP
@@ -10375,22 +10372,22 @@ L37DF_1:
   JP __EXP
 
   
+; Integer exponential function
 ; FACCU=DE^HL
-
 INTEXP:
   LD A,H
   OR L
-  JR NZ,L3849
+  JR NZ,INTEXP_1
 		
-L3843:
+INTEXP_0:
   LD HL,$0001
   JP INT_RESULT_ONE
 
-L3849:
+INTEXP_1:
   LD A,D
   OR E
   JR NZ,L385A
-L384D:
+INTEXP_2:
   LD A,H
   RLA
   JR NC,INT_RESULT_ZERO
@@ -10441,7 +10438,7 @@ L3878:
   POP HL
   CALL HL_CSNG
   CALL ZERO_FACCU
-; This entry point is used by the routine at L37DF.
+; This entry point is used by the routine at DECEXP.
 L3878_0:
   POP BC
   LD A,B
@@ -10472,6 +10469,7 @@ L3878_1:
   CALL DBL_FACCU2HL
   CALL USTAKFP
   JR L3878_0
+  
 L38C3:
   PUSH BC
   PUSH DE
@@ -10485,6 +10483,7 @@ L38C3:
   CALL ARG2FACCU
   POP BC
   JR L3878_1
+  
 L3878_2:
   POP AF
   POP BC
@@ -10530,7 +10529,7 @@ L390D:
 
 ; Routine at 14618
 ;
-; Used by the routine at L37DF.
+; Used by the routine at DECEXP.
 L391A:
   CALL ARG2FACCU
   CALL STAKARG
@@ -11728,7 +11727,7 @@ L3FF4:
   
 ; NEXT_UNSTACK_1
 L3FF9:
-  LD BC,$0016
+  LD BC,22
   POP HL
   RET Z
   ADD HL,BC
@@ -12903,7 +12902,7 @@ __FOR_1:
   PUSH DE
   PUSH HL
   EX DE,HL
-  CALL L2EAB		; _TSTSGN_2
+  CALL __TSTSGN_0
   JR L45E8			; FOR_5
   
 __FOR_2:
@@ -13493,7 +13492,7 @@ __RETURN_0:
   JR Z,__RETURN_1
   LD A,(HL)
   AND $01
-  CALL NZ,TIME_S_STOP_1
+  CALL NZ,RETURN_TRAP
 __RETURN_1:
   POP BC
 ; L4846:
@@ -14632,7 +14631,10 @@ OPRND_1:
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB '('
   CP '#'
-  JR NZ,VARPTR_0
+  JR NZ,VARPTR_VAR
+
+; VARPTR(#buffer) Function
+;VARPTR_BUF:
   CALL FNDNUM
   PUSH HL
   CALL GETPTR
@@ -14640,8 +14642,8 @@ OPRND_1:
   POP HL
   JR VARPTR_1
   
-VARPTR_0:
-  CALL L5F5D		; GETVAR
+VARPTR_VAR:
+  CALL _GETVAR		; GETVAR
 
 VARPTR_1:
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
@@ -15241,7 +15243,7 @@ L50F3:
   RST DCOMPR		; Compare HL with DE.
   JR C,L5156
   CALL SAVSTR_0
-  CALL L6657+1		; reference not aligned to instruction
+  CALL TSTOPL_0		; reference not aligned to instruction
 L5156:
   LD HL,(PRMSTK)		; Previous definition block on stack
   LD D,H
@@ -16447,7 +16449,7 @@ MCL_ITEM_0:
   LD (MCLPTR),HL
   CP $20	; ' ' ?
   JR Z,MCL_ITEM_0
-  CP $60
+  CP $60	; "'" ?
   JR C,MCL_ITEM_1
   SUB $20
 ; This entry point is used by the routine at L5683.
@@ -17098,7 +17100,7 @@ L5A26_2:
   ADD HL,DE
   EX DE,HL
   CALL L5AC2
-; This entry point is used by the routine at CRT_DEV.
+; This entry point is used by the routine at CRT_CTL.
 L5A26_3:
   LD HL,(CSAVEA)
   LD A,(CSAVEM)
@@ -17891,7 +17893,7 @@ L5EA3:
 
 ; Get variable address to DE (AKA PTRGET)
 ;
-; Used by the routines at __LET, __LINE, __READ, OPRND, __DEF, FN_FN, L5F5D,
+; Used by the routines at __LET, __LINE, __READ, OPRND, __DEF, FN_FN, _GETVAR,
 ; __SWAP and __NEXT.
 GETVAR:
   XOR A
@@ -17962,8 +17964,9 @@ GVAR:
   LD A,(HL)
   SUB $28	; '('
   JP Z,SBSCPT
-  SUB $33
+  SUB $33	; '['   ..subtract ($28+$33)
   JP Z,SBSCPT
+  
 GVAR_0:
   XOR A
   LD (SUBFLG),A
@@ -17971,61 +17974,61 @@ GVAR_0:
   LD A,(NOFUNS)			; 0 if no function active
   OR A
   LD (PRMFLG),A
-  JR Z,L5F23_2
+  JR Z,GVAR_4
   LD HL,(PRMLEN)
   LD DE,PARM1
   ADD HL,DE
   LD (ARYTA2),HL
   EX DE,HL
-  JR L5F23_1
+  JR GVAR_3
 
 ; Routine at 24355
-L5F23:
+GVAR_1:
   LD A,(DE)
   LD L,A
   INC DE
   LD A,(DE)
   INC DE
   CP C
-  JR NZ,L5F23_0
+  JR NZ,GVAR_2
   LD A,(VALTYP)
   CP L
-  JR NZ,L5F23_0
+  JR NZ,GVAR_2
   LD A,(DE)
   CP B
   JP Z,L5F66_1
-L5F23_0:
+
+GVAR_2:
   INC DE
   LD H,$00
   ADD HL,DE
   
-; This entry point is used by the routine at GVAR.
-L5F23_1:
+GVAR_3:
   EX DE,HL
   LD A,(ARYTA2)
   CP E
-  JP NZ,L5F23
+  JP NZ,GVAR_1
   LD A,(ARYTA2+1)
   CP D
-  JR NZ,L5F23
+  JR NZ,GVAR_1
   LD A,(PRMFLG)
   OR A
   JR Z,L5F66
   XOR A
   LD (PRMFLG),A
-; This entry point is used by the routine at GVAR.
-L5F23_2:
+
+GVAR_4:
   LD HL,(ARYTAB)
   LD (ARYTA2),HL
   LD HL,(VARTAB)
-  JR L5F23_1
+  JR GVAR_3
 
 ; Routine at 24413
 ;
-; Used by the routine at OPRND.
-L5F5D:
+; Used by the routine at VARPTR.
+_GETVAR:
   CALL GETVAR
-L5F60:
+_GETVAR_RET:
   RET
 
 ; Routine at 24417
@@ -18040,12 +18043,12 @@ L5F61:
 
 ; Routine at 24422
 ;
-; Used by the routine at L5F23.
+; Used by the routine at GVAR_1.
 L5F66:
   POP HL
   EX (SP),HL
   PUSH DE
-  LD DE,L5F60		; Just points to 'RET'
+  LD DE,_GETVAR_RET		; Just points to 'RET'
   RST DCOMPR		; Compare HL with DE.
   JR Z,L5F61
   
@@ -18087,7 +18090,7 @@ L5F66_0:
   INC HL
   LD (HL),D
   EX DE,HL
-; This entry point is used by the routine at L5F23.
+; This entry point is used by the routine at GVAR_1.
 L5F66_1:
   INC DE
   POP HL
@@ -18107,7 +18110,11 @@ L5F66_3:
   POP HL
   RET
 
+
+; Sort out subscript
 ; Data block at 24506
+;
+; Used by the routine at GETVAR.
 SBSCPT:
   PUSH HL			; Save code string address
   LD HL,(DIMFLG)
@@ -18234,7 +18241,7 @@ L604A:
   LD  C,E
   EX  DE,HL
   ADD HL,DE
-  JP  C,OMERR
+  JP  C,_OMERR
   CALL L6266+1   ; $6267 = CHKSTK_0 (reference not aligned to instruction)
   LD  (STREND),HL
 L6064:
@@ -18677,18 +18684,18 @@ L6266:
   LD A,$FF
   SBC A,H
   LD H,A
-  JR C,OMERR
+  JR C,_OMERR
   ADD HL,SP
   POP HL
   RET C
 ; This entry point is used by the routines at __CLEAR and MAXFILES.
-OMERR:
+_OMERR:
   CALL UPD_PTRS
   LD HL,(STKTOP)
   DEC HL
   DEC HL
   LD (SAVSTK),HL
-_OMERR:
+OMERR:
   LD DE,$0007			; Err $07 - "Out of memory"
   JP ERROR
 
@@ -18823,7 +18830,7 @@ TIME_S_ON:
   LD (HL),A
   JR Z,TIME_S_ON_0
   AND $04
-  JR NZ,TIME_S_STOP_5
+  JR NZ,RESET_ONGSBF
 TIME_S_ON_0:
   EI
   RET
@@ -18835,7 +18842,7 @@ TIME_S_OFF:
   DI
   LD A,(HL)
   LD (HL),$00
-  JR TIME_S_STOP_0
+  JR STOP_TRAPEVT_FLG
 
 ; Routine at 25393
 ;
@@ -18844,38 +18851,39 @@ TIME_S_STOP:
   DI
   LD A,(HL)
   PUSH AF
-  OR $02
+  OR $02		; Interrupt STOP
   LD (HL),A
   POP AF
 ; This entry point is used by the routine at TIME_S_OFF.
-TIME_S_STOP_0:
-  XOR $05
-  JR Z,TIME_S_STOP_8
+STOP_TRAPEVT_FLG:
+  XOR $05  	; bit 0 and 2 (Interrupt occurred / Interrupt OFF)
+  JR Z,SET_ONGSBF
   EI
   RET
 
 ; Routine at 25406
-TIME_S_STOP_1:
+RETURN_TRAP:
   DI
   LD A,(HL)
-  AND $05
+  AND $05	;  bit 0 and 2 (Interrupt occurred / Interrupt OFF)
   CP (HL)
   LD (HL),A
-  JR NZ,TIME_S_STOP_3
+  JR NZ,RESET_TRAPEVT_FLG
   EI
   RET
 
-TIME_S_STOP_3:
-  XOR $05
-  JR Z,TIME_S_STOP_5
+; Toggle bit 0 and 2 (Interrupt occurred / Interrupt OFF)
+RESET_TRAPEVT_FLG:
+  XOR $05	;  bit 0 and 2 (Interrupt occurred / Interrupt OFF)
+  JR Z,RESET_ONGSBF
   EI
   RET
 
 ; Routine at 25422
 L634E:
   DI
-; This entry point is used by the routines at TIME_S_ON and TIME_S_STOP_1.
-TIME_S_STOP_5:
+; This entry point is used by the routines at TIME_S_ON and RETURN_TRAP.
+RESET_ONGSBF:
   LD A,(ONGSBF)
   INC A
   LD (ONGSBF),A
@@ -18885,19 +18893,19 @@ TIME_S_STOP_5:
 ; Routine at 25432
 ;
 ; Used by the routine at L6389.
-TIME_S_STOP_6:
+TIME_S_EVENT:
   DI
   LD A,(HL)
-  AND $03
+  AND $03		; are bit 0 or 1 (Interrupt OFF / Interrupt STOP) set ?
   CP (HL)
   LD (HL),A
-  JR NZ,TIME_S_STOP_8
+  JR NZ,SET_ONGSBF
 TIME_S_STOP_7:
   EI
   RET
   
 ; This entry point is used by the routine at TIME_S_STOP.
-TIME_S_STOP_8:
+SET_ONGSBF:
   LD A,(ONGSBF)
   SUB $01
   JR C,TIME_S_STOP_7
@@ -18970,7 +18978,7 @@ L6389_3:
   JR Z,RUN_FST4
   PUSH DE
   PUSH HL
-  CALL TIME_S_STOP_6
+  CALL TIME_S_EVENT
   CALL TIME_S_STOP
   LD C,$03
   CALL CHKSTK
@@ -19217,7 +19225,7 @@ __CLEAR_1:
   LD A,H
   SBC A,D
   LD D,A
-  JP C,OMERR
+  JP C,_OMERR
   PUSH HL
   LD HL,(VARTAB)
   PUSH BC
@@ -19225,7 +19233,7 @@ __CLEAR_1:
   ADD HL,BC
   POP BC
   RST DCOMPR		; Compare HL with DE.
-  JP NC,OMERR
+  JP NC,_OMERR
   EX DE,HL
   LD (STKTOP),HL
   LD H,B
@@ -19511,9 +19519,9 @@ DTSTR_1:
 ; Used by the routines at CONCAT, TOPOOL, __LEFT_S, FN_INPUT and FN_SPRITE.
 TSTOPL:
   LD DE,DSCTMP
-L6657:
-  LD A,$D5			; 
-  ; PUSH DE
+  DEFB $3E  ; "LD A,n" to Mask the next byte
+TSTOPL_0:
+  PUSH DE
   LD HL,(TEMPPT)
   LD (FACLOW),HL
   LD A,$03			; String ?
@@ -19561,9 +19569,9 @@ PRS1_0:
 ; Used by the routines at SAVSTR, MK_1BYTE_TMST and __LEFT_S.
 TESTR:
   OR A
-L668F:
-  ;L668F+1: POP AF
-  LD C,$F1
+  DEFB $0E  ; "LD C,n" to Mask the next byte
+;TESTR+2:
+  POP AF
   PUSH AF
   LD HL,(STKTOP)	; Start of string buffer for BASIC
   EX DE,HL
@@ -19589,7 +19597,7 @@ TESTR_1:
   JP Z,ERROR
   CP A
   PUSH AF
-  LD BC,L668F+1
+  LD BC,TESTR+2
   PUSH BC
 ; This entry point is used by the routine at __FRE.
 TESTR_2:
@@ -21606,10 +21614,10 @@ DEVICE_TBL:
 
 ; Table to define Token groups ?
 DEVICE_VECT:
-  DEFW CAS_DEV
-  DEFW LPT_DEV
-  DEFW CRT_DEV
-  DEFW GRP_DEV
+  DEFW CAS_CTL
+  DEFW LPT_CTL
+  DEFW CRT_CTL
+  DEFW GRP_CTL
 
 ; This entry point is used by the routines at __OPEN, GET, L6C50, L6C78,
 ; __EOF and L6E35.
@@ -21991,20 +21999,20 @@ L715D_1:
 
 
 ; Data block at 29058
-; GRP: Device Table
+; GRP: Device Control Table/Driver
 ; $7182
-GRP_DEV:
+GRP_CTL:
   DEFW DEVICE_OPEN
-  DEFW DO_NOTHING
+  DEFW DO_NOTHING		; CLOSE operation
   DEFW ERR_NO_RNDACC
   DEFW GRP_OUTPUT
 
+  DEFW FCERR		; INPUT operation
   DEFW FCERR
   DEFW FCERR
+  DEFW FCERR		; EOF operation
   DEFW FCERR
-  DEFW FCERR
-  DEFW FCERR
-  DEFW FCERR
+  DEFW FCERR		; UNGETC operation
 
 GRP_OUTPUT:
   LD A,(SCRMOD)
@@ -22018,20 +22026,20 @@ L719F:
   
   
 ; Routine at 29090
-; CRT: Device Table
+; CRT: Device Control Table/Driver
 ; $71A2
-CRT_DEV:
+CRT_CTL:
   DEFW DEVICE_OPEN
-  DEFW DO_NOTHING
+  DEFW DO_NOTHING		; CLOSE operation
   DEFW ERR_NO_RNDACC
   DEFW CRT_OUTPUT
   
+  DEFW FCERR		; INPUT operation
   DEFW FCERR
   DEFW FCERR
+  DEFW FCERR		; EOF operation
   DEFW FCERR
-  DEFW FCERR
-  DEFW FCERR
-  DEFW FCERR
+  DEFW FCERR		; UNGETC operation
   
 DEVICE_OPEN:
   CALL L72CD
@@ -22050,9 +22058,9 @@ CRT_OUTPUT:
   JP CHPUT
 
 ; Data block at 29127
-; CAS: Device Table/Driver
+; CAS: Device Control Table/Driver
 ;$71C7
-CAS_DEV:
+CAS_CTL:
   DEFW CAS_OPEN
   DEFW CAS_CLOSE
   DEFW ERR_NO_RNDACC
@@ -22061,21 +22069,21 @@ CAS_DEV:
   DEFW CAS_INPUT
   DEFW FCERR
   DEFW FCERR
-  DEFW L726D
+  DEFW CAS_EOF
   DEFW FCERR
-  DEFW L727C
+  DEFW CAS_UNGETC
 
 CAS_OPEN:
   PUSH HL
   PUSH DE
   LD BC,$0006
-  ADD HL,BC
+  ADD HL,BC					; char count
   XOR A
   LD (HL),A
-  LD (CASPRV),A
+  LD (CASPRV),A				; clear char for UNGETC
   CALL L72CD
   CP $04
-  JP Z,DERBFN					; Err $38 -  'Bad file name'
+  JP Z,DERBFN				; Err $38 -  'Bad file name'
 
   CP $01
   JR Z,L71D9_1
@@ -22100,10 +22108,10 @@ CAS_CLOSE:
   JR Z,CAS_CLOSE_1
   LD A,$1A		; EOF
   PUSH HL
-  CALL L728B
+  CALL INIT_DEV_OUTPUT
   CALL Z,CAS_OUTPUT_0
   POP HL
-  CALL L7281
+  CALL CLOSE_DEVICE
   JR Z,CAS_CLOSE_1
   PUSH HL
   ADD HL,BC
@@ -22122,7 +22130,7 @@ CAS_CLOSE_1:
 ; Routine at 29226
 CAS_OUTPUT:
   LD A,C
-  CALL L728B
+  CALL INIT_DEV_OUTPUT
   RET NZ
 ; This entry point is used by the routine at CAS_CLOSE.
 CAS_OUTPUT_0:
@@ -22138,13 +22146,13 @@ CAS_OUTPUT_1:
 
 ; Routine at 29247
 ;
-; Used by the routine at L726D.
+; Used by the routine at CAS_EOF.
 CAS_INPUT:
   EX DE,HL
   LD HL,CASPRV
-  CALL L72BE
+  CALL GET_BYTE
   EX DE,HL
-  CALL L729B
+  CALL INIT_INPUT
   JR NZ,CAS_INPUT_1
   PUSH HL
   CALL START_TAP_IN                   ; start tape for reading
@@ -22172,7 +22180,7 @@ CAS_INPUT_1:
   RET
 
 ; Routine at 29293
-L726D:
+CAS_EOF:
   CALL CAS_INPUT
   LD HL,CASPRV
   LD (HL),A
@@ -22182,7 +22190,7 @@ L726D:
   JP INT_RESULT_A
 
 ; Routine at 29308
-L727C:
+CAS_UNGETC:
   LD HL,CASPRV
   LD (HL),C
   RET
@@ -22190,21 +22198,21 @@ L727C:
 ; Routine at 29313
 ;
 ; Used by the routine at CAS_CLOSE.
-L7281:
+CLOSE_DEVICE:
   LD BC,$0006
-  ADD HL,BC
+  ADD HL,BC					; char count
   LD A,(HL)
   LD C,A
   LD (HL),$00
-  JR L729B_0
+  JR DEVICE_RET
 
 ; Routine at 29323
 ;
 ; Used by the routines at CAS_CLOSE and CAS_OUTPUT.
-L728B:
+INIT_DEV_OUTPUT:
   LD E,A
   LD BC,$0006
-  ADD HL,BC
+  ADD HL,BC					; char count
   LD A,(HL)
   INC (HL)
   INC HL
@@ -22220,13 +22228,13 @@ L728B:
 ; Routine at 29339
 ;
 ; Used by the routine at CAS_INPUT.
-L729B:
+INIT_INPUT:
   LD BC,$0006
-  ADD HL,BC
+  ADD HL,BC					; char count
   LD A,(HL)
   INC (HL)
-; This entry point is used by the routine at L7281.
-L729B_0:
+; This entry point is used by the routine at CLOSE_DEVICE.
+DEVICE_RET:
   INC HL
   INC HL
   INC HL
@@ -22234,20 +22242,20 @@ L729B_0:
   RET
 
 ; Data block at 29350
-; LPT: Device Table/Driver
+; LPT: Device Control Table/Driver
 ; $72A6
-LPT_DEV:
+LPT_CTL:
   DEFW DEVICE_OPEN
-  DEFW DO_NOTHING
+  DEFW DO_NOTHING		; CLOSE operation
   DEFW ERR_NO_RNDACC
   DEFW LPT_OUTPUT
  
+  DEFW FCERR		; INPUT operation
   DEFW FCERR
   DEFW FCERR
+  DEFW FCERR		; EOF operation
   DEFW FCERR
-  DEFW FCERR
-  DEFW FCERR
-  DEFW FCERR
+  DEFW FCERR		; UNGETC operation
 
 LPT_OUTPUT:
   LD A,C
@@ -22257,7 +22265,7 @@ LPT_OUTPUT:
 ; Routine at 29374
 ;
 ; Used by the routine at CAS_INPUT.
-L72BE:
+GET_BYTE:
   LD A,(HL)
   LD (HL),$00
   AND A
@@ -23119,7 +23127,7 @@ L7684_2:
   EX DE,HL
   CALL HL_CSNG
   CALL FP_ARG2HL
-  LD HL,L7754
+  LD HL,L7754		; numeric float const
   CALL PHLTFP
   CALL DECDIV
   CALL __CINT
@@ -23232,14 +23240,13 @@ L7684_9:
   JP L5683_2
 
 ; Pointed by routine at L7684
+; numeric float const
 L7754:
-  NOP
-  NOP
+  DEFB $00
+  DEFB $00
+  DEFB $45
+  DEFB $12
 
-; Routine at 30550
-L7756:
-  LD B,L
-  LD (DE),A
 __PUT:
   LD B,$80
   LD DE,$0006
@@ -24765,7 +24772,7 @@ MAXFILES_0:
   LD HL,(VARTAB)
   ADD HL,BC
   RST DCOMPR		; Compare HL with DE.
-  JP NC,OMERR
+  JP NC,_OMERR
   POP AF
   LD (MAXFIL),A
   LD L,E
