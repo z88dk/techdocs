@@ -3054,8 +3054,8 @@ DROP_THROUGH:
   CALL __DATA
   OR A
   RET Z
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  CP $91		; TK_ELSE
+  RST CHRGTB			; Gets next character (or token) from BASIC text.
+  CP $91				; TK_ELSE
   JP NZ,DROP_THROUGH
   DEC D
   JP NZ,DROP_THROUGH
@@ -9376,7 +9376,7 @@ INSTR_0:
   POP HL
   POP AF
   PUSH BC
-  LD BC,BCDEFP_ARG_2
+  LD BC,POPHLRT
   PUSH BC
   LD BC,LDA_FAC1
   PUSH BC
@@ -9504,7 +9504,7 @@ INSTR_8:
   LD B,A
   EX (SP),HL
   PUSH HL
-  LD HL,BCDEFP_ARG_2
+  LD HL,POPHLRT
   EX (SP),HL
   LD A,C
   OR A
@@ -11929,7 +11929,7 @@ DCXH_2:
   RET
 
 ; This entry point is used by the routine at SCPTLP.
-BCDEFP_ARG_2:
+POPHLRT:
   POP HL
   RET
 
@@ -12047,7 +12047,7 @@ _ASCTFP_11:
   POP HL
   RET PE
   PUSH HL
-  LD HL,BCDEFP_ARG_2
+  LD HL,POPHLRT
   PUSH HL
   CALL INT_RESULT_HL_2
   RET
@@ -12075,7 +12075,7 @@ _ASCTFP_16:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   POP AF
   PUSH HL
-  LD HL,BCDEFP_ARG_2
+  LD HL,POPHLRT
   PUSH HL
   LD HL,__CINT
   PUSH HL
@@ -13105,7 +13105,7 @@ INTEXP_15:
 
 ; This entry point is used by the routines at EXEC_HL and GETVAR.
 INTEXP_16:
-  CALL L3F08+1
+  CALL OM_ERR
 ; This entry point is used by the routine at TESTR.
 INTEXP_17:
   PUSH BC
@@ -13129,11 +13129,12 @@ CHKSTK:
   LD B,$00
   ADD HL,BC
   ADD HL,BC
-  
-L3F08:
-	;; L3F08+1:  PUSH HL
-  LD A,$E5
 
+  DEFB $3E  ; "LD A,n" to Mask the next byte
+
+; Out
+OM_ERR:
+  PUSH HL
   LD A,$88
   SUB L
   LD L,A
@@ -15177,7 +15178,7 @@ GVAR:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   LD A,(SUBFLG)
   DEC A
-  JP Z,SBSCPT_1
+  JP Z,ARLDSV
   JP P,GVAR_0
   LD A,(HL)
   SUB $28	; '('
@@ -15404,49 +15405,48 @@ ENDIF
 ; Routine at 18620
 ;
 ; Used by the routine at GETVAR.
-SBSCPT_1:
-  PUSH HL
-  PUSH AF
-  LD HL,(VAREND)
- 
-  ;LD A,$19
-  DEFB $3E  ; "LD A,n" to Mask the next byte
+ARLDSV:
+  PUSH HL             ; Save code string address
+  PUSH AF             ; A = 00 , Flags set = Z,N
+  LD HL,(VAREND)      ; Start of arrays
+                      
+  DEFB $3E  ; "LD A,n" to Mask the next byte  (skip "ADD HL,DE")
 
 ; Routine at 18625
-SBSCPT_2:
-  ADD HL,DE
-  EX DE,HL
-  LD HL,(STREND)
+FNDARY:
+  ADD HL,DE            ; Move to next array start
+  EX DE,HL             ; End of arrays
+  LD HL,(STREND)       ; Compare HL with DE.
   EX DE,HL
   RST CPDEHL
-  JP Z,BSOPRND_0
-  LD E,(HL)
-  INC HL
-  LD A,(HL)
-  INC HL
-  CP C
-  JP NZ,SCPTLP_1
+  JP Z,CREARY          ; Yes - Create array
+  LD E,(HL)            ; Get type
+  INC HL               ; Move on
+  LD A,(HL)            ; Get second byte of name
+  INC HL               ; Move on
+  CP C                 ; Compare with name given (second byte)
+  JP NZ,NXTARY         ; Different - Find next array
   LD A,(VALTYP)
-  CP E
-  JP NZ,SCPTLP_1
-  LD A,(HL)
-  CP B
-SCPTLP_1:
+  CP E                 ; Compare type
+  JP NZ,NXTARY         ; Different - Find next array
+  LD A,(HL)            ; Get first byte of name
+  CP B                 ; Compare with name given (first byte)
+NXTARY:
   INC HL
-  LD E,(HL)
-  INC HL
-  LD D,(HL)
-  INC HL
-  JP NZ,SBSCPT_2
-  LD A,(DIMFLG)
+  LD E,(HL)            ; Get LSB of next array address
+  INC HL               
+  LD D,(HL)            ; Get MSB of next array address
+  INC HL               
+  JP NZ,FNDARY         ; Not found - Keep looking
+  LD A,(DIMFLG)        ; Found Locate or Create it?
   OR A
-  JP NZ,DD_ERR		; "Redimensioned array" error
-  POP AF
-  LD B,H
+  JP NZ,DD_ERR         ; Create - Err $0A - "Redimensioned array"
+  POP AF               ; Locate - Get number of dim'ns
+  LD B,H               ; BC Points to array dim'ns
   LD C,L
-  JP Z,BCDEFP_ARG_2
-  SUB (HL)
-  JP Z,BS_ERR_4
+  JP Z,POPHLRT         ; Jump if array load/save
+  SUB (HL)             ; Same number of dimensions?
+  JP Z,FINDEL          ; Yes - Find element
 
 ; Routine at 18678
 ;
@@ -15457,7 +15457,7 @@ BS_ERR:
   JP ERROR
 
 ; This entry point is used by the routine at SCPTLP.
-BSOPRND_0:
+CREARY:
   LD A,(VALTYP)
   LD (HL),A
   INC HL
@@ -15465,69 +15465,71 @@ BSOPRND_0:
   LD D,$00
   POP AF
   JP Z,FC_ERR
-  LD (HL),C
+  LD (HL),C           ; Save second byte of name
+  INC HL              
+  LD (HL),B           ; Save first byte of name
   INC HL
-  LD (HL),B
+  LD C,A              ; Number of dimensions to C
+  CALL CHKSTK         ; Check if enough memory
+  INC HL              ; Point to number of dimensions
   INC HL
-  LD C,A
-  CALL CHKSTK
+  LD (TEMP3),HL       ; Save address of pointer
+  LD (HL),C           ; Set number of dimensions
   INC HL
+  LD A,(DIMFLG)       ; Locate of Create?
+  RLA                 ; Carry set = Create
+  LD A,C              ; Get number of dimensions
+CRARLP:
+  LD BC,10+1          ; Default dimension size 10
+  JP NC,DEFSIZ        ; Locate - Set default size
+  POP BC              ; Get specified dimension size
+  INC BC              ; Include zero element
+DEFSIZ:
+  LD (HL),C           ; Save LSB of dimension size
+  PUSH AF             ; Save num' of dim'ns an status
+  INC HL              
+  LD (HL),B           ; Save MSB of dimension size
   INC HL
-  LD (TEMP3),HL
-  LD (HL),C
-  INC HL
-  LD A,(DIMFLG)
-  RLA
-  LD A,C
-BS_ERR_1:
-  LD BC,11
-  JP NC,BS_ERR_2
-  POP BC
-  INC BC
-BS_ERR_2:
-  LD (HL),C
-  PUSH AF
-  INC HL
-  LD (HL),B
-  INC HL
-  CALL MLDEBC
-  POP AF
-  DEC A
-  JP NZ,BS_ERR_1
-  PUSH AF
-  LD B,D
-  LD C,E
+  CALL MLDEBC         ; Multiply DE by BC to find amount of mem needed
+  POP AF              ; Restore number of dimensions
+  DEC A               ; Count them
+  JP NZ,CRARLP        ; Do next dimension if more
+  PUSH AF             ; Save locate/create flag
+  LD B,D              ; MSB of memory needed
+  LD C,E              ; LSB of memory needed
   EX DE,HL
-  ADD HL,DE
-  JP C,_OM_ERR
-  CALL L3F08+1
-  LD (STREND),HL
-BS_ERR_3:
-  DEC HL
-  LD (HL),$00
-  RST CPDEHL
-  JP NZ,BS_ERR_3
-  INC BC
-  LD D,A
-  LD HL,(TEMP3)
-  LD E,(HL)
-  EX DE,HL
-  ADD HL,HL
-  ADD HL,BC
-  EX DE,HL
-  DEC HL
-  DEC HL
-  LD (HL),E
+  ADD HL,DE           ; Add bytes to array start
+  JP C,_OM_ERR        ; Too big - Error
+  CALL OM_ERR         ; See if enough memory
+  LD (STREND),HL      ; Save new end of array
+
+ZERARY:
+  DEC HL              ; Back through array data
+  LD (HL),$00         ; Set array element to zero
+  RST CPDEHL          ; All elements zeroed?
+  JP NZ,ZERARY        ; No - Keep on going
+  INC BC              ; Number of bytes + 1
+  LD D,A              ; A=0
+  LD HL,(TEMP3)       ; Get address of array
+  LD E,(HL)           ; Number of dimensions
+  EX DE,HL            ; To HL
+  ADD HL,HL           ; Two bytes per dimension size
+  ADD HL,BC           ; Add number of bytes
+  EX DE,HL            ; Bytes needed to DE
+  DEC HL              
+  DEC HL              
+  LD (HL),E           ; Save LSB of bytes needed
+  INC HL              
+  LD (HL),D           ; Save MSB of bytes needed
   INC HL
-  LD (HL),D
-  INC HL
-  POP AF
-  JP C,BS_ERR_7
+  POP AF              ; Locate / Create?
+  JP C,BS_ERR_7       ; A is 0 , End if create
+  
 ; This entry point is used by the routine at SCPTLP.
-BS_ERR_4:
-  LD B,A
-  LD C,A
-  LD A,(HL)
+FINDEL:
+  LD B,A              ; Find array element
+  LD C,A              
+  LD A,(HL)           ; Number of dimensions
   INC HL
 
 ; Routine at 18783
@@ -15632,14 +15634,14 @@ USING_5:
   LD B,E
   LD A,$5C  ;'\'
 USING_6:
-  CALL BSOPRND_03
+  CALL OUTC_SGN
   RST OUTC
 USING_7:
   XOR A
   LD E,A
   LD D,A
 USING_8:
-  CALL BSOPRND_03
+  CALL OUTC_SGN
   LD D,A
   LD A,(HL)
   INC HL
@@ -15827,7 +15829,7 @@ USING_20:
   JP NZ,USING_7
   JP USING_22
 USING_21:
-  CALL BSOPRND_03
+  CALL OUTC_SGN
   RST OUTC
 USING_22:
   POP HL
@@ -15847,7 +15849,7 @@ USING_24:
 L4B07:
   POP AF
   DEC B
-  CALL BSOPRND_03
+  CALL OUTC_SGN
   POP HL
   POP AF
   JP Z,USING_23
@@ -15876,7 +15878,7 @@ USING_25:
   RST OUTC
   JP USING_25
 
-BSOPRND_03:
+OUTC_SGN:
   PUSH AF
   LD A,D
   OR A
@@ -18448,29 +18450,29 @@ __MENU_8:
   CALL SHOW_TIME
   CALL CHGET_UCASE
   CP $0D         ; CR
-  JP Z,SELECTCURS_CR
+  JP Z,CR_PRESSED
   CP $08
-  JP Z,SELECT_BS
+  JP Z,BS_PRESSED
   CP $7F		; BS
-  JP Z,SELECT_BS
+  JP Z,BS_PRESSED
   CP $15
   JP Z,__MENU_LOOP
   CP ' '
   JP C,__MENU_11
   LD C,A
   LD A,(MENUVARS+22)
-  CALL Z,__MENU_10
+  CALL Z,SPC_PRESSED
   CP $09		; TAB
   JP Z,SELECT_LOOP
   CALL SHOW_TIME_0
   JP __MENU_8
   
-SELECT_BS:
-  CALL _SELECT_BS
+BS_PRESSED:
+  CALL _BS_PRESSED
   JP Z,SELECT_LOOP
   JP __MENU_8
 
-__MENU_10:
+SPC_PRESSED:
   OR A
   RET NZ
   POP AF
@@ -18546,7 +18548,7 @@ __MENU_14:
   LD D,A
   RET
 
-SELECTCURS_CR:
+CR_PRESSED:
   LD A,(MENUVARS+22)
   OR A
   JP Z,__MENU_16
@@ -18771,7 +18773,7 @@ IF KC85 | M10
   LD HL,ALT_LCD+200
   PUSH HL
   CALL MOVE_2_BYTES
-  LD (HL),$20
+  LD (HL),' '
   INC HL
   PUSH HL
 ENDIF
@@ -19462,7 +19464,7 @@ ISZ_PROMPT:
   RET
   
 ; This entry point is used by the routine at __MENU.
-_SELECT_BS:
+_BS_PRESSED:
   CALL ISZ_PROMPT
   RET Z
   DEC A
