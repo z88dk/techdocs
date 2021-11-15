@@ -1,0 +1,193 @@
+
+
+
+;  Token codes are automatically assigned per group type (STATEMENTS, FUNCTIONS, etc..)
+;  Few exceptions recur in code portions for special cases.
+
+defc TK_LEFT_S   =  $01
+defc TK_RIGHT_S  =  $02
+defc TK_MID_S    =  $03
+defc TK_SGN      =  $04
+defc TK_INT      =  $05
+defc TK_ABS      =  $06
+defc TK_SQR      =  $07
+defc TK_RND      =  $08
+defc TK_SIN      =  $09
+defc TK_LOG      =  $0A
+defc TK_EXP      =  $0B
+defc TK_COS      =  $0C
+defc TK_TAN      =  $0D
+defc TK_ATN      =  $0E
+defc TK_FRE      =  $0F
+
+defc TK_INP      =  $10
+defc TK_POS      =  $11
+defc TK_LEN      =  $12
+defc TK_STR_S    =  $13
+defc TK_VAL      =  $14
+defc TK_ASC      =  $15
+defc TK_CHR_S    =  $16
+defc TK_PEEK     =  $17
+defc TK_VPEEK    =  $18
+defc TK_SPACE_S  =  $19
+defc TK_OCT_S    =  $1A
+defc TK_HEX_S    =  $1B
+defc TK_LPOS     =  $1C
+defc TK_BIN      =  $1D
+defc TK_CINT     =  $1E
+defc TK_CSGN     =  $1F
+
+defc TK_CDBL     =  $20
+defc TK_STICK    =  $22
+defc TK_TRIG     =  $23
+defc TK_PDL      =  $24
+defc TK_PAD      =  $25
+defc TK_DSKF     =  $26
+defc TK_FPOS     =  $27
+defc TK_CVI      =  $28
+defc TK_CVS      =  $29
+defc TK_CVD      =  $2A
+defc TK_EOF      =  $2B
+defc TK_LOC      =  $2C
+defc TK_LOF      =  $2D
+defc TK_MKI_S    =  $2E
+defc TK_MKS_S    =  $2F
+
+defc TK_MKD_S    =  $30
+
+
+
+defc TK_END      =  $81	; Token for 'END' (used also in 'APPEND')
+defc TK_FOR      =  $82	; Token for 'FOR' (used also in 'OPEN' syntax)
+defc TK_NEXT     =  $83	; Token for 'FOR' (used also for 'RESUME NEXT')
+defc TK_DATA     =  $84	; Token for 'DATA'
+defc TK_INPUT    =  $85	; Token for 'INPUT' (used for the "LINE INPUT" compound statement)
+defc TK_DIM      =  $86
+defc TK_READ     =  $87
+defc TK_LET      =  $88
+defc TK_GOTO     =  $89	; Token for 'GOTO'
+defc TK_RUN      =  $8A
+defc TK_IF       =  $8B
+defc TK_RESTORE  =  $8C	; 
+defc TK_GOSUB    =  $8D	; Token for 'GOSUB'
+defc TK_RETURN   =  $8E	; Token for 'RETURN'
+defc TK_REM      =  $8F
+
+defc TK_STOP     =  $90	; Token for 'STOP'
+defc TK_PRINT    =  $91	; Token for 'PRINT'
+defc TK_CLEAR    =  $92
+defc TK_LIST     =  $93
+defc TK_NEW      =  $94
+defc TK_ON       =  $95	; Token for 'ON'
+defc TK_WAIT     =  $96
+defc TK_DEF      =  $97
+defc TK_POKE     =  $98
+defc TK_CONT     =  $99
+defc TK_CSAVE    =  $9A
+defc TK_CLOAD    =  $9B
+defc TK_OUT      =  $9C	; Token for 'OUT' (used also in 'OPEN' to check syntax)
+defc TK_LPRINT   =  $9D
+defc TK_LLIST    =  $9E
+defc TK_CLS      =  $9F
+
+defc TK_WIDTH    =  $A0
+defc TK_ELSE     =  $A1	; Token for 'ELSE'
+defc TK_TRON     =  $A2
+defc TK_TROFF    =  $A3	; Token for 'TROFF'
+defc TK_SWAP     =  $A4
+defc TK_ERASE    =  $A5
+defc TK_ERROR    =  $A6	; Token for 'ERROR'
+defc TK_RESUME   =  $A7
+defc TK_DELETE   =  $A8
+defc TK_AUTO     =  $A9
+defc TK_RENUM    =  $AA
+defc TK_DEFSTR   =  $AB
+defc TK_DEFINT   =  $AC
+defc TK_DEFSGN   =  $AD
+defc TK_DEFDBL   =  $AE
+defc TK_LINE     =  $AF
+
+defc TK_OPEN     =  $B0
+defc TK_FIELD    =  $B1
+defc TK_GET      =  $B2
+defc TK_PUT      =  $B3	; Token for 'PUT' (used also in 'OPEN' to check syntax)
+defc TK_CLOSE    =  $B4
+defc TK_LOAD     =  $B5
+defc TK_MERGE    =  $B6
+defc TK_FILES    =  $B7   ; Token for 'FILES' (used also in "MAXFILES")
+defc TK_LSET     =  $B8
+defc TK_RSET     =  $B9
+defc TK_SAVE     =  $BA
+defc TK_LFILES   =  $BB
+defc TK_CIRCLE   =  $BC
+defc TK_COLOR    =  $BD
+defc TK_DRAW     =  $BE
+defc TK_PAINT    =  $BF
+
+defc TK_BEEP     =  $C0
+defc TK_PLAY     =  $C1	; Token for 'PLAY'
+defc TK_PSET     =  $C2
+defc TK_PRESET   =  $C3
+defc TK_SOUND    =  $C4
+defc TK_SCREEN   =  $C5
+defc TK_VPOKE    =  $C6
+defc TK_SPRITE   =  $C7	; Token for 'SPRITE'
+defc TK_VDP      =  $C8	; Token for 'VDP'
+defc TK_BASE     =  $C9	; Token for 'BASE'
+defc TK_CALL     =  $CA
+defc TK_TIME     =  $CB	; Token for 'TIME'
+defc TK_KEY      =  $CC	; Token for 'KEY'
+defc TK_MAX      =  $CD
+defc TK_MOTOR    =  $CE
+defc TK_BLOAD    =  $CF
+
+defc TK_BSAVE    =  $D0	; Token for 'BSAVE'
+defc TK_DSKO_S   =  $D1
+defc TK_SET      =  $D2
+defc TK_NAME     =  $D3	; Token for 'NAME'
+defc TK_KILL     =  $D4
+defc TK_IPL      =  $D5
+defc TK_COPY     =  $D6
+defc TK_CMD      =  $D7
+defc TK_LOCATE   =  $D8
+
+defc TK_TO       =  $D9	; Token for 'TO' identifier in a 'FOR' statement
+defc TK_THEN     =  $DA	; Token for 'THEN'
+defc TK_TAB      =  $DB	; Token for 'TAB('
+defc TK_STEP     =  $DC	; Token for 'STEP' identifier in a 'FOR' statement
+defc TK_USR      =  $DD	; Token for 'USR'
+defc TK_FN       =  $DE	; Token for 'FN'
+defc TK_SPC      =  $DF	; Token for 'SPC('
+
+defc TK_NOT      =  $E0	; Token for 'NOT'
+defc TK_ERL      =  $E1	; Token for 'ERL'
+defc TK_ERR      =  $E2	; Token for 'ERR'
+defc TK_STRING   =  $E3	; Token for 'STRING$'
+defc TK_USING    =  $E4	; Token for 'USING'
+defc TK_INSTR    =  $E5	; Token for 'INSTR'
+defc TK_APOSTROPHE = $E6 ; Comment, a modern variant of REM
+defc TK_VARPTR   =  $E7	; Token for 'VARPTR'
+defc TK_CSRLIN   =  $E8	; Token for 'CSRLIN'
+defc TK_ATTR     =  $E9	; Token for 'ATTR$'
+defc TK_DSKI     =  $EA	; Token for 'DSKI$'
+defc TK_OFF      =  $EB	; Token for 'OFF'
+defc TK_INKEY_S  =  $EC	; Token for 'INKEY$'
+defc TK_POINT    =  $ED	; Token for 'POINT'
+defc TK_GREATER  =  $EE ; Token for '>'
+defc TK_EQUAL    =  $EF ; Token for '='
+
+defc TK_MINOR    =  $F0	; Token for '<'
+defc TK_PLUS     =  $F1	; Token for '+'
+defc TK_MINUS    =  $F2	; Token for '-'
+defc TK_STAR     =  $F3	; Token for '*'
+defc TK_SLASH    =  $F4	; Token for '/'
+defc TK_EXPONENT =  $F5	; Token for '^'
+defc TK_AND      =  $F6	; Token for 'AND'
+defc TK_OR       =  $F7	; Token for 'OR'
+defc TK_XOR      =  $F8	; Token for 'XOR'
+defc TK_EQV      =  $F9	; Token for 'EQV'
+defc TK_IMP      =  $FA	; Token for 'IMP'
+defc TK_MOD      =  $FB	; Token for 'MOD'
+defc TK_BKSLASH  =  $FC	; Token for '\'
+
+
