@@ -13154,9 +13154,6 @@ _OM_ERR:
   DEC HL
   DEC HL
   LD (SAVSTK),HL
-
-; Routine at 16162
-OM_ERR:
   LD DE,$0007
   JP ERROR
 
@@ -15532,11 +15529,10 @@ FINDEL:
   LD A,(HL)           ; Number of dimensions
   INC HL
 
-; Routine at 18783
-L495E:
-  LD D,$E1
-  ;L495E+1:  POP HL
+  DB      16H             ; "LD D,n" to skip "POP HL"
   
+FNDELP:
+  POP HL
   LD E,(HL)
   INC HL
   LD D,(HL)
@@ -15551,7 +15547,7 @@ L495E:
   DEC A
   LD B,H
   LD C,L
-  JP NZ,L495E+1
+  JP NZ,FNDELP
 
   LD A,(VALTYP)
   LD B,H
