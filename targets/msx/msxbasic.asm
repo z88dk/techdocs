@@ -13855,7 +13855,7 @@ DROP_THROUGH:
   CALL __DATA
   OR A
   RET Z
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
+  RST CHRGTB			; Gets next character (or token) from BASIC text.
   CP TK_ELSE			; Token for ELSE
   JR NZ,DROP_THROUGH
   DEC D
@@ -17965,7 +17965,7 @@ GVAR:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   LD A,(SUBFLG)
   DEC A
-  JP Z,SBSCPT_1
+  JP Z,ARLDSV
   JP P,GVAR_0
   LD A,(HL)
   SUB $28	; '('
@@ -18158,53 +18158,52 @@ L5FDD:
   ;LD DE,$F5E5
   defb $11	
 
-SBSCPT_1:
-  PUSH HL
-  PUSH AF
-  LD HL,(ARYTAB)
+ARLDSV:
+  PUSH HL            ; Save code string address
+  PUSH AF            ; A = 00 , Flags set = Z,N
+  LD HL,(ARYTAB)     ; Start of arrays
 
-  DEFB $3E  ; "LD A,n" to Mask the next byte
+  DEFB $3E  ; "LD A,n" to Mask the next byte  (skip "ADD HL,DE")
 
-SBSCPT_2:
-  ADD HL,DE
-  LD DE,(STREND)
-  RST DCOMPR		; Compare HL with DE.
-
-L5FF4:
-  JR Z,BSOPRND_0
-  LD E,(HL)
-  INC HL
-  LD A,(HL)
-  INC HL
-  CP C
-  JR NZ,L6005
+FNDARY:
+  ADD HL,DE          ; Move to next array start
+  LD DE,(STREND)     ; End of arrays
+  RST DCOMPR		 ; Compare HL with DE.
+  JR Z,CREARY        ; Yes - Create array
+  LD E,(HL)          ; Get type
+  INC HL             ; Move on
+  LD A,(HL)          ; Get second byte of name
+  INC HL             ; Move on
+  CP C               ; Compare with name given (second byte)
+  JR NZ,NXTARY       ; Different - Find next array
   LD A,(VALTYP)
-  CP E
-  JR NZ,L6005
-  LD A,(HL)
-  CP B
-L6005:
+  CP E               ; Compare type
+  JR NZ,NXTARY       ; Different - Find next array
+  LD A,(HL)          ; Get first byte of name
+  CP B               ; Compare with name given (first byte)
+NXTARY:
   INC HL
-  LD E,(HL)
-  INC HL
-  LD D,(HL)
-  INC HL
-  JR NZ,SBSCPT_2
-  LD A,(DIMFLG)
+  LD E,(HL)          ; Get LSB of next array address
+  INC HL             
+  LD D,(HL)          ; Get MSB of next array address
+  INC HL             
+  JR NZ,FNDARY       ; Not found - Keep looking
+  LD A,(DIMFLG)      ; Found Locate or Create it?
   OR A
-  JP NZ,DD_ERR		; Err $0A - "Redimensioned array"
-  POP AF
-  LD B,H
+  JP NZ,DD_ERR		 ; Create - Err $0A - "Redimensioned array"
+  POP AF             ; Locate - Get number of dim'ns
+  LD B,H             ; BC Points to array dim'ns
   LD C,L
-  JP Z,POPHLRT		; (POP HL / RET)
-  SUB (HL)
-  JP Z,L607D
+  JP Z,POPHLRT		 ; Jump if array load/save
+  SUB (HL)           ; Same number of dimensions?
+  JP Z,FINDEL        ; Yes - Find elementù
+
   ; --- START PROC BS_ERR ---
 BS_ERR:
   LD DE,$0009		; ERR $09 - "Subscript out of range"
   JP ERROR
 
-BSOPRND_0:
+CREARY:
   LD A,(VALTYP)
   LD (HL),A
   INC HL
@@ -18212,50 +18211,51 @@ BSOPRND_0:
   LD D,$00
   POP AF
   JP Z,FC_ERR			; Err $05 - "Illegal function call"
-  LD (HL),C
+  LD (HL),C             ; Save second byte of name
+  INC HL                
+  LD (HL),B             ; Save first byte of name
+  INC HL                
+  LD C,A                ; Number of dimensions to C
+  CALL CHKSTK           ; Check if enough memory
+  INC HL                ; Point to number of dimensions
+  INC HL                
+  LD (TEMP3),HL         ; Save address of pointer
+  LD (HL),C             ; Set number of dimensions
   INC HL
-  LD (HL),B
+  LD A,(DIMFLG)         ; Locate of Create?
+  RLA                   ; Carry set = Create
+  LD A,C                ; Get number of dimensions
+CRARLP:
+  LD BC,10+1            ; Default dimension size 10
+  JR NC,DEFSIZ          ; Locate - Set default size
+  POP BC                ; Get specified dimension size
+  INC BC                ; Include zero element
+DEFSIZ:
+  LD  (HL),C            ; Save LSB of dimension size
+  PUSH AF               ; Save num' of dim'ns an status
+  INC HL                
+  LD  (HL),B            ; Save MSB of dimension size
   INC HL
-  LD C,A
-  CALL CHKSTK
-  INC HL
-  INC HL
-  LD (TEMP3),HL
-  LD (HL),C
-  INC HL
-  LD A,(DIMFLG)
-  RLA
-  LD A,C
-L6043:
-  LD BC,$000B
-  JR NC,L604A
-  POP BC
-  INC BC
-L604A:
-  LD  (HL),C
-  PUSH AF
-  INC HL
-  LD  (HL),B
-  INC HL
-  CALL MLDEBC
-  POP AF
-  DEC A
-  JR  NZ,L6043
-  PUSH AF
-  LD  B,D
-  LD  C,E
+  CALL MLDEBC           ; Multiply DE by BC to find amount of mem needed
+  POP AF                ; Restore number of dimensions
+  DEC A                 ; Count them
+  JR  NZ,CRARLP         ; Do next dimension if more
+  PUSH AF               ; Save locate/create flag
+  LD  B,D               ; MSB of memory needed
+  LD  C,E               ; LSB of memory needed
   EX  DE,HL
-  ADD HL,DE
-  JP  C,_OM_ERR
-  CALL L6266+1   ; $6267 = CHKSTK_0 (reference not aligned to instruction)
-  LD  (STREND),HL
-L6064:
+  ADD HL,DE             ; Add bytes to array start
+  JP  C,_OM_ERR         ; Too big - Error
+  CALL OM_ERR           ; See if enough memory
+  LD  (STREND),HL       ; Save new end of array
+
+ZERARY:
   DEC HL
   LD  (HL),$00
   RST DCOMPR		; Compare HL with DE.
 
 L6068:
-  JR  NZ,L6064
+  JR  NZ,ZERARY
   INC BC
   LD  D,A
   LD  HL,(TEMP3)
@@ -18272,14 +18272,16 @@ L6068:
   INC HL
   POP AF
   JR  C,L60AD
-L607D:
+FINDEL:
   LD  B,A
   LD  C,A
   LD  A,(HL)
   INC HL
-L6081:
-  LD  D,$E1		;	TK_ERL ?
-		;; L6081+1:  POP HL
+
+  DB      16H             ; "LD D,n" to skip "POP HL"
+  
+FNDELP:
+  POP HL
   LD  E,(HL)
   INC HL
   LD  D,(HL)
@@ -18296,7 +18298,7 @@ L608A:
   DEC A
   LD  B,H
   LD  C,L
-  JR  NZ,L6081+1  ; reference not aligned to instruction
+  JR  NZ,FNDELP
 
 ; Routine at 24726
 ;L6096:
@@ -18378,7 +18380,7 @@ USING_5:
   LD B,E
   LD A,$5C  ;'\'
 USING_6:
-  CALL BSOPRND_03
+  CALL OUTC_SGN
   RST OUTDO  		; Output char to the current device
 
 USING_7:
@@ -18386,7 +18388,7 @@ USING_7:
   LD E,A
   LD D,A
 L60F9:
-  CALL BSOPRND_03
+  CALL OUTC_SGN
   LD D,A
   LD A,(HL)
   INC HL
@@ -18581,7 +18583,7 @@ L61DD:
   JP NZ,USING_7
   JR L61C4_2
 L61F5:
-  CALL BSOPRND_03
+  CALL OUTC_SGN
   RST OUTDO  		; Output char to the current device
 L61C4_2:
   POP HL
@@ -18604,7 +18606,7 @@ L620F:
   ;  L620f+1:   POP AF
 L61C4_4:
   DEC B
-  CALL BSOPRND_03
+  CALL OUTC_SGN
   POP HL
   POP AF
   JR Z,L61FE
@@ -18639,7 +18641,7 @@ L61C4_5:
 ; Routine at 25158
 ;
 ; Used by the routine at L61C4.
-BSOPRND_03:
+OUTC_SGN:
   PUSH AF
   LD A,D
   OR A
@@ -18652,7 +18654,7 @@ BSOPRND_03:
 ;
 ; Used by the routine at L5F66.
 L6250:
-  CALL L6266+1   ; $6267 = CHKSTK_0 (reference not aligned to instruction)
+  CALL OM_ERR   ; $6267 = OM_ERR (reference not aligned to instruction)
 ; This entry point is used by the routines at L6719, L7439 and L748E.
 L6250_0:
   PUSH BC
@@ -18677,11 +18679,11 @@ CHKSTK:
   LD B,$00
   ADD HL,BC
   ADD HL,BC
-  
-; $6267 = CHKSTK_0 (reference not aligned to instruction)
-L6266:
-	;; L6266+1:  PUSH HL
-  LD A,$E5
+
+  DEFB $3E  ; "LD A,n" to Mask the next byte
+
+OM_ERR:
+  PUSH HL
   LD A,$88
   SUB L
   LD L,A
@@ -18699,7 +18701,6 @@ _OM_ERR:
   DEC HL
   DEC HL
   LD (SAVSTK),HL
-OM_ERR:
   LD DE,$0007			; Err $07 - "Out of memory"
   JP ERROR
 
@@ -21995,7 +21996,7 @@ L715D_0:
 L715D_1:
   CALL L72D4     ; get byte from tape
   LD E,A
-  CALL L6266+1   ; $6267 = CHKSTK_0 (reference not aligned to instruction)
+  CALL OM_ERR   ; $6267 = OM_ERR (reference not aligned to instruction)
   LD A,E
   SUB (HL)
   AND D
@@ -23533,7 +23534,7 @@ __KEY_1:
   LD A,E
   JR __KEY_4
 __KEY_2:
-  CP $7F
+  CP $7F			; 'DEL' key code
   JR Z,__KEY_3
   CP ' '
   JR NC,__KEY_4
