@@ -2063,82 +2063,82 @@ TOKENIZE:
   LD (OPRTYP),A		; other targets use DORES:  Indicates whether stored word can be crunched
   LD C,A
   LD DE,INPBFR
-TOKENIZE_0:
+CRNCLP:
   LD A,(HL)
-  CP ' '
-  JP Z,TOKEN_FOUND
+  CP ' '             ; Is it a space?
+  JP Z,MOVDIR        ; Yes - Copy direct
   LD B,A
-  CP '"'
-  JP Z,TOKENIZE_15
+  CP '"'             ; Is it a quote?
+  JP Z,CPYLIT        ; Yes - Copy literal string
   OR A
-  JP Z,TOKENIZE_END
+  JP Z,_ENDBUF
   INC HL
   OR A
-  JP M,TOKENIZE_0
+  JP M,CRNCLP
   DEC HL
-  LD A,(OPRTYP)		; other targets use DORES:  Indicates whether stored word can be crunched
-  OR A
-  LD A,(HL)
-  JP NZ,TOKEN_FOUND
-  CP '?'
-  LD A,$A3		; TK_PRINT
-  JP Z,TOKEN_FOUND
-  LD A,(HL)
-  CP '0'
-  JP C,TOKENIZE_1
-  CP '<'
-  JP C,TOKEN_FOUND
-TOKENIZE_1:
-  PUSH DE
-  LD DE,$007F
-  PUSH BC
-  LD BC,L06CD
-  PUSH BC
-  LD B,$7F
-  LD A,(HL)
-  CP 'a'
-  JP C,TOKENIZE_2
-  CP 'z'+1
-  JP NC,TOKENIZE_2
-  AND $5F	  ; convert to uppercase
+  LD A,(OPRTYP)		    ; other targets use DORES:  Indicates whether stored word can be crunched
+  OR A                  ; Literal?
+  LD A,(HL)             ; Get byte to copy
+  JP NZ,MOVDIR          ; Literal - Copy direct
+  CP '?'                ; Is it "?" short for PRINT
+  LD A,$A3			    ; TK_PRINT: "PRINT" token
+  JP Z,MOVDIR           ; Yes - replace it
+  LD A,(HL)             ; Get byte again
+  CP '0'                ; Is it less than "0"
+  JP C,FNDWRD           ; Yes - Look for reserved words
+  CP '<'                ; Is it "0123456789:;" ?
+  JP C,MOVDIR           ; Yes - copy it direct
+FNDWRD:
+  PUSH DE               ; Look for reserved words
+  LD DE,$007F           ; Point to table
+  PUSH BC               ; Save count
+  LD BC,L06CD           ; Where to return to
+  PUSH BC               ; Save return address
+  LD B,$7F              ; TK_END-1, First token value -1
+  LD A,(HL)             ; Get byte
+  CP 'a'                ; Less than "a" ?
+  JP C,SEARCH           ; Yes - search for words
+  CP 'z'+1              ; Greater than "z" ?
+  JP NC,SEARCH          ; Yes - search for words
+  AND $5F	 			; convert to uppercase
   LD (HL),A
-TOKENIZE_2:
-  LD C,(HL)
+SEARCH:
+  LD C,(HL)             ; Search for a word
   EX DE,HL
-TOKENIZE_3:
-  INC HL
-  OR (HL)
-  JP P,TOKENIZE_3
-  INC B
-  LD A,(HL)
-  AND $7F
-  RET Z
-  CP C
-  JP NZ,TOKENIZE_3
+GETNXT:
+  INC HL                ; Get next reserved word
+  OR (HL)               ; Start of word?
+  JP P,GETNXT      		; No - move on
+  INC B                 ; Increment token value
+  LD A,(HL)             ; Get byte from table
+  AND $7F         		; Strip bit 7
+  RET Z                 ; Return if end of list
+  CP C                  ; Same character as in buffer?
+  JP NZ,GETNXT          ; No - get next word
   EX DE,HL
-  PUSH HL
+  PUSH HL               ; Save start of word
 TOKENIZE_4:
-  INC DE
-  LD A,(DE)
-  OR A
-  JP M,TOKENIZE_7
-  LD C,A
-  LD A,B
-  CP $88
-  JP NZ,TOKENIZE_5
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  DEC HL
-TOKENIZE_5:
-  INC HL
-  LD A,(HL)
-  CP 'a'
-  JP C,TOKENIZE_6
-  AND $5F
+  INC DE                ; Look through rest of word
+  LD A,(DE)             ; Get byte from table
+  OR A                  ; End of word ?
+  JP M,TOKENIZE_7       ; Yes - Match found
+  LD C,A                ; Save it
+  LD A,B                ; Get token value
+  CP $88                ; Is it "GOTO" token ?
+  JP NZ,NOSPC    	  	; No - Don't allow spaces
+  RST CHRGTB			; Gets next character (or token) from BASIC text.
+  DEC HL                ; Cancel increment from GETCHR
+NOSPC:
+  INC HL                ; Next byte
+  LD A,(HL)             ; Get byte
+  CP 'a'                ; Less than "a" ?
+  JP C,TOKENIZE_6       ; Yes - don't change
+  AND $5F               ; 01011111, Make upper case
 TOKENIZE_6:
   CP C
   JP Z,TOKENIZE_4
   POP HL
-  JP TOKENIZE_2
+  JP SEARCH
   
 TOKENIZE_7:
   LD C,B
@@ -2170,50 +2170,50 @@ TOKENIZE_8:
   INC C
 TOKENIZE_9:
   EX DE,HL
-TOKEN_FOUND:
+MOVDIR:
   INC HL
   LD (DE),A			; Add token code (or char) to buffer
   INC DE
   INC C
-  SUB $3A	; ':'
-  JP Z,TOKENIZE_11
-  CP $49	; $49 + $3A = $83 -> TK_DATA
-  JP NZ,TOKENIZE_12
-TOKENIZE_11:
+  SUB $3A			; ":", End of statement?
+  JP Z,SETLIT 		; Jump if multi-statement line
+  CP $49			; $4A + $3A = $84 -> TK_DATA.. Is it DATA statement ?
+  JP NZ,TSTREM      ; No - see if REM
+SETLIT:
   LD (OPRTYP),A		; a.k.a. DORES, Indicates whether stored word can be crunched
-TOKENIZE_12:
-  SUB $54	; $54 + $3A = $8E -> TK_REM
-  JP Z,TOKENIZE_13
-  SUB $71	; $71 + $8E = $FF
-  JP NZ,TOKENIZE_0
-TOKENIZE_13:
-  LD B,A
-TOKENIZE_NEXT:
-  LD A,(HL)
-  OR A				; END of text ?
-  JP Z,TOKENIZE_END
-  CP B
-  JP Z,TOKEN_FOUND
+TSTREM:
+  SUB $54			; $55 + $3A = $8F  -> is it TK_REM ?
+  JP Z,FNDWRD3	
+  SUB $71			; $71 + $8E = $FF  -> TK_??
+  JP NZ,CRNCLP      ; No - Leave flag
+FNDWRD3:
+  LD B,A            ; Copy rest of buffer
+NXTCHR:
+  LD A,(HL)         ; Get byte
+  OR A				; End of line ?
+  JP Z,_ENDBUF		; Yes - Terminate buffer
+  CP B              ; End of statement ?
+  JP Z,MOVDIR       ; Yes - Get next one
 
-TOKENIZE_15:
-  INC HL
-  LD (DE),A			; Add token code (or char) to buffer
-  INC C
-  INC DE
-  JP TOKENIZE_NEXT
+CPYLIT:
+  INC HL            ; Move up source string
+  LD (DE),A			; Save in destination buffer
+  INC C             ; Increment length
+  INC DE            ; Move up destination buffer
+  JP NXTCHR         ; Repeat
 
-TOKENIZE_END:
+_ENDBUF:
   LD HL,$0005
   LD B,H
   ADD HL,BC
   LD B,H
   LD C,L
-  LD HL,BUFFER
-  LD (DE),A
-  INC DE
-  LD (DE),A
-  INC DE
-  LD (DE),A
+  LD HL,BUFFER       ; Point to start of buffer
+  LD (DE),A          ; Mark end of buffer (A = 00)
+  INC DE             
+  LD (DE),A          ; A = 00
+  INC DE             
+  LD (DE),A          ; A = 00
   RET
 
 ; 'FOR' BASIC instruction
