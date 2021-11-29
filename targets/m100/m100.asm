@@ -1576,10 +1576,10 @@ BAKSTK:
   ADD HL,SP
 ; This entry point is used by the routine at __FOR.
 LOKFOR:
-  LD A,(HL)
-  INC HL
-  CP $81			; TK_FOR
-  RET NZ
+  LD A,(HL)         ; Get block ID
+  INC HL            ; Point to index address
+  CP $81			; Is it a "FOR" token; TK_FOR
+  RET NZ            ; No - exit
   LD C,(HL)
   INC HL
   LD B,(HL)
@@ -2018,38 +2018,38 @@ PHL_SRCHLN:
 ;
 ; Used by the routines at PROMPT, __GOTO and __RESTORE.
 SRCHLN:
-  LD HL,(BASTXT)
+  LD HL,(BASTXT)       ; Start of program text
 
 ; as above but start at the address in HL instead at the start of the BASIC
 ; program
 ;
 ; Used by the routine at __GOTO.
 SRCHLP:
-  LD B,H
-  LD C,L
-  LD A,(HL)
-  INC HL
-  OR (HL)
-  DEC HL
-  RET Z
-  INC HL
-  INC HL
-  LD A,(HL)
-  INC HL
-  LD H,(HL)
-  LD L,A
-  RST CPDEHL
-  LD H,B
-  LD L,C
-  LD A,(HL)
-  INC HL
-  LD H,(HL)
-  LD L,A
-  CCF
-  RET Z
-  CCF
-  RET NC
-  JP SRCHLP
+  LD B,H               ; BC = Address to look at
+  LD C,L               
+  LD A,(HL)            ; Get address of next line
+  INC HL               
+  OR (HL)              ; End of program found?
+  DEC HL               
+  RET Z                ; Yes - Line not found
+  INC HL               
+  INC HL               
+  LD A,(HL)            ; Get LSB of line number
+  INC HL               
+  LD H,(HL)            ; Get MSB of line number
+  LD L,A               
+  RST CPDEHL           ; Compare HL with DE.
+  LD H,B               ; HL = Start of this line
+  LD L,C               
+  LD A,(HL)            ; Get LSB of next line address
+  INC HL               
+  LD H,(HL)            ; Get MSB of next line address
+  LD L,A               ; Next line to HL
+  CCF                  
+  RET Z                ; Lines found - Exit
+  CCF                  
+  RET NC               ; Line not found,at line after
+  JP SRCHLP            ; Keep looking
 
 ; Token compression routine
 ;
@@ -2086,7 +2086,7 @@ CRNCLP:
   JP C,MOVDIR           ; Yes - copy it direct
 FNDWRD:
   PUSH DE               ; Look for reserved words
-  LD DE,$007F           ; Point to table
+  LD DE,WORDS-1         ; Point to table
   PUSH BC               ; Save count
   LD BC,L06CD           ; Where to return to
   PUSH BC               ; Save return address
@@ -2264,9 +2264,9 @@ FORFND:
   DEFB $C1				; TK_TO: "TO" token
   RST GETYPR
   JP Z,TM_ERR			; If string type, Err $0D - "Type mismatch"
-  PUSH AF
+  PUSH AF               ; save type
   CALL EVAL
-  POP AF
+  POP AF                ; Restore type
   PUSH HL
   JP NC,STEP_0
   JP P,FORFND_0
@@ -2892,7 +2892,7 @@ __ON_0:
 ; This entry point is used by the routine at __ON.
 ON_OTHER:
   CALL KEY_STMTS_3
-  JP C,ON_TOSUB
+  JP C,ON_GOSUB
   PUSH BC
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   RST SYNCHR
@@ -2933,7 +2933,7 @@ ON_ERROR_3:
   INC A
   JP ON_ERROR_2
   
-ON_TOSUB:
+ON_GOSUB:
   CALL GETINT                 ; Get integer 0-255
   LD A,(HL)                   ; Get "GOTO" or "GOSUB" token
   LD B,A                      ; Save in B
@@ -15463,8 +15463,8 @@ CREARY:
   INC HL
   LD E,A
   LD D,$00
-  POP AF
-  JP Z,FC_ERR
+  POP AF              ; Array to save or 0 dim'ns?
+  JP Z,FC_ERR         ; Err $05 - "Illegal function call"
   LD (HL),C           ; Save second byte of name
   INC HL              
   LD (HL),B           ; Save first byte of name
@@ -15551,7 +15551,6 @@ FNDELP:
   LD B,H              ; MSB of pointer
   LD C,L              ; LSB of pointer
   JP NZ,FNDELP        ; More - Keep going
-
   LD A,(VALTYP)
   LD B,H
   LD C,L
