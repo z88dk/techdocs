@@ -38,6 +38,7 @@ defc TK_CINT     =  $1E
 defc TK_CSGN     =  $1F
 
 defc TK_CDBL     =  $20
+defc TK_FIX      =  $21
 defc TK_STICK    =  $22
 defc TK_TRIG     =  $23
 defc TK_PDL      =  $24
