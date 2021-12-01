@@ -2269,7 +2269,7 @@ FORFND:
   POP AF                ; Restore type
   PUSH HL
   JP NC,STEP_0
-  JP P,FORFND_0
+  JP P,FORFND_FP
   CALL __CINT
   EX (SP),HL
 
@@ -2320,18 +2320,18 @@ STEP_1:
   JP STEP_5
 
 ; This entry point is used by the routine at TO.
-FORFND_0:
+FORFND_FP:
   CALL __CSNG
   CALL BCDEFP
   POP HL
   PUSH BC
   PUSH DE
-  LD BC,$1041		; BCDE = 1 (float) 
+  LD BC,$1041			; BCDE = 1 float (default value for STEP)
   LD DE,$0000
   LD A,(HL)
-  CP $CF		; TK_STEP, token code for 'STEP'
-  LD A,$01
-  JP NZ,STEP_4
+  CP $CF				; TK_STEP, See if "STEP" is stated
+  LD A,$01              ; Sign of step = 1
+  JP NZ,SAVSTP_2        ; No STEP given - Default to 1
   CALL EVAL_0
   PUSH HL
   CALL __CSNG
@@ -2339,7 +2339,7 @@ FORFND_0:
   RST TSTSGN
 FORFND_1:
   POP HL
-STEP_4:
+SAVSTP_2:                ; Save the STEP value in block
   PUSH DE
   PUSH BC
   PUSH BC
@@ -2356,13 +2356,13 @@ STEP_6:
   LD B,A
   PUSH BC
   PUSH HL
-  LD HL,(TEMP)
-  EX (SP),HL
-  ; --- "FOR" block marker ---
+  LD HL,(TEMP)         ; Get address of index variable
+  EX (SP),HL           ; Save and restore code string
+; --- Put "FOR" block marker ---
 PUTFID:
-  LD B,$81		; TK_FOR
-  PUSH BC
-  INC SP
+  LD B,$81             ; "FOR" block marker
+  PUSH BC              ; Save it
+  INC SP               ; Don't save C
 
 ; BASIC program execution driver (a.k.a. RUNCNT).
 ; HL points to code.
@@ -2413,7 +2413,7 @@ EXEC:
   LD DE,EXEC_EVAL   ; Where to RETurn to
   PUSH DE           ; Save for RETurn
 ; This entry point is used by the routine at __IF.
-IFJMP:
+ONJMP:
   RET Z				; Go to EXEC_EVAL if end of STMT
 
 ; Execute the compressed instruction token in the A register
@@ -2594,9 +2594,9 @@ ATOH_2_0:
   RET NC
   PUSH HL
   PUSH AF
-  LD HL,$1998		; const
+  LD HL,65529/10     ; Largest number 65529
   RST CPDEHL
-  JP C,ATOH_2_1
+  JP C,OUTOF_RNG
 
   LD H,D
   LD L,E
@@ -2613,7 +2613,7 @@ ATOH_2_0:
   POP HL
   JP ATOH_2_0
 
-ATOH_2_1:
+OUTOF_RNG:
   POP AF
   POP HL
   RET
@@ -3044,7 +3044,7 @@ IFGO:
 IFGO_0:
   RST CHRGTB			; Get next character
   JP C,__GOTO           ; Number - GOTO that line
-  JP IFJMP				; Otherwise do statement
+  JP ONJMP				; Otherwise do statement
 FALSE_IF:
   LD D,$01
 DROP_THROUGH:
@@ -3469,13 +3469,13 @@ OPNPAR:
 ; Used by the routines at TO, STEP, __LET, __IF, __PRINT, FDTLP, FPSINT,
 ; GETINT, GETWORD, __DAY_S, OUTS_B_CHARS, STRING_S, INSTR, USING and FNAME.
 EVAL:
-  DEC HL
+  DEC HL               ; Evaluate expression & save
 
 ; (a.k.a. GETNUM, evaluate expression (GETNUM)
 ;
 ; Used by the routines at STEP and USING.
 EVAL_0:
-  LD D,$00
+  LD D,$00             ; Precedence value
 
 ; Save precedence and eval until precedence break
 ;
@@ -3483,10 +3483,11 @@ EVAL_0:
 EVAL1:
   PUSH DE
   LD C,$01      	   ; Check for 1 level of stack
-  CALL CHKSTK    	   ; Get next expression value
-  CALL OPRND
+  CALL CHKSTK
+  CALL OPRND    	   ; Get next expression value 
 
 ; Evaluate expression until precedence break
+;
 EVAL2:
   LD (NXTOPR),HL	   ; Save address of next operator
 
@@ -3495,8 +3496,8 @@ EVAL2:
 ; Used by the routine at NOT.
 EVAL3:
   LD HL,(NXTOPR)		; Restore address of next opr
-  POP BC
-  LD A,(HL)
+  POP BC                ; Precedence value and operator
+  LD A,(HL)             ; Get next operator / function
   LD (TEMP3),HL
   CP $D0				; < TK_PLUS ?  (Operator or function?)
   RET C                 ; Neither - Exit
@@ -3540,17 +3541,21 @@ EVAL_NUMERIC:
   SUB $03				; String ?
   JP Z,TM_ERR				; "Type mismatch" error
   OR A
+  
   LD HL,(FACLOW)
   PUSH HL
-  JP M,EVAL3_3
+  JP M,EVAL_NEXT
+  
   LD HL,(FACCU)
   PUSH HL
-  JP PO,EVAL3_3
+  JP PO,EVAL_NEXT
+  
   LD HL,(FACCU+6)
   PUSH HL
   LD HL,(FACCU+4)
   PUSH HL
-EVAL3_3:
+
+EVAL_NEXT:
   ADD A,$03
   LD C,E
   LD B,A
@@ -3558,9 +3563,9 @@ EVAL3_3:
   LD BC,EVAL_VALTYP
 
 EVAL_MORE:
-  PUSH BC
-  LD HL,(TEMP3)
-  JP EVAL1
+  PUSH BC                    ; Save routine address
+  LD HL,(TEMP3)              ; Address of current operator
+  JP EVAL1                   ; Loop until prec' break
 
 EVAL3_5:
   LD D,$00
@@ -3593,7 +3598,7 @@ NO_COMPARE_TK:
   RET NC
   PUSH BC
   PUSH DE
-  LD DE,$6405		; const value
+  LD DE,$6405		; const values, D=100, E=5
   LD HL,L1047
   PUSH HL
   RST GETYPR
@@ -3727,7 +3732,7 @@ OPRND:
   CP '.'
   JP Z,DBL_ASCTFP       ; If numeric, create FP number
   CP $D1				; TK_MINUS, '-' ?
-  JP Z,OPRND_SUB		; Yes - deal with minus sign
+  JP Z,MINUS			; Yes - deal with minus sign
   CP '"'
   JP Z,QTSTR			; Eval quoted string
   CP $CE				; Token for NOT
@@ -3837,7 +3842,7 @@ EVLPAR:
 ; '-', deal with minus sign
 
 ; This entry point is used by the routine at OPRND.
-OPRND_SUB:		; (a.k.a. "MINUS")
+MINUS:
   LD D,$7D				; "-" precedence
   CALL EVAL1			; Evaluate until prec' break
   LD HL,(NXTOPR)		; Get next operator address
@@ -3845,7 +3850,7 @@ OPRND_SUB:		; (a.k.a. "MINUS")
   CALL INVSGN			; Negate value
 
 ; Routine at 4056
-_POPHLRT:
+RETNUM:
   POP HL				; Restore next operator address
   RET
 
@@ -3921,18 +3926,18 @@ FNVAL:
   CALL C,__CDBL
   POP HL
 UCASE_2:
-  LD DE,_POPHLRT		; (POP HL / RET)
-  PUSH DE
-GOFUNC:
-  LD BC,FNCTAB_FN
+  LD DE,RETNUM        ; Return number from function
+  PUSH DE             ; Save on stack
+GOFUNC:              
+  LD BC,FNCTAB_FN     ; Function routine addresses
 ; This entry point is used by the routine at PASSA.
 GOFUNC_0:
-  ADD HL,BC
-  LD C,(HL)
-  INC HL
-  LD H,(HL)
-  LD L,C
-  JP (HL)
+  ADD HL,BC           ; Point to right address
+  LD C,(HL)           ; Get LSB of address
+  INC HL              ;
+  LD H,(HL)           ; Get MSB of address
+  LD L,C              ; Address to HL
+  JP (HL)             ; Jump to function
  
 ; This entry point is used by the routine at _ASCTFP.
 ; test '+', '-'..
@@ -3971,13 +3976,13 @@ L1047:
 NOT:
   LD D,$5A              ; Precedence value for "NOT"
   CALL EVAL1            ; Eval until precedence break
-  CALL __CINT           ; Make sure it's a number
-  LD A,L                ; Get integer -32768 - 32767
-  CPL                   ; Get LSB
-  LD L,A                ; Invert LSB
-  LD A,H                ; Save "NOT" of LSB
-  CPL                   ; Get MSB
-  LD H,A                ; Invert MSB
+  CALL __CINT           ; Get integer -32768 - 32767
+  LD A,L                ; Get LSB
+  CPL                   ; Invert LSB
+  LD L,A                ; Save "NOT" of LSB
+  LD A,H                ; Get MSB
+  CPL                   ; Invert MSB
+  LD H,A                ; Set "NOT" of MSB
   LD (FACLOW),HL        ; Save AC as current
   POP BC                ; Clean up stack
 ; This entry point is used by the routine at L1047.
@@ -13719,7 +13724,7 @@ KILFOR:
   JP NZ,EXEC_EVAL     ; Position to index name
   RST CHRGTB		  ; Gets next character (or token) from BASIC text.
   CALL __NEXT_0       ; Re-enter NEXT routine
-; < will not RETurn to here , Exit to RUNCNT or Loop >
+; < will not RETurn to here , Exit to EXEC_EVAL (RUNCNT) or Loop >
 
 
 
@@ -15140,7 +15145,7 @@ ENDNAM:
   CALL IS_ALPHA_A
   JP NC,ENDNAM
 GETVAR_2:
-  CP '&'
+  CP '%'+1
   JP NC,GETVAR_3
   LD DE,GVAR
   PUSH DE
@@ -15620,7 +15625,7 @@ USING_3:
 USING_4:
   LD A,(HL)
   INC HL
-  CP $5C  	;'\'
+  CP '\\'
   JP Z,L4B07
   CP ' '
   JP NZ,USING_5
@@ -15630,7 +15635,7 @@ USING_4:
 USING_5:
   POP HL
   LD B,E
-  LD A,$5C  ;'\'
+  LD A,'\\'
 USING_6:
   CALL OUTC_SGN
   RST OUTC
@@ -15657,7 +15662,7 @@ USING_8:
   INC HL
   CP '.'
   JP Z,USING_12
-  CP $5C  	;'\'
+  CP '\\'
   JP Z,USING_3
   CP (HL)
   JP NZ,USING_6
