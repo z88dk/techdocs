@@ -636,7 +636,7 @@ READC:
 
 ; Routine at 288
 ;
-; Returns currenct screenpixel of specified attribute byte
+; Update current screenpixel of specified attribute byte
 SETC:
   JP _SETC
 
@@ -1662,7 +1662,7 @@ _INIGRP_0:
   INC A
   JR NZ,_INIGRP_0
   DJNZ _INIGRP_0
-  CALL L07A1
+  CALL CLS_TXT
   CALL _CLRSPR_0
   CALL _SETGRP
   JP _ENASCR
@@ -1965,7 +1965,7 @@ L0752_0:
 ; Used by the routine at _CLS.
 CLS:
   CALL IS_TXT
-  JR Z,L07A1
+  JR Z,CLS_TXT
   JR NC,CLS_MLT
 ; This entry point is used by the routines at _INITXT and _INIT32.
 CLS_FORMFEED:
@@ -1990,7 +1990,7 @@ CLS_2:
 ; Routine at 1953
 ;
 ; Used by the routines at _INIGRP and CLS.
-L07A1:
+CLS_TXT:
   CALL RESTORE_BORDER
   LD BC,$1800
   PUSH BC
@@ -2021,7 +2021,7 @@ CLS_MLT:
 
 ; Routine at 1997
 ;
-; Used by the routines at WRTVRM, _CLRSPR, _NSETCX and L18AA.
+; Used by the routines at WRTVRM, _CLRSPR, _NSETCX and SETC_GFX_4.
 _WRTVRM:
   PUSH AF
   CALL _SETWRT
@@ -2117,7 +2117,7 @@ _CHGCLR_0:
   
 ; Routine at 2098
 ;
-; Used by the routine at L07A1.
+; Used by the routine at CLS_TXT.
 RESTORE_BORDER:
   LD A,(BDRCLR)
 SETBORDER:
@@ -4870,7 +4870,7 @@ _GRPPRT_0:
 _GRPPRT_1:
   ADD A,A
   PUSH AF
-  CALL C,_SETC		; Returns currenct screenpixel of specified attribute byte
+  CALL C,_SETC		; Update current screenpixel of specified attribute byte
   CALL L16AC
   POP HL
   JR C,_GRPPRT_2
@@ -4938,51 +4938,45 @@ _SCALXY:
   EX DE,HL
   LD A,H
   ADD A,A
-  JR NC,L15A7
+  JR NC,_SCALXY_1
   LD HL,$0000
-  JR L15A7_0
+  JR _SCALXY_2
 
-; Routine at 5543
-;
-; Used by the routine at _SCALXY.
-L15A7:
-  LD DE,BEEP	; <---- ???  probably the const is needed
+_SCALXY_1:
+  LD DE,192
   RST DCOMPR		; Compare HL with DE.
-  JR C,L15A7_1
+  JR C,_SCALXY_3
   EX DE,HL
   DEC HL
-; This entry point is used by the routine at _SCALXY.
-L15A7_0:
+
+_SCALXY_2:
   LD B,$00
-L15A7_1:
+_SCALXY_3:
   EX (SP),HL
   LD A,H
   ADD A,A
-  JR NC,L15BB
+  JR NC,_SCALXY_4
   LD HL,$0000
-  JR L15BB_0
+  JR _SCALXY_5
 
-; Routine at 5563
-;
-; Used by the routine at L15A7.
-L15BB:
-  LD DE,$0100
+_SCALXY_4:
+  LD DE,256
   RST DCOMPR		; Compare HL with DE.
-  JR C,L15BB_1
+  JR C,_SCALXY_6
   EX DE,HL
   DEC HL
-; This entry point is used by the routine at L15A7.
-L15BB_0:
+
+_SCALXY_5:
   LD B,$00
-L15BB_1:
+_SCALXY_6:
   POP DE
   CALL IN_GRP_MODE
-  JR Z,L15BB_2
+  JR Z,_SCALXY_7
   SRL L
   SRL L
   SRL E
   SRL E
-L15BB_2:
+_SCALXY_7:
   LD A,B
   RRCA
   LD B,H
@@ -4992,7 +4986,7 @@ L15BB_2:
 
 ; Routine at 5593
 ;
-; Used by the routines at _GRPPRT, L157E, L15BB, _MAPXY, _SETC, L16AC, _RIGHTC,
+; Used by the routines at _GRPPRT, L157E, _SCALXY_4, _MAPXY, _SETC, L16AC, _RIGHTC,
 ; L16D8, _LEFTC, _TDOWNC, _DOWNC, _TUPC, _UPC, _NSETCX, _PNTINI and _SCANL.
 IN_GRP_MODE:
   LD A,(SCRMOD)
@@ -5005,12 +4999,12 @@ IN_GRP_MODE:
 _MAPXY:
   PUSH BC
   CALL IN_GRP_MODE
-  JR NZ,L1613
+  JR NZ,_MAPXY_1
   LD D,C
   LD A,C
   AND $07
   LD C,A
-  LD HL,L160B
+  LD HL,_MAPXY_0
   ADD HL,BC
   LD A,(HL)
   LD (CMASK),A
@@ -5033,17 +5027,17 @@ _MAPXY:
   POP BC
   RET
 
-; Routine at 5643
-L160B:
+_MAPXY_0:
   ADD A,B
   LD B,B
-  JR NZ,L160B_1
+  JR NZ,_MAPXY_3
   EX AF,AF'
   INC B
   LD (BC),A
-L1612:
+
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
-L1613:
+
+_MAPXY_1:
   LD A,C
   RRCA
 
@@ -5052,8 +5046,9 @@ L1613:
   LD A,$0F			; Mask and keep the righe nibble
 EVEN_BYTE:
   LD (CMASK),A
+
   LD A,C
-L160B_1:
+_MAPXY_3:
   ADD A,A
   ADD A,A
   AND $F8
@@ -5153,16 +5148,16 @@ _SETC:
   PUSH BC
   CALL IN_GRP_MODE
   CALL _FETCHC			; Gets current cursor addresses mask pattern
-  JR NZ,L1690
+  JR NZ,_SETC_0
   PUSH DE
-  CALL L186C
+  CALL SETC_GFX
   POP DE
   POP BC
   POP HL
   RET
 
 ; Data block at 5776
-L1690:
+_SETC_0:
   LD B,A
   CALL _RDVRM
   LD C,A
@@ -5173,12 +5168,12 @@ L1690:
   LD A,(ATRBYT)
   INC B
   DEC B
-  JP P,L16A5
+  JP P,_SETC_1
   ADD A,A
   ADD A,A
   ADD A,A
   ADD A,A
-L16A5:
+_SETC_1:
   OR C
   CALL _WRTVRM
   POP BC
@@ -5314,7 +5309,7 @@ _TUPC:
   JP NZ,L17E3
   PUSH HL
   LD HL,(GRPCGP)			; SCREEN 2 character pattern table
-  LD DE,$0100
+  LD DE,256
   ADD HL,DE
   EX DE,HL
   POP HL
@@ -5460,7 +5455,7 @@ L17DC:
 L17E3:
   PUSH HL
   LD HL,(MLTCGP)		; SCREEN 3 character pattern table
-  LD DE,$0100
+  LD DE,256
   ADD HL,DE
   POP HL
   RST DCOMPR		; Compare HL with DE.
@@ -5499,25 +5494,25 @@ L17F8_1:
 ;
 _NSETCX:
   CALL IN_GRP_MODE
-  JP NZ,L18BB
+  JP NZ,_NSETCX_NOGRP
   PUSH HL
   CALL _FETCHC			; Gets current cursor addresses mask pattern
   EX (SP),HL
   ADD A,A
   JR C,_NSETCX_1
   PUSH AF
-  LD BC,$FFFF
+  LD BC,-1
   RRCA
 _NSETCX_0:
   ADD HL,BC
-  JR NC,L1864
+  JR NC,_NSETCX_4
   RRCA
   JR NC,_NSETCX_0
   POP AF
   DEC A
   EX (SP),HL
   PUSH HL
-  CALL L186C
+  CALL SETC_GFX
   POP HL
   LD DE,$0008
   ADD HL,DE
@@ -5553,12 +5548,18 @@ _NSETCX_3:
   LD HL,L185D
   ADD HL,BC
   LD A,(HL)
-  JR L186B
+  JR _NSETCX_5
 
 L185D:
-  DEFB $80,$C0,$E0,$F0,$F8,$FC,$FE
+  DEFB 10000000b
+  DEFB 11000000b
+  DEFB 11100000b
+  DEFB 11110000b
+  DEFB 11111000b
+  DEFB 11111100b
+  DEFB 11111110b
 
-L1864:
+_NSETCX_4:
   ADD A,A
   DEC A
   CPL
@@ -5566,11 +5567,14 @@ L1864:
   POP AF
   DEC A
   AND B
-  ; --- START PROC L186B ---
-L186B:
+
+  ; --- START PROC _NSETCX_5 ---
+_NSETCX_5:
   POP HL
-  ; --- START PROC L186C ---
-L186C:
+
+
+  ; --- START PROC SETC_GFX ---
+SETC_GFX:
   LD B,A
   CALL _RDVRM
   LD C,A
@@ -5585,70 +5589,72 @@ L186C:
   LD D,A
   LD A,(ATRBYT)		; Attribute byte (for graphical routines it’s used to read the color) 
   CP E
-  JR Z,L189E
+  JR Z,SETC_GFX_1
   ADD A,A
   ADD A,A
   ADD A,A
   ADD A,A
   CP D
-  JR Z,L18A1+1   ; reference not aligned to instruction
+  JR Z,SETC_GFX_2
   PUSH AF
   LD A,B
   OR C
   CP $FF
-  JR Z,L18AA
+  JR Z,SETC_GFX_4
   PUSH HL
   PUSH DE
-  CALL L18A1+1   ; reference not aligned to instruction
+  CALL SETC_GFX_2
   POP DE
   POP HL
   POP AF
   OR E
-  JR L18B8
+  JR SETC_GFX_5
 
 
 ; Routine at 6302
-L189E:
+SETC_GFX_1:
   LD A,B
   CPL
   AND C
-L18A1:
-  LD DE,$B178
-;; LD A,B
-;; OR C
 
-; This entry point is used by the routine at L18AA.
-L189E_0:
+  DEFB $11              ; "LD DE,nn" to skip the next 2 instructions
+
+SETC_GFX_2:
+  LD A,B
+  OR C
+
+; This entry point is used by the routine at SETC_GFX_4.
+SETC_GFX_3:
   LD DE,$2000
   ADD HL,DE
-  JR L18B8
+  JR SETC_GFX_5
 
 ; Routine at 6314
-L18AA:
+SETC_GFX_4:
   POP AF
   LD A,B
   CPL
   PUSH HL
   PUSH DE
-  CALL L189E_0
+  CALL SETC_GFX_3
   POP DE
   POP HL
   LD A,(ATRBYT)
   OR D
-; This entry point is used by the routine at L189E.
-L18B8:
+; This entry point is used by the routine at SETC_GFX_1.
+SETC_GFX_5:
   JP _WRTVRM
 
 ; Routine at 6331
 ;
 ; Used by the routine at _NSETCX.
-L18BB:
+_NSETCX_NOGRP:
   PUSH HL
   CALL _SETC
   CALL _RIGHTC
   POP HL
   DEC L
-  JR NZ,L18BB
+  JR NZ,_NSETCX_NOGRP
   RET
 
 ; Routine at 6343
@@ -6924,22 +6930,22 @@ ARG2DE_DECADD:
 ; FACCU <- FACCU+ARG
 DECADD:
   LD HL,ARG
-  LD A,(HL)
-  OR A
-  RET  Z
+  LD A,(HL)                   ; Get FP exponent
+  OR A                        ; Is number zero?
+  RET  Z                      ; Yes - Nothing to add
   ; --- START PROC DECADD_0 ---
 DECADD_0:
   AND $7F   ;
   LD B,A
   LD DE,FACCU
-  LD A,(DE)
-  OR A
-  JP Z,FP_ARG2DE
-  AND $7F   ; ABS?
-  SUB B
-  JR NC,DECADD_2
-  CPL
-  INC A
+  LD A,(DE)                   ; Get FPREG exponent
+  OR A                        ; Is this number zero?
+  JP Z,FP_ARG2DE              ; Yes - Move FP to FPREG
+  AND $7F
+  SUB B                       ; FP number larger?
+  JR NC,NOSWAP_DEC            ; No - Don't swap them
+  CPL                         ; Two's complement
+  INC A                       ;  FP exponent
   PUSH AF
   PUSH HL
   LD B,$08		; DBL number, 8 bytes
@@ -6954,37 +6960,37 @@ DECADD_1:
   DJNZ DECADD_1
   POP HL
   POP AF
-DECADD_2:
-  CP $10
-  RET NC
-  PUSH AF
+NOSWAP_DEC:
+  CP $10                       ; Second number insignificant?
+  RET NC                       ; Yes - First number is result
+  PUSH AF                      ; Save number of bits to scale
   XOR A
   LD (FACCU+8),A
-  LD (ARG+8),A
-  LD HL,ARG+1
-  POP AF
-  CALL L27A3
+  LD (ARG+8),A                 ; Save sign of result
+  LD HL,ARG+1                  ; Point to FPREG
+  POP AF                       ; Restore scaling factor
+  CALL SCALE_DEC               ; Set MSBs & sign of result
   LD HL,ARG
   LD A,(FACCU)
-  XOR (HL)
-  JP M,L26F7
-  LD A,(ARG+8)
+  XOR (HL)                     ; Result to be positive?
+  JP M,MINCDE_DEC              ; No - Subtract FPREG from CDE
+  LD A,(ARG+8)                 ; Restore sign of result
   LD (FACCU+8),A
-  CALL BCDADD
-  JP NC,DECROU
-  EX DE,HL
+  CALL BCDADD                  ; Add FPREG to CDE
+  JP NC,DECROU                 ; No overflow - Round it up
+  EX DE,HL                     ; Point to exponent
   LD A,(HL)
-  INC (HL)
+  INC (HL)                     ; Increment it
   XOR (HL)
-  JP M,OV_ERR		; Err $06 -  "Overflow"
-  CALL DV16FACCU
+  JP M,OV_ERR                  ; Number overflowed - Error
+  CALL SHRT1_DEC               ; Shift result right
   SET 4,(HL)
-  JR DECROU
+  JR DECROU                    ; Round it up
 
 ; Routine at 9975
 ;
 ; Used by the routine at DECADD.
-L26F7:
+MINCDE_DEC:
   CALL BCDSUB
 ; This entry point is used by the routines at BNORM and __RND.
 DECNRM:
@@ -7003,7 +7009,7 @@ DECNRM_0:
 
 ; Routine at 9996
 ;
-; Used by the routine at L26F7.
+; Used by the routine at MINCDE_DEC.
 L270C:
   AND $F0
   JR NZ,L270C_0
@@ -7094,7 +7100,7 @@ BCDADD_1:
 
 ; Routine at 10091
 ;
-; Used by the routine at L26F7.
+; Used by the routine at MINCDE_DEC.
 ; Subtract the BCD number in (HL) from (DE).
 BCDSUB:
   LD HL,ARG+8
@@ -7149,12 +7155,12 @@ RLDLOOP:
 ; Routine at 10147
 ;
 ; Used by the routine at DECADD.
-L27A3:
+SCALE_DEC:
   OR A
   RRA
   PUSH AF
   OR A
-  JP Z,DV16PHL_0
+  JP Z,SHRT1_DEC_0
   PUSH AF
   CPL
   INC A
@@ -7178,24 +7184,24 @@ L27A3:
   PUSH DE
   LD B,A
   XOR A
-L27A3_0:
+SCALE_DEC_0:
   LD (HL),A
   INC HL
-  DJNZ L27A3_0
+  DJNZ SCALE_DEC_0
   POP HL
   POP AF
   RET NC
   LD A,C
-; This entry point is used by the routine at DV16FACCU.
-L27A3_1:
+; This entry point is used by the routine at SHRT1_DEC.
+SCALE_DEC_1:
   PUSH HL
   PUSH BC
   LD B,A
   XOR A
-L27A3_2:
+SCALE_DEC_2:
   RRD
   INC HL
-  DJNZ L27A3_2
+  DJNZ SCALE_DEC_2
   POP BC
   POP HL
   RET
@@ -7203,20 +7209,18 @@ L27A3_2:
 ; Routine at 10203
 ;
 ; Used by the routines at DECADD, L35F9 and L377B.
-DV16FACCU:
+SHRT1_DEC:
   LD HL,FACCU+1
-; This entry point is used by the routine at DV16PHL_0.
-DV16PHL:
+; This entry point is used by the routine at SHRT1_DEC_0.
+SHRT1_DEC_LP:
   LD A,$08
-  JR L27A3_1
+  JR SCALE_DEC_1
 
-; Routine at 10210
-;
-; Used by the routine at L27A3.
-DV16PHL_0:
+; Used by the routine at SCALE_DEC.
+SHRT1_DEC_0:
   POP AF
   RET NC
-  JR DV16PHL
+  JR SHRT1_DEC_LP
 
 ; Routine at 10214
 ;
@@ -8202,7 +8206,7 @@ EVAL_RESULT:
 
 ; Routine at 11901
 ;
-; Used by the routines at L26F7, DECMUL and __FIX.
+; Used by the routines at MINCDE_DEC, DECMUL and __FIX.
 ZERO_EXPONENT:
   XOR A
   LD (FACCU),A
@@ -9248,12 +9252,12 @@ _ASCTFP:
   CP '+'
   JR Z,_ASCTFP_0
   DEC HL
-; This entry point is used by the routine at DECIMAL.
+; This entry point is used by the routine at DPOINT.
 _ASCTFP_0:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP C,_ASCTFP_DIGITS
   CP '.'
-  JP Z,DECIMAL
+  JP Z,DPOINT
   CP 'e'
   JR Z,EXPONENTIAL
   CP 'E'
@@ -9321,7 +9325,7 @@ L3301_2:
   XOR A
   SUB E
   LD E,A
-; This entry point is used by the routines at _ASCTFP, DECIMAL, L3362 and L3370.
+; This entry point is used by the routines at _ASCTFP, DPOINT, L3362 and L3370.
 L3301_3:
   RST GETYPR 		; Get the number type (FAC)
   JP M,L3301_4
@@ -9363,17 +9367,17 @@ L334C:
 ; Routine at 13135
 ;
 ; Used by the routine at _ASCTFP.
-DECIMAL:
+DPOINT:
   RST GETYPR 		; Get the number type (FAC)
   INC C
   JR NZ,L3301_3
-  JR NC,DECIMAL_0
+  JR NC,DPOINT_0
   CALL TO_DOUBLE
   LD A,(FACCU)
   OR A
-  JR NZ,DECIMAL_0
+  JR NZ,DPOINT_0
   LD D,A
-DECIMAL_0:
+DPOINT_0:
   JP _ASCTFP_0
 
 ; Routine at 13154
@@ -9403,7 +9407,7 @@ L3370_0:
 
 ; Routine at 13175
 ;
-; Used by the routines at _ASCTFP, DECIMAL and L3370.
+; Used by the routines at _ASCTFP, DPOINT and L3370.
 TO_DOUBLE:
   PUSH HL
   PUSH DE
@@ -9666,6 +9670,7 @@ L34B9:
 L34C2:
   CALL Z,INCHL
   CALL L36B3
+
 SUPTLZ:
   DEC HL              ; Move back through buffer
   LD A,(HL)           ; Get character
@@ -9751,10 +9756,13 @@ L34C2_8:
   JR Z,L34C2_7
   DEC HL
   PUSH HL
+
 L353C:
   PUSH AF
+  
   LD BC,L353C
   PUSH BC
+  
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   CP '-'
   RET Z
@@ -9919,7 +9927,7 @@ L35F9:
   CALL L377B
   JR NZ,L35F9_0
   PUSH HL
-  CALL DV16FACCU
+  CALL SHRT1_DEC
   LD HL,FACCU
   INC (HL)
   POP HL
@@ -10260,7 +10268,7 @@ L377B:
   CALL L3752
   PUSH HL
 L377B_0:
-  CALL DV16FACCU
+  CALL SHRT1_DEC
   DEC E
   JR NZ,L377B_0
   POP HL
@@ -12138,8 +12146,8 @@ L41D7:
   XOR A
   LD (AUTFLG),A			; AUTO mode ?
 L41DB:
-  CALL SRCHLN			; Get first line number
-  JR C,L41ED
+  CALL SRCHLN			; Search for line number in DE
+  JR C,LINFND           ; Jump if line found
   POP AF
   PUSH AF
   JR NZ,L41EA
@@ -12154,8 +12162,8 @@ L41EA:
   OR A
   JR L41F4
 
-  ; --- START PROC L41ED ---
-L41ED:
+  ; --- START PROC LINFND ---
+LINFND:
   POP AF
   PUSH AF
   JR NZ,L41F3
@@ -13299,10 +13307,10 @@ GET_POSINT_0:
 ; entry for '?FC ERROR'
 ;
 ; Used by the routines at __LOG, __ERROR, __AUTO, OPRND, __WIDTH, FNDNUM,
-; __DELETE, __RENUM_0, __RENUM_3, L5683, L575A, PAINT_PARMS, ISGRPMODE, __PAINT, __CIRCLE, CIRCLE_SUB,
+; __DELETE, __RENUM_0, __RENUM_3, L5683, L575A, PAINT_PARMS, IN_GFX_MODE, __PAINT, __CIRCLE, CIRCLE_SUB,
 ; __DRAW, M_DIAGONAL, SCALE, FORECOLOR, L5E91, USING_0, __SWAP, __CLEAR, __ASC, __MID_S,
 ; FN_INSTR, _MID_S, __LFILES, FN_INPUT, __SOUND, L748E, L7684, L77D4, ONGO, __STRIG,
-; __SCREEN, L7A2D, __SPRITE, PUT_SPRITE, __BASE, __CVD and __MAX.
+; __SCREEN, SET_BAUDRATE, __SPRITE, PUT_SPRITE, __BASE, __CVD and __MAX.
 ;  $475A
 FC_ERR:
   LD E,$05				; Err $05 - "Illegal function call"
@@ -14533,6 +14541,7 @@ L4D26_9:
 L4D26_10:
   LD HL,FLT_OPR
   JR L4D26_6
+
 EVAL_FP:
   POP HL
   CALL STAKI
@@ -15434,7 +15443,7 @@ FNDNUM:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
 ; This entry point is used by the routines at GTWORD_GTINT, __WAIT, L492A, __ERROR,
 ; OPRND_3, __WIDTH, __POKE, PAINT_PARMS, __PAINT, _MID_S, L69E4, L6A9E, __OPEN, L6BFB,
-; FN_INPUT, __SOUND, __LOCATE, L77D4, __COLOR, __SCREEN, L7A2D, PUT_SPRITE, __VDP,
+; FN_INPUT, __SOUND, __LOCATE, L77D4, __COLOR, __SCREEN, SET_BAUDRATE, PUT_SPRITE, __VDP,
 ; __VPOKE and __MAX.
 ; $521C
 GETINT:
@@ -16188,6 +16197,7 @@ __GETYPR_0:
 ; Routine at 21927
 L55A7:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
+
 __CALL:
   LD DE,PROCNM
   LD B,$0F
@@ -16595,7 +16605,8 @@ COORD_PARMS:
 ; This entry point is used by the routines at __PSET and FN_POINT.
 COORD_PARMS_DST:
   LD A,(HL)
-  CP $DC		; TK_STEP ?
+  CP TK_STEP		; If STEP is used, coordinates are interpreted relative to the current cursor position.
+					; In this case the values can also be negative.
   PUSH AF
   CALL Z,__CHRGTB  ; Gets next character (or token) from BASIC text.
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
@@ -16609,21 +16620,22 @@ COORD_PARMS_DST:
   DEFB ')'
   POP BC
   POP AF
+
 COORD_PARMS_1:
   PUSH HL
   LD HL,(GRPACX)
-  JR Z,COORD_PARMS_2
+  JR Z,RELATIVE_XPOS		; JP if 'STEP' is specified
   LD HL,$0000
-COORD_PARMS_2:
+RELATIVE_XPOS:
   ADD HL,BC
   LD (GRPACX),HL
   LD (GXPOS),HL
   LD B,H
   LD C,L
   LD HL,(GRPACY)
-  JR Z,COORD_PARMS_3
+  JR Z,RELATIVE_YPOS		; JP if 'STEP' is specified
   LD HL,$0000
-COORD_PARMS_3:
+RELATIVE_YPOS:
   ADD HL,DE
   LD (GRPACY),HL
   LD (GYPOS),HL
@@ -16711,7 +16723,7 @@ PAINT_PARMS_0:
   PUSH BC
   PUSH DE
   LD E,A
-  CALL ISGRPMODE
+  CALL IN_GFX_MODE
   DEC HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   JR Z,PAINT_PARMS_1
@@ -16775,8 +16787,8 @@ L5883:
 
 ; Routine at 22670
 ;
-; Used by the routines at L5898 and LINE.
-L588E:
+; Used by the routines at SWAP_GXGY and LINE.
+SWAP_GY:
   PUSH HL
   LD HL,(GYPOS)
   EX DE,HL
@@ -16787,10 +16799,10 @@ L588E:
 ; Routine at 22680
 ;
 ; Used by the routines at LINE and DRAW_LINE.
-L5898:
-  CALL L588E
+SWAP_GXGY:
+  CALL SWAP_GY
 ; This entry point is used by the routine at LINE.
-L5898_0:
+SWAP_GX:
   PUSH HL
   PUSH BC
   LD HL,(GXPOS)
@@ -16825,14 +16837,14 @@ LINE:
 DOBOXF:
   PUSH HL
   CALL SCALXY
-  CALL L5898
+  CALL SWAP_GXGY
   CALL SCALXY
   CALL L5883
-  CALL C,L588E
+  CALL C,SWAP_GY
   INC HL
   PUSH HL
   CALL L5871
-  CALL C,L5898_0
+  CALL C,SWAP_GX
   INC HL
   PUSH HL
   CALL MAPXY
@@ -16911,10 +16923,10 @@ ELSE
   CALL HDOGR			; Hook for line drawing event
 ENDIF
   CALL SCALXY
-  CALL L5898
+  CALL SWAP_GXGY
   CALL SCALXY
   CALL L5883
-  CALL C,L5898
+  CALL C,SWAP_GXGY
   PUSH DE
   PUSH HL
   CALL L5871
@@ -16949,21 +16961,21 @@ DRAW_LINE_2:
   CALL MAPXY
   POP DE
   PUSH DE
-  CALL L59B4		; "RR DE"
+  CALL DE_DIV2		; "RR DE"
   POP BC
   INC BC
-  JR L5993_1
+  JR DRAW_LINE_5
 
 ; Routine at 22931
-L5993:
+DRAW_LINE_3:
   POP HL
   LD A,B
   OR C
   RET Z
-L5993_0:
+DRAW_LINE_4:
   CALL MAXUPD
 ; This entry point is used by the routine at DRAW_LINE.
-L5993_1:
+DRAW_LINE_5:
   CALL SETC
   DEC BC
   PUSH HL
@@ -16972,19 +16984,19 @@ L5993_1:
   EX DE,HL
   LD HL,(MAXDEL)
   ADD HL,DE
-  JR NC,L5993
+  JR NC,DRAW_LINE_3
   EX DE,HL
   POP HL
   LD A,B
   OR C
   RET Z
   CALL MINUPD		; MINUPD = JP nn for RIGHTC, LEFTC, UPC and DOWNC 
-  JR L5993_0
+  JR DRAW_LINE_4
 
 ; Routine at 22964
 ;
 ; "RR DE" - Used by the routines at DRAW_LINE, __CIRCLE and L5E66.
-L59B4:
+DE_DIV2:
   LD A,D
   OR A
   RRA
@@ -16997,7 +17009,7 @@ L59B4:
 ; Routine at 22972
 ;
 ; Used by the routine at PAINT_PARMS.
-ISGRPMODE:
+IN_GFX_MODE:
   LD A,(SCRMOD)
   CP $02
   RET P
@@ -17316,10 +17328,10 @@ __CIRCLE_4:
   PUSH HL
   INC HL
   EX DE,HL
-  CALL L59B4		; "RR DE"
+  CALL DE_DIV2		; "RR DE"
   EX DE,HL
   INC DE
-  CALL L59B4		; "RR DE"
+  CALL DE_DIV2		; "RR DE"
   CALL L5C06
   POP DE
   POP HL
@@ -17856,8 +17868,8 @@ L5E66_0:
   JR NC,L5E66_1
   DEC DE
 L5E66_1:
-  CALL L59B4		; "RR DE"
-  CALL L59B4		; "RR DE"
+  CALL DE_DIV2		; "RR DE"
+  CALL DE_DIV2		; "RR DE"
   POP AF
   RET NC
   LD A,D
@@ -21687,7 +21699,7 @@ __CSAVE:
   JR Z,__CSAVE_0
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL L7A2D
+  CALL SET_BAUDRATE
 __CSAVE_0:
   PUSH HL
   LD A,TK_NAME			; Token for "NAME"
@@ -23791,6 +23803,7 @@ __COLOR_2:
   RET
 
 ; Routine at 31180
+; SCREEN <DisplayMode>,<SpriteSize>,<Keyclick>,<BaudRate>,<PrinterType>
 __SCREEN:
 IF NOHOOK
  IF PRESERVE_LOCATIONS
@@ -23845,12 +23858,13 @@ __SCREEN_2:
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
   CP ','
-  JR Z,__SCREEN_3
-  CALL L7A2D
+  JR Z,SET_PRINTERTYPE
+  CALL SET_BAUDRATE
   DEC HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   RET Z
-__SCREEN_3:
+  
+SET_PRINTERTYPE:
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
   CALL GETINT
@@ -23860,7 +23874,7 @@ __SCREEN_3:
 ; Routine at 31277
 ;
 ; Used by the routines at __CSAVE and __SCREEN.
-L7A2D:
+SET_BAUDRATE:
   CALL GETINT
   DEC A
   CP $02
@@ -23868,12 +23882,13 @@ L7A2D:
   PUSH HL
   LD BC,$0005
   AND A
-  LD HL,CS120
-  JR Z,L7A2D_0
-  ADD HL,BC
-L7A2D_0:
+  LD HL,CS120			; 1200 bps
+  JR Z,SET_BAUDRATE_0
+  ADD HL,BC				; HL=CS240:  2400 BPS
+
+SET_BAUDRATE_0:
   LD DE,LOW
-  LDIR
+  LDIR			; Copy to 'LOW', 'HIGH' and 'HEADER' delay counters
   POP HL
   RET
 
