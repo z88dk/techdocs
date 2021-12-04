@@ -67,9 +67,6 @@ defc TK_CDBL     =  $1E
 defc TK_FIX      =  $1F
 
 
-IF HAVE_GFX
-defc TK_POINT    =  $20
-ENDIF
 
 
 defc TK_CVI      =  $2B
@@ -85,6 +82,9 @@ defc TK_LOF      =  $31
 defc TK_MKI_S    =  $32
 defc TK_MKS_S    =  $33
 defc TK_MKD_S    =  $34
+IF HAVE_GFX
+defc TK_POINT    =  $35
+ENDIF
 
 
 defc TK_END      =  $81	; Token for 'END' (used also in 'APPEND')
@@ -358,11 +358,7 @@ FNCTAB_FN:
   DEFW __CSNG
   DEFW __CDBL
   DEFW __FIX
-IF HAVE_GFX
-  DEFW __POINT
-ELSE
   DEFW $0000
-ENDIF
   DEFW $0000
   DEFW $0000
   DEFW $0000
@@ -834,9 +830,9 @@ IF HAVE_GFX
   DEFB 'T'+$80
   DEFB TK_PRESET
 
-  DEFM "OIN"
-  DEFB 'T'+$80
-  DEFB TK_POINT
+;  DEFM "OIN"
+;  DEFB 'T'+$80
+;  DEFB TK_POINT
 ENDIF
 
   DEFB $00
@@ -2811,7 +2807,7 @@ FORFND:
   EX (SP),HL
   LD DE,$0001             ; Default value for STEP
   LD A,(HL)               ; Get next byte in code string
-  CP $D1                  ; See if "STEP" is stated
+  CP TK_STEP              ; See if "STEP" is stated
   CALL Z,FPSINT           ; If so, get updated value for 'STEP'
   PUSH DE
   PUSH HL                 ; Save code string address
@@ -2829,7 +2825,7 @@ FORFND_FP:
   LD D,C                  ; C=0
   LD E,D                  ; D=0
   LD A,(HL)               ; Get next byte in code string
-  CP $D1                  ; See if "STEP" is stated
+  CP TK_STEP              ; See if "STEP" is stated
   LD A,$01                ; Sign of step = 1
   JP NZ,SAVSTP            ; No STEP given - Default to 1
   CALL EVAL_0             ; Jump over "STEP" token and point to step value
@@ -3754,7 +3750,7 @@ __TAB:
   CALL FPSINT_0
   POP AF                  ; Restore token
   PUSH AF                 ; Save token
-  CP $D4                  ; TK_SPC - Was it "SPC(" ?
+  CP TK_SPC               ; TK_SPC - Was it "SPC(" ?
   JP Z,__SPC
   DEC DE
 __SPC:
@@ -4475,7 +4471,7 @@ OPRND:
   CP ' '
   JP C,CHRGTB_6           ; JP if control code
   INC A
-  JP Z,OPRND_3
+  JP Z,OPRND_3            ; ($FF)
   DEC A
   CP TK_PLUS              ; ( $F2 = Token for '+' )
   JP Z,OPRND
@@ -4501,8 +4497,8 @@ __ERR:
 
 ; This entry point is used by the routine at OPRND.
 OPRND_0:
-  CP $D6
-  JP NZ,__ERL_0
+  CP TK_ERL
+  JP NZ,OPRND_1
 
 ; 'ERL' BASIC function
 __ERL:
@@ -4514,8 +4510,8 @@ __ERL:
   RET
 
 ; This entry point is used by the routine at __ERR.
-__ERL_0:
-  CP $DC
+OPRND_1:
+  CP TK_VARPTR
   JP NZ,OPRND_MORE
 VARPTR:
   CALL CHRGTB
@@ -5271,14 +5267,15 @@ CHEKFN:
 ;
 ; Used by the routine at EXEC.
 MORE_STMT:
-  CP $7E
+  CP $7E				; (+ $81 =$FF)
   JP NZ,SN_ERR
   INC HL
   LD A,(HL)
   INC HL
-  CP $83				; TK_NEXT
+  CP $83				; (+ $81 =$04  ...TK_SGN??)
   JP Z,FN_INSTR_6
   JP SN_ERR
+
 __INP:
   CALL MAKINT
   LD (INPORT),A
@@ -7292,6 +7289,7 @@ __CINT_3:
   LD L,A
 __CINT_4:
   JP INT_RESULT_HL
+
   LD HL,OV_ERR
   PUSH HL
 ; This entry point is used by the routine at __INT.
@@ -7324,6 +7322,7 @@ SETTYPE_INT:
 SETTYPE:
   LD (VALTYP),A
   RET
+
 ; This entry point is used by the routines at __CINT and _ASCTFP.
 INT_RESULT_HL_2:
   LD BC,$9080             ; BCDE = -32768
@@ -7686,6 +7685,7 @@ L2BA0_0:
   CALL HL_CSNG
   POP DE
   JP NEG
+
 ; This entry point is used by the routines at EVAL_BOOL_END and DBL_ABS.
 INT_DIV:
   LD A,H
@@ -7831,9 +7831,9 @@ DECADD_SWAP:                 ; Put FP on stack
   LD A,(DE)
   LD B,(HL)
   LD (HL),A
-  DEC DE
   LD A,B
   LD (DE),A
+  DEC DE
   DEC HL
   DEC C
   JP NZ,DECADD_SWAP
@@ -8094,6 +8094,7 @@ DECMUL_2:
   DEC B
   JP NZ,DECMUL_0
   JP DECADD_3
+
 DECMUL_3:
   LD HL,FACCU+2
   CALL SCALE_DEC_1
@@ -8119,6 +8120,7 @@ L2DC9:
   LD HL,FPARG
   CALL FP2HL
   JP DECMUL
+
 L2DC9_0:
   LD A,(FACCU+2)
   OR A
@@ -8155,6 +8157,7 @@ L2DC9_3:
   DEC (HL)
   RET NZ
   JP ZERO_EXPONENT
+
 L2DC9_4:
   LD HL,ARG
   LD A,$04
@@ -9167,6 +9170,7 @@ L3356_10:
   CALL P,RNGTST_2
   LD D,B
   JP PUFOUT_26
+
 ; This entry point is used by the routine at PUFOUT.
 L3356_11:
   PUSH HL
@@ -9175,9 +9179,14 @@ L3356_11:
   POP DE
   XOR A
 L3356_12:
-  JP Z,$3412
+  JP Z,L3412
   LD E,$10
-  LD BC,$061E
+
+  DEFB $01                ; "LD BC,nn" to jump over the next word without executing it
+
+L3412:
+  LD E,$06
+
   CALL SIGN
   SCF
   CALL NZ,L3356_17
@@ -9360,7 +9369,7 @@ RNGTST_10:
   DEC B
   JP P,RNGTST_13
   LD (NXTOPR),HL
-  LD (HL),$2E             ; Save point
+  LD (HL),'.'             ; Save point
 RNGTST_11:
   INC HL                  ; Move on
   LD (HL),'0'             ; Save zero
@@ -9376,7 +9385,7 @@ RNGTST_13:
   JP NZ,RNGTST_15
 ; This entry point is used by the routine at L3356.
 RNGTST_14:
-  LD (HL),$2E
+  LD (HL),'.'
   LD (NXTOPR),HL
   INC HL
   LD C,B
@@ -10905,7 +10914,7 @@ __FILES_2:
   LD A,(HL)
   CP ' '
   JP Z,__FILES_3
-  LD A,$2E
+  LD A,'.'
 __FILES_3:
   CALL OUTDO
 __FILES_4:
@@ -14467,7 +14476,7 @@ __USING_11:
 __USING_12:
   LD A,(HL)
   CP '#'
-  LD A,$2E
+  LD A,'.'
   JP NZ,__USING_6
   LD C,$01
   INC HL
@@ -17136,7 +17145,7 @@ SETC:
   PUSH HL
   PUSH BC
   CALL IN_GRP_MODE
-  CALL _FETCHC			; Gets current cursor addresses mask pattern
+  ;CALL _FETCHC			; Gets current cursor address and mask pattern
   JR NZ,_SETC_0
   PUSH DE
   CALL SETC_GFX
@@ -17170,10 +17179,6 @@ _SETC_1:
   RET
 
 
-_FETCHC:
-  LD A,(CMASK)
-  LD HL,(CLOC)
-  RET
 
 
 
@@ -17499,37 +17504,51 @@ ENDIF
         RET
 
 
-__POINT:
-        CALL    COORD_PARMS_DST    ; Get co-ords and VDU address
-		XOR     A
-		
+FN_POINT:
+  CALL CHRGTB		; Gets next character (or token) from BASIC text.
+
+  LD DE,(GYPOS)		; Save GX, GY
+  PUSH DE
+  LD DE,(GXPOS)		; etc..
+  PUSH DE
+  LD DE,(GRPACY)
+  PUSH DE
+  LD DE,(GRPACX)
+  PUSH DE
+
+  PUSH HL		; code string address
+
+  CALL COORD_PARMS_DST
+;  CALL SCALXY
+;  LD HL,$FFFF
+;  JR NC,FN_POINT_0
+;  CALL MAPXY
+;  CALL READC
+;  LD L,A
+;  LD H,$00
+;FN_POINT_0:
+
 IF ZXPLUS3
 		call	pixel
 		ld		a,0
-		ld		b,a
-		jr		z,ABPASS
-		inc		b
+		jr		z,__POINT_0
+		inc		a
 ENDIF		
 
-;(...)
+__POINT_0:
+  POP HL			; code string address
+  POP DE
+  LD (GRPACX),DE	; Restore GX, GY
+  POP DE
+  LD (GRPACY),DE	; etc..
+  POP DE
+  LD (GXPOS),DE
+  POP DE
+  LD (GYPOS),DE
+  
+  JP INT_RESULT_A
+		
 
-        ;LD      A,0
-        ;LD      B,1             ; Integer AB = 1
-;(...)
-        ;LD      A,0
-        ;LD      B,0             ; Integer AB = 0
-;(...)
-;        LD      DE,RETNUM       ; To return a number
-;        PUSH    DE              ; Save for return
-;        JP      ABPASS          ; Return integer AB
-
-
-ABPASS: LD      D,B             ; Return integer AB
-        LD      E,0
-        LD      HL,TYPE         ; Point to type
-        LD      (HL),E          ; Set type to numeric
-        LD      B,80H+16        ; 16 bit integer
-        JP      RETINT          ; Return the integr
 
 IF ZXPLUS3
 
