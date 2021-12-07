@@ -612,13 +612,13 @@ MAPXY:
 
 ; Routine at 276
 ;
-; Gets current cursor addresses mask pattern
+; Gets current cursor position and mask pattern
 FETCHC:
   JP _FETCHC
 
 ; Routine at 279
 ;
-; Record current cursor addresses mask pattern
+; Record current cursor position and mask pattern
 STOREC:
   JP _STOREC
 
@@ -2301,7 +2301,7 @@ ENDIF
   LD A,(CSRX)
   DEC A
   LD (TTYPOS),A
-; This entry point is used by the routines at _INITIO and L1574.
+; This entry point is used by the routines at _INITIO and _GRPPRT_4.
 _POPALL:
   POP AF
 ; This entry point is used by the routines at L0D89, _CHGET and L11E2.
@@ -4863,7 +4863,7 @@ _GRPPRT_00:
   LD C,$08
 _GRPPRT_0:
   LD B,$08
-  CALL _FETCHC		; Gets current cursor addresses mask pattern
+  CALL _FETCHC		; Save cursor
   PUSH HL
   PUSH AF
   LD A,(DE)
@@ -4880,28 +4880,28 @@ _GRPPRT_1:
 _GRPPRT_2:
   POP AF
   POP HL
-  CALL _STOREC		; Record current cursor addresses mask pattern
+  CALL _STOREC		; Restore cursor
   CALL _TDOWNC
   JR C,_GRPPRT_3
   INC DE
   DEC C
   JR NZ,_GRPPRT_0
 _GRPPRT_3:
-  CALL IN_GRP_MODE
+  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
   LD A,(GRPACX)
-  JR Z,L1574
+  JR Z,_GRPPRT_4
   ADD A,$20
   JR C,L157E
-  JR L1574_0
+  JR _GRPPRT_5
 
 ; Routine at 5492
 ;
 ; Used by the routine at _GRPPRT.
-L1574:
+_GRPPRT_4:
   ADD A,$08
   JR C,L157E
 ; This entry point is used by the routine at _GRPPRT.
-L1574_0:
+_GRPPRT_5:
   LD (GRPACX),A
 ; This entry point is used by the routines at _GRPPRT and L157E.
 L157B:
@@ -4909,11 +4909,11 @@ L157B:
 
 ; Routine at 5502
 ;
-; Used by the routines at _GRPPRT and L1574.
+; Used by the routines at _GRPPRT and _GRPPRT_4.
 L157E:
   XOR A
   LD (GRPACX),A
-  CALL IN_GRP_MODE
+  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
   LD A,(GRPACY)
   JR Z,L158D
   ADD A,$20
@@ -4970,7 +4970,7 @@ _SCALXY_5:
   LD B,$00
 _SCALXY_6:
   POP DE
-  CALL IN_GRP_MODE
+  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
   JR Z,_SCALXY_7
   SRL L
   SRL L
@@ -4988,6 +4988,7 @@ _SCALXY_7:
 ;
 ; Used by the routines at _GRPPRT, L157E, _SCALXY_4, _MAPXY, _SETC, L16AC, _RIGHTC,
 ; L16D8, _LEFTC, _TDOWNC, _DOWNC, _TUPC, _UPC, _NSETCX, _PNTINI and _SCANL.
+; Z if GRP (high resolution screen with 256×192 pixels)
 IN_GRP_MODE:
   LD A,(SCRMOD)
   SUB $02
@@ -4998,7 +4999,7 @@ IN_GRP_MODE:
 ; Used by the routines at MAPXY and _GRPPRT.
 _MAPXY:
   PUSH BC
-  CALL IN_GRP_MODE
+  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
   JR NZ,_MAPXY_1
   LD D,C
   LD A,C
@@ -5072,9 +5073,9 @@ _MAPXY_3:
 ; Routine at 5689
 ;
 ; Used by the routines at FETCHC, _STOREC, _GRPPRT, _SETC, L16AC, _RIGHTC, L16D8, _LEFTC,
-; L1779, L178B, L179C, L17AC, _NSETCX, L190C, L192D and L1963.
+; L1779, RIGHTC_MLT, L179C, LEFTC_MLT, _NSETCX, L190C, L192D and L1963.
 ;
-; Gets current cursor addresses mask pattern
+; Gets current cursor position and mask pattern
 _FETCHC:
   LD A,(CMASK)
   LD HL,(CLOC)
@@ -5083,7 +5084,7 @@ _FETCHC:
 ; Routine at 5696
 ;
 ; Used by the routines at STOREC, _GRPPRT and L192D.
-; Record current cursor addresses mask pattern
+; Record current cursor position and mask pattern
 ;
 _STOREC:
   LD (CMASK),A
@@ -5095,9 +5096,9 @@ _STOREC:
 _READC:
   PUSH BC
   PUSH HL
-  CALL _FETCHC
+  CALL _FETCHC			; Gets current cursor position and mask pattern
   LD B,A
-  CALL IN_GRP_MODE
+  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
   JR NZ,L166C
   CALL _RDVRM
   AND B
@@ -5146,8 +5147,8 @@ _SETATR:
 _SETC:
   PUSH HL
   PUSH BC
-  CALL IN_GRP_MODE
-  CALL _FETCHC			; Gets current cursor addresses mask pattern
+  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
+  CALL _FETCHC			; Get cursor statur
   JR NZ,_SETC_0
   PUSH DE
   CALL SETC_GFX
@@ -5186,9 +5187,9 @@ _SETC_1:
 ; Used by the routines at _GRPPRT, L18F0, L190C, L1951 and L1963.
 L16AC:
   PUSH HL
-  CALL IN_GRP_MODE
+  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
   JP NZ,L1779
-  CALL _FETCHC			; Gets current cursor addresses mask pattern
+  CALL _FETCHC			; Gets current cursor position and mask pattern
   RRCA
   JR NC,LR_2
   LD A,L
@@ -5205,9 +5206,9 @@ L16AC:
 
 _RIGHTC:
   PUSH HL
-  CALL IN_GRP_MODE
-  JP NZ,L178B
-  CALL _FETCHC			; Gets current cursor addresses mask pattern
+  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
+  JP NZ,RIGHTC_MLT
+  CALL _FETCHC			; Gets current cursor position and mask pattern
   RRCA
   JR NC,LR_2
 ; This entry point is used by the routine at L16AC.
@@ -5221,9 +5222,9 @@ _RIGHTC_0:
 ; Used by the routines at _SCANL and L19BA.
 L16D8:
   PUSH HL
-  CALL IN_GRP_MODE
+  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
   JP NZ,L179C
-  CALL _FETCHC			; Gets current cursor addresses mask pattern
+  CALL _FETCHC			; Gets current cursor position and mask pattern
   RLCA
   JR NC,LR_2
   LD A,L
@@ -5237,9 +5238,9 @@ L16D8:
 ; Used by the routine at LEFTC.
 _LEFTC:
   PUSH HL
-  CALL IN_GRP_MODE
-  JP NZ,L17AC
-  CALL _FETCHC			; Gets current cursor addresses mask pattern
+  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
+  JP NZ,LEFTC_MLT
+  CALL _FETCHC			; Gets current cursor position and mask pattern
   RLCA
   JR NC,LR_2
   
@@ -5266,8 +5267,8 @@ _TDOWNC:
   PUSH HL
   PUSH DE
   LD HL,(CLOC)
-  CALL IN_GRP_MODE
-  JP NZ,L17C6
+  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
+  JP NZ,TDOWNC_MLT
   PUSH HL
   LD HL,(GRPCGP)		; SCREEN 2 character pattern table
   LD DE,$1700
@@ -5289,8 +5290,8 @@ _DOWNC:
   PUSH HL
   PUSH DE
   LD HL,(CLOC)
-  CALL IN_GRP_MODE
-  JP NZ,L17DC
+  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
+  JP NZ,DOWNC_MLT
 ; This entry point is used by the routine at _TDOWNC.
 _DOWNC_0:
   INC HL
@@ -5305,15 +5306,15 @@ _TUPC:
   PUSH HL
   PUSH DE
   LD HL,(CLOC)
-  CALL IN_GRP_MODE
-  JP NZ,L17E3
+  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
+  JP NZ,TUPC_MLT
   PUSH HL
-  LD HL,(GRPCGP)			; SCREEN 2 character pattern table
+  LD HL,(GRPCGP)         ; SCREEN 2 character pattern table
   LD DE,256
   ADD HL,DE
   EX DE,HL
   POP HL
-  RST DCOMPR		; Compare HL with DE.
+  RST DCOMPR             ; Compare HL with DE.
   JR NC,_UPC_0
   LD A,L
   AND $07
@@ -5334,8 +5335,8 @@ _UPC:
   PUSH HL
   PUSH DE
   LD HL,(CLOC)
-  CALL IN_GRP_MODE
-  JP NZ,L17F8
+  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
+  JP NZ,UPC_MLT
 ; This entry point is used by the routine at _TUPC.
 _UPC_0:
   LD A,L
@@ -5357,63 +5358,63 @@ _UPC_2:
 ;
 ; Used by the routine at L16AC.
 L1779:
-  CALL _FETCHC			; Gets current cursor addresses mask pattern
+  CALL _FETCHC			; Gets current cursor position and mask pattern
   AND A
   LD A,$0F				; Mask and keep the right nibble
   JP M,APPLY_MASK
   LD A,L
   AND $F8
   CP $F8
-  JR NZ,L178B_0
+  JR NZ,RIGHTC_MLT_0
   JR _TUPC_1
 
 ; Routine at 6027
 ;
 ; Used by the routine at _RIGHTC.
-L178B:
-  CALL _FETCHC			; Gets current cursor addresses mask pattern
+RIGHTC_MLT:
+  CALL _FETCHC			; Gets current cursor position and mask pattern
   AND A
   LD A,$0F				; Mask and keep the right nibble
   JP M,APPLY_MASK
 ; This entry point is used by the routine at L1779.
-L178B_0:
+RIGHTC_MLT_0:
   PUSH DE
   LD DE,$0008
   LD A,$F0				; Mask and keep the lsft nibble
-  JR L17AC_1
+  JR LEFTC_MLT_1
 
 ; Routine at 6044
 ;
 ; Used by the routine at L16D8.
 L179C:
-  CALL _FETCHC			; Gets current cursor addresses mask pattern
+  CALL _FETCHC			; Gets current cursor position and mask pattern
   AND A
   LD A,$F0				; Mask and keep the left nibble
   JP P,APPLY_MASK
   LD A,L
   AND $F8
-  JR NZ,L17AC_0
+  JR NZ,LEFTC_MLT_0
   JR _TUPC_1
 
 ; Routine at 6060
 ;
 ; Used by the routine at _LEFTC.
-L17AC:
-  CALL _FETCHC			; Gets current cursor addresses mask pattern
+LEFTC_MLT:
+  CALL _FETCHC			; Gets current cursor position and mask pattern
   AND A
   LD A,$F0				; Mask and keep the left nibble
   JP P,APPLY_MASK
 ; This entry point is used by the routine at L179C.
-L17AC_0:
+LEFTC_MLT_0:
   PUSH DE
   LD DE,$FFF8		; -8
   LD A,$0F				; Mask and keep the right nibble
-; This entry point is used by the routine at L178B.
-L17AC_1:
+; This entry point is used by the routine at RIGHTC_MLT.
+LEFTC_MLT_1:
   ADD HL,DE
   LD (CLOC),HL
   POP DE
-; This entry point is used by the routines at L1779, L178B and L179C.
+; This entry point is used by the routines at L1779, RIGHTC_MLT and L179C.
 APPLY_MASK:
   LD (CMASK),A
   AND A
@@ -5423,18 +5424,18 @@ APPLY_MASK:
 ; Routine at 6086
 ;
 ; Used by the routine at _TDOWNC.
-L17C6:
+TDOWNC_MLT:
   PUSH HL
   LD HL,(MLTCGP)		; SCREEN 3 character pattern table
   LD DE,$0500			; 1280
   ADD HL,DE
   POP HL
   RST DCOMPR		; Compare HL with DE.
-  JR C,L17DC
+  JR C,DOWNC_MLT
   LD A,L
   INC A
   AND $07
-  JR NZ,L17DC
+  JR NZ,DOWNC_MLT
   SCF
   POP DE
   POP HL
@@ -5442,27 +5443,27 @@ L17C6:
 
 ; Routine at 6108
 ;
-; Used by the routines at _DOWNC and L17C6.
-L17DC:
+; Used by the routines at _DOWNC and TDOWNC_MLT.
+DOWNC_MLT:
   INC HL
   LD A,L
   LD DE,$00F8
-  JR L17F8_0
+  JR UPC_MLT_0
 
 ; Routine at 6115
 ;
 ; Used by the routine at _TUPC.
-L17E3:
+TUPC_MLT:
   PUSH HL
   LD HL,(MLTCGP)		; SCREEN 3 character pattern table
   LD DE,256
   ADD HL,DE
   POP HL
   RST DCOMPR		; Compare HL with DE.
-  JR NC,L17F8
+  JR NC,UPC_MLT
   LD A,L
   AND $07
-  JR NZ,L17F8
+  JR NZ,UPC_MLT
   SCF
   POP DE
   POP HL
@@ -5470,17 +5471,17 @@ L17E3:
 
 ; Routine at 6136
 ;
-; Used by the routines at _UPC and L17E3.
-L17F8:
+; Used by the routines at _UPC and TUPC_MLT.
+UPC_MLT:
   LD A,L
   DEC HL
   LD DE,$FF08		; -248
-; This entry point is used by the routine at L17DC.
-L17F8_0:
+; This entry point is used by the routine at DOWNC_MLT.
+UPC_MLT_0:
   AND $07
-  JR NZ,L17F8_1
+  JR NZ,UPC_MLT_1
   ADD HL,DE
-L17F8_1:
+UPC_MLT_1:
   LD (CLOC),HL
   AND A
   POP DE
@@ -5493,10 +5494,10 @@ L17F8_1:
 ; Set horizontal screenpixels
 ;
 _NSETCX:
-  CALL IN_GRP_MODE
+  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
   JP NZ,_NSETCX_NOGRP
   PUSH HL
-  CALL _FETCHC			; Gets current cursor addresses mask pattern
+  CALL _FETCHC			; Gets current cursor position and mask pattern
   EX (SP),HL
   ADD A,A
   JR C,_NSETCX_1
@@ -5671,7 +5672,7 @@ _GTASPC:
 ; Used by the routine at GTASPC.
 _PNTINI:
   PUSH AF
-  CALL IN_GRP_MODE
+  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
   JR Z,L18DB
   POP AF
   CP $10
@@ -5695,7 +5696,7 @@ L18DB_0:
 _SCANR:
   LD HL,$0000
   LD C,L
-  CALL IN_GRP_MODE
+  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
   JR NZ,L1951
   LD A,B
   LD (RUNFLG),A
@@ -5722,7 +5723,7 @@ _SCANR_0:
 L190C:
   CALL L19AE
   PUSH DE
-  CALL _FETCHC			; Gets current cursor addresses mask pattern
+  CALL _FETCHC			; Gets current cursor position and mask pattern
   LD (CSAVEA),HL
   LD (CSAVEM),A
   LD DE,$0000
@@ -5741,12 +5742,12 @@ L190C_0:
 ; Used by the routine at L190C.
 L192D:
   PUSH DE
-  CALL _FETCHC			; Gets current cursor addresses mask pattern
+  CALL _FETCHC		; Save cursor
   PUSH HL
   PUSH AF
   LD HL,(CSAVEA)
   LD A,(CSAVEM)
-  CALL _STOREC		; Record current cursor addresses mask pattern
+  CALL _STOREC		; Restore cursor
   EX DE,HL
   LD (FILNAM+1),HL
   LD A,(FILNAM)
@@ -5754,7 +5755,7 @@ L192D:
   CALL NZ,_NSETCX
   POP AF
   POP HL
-  CALL _STOREC		; Record current cursor addresses mask pattern
+  CALL _STOREC		; Restore cursor
   POP HL
   POP DE
   JP L199C_1
@@ -5776,7 +5777,7 @@ L1951:
 ;
 ; Used by the routine at L1951.
 L1963:
-  CALL _FETCHC			; Gets current cursor addresses mask pattern
+  CALL _FETCHC			; Gets current cursor position and mask pattern
   LD (CSAVEA),HL
   LD (CSAVEM),A
   LD HL,$0000
@@ -5794,7 +5795,7 @@ L1963_0:
 _SCANL:
   LD HL,$0000
   LD C,L
-  CALL IN_GRP_MODE
+  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
   JR NZ,L19BA
   XOR A
   LD (FILNAM+3),A
@@ -11755,25 +11756,25 @@ __INP_0:
 ; Routine at 16395
 ;
 ; Used by the routines at __OUT and __WAIT.
-; Get "WORD,BYTE" parameters
-GTWORD_GTINT:
+; Get "BYTE,BYTE" parameters
+GTINT_GTINT:
   CALL GETWORD
   PUSH DE
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   POP BC
   RET
 
 ; Routine at 16406
 __OUT:
-  CALL GTWORD_GTINT		; Get "WORD,BYTE" parameters
+  CALL GTINT_GTINT		; Get "WORD,BYTE" parameters
   OUT (C),A
   RET
 
 ; Routine at 16412
 __WAIT:
-  CALL GTWORD_GTINT		; Get "WORD,BYTE" parameters
+  CALL GTINT_GTINT		; Get "WORD,BYTE" parameters
   PUSH BC
   PUSH AF
   LD E,$00
@@ -11782,7 +11783,7 @@ __WAIT:
   JR Z,__WAIT_0
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
 __WAIT_0:
   POP AF
   LD D,A
@@ -13982,7 +13983,7 @@ ZONELP:
 ; __TAB(   &   __SPC(
 __TAB:
   PUSH AF
-  CALL FNDNUM		
+  CALL FNDNUM		; Numeric argument (0..255)
   RST SYNCHR 		; Make sure ")" follows
   DEFB ')'
   DEC HL			; Back space on to ")"
@@ -14582,7 +14583,7 @@ ELSE
   CALL HEVAL            ; Hook 1 for Factor Evaluator
 ENDIF
   INC A
-  JP Z,OPRND_3
+  JP Z,OPRND_3		; $FF   ..ext function prefix ?
   DEC A
   CP TK_PLUS		; Token for '+'
   JR Z,OPRND		; Yes - Look for operand
@@ -14647,7 +14648,7 @@ OPRND_1:
 
 ; VARPTR(#buffer) Function
 ;VARPTR_BUF:
-  CALL FNDNUM
+  CALL FNDNUM		; Numeric argument (0..255)
   PUSH HL
   CALL GETPTR
   EX DE,HL
@@ -14792,15 +14793,15 @@ HEXTFP_3:
 OPRND_3:
   INC HL
   LD A,(HL)
-  SUB $81                  ; Is it a function?
+  SUB $81                  ; Adjust function code -$80-1
   LD B,$00                 ; Get address of function
   RLCA                     ; Double function offset
   LD C,A                   ; BC = Offset in function table
   PUSH BC                  ; Save adjusted token value
   RST CHRGTB		       ; Get next character
   LD A,C                   ; Get adjusted token value
-  CP $05			       ; (??) TK_INT ?
-  JR NC,FNVAL              ;  - Do function
+  CP TK_MID_S*2-1          ; Adj' LEFT$,RIGHT$ or MID$ ?
+  JR NC,FNVAL              ; No - Do function
   CALL OPNPAR		       ; Evaluate expression  (X,...
   RST SYNCHR 		       ; Make sure "," follows
   DEFB ','                 
@@ -14819,9 +14820,9 @@ FNVAL:
   CALL EVLPAR              ; Evaluate expression
   EX (SP),HL               ; HL = Adjusted token value
   LD A,L
-  CP $0C		; TK_COS ?
+  CP TK_ABS*2              ; Adj' SGN or INT ?
   JR C,FNVAL_0
-  CP $1B
+  CP TK_ATN*2-1            ; Adj' ABS, SQR, RND, SIN, LOG, EXP, COS, TAN or ATN ?
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -14839,6 +14840,8 @@ ENDIF
 FNVAL_0:
   LD DE,RETNUM          ; Return number from function
   PUSH DE               ; Save on stack
+
+
 GOFUNC:
   LD BC,FNCTAB_FN		; Function routine addresses
 IF NOHOOK
@@ -14997,6 +15000,10 @@ __LPOS:
 ; Routine at 20428
 __POS:
   LD A,(TTYPOS)
+
+
+; Exit from function, result in A
+;
 ; This entry point is used by the routines at __INP_0, OPRND, __LPOS, __PEEK,
 ; __VAL, __PDL, FN_VDP and __VPEEK.
 PASSA:
@@ -15183,7 +15190,7 @@ DOFN_2:
   LD A,(PRMLN2)		; Size of parameter block
   LD C,A
   ADD A,B
-  CP $64 		; 'd'
+  CP $64 		; 'd' or 100
   JP NC,FC_ERR			; Err $05 - "Illegal function call"
   PUSH AF
   LD A,L
@@ -15362,7 +15369,7 @@ NOT_KEYWORD_ERR:
 
 ; Routine at 20937
 __WIDTH:
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -15441,11 +15448,12 @@ DEPINT:
 ; Used by the routines at L4A5A, OPRND and GT_CHANNEL.
 FNDNUM:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
-; This entry point is used by the routines at GTWORD_GTINT, __WAIT, L492A, __ERROR,
+; This entry point is used by the routines at GTINT_GTINT, __WAIT, L492A, __ERROR,
 ; OPRND_3, __WIDTH, __POKE, PAINT_PARMS, __PAINT, _MID_S, L69E4, L6A9E, __OPEN, L6BFB,
 ; FN_INPUT, __SOUND, __LOCATE, L77D4, __COLOR, __SCREEN, SET_BAUDRATE, PUT_SPRITE, __VDP,
 ; __VPOKE and __MAX.
-; $521C
+
+; Get integer 0-255
 GETINT:
   CALL EVAL
 ; This entry point is used by the routines at __CHR_S, FN_STRING, FN_INSTR, GETFLP,
@@ -15865,14 +15873,14 @@ __POKE:
   PUSH DE
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   POP DE
   LD (DE),A
   RET
 
 ; Routine at 21551
 ;
-; Used by the routines at GTWORD_GTINT, DEF_USR, __POKE, __CLEAR, ONGO and __TIME.
+; Used by the routines at GTINT_GTINT, DEF_USR, __POKE, __CLEAR, ONGO and __TIME.
 GETWORD:
   CALL EVAL
   PUSH HL
@@ -16672,22 +16680,22 @@ __PSET_1:
 ; Used by the routine at OPRND.
 FN_POINT:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
+  PUSH HL			; Save code string address
+  CALL FETCHC		; Save cursor
+  POP DE			; Move code string address to DE
+  PUSH HL			; Save cursor position
+  PUSH AF			; Save cursor mask
+  LD HL,(GYPOS)		; Make a copy of GX, GY
   PUSH HL
-  CALL FETCHC
-  POP DE
-  PUSH HL
-  PUSH AF
-  LD HL,(GYPOS)
-  PUSH HL
-  LD HL,(GXPOS)
+  LD HL,(GXPOS)		; etc..
   PUSH HL
   LD HL,(GRPACY)
   PUSH HL
   LD HL,(GRPACX)
   PUSH HL
-  EX DE,HL
+  EX DE,HL			; Move code string address to HL
   CALL COORD_PARMS_DST
-  PUSH HL
+  PUSH HL			; Save code string address
   CALL SCALXY
   LD HL,$FFFF
   JR NC,FN_POINT_0
@@ -16697,20 +16705,20 @@ FN_POINT:
   LD H,$00
 FN_POINT_0:
   CALL INT_RESULT_HL
-  POP DE
+  POP DE			; Code string address
   POP HL
-  LD (GRPACX),HL
+  LD (GRPACX),HL	; Restore GX, GY..
   POP HL
-  LD (GRPACY),HL
+  LD (GRPACY),HL	; ..etc..
   POP HL
-  LD (GXPOS),HL
+  LD (GXPOS),HL		; ..to the original ..
   POP HL
-  LD (GYPOS),HL
-  POP AF
-  POP HL
-  PUSH DE
-  CALL STOREC
-  POP HL
+  LD (GYPOS),HL		; ...values
+  POP AF			; Restore cursor mask
+  POP HL			; Restore cursor position
+  PUSH DE			; Save code string address
+  CALL STOREC		; Restore cursor
+  POP HL			; Restore code string address
   RET
 
 ; Routine at 22605
@@ -16723,7 +16731,7 @@ PAINT_PARMS_0:
   PUSH BC
   PUSH DE
   LD E,A
-  CALL IN_GFX_MODE
+  CALL IN_GFX_MODE       ; "Illegal function call" if not in graphics mode
   DEC HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   JR Z,PAINT_PARMS_1
@@ -16731,7 +16739,7 @@ PAINT_PARMS_0:
   DEFB ','
   CP ','
   JR Z,PAINT_PARMS_1
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
 PAINT_PARMS_1:
   LD A,E
   PUSH HL
@@ -16745,7 +16753,7 @@ PAINT_PARMS_1:
 ; Routine at 22641
 ;
 ; Used by the routines at LINE and DRAW_LINE.
-L5871:
+GX_DELTA:
   LD HL,(GXPOS)
   LD A,L
   SUB C
@@ -16753,11 +16761,11 @@ L5871:
   LD A,H
   SBC A,B
   LD H,A
-; This entry point is used by the routine at L5883.
-L5871_0:
+; This entry point is used by the routine at GY_DELTA.
+GX_DELTA_0:
   RET NC
   
-; This entry point is used by the routines at DRAW_LINE, L5A26, INVSGN_DE, L5C06 and
+; This entry point is used by the routines at DRAW_LINE, __PAINT_4, INVSGN_DE, L5C06 and
 ; M_DIAGONAL.
 INVSGN_HL:
   XOR A
@@ -16773,7 +16781,7 @@ INVSGN_HL:
 ; Routine at 22659
 ;
 ; Used by the routines at LINE and DRAW_LINE.
-L5883:
+GY_DELTA:
   LD HL,(GYPOS)
   ; HL=HL-DE
   LD A,L
@@ -16783,7 +16791,7 @@ L5883:
   SBC A,D
   LD H,A
   ;
-  JR L5871_0
+  JR GX_DELTA_0
 
 ; Routine at 22670
 ;
@@ -16839,11 +16847,11 @@ DOBOXF:
   CALL SCALXY
   CALL SWAP_GXGY
   CALL SCALXY
-  CALL L5883
+  CALL GY_DELTA
   CALL C,SWAP_GY
   INC HL
   PUSH HL
-  CALL L5871
+  CALL GX_DELTA
   CALL C,SWAP_GX
   INC HL
   PUSH HL
@@ -16853,14 +16861,14 @@ DOBOXF:
 LINE_0:
   PUSH DE
   PUSH BC
-  CALL FETCHC
+  CALL FETCHC			; Save cursor
   PUSH AF
   PUSH HL
   EX DE,HL
   CALL NSETCX
   POP HL
   POP AF
-  CALL STOREC
+  CALL STOREC			; Restore cursor
   CALL DOWNC
   POP BC
   POP DE
@@ -16925,11 +16933,11 @@ ENDIF
   CALL SCALXY
   CALL SWAP_GXGY
   CALL SCALXY
-  CALL L5883
+  CALL GY_DELTA
   CALL C,SWAP_GXGY
   PUSH DE
   PUSH HL
-  CALL L5871
+  CALL GX_DELTA
   EX DE,HL
   LD HL,RIGHTC
   JR NC,DRAW_LINE_0
@@ -17006,6 +17014,7 @@ DE_DIV2:
   LD E,A
   RET
 
+
 ; Routine at 22972
 ;
 ; Used by the routine at PAINT_PARMS.
@@ -17028,7 +17037,7 @@ __PAINT:
   JR Z,__PAINT_0
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
 __PAINT_0:
   LD A,E
   CALL PNTINI
@@ -17041,7 +17050,7 @@ O_PAINT:
   CALL MAPXY
   LD DE,$0001
   LD B,$00
-  CALL L5ADC
+  CALL __PAINT_SUB_2
   JR Z,__PAINT_1
   PUSH HL
   CALL L5AED
@@ -17049,142 +17058,143 @@ O_PAINT:
   ADD HL,DE
   EX DE,HL
   XOR A
-  CALL L5AC2_0
+  CALL __PAINT_SUB_0
   LD A,$40
-  CALL L5AC2_0
+  CALL __PAINT_SUB_0
   LD B,$C0
-  JR L5A26
+  JR __PAINT_4
 
-; This entry point is used by the routines at L5A26 and __CIRCLE.
+; This entry point is used by the routines at __PAINT_4 and __CIRCLE.
 __PAINT_1:
   POP HL
   RET
 
 ; Data block at 23050
-L5A0A:
+__PAINT_2:
   CALL CKCNTC
   LD   A,(LOHDIR)
   OR   A
-  JR   Z,L5A1F
+  JR   Z,__PAINT_3
   LD   HL,(LOHADR)
   PUSH HL
   LD   HL,(LOHMSK)
   PUSH HL
   LD   HL,(LOHCNT)
   PUSH HL
-L5A1F:
+__PAINT_3:
   POP  DE
   POP  BC
   POP  HL
   LD   A,C
-  CALL STOREC
-
-L5A26:
+  CALL STOREC		; Restore cursor
+__PAINT_4:
   LD  A,B
   LD  (PDIREC),A  ; Direction of the paint
   ADD A,A
   JR Z,__PAINT_1
   PUSH DE
-  JR NC,L5A26_0
+  JR NC,__PAINT_5
   CALL TUPC
-  JR L5A26_1
-L5A26_0:
+  JR __PAINT_6
+
+__PAINT_5:
   CALL TDOWNC
-L5A26_1:
+__PAINT_6:
   POP DE
-  JR C,L5A1F
+  JR C,__PAINT_3
   LD B,$00
-  CALL L5ADC
-  JP Z,L5A1F
+  CALL __PAINT_SUB_2
+  JP Z,__PAINT_3
   XOR A
   LD (LOHDIR),A
   CALL L5AED
   LD E,L
   LD D,H
   OR A
-  JR Z,L5A26_2
+  JR Z,__PAINT_7
   DEC HL
   DEC HL
   LD A,H
   ADD A,A
-  JR C,L5A26_2
+  JR C,__PAINT_7
   LD (LOHCNT),DE
-  CALL FETCHC
+  CALL FETCHC			; Save cursor
   LD (LOHADR),HL
   LD (LOHMSK),A
   LD A,(PDIREC)
   CPL
   LD (LOHDIR),A
-L5A26_2:
+__PAINT_7:
   LD HL,(MOVCNT)
   ADD HL,DE
   EX DE,HL
-  CALL L5AC2
+  CALL __PAINT_SUB
 ; This entry point is used by the routine at CRT_CTL.
-L5A26_3:
+__PAINT_8:
   LD HL,(CSAVEA)
   LD A,(CSAVEM)
-  CALL STOREC
-L5A26_4:
+  CALL STOREC			; Restore cursor
+__PAINT_9:
   LD HL,(SKPCNT)
   LD DE,(MOVCNT)
   OR A
   SBC HL,DE
-  JR Z,L5A26_7
-  JR C,L5A26_5
+  JR Z,__PAINT_12
+  JR C,__PAINT_10
   EX DE,HL
   LD B,$01
-  CALL L5ADC
-  JR Z,L5A26_7
+  CALL __PAINT_SUB_2
+  JR Z,__PAINT_12
   OR A
-  JR Z,L5A26_4
+  JR Z,__PAINT_9
   EX DE,HL
   LD HL,(CSAVEA)
   LD A,(CSAVEM)
   LD C,A
   LD A,(PDIREC)
   LD B,A
-  CALL L5AC2_1
-  JR L5A26_4
-L5A26_5:
+  CALL __PAINT_SUB_1
+  JR __PAINT_9
+  
+__PAINT_10:
   CALL INVSGN_HL
   DEC HL
   DEC HL
   LD A,H
   ADD A,A
-  JR C,L5A26_7
+  JR C,__PAINT_12
   INC HL
   PUSH HL
-L5A26_6:
+__PAINT_11:
   CALL LEFTC
   DEC HL
   LD A,H
   OR L
-  JR NZ,L5A26_6
+  JR NZ,__PAINT_11
   POP DE
   LD A,(PDIREC)
   CPL
-  CALL L5AC2_0
-L5A26_7:
-  JP L5A0A
+  CALL __PAINT_SUB_0
+__PAINT_12:
+  JP __PAINT_2
 
 ; Routine at 23234
 ;
-; Used by the routine at L5A26.
-L5AC2:
+; Used by the routine at __PAINT_4.
+__PAINT_SUB:
   LD A,(LFPROG)
   LD C,A
   LD A,(RTPROG)
   OR C
   RET Z
   LD A,(PDIREC)
-; This entry point is used by the routines at __PAINT and L5A26.
-L5AC2_0:
+; This entry point is used by the routines at __PAINT and __PAINT_4.
+__PAINT_SUB_0:
   LD B,A
-  CALL FETCHC
+  CALL FETCHC			; Save cursor
   LD C,A
-; This entry point is used by the routine at L5A26.
-L5AC2_1:
+; This entry point is used by the routine at __PAINT_4.
+__PAINT_SUB_1:
   EX (SP),HL
   PUSH BC
   PUSH DE
@@ -17193,7 +17203,7 @@ L5AC2_1:
   JP CHKSTK
 
 ; Data block at 23260
-L5ADC:
+__PAINT_SUB_2:
   CALL SCANR
   LD   (SKPCNT),DE	; Skip count
   LD   (MOVCNT),HL
@@ -17206,12 +17216,12 @@ L5ADC:
 
 ; Data block at 23277
 L5AED:
-  CALL FETCHC
+  CALL FETCHC			; Save cursor
   PUSH HL
   PUSH AF
   LD   HL,(CSAVEA)
   LD   A,(CSAVEM)
-  CALL STOREC
+  CALL STOREC			; Restore cursor
   POP  AF
   POP  HL
   LD   (CSAVEA),HL
@@ -18680,7 +18690,7 @@ L6250_1:
 
 ; Routine at 25182
 ;
-; Used by the routines at __GOSUB, EVAL1, DOFN, X_MACRO, L5AC2 and EXEC_ONGOSUB.
+; Used by the routines at __GOSUB, EVAL1, DOFN, X_MACRO, __PAINT_SUB and EXEC_ONGOSUB.
 ; $625E
 CHKSTK:
   PUSH HL
@@ -19950,7 +19960,7 @@ FN_STRING:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB '('
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   PUSH DE
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
@@ -20267,7 +20277,7 @@ _MID_S_0:
   EX (SP),HL
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   OR A
   JP Z,FC_ERR
   PUSH AF
@@ -20340,7 +20350,7 @@ L69E4:
   JR Z,L69E4_0
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
 L69E4_0:
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ')'
@@ -20504,7 +20514,7 @@ L6A9E:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   CP '#'
   CALL Z,__CHRGTB  ; Gets next character (or token) from BASIC text.
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   EX (SP),HL
   PUSH HL
 ; a.k.a. SELECT. This entry point is used by the routines at _RUN_FILE and GT_CHANNEL.
@@ -20566,7 +20576,7 @@ __OPEN_2:
   LD A,(HL)
   CP '#'
   CALL Z,__CHRGTB  ; Gets next character (or token) from BASIC text.
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   OR A
   JP Z,BN_ERR			; Err $34 -  'Bad file number'
 IF NOHOOK
@@ -20839,7 +20849,7 @@ L6BFB_0:
   LD A,(HL)
   CP '#'
   CALL Z,__CHRGTB		; Gets next character (or token) from BASIC text.
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   EX (SP),HL
   PUSH HL
   LD DE,L6BFB
@@ -20980,7 +20990,7 @@ FN_INPUT:
   LD (PTRFIL),HL		; Redirect I/O
   POP HL
   EX (SP),HL
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   PUSH DE
   LD A,(HL)
   CP ','
@@ -21183,7 +21193,7 @@ GET_CHNUM:
   CP '#'
   RET NZ
   PUSH BC
-  CALL FNDNUM
+  CALL FNDNUM		; Numeric argument (0..255)
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
   LD A,E
@@ -22555,13 +22565,13 @@ __MOTOR_0:
 
 ; Routine at 29642
 __SOUND:
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   CP $0E			; ?
   JP NC,FC_ERR
   PUSH AF
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
 ;:::::::::::::::::::::
 L73D8:
   POP AF
@@ -23300,7 +23310,7 @@ __LOCATE:
   PUSH DE
   CP ','
   JR Z,__LOCATE_0
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   INC A
   POP DE
   LD D,A
@@ -23313,7 +23323,7 @@ __LOCATE_0:
   DEFB ','
   CP ','
   JR Z,__LOCATE_1
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   INC A
   POP DE
   LD E,A
@@ -23324,7 +23334,7 @@ __LOCATE_0:
 __LOCATE_1:
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   AND A
   LD A,'y'
   JR NZ,__LOCATE_2
@@ -23398,7 +23408,7 @@ _TRIG_0:
 ; Routine at 30676
 ; This entry point is used by the routine at _TRIG and KEY_CONFIG.
 L77D4:
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   DEC A
   CP $0A
   JP NC,FC_ERR
@@ -23590,7 +23600,7 @@ KEY_CONFIG:
   CP TK_OFF		; "KEY OFF"
   JR Z,KEY_OFF
   
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   DEC A
   CP LF
   JP NC,FC_ERR
@@ -23757,7 +23767,7 @@ __COLOR:
   PUSH DE
   CP ','
   JR Z,__COLOR_0
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   POP DE
   CP $10		; 16 colors
   RET NC
@@ -23772,7 +23782,7 @@ __COLOR_0:
   JR Z,__COLOR_2
   CP ','
   JR Z,__COLOR_1
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   POP DE
   CP $10		; 16 colors
   RET NC
@@ -23784,7 +23794,7 @@ __COLOR_0:
 __COLOR_1:
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   POP DE
   CP $10		; 16 colors
   RET NC
@@ -23814,7 +23824,7 @@ ELSE
 ENDIF
   CP ','
   JR Z,__SCREEN_0
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   CP $04
   JP NC,FC_ERR
   PUSH HL
@@ -23831,7 +23841,7 @@ __SCREEN_0:
   DEFB ','
   CP ','
   JR Z,__SCREEN_1
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   CP $04
   JP NC,FC_ERR
   LD A,(RG1SAV)
@@ -23849,7 +23859,7 @@ __SCREEN_1:
   DEFB ','
   CP ','
   JR Z,__SCREEN_2
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   LD (CLIKSW),A
   DEC HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
@@ -23867,7 +23877,7 @@ __SCREEN_2:
 SET_PRINTERTYPE:
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   LD (NTMSXP),A
   RET
 
@@ -23875,7 +23885,7 @@ SET_PRINTERTYPE:
 ;
 ; Used by the routines at __CSAVE and __SCREEN.
 SET_BAUDRATE:
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   DEC A
   CP $02
   JP NC,FC_ERR
@@ -23982,7 +23992,7 @@ PUT_SPRITE:
   AND A
   JP Z,FC_ERR
   RST CHRGTB		; Gets next character (or token) from BASIC text.
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   CP 32
   JP NC,FC_ERR
   PUSH HL
@@ -24026,7 +24036,7 @@ PUT_SPRITE_1:
   DEFB ','
   CP ','
   JR Z,PUT_SPRITE_2
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   CP $10
   JP NC,FC_ERR
   EX (SP),HL
@@ -24049,7 +24059,7 @@ PUT_SPRITE_1:
 PUT_SPRITE_2:
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   CALL GSPSIZ
   LD A,E
   JR NC,PUT_SPRITE_3
@@ -24072,7 +24082,7 @@ __VDP:
   PUSH DE
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB TK_EQUAL			; Token for '='
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   POP BC
   LD B,A
   JP WRTVDP
@@ -24183,7 +24193,7 @@ __VPOKE:
   EX (SP),HL
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   EX (SP),HL
   CALL WRTVRM
   POP HL
@@ -24213,7 +24223,7 @@ BYTPPARM:
   PUSH AF
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB '('
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   POP AF
   CP E
   JR C,_FC_ERR_B
@@ -24771,7 +24781,7 @@ __MAX:
   DEFB TK_FILES
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB TK_EQUAL			; Token for '='
-  CALL GETINT
+  CALL GETINT              ; Get integer 0-255
   JP NZ,SN_ERR
   CP $10
   JP NC,FC_ERR
