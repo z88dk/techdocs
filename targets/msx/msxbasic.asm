@@ -16658,21 +16658,20 @@ __PRESET:
 
 ; Routine at 22506
 __PSET:
-  LD A,(FORCLR)
+  LD A,(FORCLR)                ; Get default color (PSET=foreground)
 ; This entry point is used by the routine at __PRESET.
 __PSET_0:
-  PUSH AF
-  CALL COORD_PARMS_DST
-  POP AF
-  CALL PAINT_PARMS_0
-DOPSET:
-  PUSH HL
+  PUSH AF                      ; Save default color
+  CALL COORD_PARMS_DST         ; Get coordinates in BC, DE
+  POP AF                       ; Restore default color
+  CALL PAINT_PARMS_0           ; Get color, if specified
+  PUSH HL                      ; Save code string address
   CALL SCALXY
   JR NC,__PSET_1
-  CALL MAPXY
+  CALL MAPXY                   ; Find position in VRAM. CLOC=memory address, CMASK=color pixelmask
   CALL SETC
 __PSET_1:
-  POP HL
+  POP HL                       ; Restore code string address
   RET
 
 ; Routine at 22531
@@ -16694,7 +16693,7 @@ FN_POINT:
   LD HL,(GRPACX)
   PUSH HL
   EX DE,HL			; Move code string address to HL
-  CALL COORD_PARMS_DST
+  CALL COORD_PARMS_DST         ; Get coordinates in BC, DE
   PUSH HL			; Save code string address
   CALL SCALXY
   LD HL,$FFFF
@@ -16829,7 +16828,7 @@ LINE:
   PUSH DE
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB TK_MINUS		; Token for '-'
-  CALL COORD_PARMS_DST
+  CALL COORD_PARMS_DST         ; Get coordinates in BC, DE
   CALL PAINT_PARMS
   POP DE
   POP BC
@@ -23335,15 +23334,15 @@ __LOCATE_1:
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
   CALL GETINT              ; Get integer 0-255
-  AND A
+  AND A					; Hide..
   LD A,'y'
   JR NZ,__LOCATE_2
-  DEC A
+  DEC A					; ..un-hide cursor
 __LOCATE_2:
   PUSH AF
   LD A,ESC
   RST OUTDO  		; Output char to the current device
-  POP AF			; ESC_y (set cursor coordinates) / ???
+  POP AF			; ESC_y (show/hide cursor)
   RST OUTDO  		; Output char to the current device
   LD A,$35			; '5'
   RST OUTDO  		; Output char to the current device
@@ -23761,7 +23760,7 @@ __PAD:
 
 ; Routine at 31104
 __COLOR:
-  LD BC,FC_ERR
+  LD BC,FC_ERR			; Default addr to exit to if out of range
   PUSH BC
   LD DE,(FORCLR)
   PUSH DE
@@ -23802,7 +23801,7 @@ __COLOR_1:
   PUSH DE
 __COLOR_2:
   POP DE
-  POP AF
+  POP AF			; Remove "FC_ERR" on exit
   PUSH HL
   EX DE,HL
   LD (FORCLR),HL
