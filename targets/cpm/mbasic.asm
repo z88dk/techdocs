@@ -66,6 +66,10 @@ defc TK_CSGN     =  $1D
 defc TK_CDBL     =  $1E
 defc TK_FIX      =  $1F
 
+IF ZXPLUS3
+defc TK_VPEEK    =  $20
+ENDIF
+
 
 
 
@@ -180,8 +184,12 @@ defc TK_KILL     =  $C8
 defc TK_LSET     =  $C9
 defc TK_RSET     =  $CA
 defc TK_SAVE     =  $CB
-defc TK_RESET    =  $CC
-;
+defc TK_RESET    =  $CC  ; <-- used as TK code limit by ONJMP
+
+IF ZXPLUS3
+defc TK_VPOKE    =  $CD  ; <-- used as TK code limit by ONJMP
+ENDIF
+
 defc TK_TO       =  $CE	; Token for 'TO' identifier in a 'FOR' statement
 defc TK_THEN     =  $CF	; Token for 'THEN'
 
@@ -339,6 +347,12 @@ ENDIF
   DEFW __SAVE
   DEFW __RESET
 
+IF ZXPLUS3
+  DEFW __VPOKE
+ENDIF
+
+
+
 ; Jump table for statements and functions (continued)
 FNCTAB_FN:
   DEFW __LEFT_S
@@ -372,7 +386,11 @@ FNCTAB_FN:
   DEFW __CSNG
   DEFW __CDBL
   DEFW __FIX
+IF ZXPLUS3
+  DEFW __VPEEK
+ELSE
   DEFW $0000
+ENDIF
   DEFW $0000
   DEFW $0000
   DEFW $0000
@@ -1018,6 +1036,16 @@ WORDS_V:
   DEFB 'R'+$80
   DEFB TK_VARPTR
 
+IF ZXPLUS3
+  DEFM "POK"
+  DEFB 'E'+$80
+  DEFB TK_VPOKE
+
+  DEFM "PEE"
+  DEFB 'K'+$80
+  DEFB TK_VPEEK
+ENDIF
+
   DEFB $00
 
 WORDS_W:
@@ -1608,6 +1636,40 @@ p3_poke:
 
 p3_peek:
 		jp 0
+
+
+
+__VPOKE:
+  CALL GETWORD
+  PUSH DE
+  CALL ADDR_RANGE
+  CALL SYNCHR
+  DEFM ","
+  CALL GETINT             ; Get integer 0-255
+  EX (SP),HL
+  CALL p3_poke
+  POP HL
+  RET
+
+
+	PUSH HL
+	CALL GETWORD
+	PUSH DE
+	CALL ADDR_RANGE
+	CALL SYNCHR
+	DEFM ","
+	CALL GETINT             ; Get integer 0-255
+	POP HL
+	CALL p3_poke
+	POP HL
+	RET
+
+__VPEEK:
+  CALL GETWORD_HL
+  CALL ADDR_RANGE
+  CALL p3_peek
+  JP PASSA
+
 ; ---------------------------------------------------------------
 ENDIF
 
@@ -2054,7 +2116,7 @@ PROMPT_4:
   JP NC,__MERGE_2
   PUSH DE
   PUSH BC
-  CALL __GET_37
+  CALL FCERR_IF_LOADING
   CALL CHRGTB
   OR A
   PUSH AF
@@ -2930,7 +2992,11 @@ EXEC:
 ONJMP:
   SUB TK_END              ; $81 = TK_END .. is it a token?
   JP C,__LET              ; No - try to assign it
+IF ZXPLUS3
+  CP TK_VPOKE+1-TK_END    ; END to VPOKE ?
+ELSE
   CP TK_RESET+1-TK_END    ; END to RESET ?
+ENDIF
   JP NC,MORE_STMT         ; Not a key word - ?SN Error
   RLCA                    ; Double it
   LD C,A                  ; BC = Offset into table
@@ -5434,7 +5500,7 @@ __LIST:
   POP BC
   CALL LNUM_RANGE
   PUSH BC
-  CALL __GET_37
+  CALL FCERR_IF_LOADING
 __LIST_0:
   LD HL,$FFFF
   LD (CURLIN),HL
@@ -5496,7 +5562,7 @@ DETOKEN_LIST:
   LD D,$FF
   XOR A
   LD (INTFLG),A
-  CALL __GET_37
+  CALL FCERR_IF_LOADING
   JP DETOKEN_NEXT_2
   
 DETOKEN_NEXT_1:
@@ -5801,7 +5867,7 @@ __DELETE_1:
 
 __PEEK:
   CALL GETWORD_HL
-  CALL __GET_36
+  CALL ADDR_RANGE
   LD A,(HL)
   JP PASSA
 
@@ -5809,7 +5875,7 @@ __PEEK:
 __POKE:
   CALL GETWORD
   PUSH DE
-  CALL __GET_36
+  CALL ADDR_RANGE
   CALL SYNCHR
   DEFM ","
   CALL GETINT             ; Get integer 0-255
@@ -10894,6 +10960,11 @@ IF VT52
 __CLS:
   LD A,27
   CALL OUTDO
+  LD A,'x'
+  CALL OUTDO
+
+  LD A,27
+  CALL OUTDO
   LD A,'E'
   CALL OUTDO
   LD A,27
@@ -11584,9 +11655,10 @@ __SAVE:
   CALL SYNCHR
   DEFM "A"
   JP __LIST
+
 __MERGE_3:
   CALL LINE2PTR_1
-  CALL __GET_37
+  CALL FCERR_IF_LOADING
   LD A,$FF
 ; This entry point is used by the routine at __GET.
 __MERGE_4:
@@ -13192,7 +13264,7 @@ __GET_35:
   JP __GET_34
 
 ; This entry point is used by the routines at __DELETE and __POKE.
-__GET_36:
+ADDR_RANGE:
   PUSH HL
   LD HL,(CURLIN)
   LD A,H
@@ -13200,8 +13272,9 @@ __GET_36:
   POP HL
   INC A
   RET NZ
+
 ; This entry point is used by the routines at PROMPT, __LIST, _PRS and __MERGE.
-__GET_37:
+FCERR_IF_LOADING:
   PUSH AF
   LD A,(FILFLG)
   OR A
@@ -17039,7 +17112,7 @@ CLOC:      DEFW 0			; Current screen address
 CMASK:     DEFB 0			; Pixel mask for current screen address
 
 IF ZXPLUS3
-ATRLOC:    DEFW 0			; Current attributes base address
+ALOC:    DEFW 0				; Current attribute address
 ENDIF
 
 
@@ -17815,7 +17888,7 @@ IF ZXPLUS3
 	cp      8
 	jr      c,nobright
 	set     6,h
-.nobright
+nobright:
 	and     7
 	or      h
 ENDIF
@@ -18043,16 +18116,17 @@ DRAW_LINE_0:
   JR NC,DRAW_LINE_1
   LD (MINDEL+1),HL
   POP HL
-  LD (MAXUPD+1),HL	; MAXUPD = JP nn for RIGHTC, LEFTC, UPC and DOWNC 
+  LD (MAXUPD+1),HL	; MAXUPD = JP nn for RIGHTC, LEFTC and DOWNC 
   LD HL,DOWNC
-  LD (MINUPD+1),HL	; MINUPD = JP nn for RIGHTC, LEFTC, UPC and DOWNC 
+  LD (MINUPD+1),HL	; MINUPD = JP nn for RIGHTC, LEFTC and DOWNC 
   EX DE,HL
   JR DRAW_LINE_2
+
 DRAW_LINE_1:
   EX (SP),HL
-  LD (MINUPD+1),HL	; MINUPD = JP nn for RIGHTC, LEFTC, UPC and DOWNC 
+  LD (MINUPD+1),HL	; MINUPD = JP nn for RIGHTC, LEFTC and DOWNC 
   LD HL,DOWNC
-  LD (MAXUPD+1),HL	; MAXUPD = JP nn for RIGHTC, LEFTC, UPC and DOWNC 
+  LD (MAXUPD+1),HL	; MAXUPD = JP nn for RIGHTC, LEFTC and DOWNC 
   EX DE,HL
   LD (MINDEL+1),HL
   POP HL
@@ -18061,13 +18135,13 @@ DRAW_LINE_2:
   PUSH HL
   CALL INVSGN_HL
   LD (MAXDEL+1),HL
-  CALL MAPXY
+  CALL MAPXY		; Initialize CLOC, CMASK, etc..
   POP DE
   PUSH DE
   CALL DE_DIV2		; DE=DE/2
   POP BC
   INC BC
-  JR DRAW_LINE_5
+  JR DRAW_LINE_SEGMENT
 
 ; Routine at 22931
 DRAW_LINE_3:
@@ -18079,7 +18153,7 @@ MAXUPD:
   CALL 0
 
 ; This entry point is used by the routine at DRAW_LINE.
-DRAW_LINE_5:
+DRAW_LINE_SEGMENT:
   CALL SETC
   DEC BC
   PUSH HL
@@ -18097,7 +18171,7 @@ MAXDEL:
   OR C
   RET Z
 MINUPD:
-  CALL 0		; MINUPD = JP nn for RIGHTC, LEFTC, UPC and DOWNC 
+  CALL 0		; MINUPD = JP nn for RIGHTC, LEFTC and DOWNC 
   JR MAXUPD
 
 ; Routine at 22964
@@ -18128,24 +18202,18 @@ SETC:
 	push hl
 
 	ld		de,(CLOC)		; 'pixeladdress' result, saved by MAPXY
-	ld		a,(CMASK)
-	ld		b,a
+	;ld		a,(CMASK)
 
-	ld		a,1
-	jr		z, or_pix2		; pixel is at bit 0...
-.plot_pos
-	rlca
-	djnz	plot_pos
-.or_pix2
 	ex		de,hl
-	ld		e,a
+	;ld		e,a
 	call	p3_peek
 	push	hl
 	;ex de,hl
 	ld		hl,pixelbyte
 	ld		(hl),a
-	ld		a,e
-.pixmode
+	;ld		a,e
+	ld		a,(CMASK)
+pixmode:
 	or		(hl)
 	nop
 	pop		hl
@@ -18153,7 +18221,7 @@ SETC:
 
 ; Now update color attribute for the plotted pixel
 	ld		a,(ATRBYT)
-	ld		hl,(ATRLOC)		; 'pixeladdress' result for attributes, saved by MAPXY
+	ld		hl,(ALOC)		; 'pixeladdress' result for attributes, saved by MAPXY
 	call	p3_poke
 	
 	pop hl
@@ -18202,7 +18270,7 @@ MAPXY:
 	or $58		; $5800 = color attributes
 	ld h,a   
 
-	ld (ATRLOC),hl		   ; Store attribute address
+	ld (ALOC),hl		   ; Store attribute address
 
 	pop hl			       ; code string address
 	pop de
@@ -18249,39 +18317,9 @@ ENDIF
 
 
 
-;.pixel
-;  ; BC=X, DE=Y
-;	ld		h,c
-;	ld		l,e
-;
-;	push	bc
-;	call	pixeladdress
-;	ld		b,a
-;	ld		a,1
-;	jr		z, or_pixel		; pixel is at bit 0...
-;.plot_position
-;	rlca
-;	djnz	plot_position
-;.or_pixel
-;	ex		de,hl
-;	ld		e,a
-;	call	p3_peek
-;	push	hl
-;	;ex de,hl
-;	ld		hl,pixelbyte
-;	ld		(hl),a
-;	ld		a,e
-;.pixmode
-;	or		(hl)
-;	nop
-;	pop		hl
-;	call	p3_poke
-;	pop		bc
-;	ret
-
 
 ;------------
-.pointxy
+pointxy:
   ; BC=X, DE=Y
 	ld		h,c
 	ld		l,e
@@ -18291,13 +18329,7 @@ ENDIF
 	push	hl
 
 	call	pixeladdress
-	ld	b,a
-	ld	a,1
-	jr	z, test_pixel		; pixel is at bit 0...
-.pixel_position
-	rlca
-	djnz	pixel_position
-.test_pixel
+
 	ex	de,hl
 	ld e,a
 	call p3_peek
@@ -18310,7 +18342,7 @@ ENDIF
 
 
 ;------------
-.pixeladdress
+pixeladdress:
 	LD		A,L
 	AND     A
 	RRA
@@ -18335,71 +18367,83 @@ ENDIF
 	LD      A,H
 	AND     @00000111
 	XOR		@00000111
+
+	ld		b,a
+	ld		a,1
+	jr		z, or_pix2		; pixel is at bit 0...
+plot_pos:
+	rlca
+	djnz	plot_pos
+or_pix2:
+
 	RET
 
 
 ;------------
 RIGHTC:
-
    LD A,(CMASK)
-   rrca
+   srl a
    LD (CMASK),A
-   
+   ld hl,(CLOC)
    ret nc
 
-   ld a,(CLOC)
-   
-   inc a
-   and $1f
-   ld (CLOC),a
-   ret nz
-   
-   dec a
-   ;ld e,$01
-   
-   ld (CLOC),a
+   inc hl
+   ld (CLOC),hl
 
-   LD A,1
+   ld a,127
    LD (CMASK),A
 
+   ld a,(ALOC)
+   inc a
+   ld (ALOC),a
    ret
 
 
 ;------------
 LEFTC:
-
    LD A,(CMASK)
-   rlca
+   add a
    LD (CMASK),A
+   ld hl,(CLOC)
    ret nc
 
-   ld a,(CLOC)
+   dec hl
+   ld (CLOC),hl
 
-   dec a
-   and $1f
-   ld (CLOC),a
-   ret nz
-
-   inc a
-
-   ld (CLOC),a
-
-   ld a,$80
+   ld a,1
    LD (CMASK),A
 
+   ld a,(ALOC)
+   dec a
+   ld (ALOC),a
    ret
 
 
 ;------------
 DOWNC:
-
    ld hl,(CLOC)
+   call zx_pdown
+   ld (CLOC),hl
+   ret c
 
+   push hl
+   ld a,(ALOC)
+   add a,$20
+   ld (ALOC),a
+   jr nc,ad_done
+   ld a,(ALOC+1)
+   inc a
+   ld (ALOC+1),a
+ad_done:
+   pop hl
+   ret
+
+;________
+zx_pdown:
    inc h
-
    ld a,h
    and $07
-   ld (CLOC),hl
+   ccf		; CY set if we're still in the same 8px boundary
    ret nz
 
    ld a,h
@@ -18409,21 +18453,12 @@ DOWNC:
    ld a,l
    add a,$20
    ld l,a
-   ld (CLOC),hl
    ret nc
    
    ld a,h
    add a,$08
    ld h,a
-
-   and $18
-   cp $18
-
-   ld (CLOC),hl
-
-   ccf
    ret
-
 
  
 
