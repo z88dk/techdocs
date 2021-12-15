@@ -18831,18 +18831,15 @@ or_pix2:
 ;------------
 RIGHTC:
    LD A,(CMASK)
-   srl a
+   rrca
    LD (CMASK),A
-   ld hl,(CLOC)
+   ld hl,(CLOC)	; SCREEN address
    ret nc
 
    inc hl
    ld (CLOC),hl
 
-   ld a,127
-   LD (CMASK),A
-
-   ld a,(ALOC)
+   ld a,(ALOC)	; LSB of ATTR address
    inc a
    ld (ALOC),a
    ret
@@ -18852,18 +18849,15 @@ RIGHTC:
 ;------------
 LEFTC:
    LD A,(CMASK)
-   add a
+   rlca
    LD (CMASK),A
-   ld hl,(CLOC)
+   ld hl,(CLOC)	; SCREEN address
    ret nc
 
    dec hl
    ld (CLOC),hl
 
-   ld a,1
-   LD (CMASK),A
-
-   ld a,(ALOC)
+   ld a,(ALOC)	; LSB of ATTR address
    dec a
    ld (ALOC),a
    ret
