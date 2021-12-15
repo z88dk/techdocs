@@ -391,7 +391,7 @@ defc OLDLIN        = $FBBC
 defc OLDTXT        = $FBBE
 defc DO_FILES      = $FBC0
 defc CO_FILES      = $FBC2
-defc PROGND        = $FBC4
+defc VARTAB        = $FBC4		; BASIC program end ptr (a.k.a. PROGND, Simple Variables)
 defc VAREND        = $FBC6
 defc STREND        = $FBC8
 defc DATPTR        = $FBCA
@@ -715,7 +715,7 @@ defc OLDLIN      = $FBAA
 defc OLDTXT      = $FBAC
 defc DO_FILES    = $FBAE
 defc CO_FILES    = $FBB0
-defc PROGND      = $FBB2
+defc VARTAB      = $FBB2		; BASIC program end ptr (a.k.a. PROGND, Simple Variables)
 defc VAREND      = $FBB4
 defc STREND      = $FBB6
 defc DATPTR      = $FBB8
@@ -876,7 +876,7 @@ MENU_MSG:
 
 ; Check syntax, 1 byte follows to be compared
 ;
-; Used by the routines at UPD_PTRS, __FOR, __DEF, __LET, ON_ERROR, __IF, TAB,
+; Used by the routines at LINKER, __FOR, __DEF, __LET, ON_ERROR, __IF, TAB,
 ; __INPUT, __READ, FDTLP, OPNPAR, VARPTR, VARPTR_VAR, UCASE, DEPINT, __POKE,
 ; __POWER, __DATE_S, __DAY_S, OUTS_B_CHARS, LINE_GFX, MAX_FN, __SOUND, MOTOR_ON,
 ; __CALL, __SCREEN, __LCOPY, __NAME, __CSAVE, CSAVEM, __CLOAD, STRING_S,
@@ -892,7 +892,7 @@ SYNCHR:
 
 ; A=(HL), HL++, skip spaces
 ;
-; Used by the routines at ERROR_3, PROMPT, TOKENIZE, STEP, EXEC, __DEF, DEFVAL,
+; Used by the routines at ERRMOR, PROMPT, TOKENIZE, STEP, EXEC, __DEF, DEFVAL,
 ; ATOH_2, ON_ERROR, __RESUME, __IF, __PRINT, TAB, __LINE, __READ, FDTLP, EVAL3,
 ; OPRND, ERR, ERL, VARPTR, UCASE, GET_PSINT, FNDNUM, MAKINT, __POWER, POWER_CONT,
 ; TIME_S_FN, DATE_S_FN, DAY_S_FN, __MDM, __KEY, LINE_GFX, CSRLIN, MAX_FN,
@@ -936,7 +936,7 @@ OUT_SPC:
 
 ; Output char in 'A' to console
 ;
-; Used by the routines at ERROR_3, TAB, __READ, __LIST, PRS_M100, __KEY,
+; Used by the routines at ERRMOR, TAB, __READ, __LIST, PRS_M100, __KEY,
 ; OUTS_B_CHARS, CATALOG, PRS1, OUTDO_CRLF, OUTDO_LF, __BEEP, HOME, __CLS, ESCA,
 ; POSIT, _TAB, ESC_L, QINLIN, _INLIN_BRK, _INLIN_BS, _INLIN_TAB, INXD, USING,
 ; CONSOLE_CRLF, TEL_GET_STAT, TEL_FIND, TEL_LOGON, TEL_DIAL_DGT, TEL_TERM,
@@ -1606,7 +1606,7 @@ INDFND:
 ; Used by the routine at INPUT_S.
 BASIC_MAIN:
   LD BC,RESTART
-  JP WARM_BT_0
+  JP ERESET
 
 ; This entry point is used by the routine at EXEC_EVAL.
 PRG_END:
@@ -1633,7 +1633,7 @@ DATSNR:
 
 ; entry for '?SN ERROR'
 ;
-; Used by the routines at SYNCHR, PROMPT, UPD_PTRS, EXEC_EVAL, ON_ERROR,
+; Used by the routines at SYNCHR, PROMPT, LINKER, EXEC_EVAL, ON_ERROR,
 ; EVAL3, ID_ERR, __POWER, __DATE_S, __DAY_S, KEY_STMTS, __KILL, OPENDO, CSAVEM,
 ; __CLOAD, CLOADM, __CLEAR, GETVAR, SCPTLP, USING, _OPEN and __MAX.
 SN_ERR:
@@ -1721,50 +1721,52 @@ RETERR:
   LD A,H
   AND L
   INC A
-  JP Z,ERROR_2			; JP if in 'DIRECT' (immediate) mode
+  JP Z,ERRESM			; JP if in 'DIRECT' (immediate) mode
   LD (DOT),HL
 
 ; This entry point is also used by the routine at ON_ERROR.
-ERROR_2:
-  LD BC,ERROR_3
+ERRESM:
+  LD BC,ERRMOR
 
 ; Restore old stack and runtime pointers and jump to (BC)
 ;
 ; Used by the routine at BASIC_MAIN.
-WARM_BT_0:
-  LD HL,(SAVSTK)
-  JP WARM_ENTRY
+ERESET:
+  LD HL,(SAVSTK)        ;GET A GOOD STACK BACK
+  JP STKERR             ;JUMP INTO STKINI
 
 ; Routine at 1171
-ERROR_3:
-  POP BC
-  LD A,E
-  LD C,E
-  LD (ERR_CODE),A
-  LD HL,(SAVTXT)
-  LD (ERRTXT),HL
-  EX DE,HL
-  LD HL,(ERRLIN)
-  LD A,H
-  AND L
-  INC A
-  JP Z,ERROR_4
-  LD (OLDLIN),HL
-  EX DE,HL
-  LD (OLDTXT),HL
+ERRMOR:
+  POP BC                  ;POP OFF FNDFOR STOPPER
+  LD A,E                  ;[A]=ERROR NUMBER
+  LD C,E                  ;ALSO SAVE IT FOR LATER RESTORE
+  LD (ERR_CODE),A         ;SAVE IT SO WE KNOW WHETHER TO CALL "EDIT"
+  LD HL,(SAVTXT)          ;GET SAVED TEXT POINTER
+  LD (ERRTXT),HL          ;SAVE FOR RESUME.
+  EX DE,HL                ;SAVE SAVTXT PTR
+  LD HL,(ERRLIN)          ;GET ERROR LINE #
+  LD A,H                  ;TEST IF DIRECT LINE
+  AND L                   ;SET CC'S
+  INC A                   ;SETS ZERO IF DIRECT LINE (65535)
+  JP Z,NTMDCN             ;IF DIRECT, DONT MODIFY OLDTXT & OLDLIN
+  LD (OLDLIN),HL          ;SET OLDLIN=ERRLIN.
+  EX DE,HL                ;GET BACK SAVTXT
+  LD (OLDTXT),HL          ;SAVE IN OLDTXT.
   LD HL,(ONELIN)
   LD A,H
   OR L
   EX DE,HL
-ERROR_4:
+NTMDCN:
   LD HL,ONEFLG
   JP Z,ERROR_REPORT
   AND (HL)
   JP NZ,ERROR_REPORT
   DEC (HL)
   EX DE,HL
-  JP EXEC_EVAL_2
-  
+  JP GONE4
+
+; Interactive error handling (print error message and break)
+; a.k.a. NOTRAP
 ERROR_REPORT:
   XOR A
   LD (HL),A
@@ -1774,16 +1776,18 @@ ERROR_REPORT:
   CP $3B
   JP NC,UNKNOWN_ERR
   CP $32
-  JP NC,SUB_1B_ERR 		; JP if error code is between $32 and $3A
+  JP NC,NTDER2 		; JP if error code is between $32 and $3A
   CP $17
-  JP C,ERROR_REPORT_0
+  JP C,LEPSKP
 
 UNKNOWN_ERR:
-  LD A,$30		; if error code is bigger than $3A then force it to $30-$1B=$15 ("Unprintable error")
-SUB_1B_ERR:
-  SUB $1B
-  LD E,A
-ERROR_REPORT_0:
+  LD A,$30		
+
+; if error code is bigger than $3A then force it to $30-$1B=$15 ("Unprintable error")
+NTDER2:
+  SUB $1B           ; (DSKERR-NONDSK): FIX OFFSET INTO TABLE OF MESSAGES
+  LD E,A            ;SAVE BACK ERROR CODE
+LEPSKP:
   LD D,$00
   LD HL,ERRMSG-2
   ADD HL,DE
@@ -1839,12 +1843,12 @@ PROMPT:
   JP C,PROMPT
 
 ; Perform operation in (HL) buffer and return to BASIC ready.
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  INC A
-  DEC A
-  JP Z,PROMPT
-  PUSH AF
-  CALL ATOH
+  RST CHRGTB		    ; Get first character             GET THE FIRST
+  INC A                 ; Test if end of line             SEE IF 0 SAVING THE CARRY FLAG
+  DEC A                 ; Without affecting Carry
+  JP Z,PROMPT           ; Nothing entered - Get another        IF SO, A BLANK LINE WAS INPUT
+  PUSH AF               ; Save Carry status                    SAVE STATUS INDICATOR FOR 1ST CHARACTER
+  CALL ATOH             ; Get line number into DE              READ IN A LINE #
   JP NC,PROMPT_0
   CALL _ISFLIO       ; Tests if I/O to device is taking place
   JP Z,SN_ERR
@@ -1876,16 +1880,17 @@ PROMPT_0:
   EX DE,HL
   LD (DOT),HL
   EX DE,HL
-  CALL SRCHLN		; Get first line number
-  JP C,PROMPT_1
-  POP AF
-  PUSH AF
-  JP Z,UL_ERR			; Error: "Undefined line number"
-  OR A
-PROMPT_1:
-  PUSH BC
+  CALL SRCHLN           ; Search for line number in DE: GET A POINTER TO THE LINE
+  JP C,LINFND           ; Jump if line found: LINE EXISTS, DELETE IT
+  POP AF                ;GET FLAG SAYS WHETHER LINE BLANK
+  PUSH AF               ;SAVE BACK
+  JP Z,UL_ERR			; TRYING TO DELETE NON-EXISTANT LINE,   Err $08 - "Undefined line number"
+  OR A                  ;CLEAR FLAG THAT SAYS LINE EXISTS
+
+LINFND:
+  PUSH BC                     ; Save address of line in prog
   JP NC,PROMPT_2
-  CALL DETOKEN_NEXT5
+  CALL __DELETE_0
   LD A,C
   SUB E
   LD C,A
@@ -1905,31 +1910,31 @@ PROMPT_2:
   POP DE
   POP AF
   PUSH DE
-  JP Z,PROMPT_4
-  POP DE
+  JP Z,FINI                   ;IF NOT DON'T INSERT
+  POP DE                      ;GET RID OF START OF LINK FIX
   LD HL,$0000
-  LD (ONELIN),HL
-  LD HL,(PROGND)
-  EX (SP),HL
-  POP BC
-  PUSH HL
-  ADD HL,BC
-  PUSH HL
-  CALL INTEXP_16
-  POP HL
-  LD (PROGND),HL
-  EX DE,HL
-  LD (HL),H
-  POP BC
-  POP DE
-  PUSH HL
+  LD (ONELIN),HL              ; LINE to go when error
+  LD HL,(VARTAB)              ; Get end of program           CURRENT END
+  EX (SP),HL                  ; Get length of input line     [H,L]=CHARACTER COUNT. VARTAB ONTO THE STACK
+  POP BC                      ; End of program to BC         [B,C]=OLD VARTAB
+  PUSH HL                     ;SAVE COUNT OF CHARS TO MOVE
+  ADD HL,BC                   ; Find new end
+  PUSH HL                     ; Save new end                 SAVE NEW VARTAB
+  CALL MOVUP                  ; Make space for line
+  POP HL                      ; Restore new end              POP OFF VARTAB
+  LD (VARTAB),HL              ; Update end of program pointer
+  EX DE,HL                    ; Get line to move up in HL
+  LD (HL),H                   ; Save MSB                     FOOL CHEAD WITH NON-ZERO LINK
+  POP BC                      ;                              RESTORE COUNT OF CHARS TO MOVE
+  POP DE                      ; Get new line number          GET LINE # OFF STACK
+  PUSH HL                     ;           SAVE START OF PLACE TO FIX LINKS SO IT DOESN'T THINK
+  INC HL                      ;                 THIS LINK IS THE END OF THE PROGRAM
   INC HL
+  LD (HL),E                   ; Save LSB of line number      PUT DOWN LINE #
   INC HL
-  LD (HL),E
-  INC HL
-  LD (HL),D
-  INC HL
-  LD DE,INPBFR
+  LD (HL),D                   ; Save MSB of line number
+  INC HL                      ; To first byte in line
+  LD DE,INPBFR                ; Copy buffer to program       ;MOVE LINE FRM KBUF TO PROGRAM AREA
   PUSH HL
   LD HL,(DO_FILES)
   ADD HL,BC
@@ -1948,12 +1953,12 @@ PROMPT_3:
   INC DE
   OR A
   JP NZ,PROMPT_3
-PROMPT_4:
-  POP DE
-  CALL UPD_PTRS_0
+FINI:
+  POP DE                ;GET START OF LINK FIXING AREA
+  CALL CHEAD            ;FIX LINKS
   LD HL,(PTRFIL)		; Save I/O pointer before a possible file redirection (RUN "program")
-  LD (NXTOPR),HL
-  CALL RUN_FST
+  LD (NXTOPR),HL        ; Save I/O pointer before a possible file redirection (RUN "program")
+  CALL RUN_FST          ;DO CLEAR & SET UP STACK 
   LD HL,(NXTOPR)		; Restore I/O pointer
   LD (PTRFIL),HL
   JP PROMPT
@@ -1962,30 +1967,30 @@ PROMPT_4:
 ; being edited
 ;
 ; Used by the routines at __LCOPY, __CSAVE, __CLOAD, CHKSTK, __MENU and BASIC.
-UPD_PTRS:
+LINKER:
   LD HL,(BASTXT)
   EX DE,HL
 ; This entry point is used by the routines at PROMPT, KILLASC and RESFPT.
-UPD_PTRS_0:
-  LD H,D
+CHEAD:
+  LD H,D                 ;[H,L]=[D,E]
   LD L,E
-  LD A,(HL)
-  INC HL
-  OR (HL)
+  LD A,(HL)              ;SEE IF END OF CHAIN
+  INC HL                 ;BUMP POINTER
+  OR (HL)                ;2ND BYTE
   RET Z
-  INC HL
+  INC HL                 ;FIX H TO START OF TEXT
   INC HL
   INC HL
   XOR A
-UPD_PTRS_1:
+LINKER_1:
   CP (HL)
   INC HL
-  JP NZ,UPD_PTRS_1
+  JP NZ,LINKER_1
   EX DE,HL
   LD (HL),E
   INC HL
   LD (HL),D
-  JP UPD_PTRS_0
+  JP CHEAD
   
 ; This entry point is used by the routine at __LIST.
 LNUM_RANGE:
@@ -2391,8 +2396,8 @@ EXEC_EVAL_0:
   JP NZ,SN_ERR       ; No - Syntax error
   INC HL             ; Point to address of next line
 
-; This entry point is used by the routines at ERROR_3 and UL_ERR.
-EXEC_EVAL_2:
+; This entry point is used by the routines at ERRMOR and UL_ERR.
+GONE4:
   LD A,(HL)			; Get LSB of line pointer
   INC HL            
   OR (HL)           ; Is it zero (End of prog)?
@@ -2569,7 +2574,7 @@ FC_ERR:
 
 ; Evaluate line number text pointed to by HL.
 ;
-; Used by the routine at UPD_PTRS.
+; Used by the routine at LINKER.
 LNUM_PARM:
   LD A,(HL)
   CP '.'
@@ -2692,7 +2697,7 @@ DO_GOSUB:
   DEC HL
   LD (SAVTXT),HL
   INC HL
-  JP EXEC_EVAL_2
+  JP GONE4
 
 ; Routine at 2406
 __RETURN:
@@ -2887,7 +2892,7 @@ __ON_0:
   RET Z
   LD A,(ERR_CODE)
   LD E,A
-  JP ERROR_2
+  JP ERRESM
   
 ; This entry point is used by the routine at __ON.
 ON_OTHER:
@@ -2898,7 +2903,7 @@ ON_OTHER:
   RST SYNCHR
   DEFB $8C
   XOR A
-ON_ERROR_2:
+ON_ERRESM:
   POP BC
   PUSH BC
   CP C
@@ -2907,13 +2912,13 @@ ON_ERROR_2:
   CALL ATOH
   LD A,D
   OR E
-  JP Z,ON_ERROR_3
+  JP Z,ON_ERRMOR
   CALL PHL_SRCHLN
   LD D,B
   LD E,C
   POP HL
   JP NC,UL_ERR
-ON_ERROR_3:
+ON_ERRMOR:
   POP AF
   POP BC
   PUSH AF
@@ -2931,7 +2936,7 @@ ON_ERROR_3:
   DEFB ','
   POP AF
   INC A
-  JP ON_ERROR_2
+  JP ON_ERRESM
   
 ON_GOSUB:
   CALL GETINT                 ; Get integer 0-255
@@ -3163,7 +3168,7 @@ ZONELP:
 ;
 ; Used by the routine at __PRINT.
 TAB:
-  CALL FNDNUM
+  CALL FNDNUM		; Numeric argument (0..255)
   RST SYNCHR 		; Make sure ")" follows
   DEFB ')'          
   DEC HL            ; Back space on to ")"
@@ -3635,7 +3640,7 @@ EVAL_VALTYP_0:
   LD A,D
   CP $03			; String ?
   JP Z,TM_ERR		; if so, "Type mismatch error"
-  JP NC,EVAL_NUMERIC0
+  JP NC,EVAL_FP
 EVAL3_10:
   LD HL,INT_OPR
   LD B,$00
@@ -3697,7 +3702,8 @@ EVAL3_18:
 EVAL3_19:
   LD HL,FLT_OPR
   JP EVAL3_15
-EVAL_NUMERIC0:
+
+EVAL_FP:
   POP HL
   CALL STAKI
   CALL HL_CSNG
@@ -3788,7 +3794,7 @@ VARPTR:
 
 ; VARPTR(#buffer) Function
 VARPTR_BUF:
-  CALL FNDNUM
+  CALL FNDNUM		; Numeric argument (0..255)
   PUSH HL
   CALL GETPTR
   EX DE,HL
@@ -4014,7 +4020,7 @@ EVAL_BOOL_END:
   CP $7B		; '\' as mapped in PRITAB
   JP Z,INT_DIV
   
-  LD BC,BOOL_RESULT  ; Routine location to toad the integer into FAC1.
+  LD BC,GIVINT  ; Routine location to toad the integer into FAC1.
   PUSH BC
   CP $46		; OR as mapped in PRITAB
   
@@ -4105,7 +4111,7 @@ PASSA:
   XOR A
 
 ; Routine at 4307
-BOOL_RESULT:
+GIVINT:
   LD H,A
   JP INT_RESULT_HL            ;  (HL_FAC1)
 ; This entry point is used by the routine at __LET.
@@ -4184,7 +4190,7 @@ DEPINT:
 
 ; This entry point is used by the routine at __OUT.
 GTIO_PARMS:
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   LD (INPORT),A
   LD (OTPORT),A
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
@@ -4202,6 +4208,7 @@ FNDNUM:
 ; Used by the routines at ON_ERROR, __ERROR, UCASE, DEPINT, __POKE, POWER_ON,
 ; __DATE_S, __MDM, OUTS_B_CHARS, LINE_GFX, __SOUND, __CALL, __SCREEN, INSTR,
 ; GETPTR, __OPEN, __CLOSE, INPUT_S, TEL_SET_STAT, TEL_UPLD, TXT_CTL_Y and __MAX.
+; Get integer 0-255
 GETINT:
   CALL EVAL
 
@@ -4377,7 +4384,7 @@ PRS_M100_6:
   INC D
   INC D
   INC D
-  JP DETOKEN_0
+  JP PLOOPR
 
 __DETOKEN_NEXT:
   POP BC
@@ -4409,20 +4416,20 @@ DETOKEN:
   CP $8E		; TK_REM
   CALL Z,SET_REM_FLAG
   
-DETOKEN_0:
+PLOOPR:
   LD A,(HL)
   INC HL
-  CP $91		; TK_ELSE
+  CP $91		; TK_ELSE    ;ELSE?
 
 IF KC85 | M10
-  JP NZ,DETOKEN_1
+  JP NZ,NTFNTK
   DEC BC
   INC D
-DETOKEN_1:
+NTFNTK:
 ENDIF
 
 IF M100
-  CALL Z,DETOKEN_ELSE
+  CALL Z,DCXBRT           ;MOVE DEPOSIT PTR BACK OVER LEADING COLON.
 ENDIF
 
   SUB $7F
@@ -4430,13 +4437,13 @@ ENDIF
   LD E,A
   LD HL,WORDS
 DETOKEN_NEXT3:
-  LD A,(HL)
-  INC HL
+  LD A,(HL)                 ;GET CHAR
+  INC HL                    ;BUMP POINTER
   OR A
   JP P,DETOKEN_NEXT3
   DEC E
   JP NZ,DETOKEN_NEXT3
-  AND $7F
+  AND $7F                   ;TURN OFF HIGH BIT
 DETOKEN_NEXT4:
   LD (BC),A
   INC BC
@@ -4449,37 +4456,53 @@ DETOKEN_NEXT4:
   POP HL
   JP DETOKEN_NEXT_1
   
+;
+; ERASE A LINE FROM MEMORY
+; [B,C]=START OF LINE BEING DELETED
+; [D,E]=START OF NEXT LINE
+;
 ; This entry point is used by the routine at PROMPT.
-DETOKEN_NEXT5:
-  EX DE,HL
-  LD HL,(PROGND)
-DETOKEN_NEXT6:
+;
+__DELETE_0:
+  EX DE,HL                  ;[D,E] NOW HAVE THE POINTER TO THE LINE BEYOND THIS ONE
+  LD HL,(VARTAB)            ;COMPACTIFYING TO VARTAB
+MLOOP:
   LD A,(DE)
-  LD (BC),A
+  LD (BC),A                 ;SHOVING DOWN TO ELIMINATE A LINE
   INC BC
   INC DE
   RST CPDEHL
-  JP NZ,DETOKEN_NEXT6
+  JP NZ,MLOOP               ;DONE COMPACTIFYING?
   LD H,B
   LD L,C
-  LD (PROGND),HL
+  LD (VARTAB),HL
   LD (VAREND),HL
   LD (STREND),HL
   RET
 
+;
+; NOTE: IN THE 8K PEEK ONLY ACCEPTS POSITIVE NUMBERS UP TO 32767
+; POKE WILL ONLY TAKE AN ADDRESS UP TO 32767 , NO
+; FUDGING ALLOWED. THE VALUE IS UNSIGNED.
+; IN THE EXTENDED VERSION NEGATIVE NUMBERS CAN BE
+; USED TO REFER TO LOCATIONS HIGHER THAN 32767.
+; THE CORRESPONDENCE IS GIVEN BY SUBTRACTING 65536 FROM LOCATIONS
+; HIGHER THAN 32767 OR BY SPECIFYING A POSITIVE NUMBER UP TO 65535.
+;
+
 ; Routine at 4740
 __PEEK:
-  CALL GETWORD_HL
-  LD A,(HL)
-  JP PASSA
+  CALL GETWORD_HL           ;GET AN INTEGER IN [H,L]
+  LD A,(HL)                 ;GET THE VALUE TO RETURN
+  JP PASSA                  ;AND FLOAT IT
 
 ; Routine at 4747
 __POKE:
-  CALL GETWORD
+  CALL GETWORD              ;READ A FORMULA
   PUSH DE
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   POP DE
   LD (DE),A
   RET
@@ -4497,10 +4520,10 @@ GETWORD:
 
 ; This entry point is used by the routine at __PEEK and GETWORD.
 GETWORD_HL:
-  LD BC,__CINT
-  PUSH BC
-  RST GETYPR
-  RET M
+  LD BC,__CINT              ;RETURN HERE
+  PUSH BC                   ;SAVE ADDR
+  RST GETYPR                ;SET THE CC'S ON VALTYPE
+  RET M                     ;RETURN IF ALREADY INTEGER.
   RST TSTSGN
   RET M
   CALL __CSNG
@@ -4825,7 +4848,7 @@ POWER_CONT:
 ;
 ; Used by the routine at __POWER.
 POWER_ON:
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   CP $0A		; LF
   JP C,FC_ERR
 ; This entry point is used by the routine at POWER_CONT.
@@ -6044,7 +6067,7 @@ IF KC85 | M10
   CALL DT_DIGIT
   RST SYNCHR
   DEFB '/'
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   DEC A
   CP $0C
   JP NC,SN_ERR
@@ -6056,7 +6079,7 @@ IF KC85 | M10
 ENDIF
 
 IF M100
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   DEC A
   CP $0C
   JP NC,SN_ERR
@@ -6233,7 +6256,7 @@ __MDM_2:
 
 ; This entry point is used by the routine at OUTS_B_CHARS.
 __MDM_3:
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   DEC A
   CP $08
   JP NC,FC_ERR
@@ -6491,7 +6514,7 @@ KEY_CONFIG:
   CP $8F		; TK_STOP
   JP Z,KEY_STMTS
   
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   DEC A
   CP $08
   JP NC,FC_ERR
@@ -6585,7 +6608,7 @@ LINE_GFX:
   PUSH DE
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   POP DE
   RRCA
   JP C,LINE_GFX_0
@@ -6727,13 +6750,13 @@ LINE_GFX_12:
 COORD_PARMS:
   RST SYNCHR
   DEFB '('
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   CP $F0
   JP NC,FC_ERR
   PUSH AF
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   CP $40
   JP NC,FC_ERR
   POP AF
@@ -6754,7 +6777,7 @@ LINE_GFX_15:
   PUSH DE
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ')'
   LD A,E
@@ -6871,7 +6894,7 @@ __SOUND:
   PUSH DE
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   AND A
   LD B,A
   POP DE
@@ -6926,7 +6949,7 @@ __CALL:
   DEFB ','
   CP ','
   JP Z,__CALL_0
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   JP Z,__CALL_1
 __CALL_0:
   PUSH AF
@@ -6952,7 +6975,7 @@ __SCREEN:
   RET Z
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   PUSH HL
   AND A
   CALL FNBAR_IF_NZ
@@ -7037,7 +7060,7 @@ _MERGE_SUB_3:
   LD (DIRPNT),HL
   EX DE,HL
   LD (BASTXT),HL
-  CALL UPD_PTRS
+  CALL LINKER
   POP HL
   LD A,(HL)
   CP ','
@@ -7320,7 +7343,7 @@ KILLASC_6:
   RST CPDEHL
   PUSH AF
   PUSH DE
-  CALL UPD_PTRS_0
+  CALL CHEAD
   POP DE
   INC HL
   CALL __NEW_3
@@ -7671,7 +7694,7 @@ RESFPT_7:
 
 RESFPT_8:
   EX DE,HL
-  CALL UPD_PTRS_0
+  CALL CHEAD
   INC HL
   EX DE,HL
   LD HL,(DO_FILES)
@@ -7684,7 +7707,7 @@ RESFPT_8:
 
 ; This entry point is used by the routine at SAVEBA.
 RESFPT_9:
-  LD HL,(PROGND)
+  LD HL,(VARTAB)
   LD (VAREND),HL
   LD (STREND),HL
   LD HL,(DO_FILES)
@@ -7839,7 +7862,7 @@ __CSAVE_0:
   JP __SAVE_1
 
 __CSAVE_1:
-  CALL UPD_PTRS
+  CALL LINKER
   EX DE,HL
   LD HL,(BASTXT)
   LD A,E
@@ -7924,7 +7947,7 @@ CSAVEM_1:
   ADD HL,BC				; char count
   LD B,H
   LD C,L
-  LD HL,(PROGND)
+  LD HL,(VARTAB)
   LD (TEMP),HL
   CALL NC,MAKHOL
   JP C,OM_ERR
@@ -8066,7 +8089,7 @@ BA_FILE_FOUND:
   LD (ERRTRP),HL
   CALL CTOFF
   CALL CONSOLE_CRLF
-  CALL UPD_PTRS
+  CALL LINKER
   CALL RUN_FST
   LD A,(FILFLG)
   AND A
@@ -8782,7 +8805,7 @@ PRNUMS:
 
 ; Create string entry and print it
 ;
-; Used by the routines at WARM_BT_0, READY, __LINE, __READ, CAS_OPNI_CO, LNUM_MSG,
+; Used by the routines at ERESET, READY, __LINE, __READ, CAS_OPNI_CO, LNUM_MSG,
 ; INXD, USING, TEL_GET_STAT, DWNLDR, PRINT_LINE, TEXT, __EDIT, TXT_CTL_N,
 ; MOVE_TEXT, BOOT and FREEMEM.
 PRS:
@@ -8863,7 +8886,7 @@ L2802:
   LD (TEMP9),HL
   LD HL,(VAREND)
   LD (ARYTA2),HL
-  LD HL,(PROGND)
+  LD HL,(VARTAB)
 TESTR_4:
   EX DE,HL
   LD HL,(ARYTA2)
@@ -9174,7 +9197,7 @@ STRING_S:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   RST SYNCHR
   DEFB '('
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   PUSH DE
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
@@ -9492,7 +9515,7 @@ INSTR_8:
   EX (SP),HL
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   OR A
   JP Z,FC_ERR
   PUSH AF
@@ -9564,7 +9587,7 @@ MID_ARGSEP:
   JP Z,MID_ARGSEP_0
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
 MID_ARGSEP_0:
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ')'
@@ -9605,27 +9628,27 @@ DECSUB_0:
 ;
 ; Used by the routines at __LOG, __SQR, __EXP, __RND, NEGAFT, __INT and FLOAT_ADD.
 DECADD:
-  LD HL,ARG
-  LD A,(HL)
-  OR A
+  LD HL,ARG             ; Get FP exponent
+  LD A,(HL)             ; Is number zero?
+  OR A                  ; Yes - Nothing to add
   RET Z
 ; This entry point is used by the routine at DECSUB.
 DECADD_0:
   AND $7F
   LD B,A
   LD DE,FACCU
-  LD A,(DE)
-  OR A
-  JP Z,FP_ARG2DE
-  AND $7F   ; ABS?
-  SUB B
-  JP NC,DECADD_2
-  CPL
-  INC A
+  LD A,(DE)             ; Get FPREG exponent
+  OR A                  ; Is this number zero?
+  JP Z,FP_ARG2DE        ; Yes - Move FP to FPREG
+  AND $7F               
+  SUB B                 ; FP number larger?
+  JP NC,NOSWAP_DEC      ; No - Don't swap them
+  CPL                   ; Two's complement
+  INC A                 ;  FP exponent
   PUSH AF
   PUSH HL
-  LD B,$08		; DBL number, 8 bytes
-DECADD_1:
+  LD B,$08			; DBL number, 8 bytes
+DECADD_SWAP:
   LD A,(DE)
   LD C,(HL)
   LD (HL),A
@@ -9634,40 +9657,40 @@ DECADD_1:
   INC DE
   INC HL
   DEC B
-  JP NZ,DECADD_1
+  JP NZ,DECADD_SWAP
   POP HL
   POP AF
-DECADD_2:
-  CP $10
-  RET NC
-  PUSH AF
+NOSWAP_DEC:
+  CP $10                    ; Second number insignificant?
+  RET NC                    ; Yes - First number is result
+  PUSH AF                   ; Save number of bits to scale
   XOR A
   LD (FACCU+8),A
-  LD (ARG+8),A
-  LD HL,ARG+1
-  POP AF
-  CALL BCDADD_8
+  LD (ARG+8),A              ; Save sign of result
+  LD HL,ARG+1               ; Point to FPREG
+  POP AF                    ; Restore scaling factor
+  CALL SCALE_DEC            ; Set MSBs & sign of result
   LD HL,ARG
   LD A,(FACCU)
-  XOR (HL)
-  JP M,DECADD_3
-  LD A,(ARG+8)
+  XOR (HL)                  ; Result to be positive?
+  JP M,MINCDE_DEC             ; No - Subtract FPREG from CDE
+  LD A,(ARG+8)              ; Restore sign of result
   LD (FACCU+8),A
-  CALL _BCDADD
-  JP NC,DECROU
-  EX DE,HL
+  CALL _BCDADD              ; Add FPREG to CDE
+  JP NC,DECROU              ; No overflow - Round it up
+  EX DE,HL                  ; Point to exponent
   LD A,(HL)
-  INC (HL)
+  INC (HL)                  ; Increment it
   XOR (HL)
-  JP M,OV_ERR
-  CALL DV16FACCU
+  JP M,OV_ERR               ; Number overflowed - Error
+  CALL SHRT1_DEC            ; Shift result right
   LD A,(HL)
   OR $10
   LD (HL),A
-  JP DECROU
-DECADD_3:
+  JP DECROU                 ; Round it up
+
+MINCDE_DEC:
   CALL BCDSUB
-  
   
 ; This entry point is used by the routines at DECMUL and __RND.
 ; Single precision normalization
@@ -9734,14 +9757,14 @@ BNORM_8:
   DEC HL
   XOR A
   SCF
-DECADD_12:
+DECADD_SWAP2:
   ADC A,(HL)
   DAA
   LD (HL),A
   RET NC
   DEC HL
   DEC B
-  JP NZ,DECADD_12
+  JP NZ,DECADD_SWAP2
   LD A,(HL)
   INC (HL)
   XOR (HL)
@@ -9841,12 +9864,12 @@ BCDADD_7:
   RET
 
 ; This entry point is used by the routine at DECADD.
-BCDADD_8:
+SCALE_DEC:
   OR A
   RRA
   PUSH AF
   OR A
-  JP Z,BCDADD_15
+  JP Z,SHRT1_DEC_0
   PUSH AF
   CPL
   INC A
@@ -9902,16 +9925,16 @@ BCDADD_12:
   RET
 
 ; This entry point is used by the routines at DECADD and PUFOUT.
-DV16FACCU:
+SHRT1_DEC:
   LD HL,FACCU+1
-BCDADD_14:
+SHRT1_DEC_LP:
   LD A,$08
   JP BCDADD_10
 
-BCDADD_15:
+SHRT1_DEC_0:
   POP AF
   RET NC
-  JP BCDADD_14
+  JP SHRT1_DEC_LP
 
 ; Double precision multiply (FAC1=FAC1*ARG)
 ;
@@ -11515,7 +11538,7 @@ CINT_RET2:
 
 ; This entry point is used by the routine at PRS_M100.
 ; Also used in the MSX, but probably useless on the KC85
-DETOKEN_ELSE:
+DCXBRT:
   DEC BC
   RET
 
@@ -11962,7 +11985,7 @@ _ASCTFP_0:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP C,_ASCTFP_DIGITS
   CP '.'
-  JP Z,DECIMAL
+  JP Z,DPOINT
   CP 'e'
   JP Z,EXPONENTIAL
   CP 'E'
@@ -12064,7 +12087,7 @@ _ASCTFP_12:
 
 _ASCTFP_13:
   JP OV_ERR
-DECIMAL:
+DPOINT:
   RST GETYPR
   INC C
   JP NZ,_ASCTFP_10
@@ -12211,7 +12234,7 @@ _ASCTFP_29:
 
 ; 'in' <line number> message
 ;
-; Used by the routine at WARM_BT_0.
+; Used by the routine at ERESET.
 LNUM_MSG:
   PUSH HL
   LD HL,IN_MSG
@@ -12346,6 +12369,7 @@ PUFOUT_8:
 PUFOUT_8B:
   CALL Z,INCHL
   CALL PUFOUT_51
+
 SUPTLZ:
   DEC HL                ; Move back through buffer
   LD A,(HL)             ; Get character
@@ -12589,7 +12613,7 @@ PUFOUT_32:
   CALL PUFOUT_60
   JP NZ,PUFOUT_33
   PUSH HL
-  CALL DV16FACCU
+  CALL SHRT1_DEC
   LD HL,FACCU
   INC (HL)
   POP HL
@@ -12832,7 +12856,7 @@ PUFOUT_60:
   CALL L3D04
   PUSH HL
 PUFOUT_61:
-  CALL DV16FACCU
+  CALL SHRT1_DEC
   DEC E
   JP NZ,PUFOUT_61
   POP HL
@@ -13109,7 +13133,7 @@ INTEXP_15:
   JP CINT
 
 ; This entry point is used by the routines at PROMPT and GETVAR.
-INTEXP_16:
+MOVUP:
   CALL ENFMEM
 ; This entry point is used by the routine at TESTR.
 INTEXP_17:
@@ -13154,7 +13178,7 @@ ENFMEM:
 ; CLOADM, __CLEAR, BS_ERR and __MAX.
 ; Clear registers and warm boot:
 OM_ERR:
-  CALL UPD_PTRS
+  CALL LINKER
   LD HL,(STKTOP)
   DEC HL
   DEC HL
@@ -13196,7 +13220,7 @@ _CLREG_0:
   LD HL,(MEMSIZ)
   LD (FRETOP),HL
   CALL __RESTORE
-  LD HL,(PROGND)
+  LD HL,(VARTAB)
   LD (VAREND),HL
   LD (STREND),HL
   CALL CLSALL		; Close all files
@@ -13214,8 +13238,8 @@ _CLREG_1:
   INC HL
   INC HL
   
-; This entry point is used by the routine at WARM_BT_0.
-WARM_ENTRY:
+; This entry point is used by the routine at ERESET.
+STKERR:
   LD SP,HL
   LD HL,TEMPST
   LD (TEMPPT),HL
@@ -13234,7 +13258,7 @@ WARM_ENTRY:
   PUSH BC
 
 ; Routine at 16284
-WARM_ENTRY_0:
+STKERR_0:
   LD HL,(TEMP)
   RET
 
@@ -13598,7 +13622,7 @@ STORED:
   LD D,A             ; Save MSB
   JP C,OM_ERR		 ; ?OM Error if not enough mem
   PUSH HL            ; Save RAM top
-  LD HL,(PROGND)     ; Get program end
+  LD HL,(VARTAB)     ; Get program end
   PUSH BC
   LD BC,$00A0		 ; 160 Bytes minimum working RAM (same offset on MSX)
   ADD HL,BC          ; Get lowest address
@@ -15213,7 +15237,7 @@ IF M10
   LD (ARYTA2),HL
   EX DE,HL
 ELSE
-  LD HL,(PROGND)
+  LD HL,(VARTAB)
 ENDIF
 
   JP GVAR_3
@@ -15261,7 +15285,7 @@ IF M10
 GVAR_4:
   LD HL,(VAREND)
   LD (ARYTA2),HL
-  LD HL,(PROGND)
+  LD HL,(VARTAB)
   JP GVAR_3
   
 ELSE
@@ -15318,7 +15342,7 @@ ENDNAM0:
   ADD HL,BC
   POP BC
   PUSH HL
-  CALL INTEXP_16
+  CALL MOVUP
   POP HL
   LD (STREND),HL
   LD H,B
@@ -15996,7 +16020,7 @@ LCD_OUT:
 
 ; Send a CRLF to screen if needed to end the current line.
 ;
-; Used by the routines at WARM_BT_0, READY, __FILES, __CLOAD, LOAD_RECORD, __END,
+; Used by the routines at ERESET, READY, __FILES, __CLOAD, LOAD_RECORD, __END,
 ; PRINT_LINE and SCHEDL_DE.
 CONSOLE_CRLF:
   LD A,(CSRY)
@@ -16194,7 +16218,7 @@ GETPTR_1:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   CP '#'
   CALL Z,__CHRGTB
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   EX (SP),HL
   PUSH HL
 
@@ -16261,7 +16285,7 @@ __OPEN_2:
   LD A,(HL)
   CP '#'
   CALL Z,__CHRGTB
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   OR A
   JP Z,BN_ERR			; BN error: bad file nuber
   RST $38
@@ -16524,7 +16548,7 @@ __CLOSE_1:
   LD A,(HL)
   CP '#'
   CALL Z,__CHRGTB
-  CALL GETINT		; Get file number
+  CALL GETINT		; Get file number (0-255)
   PUSH HL
 IF M100
   SCF
@@ -16607,7 +16631,7 @@ INPUT_S:
   LD (PTRFIL),HL			; Redirect I/O
   POP HL
   EX (SP),HL
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   PUSH DE
   LD A,(HL)
   CP ','
@@ -16732,7 +16756,7 @@ GET_CHNUM:
 ; number (C=default #channel)
 L4F2E:
   PUSH BC
-  CALL FNDNUM
+  CALL FNDNUM		; Numeric argument (0..255)
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
   LD A,E
@@ -16752,7 +16776,7 @@ GT_CHANNEL_1:
 ; This entry point is used by the routines at READY, INXD, __EDIT, TXT_CTL_Y,
 ; TXT_CTL_G and TXT_CTL_V.
 CLOSE_STREAM:
-  LD BC,WARM_ENTRY_0
+  LD BC,STKERR_0
   PUSH BC
   XOR A
   JP CLOSE1
@@ -17373,7 +17397,7 @@ IF M100
 TEL_SET_STAT_1:
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   CP $14
   JP Z,TEL_SET_STAT_2
   SUB $0A
@@ -18074,7 +18098,7 @@ TEL_UPLD:
   LD (TXT_EDITING),A
   JP Z,TEL_UPLD_0			; JP if no extra args
   
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   CP $0A		; 10
   RET C
   CP $85		; 133
@@ -18608,7 +18632,7 @@ __MENU_19:
   DEC DE
   EX DE,HL
   LD (DIRPNT),HL
-  CALL UPD_PTRS
+  CALL LINKER
   CALL LOAD_BA_LBL
   CALL BASIC_1
 IF M100 | M10
@@ -21059,7 +21083,7 @@ TXT_CTL_Y:
   CP (HL)
   JP Z,TXT_EXIT_ASK		; JP if no text entered
   LD (KBUF+3),A
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   CP $0A	; 10
   RET C
   CP $85	; 133
@@ -21981,9 +22005,9 @@ MASDEL_0:
   LD HL,(CO_FILES)
   ADD HL,BC
   LD (CO_FILES),HL
-  LD HL,(PROGND)
+  LD HL,(VARTAB)
   ADD HL,BC
-  LD (PROGND),HL
+  LD (VARTAB),HL
   LD HL,(VAREND)
   ADD HL,BC
   LD (VAREND),HL
@@ -22094,7 +22118,7 @@ BASIC_0:
   LD (LBL_LINE),A
   LD HL,LLIST_STMT		;"llist"
   LD (SHFT_PRINT),HL			; prepare the shortcut for SHIFT-PRINT
-  CALL UPD_PTRS
+  CALL LINKER
   CALL RUN_FST
   JP READY
 
@@ -22105,7 +22129,7 @@ LLIST_STMT:
 
 ; This entry point is used by the routine at __MENU.
 BASIC_1:
-  LD HL,(PROGND)
+  LD HL,(VARTAB)
   LD BC,$0178
   ADD HL,BC
   EX DE,HL
@@ -22272,7 +22296,7 @@ IOINIT_1:
   JP NZ,IOINIT_2
   POP AF
   RET Z
-  LD HL,(PROGND)
+  LD HL,(VARTAB)
   LD DE,$E000
   RST CPDEHL
   RET NC
@@ -25271,7 +25295,7 @@ BOOT_6:
   LD (STKTOP),HL
   LD (MEMSIZ),HL
   LD A,$01
-  LD (PROGND+1),A
+  LD (VARTAB+1),A
   CALL __MAX_0
   CALL _CLREG_1
   LD HL,(RAM)		; Lowest RAM memory address used by system ($8000 if 32K RAM)
@@ -25289,7 +25313,7 @@ BOOT_6:
   LD (HL),$1A		; EOF
   INC HL
   LD (CO_FILES),HL
-  LD (PROGND),HL
+  LD (VARTAB),HL
   LD HL,SUZUKI-1
   LD (DIRPNT),HL
   CALL CLRPTR
@@ -25309,7 +25333,7 @@ PRINT_COPYRIGHT:
 ;
 ; Used by the routine at __MENU.
 FREEMEM:
-  LD HL,(PROGND)
+  LD HL,(VARTAB)
   EX DE,HL
   LD HL,(STKTOP)
   LD A,L
@@ -25400,7 +25424,7 @@ __MAX:
   DEFB $9D		; TK_FILES, Token code for "FILES" keyword
   RST SYNCHR
   DEFB $DD		; TK_EQUAL, Token for '='
-  CALL GETINT
+  CALL GETINT                 ; Get integer 0-255
   JP NZ,SN_ERR
   CP $10
   JP NC,FC_ERR
@@ -25439,7 +25463,7 @@ __MAX_1:
   ADD HL,BC
   LD B,H
   LD C,L
-  LD HL,(PROGND)
+  LD HL,(VARTAB)
   ADD HL,BC
   RST CPDEHL
   JP NC,OM_ERR
