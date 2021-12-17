@@ -636,13 +636,13 @@ MAPXY:
 
 ; Routine at 276
 ;
-; Gets current cursor position and mask pattern
+; Gets current "graphics cursor" position and mask pattern
 FETCHC:
   JP _FETCHC
 
 ; Routine at 279
 ;
-; Record current cursor position and mask pattern
+; Record current "graphics cursor" position and mask pattern
 STOREC:
   JP _STOREC
 
@@ -666,7 +666,7 @@ SETC:
 
 ; Routine at 291
 ;
-; Set horizontal screenpixels
+; Set horizontal screenpixels: draws an horizontal line, used for filled polygons
 NSETCX:
   JP _NSETCX
 
@@ -5099,7 +5099,7 @@ _MAPXY_3:
 ; Used by the routines at FETCHC, _STOREC, _GRPPRT, _SETC, L16AC, _RIGHTC, L16D8, _LEFTC,
 ; L1779, RIGHTC_MLT, L179C, LEFTC_MLT, _NSETCX, L190C, L192D and L1963.
 ;
-; Gets current cursor position and mask pattern
+; Gets current "graphics cursor" position and mask pattern
 _FETCHC:
   LD A,(CMASK)
   LD HL,(CLOC)
@@ -5108,7 +5108,7 @@ _FETCHC:
 ; Routine at 5696
 ;
 ; Used by the routines at STOREC, _GRPPRT and L192D.
-; Record current cursor position and mask pattern
+; Record current "graphics cursor" position and mask pattern
 ;
 _STOREC:
   LD (CMASK),A
@@ -5570,12 +5570,12 @@ _NSETCX_3:
   DEC C
   RET M
   PUSH HL
-  LD HL,L185D
+  LD HL,NSETCX_OFFSMAP
   ADD HL,BC
   LD A,(HL)
   JR _NSETCX_5
 
-L185D:
+NSETCX_OFFSMAP:
   DEFB 10000000b
   DEFB 11000000b
   DEFB 11100000b
@@ -12043,7 +12043,7 @@ RESTART:
 
   ; --- START PROC READY ---
 READY:
-  CALL TOTEXT
+  CALL TOTEXT               ; Go back in text mode if in graphics mode (e.g. if BREAK was pressed)
   CALL FINLPT
   CALL CLOSE_STREAM
 IF NOHOOK
@@ -12293,6 +12293,12 @@ ENDIF
 LINKER:
   LD HL,(TXTTAB)
   EX DE,HL
+;
+; CHEAD GOES THROUGH PROGRAM STORAGE AND FIXES
+; UP ALL THE LINKS. THE END OF EACH
+; LINE IS FOUND BY SEARCHING FOR THE ZERO AT THE END.
+; THE DOUBLE ZERO LINK IS USED TO DETECT THE END OF THE PROGRAM
+;
 CHEAD:
   LD H,D                ;[H,L]=[D,E]
   LD L,E                
@@ -12302,52 +12308,82 @@ CHEAD:
   RET Z                 
   INC HL                ;FIX H TO START OF TEXT
   INC HL
-LINKER_1:
+CZLOOP:
   INC HL                ;BUMP POINTER
   LD A,(HL)             ;GET BYTE
-LINKER_2:
+CZLOO2:
   OR A                  ;SET CC'S
-  JR Z,LINKER_3         ;END OF LINE, DONE.
+  JR Z,CZLIN            ;END OF LINE, DONE.
   CP ' '                ;EMBEDDED CONSTANT?
-  JR NC,LINKER_1        ;NO, GET NEXT
-  CP $0B			    ; Not a number constant prefix ?
-  JR C,LINKER_1               ; ...then JP
-  CALL __CHRCKB		    ; Gets current character (or token) from BASIC text.
-  RST CHRGTB		    ; Gets next character (or token) from BASIC text.
-  JR LINKER_2
+  JR NC,CZLOOP          ;NO, GET NEXT
+  CP $0B			    ;IS IT LINEFEED OR BELOW?
+  JR C,CZLOOP           ;THEN SKIP PAST
+  CALL __CHRCKB		    ;GET CONSTANT
+  RST CHRGTB		    ;GET OVER IT
+  JR CZLOO2             ;GO BACK FOR MORE
   
-LINKER_3:
-  INC HL
-  EX DE,HL
-  LD (HL),E
-  INC HL
-  LD (HL),D
-  JR CHEAD
+CZLIN:
+  INC HL                ;MAKE [H,L] POINT AFTER TEXT
+  EX DE,HL              ;SWITCH TEMP
+  LD (HL),E             ;DO FIRST BYTE OF FIXUP
+  INC HL                ;ADVANCE POINTER
+  LD (HL),D             ;2ND BYTE OF FIXUP
+  JR CHEAD              ;KEEP CHAINING TIL DONE
 
-; Routine at 17017
+; Line number range
 ;
+; SCNLIN SCANS A LINE RANGE OF
+; THE FORM  #-# OR # OR #- OR -# OR BLANK
+; AND THEN FINDS THE FIRST LINE IN THE RANGE
+;
+; Routine at 17017
 ; Used by the routines at __LLIST and __DELETE.
 LNUM_RANGE:
-  LD DE,$0000
-  PUSH DE
-  JR Z,L4288
-  POP DE
-  CALL LNUM_PARM             ; Get specified line number
-  PUSH DE
-  JR Z,LNUM_RANGE_0
+  LD DE,$0000           ;ASSUME START LIST AT ZERO
+  PUSH DE               ;SAVE INITIAL ASSUMPTION
+  JR Z,ALL_LIST         ;IF FINISHED, LIST IT ALL
+  POP DE                ;WE ARE GOING TO GRAB A #
+  CALL LNUM_PARM        ;GET A LINE #. IF NONE, RETURNS ZERO
+  PUSH DE               ;SAVE FIRST
+  JR Z,SNGLIN           ;IF ONLY # THEN DONE.
   RST SYNCHR 			;   Check syntax: next byte holds the byte to be found
-  DEFB TK_MINUS			; Token for '-'
-L4288:
-  LD DE,$FFFA		; -6
-  CALL NZ,LNUM_PARM
-  JP NZ,SN_ERR
-LNUM_RANGE_0:
-  EX DE,HL
-  POP DE
+  DEFB TK_MINUS			;MUST BE A DASH.
+ALL_LIST:
+  LD DE,65530           ;ASSUME MAX END OF RANGE
+  CALL NZ,LNUM_PARM     ;GET THE END OF RANGE
+  JP NZ,SN_ERR          ;MUST BE TERMINATOR
+SNGLIN:
+  EX DE,HL              ;[H,L] = FINAL
+  POP DE                ;GET INITIAL IN [D,E]
 
 PHL_SRCHLN:
-  EX (SP),HL
-  PUSH HL
+  EX (SP),HL            ;PUT MAX ON STACK, RETURN ADDR TO [H,L]
+  PUSH HL               ;SAVE RETURN ADDRESS BACK
+
+
+;
+; FNDLIN SEARCHES THE PROGRAM TEXT FOR THE LINE
+; WHOSE LINE # IS PASSED IN [D,E]. [D,E] IS PRESERVED.
+; THERE ARE THREE POSSIBLE RETURNS:
+;
+;	1) ZERO FLAG SET. CARRY NOT SET.  LINE NOT FOUND.
+;	   NO LINE IN PROGRAM GREATER THAN ONE SOUGHT.
+;	   [B,C] POINTS TO TWO ZERO BYTES AT END OF PROGRAM.
+;	   [H,L]=[B,C]
+;
+;	2) ZERO, CARRY SET. 
+;	   [B,C] POINTS TO THE LINK FIELD IN THE LINE
+;	   WHICH IS THE LINE SEARCHED FOR.
+;	   [H,L] POINTS TO THE LINK FIELD IN THE NEXT LINE.
+;
+;	3) NON-ZERO, CARRY NOT SET.
+;	   LINE NOT FOUND, [B,C]  POINTS TO LINE IN PROGRAM
+;	   GREATER THAN ONE SEARCHED FOR.
+;	   [H,L] POINTS TO THE LINK FIELD IN THE NEXT LINE.
+;
+;
+; (Find line # in DE, BC=line addr, HL=next line addr)
+;
 ; This entry point is used by the routines at GO_TO, __DELETE, __RENUM_0, LINE2PTR and
 ; __RESTORE.
 ; Get first line number
@@ -12356,37 +12392,50 @@ SRCHLN:
 
 ; This entry point is used by the routine at RUNLIN.
 SRCHLP:
-  LD B,H            ; BC = Address to look at
-  LD C,L            
+  LD B,H            ; BC = Address to look at     IF EXITING BECAUSE OF END OF PROGRAM,
+  LD C,L            ;                             SET [B,C] TO POINT TO DOUBLE ZEROES.
   LD A,(HL)         ; Get address of next line
   INC HL            
   OR (HL)           ; End of program found?
-  DEC HL            
+  DEC HL            ;GO BACK
   RET Z				; Yes - Line not found
+  INC HL            ;SKIP PAST AND GET THE LINE #
   INC HL
-  INC HL
-  LD A,(HL)			; Get LSB of line number
-  INC HL
-  LD H,(HL)         ; Get MSB of line number
+  LD A,(HL)			; Get LSB of line number      INTO [H,L] FOR COMPARISON WITH
+  INC HL            ;                             THE LINE # BEING SEARCHED FOR
+  LD H,(HL)         ; Get MSB of line number      WHICH IS IN [D,E]
   LD L,A
-  RST DCOMPR		; Compare HL with DE.
-  LD H,B            ; HL = Start of this line
-  LD L,C
-  LD A,(HL)         ; Get LSB of next line address
+  RST DCOMPR		; Compare with line in DE         SEE IF IT MATCHES OR IF WE'VE GONE TOO FAR
+  LD H,B            ; HL = Start of this line         MAKE [H,L] POINT TO THE START OF THE
+  LD L,C            ;                                 LINE BEYOND THIS ONE, BY PICKING
+  LD A,(HL)         ; Get LSB of next line address    UP THE LINK THAT [B,C] POINTS AT
   INC HL            
   LD H,(HL)         ; Get MSB of next line address
   LD L,A            ; Next line to HL
   CCF
   RET Z             ; Lines found - Exit
   CCF               
-  RET NC            ; Line not found,at line after
+  RET NC            ; Line not found,at line after    NO MATCH RETURN (GREATER)
   JR SRCHLP         ; Keep looking
 
+
+; TOKENIZE (CRUNCH)
+; ALL "RESERVED" WORDS ARE TRANSLATED INTO SINGLE ONE OR TWO
+; (IF TWO, FIRST IS ALWAYS $FF, 377 OCTAL) BYTES WITH THE MSB ON.
+; THIS SAVES SPACE AND TIME BY ALLOWING FOR TABLE DISPATCH DURING EXECUTION.
+; THEREFORE ALL STATEMENTS APPEAR TOGETHER IN THE RESERVED WORD LIST 
+; IN THE SAME ORDER THEY APPEAR IN IN STMDSP.
+;
+; NUMERIC CONSTANTS ARE ALSO CONVERTED TO THEIR INTERNAL 
+; BINARY REPRESENTATION TO IMPROVE EXECUTION SPEED
+; LINE NUMBERS ARE ALSO PRECEEDED BY A SPECIAL TOKEN SO THAT
+; LINE NUMBERS CAN BE CONVERTED TO POINTERS AT EXECUTION TIME.
+;
 ; Routine at 17074
 TOKENIZE:
-  XOR A
-  LD (DONUM),A
-  LD (DORES),A		; a.k.a. OPRTYP, indicates whether stored word can be crunched, etc..
+  XOR A                    ; SAY EXPECTING FLOATING NUMBERS
+  LD (DONUM),A             ; SET FLAG ACORDINGLY
+  LD (DORES),A             ; ALLOW CRUNCHING
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -12395,42 +12444,43 @@ ELSE
   CALL HCRUN			; Hook 1 for Tokenise
 ENDIF
   LD BC,BUF-BUFFER-5	; BUF-BUFFER-5 = 315 bytes
-  LD DE,KBUF
+  LD DE,KBUF            ; SETUP DESTINATION POINTER
 
 ; This entry point is used by the routine at DETOKEN_MORE.
-NXTCHR:
-  LD A,(HL)         ; Get byte
-  OR A				; End of line ?
-  JR NZ,CRNCLP      ; No, continue
+NXTCHR:                 ; (=KLOOP)
+  LD A,(HL)             ; Get byte
+  OR A                  ; End of line ?
+  JR NZ,CRNCLP          ; No, continue
 
 					
 ; This entry point is used by the routine at TOKEN_BUILT.
-_ENDBUF:			  ; Yes - Terminate buffer
-  LD HL,BUF-BUFFER		; BUF-BUFFER = 320 bytes
-  LD A,L
-  SUB C
+CRDONE:                 ; Yes - Terminate buffer
+  LD HL,BUF-BUFFER      ; GET OFFSET: BUF-BUFFER = KBFLEN+2 = 320 bytes
+  LD A,L                ;GET COUNT TO SUBTRACT FROM
+  SUB C                 ;SUBTRACT
   LD C,A
   LD A,H
   SBC A,B
   LD B,A
   LD HL,BUFFER     ; Point to start of buffer
-  XOR A
-  LD (DE),A        ; Mark end of buffer (A = 00)
-  INC DE           
-  LD (DE),A        ; A = 00
-  INC DE           
-  LD (DE),A        ; A = 00
-  RET
+  ; Mark end of buffer
+  XOR A            ;GET A ZERO
+  LD (DE),A        ;NEED THREE 0'S ON THE END
+  INC DE           ;ONE FOR END-OF-LINE
+  LD (DE),A        ;AND 2 FOR A ZERO LINK
+  INC DE           ;SINCE IF THIS IS A DIRECT STATEMENT
+  LD (DE),A        ;ITS END MUST LOOK LIKE THE END OF A PROGRAM
+  RET              ;END OF CRUNCHING
 
 CRNCLP:
-  CP '"'            ; Is it a quote?
-  JP Z,CPYLIT       ; Yes - Copy literal string
-  CP ' '            ; Is it a space?
-  JR Z,STUFFH       ; Yes - Copy direct
+  CP '"'            ; Is it a quote?                   QUOTE SIGN? 
+  JP Z,CPYLIT       ; Yes - Copy literal string        YES, GO TO SPECIAL STRING HANDLING
+  CP ' '            ; Is it a space?                   SPACE?
+  JR Z,STUFFH       ; Yes - Copy direct                JUST STUFF AWAY
   LD A,(DORES)		; a.k.a. OPRTYP, indicates whether stored word can be crunched, etc..
-  OR A
+  OR A              ; crunched, etc..                  END OF LINE?
   LD A,(HL)
-  JR Z,TOKENIZE_11
+  JR Z,CRNCLP_2     ;                                  YES, DONE CRUNCHING
 
 ; This entry point is used by the routines at DETOKEN_MORE and NTSNGT.
 STUFFH:
@@ -12440,48 +12490,48 @@ STUFFH:
   JR NZ,TOKENIZE_4
   LD A,(HL)
   AND A
-  LD A,$01
+  LD A,$01              ;SET LINE NUMBER ALLOWED FLAG - KLUDGE AS HAS TO BE NON-ZERO.
 TOKENIZE_4:
-  CALL NZ,KRNSAV		; Insert during tokenization
-  POP AF            ; RESTORE CHAR
-  SUB ':'			; ":", End of statement?
-  JR Z,SETLIT       ; IF SO ALLOW CRUNCHING AGAIN
-  CP TK_DATA-':'    ; SEE IF IT IS A DATA TOKEN
-  JR NZ,TSTREM      ; No - see if REM
-  LD A,$01
+  CALL NZ,KRNSAV        ; Insert during tokenization           SAVE CHAR IN KRUNCH BUFFER
+  POP AF                ; RESTORE CHAR
+  SUB ':'			    ; ":", End of statement?
+  JR Z,SETLIT           ; IF SO ALLOW CRUNCHING AGAIN
+  CP TK_DATA-':'        ; SEE IF IT IS A DATA TOKEN
+  JR NZ,TSTREM          ; No - see if REM
+  LD A,$01              ;SET LINE NUMBER ALLOWED FLAG - KLUDGE AS HAS TO BE NON-ZERO.
 SETLIT:
-  LD (DORES),A		; a.k.a. OPRTYP, indicates whether stored word can be crunched, etc..
-  LD (DONUM),A
+  LD (DORES),A		    ;SETUP FLAG
+  LD (DONUM),A          ;SET NUMBER ALLOWED FLAG
 TSTREM:
-  SUB $55			; $55 + $3A = $8F  -> is it TK_REM ?
-  JR NZ,NXTCHR
-  PUSH AF
-CRNCLP_0:
-  LD A,(HL)
-  OR A
-  EX (SP),HL
-  LD A,H
-  POP HL
-  JR Z,_ENDBUF
-  CP (HL)
-  JR Z,STUFFH
+  SUB TK_REM-':'
+  JR NZ,NXTCHR          ;KEEP LOOPING
+  PUSH AF               ;SAVE TERMINATOR ON STACK
+STR1_LP:
+  LD A,(HL)             ;GET A CHAR
+  OR A                  ;SET CONDITION CODES
+  EX (SP),HL            ;GET SAVED TERMINATOR OFF STACK, SAVE [H,L]
+  LD A,H                ;GET TERMINATOR INTO [A] WITHOUT AFFECTING PSW
+  POP HL                ;RESTORE [H,L]
+  JR Z,CRDONE           ;IF END OF LINE THEN DONE
+  CP (HL)               ;COMPARE CHAR WITH THIS TERMINATOR
+  JR Z,STUFFH           ;IF YES, DONE WITH STRING
 
 CPYLIT:
-  PUSH AF
-  LD A,(HL)
+  PUSH AF               ;SAVE TERMINATOR
+  LD A,(HL)             ;GET BACK LINE CHAR
 ; This entry point is used by the routine at TOKEN_BUILT.
 TOKENIZE_9:
-  INC HL
+  INC HL                ;INCREMENT TEXT POINTER
   CP $01
   JR NZ,TOKENIZE_10
-  LD A,(HL)
+  LD A,(HL)             ;GET BACK LINE CHAR
   AND A
   LD A,$01
 TOKENIZE_10:
-  CALL NZ,KRNSAV		; Insert during tokenization
-  JR CRNCLP_0
+  CALL NZ,KRNSAV        ;SAVE CHAR IN KRUNCH BUFFER
+  JR STR1_LP            ;KEEP LOOPING
 
-TOKENIZE_11:
+CRNCLP_2:
   INC HL
   OR A
   JP M,NXTCHR
@@ -12489,14 +12539,14 @@ TOKENIZE_11:
   JR NZ,TOKENIZE_12
   LD A,(HL)
   AND A
-  JR Z,_ENDBUF
+  JR Z,CRDONE
   INC HL
   JR NXTCHR
 
 TOKENIZE_12:
   DEC HL
-  CP '?'
-  LD A,TK_PRINT
+  CP '?'                ; Is it "?" short for PRINT
+  LD A,TK_PRINT         ; TK_PRINT: "PRINT" token
   PUSH DE
   PUSH BC
   JP Z,MOVDIR
@@ -12644,7 +12694,7 @@ TOKEN_BUILT_4:
   CALL UCASE_HL		; Load A with char in 'HL' and make it uppercase
   AND A
 TOKEN_BUILT_5:
-  JP Z,_ENDBUF
+  JP Z,CRDONE
   JP M,TOKEN_BUILT_4
   CP $01
   JR NZ,TOKEN_BUILT_6
@@ -12945,7 +12995,7 @@ FORFND:
   LD DE,$0001			; Default value for STEP
   LD A,(HL)             ; Get next byte in code string
   CP TK_STEP			; See if "STEP" is stated
-  CALL Z,GET_PSINT      ; If so, get updated value for 'STEP'
+  CALL Z,FPSINT      ; If so, get updated value for 'STEP'
   PUSH DE
   PUSH HL
   EX DE,HL
@@ -13348,7 +13398,7 @@ GET_POSINT:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
 ; This entry point is used by the routine at __CLEAR.
 GET_POSINT_0:
-  CALL FPSINT
+  CALL FPSINT_0
   RET P
 
 ; entry for '?FC ERROR'
@@ -15469,23 +15519,25 @@ __WIDTH_4:
 
 ; Routine at 21006
 ; $520E
-GET_PSINT:
+FPSINT:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
 ;
 ; This entry point is used by the routines at GET_POSINT, COORD_PARMS and __CIRCLE.
 ; $520F
-FPSINT:
-  CALL EVAL
+FPSINT_0:
+  CALL EVAL           ;EVALUATE A FORMULA
 ;
 ; Get integer variable to DE, error if negative
 ; Used by the routine at FNDNUM.
 ; $5212
+;CONVERT THE FAC TO AN INTEGER IN [D,E]
+;AND SET THE CONDITION CODES BASED ON THE HIGH ORDER
 DEPINT:
-  PUSH HL
-  CALL __CINT
-  EX DE,HL
-  POP HL
-  LD A,D
+  PUSH HL             ;SAVE THE TEXT POINTER
+  CALL __CINT         ;CONVERT THE FORMULA TO AN INTEGER IN [H,L]
+  EX DE,HL            ;PUT THE INTEGER INTO [D,E]
+  POP HL              ;RETSORE THE TEXT POINTER
+  LD A,D              ;SET THE CONDITION CODES ON THE HIGH ORDER
   OR A
   RET
 
@@ -15501,21 +15553,29 @@ FNDNUM:
 
 ; Get integer 0-255
 GETINT:
-  CALL EVAL
+  CALL EVAL           ;EVALUATE A FORMULA
 ; This entry point is used by the routines at __CHR_S, FN_STRING, FN_INSTR, GETFLP,
 ; __STICK, __STRIG, __PDL and __PAD.
 MAKINT:
-  CALL DEPINT
-  JP NZ,FC_ERR			; Err $05 - "Illegal function call"
-  DEC HL
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  LD A,E
+  CALL DEPINT         ;CONVERT THE FAC TO AN INTEGER IN [D,E]
+  JP NZ,FC_ERR        ;WASN'T ERROR (Err $05 - "Illegal function call")
+  DEC HL              ;ACTUALLY FUNCTIONS CAN GET HERE
+                      ;WITH BAD [H,L] BUT NOT SERIOUS
+                      ;SET CONDITION CODES ON TERMINATOR
+  RST CHRGTB
+  LD A,E              ;RETURN THE RESULT IN [A] AND [E]
   RET
 
+
+; 'LLIST' BASIC command
+;
 ; Routine at 21033
-__LLIST:
-  LD A,$01
-  LD (PRTFLG),A
+__LLIST:               ;PRTFLG=1 FOR REGULAR LIST
+  LD A,$01             ;GET NON ZERO VALUE
+  LD (PRTFLG),A        ;SAVE IN I/O FLAG (END OF LPT)
+
+; 'LIST' BASIC command
+;
 ; This entry point is used by the routine at __SAVE.
 __LIST:
 IF NOHOOK
@@ -15525,16 +15585,16 @@ IF NOHOOK
 ELSE
   CALL HLIST			; Hook for "LIST"
 ENDIF
-  POP BC
-  CALL LNUM_RANGE             ; Get specified line number range
-  PUSH BC
+  POP BC               ;GET RID OF NEWSTT RETURN ADDR
+  CALL LNUM_RANGE      ;SCAN LINE RANGE
+  PUSH BC              ;SAVE POINTER TO 1ST LINE
 __LIST_0:
-  LD HL,$FFFF		; Set interpreter in 'DIRECT' (immediate) mode
-  LD (CURLIN),HL
-  POP HL
-  POP DE
-  LD C,(HL)
-  INC HL
+  LD HL,65535          ;DONT ALLOW ^C TO CHANGE
+  LD (CURLIN),HL       ;CONTINUE PARAMETERS
+  POP HL               ;GET POINTER TO LINE
+  POP DE               ;GET MAX LINE # OFF STACK
+  LD C,(HL)            ;[B,C]=THE LINK POINTING TO THE NEXT LINE
+  INC HL               
   LD B,(HL)
   INC HL
   LD A,B
@@ -16690,11 +16750,11 @@ COORD_PARMS_DST:
   CALL Z,__CHRGTB  ; Gets next character (or token) from BASIC text.
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB '('
-  CALL FPSINT
+  CALL FPSINT_0
   PUSH DE
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL FPSINT
+  CALL FPSINT_0
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ')'
   POP BC
@@ -16835,7 +16895,7 @@ GX_DELTA:
 GX_DELTA_0:
   RET NC
   
-; This entry point is used by the routines at DRAW_LINE, __PAINT_4, INVSGN_DE, L5C06 and
+; This entry point is used by the routines at DRAW_LINE, __PAINT_4, INVSGN_DE, DRAW_CIRCLE and
 ; M_DIAGONAL.
 INVSGN_HL:
   XOR A
@@ -17306,7 +17366,7 @@ L5AED:
 
 ; Routine at 23307
 ;
-; Used by the routines at L5C06, U_LINE, L_LINE, H_DIAGONAL, E_DIAGONAL, G_DIAGONAL and M_DIAGONAL.
+; Used by the routines at DRAW_CIRCLE, U_LINE, L_LINE, H_DIAGONAL, E_DIAGONAL, G_DIAGONAL and M_DIAGONAL.
 INVSGN_DE:
   EX DE,HL
   CALL INVSGN_HL
@@ -17318,7 +17378,7 @@ __CIRCLE:
   CALL COORD_PARMS
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  CALL FPSINT
+  CALL FPSINT_0
 DO_CIRC:
   PUSH HL
   EX DE,HL
@@ -17414,7 +17474,7 @@ __CIRCLE_4:
   EX DE,HL
   INC DE
   CALL DE_DIV2		; "RR DE"
-  CALL L5C06
+  CALL DRAW_CIRCLE
   POP DE
   POP HL
   RST DCOMPR		; Compare HL with DE.
@@ -17450,10 +17510,10 @@ __CIRCLE_6:
 
 ; Routine at 23546
 ;
-; Used by the routine at L5C06.
-L5BFA:
+; Used by the routine at DRAW_CIRCLE.
+CIRCLE_ASPECT:
   PUSH DE
-  CALL L5CEB
+  CALL CALC_ASPECT
   POP HL
   LD A,(CSCLXY)
   OR A 
@@ -17464,21 +17524,21 @@ L5BFA:
 ; Routine at 23558
 ;
 ; Used by the routine at __CIRCLE.
-L5C06:
+DRAW_CIRCLE:
   LD (CPCNT),DE
   PUSH HL
   LD HL,$0000
   LD (CPCNT8),HL
-  CALL L5BFA
+  CALL CIRCLE_ASPECT
   LD (CXOFF),HL
   POP HL
   EX DE,HL
   PUSH HL
-  CALL L5BFA
+  CALL CIRCLE_ASPECT
   LD (CYOFF),DE
   POP DE
   CALL INVSGN_DE
-  CALL L5C06_0
+  CALL DRAW_CIRCLE_0
   PUSH HL
   PUSH DE
   LD HL,(CNPNTS)
@@ -17493,9 +17553,9 @@ L5C06:
   POP DE
   POP HL
   CALL INVSGN_DE
-L5C06_0:
+DRAW_CIRCLE_0:
   LD A,$04
-L5C06_1:
+DRAW_CIRCLE_1:
   PUSH AF
   PUSH HL
   PUSH DE
@@ -17511,50 +17571,53 @@ L5C06_1:
   EX DE,HL
   LD HL,(CSTCNT)
   RST DCOMPR		; Compare HL with DE.
-  JR Z,L5C06_4
-  JR NC,L5C06_2
+  JR Z,DRAW_CIRCLE_4
+  JR NC,DRAW_CIRCLE_2
   LD HL,(CENCNT)
   RST DCOMPR		; Compare HL with DE.
-  JR Z,L5C06_3
-  JR NC,L5C06_6
-L5C06_2:
+  JR Z,DRAW_CIRCLE_3
+  JR NC,DRAW_CIRCLE_6
+
+DRAW_CIRCLE_2:
   LD A,(CPLOTF)
   OR A
-  JR NZ,L5C06_8
-  JR L5C06_7
-L5C06_3:
+  JR NZ,DRAW_CIRCLE_8
+  JR DRAW_CIRCLE_7
+
+DRAW_CIRCLE_3:
   LD A,(CLINEF)
   ADD A,A
-  JR NC,L5C06_8
-  JR L5C06_5
-L5C06_4:
+  JR NC,DRAW_CIRCLE_8
+  JR DRAW_CIRCLE_5
+DRAW_CIRCLE_4:
   LD A,(CLINEF)
   RRA
-  JR NC,L5C06_8
-L5C06_5:
+  JR NC,DRAW_CIRCLE_8
+DRAW_CIRCLE_5:
   POP DE
   POP HL
   CALL CALC_POSITION
   CALL DRAW_LINE_GRPAC
-  JR L5C06_9
+  JR DRAW_CIRCLE_9
   
-L5C06_6:
+DRAW_CIRCLE_6:
   LD A,(CPLOTF)
   OR A
-  JR Z,L5C06_8
-L5C06_7:
+  JR Z,DRAW_CIRCLE_8
+DRAW_CIRCLE_7:
   POP DE
   POP HL
-  JR L5C06_9
-L5C06_8:
+  JR DRAW_CIRCLE_9
+
+DRAW_CIRCLE_8:
   POP DE
   POP HL
   CALL CALC_POSITION
   CALL SCALXY
-  JR NC,L5C06_9
+  JR NC,DRAW_CIRCLE_9
   CALL MAPXY		; Set addresses for initial dot position
   CALL SETC
-L5C06_9:
+DRAW_CIRCLE_9:
   POP DE
   POP HL
   POP AF
@@ -17574,11 +17637,11 @@ L5C06_9:
   CALL INVSGN_DE
   POP HL
   POP AF
-  JP L5C06_1
+  JP DRAW_CIRCLE_1
 
 ; Routine at 23757
 ;
-; Used by the routines at L5C06 and M_DIAGONAL.
+; Used by the routines at DRAW_CIRCLE and M_DIAGONAL.
 DRAW_LINE_GRPAC:
   LD HL,(GRPACX)
   LD (GXPOS),HL
@@ -17588,7 +17651,7 @@ DRAW_LINE_GRPAC:
 
 ; Routine at 23772
 ;
-; Used by the routines at L5C06 and M_DIAGONAL.
+; Used by the routines at DRAW_CIRCLE and M_DIAGONAL.
 CALC_POSITION:
   PUSH DE
   LD DE,(GRPACX)
@@ -17603,28 +17666,28 @@ CALC_POSITION:
 
 ; Routine at 23787
 ;
-; Used by the routine at L5BFA.
-L5CEB:
+; Used by the routine at CIRCLE_ASPECT.
+CALC_ASPECT:
   LD HL,(ASPECT)
   LD A,L
   OR A
-  JR NZ,L5CEB_0
+  JR NZ,CALC_ASPECT_0
   OR H
   RET NZ
   EX DE,HL
   RET
 
-L5CEB_0:
+CALC_ASPECT_0:
   LD C,D
   LD D,$00
   PUSH AF
-  CALL L5D0A
+  CALL CALC_ASPECT_SUB
   LD E,$80
   ADD HL,DE
   LD E,C
   LD C,H
   POP AF
-  CALL L5D0A
+  CALL CALC_ASPECT_SUB
   LD E,C
   ADD HL,DE
   EX DE,HL
@@ -17632,17 +17695,17 @@ L5CEB_0:
 
 ; Routine at 23818
 ;
-; Used by the routine at L5CEB.
-L5D0A:
+; Used by the routine at CALC_ASPECT.
+CALC_ASPECT_SUB:
   LD B,$08
   LD HL,$0000
-L5D0A_0:
+CALC_ASPECT_SUB_0:
   ADD HL,HL
   ADD A,A
-  JR NC,L5D0A_1
+  JR NC,CALC_ASPECT_SUB_1
   ADD HL,DE
-L5D0A_1:
-  DJNZ L5D0A_0
+CALC_ASPECT_SUB_1:
+  DJNZ CALC_ASPECT_SUB_0
   RET
 
 ; Routine at 23831
@@ -17672,6 +17735,7 @@ CIRCLE_SUB:
   LD A,(HL)
   OR C
   LD (HL),A
+
 CIRCLE_SUB_0:
   LD BC,$1540			; BCDE = 0.159155
   LD DE,$5591
