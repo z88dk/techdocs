@@ -894,7 +894,7 @@ SYNCHR:
 ;
 ; Used by the routines at ERRMOR, PROMPT, TOKENIZE, STEP, EXEC, __DEF, DEFVAL,
 ; ATOH_2, ON_ERROR, __RESUME, __IF, __PRINT, TAB, __LINE, __READ, FDTLP, EVAL3,
-; OPRND, ERR, ERL, VARPTR, UCASE, GET_PSINT, FNDNUM, MAKINT, __POWER, POWER_CONT,
+; OPRND, ERR, ERL, VARPTR, UCASE, FPSINT, FNDNUM, MAKINT, __POWER, POWER_CONT,
 ; TIME_S_FN, DATE_S_FN, DAY_S_FN, __MDM, __KEY, LINE_GFX, CSRLIN, MAX_FN,
 ; _HIMEM, SOUND_ON, MOTOR_OFF, __CALL, __SCREEN, __LCOPY, __KILL, __CSAVE,
 ; SAVEM, CSAVEM, __CLOAD, LOADM_RUNM, CLOADM, LDIR_B, PRPARM, STRING_S, __VAL,
@@ -1970,6 +1970,12 @@ FINI:
 LINKER:
   LD HL,(BASTXT)
   EX DE,HL
+;
+; CHEAD GOES THROUGH PROGRAM STORAGE AND FIXES
+; UP ALL THE LINKS. THE END OF EACH
+; LINE IS FOUND BY SEARCHING FOR THE ZERO AT THE END.
+; THE DOUBLE ZERO LINK IS USED TO DETECT THE END OF THE PROGRAM
+;
 ; This entry point is used by the routines at PROMPT, KILLASC and RESFPT.
 CHEAD:
   LD H,D                 ;[H,L]=[D,E]
@@ -1982,44 +1988,72 @@ CHEAD:
   INC HL
   INC HL
   XOR A
-LINKER_1:
-  CP (HL)
-  INC HL
-  JP NZ,LINKER_1
-  EX DE,HL
-  LD (HL),E
-  INC HL
-  LD (HL),D
-  JP CHEAD
-  
+CZLOOP:
+  CP (HL)                ;Check if END OF LINE
+  INC HL                 ;MAKE [H,L] POINT AFTER TEXT
+  JP NZ,CZLOOP           ;NOT END OF LINE?  Then, loop..
+  EX DE,HL               ;SWITCH TEMP
+  LD (HL),E              ;DO FIRST BYTE OF FIXUP
+  INC HL                 ;ADVANCE POINTER
+  LD (HL),D              ;2ND BYTE OF FIXUP
+  JP CHEAD               ;KEEP CHAINING TIL DONE
+
+; Line number range
+;
+; SCNLIN SCANS A LINE RANGE OF
+; THE FORM  #-# OR # OR #- OR -# OR BLANK
+; AND THEN FINDS THE FIRST LINE IN THE RANGE
+;
 ; This entry point is used by the routine at __LIST.
 LNUM_RANGE:
-  LD DE,$0000
-  PUSH DE
-  JP Z,LNUM_RANGE_0
-  POP DE
-  CALL LNUM_PARM
-  PUSH DE
-  JP Z,LNUM_RANGE_1
+  LD DE,$0000            ;ASSUME START LIST AT ZERO
+  PUSH DE                ;SAVE INITIAL ASSUMPTION
+  JP Z,ALL_LIST          ;IF FINISHED, LIST IT ALL
+  POP DE                 ;WE ARE GOING TO GRAB A #
+  CALL LNUM_PARM         ;GET A LINE #. IF NONE, RETURNS ZERO
+  PUSH DE                ;SAVE FIRST
+  JP Z,SNGLIN            ;IF ONLY # THEN DONE.
   RST SYNCHR
-  DEFB $D1			; TK_MINUS, '-'
+  DEFB $D1               ; (TK_MINUS) MUST BE A DASH.
   
-LNUM_RANGE_0:
-  LD DE,-6
-  CALL NZ,LNUM_PARM
-  JP NZ,SN_ERR
-LNUM_RANGE_1:
-  EX DE,HL
-  POP DE
+ALL_LIST:
+  LD DE,65530            ;ASSUME MAX END OF RANGE
+  CALL NZ,LNUM_PARM      ;GET THE END OF RANGE
+  JP NZ,SN_ERR           ;MUST BE TERMINATOR
+SNGLIN:
+  EX DE,HL               ;[H,L] = FINAL
+  POP DE                 ;GET INITIAL IN [D,E]
 
 ; Push HL and find line # DE
 ;
 ; Used by the routine at ON_ERROR.
 PHL_SRCHLN:
-  EX (SP),HL
-  PUSH HL
+  EX (SP),HL             ;PUT MAX ON STACK, RETURN ADDR TO [H,L]
+  PUSH HL                ;SAVE RETURN ADDRESS BACK
 
-; Find line # in DE, BC=line addr, HL=next line addr
+
+;
+; FNDLIN SEARCHES THE PROGRAM TEXT FOR THE LINE
+; WHOSE LINE # IS PASSED IN [D,E]. [D,E] IS PRESERVED.
+; THERE ARE THREE POSSIBLE RETURNS:
+;
+;	1) ZERO FLAG SET. CARRY NOT SET.  LINE NOT FOUND.
+;	   NO LINE IN PROGRAM GREATER THAN ONE SOUGHT.
+;	   [B,C] POINTS TO TWO ZERO BYTES AT END OF PROGRAM.
+;	   [H,L]=[B,C]
+;
+;	2) ZERO, CARRY SET. 
+;	   [B,C] POINTS TO THE LINK FIELD IN THE LINE
+;	   WHICH IS THE LINE SEARCHED FOR.
+;	   [H,L] POINTS TO THE LINK FIELD IN THE NEXT LINE.
+;
+;	3) NON-ZERO, CARRY NOT SET.
+;	   LINE NOT FOUND, [B,C]  POINTS TO LINE IN PROGRAM
+;	   GREATER THAN ONE SEARCHED FOR.
+;	   [H,L] POINTS TO THE LINK FIELD IN THE NEXT LINE.
+;
+
+; (Find line # in DE, BC=line addr, HL=next line addr)
 ;
 ; Used by the routines at PROMPT, __GOTO and __RESTORE.
 SRCHLN:
@@ -2030,38 +2064,50 @@ SRCHLN:
 ;
 ; Used by the routine at __GOTO.
 SRCHLP:
-  LD B,H               ; BC = Address to look at
-  LD C,L               
+  LD B,H               ; BC = Address to look at     IF EXITING BECAUSE OF END OF PROGRAM,
+  LD C,L               ;                             SET [B,C] TO POINT TO DOUBLE ZEROES.
   LD A,(HL)            ; Get address of next line
   INC HL               
   OR (HL)              ; End of program found?
-  DEC HL               
+  DEC HL               ;GO BACK
   RET Z                ; Yes - Line not found
+  INC HL               ;SKIP PAST AND GET THE LINE #
   INC HL               
-  INC HL               
-  LD A,(HL)            ; Get LSB of line number
-  INC HL               
-  LD H,(HL)            ; Get MSB of line number
+  LD A,(HL)            ; Get LSB of line number      INTO [H,L] FOR COMPARISON WITH
+  INC HL               ;                             THE LINE # BEING SEARCHED FOR
+  LD H,(HL)            ; Get MSB of line number      WHICH IS IN [D,E]
   LD L,A               
-  RST CPDEHL           ; Compare HL with DE.
-  LD H,B               ; HL = Start of this line
-  LD L,C               
-  LD A,(HL)            ; Get LSB of next line address
+  RST CPDEHL           ; Compare with line in DE         SEE IF IT MATCHES OR IF WE'VE GONE TOO FAR
+  LD H,B               ; HL = Start of this line         MAKE [H,L] POINT TO THE START OF THE
+  LD L,C               ;                                 LINE BEYOND THIS ONE, BY PICKING
+  LD A,(HL)            ; Get LSB of next line address    UP THE LINK THAT [B,C] POINTS AT
   INC HL               
   LD H,(HL)            ; Get MSB of next line address
   LD L,A               ; Next line to HL
   CCF                  
   RET Z                ; Lines found - Exit
   CCF                  
-  RET NC               ; Line not found,at line after
+  RET NC               ; Line not found,at line after    NO MATCH RETURN (GREATER)
   JP SRCHLP            ; Keep looking
 
-; Token compression routine
+
+; TOKENIZE (CRUNCH)
+; ALL "RESERVED" WORDS ARE TRANSLATED INTO SINGLE ONE OR TWO
+; (IF TWO, FIRST IS ALWAYS $FF, 377 OCTAL) BYTES WITH THE MSB ON.
+; THIS SAVES SPACE AND TIME BY ALLOWING FOR TABLE DISPATCH DURING EXECUTION.
+; THEREFORE ALL STATEMENTS APPEAR TOGETHER IN THE RESERVED WORD LIST 
+; IN THE SAME ORDER THEY APPEAR IN IN STMDSP.
 ;
+; NUMERIC CONSTANTS ARE ALSO CONVERTED TO THEIR INTERNAL 
+; BINARY REPRESENTATION TO IMPROVE EXECUTION SPEED
+; LINE NUMBERS ARE ALSO PRECEEDED BY A SPECIAL TOKEN SO THAT
+; LINE NUMBERS CAN BE CONVERTED TO POINTERS AT EXECUTION TIME.
+;
+; Token compression routine
 ; Used by the routine at PROMPT.
 TOKENIZE:
   XOR A
-  LD (OPRTYP),A		; other targets use DORES:  Indicates whether stored word can be crunched
+  LD (OPRTYP),A      ; other targets use DORES:  Indicates whether stored word can be crunched
   LD C,A
   LD DE,INPBFR
 CRNCLP:
@@ -2072,7 +2118,7 @@ CRNCLP:
   CP '"'             ; Is it a quote?
   JP Z,CPYLIT        ; Yes - Copy literal string
   OR A
-  JP Z,_ENDBUF
+  JP Z,CRDONE
   INC HL
   OR A
   JP M,CRNCLP
@@ -2093,7 +2139,7 @@ FNDWRD:
   PUSH DE               ; Look for reserved words
   LD DE,WORDS-1         ; Point to table
   PUSH BC               ; Save count
-  LD BC,L06CD           ; Where to return to
+  LD BC,RETNAD          ; Where to return to
   PUSH BC               ; Save return address
   LD B,$7F              ; TK_END-1, First token value -1
   LD A,(HL)             ; Get byte
@@ -2118,11 +2164,11 @@ GETNXT:
   JP NZ,GETNXT          ; No - get next word
   EX DE,HL
   PUSH HL               ; Save start of word
-TOKENIZE_4:
+NXTBYT:
   INC DE                ; Look through rest of word
   LD A,(DE)             ; Get byte from table
   OR A                  ; End of word ?
-  JP M,TOKENIZE_7       ; Yes - Match found
+  JP M,MATCH            ; Yes - Match found
   LD C,A                ; Save it
   LD A,B                ; Get token value
   CP $88                ; Is it "GOTO" token ?
@@ -2133,26 +2179,26 @@ NOSPC:
   INC HL                ; Next byte
   LD A,(HL)             ; Get byte
   CP 'a'                ; Less than "a" ?
-  JP C,TOKENIZE_6       ; Yes - don't change
+  JP C,NOCHNG           ; Yes - don't change
   AND $5F               ; 01011111, Make upper case
-TOKENIZE_6:
-  CP C
-  JP Z,TOKENIZE_4
-  POP HL
-  JP SEARCH
+NOCHNG:
+  CP C                  ; Same as in buffer ?
+  JP Z,NXTBYT           ; Yes - keep testing
+  POP HL                ; Get back start of word
+  JP SEARCH             ; Look at next word
   
-TOKENIZE_7:
-  LD C,B
-  POP AF
-  EX DE,HL
-  RET
+MATCH:
+  LD C,B               ; Word found - Save token value
+  POP AF               ; Throw away return
+  EX DE,HL             
+  RET                  ; Return to "RETNAD"
 
 ; Routine at 1741
-L06CD:
-  EX DE,HL
-  LD A,C
-  POP BC
-  POP DE
+RETNAD:
+  EX DE,HL             ; Get address in string
+  LD A,C               ; Get token value
+  POP BC               ; Restore buffer length
+  POP DE               ; Get destination address
   EX DE,HL
   CP $91		; TK_ELSE
   LD (HL),':'
@@ -2172,27 +2218,27 @@ TOKENIZE_8:
 TOKENIZE_9:
   EX DE,HL
 MOVDIR:
-  INC HL
-  LD (DE),A			; Add token code (or char) to buffer
-  INC DE
-  INC C
+  INC HL            ; Next source in buffer
+  LD (DE),A			; Put byte in buffer
+  INC DE            ; Move up buffer
+  INC C             ; Increment length of buffer
   SUB $3A			; ":", End of statement?
   JP Z,SETLIT 		; Jump if multi-statement line
-  CP $49			; $4A + $3A = $84 -> TK_DATA.. Is it DATA statement ?
+  CP $49			; (TK_DATA-':') $49 + $3A = $83 -> TK_DATA.. Is it DATA statement ?
   JP NZ,TSTREM      ; No - see if REM
 SETLIT:
   LD (OPRTYP),A		; a.k.a. DORES, Indicates whether stored word can be crunched
 TSTREM:
-  SUB $54			; $55 + $3A = $8F  -> is it TK_REM ?
+  SUB $54			; (TK_REM-':') $55 + $3A = $8F  -> is it TK_REM ?
   JP Z,FNDWRD3	
   SUB $71			; $71 + $8E = $FF  -> TK_??
   JP NZ,CRNCLP      ; No - Leave flag
 FNDWRD3:
   LD B,A            ; Copy rest of buffer
-NXTCHR:
+NXTCHR:             ; (=KLOOP)
   LD A,(HL)         ; Get byte
   OR A				; End of line ?
-  JP Z,_ENDBUF		; Yes - Terminate buffer
+  JP Z,CRDONE		; Yes - Terminate buffer
   CP B              ; End of statement ?
   JP Z,MOVDIR       ; Yes - Get next one
 
@@ -2203,18 +2249,19 @@ CPYLIT:
   INC DE            ; Move up destination buffer
   JP NXTCHR         ; Repeat
 
-_ENDBUF:
+CRDONE:
   LD HL,$0005
   LD B,H
   ADD HL,BC
   LD B,H
   LD C,L
   LD HL,BUFFER       ; Point to start of buffer
-  LD (DE),A          ; Mark end of buffer (A = 00)
+  ; Mark end of buffer (A = 00)
+  LD (DE),A
   INC DE             
-  LD (DE),A          ; A = 00
+  LD (DE),A
   INC DE             
-  LD (DE),A          ; A = 00
+  LD (DE),A
   RET
 
 ; 'FOR' BASIC instruction
@@ -2281,7 +2328,7 @@ FORFND:
   LD DE,$0001			; Default value for STEP
   LD A,(HL)             ; Get next byte in code string
   CP $CF				; TK_STEP, See if "STEP" is stated
-  CALL Z,GET_PSINT      ; If so, get updated value for 'STEP'
+  CALL Z,FPSINT      ; If so, get updated value for 'STEP'
   PUSH DE
   PUSH HL
   EX DE,HL
@@ -2559,7 +2606,7 @@ GET_POSINT:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
 ; This entry point is used by the routine at __CLEAR.
 GET_POSINT_0:
-  CALL FPSINT
+  CALL FPSINT_0
   RET P
 
 ; entry for '?FC ERROR'
@@ -3471,7 +3518,7 @@ OPNPAR:
 
 ; a.k.a. GETNUM, evaluate expression
 ;
-; Used by the routines at TO, STEP, __LET, __IF, __PRINT, FDTLP, FPSINT,
+; Used by the routines at TO, STEP, __LET, __IF, __PRINT, FDTLP, FPSINT_0,
 ; GETINT, GETWORD, __DAY_S, OUTS_B_CHARS, STRING_S, INSTR, USING and FNAME.
 EVAL:
   DEC HL               ; Evaluate expression & save
@@ -4167,24 +4214,24 @@ __OUT:
 ; Get subscript
 ;
 ; Used by the routines at STEP and LINE_GFX.
-GET_PSINT:
+FPSINT:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
 
 ; Same as 1112H except that the evalutation starts at HL-1
 ;
 ; Used by the routine at DEFVAL.
-FPSINT:
-  CALL EVAL
+FPSINT_0:
+  CALL EVAL          ;EVALUATE A FORMULA
 
 ; Get integer variable to DE, error if negative
 ;
 ; Used by the routine at MAKINT.
 DEPINT:
-  PUSH HL
-  CALL __CINT
-  EX DE,HL
-  POP HL
-  LD A,D
+  PUSH HL            ;SAVE THE TEXT POINTER
+  CALL __CINT        ;CONVERT THE FORMULA TO AN INTEGER IN [H,L]
+  EX DE,HL           ;PUT THE INTEGER INTO [D,E]
+  POP HL             ;RETSORE THE TEXT POINTER
+  LD A,D             ;SET THE CONDITION CODES ON THE HIGH ORDER
   OR A
   RET
 
@@ -6786,7 +6833,7 @@ LINE_GFX_15:
 
 ; This entry point is used by the routine at __PRINT.
 PRINT_AT:
-  CALL GET_PSINT
+  CALL FPSINT
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
   PUSH HL
