@@ -2883,7 +2883,7 @@ RETLIN:
 
 ; Routine at 2461
 ;
-; Used by the routines at INPUT_SUB and __READ.
+; Used by the routines at NOTQTI and __READ.
 NXTDTA:
   POP HL                ;GET TEXT POINTER OFF STACK
 
@@ -3313,13 +3313,17 @@ ISTTY:
   DEC A              ; Adjust it
   CP B               ; Will output fit on this line?
 LINCH2:
-  JP C,PRNTNB
-  CALL Z,CONSOLE_CRLF_1
+  JP C,PRNTNB        ; START ON A NEW LINE
+  CALL Z,CRLF_DONE
   CALL NZ,OUTDO_CRLF
 PRNTNB:
   CALL PRS1          ; Output string at (HL)
   OR A               ; Skip CALL by resetting "Z" flag
-; Output string contents
+
+; Output string contents (a.k.a. STRDON)
+; USE FOLDING FOR STRINGS AND #S
+;
+; Used by the routine at __PRINT.
 PRNTST:
   CALL Z,PRS1        ; Output string at (HL)
   POP HL             ; Restore code string address
@@ -3327,74 +3331,79 @@ PRNTST:
 
 ; "," found in PRINT list
 DOCOM:
-  LD BC,$0008
+  LD BC,$0008        ;(NMLO.C) if file output, SPECIAL PRINT POSITION SHOULD BE FETCHED FROM FILE DATA
   LD HL,(PTRFIL)
-  ADD HL,BC
-  CALL _ISFLIO       ; Tests if I/O to device is taking place
-  LD A,(HL)
+  ADD HL,BC          ;[H,L] POINT AT POSITION..
+  CALL _ISFLIO       ;OUTPUTING INTO A FILE?
+  LD A,(HL)          ;IF FILE IS ACTIVE
   JP NZ,ZONELP
-  LD A,(PRTFLG)
-  OR A
-  JP Z,__PRINT_7
-  LD A,(LPTPOS)
-  CP $EE
-  JP __PRINT_8
+  LD A,(PRTFLG)      ;OUTPUT TO THE LINE PRINTER?
+  OR A               ;NON-ZERO MEANS YES
+  JP Z,ISCTTY        ;NO, DO TELETYPE COMMA
+  LD A,(LPTPOS)      ;OUTPUT TO THE LINE PRINTER?
+  CP $EE             ;CHECK IF MAX COMMA FIELDS
+  JP CHKCOM          ;USE TELETYPE CHECK
   
-__PRINT_7:
-  LD A,(CLMLST)
+ISCTTY:
+  LD A,(CLMLST)         ;Column space, POSITION BEYOND WHICH THERE ARE NO MORE COMMA FIELDS
   LD B,A
-  LD A,(TTYPOS)
+  LD A,(TTYPOS)         ;GET TELETYPE POSITION
   CP B
-__PRINT_8:
-  CALL NC,OUTDO_CRLF
-  JP NC,NEXITM
+CHKCOM:
+  CALL NC,OUTDO_CRLF    ;TYPE CRLF
+  JP NC,NEXITM          ;AND QUIT IF BEYOND THE LAST COMMA FIELD
+
+; a.k.a MORCOM
 ZONELP:
-  SUB $0E                 ; Next zone of 14 characters
-  JP NC,ZONELP            ; Repeat if more zones
-  CPL                     ; Number of spaces to output
-  JP ASPCS                ; Output them
+  SUB 14             ; (CLMWID) Next zone of 14 characters
+  JP NC,ZONELP       ; Repeat if more zones
+  CPL                ; Number of spaces to output
+                     ; WE WANT TO  FILL THE PRINT POSITION OUT TO AN EVEN CLMWID,
+                     ; SO WE PRINT CLMWID-[A] MOD CLMWID SPACES
+  JP ASPCS           ; Output them             ;GO PRINT [A]+1 SPACES
 
 ; Routine at 3073
 ;
 ; Used by the routine at __PRINT.
 TAB:
-  CALL FNDNUM		; Numeric argument (0..255)
+  CALL FNDNUM		; Numeric argument (0..255)        ;EVALUATE THE ARGUMENT
   RST SYNCHR 		; Make sure ")" follows
   DEFB ')'          
   DEC HL            ; Back space on to ")"
   PUSH HL
-  LD BC,$0008
+  LD BC,$0008       ;(NMLO.C) if file output, SPECIAL PRINT POSITION SHOULD BE FETCHED FROM FILE DATA
   LD HL,(PTRFIL)
-  ADD HL,BC
-  CALL _ISFLIO       ; Tests if I/O to device is taking place
-  LD A,(HL)
-  JP NZ,DOSPC
-  LD A,(PRTFLG)
-  OR A
-  JP Z,TAB_0
-  LD A,(LPTPOS)    ; Get current printer position
-  JP DOSPC
-TAB_0:
-  LD A,(TTYPOS)    ; Get current position
+  ADD HL,BC         ;[H,L] POINT AT POSITION
+  CALL _ISFLIO      ;OUTPUTING INTO A FILE?  (IF SO, [PTRFIL] .NE. 0)
+  LD A,(HL)         ;IF FILE IS ACTIVE
+  JP NZ,DOSPC       ;DO TAB CALCULATION NOW
+  LD A,(PRTFLG)     ;LINE PRINTER OR TTY?
+  OR A              ;NON-ZERO MEANS LPT
+  JP Z,TTYIST
+  LD A,(LPTPOS)     ; Get current printer position     ;GET LINE PRINTER POSITION
+  JP DOSPC          ;GET THE LINE LENGTH
+TTYIST:
+  LD A,(TTYPOS)     ; Get current position        ;GET TELETYPE PRINT POSITION
 DOSPC:
-  CPL              ; Number of spaces to print to
-  ADD A,E          ; Total number to print
-  JP NC,NEXITM     ; TAB < Current POS(X)
+  CPL               ; Number of spaces to print to     ;PRINT [E]-[A] SPACES
+  ADD A,E           ; Total number to print
+  JP NC,NEXITM      ; TAB < Current POS(X)
 ; This entry point is used by the routine at __PRINT.
 ASPCS:
-  INC A           ; Output A spaces
-  LD B,A          ; Save number to print
-  LD A,' '        ; Space
+  INC A             ; Output A spaces
+  LD B,A            ; Save number to print             ;[B]=NUMBER OF SPACES TO PRINT
+  LD A,' '          ; Space                            ;[A]=SPACE
 SPCLP:            
-  RST OUTC        ; Output character in A
-  DEC B           ; Count them
-  JP NZ,SPCLP     ; Repeat if more
+  RST OUTC          ; Output character in A            ;PRINT [A]
+  DEC B             ; Count them                       ;DECREMENT THE COUNT
+  JP NZ,SPCLP       ; Repeat if more
   
 ; This entry point is used by the routine at __PRINT.
 ; Move to next item in the PRINT list
 NEXITM:
-  POP HL            ; Restore code string address
-  RST CHRGTB		; Get next character
+  POP HL            ; Restore code string address      ;PICK UP TEXT POINTER
+  RST CHRGTB		; Get next character               ;AND THE NEXT CHARACTER
+  ;AND SINCE WE JUST PRINTED SPACES, DON'T CALL CRDO IF IT'S THE END OF THE LINE
   JP PRNTLP         ; More to print
 
 ; This entry point is used by the routines at __PRINT, __READ, _CLREG and
@@ -3405,60 +3414,65 @@ NEXITM:
 FINPRT:
   XOR A
   LD (PRTFLG),A
-  PUSH HL
-  LD H,A
+  PUSH HL           ;SAVE THE TEXT POINTER
+  LD H,A            ;[H,L]=0
   LD L,A
-  LD (PTRFIL),HL			; Redirect I/O
-  POP HL
+  LD (PTRFIL),HL	;ZERO OUT PTRFIL  (disabling eventual output redirection)
+  POP HL            ;GET BACK THE TEXT POINTER
   RET
 
 ; Routine at 3141
 __LINE:
-  CP $84		; TK_INPUT, Token for INPUT to support the "LINE INPUT" statement
+  CP $84			; TK_INPUT, Token for INPUT to support the "LINE INPUT" statement
   JP NZ,LINE_GFX
   RST CHRGTB		; Gets next character (or token) from BASIC text.
-  CP '#'
-  JP Z,LINE_INPUT
+  CP '#'            ;SEE IF THERE IS A FILE NUMBER
+  JP Z,LINE_INPUT   ;DO DISK INPUT LINE
   CALL IDTEST
   LD A,(HL)
-  CALL __INPUT_0
-  CALL GETVAR
-  CALL TSTSTR
-  PUSH DE
-  PUSH HL
-  CALL _INLIN		; Line input, FN keys are supported.
-  POP DE
-  POP BC
-  JP C,INPBRK	; 	_ENDPRG - 3
-  PUSH BC
-  PUSH DE
-  LD B,$00
-  CALL QTSTR_0	; Eval '0' quoted string
-  POP HL
-  LD A,$03		; cp VALTYP to String type
-  JP __LET_0
+  CALL __INPUT_0    ;PRINT QUOTED STRING IF ONE
+  CALL GETVAR       ;READ STRING TO STORE INTO
+  CALL TSTSTR       ;MAKE SURE ITS A STRING
+  PUSH DE           ;SAVE POINTER AT VARIABLE
+  PUSH HL           ;SAVE TEXT POINTER
+  CALL _INLIN       ;READ A LINE OF INPUT
+  POP DE            ;GET TEXT POINTER
+  POP BC            ;GET POINTER AT VARIABLE
+  JP C,INPBRK       ;IF CONTROL-C, STOP
+  PUSH BC           ;SAVE BACK VARIABLE POINTER
+  PUSH DE           ;SAVE TEXT POINTER
+  LD B,$00          ;SETUP ZERO AS ONLY TERMINATOR
+  CALL QTSTR_0      ;LITERALIZE THE INPUT
+  POP HL            ;RESTORE [H,L]=TEXT POINTER
+  LD A,$03          ;SET THREE FOR STRING
+  JP __LET_0        ;DO THE ASSIGNMENT
 
 ; text at $0C74
 REDO_MSG:
   DEFM "?Redo from start"
   DEFB CR, LF, $00
   
+;
+; HERE WHEN PASSING OVER STRING LITERAL IN SUBSCRIPT OF VARIABLE IN INPUT LIST
+; ON THE FIRST PASS OF INPUT CHECKING FOR TYPE MATCH AND NUMBER
+;
 ; This entry point is used by the routine at __READ.
-ERR_INPUT:
-  LD A,(FLGINP)
-  OR A
-  JP NZ,DATSNR
-  POP BC
+SCNSTR:
+  LD A,(FLGINP)     ;WAS IT READ OR INPUT?
+  OR A              ;ZERO=INPUT
+  JP NZ,DATSNR      ;GIVE ERROR AT DATA LINE
+  POP BC            ;GET RID OF THE POINTER INTO THE VARIABLE LIST
   LD HL,REDO_MSG
-  CALL PRS
-  LD HL,(SAVTXT)
-  RET
+  CALL PRS          ;PRINT "?REDO FROM START" TO NEWSTT POINTING AT THE START OF
+  LD HL,(SAVTXT)    ;START ALL OVER: GET SAVED TEXT POINTER
+  RET               ;GO BACK TO NEWSTT
 
 ; Routine at 3225
+; INPUT #, set stream number (input channel)
+; "set input channel"
 ;
 ; Used by the routine at __INPUT.
-; INPUT#
-SET_INPUT_CHANNEL:
+FILSTI:
   CALL GT_CHANNEL         	; deal with '#' argument
   PUSH HL
   LD HL,BUFMIN
@@ -3469,40 +3483,48 @@ __INPUT:
   CALL IDTEST
   LD A,(HL)
   CP '#'
-  JP Z,SET_INPUT_CHANNEL
+  JP Z,FILSTI       ; "set input channel"
   CALL IDTEST
   LD A,(HL)
-  LD BC,INPUT_SUB
-  PUSH BC
+  LD BC,NOTQTI      ;WHERE TO GO
+  PUSH BC           ;WHEN DONE WITH QUOTED STRING
+
 ; This entry point is used by the routine at __LINE.
 __INPUT_0:
-  CP '"'            ; Is there a prompt string?
-  LD A,$00          ; Clear A and leave flags
-  RET NZ
-  CALL QTSTR        ; Get string terminated by '"'
+  CP '"'            ; Is there a prompt string?    ;IS IT A QUOTE?
+  LD A,$00          ; Clear A and leave flags      ;BE TALKATIVE
+  RET NZ            ; not a quote.. JUST RETURN
+  CALL QTSTR        ; MAKE THE MESSAGE A STRING
   RST SYNCHR 		; Check for ";" after prompt
   DEFB ';'
-  PUSH HL           ; Save code string address
+  PUSH HL           ; Save code string address     ;REMEMBER WHERE IT ENDED
   CALL PRS1         ; Output prompt string
-  POP HL
-  RET
+  POP HL            ; Restore code string address  ;GET BACK SAVED TEXT PTR
+  RET               ;ALL DONE
   
 ; Routine at 3268
-INPUT_SUB:
+NOTQTI:
   PUSH HL
-  CALL QINLIN			; User interaction with question mark, HL = resulting text 
-  POP BC
-  JP C,INPBRK
+  CALL QINLIN       ; User interaction with question mark, HL = resulting text 
+  POP BC            ; Restore code string address      ;TAKE OFF SINCE MAYBE LEAVING
+  JP C,INPBRK                                          ;IF EMPTY LEAVE
   INC HL
   LD A,(HL)
   OR A
   DEC HL
-  PUSH BC
+  PUSH BC           ; Re-save code string address      ;PUT BACK SINCE DIDN'T LEAVE
   JP Z,NXTDTA
-; This entry point is used by the routine at SET_INPUT_CHANNEL.
+
+
+;
+; THIS IS THE FIRST PASS DICTATED BY ANSI REQUIRMENT THAN NO VALUES BE ASSIGNED 
+; BEFORE CHECKING TYPE AND NUMBER. THE VARIABLE LIST IS SCANNED WITHOUT EVALUATING
+; SUBSCRIPTS AND THE INPUT IS SCANNED TO GET ITS TYPE. NO ASSIGNMENT IS DONE
+;
+; This entry point is used by the routine at FILSTI.
 INPUT_CHANNEL:
-  LD (HL),','
-  JP _READ_CH
+  LD (HL),','       ;PUT A COMMA IN FRONT OF BUF    (Store comma as separator)
+  JP INPCON
 
 ; Routine at 3289
 __READ:
@@ -3513,8 +3535,8 @@ __READ:
 
 ; Routine at 3294
 ;
-; Used by the routine at INPUT_SUB.
-_READ_CH:
+; Used by the routine at NOTQTI.
+INPCON:
   XOR A                 ; Flag "INPUT"
   LD (FLGINP),A         ; Save "READ"/"INPUT" flag
   EX (SP),HL            ; Get code str' , Save pointer
@@ -3594,7 +3616,7 @@ LTSTND:
   RST CHRGTB		 ; Get next character
   JP Z,MORDT         ; End of line - More needed?
   CP ','             ; Another value?
-  JP NZ,ERR_INPUT    ; No - Bad input
+  JP NZ,SCNSTR    ; No - Bad input
 MORDT:            
   EX (SP),HL         ; Get code string address
   DEC HL             ; DEC 'cos GETCHR INCs
@@ -9017,7 +9039,7 @@ PRS1_0:
   LD A,(BC)
   RST OUTC
   CP $0D         ; CR
-  CALL Z,CONSOLE_CRLF_1
+  CALL Z,CRLF_DONE
   INC BC
   JP PRS1_0
 
@@ -15080,7 +15102,7 @@ _INLIN_1:
   CP $7F		; BS
   JP Z,_INLIN_BS
   CP ' '
-  JP NC,_INLIN_TAB_0
+  JP NC,_INLIN_TTYIST
   LD HL,INLIN_TBL-2
   LD C,$07
   JP TTY_VECT_JP
@@ -15141,7 +15163,7 @@ _INLIN_ENTER:
 _INLIN_ENTER_0:
   LD HL,BUFMIN
 IF KC85 | M10
-  LD (HL),','
+  LD (HL),','          ; a comma used, e.g. in "FILSTI"
 ENDIF
   RET
 
@@ -15188,7 +15210,7 @@ _INLIN_CTL_UX:
 _INLIN_TAB:
   LD A,$09
 ; This entry point is used by the routine at _INLIN.
-_INLIN_TAB_0:
+_INLIN_TTYIST:
   INC B
   JP Z,INXD_0
   RST OUTC
@@ -16138,7 +16160,7 @@ TABEXP_LOOP:
 
 NO_TAB:
   SUB $0D		; CR
-  JP Z,NO_TAB_0
+  JP Z,NO_TTYIST
   JP C,NO_DOSPC
   
 IF KC85 | M10
@@ -16148,7 +16170,7 @@ ENDIF
 
   LD A,(LPTPOS)
   INC A
-NO_TAB_0:
+NO_TTYIST:
   LD (LPTPOS),A
 NO_DOSPC:
   POP AF
@@ -16222,7 +16244,7 @@ CONSOLE_CRLF:
   LD (HL),$00
   CALL _ISFLIO       ; Tests if I/O to device is taking place
   LD HL,BUFMIN
-  JP NZ,CONSOLE_CRLF_1
+  JP NZ,CRLF_DONE
 ; This entry point is used by the routines at __PRINT, __LIST and USING.
 OUTDO_CRLF:
   LD A,$0D         ; CR
@@ -16230,7 +16252,7 @@ OUTDO_CRLF:
   LD A,$0A         ; LF
   RST OUTC
 ; This entry point is used by the routines at __PRINT and PRS1.
-CONSOLE_CRLF_1:
+CRLF_DONE:
   CALL _ISFLIO       ; Tests if I/O to device is taking place
   JP Z,CONSOLE_CRLF_2
   XOR A
@@ -16933,7 +16955,7 @@ EXEC_FILE:
   CALL CLOSE1
   JP DS_ERR
 
-; This entry point is used by the routines at SET_INPUT_CHANNEL and L4F2E.
+; This entry point is used by the routines at FILSTI and L4F2E.
 GT_CHANNEL:
   LD C,$01
 
@@ -21587,14 +21609,14 @@ TXT_ADD_GRAPH:
   CP $09		; TAB
   JP Z,ADD_TAB
   INC (HL)
-  JP ADD_TAB_0
+  JP ADD_TTYIST
 
 ADD_TAB:
   INC (HL)
   LD A,(HL)
   AND $07
   JP NZ,ADD_TAB
-ADD_TAB_0:
+ADD_TTYIST:
   LD A,(TRM_WIDTH)
   DEC A
   CP (HL)
@@ -25479,7 +25501,7 @@ BOOT_6:
   CALL ERASE_IPL
   LD (TMOFLG),A
   LD A,':'
-  LD (BUFFER),A
+  LD (BUFFER),A         ; a colon for restarting input
   LD HL,PRMSTK			; ptr to previous block definition on stack
   LD (PRMPRV),HL
   
