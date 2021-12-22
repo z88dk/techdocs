@@ -176,7 +176,7 @@ defc TK_INKEY_S  =  $EC	; Token for 'INKEY$'
 defc TK_POINT    =  $ED	; Token for 'POINT'
 
 
-; COMPARISON OPERATORS
+; RELATIONAL OPERATORS
 
 defc TK_GREATER  =  $EE ; Token for '>'
 defc TK_EQUAL    =  $EF ; Token for '='
