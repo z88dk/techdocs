@@ -6217,6 +6217,12 @@ L1B34:
 
 ; Routine at 6981
 ;
+;	OUTDO (either CALL or RST) prints char in [A] no registers affected
+;		to either terminal or disk file or printer depending
+;		flags:
+;			PRTFLG if non-zero print to printer
+;			PTRFIL if non-zero print to disk file pointed to by PTRFIL
+;
 ; Used by the routine at OUTDO.
 _OUTDO:
   PUSH AF
@@ -6238,27 +6244,27 @@ ENDIF
 ;
 ; Used by the routine at _OUTDO.
 OUTDO_NOFILE:
-  LD A,(PRTFLG)
-  OR A
-  JR Z,_OUTCON
+  LD A,(PRTFLG)          ;SEE IF WE WANT TO TALK TO LPT
+  OR A                   ;TEST BITS
+  JR Z,_OUTCON           ;IF ZERO THEN NOT
   LD A,(RAWPRT)
   AND A
   JR NZ,_OUTPRT
-  POP AF
+  POP AF                 ;GET BACK CHAR
 
 ; This entry point is used by the routine at OUTDLP.
 OUTC_TABEXP:
   PUSH AF
-  CP TAB
-  JR NZ,NO_TAB
+  CP TAB                 ;TAB
+  JR NZ,NO_TAB           ;NO
 TABEXP_LOOP:
   LD A,' '
   CALL OUTC_TABEXP
   LD A,(LPTPOS)
-  AND $07
-  JR NZ,TABEXP_LOOP
-  POP AF
-  RET
+  AND $07                ;AT TAB STOP?
+  JR NZ,TABEXP_LOOP      ;GO BACK IF MORE TO PRINT
+  POP AF                 ;POP OFF CHAR
+  RET                    ;RETURN
 
 ; Routine at 7030
 ;
@@ -14140,7 +14146,7 @@ __LPRINT:
 ; Data block at 18980
 __PRINT:
   LD C,$02              ;SETUP OUTPUT FILE
-  CALL GET_CHNUM		; Get stream number (C=default #channel)
+  CALL FILGET           ; Get stream number (C=default #channel)
 MRPRNT:
   DEC HL                ; DEC 'cos GETCHR INCs
   RST CHRGTB            ; GET ANOTHER CHARACTER
@@ -14384,7 +14390,7 @@ ENDIF
 ;
 ; Used by the routine at __INPUT.
 FILSTI:		; deal with '#' argument
-  CALL GT_CHANNEL		; Get stream number (default #channel=1)
+  CALL FILINP		; Get stream number (default #channel=1)
   PUSH HL
   LD HL,BUFMIN
   JP INPUT_CHANNEL		; 'INPUT' from a stream
@@ -15975,20 +15981,20 @@ DEPINT:
 
 ; Routine at 21019
 ;
-; Used by the routines at L4A5A, OPRND and GT_CHANNEL.
+; Used by the routines at L4A5A, OPRND and FILINP.
 FNDNUM:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
 ; This entry point is used by the routines at SETIO, __WAIT, L492A, __ERROR,
-; ISFUN, __WIDTH, __POKE, PAINT_PARMS, __PAINT, _MID_S, L69E4, L6A9E, __OPEN, L6BFB,
+; ISFUN, __WIDTH, __POKE, PAINT_PARMS, __PAINT, _MID_S, L69E4, FILSCN, __OPEN, L6BFB,
 ; FN_INPUT, __SOUND, __LOCATE, L77D4, __COLOR, __SCREEN, SET_BAUDRATE, PUT_SPRITE, __VDP,
 ; __VPOKE and __MAX.
 
 ; Get integer 0-255
 GETINT:
   CALL EVAL           ;EVALUATE A FORMULA
-; This entry point is used by the routines at __CHR_S, FN_STRING, FN_INSTR, GETFLP,
+; This entry point is used by the routines at __CHR_S, FN_STRING, FN_INSTR, FILFRM,
 ; __STICK, __STRIG, __PDL and __PAD.
-GETIN2:
+CONINT:
   CALL DEPINT         ;CONVERT THE FAC TO AN INTEGER IN [D,E]
   JP NZ,FC_ERR        ;WASN'T ERROR (Err $05 - "Illegal function call")
   DEC HL              ;ACTUALLY FUNCTIONS CAN GET HERE
@@ -16071,7 +16077,7 @@ LISPRT:
   LD A,(HL)
   OR A                 ;SET CC
   RET Z                ;IF =0 THEN END OF LINE
-  CALL __LIST_3        ;OUTPUT CHAR AND CHECK FOR LF
+  CALL OUTCH1          ;OUTPUT CHAR AND CHECK FOR LF
   INC HL               ;INCR POINTER
   JR LISPRT            ;PRINT NEXT CHAR
 
@@ -20058,7 +20064,7 @@ STRCPY:
 ; Routine at 26149
 ;
 ; Used by the routines at __CHR_S and FN_INKEY.
-MK_1BYTE_TMST:
+STRIN1:
   LD A,$01
 ; This entry point is used by the routines at CONCAT, FN_STRING, FN_INPUT and FN_SPRITE.
 ; Make temporary string
@@ -20169,7 +20175,7 @@ PRS1_0:
 
 ; Routine at 26254
 ;
-; Used by the routines at SAVSTR, MK_1BYTE_TMST and __LEFT_S.
+; Used by the routines at SAVSTR, STRIN1 and __LEFT_S.
 TESTR:
   OR A
   DEFB $0E  ; "LD C,n" to Mask the next byte
@@ -20514,10 +20520,10 @@ __ASC_0:
 
 ; Routine at 26651
 __CHR_S:
-  CALL MK_1BYTE_TMST   ; Make One character temporary string
-  CALL GETIN2          ; Make it integer A
+  CALL STRIN1          ; Make One character temporary string
+  CALL CONINT          ; Make it integer A
 ; This entry point is used by the routine at FN_INKEY.
-__CHR_S_0:
+SETSTR:
   LD HL,(TMPSTR)       ; Get address of string
   LD (HL),E            ; Save character
 
@@ -20546,7 +20552,7 @@ FN_STRING:
   PUSH HL
   RST GETYPR 		; Get the number type (FAC)
   JR Z,FN_STRING_0	; JP if string type
-  CALL GETIN2
+  CALL CONINT
   JR FN_STRING_1
   
 FN_STRING_0:
@@ -20556,7 +20562,7 @@ FN_STRING_1:
   CALL FN_STRING_2
   
 __SPACE_S:
-  CALL GETIN2
+  CALL CONINT
   LD A,' '
 FN_STRING_2:
   PUSH AF
@@ -20716,7 +20722,7 @@ FN_INSTR:
   PUSH AF
   JR Z,FN_INSTR_0	; JP if string type
   POP AF
-  CALL GETIN2
+  CALL CONINT
   OR A
   JP Z,FC_ERR
   PUSH AF
@@ -21032,39 +21038,54 @@ L6A61:
   JR NZ,L6A61
   JR FILE_PARMS_1
 
+;
+; CONVERT ARGUMENT TO FILE NUMBER AND SET [B,C] TO POINT TO FILE DATA BLOCK
+;
+; AT THIS ENTRY POINT THE FAC HAS THE FILE NUMBER IN IT ALREADY
+;
+;
 ; Routine at 27242
 ;
 ; Used by the routines at __LOC, __LOF, __EOF and __FPOS.
-GETFLP:
-  CALL GETIN2
-; This entry point is used by the routines at OPRND, L6A9E and __OPEN.
+FILFRM:
+  CALL CONINT            ;GET THE FILE NUMBER INTO [A]
+;
+; Comment taken from CP/M.  Things can be different on MSX !
+;
+; AT THIS POINT IT IS ASSUMED THE FILE NUMBER IS IN [A]
+; THE FILE NUMBER IS RETURNED IN [E]
+; [D] IS SET TO ZERO. [H,L] IS SAVED.
+; [B,C] IS SET TO POINT AT THE FILE DATA BLOCK FOR FILE [E]
+; [A] GIVE THE MODE OF THE FILE AND ZERO IS SET, IF THE FILE IS MODE ZERO (NOT OPEN).
+;
+; This entry point is used by the routines at OPRND, FILSCN and __OPEN.
 ; a.k.a. VARPTR_A
 GETPTR:
-  LD L,A
-  LD A,(MAXFIL)
+  LD L,A                  ;GET FILE NUMBER INTO [L]
+  LD A,(MAXFIL)           ;IS THIS FILE # LEGAL?
   CP L
-  JP C,BN_ERR			; Err $34 -  'Bad file number'
-  LD H,$00
+  JP C,BN_ERR             ;IF NOT, "BAD FILE NUMBER"  (Err $34 -  'Bad file number')
+  LD H,$00                ;SETUP OFFSET TO GET POINTER TO FILE DATA BLOCK
   ADD HL,HL
   EX DE,HL
-  LD HL,(FILTAB)
-  ADD HL,DE
-  LD A,(HL)
+  LD HL,(FILTAB)          ;POINT AT POINTER TABLE
+  ADD HL,DE               ;ADD ON OFFSET
+  LD A,(HL)               ;PICK UP POINTER IN [H,L]
   INC HL
   LD H,(HL)
   LD L,A
   LD A,(NLONLY)
   INC A
   RET Z
-  LD A,(HL)
-  OR A
+  LD A,(HL)               ;GET MODE OF FILE INTO [A]
+  OR A                    ;SET ZERO IF FILE NOT OPEN
   RET Z
   PUSH HL
-  LD DE,$0004
+  LD DE,$0004             ;(DATOFC) POINT TO DATA BLOCK
   ADD HL,DE
-  LD A,(HL)
+  LD A,(HL)               ; A = FILE MODE
   CP $09
-  JR NC,GETFLP_1
+  JR NC,FILFRM_1
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -21074,25 +21095,30 @@ ELSE
 ENDIF
   JP IE_ERR				; Err $33 - "Internal Error"
 
-GETFLP_1:
+FILFRM_1:
   POP HL
   LD A,(HL)
   OR A
   SCF
   RET
 
+;
+; AT THIS ENTRY POINT [H,L] IS ASSUMED TO BE THE TEXT POINTER AND
+; A FILE NUMBER IS SCANNED
+;
 ; Routine at 27294
 ;
 ; Used by the routines at GET and FN_INPUT.
-L6A9E:
+FILSCN:
   DEC HL
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  CP '#'
-  CALL Z,__CHRGTB  ; Gets next character (or token) from BASIC text.
-  CALL GETINT              ; Get integer 0-255
+  RST CHRGTB
+  CP '#'                ;MAKE NUMBER SIGN OPTIONAL
+  CALL Z,__CHRGTB       ;BY SKIPPING IT IF THERE
+  CALL GETINT           ;READ THE FILE NUMBER INTO THE FAC
   EX (SP),HL
   PUSH HL
-; a.k.a. SELECT. This entry point is used by the routines at _RUN_FILE and GT_CHANNEL.
+
+; a.k.a. SELECT. This entry point is used by the routines at _RUN_FILE and FILINP.
 SETFIL:
   CALL GETPTR
   JP Z,CF_ERR			; Err $3B - "File not OPEN"
@@ -21469,7 +21495,7 @@ ENDIF
 ; Used by the routine at L7756.
 GET:
   PUSH AF
-  CALL L6A9E
+  CALL FILSCN
   JR C,GET_0
 IF NOHOOK
  IF PRESERVE_LOCATIONS
@@ -21561,59 +21587,59 @@ RDBYT_0:
 FN_INPUT:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB '$'
+  DEFB '$'          ;STRING FUNCTION
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB '('
   PUSH HL
   LD HL,(PTRFIL)
   PUSH HL
   LD HL,$0000
-  LD (PTRFIL),HL		; Redirect I/O
+  LD (PTRFIL),HL
   POP HL
   EX (SP),HL
-  CALL GETINT              ; Get integer 0-255
-  PUSH DE
-  LD A,(HL)
-  CP ','
-  JR NZ,FN_INPUT_1
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  CALL L6A9E
+  CALL GETINT       ;Get # of bytes to read
+  PUSH DE           ;Save # of bytes to read
+  LD A,(HL)          
+  CP ','            ;Read from disk file?
+  JR NZ,REDTTY      ;No, from user's terminal
+  RST CHRGTB
+  CALL FILSCN       ; Check we have the '#' channel specifier and put the associated file buffer in BC
   CP $01
   JP Z,FN_INPUT_0
   CP $04
   JP NZ,EF_ERR		; Err $37 - "Input past END" (EOF)
 FN_INPUT_0:
-  POP HL
-  XOR A
+  POP HL            ;SET UP PTRFIL
+  XOR A             ;SET ZERO FOR FLAG
   LD A,(HL)
-FN_INPUT_1:
-  PUSH AF
+REDTTY:
+  PUSH AF           ;NON ZERO SET IF TERMINAL I/O
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found\n
-  DEFB ')'
-  POP AF
-  EX (SP),HL
-  PUSH AF
+  DEFB ')'          ;Must have paren
+  POP AF            ;Get flag off stack
+  EX (SP),HL        ;Save text ptr, [L]=# to read
+  PUSH AF           ;Save flag
   LD A,L
-  OR A
-  JP Z,FC_ERR
-  PUSH HL
-  CALL MKTMST			; Make temporary string
+  OR A              ;Read no characters?
+  JP Z,FC_ERR       ;Yes, error
+  PUSH HL           ;Save #
+  CALL MKTMST		;Get space for string
   EX DE,HL
-  POP BC
-FN_INPUT_2:
+  POP BC            ;[C] = # to read
+FIXLOP:
   POP AF
-  PUSH AF
-  JR Z,FN_INPUT_4
-  CALL CHGET
-  PUSH AF
-  CALL CKCNTC
+  PUSH AF           ;NON-ZERO set if should read from TTY
+  JR Z,DSKCHR       ;Read from disk file
+  CALL CHGET        ;GET CHAR IF ONE
+  PUSH AF           ;WAS ONE
+  CALL CKCNTC       ;Read a char from terminal
   POP AF
-FN_INPUT_3:
-  LD (HL),A
-  INC HL
-  DEC C
-  JR NZ,FN_INPUT_2
-  POP AF
+PUTCHR:
+  LD (HL),A         ;Put char into string
+  INC HL            
+  DEC C             ;Read enough yet?
+  JR NZ,FIXLOP      ;No, read more
+  POP AF            ;Get flag off stack
   POP BC
   POP HL
 IF NOHOOK
@@ -21623,14 +21649,14 @@ IF NOHOOK
 ELSE
   CALL HRSLF				; Hook for "INPUT$"
 ENDIF
-  LD (PTRFIL),HL		; Redirect I/O
+  LD (PTRFIL),HL
   PUSH BC
-  JP TSTOPL
+  JP TSTOPL         ;STOP PROGRAM
 
-FN_INPUT_4:
+DSKCHR:
   CALL RDBYT
   JP C,EF_ERR		; Err $37 - "Input past END" (EOF)
-  JR FN_INPUT_3
+  JR PUTCHR
 
 ; Routine at 27882
 CLRBUF:
@@ -21671,7 +21697,7 @@ IF NOHOOK
 ELSE
   CALL HSAVD			; Init Hook for LOC, LOF, EOF, FPOS
 ENDIF
-  CALL GETFLP
+  CALL FILFRM
   JR Z,__EOF_0
   LD A,$0A
   JR C,__EOF_1
@@ -21693,7 +21719,7 @@ IF NOHOOK
 ELSE
   CALL HSAVD			; Init Hook for LOC, LOF, EOF, FPOS
 ENDIF
-  CALL GETFLP
+  CALL FILFRM
   JR Z,__EOF_0
   LD A,$0C
   JR C,__EOF_1
@@ -21715,7 +21741,7 @@ IF NOHOOK
 ELSE
   CALL HSAVD			; Init Hook for LOC, LOF, EOF, FPOS
 ENDIF
-  CALL GETFLP
+  CALL FILFRM
 ; This entry point is used by the routines at __LOC and __LOF.
 __EOF_0:
   JP Z,CF_ERR			; Err $3B - "File not OPEN"
@@ -21743,7 +21769,7 @@ IF NOHOOK
 ELSE
   CALL HSAVD			; Init Hook for LOC, LOF, EOF, FPOS
 ENDIF
-  CALL GETFLP
+  CALL FILFRM
   LD A,$10
   JR C,__EOF_1
 IF NOHOOK
@@ -21763,37 +21789,48 @@ EXEC_FILE:
   CALL CLOSE
   JP L6E71		; Err $39 - Direct statement in a file
 
+; FILINP AND FILGET -- SCAN A FILE NUMBER AND SETUP PTRFIL
+
+; REVISION HISTORY
+; 4/23/78   PGA - ALLOW # ON CLOSE
+; 8/6/79    PGA - IF ^C ON MBASIC FOO, DONT RETURN TO SYSTEM. SEE 'NOTINI'
+; 6/27/80   PGA - FIX INPUT#1,D# SO IT USES FINDBL INSTEAD OF FIN AND THUS AVOIDS LOSING SIGNIFICANCE.
+
 ; Routine at 27989
 ;
+; Get stream number (default #channel=1)
 ; Used by the routine at FILSTI.
-; Get stream number (default #channel=1
-GT_CHANNEL:
-  LD C,$01
+FILINP:
+  LD C,$01          ; (MD.SQI) MUST BE SEQUENTIAL INPUT
+
 ; Get stream number (C=default #channel)
-GET_CHNUM:
-  CP '#'
-  RET NZ
-  PUSH BC
+; Look for '#' channel specifier and put the associated file buffer in BC
+FILGET:
+  CP '#'            ;NUMBER SIGN THERE?
+  RET NZ            ;NO, NOT DISK READER
+
+  PUSH BC           ;SAVE EXPECTED MODE
   CALL FNDNUM		; Numeric argument (0..255)
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB ','
+  DEFB ','          ;GO PAST THE COMMA
   LD A,E
   PUSH HL
-  CALL SETFIL
+  CALL SETFIL       ;SETUP PTRFIL = HL
   LD A,(HL)
   POP HL
-  POP BC
-  CP C
-  JR Z,GT_CHANNEL_1
+  POP BC            ;[C]=FILE MODE
+  CP C              ;IS IT RIGHT?
+  JR Z,GDFILM       ;GOOD FILE MODE
   CP $04
-  JR Z,GT_CHANNEL_1
+  JR Z,GDFILM       ;GOOD FILE MODE
   CP $08
-  JR NZ,GT_CHANNEL_0
+  JR NZ,BDFILM      ;BAD FILE MODE
   LD A,C
   CP $02
-GT_CHANNEL_0:
+BDFILM:
   JP NZ,BN_ERR			; Err $34 -  'Bad file number'
-GT_CHANNEL_1:
+
+GDFILM:
   LD A,(HL)
   RET
 
@@ -21810,115 +21847,116 @@ CLOSE_STREAM:
 ;
 ; Used by the routine at __READ.
 FILIND:
-  RST GETYPR 		; Get the number type (FAC)
-  LD BC,DOASIG
-  LD DE,$2C20		;  D=','  E=' '
-  JR NZ,LINE_INPUT_0		; JP if not string type
-  LD E,D
-  JR LINE_INPUT_0
+  RST GETYPR             ;SEE IF INPUT IS STRING OR NUMBER
+  LD BC,DOASIG           ;RETURN ADDRESS TO SETUP [FAC]
+  LD DE,$2C20            ; D=','  E=' '   ..SETUP TERMINATORS SPACE AND COMMA
+  JR NZ,INPDOR           ;IF NUMERIC, GO READ THE FILE
+  LD E,D                 ;MAKE BOTH TERMINATORS COMMA
+  JR INPDOR              ;GO READ THE FILE
 
+; LINE INPUT & READ CODE FOR ITEM FETCHING FROM SEQUENTIAL INPUT FILES
 ; Data block at 28047
 LINE_INPUT:
-  LD  BC,FINPRT
-  PUSH BC
-  CALL GT_CHANNEL
-  CALL GETVAR
-  CALL TSTSTR
+  LD  BC,FINPRT          ;RESET TO CONSOLE WHEN DONE READING
+  PUSH BC                ;SAVE ON STACK
+  CALL FILINP            ;GET FILE NUMBER SET UP
+  CALL GETVAR            ;READ STRING TO STORE INTO
+  CALL TSTSTR            ;MAKE SURE IT WAS A STRING
   PUSH DE
-  LD BC,LETCON
-  XOR A
-  LD D,A
+  LD BC,LETCON           ;GOOD RETURN ADDRESS FOR ASSIGNMENT
+  XOR A                  ;SET A=0 FOR STRING VALUE TYPE
+  LD D,A                 ;ZERO OUT BOTH TERMINATORS
   LD E,A
-LINE_INPUT_0:
-  PUSH AF
-  PUSH BC
-  PUSH HL
-LINE_INPUT_1:
-  CALL RDBYT
-  JP C,EF_ERR		; Err $37 - "Input past END" (EOF)
-  CP ' '
-  JR NZ,LINE_INPUT_2
-  INC D
+INPDOR:
+  PUSH AF                ;SAVE VALUE TYPE
+  PUSH BC                ;SAVE RETURN ADDRESS
+  PUSH HL                ;SAVE POINTER AT DATA COMING IN A DUMMY POINTER AT BUFMIN
+NOTNWT:
+  CALL RDBYT             ;READ A CHARACTER
+  JP C,EF_ERR            ;READ PAST END ERROR IF EOF  - Err $37 - "Input past END" (EOF)
+  CP ' '                 ;SKIP LEADING SPACES
+  JR NZ,NOTSPC           ;EXCEPT FOR LINE INPUT
+  INC D                  ;CHECK FOR LINEINPUT
   DEC D
-  JR NZ,LINE_INPUT_1
-LINE_INPUT_2:
-  CP '"'
-  JR NZ,LINE_INPUT_3
-  LD A,E
-  CP ','
-  LD A,'"'
-  JR NZ,LINE_INPUT_3
-  LD D,A
-  LD E,A
+  JR NZ,NOTNWT           ;SKIP ANY NUMBER
+NOTSPC:
+  CP '"'                 ;QUOTED STRING COMING IN?
+  JR NZ,NOTQTE     
+  LD A,E                 ;SAVE THE QUOTE
+  CP ','                 ;MUST BE INPUT OF A STRING
+  LD A,'"'               ;WHICH HAS [E]=44
+  JR NZ,NOTQTE           ;QUOTE BACK INTO [A]
+  LD D,A                 
+  LD E,A                 ;TERMINATORS ARE QUOTES ONLY
+  CALL RDBYT             
+  JR C,QUITSI            ;READ PAST QUOTATION
+NOTQTE:                  ;IF EOF, ALL DONE
+  LD HL,BUF              ;BUFFER FOR DATA
+  LD B,$FF               ;MAXIMUM NUMBER OF CHARACTERS (255)
+LOPCRS:
+  LD C,A                 ;SAVE CHARACTER IN [C]
+  LD A,D                 ;CHECK FOR QUOTED STRING
+  CP '"'                 
+  LD A,C                 ;RESTORE CHARACTER
+  JR Z,NOTQTL            ;DON'T IGNORE CR OR STOP ON LF
+  CP CR                  ;CR?
+  PUSH HL                ;SAVE DEST PTR. ON STACK
+  JR Z,ICASLF            ;EAT LINE FEED IF ONE
+  POP HL                 ;RESTORE DEST. PTR.
+  CP LF                  ;LF?
+  JR NZ,NOTQTL           ;NO, TEST OTHER TERMINATORS
+SKIP_LF:
+  LD C,A                 ;SAVE CURRENT CHAR
+  LD A,E                 ;GET TERMINATOR 2
+  CP ','                 ;CHECK FOR COMMA (UNQUOTED STRING)
+  LD A,C                 ;RESTORE ORIG CHAR
+  CALL NZ,STRCHR         ;IF NOT, STORE LF (?)
+  CALL RDBYT             ;GET NEXT CHAR
+  JR C,QUITSI            ;IF EOF, ALL DONE.
+  CP LF                  ;IS IT LF?
+  JR Z,SKIP_LF
+  CP CR                  ;IS IT A CR?
+  JR NZ,NOTQTL           ;IF NOT SEE IF STORE NORMALLY
+  LD A,E                 ;GET TERMINATOR
+  CP ' '                 ;IS IT NUMERIC INPUT?
+  JR Z,LPCRGT            ;IF SO, IGNORE CR, DONT PUT IN BUFFER
+  CP ','                 ;IS IT NON-QUOTED STRING (TERM=,)
+  LD A,CR                ;GET BACK CR.
+  JR Z,LPCRGT            ;IF SO, IGNORE CR.
+NOTQTL:
+  OR A                   ;IS CHAR ZERO
+  JR Z,LPCRGT            ;ALWAYS IGNORE, AS IT IS TERMINATOR FOR STRLIT (SEE QUIT2B)
+  CP D                   ;TERMINATOR ONE?
+  JR Z,QUITSI            ;STOP THEN
+  CP E                   ;TERMINATOR TWO?
+  JR Z,QUITSI            
+  CALL STRCHR            ;SAVE THE CHAR
+LPCRGT:
   CALL RDBYT
-  JR C,L6E0D
-LINE_INPUT_3:
-  LD HL,BUF
-  LD B,$FF
-LINE_INPUT_4:
-  LD C,A
-  LD A,D
-  CP '"'
-  LD A,C
-  JR Z,L6DFC
-  CP CR
-  PUSH HL
-  JR Z,L6E27
-  POP HL
-  CP LF
-  JR NZ,L6DFC
-L6DDC:
-  LD C,A
-  LD A,E
-  CP ','
-  LD A,C
-  CALL NZ,L6E61
-  CALL RDBYT
-  JR C,L6E0D
-  CP LF
-  JR Z,L6DDC
-  CP CR
-  JR NZ,L6DFC
-  LD A,E
+  JR NC,LOPCRS
+QUITSI:
+  PUSH HL                ;SAVE PLACE TO STUFF ZERO
+  CP '"'                 ;STOPPED ON QUOTE?
+  JR Z,MORSPC            ;DON'T SKIP SPACES THEN, BUT DO SKIP FOLLOWING COMMA OR CRLF THOUGH
+  CP ' '                 ;STOPPED ON SPACE?
+  JR NZ,NOSKCR           ;NO, DON'T SKIP SPACES OR ANY FOLLOWING COMMAS OR CRLFS EITHER
+MORSPC:
+  CALL RDBYT             ;READ SPACES
+  JR C,NOSKCR            ;EOF, ALL DONE.
   CP ' '
-  JR Z,L6E08
-  CP ','
-  LD A,CR
-  JR Z,L6E08
-L6DFC:
-  OR A
-  JR Z,L6E08
-  CP D
-  JR Z,L6E0D
-  CP E
-  JR Z,L6E0D
-  CALL L6E61
-L6E08:
-  CALL RDBYT
-  JR NC,LINE_INPUT_4
-L6E0D:
-  PUSH HL
-  CP '"'
-  JR Z,L6E16
-  CP ' '
-  JR NZ,NOSKCR
-L6E16:
-  CALL RDBYT
-  JR C,NOSKCR
-  CP ' '
-  JR Z,L6E16
-  CP ','
-  JR Z,NOSKCR
-  CP CR
-  JR NZ,L6E30
-L6E27:
-  CALL RDBYT
-  JR C,NOSKCR
-  CP LF
-  JR Z,NOSKCR
-L6E30:
+  JR Z,MORSPC
+  CP ','                 ;COMMA?
+  JR Z,NOSKCR            ;OK, SKIP IT
+  CP CR                  ;CARRIAGE RETURN?
+  JR NZ,BAKUPT           ;BACK UP PAST THIS CHARACTER
+ICASLF:
+  CALL RDBYT             ;READ ANOTHER
+  JR C,NOSKCR            ;EOF, ALL DONE.
+  CP LF                  ;LINE FEED?
+  JR Z,NOSKCR            ;OK, SKIP IT TOO
+BAKUPT:
   LD C,A
-  CALL INDSKB               ; GET A CHARACTER FROM A SEQUENTIAL FILE IN [PTRFIL]
+  CALL INDSKB
   JR NC,L6E3C
 IF NOHOOK
  IF PRESERVE_LOCATIONS
@@ -21934,41 +21972,42 @@ L6E3C:
   CALL GET_DEVICE
 
 NOSKCR:
-  POP HL
-; This entry point is used by the routine at L6E61.
-L6E35_0:
-  LD (HL),$00
-  LD HL,BUFMIN
-  LD A,E
-  SUB $20
-  JR Z,L6E35_1
+  POP HL            ;GET BACK PLACE TO STORE TERMINATOR
+
+; This entry point is used by the routine at STRCHR.
+QUIT2B:
+  LD (HL),$00       ;STORE THE TERMINATOR
+  LD HL,BUFMIN      ;(buf-1) ITEM IS NOW STORED AT THIS POINT +1
+  LD A,E            ;WAS IT A NUMERIC INPUT?
+  SUB $20           ;IF SO, [E]=" "
+  JR Z,NUMIMK       ;USE FIN TO SCAN IT
   LD B,$00
   CALL QTSTR_0		; Eval '0' quoted string
-  POP HL
-  RET
+  POP HL            ;GET BACK [H,L]
+  RET               ;DO ASSIGNMENT
   
-L6E35_1:
-  RST GETYPR 		; Get the number type (FAC)
-  PUSH AF
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  POP AF
-  PUSH AF
-  CALL C,FIN_DBL
-  POP AF
-  CALL NC,FIN_DBL
-  POP HL
-  RET
+NUMIMK:
+  RST GETYPR 		;;GET TYPE OF NUMERIC VARIABLE BEING READ
+  PUSH AF            ;SAVE IT
+  RST CHRGTB		;;READ FIRST CHARACTER
+  POP AF             ;RESTORE TYPE OF VARIABLE
+  PUSH AF            ;SAVE BACK
+  CALL C,FIN_DBL     ;SINGLE PRECISION INPUT
+  POP AF             ;GET BACK TYPE OF VAR
+  CALL NC,FIN_DBL    ;DOUBLE PRECISION INPUT
+  POP HL             ;GET [H,L]
+  RET                ;DO THE ASSIGNMENT
 
 ; Routine at 28257
-L6E61:
-  OR A
-  RET Z
-  LD (HL),A
+STRCHR:
+  OR A              ;TRYING TO STORE NULL BYTE
+  RET Z             ;RETURN, DONT STORE IT
+  LD (HL),A         ;STORE THE CHARACTER
   INC HL
-  DEC B
-  RET NZ
-  POP AF
-  JP L6E35_0
+  DEC B             ;128 YET?
+  RET NZ            ;MORE SPACE IN BUFFER, RETURN
+  POP AF            ;GET RID OF SUPERFLUOUS STACK ENTRY
+  JP QUIT2B         ;SPECIAL QUIT
 
 ; Routine at 28267
 ;
@@ -22977,23 +23016,24 @@ FILEFN_EXIT_0:
 ;
 ; Used by the routines at L628E and __END.
 FINLPT:
-  XOR A
-  LD (PRTFLG),A
-  LD A,(LPTPOS)
-  OR A
-  RET Z
-  LD A,CR
-  CALL LPTOUT_SAFE
+  XOR A                   ;RESET PRINT FLAG SO
+  LD (PRTFLG),A           ;OUTPUT GOES TO TERMINAL
+  LD A,(LPTPOS)           ;GET CURRENT LPT POSIT
+  OR A                    ;ON LEFT HAND MARGIN ALREADY?
+  RET Z                   ;YES, RETURN
+
+  LD A,CR                 ;PUT OUT CRLF
+  CALL LPTCHR
   LD A,LF
-  CALL LPTOUT_SAFE
+  CALL LPTCHR
   XOR A
-  LD (LPTPOS),A
-  RET
+  LD (LPTPOS),A           ;ZERO LPTPOS
+  RET                     ;DONE
 
 ; Routine at 29468
 ;
 ; Used by the routine at FINLPT.
-LPTOUT_SAFE:
+LPTCHR:
   CALL LPTOUT
   RET NC
   JP IO_ERR
@@ -23020,7 +23060,7 @@ ENDIF
   RST OUTDO  		; Output char to the current device
   LD A,LF
   RST OUTDO  		; Output char to the current device
-; This entry point is used by the routines at L4A5A, PRS1 and __LIST_3.
+; This entry point is used by the routines at L4A5A, PRS1 and OUTCH1.
 CRLF_DONE:
   CALL ISFLIO		; Tests if I/O to device is taking place
   JR Z,RESET_POS
@@ -23044,16 +23084,17 @@ TTY_FLUSH:
 ; Used by the routine at OPRND.
 FN_INKEY:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
-  PUSH HL
-  CALL CHSNS
-  JR Z,INKEY_S_0
+  PUSH HL               ;SAVE THE TEXT POINTER
+  CALL CHSNS            ;SET NON-ZERO IF CHAR THERE
+  JR Z,NULRT            ;NO, RETURN NULL STRING
   CALL CHGET
   PUSH AF
-  CALL MK_1BYTE_TMST
+  CALL STRIN1           ;MAKE ONE CHAR STRING
   POP AF
-  LD E,A
-  CALL __CHR_S_0
-INKEY_S_0:
+  LD E,A                ;CHAR TO [D]
+  CALL SETSTR           ;STUFF IN DESCRIPTOR AND GOTO PUTNEW
+
+NULRT:
   LD HL,NULL_STRING
   LD (FACLOW),HL
   LD A,$03			; String
@@ -23064,14 +23105,14 @@ INKEY_S_0:
 ; Routine at 29543
 ;
 ; Used by the routine at LISPRT.
-__LIST_3:
-  RST OUTDO  		; Output char to the current device
-  CP LF
-  RET NZ
-  LD A,CR
-  RST OUTDO  		; Output char to the current device
+OUTCH1:
+  RST OUTDO            ;OUTPUT THE CHAR
+  CP LF                ;WAS IT A LF?
+  RET NZ               ;NO, RETURN
+  LD A,CR              ;DO CR
+  RST OUTDO
   CALL CRLF_DONE
-  LD A,LF
+  LD A,LF              ;RESTORE CHAR (LF)
   RET
 
 
@@ -23122,7 +23163,7 @@ EOF_REACHED:
 
 ; Routine at 29618
 ;
-; Used by the routines at START_TAP_IN and LPTOUT_SAFE.
+; Used by the routines at START_TAP_IN and LPTCHR.
 IO_ERR:
   LD E,$13				; Err $13 - "Device I/O error"
   JP ERROR
@@ -24298,7 +24339,7 @@ FN_PLAY_3:
 
 ; Routine at 31040
 __STICK:
-  CALL GETIN2
+  CALL CONINT
   CP $03
   JR NC,__STRIG_0
   CALL GTSTCK
@@ -24306,7 +24347,7 @@ __STICK:
 
 ; Routine at 31052
 __STRIG:
-  CALL GETIN2
+  CALL CONINT
   CP $05
 ; This entry point is used by the routines at __STICK, __PDL and __PAD.
 __STRIG_0:
@@ -24318,7 +24359,7 @@ __STRIG_1:
 
 ; Routine at 31066
 __PDL:
-  CALL GETIN2
+  CALL CONINT
   DEC A
   CP $0C
   JR NC,__STRIG_0
@@ -24330,7 +24371,7 @@ __PDL_0:
 
 ; Routine at 31081
 __PAD:
-  CALL GETIN2
+  CALL CONINT
   CP $08
   JR NC,__STRIG_0
   PUSH AF
