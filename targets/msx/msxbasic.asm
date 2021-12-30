@@ -2346,17 +2346,17 @@ _CHPUT_1:
 ;
 ; Used by the routines at _CHPUT and CURS_TAB.
 CHPUT_CONT:
-  CALL _SNVCHR
+  CALL _SNVCHR        ; Convert character
   RET NC
   LD C,A
   JR NZ,L08F3
   LD HL,ESCCNT
   LD A,(HL)
-  AND A			; Are we in ESCAPE or in some special 'control code' mode ?
-  JP NZ,ESC_PROC
+  AND A               ; Are we in ESCAPE or in some special 'control code' mode ?
+  JP NZ,IN_ESC
   LD A,C
-  CP ' '		; < ' ' ?
-  JR C,TTY_JP_0
+  CP ' '              ;IS THIS A MEANINGFUL CHARACTER?
+  JR C,TRYOUT         ;IF IT'S A NON-PRINTING CHARACTER
 L08F3:
   LD HL,(CSRY)
 IF SPECTRUM_SKIN
@@ -2382,10 +2382,10 @@ CURS_LF:
 ;
 ; Used by the routine at CHPUT_CONT.
 ; $0914:  Character control code processor
-TTY_JP_0:
+TRYOUT:
   LD HL,TTY_CTLCODES-2
   LD C,12
-; This entry point is used by the routines at ESC_PROC and _QINLIN.
+; This entry point is used by the routines at IN_ESC and _QINLIN.
 ; Parse the jump table in HL for C entries
 TTY_JP:
   INC HL
@@ -2406,7 +2406,7 @@ TTY_JP:
 
 ; Routine at 2349
 ;
-; Used by the routine at TTY_JP_0.
+; Used by the routine at TRYOUT.
 JP_BC:
   PUSH BC
   RET
@@ -2526,7 +2526,7 @@ L098B:
 ;
 ; Used by the routine at CHPUT_CONT.
 ; "ESC sequence processor"
-ESC_PROC:
+IN_ESC:
   JP P,ESC_CURS
 ; In-Escape
   LD (HL),$00
@@ -2537,7 +2537,7 @@ ESC_PROC:
 
 ; Routine at 2461
 ;
-; Used by the routine at ESC_PROC.
+; Used by the routine at IN_ESC.
 ; different "Escape-Like" status flags
 ESC_CURS:
   DEC A
@@ -7974,7 +7974,7 @@ FP2DE:
 ARG2FACCU:
   LD HL,ARG
 ; This entry point is used by the routines at __SIN, __ATN, __EXP, __RND,
-; SMSER1, L375F, DECEXP and L3878.
+; SMSER1, NUMPRT_SUB, DECEXP and L3878.
 HL2FACCU:
   LD DE,FACCU
   JR FP2DE
@@ -8727,7 +8727,7 @@ L3034:
   RST KEYINT 		;  Performs hardware interrupt procedures
   
 
-; This entry point is used by the routines at __EXP, TO_DOUBLE, L375F, L3878, L4D26 and ISFUN.
+; This entry point is used by the routines at __EXP, TO_DOUBLE, NUMPRT_SUB, L3878, L4D26 and ISFUN.
 ; Position: $303A
 __CDBL:
   RST GETYPR 		; Get the number type (FAC)
@@ -9600,7 +9600,7 @@ FOUT:
 ; --- START PROC L3426 ---
 ; Convert number/expression to string ("PRINT USING" format specified in 'A' register)
 PUFOUT:
-  CALL L375F
+  CALL NUMPRT_SUB
   AND $08	; bit 3 - Sign (+ or -) preceeds number
   JR Z,L342F
   LD (HL),'+'
@@ -10273,7 +10273,7 @@ L3752:
   RET
 
 ; Routine at 14175
-L375F:
+NUMPRT_SUB:
   LD (TEMP3),A
   PUSH AF
   PUSH BC
@@ -13483,7 +13483,7 @@ GET_POSINT_0:
 ;
 ; Used by the routines at __LOG, __ERROR, __AUTO, OPRND, __WIDTH, FNDNUM,
 ; __DELETE, __RENUM_0, __RENUM_NXT, L5683, L575A, PAINT_PARMS, IN_GFX_MODE, __PAINT, __CIRCLE, CIRCLE_SUB,
-; __DRAW, M_DIAGONAL, SCALE, FORECOLOR, L5E91, USING_0, __SWAP, __CLEAR, __ASC, __MID_S,
+; __DRAW, M_DIAGONAL, SCALE, FORECOLOR, L5E91, REUSST, __SWAP, __CLEAR, __ASC, __MID_S,
 ; FN_INSTR, _MID_S, __LFILES, FN_INPUT, __SOUND, L748E, L7684, L77D4, ON_OPTIONS, __STRIG,
 ; __SCREEN, SET_BAUDRATE, __SPRITE, PUT_SPRITE, __BASE, __CVD and __MAX.
 ;  $475A
@@ -14205,7 +14205,7 @@ ISTTY:
   CP B                    ; Will output fit on this line?
 LINCH2:                  
   JR C,PRNTNB             ; START ON A NEW LINE
-  CALL Z,CRLF_DONE        ; No - CRLF first
+  CALL Z,CRFIN            ; No - CRLF first
   CALL NZ,OUTDO_CRLF
 PRNTNB:
   CALL PRS1               ; Output string at (HL)
@@ -18918,332 +18918,384 @@ ENDDIM:
   LD HL,(NXTOPR)		; Got code string address
   RET                   
 
+
+; PRINT USING
+;
+; PRINT#<filenumber>,[USING<string exp>;]<list of exps>
+; To write data to a sequential disk file.
+;
+; COME HERE AFTER THE "USING" CLAUSE IN A PRINT STATEMENT IS RECOGNIZED.
+; THE IDEA IS TO SCAN THE USING STRING UNTIL THE VALUE LIST IS EXHAUSTED,
+; FINDING STRING AND NUMERIC FIELDS TO PRINT VALUES OUT OF THE LIST IN,
+; AND JUST OUTPUTING ANY CHARACTERS THAT AREN'T PART OF A PRINT FIELD.
+;
 ; Routine at 24753
 USING:
-  CALL EVAL_0
-  CALL TSTSTR
-  RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB ';'
-  EX DE,HL
-  LD HL,(FACLOW)
-  JR USING_1
+  CALL EVAL_0           ;EVALUATE THE "USING" STRING
+  CALL TSTSTR           ;MAKE SURE IT IS A STRING
+  RST SYNCHR
+  DEFB ';'              ;MUST BE DELIMITED BY A SEMI-COLON
+  EX DE,HL              ;[D,E]=TEXT POINTER
+  LD HL,(FACLOW)        ;GET POINTER TO "USING" STRING DESCRIPTOR
+  JR USING_1            ;DONT POP OFF OR LOOK AT USFLG
+
 ; Routine at 24767
 ;
 ; Used by the routine at L61C4.
-USING_0:
-  LD A,(FLGINP)
-  OR A
-  JR Z,USING_2
-  POP DE
-  EX DE,HL
-; This entry point is used by the routine at USING.
-USING_1:
-  PUSH HL
-  XOR A
-  LD (FLGINP),A
-  INC A
-  PUSH AF
-  PUSH DE
-  LD B,(HL)
-  INC B
+REUSST:
+  LD A,(FLGINP)         ;DID WE PRINT OUT A VALUE LAST SCAN?
+  OR A                  ;SET CC'S
+  JR Z,FCERR3           ;NO, GIVE ERROR
+  POP DE                ;[D,E]=POINTER TO "USING" STRING DESCRIPTOR
+  EX DE,HL              ;[D,E]=TEXT POINTER
+USING_1:                
+  PUSH HL               ;SAVE THE POINTER TO "USING" STRING DESCRIPTOR
+  XOR A                 ;INITIALLY INDICATE THERE ARE MORE VALUES IN THE VALUE LIST
+  LD (FLGINP),A         ;RESET THE FLAG THAT SAYS VALUES PRINTED
+  INC A                 ;TURN THE ZERO FLAG OFF TO INDICATE THE VALUE LIST HASN'T ENDED
+  PUSH AF               ;SAVE FLAG INDICATING WHETHER THE VALUE LIST HAS ENDED
+  PUSH DE               ;SAVE THE TEXT POINTER INTO THE VALUE LIST
+  LD B,(HL)             ;[B]=LENGTH OF THE "USING" STRING
+  INC B                 ;SEE IF ITS ZERO
   DEC B
-USING_2:
-  JP Z,FC_ERR			; Err $05 - "Illegal function call"
+FCERR3:
+  JP Z,FC_ERR			;IF SO, Err $05 - "Illegal function call"
+  INC HL                ;[H,L]=POINTER AT THE "USING" STRING'S
+  LD A,(HL)             ;DATA
   INC HL
-  LD A,(HL)
-  INC HL
-  LD H,(HL)
+  LD H,(HL)             
   LD L,A
-  JR USING_7
+  JR PRCCHR             ;GO INTO THE LOOP TO SCAN THE "USING" STRING
 
 ; Data block at 24796
-USING_3:
-  LD E,B
-  PUSH HL
-  LD C,$02
-USING_4:
-  LD A,(HL)
-  INC HL
-  CP '\\'
-  JP Z,L620F+1 ; reference not aligned to instruction
-  CP ' '
-  JR NZ,USING_5
-  INC C
-  DJNZ USING_4
-USING_5:
-  POP HL
-  LD B,E
-  LD A,'\\'
-USING_6:
-  CALL OUTC_SGN
-  RST OUTDO  		; Output char to the current device
-
-USING_7:
-  XOR A
-  LD E,A
-  LD D,A
-L60F9:
-  CALL OUTC_SGN
-  LD D,A
-  LD A,(HL)
-  INC HL
-  CP '!'
-  JP Z,L620D
-  CP '#'
-  JR Z,L6144
-  CP '&'
-  JP Z,L6209
-  DEC B
-  JP Z,L61F5
-  CP '+'
-  LD A,$08		;
-  JR Z,L60F9
-  DEC HL
-  LD A,(HL)
-  INC HL
-  CP '.'
-  JR Z,L615E
-  CP '\\'
-  JR Z,USING_3
-  CP (HL)
-  JR NZ,USING_6
-  CP '$'             ; String variable?
-  JR Z,USING_STR
-  CP '*'
-  JR NZ,USING_6
-  INC HL
-  LD A,B
-  CP $02
-  JR C,L6136
-  LD A,(HL)
-  CP '$'
-L6136:
-  LD A,' '
-  JR NZ,L6141
-  DEC B
-  INC E
-
-  DEFB $FE			; CP AFh ..hides the "XOR A" instruction
-USING_STR:
-  XOR A				; Simple variable
-  ADD A,$10
-  INC HL
-L6141:
-  INC E
-  ADD A,D
-  LD D,A
-L6144:
-  INC E
-  LD C,$00
-  DEC B
-  JR Z,L6192
-  LD A,(HL)
-  INC HL
-  CP '.'
-  JR Z,L6169
-  CP '#'
-  JR Z,L6144
-  CP ','
-  JR NZ,L6173
-  LD A,D
-  OR $40 ; '@'
-  LD D,A
-  JR L6144
-
-L615E:
-  LD A,(HL)
-  CP '#'
-  LD A,'.'
-  JP NZ,USING_6
-  
-  LD C,$01
-  INC HL
-L6169:
-  INC C
-  DEC B
-  JR Z,L6192
-  
-  LD A,(HL)
-  INC HL
-  CP '#'
-  JR Z,L6169
-L6173:
-  PUSH DE
-  LD DE,L6190
-  PUSH DE
-  LD D,H
-  LD E,L
-  CP '^'		; $5E
-  RET NZ
-  CP (HL)
-  RET NZ
-  INC HL		; +1
-  CP (HL)
-  RET NZ
-  INC HL		; +2
-  CP (HL)
-  RET NZ
-  INC HL		; +3
-  LD A,B
-  SUB $04
-  RET C
-  POP DE
-  POP DE
-  LD B,A
-  INC D
-  INC HL
-
-  DEFB $CA                ; JP Z,nn  to mask the next 2 bytes
-L6190:  
-  EX DE,HL
-  POP DE
-  
-L6192:
-  LD A,D
-  DEC HL
-  INC E
-  AND $08
-  JR NZ,L61AE
-  DEC E
-  LD A,B
-  OR A
-  JR Z,L61AE
-  LD A,(HL)
-  SUB $2D		; '-'
-  JR Z,L61A9
-  CP $FE
-  JR NZ,L61AE
-  LD A,$08
-L61A9:
-  ADD A,$04
-  ADD A,D
-  LD D,A
-  DEC B
-L61AE:
-  POP HL
-  POP AF
-  JR Z,L61FE
-  PUSH BC
-  PUSH DE
-  CALL EVAL
-  POP DE
-  POP BC
-  PUSH BC
-  PUSH HL
-  LD B,E
-  LD A,B
-  ADD A,C
-  CP $19	; TK_SPACE_S ?
-  JP NC,FC_ERR			; Err $05 - "Illegal function call"
-  LD A,D
-		
-; Routine at 25028
-;L61C4:
-  OR $80
-  CALL PUFOUT		; Convert number/expression to string (format specified in 'A' register)
-  CALL PRS
-L61C4_0:
-  POP HL
-  DEC HL
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-L61CF:
-  SCF
-  JR Z,L61DD
-  LD (FLGINP),A
-  CP ';'		;$3B
-  JR Z,L61DB+1
-  RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB ','
-L61DB:
-  LD B,$D7
-  ; L61DB+1: RST CHRGTB		; Gets next character (or token) from BASIC text.
-L61DD:
-  POP BC
-  EX DE,HL
-  POP HL
-  PUSH HL
-  PUSH AF
-  PUSH DE
-  LD A,(HL)
-  SUB B
-  INC HL
-  LD D,$00
-  LD E,A
-  LD A,(HL)
-  INC HL
-  LD H,(HL)
-  LD L,A
-  ADD HL,DE
-  LD A,B
-  OR A
-  JP NZ,USING_7
-  JR L61C4_2
-L61F5:
-  CALL OUTC_SGN
-  RST OUTDO  		; Output char to the current device
-L61C4_2:
-  POP HL
-  POP AF
-  JP NZ,USING_0
-L61FE:
-  CALL C,OUTDO_CRLF
-  EX (SP),HL
-  CALL GSTRHL
-  POP HL
-  JP FINPRT
-
-L6209:
-  LD C,$00
-  JR L61C4_4
-L620D:
-  LD C,$01
-L620F:
-  LD A,$F1
-  ;  L620f+1:   POP AF
-L61C4_4:
-  DEC B
-  CALL OUTC_SGN
-  POP HL
-  POP AF
-  JR Z,L61FE
-  PUSH BC
-  CALL EVAL
-  CALL TSTSTR
-  POP BC
-  PUSH BC
-  PUSH HL
-  LD HL,(FACLOW)
-  LD B,C
-  LD C,$00
-  LD A,B
-  PUSH AF
-  OR A
-  CALL NZ,__LEFT_S_1	; into LEFT$
-  CALL PRS1
-  LD HL,(FACLOW)
-  POP AF
-  OR A
-  JP Z,L61C4_0
-  SUB (HL)
-  LD B,A
-  LD A,' '
-  INC B
-L61C4_5:
-  DEC B
-  JP Z,L61C4_0
-  RST OUTDO  		; Output char to the current device
-  JR L61C4_5
-
-; Routine at 25158
+BGSTRF:
+  LD E,B                ;SAVE THE "USING" STRING CHARACTER COUNT
+  PUSH HL               ;SAVE THE POINTER INTO THE "USING" STRING
+  LD C,$02              ;THE \\ STRING FIELD HAS 2 PLUS NUMBER OF ENCLOSED SPACES WIDTH
+LPSTRF:                 
+  LD A,(HL)             ;GET THE NEXT CHARACTER
+  INC HL                ;ADVANCE THE POINTER AT THE "USING" STRINGDATA
+  CP '\\'               ;THE FIELD TERMINATOR?
+  JP Z,ISSTRF           ;GO EVALUATE A STRING AND PRINT
+  CP ' '                ;A FIELD EXTENDER?
+  JR NZ,NOSTRF          ;IF NOT, ITS NOT A STRING FIELD
+  INC C                 ;INCREMENT THE FIELD WIDTH
+  DJNZ LPSTRF           ;KEEP SCANNING FOR THE FIELD TERMINATOR
 ;
-; Used by the routine at L61C4.
-OUTC_SGN:
+; SINCE  STRING FIELD WASN'T FOUND, THE "USING" STRING 
+; CHARACTER COUNT AND THE POINTER INTO IT'S DATA MUST
+; BE RESTORED AND THE "\" PRINTED
+;
+NOSTRF:
+  POP HL                ;RESTORE THE POINTER INTO "USING" STRING'S DATA
+  LD B,E                ;RESTORE THE "USING" STRING CHARACTER COUNT
+  LD A,'\\'             ;RESTORE THE CHARACTER
+
+;
+; HERE TO PRINT THE CHARACTER IN [A] SINCE IT WASN'T PART OF ANY FIELD
+;
+NEWUCH:
+  CALL PLS_PRNT         ;IF A "+" CAME BEFORE THIS CHARACTER MAKE SURE IT GETS PRINTED
+  RST OUTDO             ;PRINT THE CHARACTER THAT WASN'T PART OF A FIELD
+PRCCHR:
+  XOR A                 ;SET [D,E]=0 SO IF WE DISPATCH
+  LD E,A                ;SOME FLAGS ARE ALREADY ZEROED
+  LD D,A                ;DON'T PRINT "+" TWICE
+PLSFIN:
+  CALL PLS_PRNT         ;ALLOW FOR MULTIPLE PLUSES IN A ROW
+  LD D,A                ;SET "+" FLAG
+  LD A,(HL)             ;GET A NEW CHARACTER
+  INC HL                
+  CP '!'                ;CHECK FOR A SINGLE CHARACTER
+  JP Z,SMSTRF           ;STRING FIELD
+  CP '#'                ;CHECK FOR THE START OF A NUMERIC FIELD 
+  JR Z,NUMNUM           ;GO SCAN IT
+  CP '&'                ;SEE IF ITS A VARIABLE LENGTH STRING FIELD
+  JP Z,VARSTR           ;GO PRINT ENTIRE STRING
+  DEC B                 ;ALL THE OTHER POSSIBILITIES REQUIRE AT LEAST 2 CHARACTERS
+  JP Z,REUSIN           ;IF THE VALUE LIST IS NOT EXHAUSTED GO REUSE "USING" STRING
+  CP '+'                ;A LEADING "+" ?
+  LD A,$08              ;SETUP [D] WITH THE PLUS-FLAG ON IN
+  JR Z,PLSFIN           ;CASE A NUMERIC FIELD STARTS
+  DEC HL                ;POINTER HAS ALREADY BEEN INCREMENTED
+  LD A,(HL)             ;GET BACK THE CURRENT CHARACTER
+  INC HL                ;REINCREMENT THE POINTER
+  CP '.'                ;NUMERIC FIELD WITH TRAILING DIGITS
+  JR Z,DOTNUM           ;IF SO GO SCAN WITH [E]=NUMBER OF DIGITS BEFORE THE "."=0
+  CP '\\'               ;CHECK FOR A BIG STRING FIELD STARTER
+  JR Z,BGSTRF           ;GO SEE IF IT REALLY IS A STRING FIELD
+  CP (HL)               ;SEE IF THE NEXT CHARACTER MATCHES THE CURRENT ONE
+  JR NZ,NEWUCH          ;IF NOT, CAN'T HAVE $$ OR ** SO ALL THE POSSIBILITIES ARE EXHAUSTED
+  CP '$'                ;IS IT $$ ?
+  JR Z,DOLRNM           ;GO SET UP THE FLAG BIT
+  CP '*'                ;IS IT ** ?
+  JR NZ,NEWUCH          ;IF NOT, ITS NOT PART OF A FIELD SINCE ALL THE POSSIBILITIES HAVE BEEN TRIED
+  INC HL                ;SEE IF THE "USING" STRING IS LONG
+  LD A,B                ;CHECK FOR $
+  CP $02                ;ENOUGH FOR THE SPECIAL CASE OF
+  JR C,_NOTSPC          ; **$
+  LD A,(HL)
+  CP '$'                ;IS THE NEXT CHARACTER $ ?
+_NOTSPC:
+  LD A,32               ;SET THE ASTERISK BIT
+  JR NZ,SPCNUM          ;IF IT NOT THE SPECIAL CASE, DON'T SET THE DOLLAR SIGN FLAG
+  DEC B                 ;DECREMENT THE "USING" STRING CHARACTER COUNT TO TAKE THE $ INTO CONSIDERATION
+  INC E                 ;INCREMENT THE FIELD WIDTH FOR THE FLOATING DOLLAR SIGN
+
+  DEFB $FE		; CP AFh ..hides the "XOR A" instruction (MVI SI,  IN 8086)
+
+DOLRNM:
+  XOR A                 ;CLEAR [A]
+  ADD A,$10             ;SET BIT FOR FLOATING DOLLAR SIGN FLAG
+  INC HL                ;POINT BEYOND THE SPECIAL CHARACTERS
+SPCNUM:
+  INC E                 ;SINCE TWO CHARACTERS SPECIFY THE FIELD SIZE, INITIALIZE [E]=1
+  ADD A,D               ;PUT NEW FLAG BITS IN [A]
+  LD D,A                ;INTO [D]. THE PLUS FLAG MAY HAVE ALREADY BEEN SET
+NUMNUM:
+  INC E                 ;INCREMENT THE NUMBER OF DIGITS BEFORE THE DECIMAL POINT
+  LD C,$00              ;SET THE NUMBER OF DIGITS AFTER THE DECIMAL POINT = 0
+  DEC B                 ;SEE IF THERE ARE MORE CHARACTERS
+  JR Z,ENDNUS           ;IF NOT, WE ARE DONE SCANNING THIS NUMERIC FIELD
+  LD A,(HL)             ;GET THE NEW CHARACTER
+  INC HL                ;ADVANCE THE POINTER AT THE "USING" STRING DATA
+  CP '.'                ;DO WE HAVE TRAILING DIGITS?
+  JR Z,AFTDOT           ;IF SO, USE SPECIAL SCAN LOOP
+  CP '#'                ;MORE LEADING DIGITS ?
+  JR Z,NUMNUM           ;INCREMENT THE COUNT AND KEEP SCANNING
+  CP ','
+  JR NZ,FINNUM
+  LD A,D                ;TURN ON THE COMMA BIT
+  OR 64
+  LD D,A
+  JR NUMNUM             ;GO SCAN SOME MORE
+
+;
+; HERE WHEN A "." IS SEEN IN THE "USING" STRING
+; IT STARTS A NUMERIC FIELD IF AND ONLY IF
+; IT IS FOLLOWED BY A "#"
+;
+DOTNUM:
+  LD A,(HL)             ;GET THE CHARACTER THAT FOLLOWS
+  CP '#'                ;IS THIS A NUMERIC FIELD?
+  LD A,'.'              ;IF NOT, GO BACK AND PRINT "."
+  JP NZ,NEWUCH
+  LD C,$01              ;INITIALIZE THE NUMBER OF DIGITS AFTER THE DECIMAL POINT
+  INC HL
+AFTDOT:
+  INC C                 ;INCREMENT THE NUMBER OF DIGITS AFTER THE DECIMAL POINT
+  DEC B                 ;SEE IF THE "USING" STRING HAS MORE
+  JR Z,ENDNUS           ;CHARACTERS, AND IF NOT, STOP SCANNING
+  LD A,(HL)             ;GET THE NEXT CHARACTER
+  INC HL
+  CP '#'                ;MORE DIGITS AFTER THE DECIMAL POINT?
+  JR Z,AFTDOT           ;IF SO, INCREMENT THE COUNT AND KEEP SCANNING
+;
+; CHECK FOR THE "^^^^" THAT INDICATES SCIENTIFIC NOTATION
+;
+FINNUM:
+  PUSH DE               ;SAVE [D]=FLAGS AND [E]=LEADING DIGITS
+  LD DE,NOTSCI          ;PLACE TO GO IF ITS NOT SCIENTIFIC
+  PUSH DE               ;NOTATION
+  LD D,H                ;REMEMBER [H,L] IN CASE
+  LD E,L                ;ITS NOT SCIENTIFIC NOTATION
+  CP '^'                ;IS THE FIRST CHARACTER "^" ?
+  RET NZ
+  CP (HL)               ;IS THE SECOND CHARACTER "^" ?
+  RET NZ
+  INC HL
+  CP (HL)               ;IS THE THIRD CHARACTER "^" ?
+  RET NZ
+  INC HL
+  CP (HL)               ;IS THE FOURTH CHARACTER "^" ?
+  RET NZ
+  INC HL
+  LD A,B                ;WERE THERE ENOUGH CHARACTERS FOR "^^^^"
+  SUB $04               ;IT TAKES FOUR
+  RET C
+  POP DE                ;POP OFF THE NOTSCI RETURN ADDRESS
+  POP DE                ;GET BACK [D]=FLAGS [E]=LEADING DIGITS
+  LD B,A                ;MAKE [B]=NEW CHARACTER COUNT
+  INC D                 ;TURN ON THE SCIENTIFIC NOTATION FLAG
+  INC HL
+
+  DEFB $CA              ; JP Z,nn  to mask the next 2 bytes    ;SKIP THE NEXT TWO BYTES WITH "JZ"
+
+NOTSCI:  
+  EX DE,HL              ;RESTORE THE OLD [H,L]
+  POP DE                ;GET BACK [D]=FLAGS [E]=LEADING DIGITS
+  
+ENDNUS:
+  LD A,D                ;IF THE LEADING PLUS FLAG IS ON
+  DEC HL
+  INC E                 ;INCLUDE LEADING "+" IN NUMBER OF DIGITS
+  AND $08               ;DON'T CHECK FOR A TRAILING SIGN
+  JR NZ,ENDNUM          ;ALL DONE WITH THE FIELD IF SO IF THERE IS A LEADING PLUS
+  DEC E                 ;NO LEADING PLUS SO DON'T INCREMENT THE NUMBER OF DIGITS BEFORE THE DECIMAL POINT
+  LD A,B
+  OR A                  ;SEE IF THERE ARE MORE CHARACTERS
+  JR Z,ENDNUM           ;IF NOT, STOP SCANNING
+  LD A,(HL)             ;GET THE CURRENT CHARACTER
+  SUB '-'               ;TRAIL MINUS?
+  JR Z,SGNTRL           ;SET THE TRAILING SIGN FLAG
+  CP '+'-'-'            ;A TRAILING PLUS?
+  JR NZ,ENDNUM          ;IF NOT, WE ARE DONE SCANNING
+  LD A,$08              ;TURN ON THE POSITIVE="+" FLAG
+SGNTRL:
+  ADD A,$04             ;TURN ON THE TRAILING SIGN FLAG
+  ADD A,D               ;INCLUDE WITH OLD FLAGS
+  LD D,A
+  DEC B                 ;DECREMENT THE "USING" STRING CHARACTER COUNT TO ACCOUNT FOR THE TRAILING SIGN
+ENDNUM:
+  POP HL                ;[H,L]=THE OLD TEXT POINTER
+  POP AF                ;POP OFF FLAG THAT SAYS WHETHER THERE ARE MORE VALUES IN THE VALUE LIST
+  JR Z,FLDFIN           ;IF NOT, WE ARE DONE WITH THE "PRINT"
+  PUSH BC               ;SAVE [B]=# OF CHARACTERS REMAINING IN "USING" STRING AND [C]=TRAILING DIGITS
+  PUSH DE               ;SAVE [D]=FLAGS AND [E]=LEADING DIGITS
+  CALL EVAL             ;READ A VALUE FROM THE VALUE LIST
+  POP DE                ;[D]=FLAGS & [E]=# OF LEADING DIGITS
+  POP BC                ;[B]=# CHARACTER LEFT IN "USING" STRING
+                        ;[C]=NUMBER OF TRAILING DIGITS
+  PUSH BC               ;SAVE [B] FOR ENTERING SCAN AGAIN
+  PUSH HL               ;SAVE THE TEXT POINTER
+  LD B,E                ;[B]=# OF LEADING DIGITS
+  LD A,B                ;MAKE SURE THE TOTAL NUMBER OF DIGITS
+  ADD A,C               ;DOES NOT EXCEED TWENTY-FOUR
+  CP 25
+  JP NC,FC_ERR          ;IF SO, Err $05 - "Illegal function call"
+
+  LD A,D                ;[A]=FLAG BITS
+  OR $80                ;TURN ON THE "USING" BIT
+  CALL PUFOUT           ;PRINT THE VALUE
+  CALL PRS              ;ACTUALLY PRINT IT
+
+FNSTRF:
+  POP HL                ;GET BACK THE TEXT POINTER
+  DEC HL                ;SEE WHAT THE TERMINATOR WAS
+  RST CHRGTB            
+  SCF                   ;SET FLAG THAT CRLF IS DESIRED
+  JR Z,CRDNUS           ;IF IT WAS A END-OF-STATEMENT, FLAG THAT THE VALUE LIST ENDED AND THAT CRLF SHOULD BE PRINTED
+  LD (FLGINP),A         ;FLAG THAT VALUE HAS BEEN PRINTED.
+                        ;DOESNT MATTER IF ZERO SET, [A] MUST BE NON-ZERO OTHERWISE
+  CP ';'                ;A SEMI-COLON?
+  JR Z,SEMUSN           ;A LEGAL DELIMITER
+  RST SYNCHR            ;A COMMA ?
+  DEFB ','              ;THE DELIMETER WAS ILLEGAL
+
+  DEFB $06    ; "LD B,n" to Mask the next byte
+
+SEMUSN:
+  RST CHRGTB            ;IS THERE ANOTHER VALUE?
+CRDNUS:                 
+  POP BC                ;[B]=CHARACTERS REMAINING IN "USING" STRING
+  EX DE,HL              ;[D,E]=TEXT POINTER
+  POP HL                ;[H,L]=POINT AT THE "USING" STRING
+  PUSH HL               ;DESCRIPTOR. RESAVE IT.
+  PUSH AF               ;SAVE THE FLAG THAT INDICATES WHETHER OR NOT THE VALUE LIST TERMINATED
+  PUSH DE               ;SAVE THE TEXT POINTER
+
+;
+; SINCE FRMEVL MAY HAVE FORCED GARBAGE COLLECTION
+; WE HAVE TO USE THE NUMBER OF CHARACTERS ALREADY SCANNED
+; AS AN OFFSET TO THE POINTER TO THE "USING" STRING'S DATA
+; TO GET A NEW POINTER TO THE REST OF THE CHARACTERS TO BE SCANNED
+;
+  LD A,(HL)            ;GET THE "USING" STRING'S LENGTH
+  SUB B                ;SUBTRACT THE NUMBER OF CHARACTERS ALREADY SCANNED
+  INC HL               ;[H,L]=POINTER AT
+  LD D,$00             ;THE "USING" STRING'S
+  LD E,A               ;STRING DATA
+  LD A,(HL)            
+  INC HL               
+  LD H,(HL)            ;SETUP [D,E] AS A DOUBLE BYTE OFFSET
+  LD L,A
+  ADD HL,DE            ;ADD ON THE OFFSET TO GET THE NEW POINTER
+;CHKUSI:
+  LD A,B               ;[A]=THE NUMBER OF CHARACTERS LEFT TO SCAN
+  OR A                 ;SEE IF THERE ARE ANY LEFT
+  JP NZ,PRCCHR         ;IF SO, KEEP SCANNING
+  JR FINUSI            ;SEE IF THERE ARE MORE VALUES
+
+REUSIN:
+  CALL PLS_PRNT        ;PRINT A "+" IF NECESSARY
+  RST OUTDO            ;PRINT THE FINAL CHARACTER
+FINUSI:
+  POP HL               ;POP OFF THE TEXT POINTER
+  POP AF               ;POP OFF THE INDICATOR OF WHETHER OR NOT THE VALUE LIST HAS ENDED
+  JP NZ,REUSST         ;IF NOT, REUSE THE "USING" STRING
+
+FLDFIN:
+  CALL C,OUTDO_CRLF    ;IF NOT COMMA OR SEMI-COLON ENDED THE VALUE LIST, PRINT A CRLF
+  EX (SP),HL           ;SAVE THE TEXT POINTER <> [H,L]=POINT AT THE "USING" STRING'S DESCRIPTOR
+  CALL GSTRHL          ;FINALLY FREE IT UP
+  POP HL               ;GET BACK THE TEXT POINTER
+  JP FINPRT            ;ZERO [PTRFIL]
+
+;
+; HERE TO HANDLE VARIABLE LENGTH STRING FIELD SPECIFIED WITH "&"
+;
+VARSTR:
+  LD C,$00             ;SET LENGTH TO MAXIMUM POSSIBLE
+  JR ISSTRF_0
+
+;
+; HERE WHEN THE "!" INDICATING A SINGLE CHARACTER STRING FIELD HAS BEEN SCANNED
+;
+SMSTRF:
+  LD C,$01             ;SET THE FIELD WIDTH TO 1
+  DEFB $3E             ; "LD A,n" to Mask the next byte      ;SKIP NEXT BYTE WITH A "MVI A,"
+  
+ISSTRF:
+  POP AF               ;GET RID OF THE [H,L] THAT WAS BEING SAVED IN CASE THIS WASN'T A STRING FIELD
+ISSTRF_0:
+  DEC B                ;DECREMENT THE "USING" STRING CHARACTER COUNT
+  CALL PLS_PRNT        ;PRINT A "+" IF ONE CAME BEFORE THE FIELD
+  POP HL               ;TAKE OFF THE TEXT POINTER
+  POP AF               ;TAKE OFF THE FLAG WHICH SAYS WHETHER THERE ARE MORE VALUES IN THE VALUE LIST
+  JR Z,FLDFIN          ;IF THERE ARE NO MORE VALUES THEN WE ARE DONE
+  PUSH BC              ;SAVE [B]=NUMBER OF CHARACTERS YET TO BE SCANNED IN "USING" STRING
+  CALL EVAL            ;READ A VALUE
+  CALL TSTSTR          ;MAKE SURE ITS A STRING
+  POP BC               ;[C]=FIELD WIDTH
+  PUSH BC              ;RESAVE [B]
+  PUSH HL              ;SAVE THE TEXT POINTER
+  LD HL,(FACLOW)       ;GET A POINTER TO THE DESCRIPTOR
+  LD B,C               ;[B]=FIELD WIDTH
+  LD C,$00             ;SET UP FOR "LEFT$"
+  LD A,B
   PUSH AF
-  LD A,D
   OR A
-  LD A,'+'
-  CALL NZ,OUTDO
-  POP AF
+  CALL NZ,__LEFT_S_1   ; into LEFT$, TRUNCATE THE STRING TO [B] CHARACTERS
+  CALL PRS1            ;PRINT THE STRING
+  LD HL,(FACLOW)       ;SEE IF IT NEEDS TO BE PADDED
+  POP AF               ;[A]=FIELD WIDTH
+  OR A                 ;
+  JP Z,FNSTRF          ;DONT PRINT ANY TRAILING SPACES
+  SUB (HL)             ;[A]=AMOUNT OF PADDING NEEDED
+  LD B,A
+  LD A,' '             ;SETUP THE PRINT CHARACTER
+  INC B                ;DUMMY INCREMENT OF NUMBER OF SPACES
+UPRTSP:
+  DEC B                ;SEE IF MORE SPACES
+  JP Z,FNSTRF          ;NO, GO SEE IF THE VALUE LIST ENDED AND RESUME SCANNING
+  RST OUTDO            ;PRINT A SPACE
+  JR UPRTSP            ;AND LOOP PRINTING THEM
+
+;
+; WHEN A "+" IS DETECTED IN THE "USING" STRING IF A NUMERIC FIELD FOLLOWS A BIT IN [D]
+; SHOULD BE SET, OTHERWISE "+" SHOULD BE PRINTED.
+; SINCE DECIDING WHETHER A NUMERIC FIELD FOLLOWS IS VERY DIFFICULT, THE BIT IS ALWAYS SET IN [D].
+; AT THE POINT IT IS DECIDED A CHARACTER IS NOT PART OF A NUMERIC FIELD, THIS ROUTINE IS CALLED
+; TO SEE IF THE BIT IN [D] IS SET, WHICH MEANS A PLUS PRECEDED THE CHARACTER AND SHOULD BE PRINTED.
+;
+; Routine at 25158
+PLS_PRNT:
+  PUSH AF              ;SAVE THE CURRENT CHARACTER
+  LD A,D               ;CHECK THE PLUS BIT
+  OR A                 ;SINCE IT IS THE ONLY THING THAT COULD BE TURNED ON
+  LD A,'+'             ;SETUP TO PRINT THE PLUS
+  CALL NZ,OUTDO        ;PRINT IT IF THE BIT WAS SET
+  POP AF               ;GET BACK THE CURRENT CHARACTER
   RET
 
 ; Routine at 25168
@@ -20169,7 +20221,7 @@ PRS1_0:
   LD A,(BC)
   RST OUTDO  		; Output char to the current device
   CP CR
-  CALL Z,CRLF_DONE
+  CALL Z,CRFIN
   INC BC
   JR PRS1_0
 
@@ -21632,7 +21684,7 @@ FIXLOP:
   JR Z,DSKCHR       ;Read from disk file
   CALL CHGET        ;GET CHAR IF ONE
   PUSH AF           ;WAS ONE
-  CALL CKCNTC       ;Read a char from terminal
+  CALL CKCNTC       ;Check if Control-C
   POP AF
 PUTCHR:
   LD (HL),A         ;Put char into string
@@ -23042,13 +23094,14 @@ LPTCHR:
 ;
 ; Used by the routines at LINE2PTR and __END.
 CONSOLE_CRLF:
-  LD A,(TTYPOS)
-  OR A
-  RET Z
+  LD A,(TTYPOS)      ;GET CURRENT TTYPOS
+  OR A               ;SET CC'S
+  RET Z              ;IF ALREADY ZERO, RETURN
   
 ; This entry point is used by the routines at L4A5A, __LLIST, L61C4, L710B and
 ; __KEY.
 OUTDO_CRLF:
+
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -23056,28 +23109,31 @@ IF NOHOOK
 ELSE
   CALL HCRDO		; Hook for "CRLF to OUTDO" events
 ENDIF
-  LD A,CR
+
+  LD A,CR           ; CR
   RST OUTDO  		; Output char to the current device
-  LD A,LF
+  LD A,LF           ; LF
   RST OUTDO  		; Output char to the current device
+
 ; This entry point is used by the routines at L4A5A, PRS1 and OUTCH1.
-CRLF_DONE:
-  CALL ISFLIO		; Tests if I/O to device is taking place
-  JR Z,RESET_POS
-  XOR A
+;DON'T PUT CR/LF OUT TO LOAD FILE
+CRFIN:
+  CALL ISFLIO		;SEE IF OUTPUTTING TO DISK
+  JR Z,CRCONT       ;NOT DISK FILE, CONTINUE
+  XOR A             ;CRFIN MUST ALWAYS RETURN WITH A=0
+  RET               ;AND CARRY=0.
+
+CRCONT:
+  LD A,(PRTFLG)		;GOING TO PRINTER?
+  OR A              ;TEST
+  JR Z,NTPRTR       ;NO
+  XOR A             ;DONE, RETURN
+  LD (LPTPOS),A		;ZERO POSITON
   RET
 
-RESET_POS:
-  LD A,(PRTFLG)		; Printer output flag ?
-  OR A
-  JR Z,TTY_FLUSH
-  XOR A
-  LD (LPTPOS),A		; Reset printer head position
-  RET
-
-TTY_FLUSH:
-  LD (TTYPOS),A		; Reset TTY position
-  RET
+NTPRTR:
+  LD (TTYPOS),A		; Set to position 0       ;SET TTYPOS=0
+  RET               ; Store it
 
 ; Routine at 29511
 ;
@@ -23111,7 +23167,7 @@ OUTCH1:
   RET NZ               ;NO, RETURN
   LD A,CR              ;DO CR
   RST OUTDO
-  CALL CRLF_DONE
+  CALL CRFIN
   LD A,LF              ;RESTORE CHAR (LF)
   RET
 
