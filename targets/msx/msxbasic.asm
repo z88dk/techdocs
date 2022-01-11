@@ -4,6 +4,10 @@
 ; z80asm -b msxbasic
 ;
 
+
+; TODO:  FIX data space after HL_CSNG_7
+
+
 ; Variant with HOOKs disabled:
 ;
 ; z80asm -DNOHOOK -b msxbasic
@@ -6948,72 +6952,111 @@ _CHRGTB:
 _GETYPR:
   JP __GETYPR
 
-; Routine at 9868
+
+
+
+
+;  DOUBLE PRECISION ARITHMETIC ROUTINES
+
+;DOUBLE PRECISION NUMBERS ARE 8 BYTE QUANTITIES
+;THE LAST 4 BYTES IN MEMORY ARE IN THE SAME FORMAT AS SINGLE PRECISION NUMBERS
+;THE FIRST 4 BYTES ARE 32 MORE LOW ORDER BITS OF PRECISION
+;THE LOWEST ORDER BYTE COMES FIRST IN MEMORY
 ;
-; Used by the routines at __SIN, __ATN, __EXP and SUBPHL.
+;CALLING CONVENTIONS:
+;FOR ONE ARGUMENT FUNCTIONS:
+;	THE ARGUMENT IS IN THE FAC, THE RESULT IS LEFT IN THE FAC
+;FOR TWO ARGUMENT OPERATIONS:
+;	THE FIRST ARGUMENT IS IN THE FAC
+;	THE SECOND ARGUMENT IS IN ARG-7,6,5,4,3,2,1,0  (NOTE: ARGLO=ARG-7)
+;	THE RESULT IS LEFT IN THE FAC
+;NOTE:	THIS ORDER IS REVERSED FROM INT AND SNG
+;VALTYP(DOUBLE PRECISION)=10 OCTAL
+
+
+
 ; FACCU <- FACCU-ARG
-DECSUB:
-  LD HL,ARG
-  LD A,(HL)
-  OR A
-  RET Z
-  XOR $80
-  LD (HL),A
-  JR DECADD_0
+;
+	;DOUBLE PRECISION SUBTRACTION	FAC:=FAC-ARG
+	;ALTERS ALL REGISTERS
+;
+; aka DSUB, Double precision SUB (formerly SUBCDE)
+; Routine at 9868
+; Used by the routines at __SIN, __ATN, __EXP and FSUBS.
+DSUB:
+  LD HL,ARG            ;NEGATE THE SECOND ARGUMENT
+  LD A,(HL)            ;GET THE HO AND SIGN
+  OR A                 ; Is number zero?
+  RET Z                ; Yes - Nothing to subtract
+  XOR $80              ;COMPLEMNT THE SIGN
+  LD (HL),A            ;PUT IT BACK
+  JR DADD_0          ;FALL INTO DADD
+
 
   ; --- START PROC L2697 ---
-ARG2DE_DECADD:
-  CALL ARG2DE
-  ; --- START PROC DECADD ---
+; Entry used by 'NEXT'
+NEXT_DADD:
+  CALL HL_ARG          
+
+  ; --- START PROC DADD ---
 ; FACCU <- FACCU+ARG
-DECADD:
-  LD HL,ARG
-  LD A,(HL)                   ; Get FP exponent
-  OR A                        ; Is number zero?
-  RET  Z                      ; Yes - Nothing to add
-  ; --- START PROC DECADD_0 ---
-DECADD_0:
-  AND $7F   ;
-  LD B,A
-  LD DE,FACCU
-  LD A,(DE)                   ; Get FPREG exponent
-  OR A                        ; Is this number zero?
-  JP Z,FP_ARG2DE              ; Yes - Move FP to FPREG
+DADD:
+  LD HL,ARG             ;GET  POINTER TO EXPONENT OF FIRST ARGUMENT
+  LD A,(HL)             ;CHECK IF IT IS ZERO                          ; Get FP exponent
+  OR A                                                                ; Is number zero?
+  RET  Z                ;IT IS, RESULT IS ALREADY IN FAC              ; Yes - Nothing to add
+
+DADD_0:
   AND $7F
-  SUB B                       ; FP number larger?
-  JR NC,NOSWAP_DEC            ; No - Don't swap them
-  CPL                         ; Two's complement
-  INC A                       ;  FP exponent
-  PUSH AF
-  PUSH HL
-  LD B,$08		; DBL number, 8 bytes
-DECADD_1:
-  LD A,(DE)
-  LD C,(HL)
-  LD (HL),A
-  LD A,C
-  LD (DE),A
-  INC DE
-  INC HL
-  DJNZ DECADD_1
-  POP HL
-  POP AF
+  LD B,A                ;SAVE EXPONENT FOR UNPACKING
+  LD DE,FACCU           ;GET POINTER TO EXPONENT OF SECOND ARGUMENT
+  LD A,(DE)             ;GET EXPONENT                                 ; Get FPREG exponent
+  OR A                  ;SEE IF IT IS ZERO                            ; Is this number zero?
+  JP Z,VMOVFA           ;IT IS, MOVE ARG TO FAC AND WE ARE DONE       ; Yes - Move FP to FPREG      ; FP number larger?
+  AND $7F               
+  SUB B                 ;SUBTRACT EXPONENTS TO GET SHIFT COUNT        ; FP number larger?
+  JR NC,NOSWAP_DEC      ;PUT THE SMALLER NUMBER IN FAC                ; No - Don't swap them
+  CPL                   ;NEGATE SHIFT COUNT                           ; Two's complement
+  INC A
+  PUSH AF               ;SAVE SHIFT COUNT
+  PUSH HL               ;SAVE POINTER TO ARG                          ; Put FP on stack
+  LD B,$08              ;SWITCH FAC AND ARG, SET UP A COUNT
+DADD_SWAP:
+  LD A,(DE)             ;GET A BYTE OF THE FAC
+  LD C,(HL)             ;GET A BYTE OF ARG
+  LD (HL),A             ;PUT THE FAC BYTE IN ARG
+  LD A,C                ;PUT THE ARG BYTE IN A
+  LD (DE),A             ;PUT THE ARG BYTE IN FAC
+  INC DE                ;POINT TO THE NEXT LO BYTE OF FAC
+  INC HL                ;POINT TO THE NEXT LO BYTE OF ARG
+  DJNZ DADD_SWAP      ;ARE WE DONE?  NO, DO THE NEXT LO BYTE
+  POP HL                ; Pointer to ARG
+  POP AF                ;GET THE SHIFT COUNT BACK
 NOSWAP_DEC:
-  CP $10                       ; Second number insignificant?
-  RET NC                       ; Yes - First number is result
-  PUSH AF                      ; Save number of bits to scale
-  XOR A
-  LD (FACCU+8),A
-  LD (ARG+8),A                 ; Save sign of result
-  LD HL,ARG+1                  ; Point to FPREG
-  POP AF                       ; Restore scaling factor
-  CALL SCALE_DEC               ; Set MSBs & sign of result
+  
+	;WE NOW HAVE THE SUSPECTED LARGER NO IN THE FAC, WE NEED
+	;TO KNOW IF WE ARE TO SUBTRACT (SIGNS ARE DIFFERENT) AND
+	;WE NEED TO RESTORE THE HIDDEN MANTISSA BIT
+	;FURTHER, IF THERE IS TO BE MORE THAN 56 BITS SHIFTED
+	;TO ALIGN THE BINARY POINTS THEN THE LESSOR NO. IS
+	;INSIGNIFICANT IN COMPARISON TO THE LARGER NO. SO WE
+	;CAN JUST RETURN AND CALL THE LARGER NO. THE ANSWER.
+				
+  CP 16                 ;ARE WE WITHIN 15 BITS?             ; Second number insignificant?    ; (GWBASIC) THIS MUST SET CF TO CONTINUE
+  RET NC                ;NO, ALL DONE                       ; Yes - First number is result
+  PUSH AF               ;SAVE SHIFT COUNT                   ; Save number of bits to scale
+  XOR A                 ;
+  LD (FACCU+8),A        ;CLEAR TEMPORARY LEAST SIG BYTE
+  LD (ARG+8),A          ;CLEAR EXTRA BYTE
+  LD HL,ARG+1           ;POINT TO THE HO OF ARG             ; Point to FPREG
+  POP AF                ;GET SHIFT COUNT                    ; Restore scaling factor
+  CALL DSHFTR           ;SHIFT ARG RIGHT THE RIGHT NUMBER OF TIMES    ; Scale to same exponent
   LD HL,ARG
   LD A,(FACCU)
   XOR (HL)                     ; Result to be positive?
-  JP M,MINCDE_DEC              ; No - Subtract FPREG from CDE
-  LD A,(ARG+8)                 ; Restore sign of result
-  LD (FACCU+8),A
+  JP M,DADD3                                                ; No - Subtract FPREG from CDE
+  LD A,(ARG+8)          ;GET SUBTRACTION FLAG
+  LD (FACCU+8),A        ;SUBTRACT NUMBERS IF THEIR SIGNS ARE DIFFERENT
   CALL BCDADD                  ; Add FPREG to CDE
   JP NC,DECROU                 ; No overflow - Round it up
   EX DE,HL                     ; Point to exponent
@@ -7021,44 +7064,65 @@ NOSWAP_DEC:
   INC (HL)                     ; Increment it
   XOR (HL)
   JP M,OV_ERR                  ; Number overflowed - Error
-  CALL SHRT1_DEC               ; Shift result right
+
+;**************************************************************
+; WE ARE NOW SET TO SHIFT THE FAC RIGHT 1 BIT. RECALL WE GOT HERE WITH CF=1. 
+; THE INSTRUCTIONS SINCE WE GOT HERE HAVEN'T AFFECTED
+; CF SO WHEN WE SHIFT RIGHT WE WILL SHIFT CF INTO THE HIGH MANTISSA BIT.
+;*************************************************************
+
+  CALL DSHFRB           ;SHIFT NUMBER RIGHT ONE, SHIFT IN CARRY    ; Shift result right
   SET 4,(HL)
-  JR DECROU                    ; Round it up
+  JR DECROU             ; Round it up        ; (GWBASIC: 'ROUND': GO ROUND THE RESULT)
+
+;**************************************************************
+;TO GET HERE THE SIGNS OF THE FAC AND ARG WERE DIFFERENT THUS
+;IMPLYING A DESIRED SUBTRACT.
+;**************************************************************
 
 ; Routine at 9975
-;
-; Used by the routine at DECADD.
-MINCDE_DEC:
-  CALL BCDSUB
+; Used by the routine at DADD.
+DADD3:
+  CALL BCDSUB           ;SUBTRACT FROM FAC
 ; This entry point is used by the routines at BNORM and __RND.
 DECNRM:
 ; Normalize FACCU
   LD HL,FACCU+1
-  LD BC,$0800		; 2048
+  LD BC,$0800        ; B=8, C=256
 DECNRM_0:
-  LD A,(HL)
-  OR A
-  JR NZ,L270C
+  LD A,(HL)          ; Get MSB                         ;DO WE HAVE 1 BYTE OF ZEROS
+  OR A               ; Is it zero?
+  JR NZ,DNORML       ; No - Do it bit at a time        ;NO, SHIFT ONE PLACE AT A TIME
+  
+  ;THIS LOOP SPEEDS THINGS UP BY SHIFTING 8 PLACES AT ONE TIME
   INC HL
   DEC C
   DEC C
   DJNZ DECNRM_0
-  JP ZERO_EXPONENT
+  JP ZERO
 
+
+; a.k.a. PNORM  (or NORMD on GW-BASIC)
+	;NORMALIZE FAC
+	;ALTERS A,B,C,D,H,L
 ; Routine at 9996
-;
-; Used by the routine at MINCDE_DEC.
-L270C:
-  AND $F0
-  JR NZ,L270C_0
+; Used by the routine at DADD3.
+DNORML:
+  AND $F0           ;Check SHIFT COUNT
+  JR NZ,DNORM1
   PUSH HL
-  CALL ML16FACCU	; shift 4 bits left the whole accumulator (multiply by 16)
+  CALL DNORML_RLD	; shift 4 bits left the whole accumulator (multiply by 16)
   POP HL
   DEC C
-L270C_0:
+
+;***************************************************************
+;NOW DO AT 1 BYTE MOVE LEFT
+;***************************************************************
+
+DNORM1:
   LD A,$08
-  SUB B
-  JR Z,L270C_2
+  SUB B             ;SUBTRACT 8
+  JR Z,DNORM5       ;UNDERFLOW
   PUSH AF
   PUSH BC
   LD C,B
@@ -7069,24 +7133,27 @@ L270C_0:
   POP AF
   LD B,A
   XOR A
-DECADD_8:
+DNORM3:
   LD (DE),A
   INC DE
-  DJNZ DECADD_8
-L270C_2:
-  LD A,C
-  OR A
-  JR Z,DECROU
+  DJNZ DNORM3
+DNORM5:
+  LD A,C            ;GET THE SHIFT COUNT
+  OR A              ;SEE IF NO SHIFTING WAS DONE
+  JR Z,DECROU       ;NONE WAS, PROCEED TO ROUND THE NUMBER
   LD HL,FACCU
-  LD B,(HL)
-  ADD A,(HL)
-  LD (HL),A
+  LD B,(HL)         ;GET POINTER TO EXPONENT
+  ADD A,(HL)        ;UPDATE IT
+  LD (HL),A         ;SAVE UPDATED EXPONENT
   XOR B
   JP M,OV_ERR		; Err $06 -  "Overflow"
   RET Z
 
-; This entry point is used by the routines at DECADD and L3301.
-; Single precision rounding
+
+	;ROUND FAC
+	;ALTERS A,B,H,L
+; a.k.a. DROUND
+; This entry point is used by the routines at DADD and L3301.
 DECROU:
   LD HL,FACCU+8
   LD B,$07
@@ -7098,13 +7165,13 @@ BNORM_8:
   DEC HL
   XOR A
   SCF
-L270C_5:
+DNORML_5:
   ADC A,(HL)
   DAA
   LD (HL),A
   RET NC
   DEC HL
-  DJNZ L270C_5
+  DJNZ DNORML_5
   LD A,(HL)
   INC (HL)
   XOR (HL)
@@ -7115,13 +7182,13 @@ L270C_5:
 
 ; Routine at 10073
 ;
-; Used by the routine at DECADD.
+; Used by the routine at DADD.
 ; Add the BCD number in (HL) to (DE).  Result in (DE)
 BCDADD:
   LD HL,ARG+7
   LD DE,FACCU+7
   LD B,$07
-; This entry point is used by the routine at DECMUL.
+; This entry point is used by the routine at DMUL.
 DAA_PASS2:
   XOR A
   
@@ -7136,9 +7203,10 @@ BCDADD_1:
   DJNZ BCDADD_1
   RET
 
+
 ; Routine at 10091
 ;
-; Used by the routine at MINCDE_DEC.
+; Used by the routine at DADD3.
 ; Subtract the BCD number in (HL) from (DE).
 BCDSUB:
   LD HL,ARG+8
@@ -7177,28 +7245,29 @@ BCDSUB_2:
 
 ; Routine at 10135
 ;
-; Used by the routine at L270C.
-ML16FACCU:
+; Used by the routine at DNORML.
+DNORML_RLD:
   LD HL,FACCU+8
-L279A:
+DNORML_RLD_0:
   PUSH BC
   XOR A
 RLDLOOP:
   RLD
-  DEC HL
-  DJNZ RLDLOOP
+  DEC HL              ;DECREMENT POINTER TO NEXT HIGHER ORDER
+  DJNZ RLDLOOP        ;ARE WE DONE?  NO, DO THE NEXT BYTE
   POP BC
   RET
 
+
+	;SUBROUTINE FOR ROUND: ADD ONE TO FAC
 ; Routine at 10147
-;
-; Used by the routine at DECADD.
-SCALE_DEC:
+; Used by the routine at DADD.
+DSHFTR:
   OR A
   RRA
   PUSH AF
   OR A
-  JP Z,SHRT1_DEC_0
+  JP Z,DSHFRB_0
   PUSH AF
   CPL
   INC A
@@ -7209,66 +7278,82 @@ SCALE_DEC:
   LD D,H
   LD E,L
   ADD HL,BC
-  LD A,$08
+
+  LD A,$08             ;SET UP A COUNT
   ADD A,C
-  LD C,A
+
+  LD C,A               ; Move [A] bytes
   PUSH BC
   LD B,$00
   LDDR
   POP BC
+
   POP AF
   INC HL
   INC DE
   PUSH DE
   LD B,A
   XOR A
-SCALE_DEC_0:
+DSHFTR_0:
   LD (HL),A
   INC HL
-  DJNZ SCALE_DEC_0
+  DJNZ DSHFTR_0
   POP HL
   POP AF
   RET NC
   LD A,C
-; This entry point is used by the routine at SHRT1_DEC.
-SCALE_DEC_1:
+; This entry point is used by the routine at DSHFRB.
+DSHFTR_1:
   PUSH HL
   PUSH BC
   LD B,A
   XOR A
-SCALE_DEC_2:
+DSHFTR_2:
   RRD
   INC HL
-  DJNZ SCALE_DEC_2
+  DJNZ DSHFTR_2
   POP BC
   POP HL
   RET
 
 ; Routine at 10203
 ;
-; Used by the routines at DECADD, L35F9 and L377B.
-SHRT1_DEC:
+; Used by the routines at DADD, L35F9 and L377B.
+DSHFRB:
   LD HL,FACCU+1
-; This entry point is used by the routine at SHRT1_DEC_0.
-SHRT1_DEC_LP:
-  LD A,$08
-  JR SCALE_DEC_1
+; This entry point is used by the routine at DSHFRB_0.
+DSHFRB_LP:
+  LD A,$08                ;SET UP A COUNT, ROTATE FAC ONE LEFT
+  JR DSHFTR_1
 
-; Used by the routine at SCALE_DEC.
-SHRT1_DEC_0:
+; Used by the routine at DSHFTR.
+DSHFRB_0:
   POP AF
-  RET NC
-  JR SHRT1_DEC_LP
+  RET NC                  ;Exit if we're done
+  JR DSHFRB_LP
 
-; Routine at 10214
+
+;**********************************************************
+;       $FMULS  FMULS MULTIPLIES THE SINGLE PRECISION
+;               FLOATING POINT QUANTITIES  AND (FAC)
+;               AND RETURNS THE PRODUCT IN THE (FAC).
+;***********************************************************
+
+	
+; a.k.a. DMULT
 ;
-; Used by the routines at __LOG, MULPHL, SUMSER, FMULT and DECEXP.
-DECMUL:
-  CALL SIGN				; Test sign of FP accumulator
-  RET Z                 ; Return zero if zero
-  LD A,(ARG)
-  OR A
-  JP Z,ZERO_EXPONENT
+	;DOUBLE PRECISION MULTIPLICATION	FAC:=FAC*ARG
+	;ALTERS ALL REGISTERS
+;
+; Routine at 10214
+; Used by the routines at __LOG, MULPHL, SUMSER, FMULT and DEXP.
+DMUL:
+  CALL SIGN         ;ZF=1 WILL BE SET IF (FAC)=0    ; Test sign of FP accumulator
+  RET Z             ;JUST RETURN IF (FAC)=0         ; Return zero if zero
+  LD A,(ARG)        ;MUST SEE IF ARG IS ZERO
+  OR A              
+  JP Z,ZERO         ;RETURN ZERO
+
   LD B,A
   LD HL,FACCU
   XOR (HL)
@@ -7282,11 +7367,11 @@ DECMUL:
   LD (HL),$00
   AND $C0
   RET Z
-  CP $C0
-  JR NZ,DECMUL_0
+  CP $C0            ;MUST NOW CHECK FOR OVERFLOW
+  JR NZ,DMUL_0
   JP OV_ERR			; Err $06 -  "Overflow"
-  
-DECMUL_0:
+
+DMUL_0:
   LD A,B
   ADD A,$40
   AND $7F			; ABS
@@ -7305,15 +7390,15 @@ DECMUL_0:
   LD B,$08
 
 ; Init FP accumulator to zero
-DECMUL_1:
+DMUL_1:
   LD (HL),A
   INC HL
-  DJNZ DECMUL_1
+  DJNZ DMUL_1
   POP DE
   LD BC,BNORM		; NORMALIZE
   PUSH BC
 ; This entry point is used by the routine at __RND.
-DECMUL_2:
+DMUL_2:
   CALL DAA_PASS1	; ADC/DAA loop
   PUSH HL
   LD BC,$0008
@@ -7327,31 +7412,31 @@ DECMUL_2:
   CALL DAA_PASS1	; ADC/DAA loop
   LD C,$07
   LD DE,ARG+7
-DECMUL_3:
+DMUL_3:
   LD A,(DE)
   OR A
-  JR NZ,DECMUL_4
+  JR NZ,DMUL_4
 
   DEC DE
   DEC C
-  JR DECMUL_3
+  JR DMUL_3
 
-DECMUL_4:
+DMUL_4:
   LD A,(DE)
   DEC DE
   PUSH DE
   LD HL,HOLD8+7  ; HOLD8+7				; Double precision operations work area
-DECMUL_5:
+DMUL_5:
   ADD A,A
-  JR C,DECMUL_7
-  JR Z,DECMUL_8
+  JR C,DMUL_7
+  JR Z,DMUL_8
 
-DECMUL_6:
+DMUL_6:
   LD DE,$0008
   ADD HL,DE
-  JR DECMUL_5
+  JR DMUL_5
 
-DECMUL_7:
+DMUL_7:
   PUSH AF
   LD B,$08
   LD DE,FACCU+7
@@ -7359,9 +7444,9 @@ DECMUL_7:
   CALL DAA_PASS2
   POP HL
   POP AF
-  JR DECMUL_6
+  JR DMUL_6
  
-DECMUL_8:
+DMUL_8:
   LD B,$0F
   LD DE,FACCU+14	; some declaration is missing here but the distances between
   LD HL,FACCU+15	; the labels in this work area is the same on all the target computers
@@ -7369,7 +7454,7 @@ DECMUL_8:
   LD (HL),$00
   POP DE
   DEC C
-  JR NZ,DECMUL_4
+  JR NZ,DMUL_4
   RET
 
 ; Routine at 10371
@@ -7382,7 +7467,7 @@ BNORM:
 
 ; Routine at 10378
 ;
-; Used by the routine at DECMUL.
+; Used by the routine at DMUL.
 ; IN: HL=last byte of value
 DAA_PASS1:
   LD HL,$FFF8		; -8
@@ -7403,9 +7488,15 @@ DAA_PASS1_1:
   JR NZ,DAA_PASS1_0
   RET
 
+
+; Double precision DIVIDE
+;
+					;DOUBLE PRECISION DIVISION	FAC:=FAC/ARG
+					;ALTERS ALL REGISTERS
+;
 ; Data block at 10399
   ; --- START PROC L289F ---
-DECDIV:
+DDIV:
   LD A,(ARG)
   OR A
   JP Z,O_ERR		; Err $0B - "Division by zero"
@@ -7413,7 +7504,7 @@ DECDIV:
   LD HL,FACCU
   LD A,(HL)
   OR A
-  JP Z,ZERO_EXPONENT
+  JP Z,ZERO
   XOR B
   AND $80
   LD C,A
@@ -7510,7 +7601,7 @@ L2925:
   LD D,$00
   LD HL,FACCU-1
   ADD HL,DE
-  CALL L279A
+  CALL DNORML_RLD_0
   POP BC
   POP HL
   LD A,B
@@ -7556,7 +7647,7 @@ L2964:
   LD (FACCU-1),A
   XOR E
   JP P,L28F4
-  JP ZERO_EXPONENT
+  JP ZERO
 
 L2973:
   RRA
@@ -7597,7 +7688,7 @@ __COS:
   AND $7F			; ABS
   LD (FACCU),A
   LD HL,FP_QUARTER
-  CALL SUBPHL
+  CALL FSUBS
   CALL NEG
   JR __SIN_0
 
@@ -7610,14 +7701,14 @@ __SIN:
 ;  LD DE,$yyyy
 ;  CALL FPBCDE
 ;  CALL __CDBL
-;  JP SETTYPE_DBL
+;  JP VALDBL
 ;;
 
 ;; Trick to inspect constants, "PRINT  SIN(X)" to display the value
 ;; (to preserve the code size, comment out the next three instructions)
 ;  LD HL,_const_
 ;  CALL HL2FACCU
-;  JP SETTYPE_DBL
+;  JP VALDBL
 ;;
 
   LD HL,FP_EPSILON
@@ -7631,7 +7722,7 @@ __SIN_0:
   CALL __INT
   CALL FACCU2ARG
   CALL USTAKFP
-  CALL DECSUB
+  CALL DSUB
   LD A,(FACCU)
   CP $40
   JP C,__SIN_2
@@ -7643,12 +7734,12 @@ __SIN_0:
   CALL FACCU2ARG
   LD HL,FP_HALF
   CALL HL2FACCU
-  CALL DECSUB
+  CALL DSUB
   JP __SIN_2
 __SIN_1:
   LD HL,FP_UNITY
   CALL HL2ARG
-  CALL DECSUB
+  CALL DSUB
 __SIN_2:
   LD HL,FP_SINTAB				; 8 values series
   JP SUMSER
@@ -7662,7 +7753,7 @@ __TAN:
   CALL USTAKARG
   LD A,(ARG)
   OR A
-  JP NZ,DECDIV
+  JP NZ,DDIV
   JP OV_ERR			; Err $06 -  "Overflow"
 
 ; Routine at 10772
@@ -7676,12 +7767,12 @@ __ATN:
   CALL FACCU2ARG
   LD HL,FP_UNITY
   CALL HL2FACCU
-  CALL DECDIV
+  CALL DDIV
   CALL __ATN_0
   CALL FACCU2ARG
   LD HL,FP_HALFPI
   CALL HL2FACCU
-  JP DECSUB
+  JP DSUB
   
 __ATN_0:
   LD HL,FP_TAN15
@@ -7694,9 +7785,9 @@ __ATN_0:
   LD HL,FP_SQR3
   CALL MULPHL
   LD HL,FP_UNITY
-  CALL SUBPHL
+  CALL FSUBS
   CALL USTAKARG
-  CALL DECDIV		; Get reciprocal of number
+  CALL DDIV		; Get reciprocal of number
   CALL __ATN_1
   LD HL,FP_SIXTHPI
   JP ADDPHL
@@ -7705,17 +7796,24 @@ __ATN_1:
   LD HL,FP_ATNTAB
   JP SUMSER
 
+
+;**********************************************************
+;FOR LOG CALCULATIONS HART ALGORITHM 2524 WILL BE USED
+;IN THIS ALGORITHM WE WILL CALCULATE BASE 2 LOG AS FOLLOWS
+;LOG(X)=P(X)/Q(X)
+;***************************************************************
+
 ; Routine at 10866
 ;
-; Used by the routine at DECEXP.
+; Used by the routine at DEXP.
 __LOG:
-  CALL SIGN			; test FP number sign
-  JP M,FC_ERR			; Err $05 - "Illegal function call"
+  CALL SIGN             ; test FP number sign
+  JP M,FC_ERR			; Err $05 - "Illegal function call"     ;ERROR IF ($FAC).LE..0
   JP Z,FC_ERR			; Err $05 - "Illegal function call"
   LD HL,FACCU
-  LD A,(HL)
+  LD A,(HL)             ;FETCH EXPONENT
   PUSH AF
-  LD (HL),$41
+  LD (HL),$41           ;ZERO THE EXPONENT
   LD HL,FP_10EXHALF
   CALL CMPPHL
   JP M,__LOG_0
@@ -7726,43 +7824,43 @@ __LOG:
   DEC (HL)
 __LOG_0:
   POP AF
-  LD (TEMP3),A
+  LD (TEMP3),A          ;SAVE EXPONENT
   CALL STAKFP
   LD HL,FP_UNITY
   CALL ADDPHL
   CALL XSTKFP
   LD HL,FP_UNITY
-  CALL SUBPHL
+  CALL FSUBS
   CALL USTAKARG
-  CALL DECDIV
+  CALL DDIV
   CALL STAKFP
   CALL SQUAREFP
   CALL STAKFP
   CALL STAKFP
-  LD HL,FP_LOGTAB2		; 5 values series
-  CALL SMSER1_0
-  CALL XSTKFP
-  LD HL,FP_LOGTAB		; 4 values series
-  CALL SMSER1_0
+  LD HL,FP_LOGTAB_Q
+  CALL POLY             ;CALCULATE Q(X)
+  CALL XSTKFP           ;SAVE Q(X)
+  LD HL,FP_LOGTAB_P
+  CALL POLY             ;NOW TO USE HART APPROX FOR P(X)
+  CALL USTAKARG         ;RECALL Q(X)
+  CALL DDIV           ;CALCULATE P(X)/Q(X)
   CALL USTAKARG
-  CALL DECDIV
-  CALL USTAKARG
-  CALL DECMUL
-  LD HL,FP_TWODLN10
+  CALL DMUL
+  LD HL,FP_TWODLN10     ;FETCH 2/LN(10)
   CALL ADDPHL
   CALL USTAKARG
-  CALL DECMUL
+  CALL DMUL           ;MULTIPLY TO COMPLETE
   CALL STAKFP
-  LD A,(TEMP3)
+  LD A,(TEMP3)          ;FETCH EXPONENT
   SUB $41
   LD L,A
   ADD A,A
   SBC A,A
   LD H,A
   CALL HL_CSNG
-  CALL ZERO_FACCU
+  CALL CONDS
   CALL USTAKARG
-  CALL DECADD
+  CALL DADD
   LD HL,FP_LN10
   JP MULPHL
 
@@ -7790,9 +7888,9 @@ __SQR_0:
   LD (TEMP3),A
   CALL STAKFP
   CALL STAKARG
-  CALL DECDIV
+  CALL DDIV
   CALL USTAKARG
-  CALL DECADD
+  CALL DADD
   LD HL,FP_HALF
   CALL MULPHL
   CALL FACCU2ARG
@@ -7804,7 +7902,7 @@ __SQR_0:
 
 ; Routine at 11082
 ;
-; Used by the routine at DECEXP.
+; Used by the routine at DEXP.
 __EXP:
   LD HL,FP_LOG10E
   CALL MULPHL
@@ -7818,7 +7916,7 @@ __EXP:
   LD A,H
   OR A
   JP P,__EXP_0
-  CALL SETTYPE_DBL
+  CALL VALDBL
   CALL USTAKFP
   LD HL,FP_ZERO
   JP HL2FACCU
@@ -7830,14 +7928,14 @@ __EXP_1:
   CALL __CDBL
   CALL FACCU2ARG
   CALL USTAKFP
-  CALL DECSUB
+  CALL DSUB
   LD HL,FP_HALF
   CALL CMPPHL
   PUSH AF
   JR Z,__EXP_2
   JR C,__EXP_2
   LD HL,FP_HALF
-  CALL SUBPHL
+  CALL FSUBS
 __EXP_2:
   CALL STAKFP
   LD HL,FP_EXPTAB2	; 3 values series
@@ -7848,15 +7946,15 @@ __EXP_2:
   CALL USTAKARG
   CALL STAKARG
   CALL STAKFP
-  CALL DECSUB
+  CALL DSUB
   LD HL,HOLD
   CALL DBL_FACCU2HL
   CALL USTAKARG
   CALL USTAKFP
-  CALL DECADD
+  CALL DADD
   LD HL,HOLD
   CALL HL2ARG
-  CALL DECDIV
+  CALL DDIV
   POP AF
   JR C,__EXP_3
   JR Z,__EXP_3
@@ -7886,11 +7984,11 @@ __RND:
   LD HL,RNDTAB_2
   CALL HL2FACCU
   LD DE,HOLD+7
-  CALL DECMUL_2
+  CALL DMUL_2
   LD DE,FACCU+8
   LD HL,RNDX+1
   LD B,$07
-  CALL CPY2HL   		; Copy B bytes from DE to HL
+  CALL MOVE1   		; Copy B bytes from DE to HL
   LD HL,RNDX
   LD (HL),$00
 __RND_0:
@@ -7916,14 +8014,17 @@ INIT_RND:
 ; Used by the routines at __ATN and __LOG.
 ADDPHL:
   CALL HL2ARG
-  JP DECADD
+  JP DADD
+
+
+;SUBTRACTION	FAC:=ARG-FAC
+;ENTRY IF POINTER TO ARG IS IN (HL)
 
 ; Routine at 11314
-;
 ; Used by the routines at __COS, __ATN, __LOG and __EXP.
-SUBPHL:
-  CALL HL2ARG
-  JP DECSUB
+FSUBS:
+  CALL HL2ARG                ;ENTRY IF POINTER TO ARG IS IN (HL)
+  JP DSUB                  ; FPREG = -FPREG + number at HL
 
 ; Routine at 11320
 ;
@@ -7937,12 +8038,12 @@ SQUAREFP:
 ; L3878.
 MULPHL:
   CALL HL2ARG
-  JP DECMUL
+  JP DMUL
 
 ; Routine at 11329
 DIVPHL:
   CALL HL2ARG
-  JP DECDIV
+  JP DDIV
 
 ; Routine at 11335
 ;
@@ -7957,7 +8058,7 @@ CMPPHL:
 FACCU2ARG:
   LD HL,FACCU
 ; This entry point is used by the routines at __SIN, __EXP, __RND, ADDPHL,
-; SUBPHL, MULPHL, DIVPHL, CMPPHL and SMSER1.
+; FSUBS, MULPHL, DIVPHL, CMPPHL and SMSER1.
 
 HL2ARG:
   LD DE,ARG
@@ -7970,11 +8071,11 @@ FP2DE:
 
 ; Routine at 11353
 ;
-; Used by the routines at __SQR, XSTKFP, DECEXP, L3878 and L391A.
+; Used by the routines at __SQR, XSTKFP, DEXP, L3878 and L391A.
 ARG2FACCU:
   LD HL,ARG
 ; This entry point is used by the routines at __SIN, __ATN, __EXP, __RND,
-; SMSER1, NUMPRT_SUB, DECEXP and L3878.
+; SMSER1, NUMPRT_SUB, DEXP and L3878.
 HL2FACCU:
   LD DE,FACCU
   JR FP2DE
@@ -7985,18 +8086,18 @@ GET_RNDX:
   CALL HL_CSNG
   LD HL,RNDX
   
-; This entry point is used by the routines at __EXP, __RND, SMSER1, DECEXP and
+; This entry point is used by the routines at __EXP, __RND, SMSER1, DEXP and
 ; L3878.
 DBL_FACCU2HL:
   LD DE,FACCU
 ; This entry point is used by the routines at __RND, INIT_RND and FACCU2ARG.
 DBL2HL:
   LD B,$08
-  JP CPY2HL   		; Copy B bytes from DE to HL
+  JP MOVE1   		; Copy B bytes from DE to HL
 
 ; Routine at 11375
 ;
-; Used by the routines at __TAN, __ATN, __LOG, __EXP and DECEXP.
+; Used by the routines at __TAN, __ATN, __LOG, __EXP and DEXP.
 ; Exchange stack and FP value (ARG is used and left = FACCU)
 XSTKFP:
   POP HL
@@ -8023,7 +8124,7 @@ SUMSER:
   LD HL,(FBUFFR)		; Buffer for fout
   CALL SMSER1
   CALL USTAKARG
-  JP DECMUL
+  JP DMUL
 
 ; Routine at 11418
 ;
@@ -8033,7 +8134,7 @@ SMSER1:
   CALL SQUAREFP
   LD HL,(FBUFFR)		; Buffer for fout
 ; This entry point is used by the routine at __LOG.
-SMSER1_0:
+POLY:
   LD A,(HL)			; Get number of coefficients
   PUSH AF
   INC HL			; Point to start of table
@@ -8053,7 +8154,7 @@ SUMLP:
   POP HL
   CALL HL2ARG
   PUSH HL
-  CALL DECADD
+  CALL DADD
   POP HL
   JR SUMLP
 
@@ -8067,7 +8168,7 @@ STAKARG:
 ; Routine at 11468
 ;
 ; Used by the routines at __SIN, __TAN, __ATN, __LOG, __SQR, __EXP, XSTKFP,
-; SUMSER, DECEXP and L3878.
+; SUMSER, DEXP and L3878.
 STAKFP:
   LD HL,FACCU+7
 ; This entry point is used by the routine at STAKARG.
@@ -8087,7 +8188,7 @@ STAKFP_1:
 
 
 ; This entry point is used by the routines at __TAN, __ATN, __LOG, __SQR,
-; __EXP, XSTKFP, SUMSER, DECEXP and L391A.
+; __EXP, XSTKFP, SUMSER, DEXP and L391A.
 USTAKARG:
   LD HL,ARG
   JR USTAK_SUB
@@ -8180,14 +8281,14 @@ FP_EXPTAB2:
   DEFB $43,$83,$14,$06,$72,$12,$93,$71		; 831.4067219371
   DEFB $44,$51,$78,$09,$19,$91,$51,$62		; 5178.0919915162
   
-FP_LOGTAB:
+FP_LOGTAB_P:
   DEFB $04	; 4 values
   DEFB $c0,$71,$43,$33,$82,$15,$32,$26		; -0.71433382153226
   DEFB $41,$62,$50,$36,$51,$12,$79,$08		; 6.2503651127908
   DEFB $C2,$13,$68,$23,$70,$24,$15,$03		; -13.682370241503
   DEFB $41,$85,$16,$73,$19,$87,$23,$89		; 8.5167319872389
 
-FP_LOGTAB2:
+FP_LOGTAB_Q:
   DEFB $05	; 5 values
   DEFB $41,$10,$00,$00,$00,$00,$00,$00		; 1
   DEFB $C2,$13,$21,$04,$78,$35,$01,$56		; -13.210478350156
@@ -8220,134 +8321,224 @@ FP_ATNTAB:
   DEFB $41,$10,$00,$00,$00,$00,$00,$00		;  1/1    =  1
 
 
-  
-  
-  ; --- START PROC SIGN ---
-  ; test FP number sign
+
+; Test sign of FPREG
+
+	;PUT SIGN OF FAC IN A
+	;ALTERS A ONLY
+	;LEAVES FAC ALONE
+	;NOTE: TO TAKE ADVANTAGE OF THE RST INSTRUCTIONS TO SAVE BYTES, FSIGN IS USUALLY DEFINED TO BE AN RST.
+	;"FSIGN" IS EQUIVALENT TO "CALL SIGN"
+	;THE FIRST FEW INSTRUCTIONS OF SIGN (THE ONES BEFORE SIGNC) ARE DONE IN THE 8 BYTES AT THE RST LOCATION.
+
 SIGN:
-  LD A,(FACCU)
-  OR A
-  RET Z
-L2E76:
-  DEFB $FE		;  CP 2Fh ..hides the "CPL" instruction
-SGN_RESULT_CPL:
-  CPL  
+  LD A,(FACCU)         ; Get sign of FPREG
+  OR A                                                             ;CHECK IF THE NUMBER IS ZERO
+  RET Z                ; RETurn if number is zero                  ;IT IS, A IS ZERO
+  DEFB $FE             ; CP 2Fh ..hides the "CPL" instruction      ;"CPI" AROUND NEXT BYTE
+
+FCOMPS:
+  CPL                  ; Invert sign         ;ENTRY FROM FCOMP, COMPLEMENT SIGN
+
   ; --- START PROC L2E78 ---
-SGN_RESULT:
-  RLA
+ICOMPS:
+  RLA                  ; Sign bit to carry   ;ENTRY FROM ICOMP, PUT SIGN BIT IN CARRY
+
   ; --- START PROC L2E79 ---
 SIGNS:
-  SBC A,A
-  RET NZ
-  INC A
-  RET
+  SBC A,A              ; Carry to all bits of A      ;A=0 IF CARRY WAS 0, A=377 IF CARRY WAS 1
+  RET NZ               ; Return -1 if negative       ;RETURN IF NUMBER WAS NEGATIVE
+  INC A                ; Bump to +1                  ;PUT ONE IN A IF NUMBER WAS POSITIVE
+  RET                  ; Positive - Return +1        ;ALL DONE
+
+
+;ZERO FAC
+;ALTERS A ONLY
+;EXITS WITH A=0
+;BY OUR FLOATING POINT FORMAT, THE NUMBER IS ZERO IF THE EXPONENT IS ZERO
 
 ; Routine at 11901
 ;
-; Used by the routines at MINCDE_DEC, DECMUL and __FIX.
-ZERO_EXPONENT:
-  XOR A
-  LD (FACCU),A
-  RET
+; Used by the routines at DADD3, DMUL and __FIX.
+ZERO:
+  XOR A                 ; Result is zero           ;ZERO A
+  LD (FACCU),A          ; Save result as zero      ;ZERO THE FAC'S EXPONENT, ENTRY IF A=0
+  RET                                              ;ALL DONE
 
+
+;
+;	;GET THE VALTYP AND SET CONDITION CODES AS FOLLOWS:
+;;CONDITION CODE		TRUE SET	FALSE SET
+;;SIGN			INT=2		STR,SNG,DBL
+;;ZERO			STR=3		INT,SNG,DBL
+;;ODD PARITY		SNG=4		INT,STR,DBL
+;;NO CARRY		DBL=10		INT,STR,SNG
+;GETYPE:	LDA	VALTYP		;GET THE VALTYP
+;	CPI	10		;SET CARRY CORRECTLY
+;	DCR	A		;SET THE OTHER CONDITION CODES CORRECTLY
+;	DCR	A		; WITHOUT AFFECTING CARRY
+;	DCR	A
+;	RET	*			;ALL DONE
+
+
+; 'ABS' BASIC function
+
+	;ABSOLUTE VALUE OF FAC
+	;ALTERS A,B,C,D,E,H,L
+
+;
 ; Routine at 11906
 __ABS:
-  CALL _TSTSGN
-  RET P
+  CALL VSIGN         ;GET THE SIGN OF THE FAC IN A
+  RET P              ;IF IT IS POSITIVE, WE ARE DONE
+
 
 ; Invert number sign
+
+	;NEGATE ANY TYPE VALUE IN THE FAC
+	;ALTERS A,B,C,D,E,H,L
+
 ;
 ; Used by the routines at __FIX, L3301 and OPRND.
 INVSGN:
-  RST GETYPR 		; Get the number type (FAC)
-  JP M,DBL_ABS
-  JP Z,TM_ERR				; If string type, Err $0D - "Type mismatch"
-  
-; This entry point is used by the routines at __COS, NEGAFT, __FIX, IMULT and
-; FSUB.
+  RST GETYPR         ;SEE WHAT KIND OF NUMBER WE HAVE
+  JP M,INEG          ;WE HAVE AN INTEGER, NEGATE IT THAT WAY
+  JP Z,TM_ERR        ;BLOW UP ON STRINGS,   If string type, Err $0D - "Type mismatch"
+                     ;FALL INTO NEG TO NEGATE A SNG OR DBL
+
+
+; Invert number sign
+
+	;NEGATE NUMBER IN THE FAC
+	;ALTERS A,H,L
+	;NOTE: THE NUMBER MUST BE PACKED
+
+;
+; This entry point is used by the routines at __COS, NEGAFT, __FIX, IMULT and FSUB.
 NEG:
-  LD HL,FACCU
+  LD HL,FACCU         ;GET POINTER TO SIGN
 
 INVSGN_1:
-  LD A,(HL)
+  LD A,(HL)           ;GET SIGN
   OR A
   RET Z
-  XOR $80
-  LD (HL),A
-  RET
+  XOR $80             ;COMPLEMENT SIGN BIT
+  LD (HL),A           ;SAVE IT
+  RET                 ;ALL DONE
 
+
+; 'SGN' BASIC function
+
+	;SGN FUNCTION
+	;ALTERS A,H,L
+;
 ; Routine at 11927
 __SGN:
-  CALL _TSTSGN
-; This entry point is used by the routines at DOCMP, CAS_EOF, FN_PLAY and __STRIG.
-; Signed char to signed int conversion, then return
-INT_RESULT_A:
-  LD L,A
-  RLA
-  SBC A,A
-  LD H,A
-  JP MAKINT
+  CALL VSIGN          ;GET THE SIGN OF THE FAC IN A    ; Test sign of FPREG
 
+;ENTRY TO CONVERT A SIGNED NUMBER IN A TO AN INTEGER
+; Signed char to signed int conversion, then return
+; Get back from function, result in A (signed)
+;
+; This entry point is used by the routines at DOCMP, CAS_EOF, FN_PLAY and __STRIG.
+INT_RESULT_A:         ;ENTRY TO CONVERT A SIGNED NUMBER IN A TO AN INTEGER
+  LD L,A              ;PUT IT IN THE LO POSITION
+  RLA                 ;EXTEND THE SIGN TO THE HO     ; Sign bit to carry
+  SBC A,A                                            ; Carry to all bits of A
+  LD H,A              
+  JP MAKINT           ;RETURN THE RESULT AND SET VALTYP
+
+
+; Test sign in number
+
+	;GET THE SIGN OF THE VALUE IN THE FAC IN A
+	;ALTERS A,H,L
+;
 ; Routine at 11937
 ;
 ; Used by the routines at __ABS, __SGN and __IF.
-_TSTSGN:
-  RST GETYPR 		; Get the number type (FAC)
-  JP Z,TM_ERR				; If string type, Err $0D - "Type mismatch"
-  JP P,SIGN			; test FP number sign
-  LD HL,(FACLOW)
-  ; --- START PROC __TSTSGN_0 ---
-__TSTSGN_0:
-  LD A,H
-  OR L
-  RET Z
-  LD A,H
-  JR SGN_RESULT
+VSIGN:
+  RST GETYPR          ;SEE WHAT KIND OF A NUMBER WE HAVE
+  JP Z,TM_ERR         ;BLOW UP ON STRINGS
+  JP P,SIGN           ;SINGLE AND DOUBLE PREC. WORK THE SAME
+  LD HL,(FACLOW)      ;GET THE INTEGER ARGUMENT
 
-; Routine at 11953
+
+	;ENTRY TO FIND THE SIGN OF (HL)
+	;ALTERS A ONLY
+ISIGN:
+  LD A,H              ;GET ITS SIGN
+  OR L                ;CHECK IF THE NUMBER IS ZERO
+  RET Z               ;IT IS, WE ARE DONE
+  LD A,H              ;IT ISN'T, SIGN IS THE SIGN OF H
+  JR ICOMPS           ;GO SET A CORRECTLY
+
+
+; Put FP value on stack
+
+	;FLOATING POINT MOVEMENT ROUTINES
+	;PUT FAC ON STACK
+	;ALTERS D,E
 ;
-; Used by the routines at IADD, IMULT, L4D26, IDIV and CIRCLE_SUB.
-STAKI:
-  EX DE,HL
-  LD HL,(FACLOW)
-  EX (SP),HL
-  PUSH HL
-  LD HL,(FACCU)
-  EX (SP),HL
-  PUSH HL
-  EX DE,HL
-  RET
+; Routine at 11953
+; Used by the routines at IADD, IMULT, IDIV and CIRCLE_SUB.
+PUSHF:
+  EX DE,HL            ; Save code string address        ;SAVE (HL)
+  LD HL,(FACLOW)      ; LSB,NLSB of FPREG               ;GET LO'S
+  EX (SP),HL          ; Stack them,get return           ;SWITCH LO'S AND RET ADDR
+  PUSH HL             ; Re-save return                  ;PUT RET ADDR BACK ON STACK
+  LD HL,(FACCU)       ; MSB and exponent of FPREG       ;GET HO'S
+  EX (SP),HL          ; Stack them,get return           ;SWITCH HO'S AND RET ADDR
+  PUSH HL             ; Re-save return                  ;PUT RET ADDR BACK ON STACK
+  EX DE,HL            ; Restore code string address     ;GET OLD (HL) BACK
+  RET                                                   ;ALL DONE
 
 ; Routine at 11966
 ;
 ; Used by the routine at L7684.
-PHLTFP:
-  CALL LOADFP
+MOVFM:
+  CALL LOADFP         ; Number at HL to BCDE       ;GET NUMBER IN REGISTERS
+                                                   ;FALL INTO MOVFR AND PUT IT IN FAC
 
 ; Move BCDE to FPREG
+; a.k.a. MOVFR
 ;
-; Used by the routine at L4D26.
+	;MOVE REGISTERS (B,C,D,E) TO FAC
+	;ALTERS D,E
+;
 FPBCDE:
-  EX DE,HL
-  LD (FACLOW),HL
-  LD H,B
-  LD L,C
-  LD (FACCU),HL
-  EX DE,HL
-  RET
+  EX DE,HL            ; Save code string address          ;GET LO'S IN (HL)
+  LD (FACLOW),HL      ; Save LSB,NLSB of number           ;PUT THEM WHERE THEY BELONG
+  LD H,B              ; Exponent of number                ;GET HO'S IN (HL)
+  LD L,C              ; MSB of number
+  LD (FACCU),HL       ; Save MSB and exponent             ;PUT HO'S WHERE THEY BELONG
+  EX DE,HL            ; Restore code string address       ;GET OLD (HL) BACK
+  RET                                                     ;ALL DONE
 
-; Routine at 11980
+
+; Load FP reg to BCDE
+; a.k.a. MOVRF
 ;
-; Used by the routine at L4D26.
-; LOAD (FACCU) on BCDE registers
+	;MOVE FAC TO REGISTERS (B,C,D,E)
+	;ALTERS B,C,D,E,H,L
+;
+; Routine at 11980
 BCDEFP:
-  LD HL,(FACLOW)
-  EX DE,HL
-  LD HL,(FACCU)
-  LD C,L
-  LD B,H
-  RET
+  LD HL,(FACLOW)      ; Point to FPREG                    ;GET POINTER TO FAC
 
+; Load FP value pointed by HL to BCDE,
+; a.k.a. MOVRM
+;
+;GET NUMBER IN REGISTERS (B,C,D,E) FROM MEMORY [(HL)]
+;ALTERS B,C,D,E,H,L
+;AT EXIT (HL):=(HL)+4
+;
+  EX DE,HL            
+  LD HL,(FACCU)       
+  LD C,L              
+  LD B,H              
+  RET                 
+                      
 ; Routine at 11990
 ;
 ; Load single precision FP value from (HL) in reverse byte order
@@ -8365,7 +8556,7 @@ LOADFP_REV:
 
 ; Routine at 11999
 ;
-; Used by the routines at PHLTFP, L324B, __NEXT and GNXARY.
+; Used by the routines at MOVFM, L324B, __NEXT and GNXARY.
 ; $2EDF
 LOADFP:
   LD E,(HL)
@@ -8382,46 +8573,55 @@ INCHL:
   INC HL
   RET
 
+
+	;MOVE NUMBER FROM FAC TO MEMORY [(HL)]
+	;ALTERS A,B,D,E,H,L
+	;a.k.a. MOVMF
 ; Routine at 12008
-;
 ; Used by the routine at __NEXT.
 ; copy number value from FPREG (FP accumulator) to HL
 FPTHL:
-  LD DE,FACCU
-  LD B,$04
-  JR CPY2HL   		; Copy B bytes from DE to HL
+  LD DE,FACCU       ; Point to FPREG                    ;GET POINTER TO FAC
+                                                        ;FALL INTO MOVE
+	;MOVE NUMBER FROM (DE) TO (HL)
+	;ALTERS A,B,D,E,H,L
+	;EXITS WITH (DE):=(DE)+4, (HL):=(HL)+4
+  LD B,$04          ; 4 bytes to move    ;SET COUNTER
+  JR MOVE1   		                     ;CONTINUE WITH THE MOVE
 
 ; Routine at 12015
 ;
 ; Used by the routine at __NEXT.
-ARG2DE:
-  LD DE,ARG
+HL_ARG:
+  LD DE,ARG         ;ENTRY TO SWITCH (DE) AND (HL)
 
 ; Copy number value from HL to DE
-VAL2DE:
+	;MOVE ANY TYPE VALUE (AS INDICATED BY VALTYP) FROM (DE) TO (HL)
+	;ALTERS A,B,D,E,H,L
+MOVVFM:
   EX DE,HL
   
 ; This entry point is used by the routines at __LET, __SWAP, TSTOPL and LHSMID.
 ; Copy number value from DE to HL
   ; --- START PROC L2EF3 ---
-FP2HL:
-  LD A,(VALTYP)
-  LD B,A
+VMOVE:
+  LD A,(VALTYP)    ;GET THE LENGTH OF THE NUMBER                           
+  LD B,A           ;SAVE IT AWAY  (number of bytes to move)      
   
 ; This entry point is used by the routines at __RND, GET_RNDX, FPTHL and MAKTKN.
 ; Copy B bytes from DE to HL
   ; --- START PROC L2EF7 ---
-CPY2HL:
-  LD A,(DE)
-  LD (HL),A
-  INC DE
-  INC HL
-  DJNZ CPY2HL   		; Copy B bytes from DE to HL
+MOVE1:
+  LD A,(DE)         ; Get source            ;GET WORD, ENTRY FROM VMOVMF
+  LD (HL),A         ; Save destination      ;PUT IT WHERE IT BELONGS
+  INC DE            ; Next source           ;INCREMENT POINTERS TO NEXT WORD
+  INC HL            ; Next destination
+  DJNZ MOVE1        ; Copy B bytes from DE to HL
   RET
 
 ; Routine at 12030
 ;
-; Used by the routine at DECMUL.
+; Used by the routine at DMUL.
 ; Similar to LDDR but moving from DE to HL, B times.
 LDDR_DEHL:
   LD A,(DE)
@@ -8431,216 +8631,293 @@ LDDR_DEHL:
   DJNZ LDDR_DEHL
   RET
 
-; Routine at 12037
-FP_ARG2DE:
-  LD HL,ARG
-; This entry point is used by the routines at NUMCON, OPRND and __NEXT.
-FP_HL2DE:
-  LD DE,VAL2DE 		; Copy number value from HL to DE
-  JR FPCOPY_0
 
+	;MOVE ANY TYPE VALUE FROM MEMORY [(HL)] TO FAC
+	;ALTERS A,B,D,E,H,L
+; Routine at 12037
+VMOVFA:
+  LD HL,ARG         ;ENTRY FROM DADD, MOVE ARG TO FAC
+
+; This entry point is used by the routines at NUMCON, OPRND and __NEXT.
+VMOVFM:
+  LD DE,MOVVFM 		;GET ADDRESS OF LOCATION THAT DOES  ; Copy number value from HL to DE
+  JR VMVVFM         ; AN "XCHG" AND FALLS INTO MOVE1
+
+
+	;MOVE ANY TYPE VALUE FROM FAC TO MEMORY [(HL)]
+	;ALTERS A,B,D,E,H,L
 ; Routine at 12045
-;
-; Used by the routines at L4D26 and L7684.
-FP_ARG2HL:
-  LD HL,ARG
-  
+; Used by the routines at L7684.
+VMOVAF:
+  LD HL,ARG         ;ENTRY FROM FIN, DMUL10, DDIV10
+
+
+	;MOVE FAC TO ARG
 ; This entry point is used by the routines at DOFN and __NEXT.
   ; --- START PROC L2F10 ---
-FP_DE2HL:
-  LD DE,FP2HL   		; Copy number value from DE to HL
+VMOVMF:
+  LD DE,VMOVE   		;GET ADDRESS OF MOVE SUBROUTINE  (Copy number value from DE to HL)
   
-; This entry point is used by the routine at FP_ARG2DE.
-FPCOPY_0:
-  PUSH DE
-  LD DE,FACCU
-  LD A,(VALTYP)
+; This entry point is used by the routine at VMOVFA.
+VMVVFM:
+  PUSH DE               ;SHOVE IT ON THE STACK
+;VDFACS:
+  LD DE,FACCU           ;GET FIRST ADDRESS FOR INT, STR, SNG
+  LD A,(VALTYP)         ;GET THE VALUE TYPE
   CP $04
-  RET NC
-  LD DE,FACLOW
-  RET
+  RET NC                ;GO MOVE IT IF WE DO NOT HAVE A DBL
+  LD DE,FACLOW          ;WE DO, GET LO ADDR OF THE DBL NUMBER
+  RET                   ;GO DO THE MOVE
 
+
+;	COMPARE TWO NUMBERS
+
+	;COMPARE TWO SINGLE PRECISION NUMBERS
+	;A=1 IF ARG .LT. FAC
+	;A=0 IF ARG=FAC
+	;A=-1 IF ARG .GT. FAC
+	;DOREL DEPENDS UPON THE FACT THAT FCOMP RETURNS WITH CARRY ON
+	; IFF A HAS 377
+	;ALTERS A,H,L
+
+; aka CMPNUM, Compare FP reg to BCDE
 ; Routine at 12065
 ;
-; Used by the routines at MAKINT_2, GETWORD_HL, FCOMP_UNITY and __NEXT.
-; Formerly known as "CMPNUM"
+; Used by the routines at CONIS2, GETWORD_HL, FCOMP_UNITY and __NEXT.
 FCOMP:
-  LD A,C
-  OR A
-  JP Z,SIGN			; test FP number sign
-  LD HL,SGN_RESULT_CPL
-  PUSH HL
-  CALL SIGN			; test FP number sign
-  LD A,C
-  RET Z
-  LD HL,FACCU
-  XOR (HL)
-  LD A,C
-  RET M
-  CALL CMPFP
-  RRA
-  XOR C
-  RET
+  LD A,C            ; Get exponent of number
+  OR A              ;CHECK IF ARG IS ZERO
+  JP Z,SIGN         ; Zero - Test sign of FPREG
+  LD HL,FCOMPS      ; Return relation routine           ;WE JUMP TO FCOMPS WHEN WE ARE DONE
+  PUSH HL           ; Save for return                   ;PUT THE ADDRESS ON THE STACK
+  CALL SIGN			; Test sign of FPREG                ;CHECK IF FAC IS ZERO
+  LD A,C            ; Get MSB of number                 ;IF IT IS, RESULT IS MINUS THE SIGN OF ARG
+  RET Z             ; FPREG zero - Number's MSB         ;IT IS
+  LD HL,FACCU       ; MSB of FPREG                      ;POINT TO SIGN OF FAC
+  XOR (HL)          ; Combine signs                     ;SEE IF THE SIGNS ARE THE SAME
+  LD A,C            ; Get MSB of number                 ;IF THEY ARE DIFFERENT, RESULT IS SIGN OF ARG
+  RET M             ; Exit if signs different           ;THEY ARE DIFFERENT
+  CALL CMPFP        ; Compare FP numbers                ;CHECK THE REST OF THE NUMBER
+; This entry point is used by the routine at XDCOMP.
+;FCOMPD:
+  RRA               ; Get carry to sign                 ;NUMBERS ARE DIFFERENT, CHANGE SIGN IF
+  XOR C             ; Combine with MSB of number        ; BOTH NUMBERS ARE NEGATIVE
+  RET                                                   ;GO SET UP A
 
 ; Routine at 12091
 ;
 ; Used by the routine at FCOMP.
 ; 
 CMPFP:
-  LD A,C
-  CP (HL)
-  RET NZ
-  INC HL
-  LD A,B
-  CP (HL)
-  RET NZ
-  INC HL
-  LD A,E
-  CP (HL)
-  RET NZ
-  INC HL
-  LD A,D
-  SUB (HL)
-  RET NZ
-  POP HL
-  POP HL
-  RET
+  LD A,C            ; Point to exponent                 ;POINT TO EXPONENT
+  CP (HL)           ; Get exponent                      ;GET EXPONENT OF ARG
+  RET NZ            ; Compare exponents                 ;COMPARE THE TWO
+  INC HL            ; Different                         ;NUMBERS ARE DIFFERENT
+  LD A,B            ; Point to MBS                      ;POINT TO HO
+  CP (HL)           ; Get MSB                           ;GET HO OF ARG
+  RET NZ            ; Compare MSBs                      ;COMPARE WITH HO OF FAC
+  INC HL            ; Different                         ;THEY ARE DIFFERENT
+  LD A,E            ; Point to NMSB                     ;POINT TO MO OF FAC
+  CP (HL)           ; Get NMSB                          ;GET MO OF ARG
+  RET NZ            ; Compare NMSBs                     ;COMPARE WITH MO OF FAC
+  INC HL            ; Different                         ;THE NUMBERS ARE DIFFERENT
+  LD A,D            ; Point to LSB                      ;POINT TO LO OF FAC
+  SUB (HL)          ; Get LSB                           ;GET LO OF ARG
+  RET NZ            ; Compare LSBs                      ;SUBTRACT LO OF FAC
+  POP HL            ; Different                         ;NUMBERS ARE DIFFERENT
+  POP HL            ; Drop RETurn                       ;NUMBERS ARE THE SAME, DON'T SCREW UP STACK
+  RET               ; Drop another RETurn               
+                                                        ;ALL DONE
 
-; Routine at 12109
+; Integer COMPARE
+; Compare the signed integer in DE to the signed integer in HL
 ;
+	;COMPARE TWO INTEGERS
+	;A=1 IF (DE) .LT. (HL)
+	;A=0 IF (DE)=(HL)
+	;A=-1 IF (DE) .GT. (HL)
+	;ALTERS A ONLY
+;
+; Routine at 12109
 ; Used by the routine at __NEXT.
 ICOMP:
-  LD A,D
-  XOR H
-  LD A,H
-  JP M,SGN_RESULT
-  CP D
-  JR NZ,ICOMP_0
-  LD A,L
-  SUB E
-  RET Z
-ICOMP_0:
-  JP SIGNS
+  LD A,D            ;ARE THE SIGNS THE SAME?
+  XOR H             
+  LD A,H            ;IF NOT, ANSWER IS THE SIGN OF (HL)
+  JP M,ICOMPS       ;THEY ARE DIFFERENT
+  CP D              ;THEY ARE THE SAME, COMPARE THE HO'S
+  JR NZ,ICOMP_0     ;GO SET UP A
+  LD A,L            ;COMPARE THE LO'S
+  SUB E             
+  RET Z             ;ALL DONE, THEY ARE THE SAME
+ICOMP_0:            
+  JP SIGNS          ;GO SET UP A
 
+
+	;COMPARE TWO DOUBLE PRECISION NUMBERS
+	;A=1 IF ARG .LT. FAC
+	;A=0 IF ARG=FAC
+	;A=-1 IF ARG .GT. FAC
+	;ALTERS A,B,C,D,E,H,L
+
+; a.k.a. DCOMPD
 ; Routine at 12124
 ;
-; Used by the routines at CMPPHL, DECCOMP, L391A and __NEXT.
+; Used by the routines at CMPPHL, DCOMP, L391A and __NEXT.
 XDCOMP:
-  LD DE,ARG
-  LD A,(DE)
+  LD DE,ARG         ;GET POINTER TO ARG
+  LD A,(DE)         ;SEE IF ARG=0
   OR A
-  JP Z,SIGN			; test FP number sign
-  LD HL,SGN_RESULT_CPL
-  PUSH HL
-  CALL SIGN			; test FP number sign
-  LD A,(DE)
-  LD C,A
-  RET Z
-  LD HL,FACCU
-  XOR (HL)
-  LD A,C
-  RET M
-  LD B,$08
-XDCOMP_0:
-  LD A,(DE)
-  SUB (HL)
-  JR NZ,XDCOMP_1
-  INC DE
-  INC HL
-  DJNZ XDCOMP_0
-  POP BC
-  RET
-XDCOMP_1:
-  RRA
-  XOR C
-  RET
+  JP Z,SIGN         ;ARG=0, GO SET UP A
+  LD HL,FCOMPS      ;PUSH FCOMPS ON STACK SO WE WILL RETURN TO
+  PUSH HL           ; TO IT AND SET UP A
+  CALL SIGN         ;SEE IF FAC=0
+  LD A,(DE)         ;GET SIGN OF ARG
+  LD C,A            ;SAVE IT FOR LATER
+  RET Z             ;FAC=0, SIGN OF RESULT IS SIGN OF ARG
+  LD HL,FACCU       ;POINT TO SIGN OF FAC
+  XOR (HL)          ;SEE IF THE SIGNS ARE THE SAME
+  LD A,C            ;IF THEY ARE, GET THE SIGN OF THE NUMBERS
+  RET M             ;THE SIGNS ARE DIFFERENT, GO SET A
+  LD B,$08          ;SET UP A COUNT
+XDCOMP_0:           
+  LD A,(DE)         ;GET A BYTE FROM ARG
+  SUB (HL)          ;COMPARE IT WITH THE FAC
+  JR NZ,FCOMPD      ;THEY ARE DIFFERENT, GO SET UP A
+  INC DE            ;THEY ARE THE SAME, EXAMINE THE NEXT LOWER
+  INC HL            ; ORDER BYTES
+  DJNZ XDCOMP_0     ;ARE WE DONE? NO, COMPARE THE NEXT BYTES
+  POP BC            ;THEY ARE THE SAME, GET FCOMPS OFF STACK
+  RET               ;ALL DONE
 
+FCOMPD:
+  RRA               ; Get carry to sign                 ;NUMBERS ARE DIFFERENT, CHANGE SIGN IF
+  XOR C             ; Combine with MSB of number        ; BOTH NUMBERS ARE NEGATIVE
+  RET                                                    ;GO SET UP A
+
+
+; Compare the double precision numbers in FAC1 and ARG
+	;COMPARE TWO DOUBLE PRECISION NUMBERS
+	;A=1 IF ARG .GT. FAC
+	;A=0 IF ARG=FAC
+	;A=-1 IF ARG .LT. FAC
+	;NOTE:	THIS IS THE REVERSE OF ICOMP, FCOMP AND XDCOMP
+	;ALTERS A,B,C,D,E,H,L
+; Double precision COMPARE
 ; Routine at 12163
-DECCOMP:
-  CALL XDCOMP
-  JP NZ,SGN_RESULT_CPL
-  RET
+DCOMP:
+  CALL XDCOMP       ;COMPARE THE TWO NUMBERS
+  JP NZ,FCOMPS      ;NEGATE THE ANSWER, MAKE SURE THE CARRY COMES
+  RET               ; OUT CORRECT FOR DOCMP
 
-; Routine at 12170
+
+
+;  CONVERSION ROUTINES BETWEEN INTEGER, SINGLE AND DOUBLE PRECISION
+	
+
+; 'CINT' BASIC function
+; a.k.a. FRCINT
+	;FORCE THE FAC TO BE AN INTEGER
+	;ALTERS A,B,C,D,E,H,L
 ;
+; Routine at 12170
 ; Used by the routines at __EXP, EVAL, NOT, DANDOR, DEPINT, L577A, __CIRCLE,
 ; CIRCLE_SUB, L7684 and PARMADDR.
   ; --- START PROC L2F8A ---
 __CINT:
-  RST GETYPR 		; Get the number type (FAC)
-  LD HL,(FACLOW)
-  RET M
-  JP Z,TM_ERR				; If string type, Err $0D - "Type mismatch"
-  CALL CINT
-  JP C,OV_ERR			; Err $06 -  "Overflow"
+  RST GETYPR        ;SEE WHAT WE HAVE
+  LD HL,(FACLOW)    ;GET FACLO+0,1 IN CASE WE HAVE AN INTEGER
+  RET M             ;WE HAVE AN INTEGER, ALL DONE
+  JP Z,TM_ERR       ;WE HAVE A STRING, THAT IS A "NO-NO"
+  CALL CINT         
+  JP C,OV_ERR
   EX DE,HL
-; This entry point is used by the routines at __SGN, MAKINT_2, __FIX, IMULT,
-; INT_DIV_3, LNUM_MSG, OPRND, OCTCNS, __POS, FN_POINT, __CIRCLE and CIRCLE_SUB.
+
+
+; Get back from function, result in HL
+;
+	;PUT (HL) IN FACLO, SET VALTYP TO INT
+	;ALTERS A ONLY
+;
+; This entry point is used by the routines at __SGN, CONIS2, __FIX, IMULT,
+; IMULDV, LNUM_MSG, OPRND, OCTCNS, __POS, FN_POINT, __CIRCLE and CIRCLE_SUB.
 MAKINT:
-  LD (FACLOW),HL
+  LD (FACLOW),HL    ;STORE THE NUMBER IN FACLO
 ; This entry point is used by the routine at IMOD.
-SETTYPE_INT:
-  LD A,$02		; Integer type
-; This entry point is used by the routine at SETTYPE_SNG.
+VALINT:
+  LD A,$02          ;SET VALTYP TO "INTEGER"
+; This entry point is used by the routine at VALSNG.
 SETTYPE:
-  LD (VALTYP),A
-  RET
+  LD (VALTYP),A     ;ENTRY FROM CONDS
+  RET               ;ALL DONE
 
 ; Routine at 12194
 ;
 ; Used by the routine at L3301.
-MAKINT_2:
-  LD BC,$32C5		; BCDE = -32768 (float)
-  LD DE,$8076
-  CALL FCOMP
-  RET NZ
-  LD HL,$8000		; HL = 32768
+CONIS2:
+  LD BC,$32C5       ; BCDE = -32768  (float)
+  LD DE,$8076       
+  CALL FCOMP        ;CHECK IF NUMBER IS -32768, ENTRY FROM FIN
+  RET NZ            ;ERROR:  IT CAN'T BE CONVERTED TO AN INTEGER
+  LD HL,$8000       ;IT IS -32768, PUT IT IN (HL)
+
 ; This entry point is used by the routine at IADD.
-MAKINT_2_0:
+CONIS1:
   POP DE
-  JR MAKINT		; L2F99
+  JR MAKINT         ;STORE IT IN THE FAC AND SET VALTYP
 
   
+; 'CSNG' BASIC function
+;
+	;FORCE THE FAC TO BE A SINGLE PRECISION NUMBER
+	;ALTERS A,B,C,D,E,H,L
+;
 ;  Convert number to single precision
 __CSNG:
-  RST GETYPR 		; Get the number type (FAC)
-L2FB3:
-  RET PO
-  JP M,INT_CSNG
-  JP Z,TM_ERR				; If string type, Err $0D - "Type mismatch"
-  CALL SETTYPE_SNG
-  CALL L3752
+  RST GETYPR        ;SEE WHAT KIND OF NUMBER WE HAVE
+  RET PO            ;WE ALREADY HAVE A SNG, ALL DONE
+  JP M,CONSI        ;WE HAVE AN INTEGER, CONVERT IT
+  JP Z,TM_ERR       ;STRINGS!! -- ERROR!!
+                    ;DBL PREC -- FALL INTO CONSD
+;CONSD:
+  CALL VALSNG       ;IF NOT INTEGER FORCE DOUBLE TO S.P.
+  CALL FTCH_SNG     ;Fetch in single precision
   INC HL
   LD A,B
   OR A
-  RRA
+  RRA               ;WANT ROUND-UP IF HIGH BIT SET
   LD B,A
-  JP BNORM_8
+  JP BNORM_8        ;GO ROUND THE NUMBER
 
-  ; --- START PROC INT_CSNG ---
-INT_CSNG:
-  LD HL,(FACLOW)			; DECIMAL ACCUMULATOR + 2
+
+
+; Convert the signed integer in FAC1 to single precision.
+	;CONVERT AN INTEGER TO A SINGLE PRECISION NUMBER
+	;ALTERS A,B,C,D,E,H,L
+  ; --- START PROC CONSI ---
+CONSI:
+  LD HL,(FACLOW)    ;GET THE INTEGER
   ; --- START PROC HL_CSNG ---
 HL_CSNG:
-  LD A,H
-  ; --- START PROC FLGREL_0 ---
-FLGREL_0:
+  LD A,H            ;SET UP REGISTERS FOR FLOATR
+  ; --- START PROC HL_CSNG_A ---
+HL_CSNG_A:
   OR A
   PUSH AF
-  CALL M,INT_DIV_6
-  CALL SETTYPE_SNG
+  CALL M,INEGHL
+  CALL VALSNG              ;SET VALTYP TO "SINGLE PRECISION"
   EX DE,HL
   LD HL,$0000
   LD (FACCU),HL
-  LD (FACLOW),HL			; DECIMAL ACCUMULATOR + 2
+  LD (FACLOW),HL           ; DECIMAL ACCUMULATOR + 2
   LD A,D
   OR E
   JP Z,POPAF
-  LD BC,$0500		; 1280 
+  LD BC,$0500		; 1280
   LD HL,FACCU+1
   PUSH HL
-  LD HL,L3030		; !
-L2FED:
+  LD HL,HL_CSNG_CONST
+HL_CSNG_1:
   LD A,$FF
   PUSH DE
   LD E,(HL)
@@ -8649,12 +8926,12 @@ L2FED:
   INC HL
   EX (SP),HL
   PUSH BC
-L2FF6:
+HL_CSNG_2:
   LD B,H
   LD C,L
   ADD HL,DE
   INC A
-  JR C,L2FF6
+  JR C,HL_CSNG_2
   LD H,B
   LD L,C
   POP BC
@@ -8662,106 +8939,106 @@ L2FF6:
   EX DE,HL
   INC C
   DEC C
-  JR NZ,L3010
+  JR NZ,HL_CSNG_3
   OR A
-  JR Z,L3024
+  JR Z,HL_CSNG_6
   PUSH AF
   LD A,40h  		; '@'
   ADD A,B
   LD (FACCU),A
   POP AF
-L3010:
+HL_CSNG_3:
   INC C
   EX (SP),HL
   PUSH AF
   LD A,C
   RRA
-  JR NC,L301F
+  JR NC,HL_CSNG_4
   POP AF
   ADD A,A
   ADD A,A
   ADD A,A
   ADD A,A
   LD (HL),A
-  JR L3023
+  JR HL_CSNG_5
 
-L301F:
+HL_CSNG_4:
   POP AF
   OR (HL)
   LD (HL),A
   INC HL
-L3023:
+HL_CSNG_5:
   EX (SP),HL
-L3024:
+HL_CSNG_6:
   LD A,D
   OR E
-  JR Z,L302A
-  DJNZ L2FED
-L302A:
+  JR Z,HL_CSNG_7
+  DJNZ HL_CSNG_1
+HL_CSNG_7:
   POP HL
   POP AF
   RET P
   JP NEG
 
-		
-; Routine at 12336
-L3030:			; !
-  DEFB		$F0
-  DEFB		$D8
-  DEFW LINWRK
-  ;DEFB		$18
-  ;DEFB		$FC
-  
-  ;RET P		; $F0
-  ;RET C		; $D8
-  ;;JR L3030  ; $18, $FC    -   
-  
+
+HL_CSNG_CONST:
+  DEFB $F0,$D8,$18,$FC,$9C
+  DEFB $FF,$F6,$FF,$FF,$FF
   
 
-; Routine at 12340
-L3034:
-  SBC A,H
-  RST KEYINT 		;  Performs hardware interrupt procedures
-  OR $FF
-  RST KEYINT 		;  Performs hardware interrupt procedures
-  RST KEYINT 		;  Performs hardware interrupt procedures
-  
 
-; This entry point is used by the routines at __EXP, TO_DOUBLE, NUMPRT_SUB, L3878, L4D26 and ISFUN.
+; 'CDBL' BASIC function
+	;FORCE THE FAC TO BE A DOUBLE PRECISION NUMBER
+	;ALTERS A,B,C,D,E,H,L
+;
+; This entry point is used by the routines at __EXP, TO_DOUBLE, NUMPRT_SUB, L3878, and ISFUN.
 ; Position: $303A
 __CDBL:
-  RST GETYPR 		; Get the number type (FAC)
-  RET NC
-  JP Z,TM_ERR				; If string type, Err $0D - "Type mismatch"
-  CALL M,INT_CSNG
-; This entry point is used by the routines at __LOG, L324B, FMULT, DIVIDE and
-; L3878.
-ZERO_FACCU:
-  LD HL,$0000
-  LD (FACCU+4),HL
-  LD (FACCU+6),HL
+  RST GETYPR           ;SEE WHAT KIND OF NUMBER WE HAVE
+  RET NC               ;WE ALREADY HAVE A DBL, WE ARE DONE
+  JP Z,TM_ERR          ;GIVE AN ERROR IF WE HAVE A STRING
+  CALL M,CONSI         ;CONVERT TO SNG IF WE HAVE AN INT
+                       ;FALL INTO CONDS AND CONVERT TO DBL
+
+	;CONVERT A SINGLE PRECISION NUMBER TO A DOUBLE PRECISION ONE
+	;ALTERS A,H,L
+; This entry point is used by the routines at __LOG, L324B, FMULT, DIVIDE and L3878.
+CONDS:
+  LD HL,$0000          ;ZERO H,L
+  LD (FACCU+4),HL      ;CLEAR THE FOUR LOWER BYTES IN THE DOUBLE
+  LD (FACCU+6),HL      ; PRECISION NUMBER
   LD A,H
   LD (FACCU+8),A
 
-; This entry point is used by the routines at __EXP and DECEXP.
-SETTYPE_DBL:
+; Set type to "double precision"
+;
+; This entry point is used by the routines at __EXP and DEXP.
+VALDBL:
   LD A,$08
-  JR SETTYPE_SNG_0
+  JR VALSNG_0
 
+; Set type to "single precision"
+;
 ; Routine at 12371
-SETTYPE_SNG:
-  LD A,$04
+VALSNG:
+  LD A,$04             ;SET VALTYP TO "SINGLE PRECISION"
 ; This entry point is used by the routine at L3034.
-SETTYPE_SNG_0:
+VALSNG_0:
   JP SETTYPE
 
-; Routine at 12376
+
+; Test for string type, 'Type Error' if it is not
+; a.k.a. FRCSTR
 ;
+	;FORCE THE FAC TO BE A STRING
+	;ALTERS A ONLY
+;
+; Routine at 12376
 ; Used by the routines at __LINE, ISFUN, USING, L61C4, CONCAT, GETSTR, FN_INSTR and LHSMID.
 TSTSTR:
-  RST GETYPR 		; Get the number type (FAC)
-  RET Z
-  JP TM_ERR				; If not string type, Err $0D - "Type mismatch"
+  RST GETYPR          ;SEE WHAT KIND OF VALUE WE HAVE
+  RET Z               ;WE HAVE A STRING, EVERYTHING IS OK
+  JP TM_ERR           ;WE DON'T HAVE A STRING, FALL INTO TMERR
 
 ; Data block at 12381
   ; --- START PROC CINT ---
@@ -8769,13 +9046,13 @@ CINT:
   LD HL,CINT_RET2
   PUSH HL
   LD HL,FACCU
-  LD A,(HL)
-  AND $7F			; ABS
-  CP $46
-  RET NC
+  LD A,(HL)            ;GET SIGN BYTE
+  AND $7F              ;CLEAR SIGN
+  CP $46               ;SEE IF TOO LARGE
+  RET NC               ; RET with CY set
   SUB $41
   JR NC,CINT_SUB
-  OR A
+  OR A                 ; reset CY
   POP DE
   LD DE,$0000
   RET
@@ -8829,7 +9106,7 @@ CINT_SUB_2:
   OR A
   RET P
   EX DE,HL
-  CALL INT_DIV_6
+  CALL INEGHL
   EX DE,HL
   OR A
   RET
@@ -8848,43 +9125,57 @@ CINT_RET2:
 
 ; Routine at 12476
 DCXBRT:
-  DEC BC
-  RET
+  DEC BC            ;THIS IS FOR BILL.  C WILL NEVER BE ZERO
+  RET               ; (THE MSB WILL ALWAYS BE ONE) SO "DCX	B"
+                    ; AND "DCR	C" ARE FUNCTIONALLY EQUIVALENT
 
+
+; 'FIX' BASIC function
+	; THIS IS THE FIX (X) FUNCTION. IT RETURNS
+	; FIX(X)=SGN(X)*INT(ABS(X))
+; Double Precision to Integer conversion
+; a.k.a. FIXER
 ; Routine at 12478
 __FIX:
-  RST GETYPR 		; Get the number type (FAC)
-  RET M
-  CALL SIGN			; test FP number sign
-  JP P,__INT
-  CALL NEG
-  CALL __INT
-  JP INVSGN
+  RST GETYPR        ;GET VALTYPE OF ARG
+  RET M             ;INT, DONE
+  CALL SIGN         ;GET SIGN
+  JP P,__INT        ;IF POSITIVE, JUST CALL REGULAR INT CODE
+  CALL NEG          ;NEGATE IT
+  CALL __INT        ;GET THE INTEGER OF IT
+  JP INVSGN         ;NOW RE-NEGATE IT
 
+
+; 'INT' BASIC function
+;
+	;GREATEST INTEGER FUNCTION
+	;ALTERS A,B,C,D,E,H,L
+;
+; a.k.a. VINT
 ; This entry point is used by the routines at __SIN and L391A.
 __INT:
-  RST GETYPR 		; Get the number type (FAC)
-  RET M
-  LD HL,FACCU+8
-  LD C,$0E 		; ?? line number prefix LINCON ?
-  JR NC,__FIX_0
+  RST GETYPR        ;SEE WHAT TYPE OF A NUMBER WE HAVE
+  RET M             ;IT IS AN INTEGER, ALL DONE
+  LD HL,FACCU+8     ;GET EXPONENT
+  LD C,$0E
+  JR NC,__INT_0
   JP Z,TM_ERR				; If string type, Err $0D - "Type mismatch"
   LD HL,FACCU+4
   LD C,$06			; TK_ABS ?
-__FIX_0:
+__INT_0:
   LD A,(FACCU)
   OR A
   JP M,__FIX_2
   AND $7F			; ABS
   SUB $41
-  JP C,ZERO_EXPONENT
+  JP C,ZERO
   INC A
   SUB C
   RET NC
   CPL
   INC A
   LD B,A
-__FIX_1:
+__INT_1:
   DEC HL
   LD A,(HL)
   AND $F0
@@ -8893,7 +9184,7 @@ __FIX_1:
   RET Z
   XOR A
   LD (HL),A
-  DJNZ __FIX_1
+  DJNZ __INT_1
   RET
   
 __FIX_2:
@@ -8946,270 +9237,346 @@ __FIX_7:
   LD H,B
   LD L,C
   LD (ARG),HL
-  JP DECADD
+  JP DADD
 
-; Routine at 12618
+
+; Multiply DE by BC
+; a.k.a. UMULT
+	;INTEGER MULTIPLY FOR MULTIPLY DIMENSIONED ARRAYS
+	; (DE):=(BC)*(DE)
+	;OVERFLOW CAUSES A BS ERROR
+	;ALTERS A,B,C,D,E
 ;
+; Routine at 12618
 ; Used by the routine at L7684.
-; $314A,  Also Known as "UMULT", DE=BC*DE
 MLDEBC:
-  PUSH HL
-  LD HL,$0000			; Clear partial product
-  LD A,B				; Test multiplier
-  OR C
-  JR Z,MLDEBC_2			; Return zero if zero
-  LD A,16				; 16 bits
-MLDBLP:
-  ADD HL,HL				; Shift P.P left
-  JP C,BS_ERR		; "Subscript error" if overflow
-  EX DE,HL
-  ADD HL,HL				; Shift multiplier left
-  EX DE,HL
-  JR NC,NOMLAD			; Bit was zero - No add
-  ADD HL,BC				; Add multiplicand
-  JP C,BS_ERR		; "Subscript error" if overflow
-NOMLAD:
-  DEC A					; Count bits
-  JR NZ,MLDBLP
-MLDEBC_2:
-  EX DE,HL
-  POP HL
+  PUSH HL                                                   ;SAVE [H,L]
+  LD HL,$0000			; Clear partial product             ;ZERO PRODUCT REGISTERS
+  LD A,B				; Test multiplier                   ;CHECK IF (BC) IS ZERO
+  OR C                                                      ;IF SO, JUST RETURN, (HL) IS ALREADY ZERO
+  JR Z,MLDEBC_2			; Return zero if zero               ;THIS IS DONE FOR SPEED
+  LD A,16				; 16 bits                           ;SET UP A COUNT
+MLDBLP:                 
+  ADD HL,HL				; Shift P.P left                    ;ROTATE (HL) LEFT ONE
+  JP C,BS_ERR           ; "Subscript error" if overflow     ;CHECK FOR OVERFLOW, IF SO,
+  EX DE,HL                                                  ; BAD SUBSCRIPT (BS) ERROR
+  ADD HL,HL				; Shift multiplier left             ;ROTATE (DE) LEFT ONE
+  EX DE,HL                                                  
+  JR NC,NOMLAD			; Bit was zero - No add             ;ADD IN (BC) IF HO WAS 1
+  ADD HL,BC				; Add multiplicand                  
+  JP C,BS_ERR           ; "Subscript error" if overflow     ;CHECK FOR OVERFLOW
+NOMLAD:                 
+  DEC A					; Count bits                        ;SEE IF DONE
+  JR NZ,MLDBLP          
+MLDEBC_2:               
+  EX DE,HL                                                  ;RETURN THE RESULT IN [D,E]
+  POP HL                                                    ;GET BACK THE SAVED [H,L]
   RET
 
+
+
+;
+;	INTEGER ARITHMETIC CONVENTIONS
+;
+;INTEGER VARIABLES ARE 2 BYTE, SIGNED NUMBERS
+;	THE LO BYTE COMES FIRST IN MEMORY
+;
+;CALLING CONVENTIONS:
+;FOR ONE ARGUMENT FUNCTIONS:
+;	THE ARGUMENT IS IN (HL), THE RESULT IS LEFT IN (HL)
+;FOR TWO ARGUMENT OPERATIONS:
+;	THE FIRST ARGUMENT IS IN (DE)
+;	THE SECOND ARGUMENT IS IN (HL)
+;	THE RESULT IS LEFT IN THE FAC AND IF NO OVERFLOW, (HL)
+;IF OVERFLOW OCCURS, THE ARGUMENTS ARE CONVERTED TO SINGLE PRECISION
+;WHEN INTEGERS ARE STORED IN THE FAC, THEY ARE STORED AT FACLO+0,1
+;VALTYP(INTEGER)=2
+
+
+; Integer SUB
+	;INTEGER SUBTRTACTION	(HL):=(DE)-(HL)
+	;ALTERS A,B,C,D,E,H,L
 ; Routine at 12647
 ISUB:
-  LD A,H
-  RLA
+  LD A,H               ;EXTEND THE SIGN OF (HL) TO B
+  RLA                  ;GET SIGN IN CARRY
   SBC A,A
   LD B,A
-  CALL INT_DIV_6
-  LD A,C
-  SBC A,B
-  JR IADD_0
+  CALL INEGHL          ;NEGATE (HL)
+  LD A,C               ;GET A ZERO
+  SBC A,B              ;NEGATE SIGN
+  JR IADD_0            ;GO ADD THE NUMBERS
 
 ; Routine at 12658
 ;
 ; Used by the routine at __NEXT.
 IADD:
-  LD A,H
-  RLA
+  LD A,H               ;EXTEND THE SIGN OF (HL) TO B
+  RLA                  ;GET SIGN IN CARRY
   SBC A,A
+
 ; This entry point is used by the routine at ISUB.
 IADD_0:
-  LD B,A
-  PUSH HL
-  LD A,D
-  RLA
-  SBC A,A
-  ADD HL,DE
-  ADC A,B
-  RRCA
-  XOR H
-  JP P,MAKINT_2_0
-  PUSH BC
-  EX DE,HL
-  CALL HL_CSNG
-  POP AF
-  POP HL
-  CALL STAKI
-  CALL HL_CSNG
-  POP BC
+  LD B,A               ;SAVE THE SIGN
+  PUSH HL              ;SAVE THE SECOND ARGUMENT IN CASE OF OVERFLOW
+  LD A,D               ;EXTEND THE SIGN OF (DE) TO A
+  RLA                  ;GET SIGN IN CARRY
+  SBC A,A              
+  ADD HL,DE            ;ADD THE TWO LO'S
+  ADC A,B              ;ADD THE EXTRA HO
+  RRCA                 ;IF THE LSB OF A IS DIFFERENT FROM THE MSB OF
+  XOR H                ; H, THEN OVERFLOW OCCURED
+  JP P,CONIS1          ;NO OVERFLOW, GET OLD (HL) OFF STACK AND WE ARE DONE, SAVE (HL) IN THE FAC ALSO
+  PUSH BC              ;OVERFLOW -- SAVE EXTENDED SIGN OF (HL)
+  EX DE,HL             ;GET (DE) IN (HL)
+  CALL HL_CSNG         ;FLOAT IT
+  POP AF               ;GET SIGN OF (HL) IN A
+  POP HL               ;GET OLD (HL) BACK
+  CALL PUSHF           ;PUT FIRST ARGUMENT ON STACK
+  CALL HL_CSNG         ;FLOAT IT
+  POP BC               ;GET PREVIOUS NUMBER OFF STACK
   POP DE
-  JP FADD
+  JP FADD              ;ADD THE TWO NUMBERS
 
+
+; Integer MULTIPLY
+	;INTEGER MULTIPLICATION		(HL):=(DE)*(HL)
+	;ALTERS A,B,C,D,E,H,L
 ; Routine at 12691
-;
 ; Used by the routine at L390D.
-; $3193
 IMULT:
-  LD A,H
-  OR L
-  JP Z,MAKINT
-  PUSH HL
-  PUSH DE
-  CALL INT_DIV_3
-  PUSH BC
-  LD B,H
+  LD A,H               ;CHECK (HL) IF IS ZERO, IF SO
+  OR L                 ; JUST RETURN.  THIS IS FOR SPEED.
+  JP Z,MAKINT          ;UPDATE FACLO TO BE ZERO AND RETURN
+  PUSH HL              ;SAVE SECOND ARGUMENT IN CASE OF OVERFLOW
+  PUSH DE              ;SAVE FIRST ARGUMENT
+  CALL IMULDV          ;FIX UP THE SIGNS
+  PUSH BC              ;SAVE THE SIGN OF THE RESULT
+  LD B,H               ;COPY SECOND ARGUMENT INTO (BC)
   LD C,L
-  LD HL,$0000
-  LD A,$10
+  LD HL,$0000          ;ZERO (HL), THAT IS WHERE THE PRODUCT GOES
+  LD A,16              ;SET UP A COUNT
 IMULT_0:
-  ADD HL,HL
-  JR C,IMULT_4
+  ADD HL,HL            ;ROTATE PRODUCT LEFT ONE
+  JR C,IMULT5          ;CHECK FOR OVERLFOW
+  EX DE,HL             ;ROTATE FIRST ARGUMENT LEFT ONE TO SEE IF
+  ADD HL,HL            ; WE ADD IN (BC) OR NOT
   EX DE,HL
-  ADD HL,HL
-  EX DE,HL
-  JR NC,IMULT_1
-  ADD HL,BC
-  JR C,IMULT_4
+  JR NC,IMULT_1        ;DON'T ADD IN ANYTHING
+  ADD HL,BC            ;ADD IN (BC)
+  JR C,IMULT5          ;CHECK FOR OVERLFOW
 IMULT_1:
-  DEC A
-  JR NZ,IMULT_0
-  POP BC
-  POP DE
+  DEC A                ;ARE WE DONE?
+  JR NZ,IMULT_0        ;NO, DO IT AGAIN
+  POP BC               ;WE ARE DONE, GET SIGN OF RESULT
+  POP DE               ;GET ORIGINAL FIRST ARGUMENT
 ; This entry point is used by the routine at DIVLP.
-IMULT_RESULT:
-  LD A,H
+IMLDIV:
+  LD A,H               ;ENTRY FROM IDIV, IS RESULT .GE. 32768?
   OR A
-  JP M,IMULT_3
-  POP DE
-  LD A,B
-  JP INT_DIV_5
+  JP M,IMULT_3         ;IT IS, CHECK FOR SPECIAL CASE OF -32768
+  POP DE               ;RESULT IS OK, GET SECOND ARGUMENT OFF STACK
+  LD A,B               ;GET THE SIGN OF RESULT IN A
+  JP INEGA             ;NEGATE THE RESULT IF NECESSARY
 
 IMULT_3:
-  XOR $80
-  OR L
-  JR Z,IMULT_6
-  EX DE,HL
-  JR IMULT_5
-IMULT_4:
-  POP BC
-  POP HL
-IMULT_5:
-  CALL HL_CSNG
-  POP HL
-  CALL STAKI
-  CALL HL_CSNG
-  POP BC
-  POP DE
-  JP FMULT
+  XOR $80              ;IS RESULT 32768?
+  OR L                 ;NOTE: IF WE GET HERE FROM IDIV, THE RESULT
+  JR Z,IMULT4          ; MUST BE 32768, IT CANNOT BE GREATER
+  EX DE,HL             ;IT IS .GT. 32768, WE HAVE OVERFLOW
+  JR IMULT5_0
 
-IMULT_6:
-  LD A,B
-  OR A
+IMULT5:
+  POP BC               ;GET SIGN OF RESULT OFF STACK
+  POP HL               ;GET THE ORIGINAL FIRST ARGUMENT
+                       
+IMULT5_0:
+  CALL HL_CSNG         ;FLOAT IT
+  POP HL               ;GET THE ORIGINAL SECOND ARGUMENT
+  CALL PUSHF           ;SAVE FLOATED FIRST ARUMENT
+  CALL HL_CSNG         ;FLOAT SECOND ARGUMENT
+;FMULTT:
   POP BC
-  JP M,MAKINT
-  PUSH DE
-  CALL HL_CSNG
-  POP DE
-  JP NEG
+  POP DE               ;GET FIRST ARGUMENT OFF STACK, ENTRY FROM POLYX
+  JP FMULT             ;MULTIPLY THE ARGUMENTS USING SINGLE PRECISION
+
+IMULT4:
+  LD A,B               ;IS RESULT +32768 OR -32768?
+  OR A                 ;GET ITS SIGN
+  POP BC               ;DISCARD ORIGINAL SECOND ARGUMENT
+  JP M,MAKINT          ;THE RESULT SHOULD BE NEGATIVE, IT IS OK
+  PUSH DE              ;IT IS POSITIVE, SAVE REMAINDER FOR MOD
+  CALL HL_CSNG         ;FLOAT -32768
+  POP DE               ;GET MOD'S REMAINDER BACK
+  JP NEG               ;NEGATE -32768 TO GET 32768, WE ARE DONE
 
  
+; Divide the signed integer in DE by the signed integer in HL.
+;
+	;INTEGER DIVISION	(HL):=(DE)/(HL)
+	;REMAINDER IS IN (DE), QUOTIENT IN (HL)
+	;ALTERS A,B,C,D,E,H,L
+;
 ; Data block at 12774
-  ; --- START PROC INT_DIV ---
 INT_DIV:
   LD A,H
-L31E7:
-  OR L
-  JP Z,O_ERR   		; Err $0B - "Division by zero"
-  CALL INT_DIV_3
-  PUSH BC
-  EX DE,HL
-  CALL INT_DIV_6
-  LD B,H
+INT_DIV_0:
+  OR L              ;CHECK FOR DIVISION BY ZERO
+  JP Z,O_ERR   		;WE HAVE DIVISION BY ZERO!!  (Err $0B - "Division by zero")
+  CALL IMULDV       ;FIX UP THE SIGNS
+  PUSH BC           ;SAVE THE SIGN OF THE RESULT
+  EX DE,HL          ;GET DENOMINATOR IN (HL)
+  CALL INEGHL       ;NEGATE IT
+  LD B,H            ;SAVE NEGATED DENOMINATOR IN (BC)
   LD C,L
 
 ; Routine at 12789
-L31F5:
-  LD HL,$0000
-  LD A,$11		; const
-  OR A
-  JR INT_DIV_2
+IDIV0:
+  LD HL,$0000       ;ZERO WHERE WE DO THE SUBTRACTION
+  LD A,17           ;SET UP A COUNT
+  OR A              ;CLEAR CARRY 
+  JR IDIV3          ;GO DIVIDE
 
 DIVLP:
-  PUSH HL
-  ADD HL,BC
-  JR NC,L3204+1  ; reference not aligned to instruction
-L3201:
+  PUSH HL           ;SAVE (HL) I.E. CURRENT NUMERATOR
+  ADD HL,BC         ;SUBTRACT DENOMINATOR
+  JR NC,IDIV2       ;WE SUBTRACTED TOO MUCH, GET OLD (HL) BACK
+  INC SP            ;THE SUBTRACTION WAS GOOD, DISCARD OLD (HL)
   INC SP
-  INC SP
-  SCF				; Set carry to Skip the next byte
-L3204:
-  JR NC,L31E7
-INT_DIV_2:
-  RL E				; Double LSB of quotient (LSW)
-  RL D				; Double MSB of quotient (LSW)
-  ADC HL,HL			; Double quotient (MSW)
-  DEC A
-  JR NZ,DIVLP
-  EX DE,HL
-  POP BC
-  PUSH DE
-  JP IMULT_RESULT
+  SCF				;NEXT BIT IN QUOTIENT IS A ONE
+  DEFB $30          ; "JR NC,n" AROUND NEXT BYTE
 
-; Routine at 12821
+IDIV2:
+  POP HL            ;IGNORE THE SUBTRACTION, WE COULDN'T DO IT
+
+IDIV3:
+  RL E				;SHIFT IN THE NEXT QUOTIENT BIT
+  RL D				
+  ADC HL,HL			
+  DEC A             ;ARE WE DONE?
+  JR NZ,DIVLP       ;NO, DIVIDE AGAIN
+  EX DE,HL          ;GET QUOTIENT IN (HL), REMAINDER IN (DE)
+  POP BC            ;GET SIGN OF RESULT
+  PUSH DE           ;SAVE REMAINDER SO STACK WILL BE ALRIGHT
+  JP IMLDIV         ;CHECK FOR SPECIAL CASE OF 32768
+
+
+	;GET READY TO MULTIPLY OR DIVIDE
+	;ALTERS A,B,C,D,E,H,L
 ;
+; Routine at 12821
 ; Used by the routine at IMULT.
-INT_DIV_3:
-  LD A,H
+IMULDV:
+  LD A,H            ;GET SIGN OF RESULT
   XOR D
-  LD B,A
-  CALL INT_DIV_4
-  EX DE,HL
-INT_DIV_4:
-  LD A,H
+  LD B,A            ;SAVE IT IN B
+  CALL INEGH        ;NEGATE SECOND ARGUMENT IF NECESARY
+  EX DE,HL          ;PUT (DE) IN (HL), FALL IN AND NEGATE FIRST ARGUMENT IF NECESSARY
+
+
+	;NEGATE H,L
+	;ALTERS A,C,H,L
+INEGH:
+  LD A,H            ;GET SIGN OF (HL)
 ; This entry point is used by the routines at IMULT and IMOD.
-INT_DIV_5:
-  OR A
-  JP P,MAKINT
-; This entry point is used by the routines at ISUB and DBL_ABS.
-INT_DIV_6:
-  XOR A
-  LD C,A
-  SUB L
-  LD L,A
-  LD A,C
-  SBC A,H
-  LD H,A
-  JP MAKINT
+INEGA:
+  OR A              ;SET CONDITION CODES
+  JP P,MAKINT       ;WE DON'T HAVE TO NEGATE, IT IS POSITIVE
+                    ;SAVE THE RESULT IN THE FAC FOR WHEN
+                    ; OPERATORS RETURN THROUGH HERE
+
+; This entry point is used by the routines at ISUB and INEG.
+INEGHL:
+  XOR A             ;CLEAR A
+  LD C,A            ;STORE A ZERO (WE USE THIS METHOD FOR ISUB)
+  SUB L             ;NEGATE LO
+  LD L,A            ;SAVE IT
+  LD A,C            ;GET A ZERO BACK
+  SBC A,H           ;NEGATE HO
+  LD H,A            ;SAVE IT
+  JP MAKINT         ;ALL DONE, SAVE THE RESULT IN THE FAC
+                    ; FOR WHEN OPERATORS RETURN THROUGH HERE
 
   
-; Routine at 12843
+	;INTEGER NEGATION
+	;ALTERS A,B,C,D,E,H,L
 ;
-; ABS (double precision BASIC variant)
+; Routine at 12843
 ; Used by the routine at INVSGN.
-DBL_ABS:
-  LD HL,(FACLOW)
-  CALL INT_DIV_6
-  LD A,H
-  XOR $80
+INEG:
+  LD HL,(FACLOW)    ;GET THE INTEGER
+  CALL INEGHL       ;NEGATE IT
+  LD A,H            ;GET THE HIGH ORDER
+  XOR $80           ;CHECK FOR SPECIAL CASE OF 32768
   OR L
-  RET NZ
+  RET NZ            ;IT DID NOT OCCUR, EVERYTHING IS FINE
+
 ; This entry point is used by the routines at NUMCON, OPRND, GIVDBL, FN_TIME and
 ; L7BA3.
-DBL_ABS_0:
-  XOR A
-  JP FLGREL_0
+INEG2:
+  XOR A             ;WE HAVE IT, FLOAT 32768
+  JP HL_CSNG_A
 
-; Routine at 12858
+
+	;MOD OPERATOR
+	;(HL):=(DE)-(DE)/(HL)*(HL),  (DE)=QUOTIENT
+	;ALTERS A,B,C,D,E,H,L
 ;
+; Routine at 12858
 ; Used by the routine at DANDOR.
 IMOD:
-  PUSH DE
-  CALL INT_DIV
-  XOR A
-  ADD A,D
-  RRA
+  PUSH DE           ;SAVE (DE) FOR ITS SIGN
+  CALL INT_DIV      ;DIVIDE AND GET THE REMAINDER
+  XOR A             ;TURNOFF THE CARRY AND TRANFER
+  ADD A,D           ;THE REMAINDER*2 WHICH IS IN [D,E]
+  RRA               ;TO [H,L] DIVIDING BY TWO
   LD H,A
   LD A,E
   RRA
-  LD L,A
-  CALL SETTYPE_INT
+  LD L,A            ; ***WHG01*** FIX TO MOD OPERATOR
+  CALL VALINT       ;SET VALTYP TO "INTEGER" IN CASE RESULT OF
   POP AF
-  JR INT_DIV_5
+  JR INEGA
 
-; Routine at 12875  (LOADFP/FADD.. this label is not used in the core ROM)
-FADD_HLPTR:
-  CALL LOADFP
+
+
+; FLOATING POINT ADDITION AND SUBTRACTION
+; ENTRY TO FADD WITH POINTER TO ARG IN (HL)
+
+
+; LOADFP/FADD
+; Load FP at (HL) to BCDE
+;
+; Routine at 12875,  this entry is not used by the core ROM
+FADDS:
+  CALL LOADFP            ;GET ARGUMENT INTO THE REGISTERS
+                         ;DO THE ADDITION
+
 ; This entry point is used by the routines at __FIX, IADD, FSUB, GETWORD_HL and
 ; __NEXT.
 FADD:
   CALL DEC_HL2ARG
-  CALL ZERO_FACCU
-  JP DECADD
+  CALL CONDS
+  JP DADD
 
+
+;SUBTRACTION	FAC:=ARG-FAC
+
+; Subtract the single precision numbers in FAC1 and BCDE
+; aka, SUBCDE Subtract BCDE from FP reg
+;
 ; Routine at 12887
 FSUB:
-  CALL NEG
-  JR FADD
+  CALL NEG              ;NEGATE SECOND ARGUMENT
+  JR FADD               ;FALL INTO FADD
 
 ; Routine at 12892
 ;
 ; Used by the routines at IMULT, __CIRCLE and CIRCLE_SUB.
 FMULT:
   CALL DEC_HL2ARG
-  CALL ZERO_FACCU
-  JP DECMUL
+  CALL CONDS
+  JP DMUL
 
 ; Routine at 12901
 ;
@@ -9228,12 +9595,12 @@ FDIV:
   LD (FACCU),HL
   POP BC
   CALL DEC_HL2ARG
-  CALL ZERO_FACCU
-  JP DECDIV
+  CALL CONDS
+  JP DDIV
 
 ; Routine at 12928
 ;
-; Used by the routines at FADD_HLPTR, FMULT and DIVIDE.
+; Used by the routines at FADDS, FMULT and DIVIDE.
 DEC_HL2ARG:
   EX DE,HL
   LD (ARG+2),HL
@@ -9255,7 +9622,7 @@ DCR_A:
 ; Routine at 12949
 ;
 ; Used by the routines at L34C2 and L35F9.
-DCXH:
+DCXHRT:
   DEC HL
   RET
 
@@ -9388,7 +9755,7 @@ L3301_4:
   PUSH HL
   LD HL,POPHLRT		; (POP HL / RET)
   PUSH HL
-  CALL MAKINT_2
+  CALL CONIS2
   RET
 
 L3301_5:
@@ -9519,7 +9886,7 @@ L33CC:
   LD A,C
   PUSH AF
 L33CE:
-  CALL INT_CSNG
+  CALL CONSI
 L33D1:
   POP AF
   POP HL
@@ -9580,8 +9947,10 @@ LNUM_MSG:
   CALL PRS
   POP HL
 
+; Print HL in ASCII form at the current cursor position
+; a.k.a. NUMPRT
 ; This entry point is used by the routines at __LLIST, LINE2PTR and L7D29.
-_PRNUM:
+LINPRT:
   LD BC,PRNUMS
   PUSH BC
   CALL MAKINT
@@ -9606,7 +9975,7 @@ PUFOUT:
   LD (HL),'+'
 L342F:
   EX DE,HL
-  CALL _TSTSGN
+  CALL VSIGN
 L3433:
   EX DE,HL
   JP P,SPCFST
@@ -9630,7 +9999,7 @@ SPCFST:
   CP $04
   JP NC,L34A1
   LD BC,$0000
-  CALL L36DB
+  CALL FOTCI
 ; --- START PROC L345D ---
 L345D:
   LD HL,FBUFFR+1		; Buffer for fout + 1
@@ -9684,7 +10053,7 @@ L349A:
 ; --- START PROC L34A1 ---
 L34A1:
   PUSH HL
-  CALL L3752
+  CALL FTCH_SNG
   LD D,B
   INC D
   LD BC,$0300			; const
@@ -9701,7 +10070,7 @@ L34B9:
   SUB $02
   POP HL
   PUSH AF
-  CALL L368E
+  CALL FOTAN
   LD (HL),'0'
 
 ; Routine at 13506
@@ -9761,11 +10130,11 @@ L34F7:
   LD A,D
   SUB $05		; TK_INT ?
   CALL P,L3666
-  CALL L36DB
+  CALL FOTCI
 L3513:
   LD A,E
   OR A
-  CALL Z,DCXH	; DEC HL, RET
+  CALL Z,DCXHRT	; DEC HL, RET
   DEC A
   CALL P,L3666
 ; This entry point is used by the routines at L35EC and L35F9.
@@ -9843,7 +10212,7 @@ L3566:
   PUSH HL
   RRA
   JP C,L35F5
-  CALL L3752
+  CALL FTCH_SNG
   LD D,B
   LD A,(FACCU)
   SUB $4F
@@ -9872,7 +10241,7 @@ L3581:
   OR E
   CALL NZ,L3674
   OR E
-  CALL NZ,L36A0
+  CALL NZ,FOTED
   POP DE
   JP L3513
 
@@ -9906,7 +10275,7 @@ L35B1:
 L35CB:
   CALL L3666
   LD A,C
-  CALL L36A3
+  CALL FOTED_0
   LD C,A
   XOR A
   SUB D
@@ -9931,10 +10300,10 @@ L35E6:
 L35EF:
   PUSH HL
   PUSH DE
-  CALL INT_CSNG
+  CALL CONSI
   POP DE
 L35F5:
-  CALL L3752
+  CALL FTCH_SNG
   LD E,B
   
 ; Routine at 13817
@@ -9965,7 +10334,7 @@ L35F9:
   CALL L377B
   JR NZ,L35F9_0
   PUSH HL
-  CALL SHRT1_DEC
+  CALL DSHFRB
   LD HL,FACCU
   INC (HL)
   POP HL
@@ -9983,15 +10352,15 @@ L35F9_1:
   ADD A,D
   LD B,A
   LD C,$00
-  CALL Z,L368E
+  CALL Z,FOTAN
   CALL L36B3
   POP AF
   CALL P,L366E
-  CALL L36A0
+  CALL FOTED
   POP BC
   POP AF
   JR NZ,L35F9_2
-  CALL DCXH	; DEC HL, RET
+  CALL DCXHRT	; DEC HL, RET
   LD A,(HL)
   CP '.'			; $2E
   CALL NZ,INCHL
@@ -10029,7 +10398,7 @@ L366E:
   ; --- START PROC L3670 ---
 L3670:
   RET Z
-  CALL L36A0
+  CALL FOTED
   ; --- START PROC L3674 ---
 L3674:
   LD (HL),'0'
@@ -10060,44 +10429,59 @@ L367A_1:
   LD C,A
   RET
 
+
+;*****************************************************************
+;
+;       $FOTAN  THIS ROUTINE IS CALLED BY THE FREE FORMAT OUTPUT
+;               CODE TO OUTPUT DECIMAL POINT AND LEADING ZEROS.
+;       $FOTED  THIS ROUTINE IS CALLED BY BOTH THE FREE FORMAT
+;               OUTPUT ROUTINE AND THE PRINT USING CODE TO OUTPUT
+;               THE DECIMAL POINT WHEN NECESSARY AND TO PUT IN
+;               COMMAS "," AFTER EACH THREE DIGITS IF THIS OPTION
+;               IS INVOKED.
+;       CALLING SEQUENCE:       CALL    $FOTAN
+;                               CALL    $FOTED
+;               WITH $FMTCX CONTAINING NUMBER PLACES PRIOR TO
+;               DECIMAL POINT(NEGATIVELY) IN UPPER BYTE AND
+;               NO PLACES BEFORE NEXT COMMA IN LOW BYTE
+;
+;*******************************************************************
 ; Routine at 13966
 ;
 ; Used by the routine at L35F9.
-L368E:
-  DEC B
-  JP P,L36A0_0
-  LD (NXTOPR),HL		; Next operator in EVAL
-  LD (HL),'.'
-L368E_0:
-  INC HL
-  LD (HL),'0'
-  INC B
-  LD C,B
-  JR NZ,L368E_0
-  INC HL
+FOTAN:
+  DEC B             ;IF NEGATIVE THEN LEADING ZEROS
+  JP P,FTD05        
+  LD (NXTOPR),HL    ;SAVE DECIMAL POINT COUNT
+  LD (HL),'.'       ;MOVE IN DECIMAL POINT
+FTN10:              
+  INC HL            ;POINT TO NEXT OUTPUT POSITION
+  LD (HL),'0'       ;PUT IN LEADING ZERO
+  INC B             ;WILL INCREMENT B UNTIL ZERO
+  LD C,B            
+  JR NZ,FTN10       ;PUT IN LEADING ZEROS UNTIL B ZERO
+  INC HL            ;POINT TO NEXT BUFFER POSITION
   RET
 
 ; Routine at 13984
-;
-; Used by the routines at L35F9 and L36DB.
-L36A0:
-  DEC B
-; This entry point is used by the routine at L368E.
-L36A0_0:
-  JR NZ,L36A0_1
-L36A3:
-  LD (HL),'.'			; $2E
-  LD (NXTOPR),HL		; Next operator in EVAL
-  INC HL
+; Used by the routines at L35F9 and FOTCI.
+FOTED:
+  DEC B             ;SEE IF TIME FOR D.P.
+FTD05:              
+  JR NZ,FTD10       ;IF NOT D.P. TIME SEE IF COMMA TIME
+FOTED_0:            
+  LD (HL),'.'       ;PUT IN D.P.
+  LD (NXTOPR),HL    ;SAVE ADDR OF DECIMAL POINT
+  INC HL            ;INCREMENT PAST D.P.
   LD C,B
   RET
   
-L36A0_1:
-  DEC C
-  RET NZ
-  LD (HL),','
-  INC HL
-  LD C,$03
+FTD10:
+  DEC C             ;IF ZERO TIME FOR COMMA
+  RET NZ            
+  LD (HL),','       ;COMMA
+  INC HL            ;POINT TO NEXT BUFFER POSITION
+  LD C,$03          ;UPDATE D.P.&COMMA COUNTS
   RET
 
 ; Data block at 14003
@@ -10106,7 +10490,7 @@ L36B3:
   PUSH DE
   PUSH HL
   PUSH BC
-  CALL L3752
+  CALL FTCH_SNG
   LD A,B
   POP BC
   POP HL
@@ -10114,7 +10498,7 @@ L36B3:
   SCF
 L36C0:
   PUSH AF
-  CALL L36A0
+  CALL FOTED
   LD A,(DE)
   JR NC,L36CD
   RRA
@@ -10134,18 +10518,32 @@ L36CE:
   DEC A
   CCF
   JR NZ,L36C0
-  JR L370A
+  JR FOTCI_2
 
 
+;*************************************************************
+;
+;       $FOTCI  CONVERT THE INTEGER IN (FACLO)-TWO BYTES TO
+;               ASCII DIGITS.
+;       CALLING SEQUENCE:       CALL    $FOTCI
+;               WITH DECIMAL POINT AND COMMA COUNTS IN (CX)
+;       $FOUTO  CONVERT INTEGER IN $FACLO:FACLO+1 TO OCTAL
+;       $FOUTH  CONVERT INTEGER IN $FACLO:FACLO+1 TO HEXIDECIMAL
+;       CALLING SEQUENCE:       CALL    $FOUTO/$FOUTH
+;               WITH $FACLO:FACLO+1 CONTAINING INTEGER TO BE
+;               PRINTED. RETURNS WITH (BX) POINTING TO $FBUFF
+;
+;**************************************************************
 ; Routine at 14043
 ;
 ; Used by the routine at L34C2.
-L36DB:
+FOTCI:
   PUSH DE
-  LD DE,POWERS_TAB
-  LD A,$05
-L36DB_0:
-  CALL L36A0
+  LD DE,POWERS_TAB        ;INTEGER POWER OF TEN TABLE (a.k.a. FOITB)
+  LD A,$05                ;MAX DIGITS TO CONVERT
+                          
+FOTCI_0:                  ;ENTRY FOR FOTCV SO WE WILL ONLY CONVERT 4 DIGITS
+  CALL FOTED              ;CHECK FOR NEEDED D.P. OR ","
   PUSH BC
   PUSH AF
   PUSH HL
@@ -10157,32 +10555,31 @@ L36DB_0:
   INC HL
   EX (SP),HL
   EX DE,HL
-  LD HL,(FACLOW)
-  LD B,'0'-1  ; $2F, '/'
-L36DB_1:
+  LD HL,(FACLOW)          ;FETCH INTEGER TO BE CONVERTED
+  LD B,'0'-1              ; WILL BUILD DIGIT IN (B)
+FOTCI_1:
   INC B
-  ; HL=HL-DE
+  ; HL=HL-DE              ;SUBTRACT OUT POWER OF TEN
   LD A,L
   SUB E
   LD L,A
   LD A,H
   SBC A,D
-  LD H,A
-  ;
-  JR NC,L36DB_1
-  ADD HL,DE
-  LD (FACLOW),HL
-  POP DE
-  POP HL
-  LD (HL),B
-  INC HL
-  POP AF
-  POP BC
-  DEC A
-  JR NZ,L36DB_0
-L370A:
-  CALL L36A0
-  LD (HL),A
+  LD H,A                  
+  JR NC,FOTCI_1           ;CONTINUE UNTIL DIGIT FORMED
+  ADD HL,DE               ;SUBTRACTED OUT ONE TOO MANY
+  LD (FACLOW),HL          ;SAVE UPDATED INTEGER
+  POP DE                  
+  POP HL                  
+  LD (HL),B               ;MOVE DIGIT TO BUFFER
+  INC HL                  ;POINT (HL) TO NEXT BUFF POS.
+  POP AF                  
+  POP BC                  
+  DEC A                   ;LOOP TILL DIGITS FORMED
+  JR NZ,FOTCI_0
+FOTCI_2:
+  CALL FOTED              ;SEE IF DECIMAL POINT NEEDED
+  LD (HL),A               ;AND PUT BINARY ZERO AFTER.
   POP DE
   RET
 
@@ -10216,7 +10613,7 @@ OCT_STR:
 HEX_STR:
   LD B,$04	; BASE: 2^4 -> 16
 
-; This entry point is used by the routine at POWERS_TAB.
+
 L3722_0:
   PUSH BC
   CALL GETWORD_HL
@@ -10237,8 +10634,6 @@ L3722_2:
   RRA
   LD L,A
   LD A,C
-; This entry point is used by the routine at POWERS_TAB.
-L3722_3:
   RRA
   LD C,A
   DJNZ L3722_2
@@ -10263,10 +10658,10 @@ L3722_5:
 ; Routine at 14162
 ;
 ; Used by the routines at L377B, L37A2 and L37B4.
-L3752:
+FTCH_SNG:
   RST GETYPR 		; Get the number type (FAC)
   LD HL,FACCU+7
-  LD B,$0E			; ?? line number prefix LINCON ?
+  LD B,$0E
   RET NC
   LD HL,FACLOW+1
   LD B,$06
@@ -10303,10 +10698,10 @@ L377B:
   LD E,A
   LD A,$01
   JP Z,L377B_1
-  CALL L3752
+  CALL FTCH_SNG
   PUSH HL
 L377B_0:
-  CALL SHRT1_DEC
+  CALL DSHFRB
   DEC E
   JR NZ,L377B_0
   POP HL
@@ -10330,7 +10725,7 @@ L377B_1:
 L37A2:
   PUSH BC
   PUSH HL
-  CALL L3752
+  CALL FTCH_SNG
   LD A,(FACCU)
   SUB $40
   SUB B
@@ -10345,7 +10740,7 @@ L37A2:
 ; Used by the routine at L377B.
 L37B4:
   PUSH BC
-  CALL L3752
+  CALL FTCH_SNG
 L37B4_0:
   LD A,(HL)
   AND $0F
@@ -10364,13 +10759,13 @@ L37B4_1:
 ; Single precision exponential function
 FEXP:
   CALL DEC_HL2ARG
-  CALL ZERO_FACCU
+  CALL CONDS
   CALL STAKARG
   CALL XSTKFP
   CALL USTAKARG
 
 ; Double precision exponential function
-DECEXP:
+DEXP:
   LD A,(ARG)
   OR A
   JP Z,INTEXP_0		; SIGN - test FP number sign
@@ -10380,13 +10775,13 @@ DECEXP:
   JP Z,INTEXP_2
   CALL STAKFP
   CALL L391A
-  JR C,DECEXP_1
+  JR C,DEXP_1
   EX DE,HL
   LD (TEMP8),HL
-  CALL SETTYPE_DBL
+  CALL VALDBL
   CALL USTAKARG
   CALL L391A
-  CALL SETTYPE_DBL
+  CALL VALDBL
   LD HL,(TEMP8)
   JP NC,L385A
   LD A,(ARG)
@@ -10401,7 +10796,7 @@ DECEXP:
   LD A,H
   OR A
   PUSH AF
-  JP P,DECEXP_0
+  JP P,DEXP_0
   XOR A
   LD C,A
   SUB L
@@ -10409,17 +10804,17 @@ DECEXP:
   LD A,C
   SBC A,H
   LD H,A
-DECEXP_0:
+DEXP_0:
   PUSH HL
   JP L3878_0
 
-DECEXP_1:
-  CALL SETTYPE_DBL
+DEXP_1:
+  CALL VALDBL
   CALL ARG2FACCU
   CALL XSTKFP
   CALL __LOG
   CALL USTAKARG
-  CALL DECMUL
+  CALL DMUL
   JP __EXP
 
   
@@ -10455,7 +10850,7 @@ L385A:
   LD A,H
   OR A
   PUSH AF
-  CALL M,INT_DIV_6
+  CALL M,INEGHL
   LD B,H
   LD C,L
   LD HL,$0001
@@ -10488,8 +10883,8 @@ L3878:
   CALL DBL_FACCU2HL
   POP HL
   CALL HL_CSNG
-  CALL ZERO_FACCU
-; This entry point is used by the routine at DECEXP.
+  CALL CONDS
+; This entry point is used by the routine at DEXP.
 L3878_0:
   POP BC
   LD A,B
@@ -10528,7 +10923,7 @@ L38C3:
   CALL FACCU2ARG
   POP HL
   CALL HL_CSNG
-  CALL ZERO_FACCU
+  CALL CONDS
   LD HL,FBUFFR		; Buffer for fout
   CALL DBL_FACCU2HL
   CALL ARG2FACCU
@@ -10544,7 +10939,7 @@ L3878_2:
   JR NZ,L3878_3
   PUSH BC
   CALL HL_CSNG
-  CALL ZERO_FACCU
+  CALL CONDS
   POP BC
 L3878_3:
   LD A,(FACCU)
@@ -10562,7 +10957,7 @@ L3878_4:
   CALL FACCU2ARG
   LD HL,FP_UNITY
   CALL HL2FACCU
-  JP DECDIV
+  JP DDIV
 
   
 ; Routine at 14605
@@ -10580,7 +10975,7 @@ L390D:
 
 ; Routine at 14618
 ;
-; Used by the routine at DECEXP.
+; Used by the routine at DEXP.
 L391A:
   CALL ARG2FACCU
   CALL STAKARG
@@ -11607,12 +12002,12 @@ TYPE_OPR:
 
 ; ARITHMETIC OPERATIONS TABLE  
 DEC_OPR:
-  DEFW DECADD
-  DEFW DECSUB
-  DEFW DECMUL
-  DEFW DECDIV
-  DEFW DECEXP
-  DEFW DECCOMP
+  DEFW DADD
+  DEFW DSUB
+  DEFW DMUL
+  DEFW DDIV
+  DEFW DEXP
+  DEFW DCOMP
 
 defc OPCNT = ((FLT_OPR-DEC_OPR)/2)-1
 
@@ -12105,7 +12500,7 @@ ENDIF
   JR Z,L415F
   LD HL,(AUTLIN)
   PUSH HL
-  CALL _PRNUM
+  CALL LINPRT
   POP DE
   PUSH DE
   CALL SRCHLN		; Get first line number
@@ -13051,7 +13446,7 @@ FORFND:
   PUSH DE               ;                                      PUT THE STEP ONTO THE STACK
   PUSH HL               ;                                      SAVE THE TEXT POINTER
   EX DE,HL              ;                                      STEP INTO [H,L]
-  CALL __TSTSGN_0		; Test sign for 'STEP'                 THE SIGN OF THE STEP INTO [A]
+  CALL ISIGN            ; Test sign for 'STEP'                 THE SIGN OF THE STEP INTO [A]
   JR FORFND_1           ;                                      FINISH UP THE ENTRY BY PUTTING THE SIGN OF
                         ;                                      THE STEP AND THE DUMMY ENTRIES ON THE STACK
   
@@ -13062,7 +13457,7 @@ FORFND_DBL:
   ADD HL,SP	
   LD SP,HL	
   PUSH DE	
-  CALL FP_DE2HL	
+  CALL VMOVMF	
   POP HL	
   LD A,(HL)	
   CP TK_STEP			; 'STEP'
@@ -13085,7 +13480,7 @@ SAVSTP:
   LD SP,HL
   PUSH AF
   PUSH BC
-  CALL FP2HL
+  CALL VMOVE
   POP HL
   POP AF
   JR FORFND_3
@@ -13199,7 +13594,7 @@ GONE4:                  ;CHECK POINTER TO SEE IF IT IS ZERO, IF SO WE ARE AT THE
   PUSH DE               ;SAVE THE TEXT POINTER
   LD A,'['              ;FORMAT THE LINE NUMBER
   RST OUTDO             ;OUTPUT IT
-  CALL _PRNUM           ;PRINT THE LINE # IN [H,L]
+  CALL LINPRT           ;PRINT THE LINE # IN [H,L]
   LD A,']'              ;SOME MORE FORMATING
   RST OUTDO             
   POP DE                ;[D,E]=TEXT POINTER
@@ -13342,7 +13737,7 @@ MAKTKN:
   LD DE,CONLO           ;PLACE TO STORE SAVED CONSTANT
   EX DE,HL              ;GET TEXT POINTER IN [D,E]
   LD B,A                ;SETUP COUNTER IN [B]
-  CALL CPY2HL           ;MOVE DATA IN
+  CALL MOVE1           ;MOVE DATA IN
   EX DE,HL              ;GET TEXT POINTER BACK
   POP BC                ;RESTORE [B,C]
   POP DE
@@ -13390,7 +13785,7 @@ CONFAC:
   LD D,(HL)             ;GET HIGH PART
   EX DE,HL              ;VALUE TO [H,L]
 FLTLIN:
-  JP DBL_ABS_0          ;FLOAT IT
+  JP INEG2              ;FLOAT IT
 
 NTLINE:
   LD A,(CONTYP)			;GET SAVED CONSTANT VALTYP
@@ -13401,7 +13796,7 @@ NTLINE:
   LD (FACLOW),HL        ;SAVE THEM
 NTLINE_FLT:
   LD HL,CONLO			; Value of stored constant
-  JP FP_HL2DE
+  JP VMOVFM
 
 
 ; $4718
@@ -13483,7 +13878,7 @@ INTIDX_0:
 ;
 ; Used by the routines at __LOG, __ERROR, __AUTO, OPRND, __WIDTH, FNDNUM,
 ; __DELETE, __RENUM_0, __RENUM_NXT, L5683, L575A, PAINT_PARMS, IN_GFX_MODE, __PAINT, __CIRCLE, CIRCLE_SUB,
-; __DRAW, M_DIAGONAL, SCALE, FORECOLOR, L5E91, REUSST, __SWAP, __CLEAR, __ASC, __MID_S,
+; __DRAW, M_DIAGONAL, _SCALE, FORECOLOR, L5E91, REUSST, __SWAP, __CLEAR, __ASC, __MID_S,
 ; FN_INSTR, LHSMID, __LFILES, FN_INPUT, __SOUND, L748E, L7684, L77D4, ON_OPTIONS, __STRIG,
 ; __SCREEN, SET_BAUDRATE, __SPRITE, PUT_SPRITE, __BASE, __CVD and __MAX.
 ;  $475A
@@ -13876,7 +14271,7 @@ DNTCPY:
   EX (SP),HL        ;[H,L]=PLACE TO STORE THE DESCRIPTOR
                     ;LEAVE A NONSENSE ENTRY ON THE STACK, SINCE THE "POP DE" DOESN'T EVER MATTER IN THIS CASE
 LETNUM:
-  CALL FP2HL   		;COPY A DESCRIPTOR OR A VALUE
+  CALL VMOVE   		;COPY A DESCRIPTOR OR A VALUE
   POP DE            ;FOR "FOR" POP OFF A POINTER AT THE LOOP VARIABLE INTO [D,E]
   POP HL            ;GET THE TEXT POINTER BACK
   RET
@@ -14106,7 +14501,7 @@ __IF:
   DEC HL                ; Cancel increment
 IFGO:                   
   PUSH HL               ; SAVE THE TEXT POINTER
-  CALL _TSTSGN          ; Test state of expression        
+  CALL VSIGN            ; Test state of expression        
   POP HL                ; GET BACK THE TEXT POINTER
   JR Z,FALSE_IF         ; False - Drop through, HANDLE POSSIBLE "ELSE"
 DOCOND:
@@ -14895,7 +15290,7 @@ INTDPC:
 STKDBL:
   CALL __CDBL               ;MAKE THE FAC DOUBLE PRECISION
 DBLDPC:
-  CALL FP_ARG2HL            ;POP OFF THE STACK OPERAND INTO THE FAC
+  CALL VMOVAF               ;POP OFF THE STACK OPERAND INTO THE FAC
   POP HL
   LD (FACCU+4),HL
   POP HL
@@ -14928,7 +15323,7 @@ DODSP:
 FACDBL:
   LD A,B
   PUSH AF                   ;SAVE THE STACK VALUE TYPE
-  CALL FP_ARG2HL            ;MOVE THE FAC INTO ARG
+  CALL VMOVAF               ;MOVE THE FAC INTO ARG
   POP AF                    ;POP THE STACK VALUE TYPE INTO [A]
   LD (VALTYP),A             ;PUT IT IN VALTYP FOR THE FORCE ROUTINE
   CP $04                    ;SEE IF ITS SINGLE, SO WE KNOW HOW TO POP THE VALUE OFF
@@ -14957,7 +15352,7 @@ SNGDO:
 ;
 EVAL_FP:
   POP HL                    ;POP OFF THE INTEGER ON THE STACK
-  CALL STAKI                ;SAVE THE FAC ON THE STACK
+  CALL PUSHF                ;SAVE THE FAC ON THE STACK
   CALL HL_CSNG              ;CONVERT [H,L] TO A SINGLE PRECISION NUMBER IN THE FAC
   CALL BCDEFP               ;PUT THE LEFT HAND OPERAND IN THE REGISTERS
   POP HL                    ;RESTORE THE FAC
@@ -14978,7 +15373,7 @@ IDIV:
   EX DE,HL                  ;[H,L]=LEFT HAND ARGUMENT
   CALL HL_CSNG              ;CONVERT [H,L] TO A SINGLE-PRECISION NUMBER IN THE FAC
   POP HL                    ;GET BACK THE RIGHT HAND ARGUMENT
-  CALL STAKI                ;PUSH THE CONVERTED LEFT HAND ARGUMENT ONTO THE STACK
+  CALL PUSHF                ;PUSH THE CONVERTED LEFT HAND ARGUMENT ONTO THE STACK
   CALL HL_CSNG              ;CONVERT THE RIGHT HAND ARGUMENT TO A SINGLE PRECISION NUMBER IN THE FAC
   JP DIVIDE                 ;DO THE DIVISION AFTER POPING INTO THE REGISTERS THE LEFT HAND ARGUMENT
 
@@ -15035,7 +15430,7 @@ NTERC:
   RST CHRGTB            ;GET FOLLOWING CHARACTER
   PUSH HL               ;SAVE TEXT POINTER
   LD HL,(ERRLIN)        ;GET THE OFFENDING LINE #
-  CALL DBL_ABS_0        ;FLOAT 2 BYTE UNSINGED INT
+  CALL INEG2            ;FLOAT 2 BYTE UNSINGED INT
   POP HL                ;RESTORE TEXT POINTER
   RET                   ;RETURN
   
@@ -15071,7 +15466,7 @@ NTERL:
 ;VARPTR_BUF:
   CALL FNDNUM           ;READ FILE #
   PUSH HL               ;SAVE TEXT PTR
-  CALL GETPTR           ;GET PTR TO FILE
+  CALL FILIDX           ;GET PTR TO FILE
   EX DE,HL
   POP HL                ;RESTORE TEXT PTR
   JR VARPTR_0
@@ -15146,7 +15541,7 @@ COMPTR:
                         ;THIS IS A POINTER TO A DESCRIPTOR AND NOT AN ACTUAL VALUE
   LD (FACLOW),HL        ;IN CASE IT'S STRING STORE THE POINTER TO THE DESCRIPTOR IN FACLO.
   RST GETYPR 		    ;Get the number type (FAC).   FOR STRINGS WE JUST LEAVE
-  CALL NZ,FP_HL2DE	    ;A POINTER IN THE FAC THE FAC USING [H,L] AS THE POINTER.   (CALL if not string type)
+  CALL NZ,VMOVFM	    ;A POINTER IN THE FAC THE FAC USING [H,L] AS THE POINTER.   (CALL if not string type)
   POP HL                ;RESTORE THE TEXT POINTER
   RET
 
@@ -15465,7 +15860,7 @@ IMP:
 GIVDBL:
   OR A
   SBC HL,DE           ;[H,L]=[H,L]-[D,E]
-  JP DBL_ABS_0        ;FLOAT 2 BYTE UNSIGNED INT
+  JP INEG2            ;FLOAT 2 BYTE UNSIGNED INT
 
 ; Routine at 20423
 __LPOS:
@@ -15655,7 +16050,7 @@ ASGMOR:
   LD HL,-8              ;SAVE EIGHT PLACES
   ADD HL,SP
   LD SP,HL
-  CALL FP_DE2HL         ;PUT VALUE INTO RESERVED PLACE IN STACK
+  CALL VMOVMF           ;PUT VALUE INTO RESERVED PLACE IN STACK
   LD A,(VALTYP)         ;SAVE TYPE FOR ASSIGNMENT
   PUSH AF
   LD HL,(NXTOPR)		;REGET THE ARGUMENT LIST POINTER
@@ -15681,7 +16076,7 @@ POPASG:
   LD (VALTYP),A
   LD HL,$0000           ;POINT INTO STACK
   ADD HL,SP             ;TO GET SAVED VALUE
-  CALL FP_HL2DE         ;PUT VALUE INTO FAC
+  CALL VMOVFM           ;PUT VALUE INTO FAC
   LD HL,$0008           ;FREE UP STACK AREA
   ADD HL,SP
   LD SP,HL
@@ -15985,7 +16380,7 @@ DEPINT:
 FNDNUM:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
 ; This entry point is used by the routines at SETIO, __WAIT, L492A, __ERROR,
-; ISFUN, __WIDTH, __POKE, PAINT_PARMS, __PAINT, LHSMID, MID_ARGSEP, FILSCN, __OPEN, L6BFB,
+; ISFUN, __WIDTH, __POKE, PAINT_PARMS, __PAINT, LHSMID, MID_ARGSEP, FILSCN, __OPEN, RETRTS,
 ; FN_INPUT, __SOUND, __LOCATE, L77D4, __COLOR, __SCREEN, SET_BAUDRATE, PUT_SPRITE, __VDP,
 ; __VPOKE and __MAX.
 
@@ -16056,7 +16451,7 @@ __LIST_0:
   PUSH BC              ;SAVE TEXT POINTER BACK
   EX DE,HL             ;GET LINE # IN [H,L]
   LD (DOT),HL          ;SAVE FOR LATER EDIT OR LIST <> AND WE WANT [H,L] ON THE STACK
-  CALL _PRNUM          ;PRINT AS INT WITHOUT LEADING SPACE
+  CALL LINPRT          ;PRINT AS INT WITHOUT LEADING SPACE
   POP HL
   LD A,(HL)            ;GET BYTE FROM LINE
   CP $09               ;IS IT A TAB?
@@ -16688,7 +17083,7 @@ CHGPTR:
   PUSH DE                 ;SAVE LINE #
   CALL PRS                ;PRINT IT
   POP HL                  ;GET LINE # IN [H,L]
-  CALL _PRNUM             ;PRINT IT
+  CALL LINPRT             ;PRINT IT
   POP BC                  ;GET TEXT PTR OFF STACK
   POP HL                  ;GET CURRENT LINE #
   PUSH HL                 ;SAVE BACK
@@ -18183,7 +18578,7 @@ CIRCLE_SUB_0:
   CALL FMULT
   CALL FCOMP_UNITY		; == 1 ?
   JP Z,FC_ERR			; Err $05 - "Illegal function call"
-  CALL STAKI
+  CALL PUSHF
   LD HL,(CNPNTS)
   ADD HL,HL
   ADD HL,HL
@@ -18269,7 +18664,7 @@ DRAW_TAB:
   DEFW FORECOLOR	; Change the foreground (drawing) color to <color>
   
   DEFB 'S'+$80
-  DEFW SCALE	; S<scale> Scale every length specified after this command by <scale/4> pixels.
+  DEFW _SCALE	; S<scale> Scale every length specified after this command by <scale/4> pixels.
   
   DEFB $00		; Table termination
 
@@ -18419,15 +18814,15 @@ SET_DRWFLG:
 ; Data block at 24142
 ; Change the orientation of the drawing to 0 (normal), 1 (90 degrees clockwise), 2 (180 degrees clockwise) or 3 (270 degrees clockwise)
 ROTATE:
-  JR NC,SCALE
+  JR NC,_SCALE
   LD A,E
   CP $04
-  JR NC,SCALE
+  JR NC,_SCALE
   LD (DRWANG),A		; DrawAngle (0..3): 1=90 degrees rotation .. 3=270 degrees, etc..
   RET
 
 ; S<scale> Scale every length specified after this command by <scale/4> pixels.
-SCALE:
+_SCALE:
   JP NC,FC_ERR			; Err $05 - "Illegal function call"
   LD A,D
   OR A
@@ -18468,7 +18863,7 @@ L5E66_1:
 
 
 FORECOLOR:
-  JR NC,SCALE
+  JR NC,_SCALE
   LD A,E
   CALL SETATR		; Set attribute byte
   JP C,FC_ERR			; Err $05 - "Illegal function call"
@@ -19845,7 +20240,7 @@ __SWAP:
   PUSH DE
   PUSH HL
   LD HL,SWPTMP
-  CALL FP2HL   		; Copy number value from DE to HL
+  CALL VMOVE   		; Copy number value from DE to HL
   LD HL,(ARYTAB)
   EX (SP),HL
   RST GETYPR 		; Get the number type (FAC)
@@ -19868,10 +20263,10 @@ __SWAP:
   POP HL
   EX (SP),HL
   PUSH DE
-  CALL FP2HL   		; Copy number value from DE to HL
+  CALL VMOVE   		; Copy number value from DE to HL
   POP HL
   LD DE,SWPTMP
-  CALL FP2HL   		; Copy number value from DE to HL
+  CALL VMOVE   		; Copy number value from DE to HL
   POP HL
   RET
 _FC_ERR_A:
@@ -20044,7 +20439,7 @@ __NEXT_0:
 __NEXT_1:
   ADD A,$04
   LD (VALTYP),A
-  CALL FP_HL2DE				; Move index value to FPREG
+  CALL VMOVFM				; Move index value to FPREG
   EX DE,HL
   EX (SP),HL				; Save address of TO value
   PUSH HL
@@ -20074,55 +20469,55 @@ __NEXT_2:
   PUSH HL
   LD L,C
   LD H,B
-  CALL IADD
-  LD A,(VALTYP)
-  CP $02
-  JP NZ,OV_ERR			; Err $06 -  "Overflow"
-  EX DE,HL
-  POP HL
-  LD (HL),D
+  CALL IADD            ; ADD THE STEP TO THE LOOP VARIABLE
+  LD A,(VALTYP)        ; SEE IF THERE WAS OVERFLOW
+  CP $02               ; TURNED TO SINGLE-PRECISION?
+  JP NZ,OV_ERR         ; INDICE GOT TOO LARGE  ( Err $06 -  "Overflow" )
+  EX DE,HL             ; [D,E]=NEW LOOP VARIABLE VALUE
+  POP HL               ; GET THE POINTER AT THE LOOP VARIABLE
+  LD (HL),D            ; STORE THE NEW VALUE
   DEC HL
   LD (HL),E
-  POP HL
-  PUSH DE
-  LD E,(HL)
+  POP HL               ; GET BACK THE POINTER INTO THE "FOR" ENTRY
+  PUSH DE              ; SAVE THE VALUE OF THE LOOP VARIABLE
+  LD E,(HL)            ; [D,E]=FINAL VALUE
   INC HL
   LD D,(HL)
   INC HL
-  EX (SP),HL
-  CALL ICOMP
+  EX (SP),HL           ; SAVE THE ENTRY POINTER AGAIN, GET THE VALUE OF THE LOOP VARIABLE INTO [H,L]
+  CALL ICOMP           ; DO THE COMPARE
 __NEXT_3:
-  POP HL
-  POP BC
-  SUB B
-  CALL LOADFP
-  JR Z,KILFOR
-  EX DE,HL
-  LD (CURLIN),HL
-  LD L,C
+  POP HL               ; POP OFF THE "FOR" ENTRY POINTER WHICH IS NOW POINTING PAST THE FINAL VALUE
+  POP BC               ; GET THE SIGN OF THE INCREMENT
+  SUB B                ; SUBTRACT THE INCREMENTS SIGN FROM THAT OF (CURRENT VALUE-FINAL VALUE)
+  CALL LOADFP          ; GET LINE # OF "FOR" INTO [D,E]
+  JR Z,KILFOR          ; IF SIGN(FINAL-CURRENT)+SIGN(STEP)=0, then loop finished - Terminate it
+  EX DE,HL             ; Loop statement line number
+  LD (CURLIN),HL       ; Set loop line number
+  LD L,C               ; Set code string to loop
   LD H,B
   JP PUTFID
 
 __NEXT_4:
-  CALL ARG2DE_DECADD
+  CALL NEXT_DADD
   POP HL
-  CALL FP_DE2HL
+  CALL VMOVMF
   POP HL
-  CALL ARG2DE
+  CALL HL_ARG
   PUSH DE
   CALL XDCOMP
   JR __NEXT_3
   
 ; Remove "FOR" block
 KILFOR:
-  LD SP,HL           ; Remove "FOR" block
+  LD SP,HL           ; SINCE [H,L] MOVED ALL THE WAY DOWN THE ENTRY
   LD (SAVSTK),HL     ; Code string after "NEXT"
-  EX DE,HL          
-  LD HL,(TEMP)       ; Get next byte in code string
-  LD A,(HL)          ; More NEXTs ?
-  CP ','             ; No - Do next statement
-  JP NZ,NEWSTT    ; Position to index name
-  RST CHRGTB         ; Gets next character (or token) from BASIC text.
+  EX DE,HL           ; RESTORE THE TEXT POINTER
+  LD HL,(TEMP)       
+  LD A,(HL)          ; Get next byte in code string
+  CP ','             ; More NEXTs ?
+  JP NZ,NEWSTT       ; No - Do next statement
+  RST CHRGTB         ; Position to index name
   CALL __NEXT_0      ; Re-enter NEXT routine
 ; < will not RETurn to here , Exit to NEWSTT (RUNCNT) or Loop >
 
@@ -20348,7 +20743,7 @@ PUTTMP:
   LD (FACLOW),HL	; Save address of string ptr           ;POINTER AT WHERE RESULT DESCRIPTOR WILL BE
   LD A,$03          
   LD (VALTYP),A     ; Set type to string                   ;FLAG THIS AS A STRING
-  CALL FP2HL   		; Move string to pool                  ;AND MOVE THE VALUE INTO A TEMPORARY
+  CALL VMOVE   		; Move string to pool                  ;AND MOVE THE VALUE INTO A TEMPORARY
   LD DE,DSCTMP+3                                           ;IF THE CALL IS TO PUTTMP, [D,E] WILL NOT EQUAL DSCTMP +3
   RST DCOMPR		; Out of string pool?                  ;DSCTMP IS JUST BEYOND THE TEMPS
                                                            ;AND IF TEMPPT POINTS AT IT THERE ARE NO FREE TEMPS
@@ -21200,7 +21595,7 @@ LHSMID:
   CALL STRCPY          ;COPY THE STRING LITERAL INTO STRING SPACE
   POP HL               ;GET BACK DESC. POINTER
   PUSH HL              ;BACK ON STACK AGAIN
-  CALL FP2HL           ;MOVE NEW DESC. INTO OLD SLOT.
+  CALL VMOVE           ;MOVE NEW DESC. INTO OLD SLOT.
 NCPMID:
   POP HL               ;GET DESC. POINTER
   EX (SP),HL           ;GET TEXT POINTER TO [H,L] DESC. TO STACK
@@ -21407,17 +21802,14 @@ L6A61:
 FILFRM:
   CALL CONINT            ;GET THE FILE NUMBER INTO [A]
 ;
-; Comment taken from CP/M.  Things can be different on MSX !
-;
 ; AT THIS POINT IT IS ASSUMED THE FILE NUMBER IS IN [A]
-; THE FILE NUMBER IS RETURNED IN [E]
-; [D] IS SET TO ZERO. [H,L] IS SAVED.
-; [B,C] IS SET TO POINT AT THE FILE DATA BLOCK FOR FILE [E]
+; [D] IS SET TO ZERO. [B,C] IS SAVED.
+; [H,L] IS SET TO POINT AT THE FILE DATA BLOCK FOR FILE [E]
 ; [A] GIVE THE MODE OF THE FILE AND ZERO IS SET, IF THE FILE IS MODE ZERO (NOT OPEN).
 ;
 ; This entry point is used by the routines at OPRND, FILSCN and __OPEN.
 ; a.k.a. VARPTR_A
-GETPTR:
+FILIDX:
   LD L,A                  ;GET FILE NUMBER INTO [L]
   LD A,(MAXFIL)           ;IS THIS FILE # LEGAL?
   CP L
@@ -21431,18 +21823,21 @@ GETPTR:
   INC HL
   LD H,(HL)
   LD L,A
-  LD A,(NLONLY)
+
+  LD A,(NLONLY)           ; Are we loading a program ?
   INC A
   RET Z
+
   LD A,(HL)               ;GET MODE OF FILE INTO [A]
   OR A                    ;SET ZERO IF FILE NOT OPEN
   RET Z
+
   PUSH HL
   LD DE,$0004             ;(DATOFC) POINT TO DATA BLOCK
   ADD HL,DE
   LD A,(HL)               ; A = FILE MODE
   CP $09
-  JR NC,FILFRM_1
+  JR NC,FILIDX_1
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -21452,7 +21847,7 @@ ELSE
 ENDIF
   JP IE_ERR				; Err $33 - "Internal Error"
 
-FILFRM_1:
+FILIDX_1:
   POP HL
   LD A,(HL)
   OR A
@@ -21477,7 +21872,7 @@ FILSCN:
 
 ; a.k.a. SELECT. This entry point is used by the routines at _RUN_FILE and FILINP.
 SETFIL:
-  CALL GETPTR
+  CALL FILIDX
   JP Z,CF_ERR			; Err $3B - "File not OPEN"
   LD (PTRFIL),HL		; Redirect I/O
 IF NOHOOK
@@ -21547,17 +21942,16 @@ ENDIF
 
   DEFB $1E      ;LD E,N
 NULOPN:
-  PUSH DE		; open a "NULL" file
-
+  PUSH DE		    ; open a "NULL" file
   DEC HL
-  LD E,A
+  LD E,A            ;SAVE FILE NUMBER IN [E]
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP NZ,SN_ERR
   EX (SP),HL
-  LD A,E
+  LD A,E            ;GET FILE NUMBER
   PUSH AF
   PUSH HL
-  CALL GETPTR
+  CALL FILIDX
   JP NZ,AO_ERR		; Err $36 - "File already open"
   POP DE
   LD A,D
@@ -21593,7 +21987,7 @@ CLOSE:
   
 ; NTFL0 - "NoT FiLe number 0"
 NTFL0:
-  CALL GETPTR
+  CALL FILIDX
   JR   Z,L6B4A 		; CLOSE_1
   LD   (PTRFIL),HL
   PUSH HL
@@ -21643,8 +22037,8 @@ __LOAD:
 
 ; Routine at 19825
 __MERGE:
-  XOR A
-  PUSH AF
+  XOR A                 ;FLAG ZERO FOR "LOAD"
+  PUSH AF               ;SAVE "RUN"/"LOAD" FLAG
   CALL FILE_PARMS
 IF NOHOOK
  IF PRESERVE_LOCATIONS
@@ -21654,16 +22048,16 @@ ELSE
   CALL HMERG		; Hook for "MERGE/LOAD"
 ENDIF
   POP AF
-  PUSH AF
-  JR Z,_LOAD_0
+  PUSH AF           ;SEE IF NO RUN OPTION
+  JR Z,_LOAD_0      ;NO, JUST LOAD
   LD A,(HL)
-  SUB ','
+  SUB ','           ;GOTTA HAVE A COMMA
   OR A
-  JR NZ,_LOAD_0
+  JR NZ,_LOAD_0     ;NO, JUST LOAD
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB 'R'
-  POP AF
+  DEFB 'R'          ;ONLY OPTION IS RUN
+  POP AF            ;GET RID OF "RUN"/"LOAD" FLAG
   SCF				; Set the 'RUN' flag 
   PUSH AF
 _LOAD_0:
@@ -21770,55 +22164,55 @@ L6BDA:
 
 ; Routine at 27623
 ;
-; Used by the routines at L6BFB and CLSALL.
-L6BE7:
-  JR NZ,L6BFB_0
-  PUSH HL
-; This entry point is used by the routine at L6BF3.
-L6BE7_0:
-  PUSH BC
-  PUSH AF
-  LD DE,L6BF3
-  PUSH DE
-  PUSH BC
+; Used by the routines at RETRTS and CLSALL.
+_CLOSE:
+  JR NZ,RETRTS_0           ;NOT END OF STATEMENT, SO SCAN ARGUMENTS
+  PUSH HL                  ;SAVE THE TEXT POINTER
+; This entry point is used by the routine at RETALL.
+__CLOSE_0:
+  PUSH BC                  ;SAVE ROUTINE ADDRESS
+  PUSH AF                  ;SAVE CURRENT VALUE
+  LD DE,RETALL             ;RETURN ADDRESS
+  PUSH DE                  ;SAVE IT TO COME BACK WITH
+  PUSH BC                  ;DISPATCH TO SERVICE ROUTINE
   OR A
   RET
 
 ; Routine at 27635
-L6BF3:
-  POP AF
-  POP BC
-  DEC A
-  JP P,L6BE7_0
-  POP HL
+RETALL:
+  POP AF                   ;GET BACK OLD ARGUMENT
+  POP BC                   ;GET BACK SERVICE ROUTINE ADDRESS
+  DEC A                    ;DECREMENT ARGUMENT
+  JP P,__CLOSE_0           ;LOOP ON MORE VALUES
+  POP HL                   ;GET BACK THE TEXT POINTER
   RET
 
 ; Routine at 27643
-L6BFB:
-  POP BC
-  POP HL
-  LD A,(HL)
-  CP ','
+RETRTS:
+  POP BC                   ;GET BACK SERVICE ROUTINE ADDRESS
+  POP HL                   ;GET BACK THE TEXT POINTER
+  LD A,(HL)                ;SEE IF MORE ARGUMENTS
+  CP ','                   ;DELIMITED BY COMMA
   RET NZ
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-; This entry point is used by the routine at L6BE7.
-L6BFB_0:
-  PUSH BC
-  LD A,(HL)
-  CP '#'
-  CALL Z,__CHRGTB		; Gets next character (or token) from BASIC text.
-  CALL GETINT              ; Get integer 0-255
-  EX (SP),HL
-  PUSH HL
-  LD DE,L6BFB
+  RST CHRGTB               ;READ FIRST CHARACTER OF FORMULA
+; This entry point is used by the routine at _CLOSE.
+RETRTS_0:
+  PUSH BC                  ;SAVE THE SERVICE ROUTINE ADDRESS
+  LD A,(HL)                ;GET POSSBLE "#"
+  CP '#'                   ;IS IT
+  CALL Z,__CHRGTB          ;SKIP IT, ITS OPTIONAL
+  CALL GETINT              ;READ THE ARGUMENT
+  EX (SP),HL               ;SAVE THE TEXT POINTER ON THE STACK <> AND SET [H,L]=SERVICE ADDRESS
+  PUSH HL                  ;SAVE THE SERVICE ADDRESS
+  LD DE,RETRTS             ;PUT A RETURN ADDRESS ON THE STACK
   PUSH DE
   SCF
-  JP (HL)
+  JP (HL)                  ;DISPATCH TO DO THE FUNCTION
 
 __CLOSE:
-  LD BC,CLOSE
-  LD A,(MAXFIL)
-  JR L6BE7
+  LD BC,CLOSE              ;SERVICE ROUTINE ADDRESS
+  LD A,(MAXFIL)            ;HIGHEST POSSIBLE ARGUMENT, WHICH MEANS DO ALL POSSIBLE
+  JR _CLOSE
 
 ; Routine at 27676
 ;
@@ -21831,7 +22225,7 @@ CLSALL:
   LD BC,CLOSE
   XOR A
   LD A,(MAXFIL)
-  JR L6BE7
+  JR _CLOSE
 
 ; Routine at 27690
 __LFILES:
@@ -24158,10 +24552,10 @@ L7684_2:
   CALL MLDEBC
   EX DE,HL
   CALL HL_CSNG
-  CALL FP_ARG2HL
+  CALL VMOVAF
   LD HL,SP_FPCONST		; Single precision float const
-  CALL PHLTFP
-  CALL DECDIV		; /
+  CALL MOVFM
+  CALL DDIV		; /
   CALL __CINT
   LD D,H
   LD E,L
@@ -24646,7 +25040,7 @@ FN_TIME:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   PUSH HL
   LD HL,(JIFFY)
-  CALL DBL_ABS_0
+  CALL INEG2
   POP HL
   RET
 
@@ -25168,7 +25562,7 @@ FN_BASE_1:
   INC HL
   LD H,(HL)
   LD L,A
-  CALL DBL_ABS_0
+  CALL INEG2
   POP HL
   RET
 
@@ -25585,7 +25979,7 @@ ENDIF
   ;
   LD BC,$FFF2		; -14
   ADD HL,BC
-  CALL _PRNUM
+  CALL LINPRT
   LD HL,BYTES_MSG
   JP PRS
 
