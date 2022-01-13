@@ -601,7 +601,7 @@ defc FUNACT        = $FBF6      ; (word), active functions counter
 defc VLZDAT        = $FBF8
 
 defc FBUFFR        = $FBF9
-defc NUMSTR        = $FBFA
+;defc NUMSTR        = $FBFA
 defc DECTMP        = $FC24
 defc DECTM2        = $FC26
 defc DECCNT        = $FC28
@@ -926,7 +926,7 @@ defc FUNACT      = $FBE4      ; (word), active functions counter
 defc VLZDAT      = $FBE6
 
 defc FBUFFR      = $FBE7
-defc NUMSTR      = $FBE8
+;defc NUMSTR      = $FBE8
 defc DECTMP      = $FC12
 defc DECTM2      = $FC14
 defc DECCNT      = $FC16
@@ -2008,12 +2008,12 @@ LEPSKP:
   EX (SP),HL
 ; This entry point is used by the routine at __END.
 ERROR_REPORT_1:
-  CALL PRS
-  POP HL
-  LD A,H
+  CALL PRS            ;PRINT MESSAGE
+  POP HL              ;RESTORE LINE NUMBER
+  LD A,H              ;SEE IF IN DIRECT MODE
   AND L
-  INC A
-  CALL NZ,LNUM_MSG
+  INC A               ;ZERO SAYS DIRECT MODE
+  CALL NZ,IN_PRT      ;PRINT LINE NUMBER IN [H,L]
 
   DEFB $3E  ; "LD A,n" to Mask the next byte
 
@@ -9487,7 +9487,7 @@ PRNUMS:
 
 ; Create string entry and print it
 ;
-; Used by the routines at ERESET, READY, __LINE, __READ, CAS_OPNI_CO, LNUM_MSG,
+; Used by the routines at ERESET, READY, __LINE, __READ, CAS_OPNI_CO, IN_PRT,
 ; INXD, USING, TEL_GET_STAT, DWNLDR, PRINT_LINE, TEXT, __EDIT, TXT_CTL_N,
 ; MOVE_TEXT, BOOT and FREEMEM.
 PRS:
@@ -10886,7 +10886,7 @@ DMUL_1:
   JP NZ,DMUL_1
 
   POP DE
-  LD BC,NORMALIZE
+  LD BC,BNORM
   PUSH BC
 ; This entry point is used by the routine at __RND.
 DMUL_2:
@@ -10947,7 +10947,7 @@ DMUL_8:
   RET
 
 ; This entry point is used by the routine at DDIV.
-NORMALIZE:
+BNORM:
   DEC HL
   LD A,(HL)
   INC HL
@@ -10977,17 +10977,17 @@ DMUL_12:
 
 ; Double precision DIVIDE
 ;
-					;DOUBLE PRECISION DIVISION	FAC:=FAC/ARG
-					;ALTERS ALL REGISTERS
+	;DOUBLE PRECISION DIVISION	FAC:=FAC/ARG
+	;ALTERS ALL REGISTERS
 ;
 ; Used by the routines at __TAN, __ATN, __LOG, __SQR, __EXP, MULPHL, FDIV
 ; and INTEXP.
 DDIV:
   LD A,(ARG)
-  OR A
-  JP Z,O_ERR
+  OR A                  ;CHECK FOR DIVISION BY ZERO
+  JP Z,O_ERR            ;GET THE EXPONENT OF ARG
   LD B,A
-  LD HL,FACCU
+  LD HL,FACCU           ;IF FAC=0 THEN ANS IS ZERO
   LD A,(HL)
   OR A
   JP Z,ZERO
@@ -11172,7 +11172,7 @@ DDIV_16:
   LD DE,HOLD+7
   LD B,$08
   CALL LDDR_DEHL
-  JP NORMALIZE
+  JP BNORM
 
 ; This entry point is used by the routine at DADD.
 LDIR_C_BYTES:
@@ -11198,9 +11198,10 @@ LDIR_C:
 
 ; COS
 ;
+;  "Sine/Cosine" Taylor polynomial algorithm
 ; Used by the routine at __TAN.
-__COS:
-  LD HL,FP_EPSILON
+__COS:                    ;WILL CALCULATE X=FAC/(2*PI)
+  LD HL,FP_EPSILON        ;FP_EPSILON: 1/(2*PI) =~ 0.159155
   CALL MULPHL
   LD A,(FACCU)
   AND $7F
@@ -11210,22 +11211,31 @@ __COS:
   CALL NEG
   JP __SIN_0
 
-; Routine at 12041
+
+; 'SIN' BASIC function
 ;
+	;SINE FUNCTION
+	;IDEA: USE IDENTITIES TO GET FAC IN QUADRANTS I OR IV
+	;THE FAC IS DIVIDED BY 2*PI AND THE INTEGER PART IS IGNORED BECAUSE SIN(X+2*PI)=SIN(X).
+	;THEN THE ARGUMENT CAN BE COMPARED WITH PI/2 BY COMPARING THE RESULT OF THE DIVISION WITH PI/2/(2*PI)=1/4.
+	;IDENTITIES ARE THEN USED TO GET THE RESULT IN QUADRANTS I OR IV.
+	;AN APPROXIMATION POLYNOMIAL IS THEN USED TO COMPUTE SIN(X).
+;
+; Routine at 12041
 ; Used by the routine at __TAN.
-__SIN:
-  LD HL,FP_EPSILON
+__SIN:                    ;WILL CALCULATE X=FAC/(2*PI)
+  LD HL,FP_EPSILON        ;FP_EPSILON: 1/(2*PI) =~ 0.159155
   CALL MULPHL
 ; This entry point is used by the routine at __COS.
 __SIN_0:
   LD A,(FACCU)
   OR A
   CALL M,NEGAFT
-  CALL STAKFP
-  CALL __INT
-  CALL FAC1_ARG
-  CALL USTAKFP
-  CALL DSUB
+  CALL STAKFP           ;SAVE X
+  CALL __INT            ;FAC=INT(X)
+  CALL FAC1_ARG         
+  CALL USTAKFP          ;FETCH X TO REGISTERS
+  CALL DSUB             ;FAC=X-INT(X)
   LD A,(FACCU)
   CP $40
   JP C,__SIN_2
@@ -11247,40 +11257,51 @@ __SIN_2:
   LD HL,FP_SINTAB
   JP SUMSER
 
+
+
+; 'TAN' BASIC function
+;
+	;TANGENT FUNCTION
+	;TAN(X)=SIN(X)/COS(X)
+;
 ; Routine at 12120
 __TAN:
-  CALL STAKFP
-  CALL __COS
-  CALL XSTKFP
-  CALL __SIN
-  CALL USTAKARG
-  LD A,(ARG)
-  OR A
-  JP NZ,DDIV
-  JP OV_ERR
+  CALL STAKFP          ; Put angle on stack
+  CALL __COS           ; Get COS of angle
+  CALL XSTKFP          ; Exchange stack and FP value
+  CALL __SIN           ; Get SIN of angle
+  CALL USTAKARG        ; Recall result of COS
+  LD A,(ARG)           
+  OR A                 ; COS(x) is not zero..
+  JP NZ,DDIV           ; Go for division
+  JP OV_ERR            ; If it is zero, Err $06 -  "Overflow"
 
-; ATN
+
+
+; 'ATN' BASIC function
+	;IDEA: USE IDENTITIES TO GET ARG BETWEEN 0 AND 1 AND THEN USE AN
+	;APPROXIMATION POLYNOMIAL TO COMPUTE ARCTAN(X)
 __ATN:
   LD A,(FACCU)
   OR A
   RET Z
-  CALL M,NEGAFT
+  CALL M,NEGAFT     ; Negate result after if -ve       ;IF ARG IS NEGATIVE, USE:  ARCTAN(X)=-ARCTAN(-X)
   CP $41			; Number less than 1?
   JP C,__ATN_0		; Yes - Get arc tangnt
   CALL FAC1_ARG
-  LD HL,FP_UNITY
-  CALL HL2FACCU
-  CALL DDIV
+  LD HL,FP_UNITY    ; BCDE = 1                         ;GET THE CONSTANT 1
+  CALL HL2FACCU                                        ;COMPUTE RECIPROCAL TO USE THE IDENTITY:
+  CALL DDIV         ; Get reciprocal of number         ;  ARCTAN(X)=PI/2-ARCTAN(1/X)
   CALL __ATN_0
   CALL FAC1_ARG
-  LD HL,FP_HALFPI
+  LD HL,FP_HALFPI   ; PI/2 - angle in case > 1         ;GET POINTER TO PI/2 IN CASE WE HAVE TO
   CALL HL2FACCU
-  JP DSUB
+  JP DSUB           ; Number > 1 - Sub from PI/2       ; SUBTRACT THE RESULT FROM PI/2
 
 __ATN_0:
   LD HL,FP_TAN15
   CALL CMPPHL
-  JP M,__ATN_1
+  JP M,ATN_SUMSER   ; Evaluate sum of series
   CALL STAKFP
   LD HL,FP_SQR3
   CALL ADDPHL
@@ -11291,12 +11312,13 @@ __ATN_0:
   CALL FSUBS
   CALL USTAKARG
   CALL DDIV
-  CALL __ATN_1
+  CALL ATN_SUMSER   ; Evaluate sum of series
   LD HL,FP_SIXTHPI
   JP ADDPHL
-__ATN_1:
-  LD HL,FP_ATNTAB
-  JP SUMSER
+
+ATN_SUMSER:
+  LD HL,FP_ATNTAB    ; Coefficient table                ;EVALUATE APPROXIMATION POLYNOMIAL
+  JP SUMSER          ; Evaluate sum of series
 
 
 ;**********************************************************
@@ -11366,7 +11388,12 @@ __LOG_0:
   LD HL,FP_LN10
   JP MULPHL
 
-; SQR
+
+; 'SQR' BASIC function
+;
+	;SQUARE ROOT FUNCTION
+	;WE USE SQR(X)=X^.5
+;
 __SQR:
   RST TSTSGN
   RET Z
@@ -11393,7 +11420,7 @@ __SQR_0:
   CALL DDIV
   CALL USTAKARG
   CALL DADD
-  LD HL,FP_HALF
+  LD HL,FP_HALF          ; Set power to 1/2            ;GET 1/2
   CALL MULPHL
   CALL FAC1_ARG
   CALL USTAKFP
@@ -11402,28 +11429,52 @@ __SQR_0:
   JP NZ,__SQR_0
   JP ARG_FAC1
 
+
+
+;*************************************************************
+;
+;THE FUNCTION EXP(X) CALCULATES e^X WHERE e=2.718282
+;       THE TECHNIQUE USED IS TO EMPLOY A COUPLE
+;       OF FUNDAMENTAL IDENTITIES THAT ALLOWS US TO
+;       USE THE BASE 2 THROUGH THE DIFFICULT PORTIONS OF
+;       THE CALCULATION:
+;
+;               (1)e^X=2^y  WHERE y=X*LOG(e)
+;               (2) 2^y=2^[ INT(y)+(y-INT(y)]
+;               (3) IF Ny=INT(y) THEN
+;                   2^(Ny+y-Ny)=[2^Ny]*[2^(y-Ny)]
+;
+;       NOW, SINCE 2^Ny IS EASY TO COMPUTE (AN EXPONENT
+;       CALCULATION WITH MANTISSA BITS OF ZERO) THE DIFFICULT
+;       PORTION IS TO COMPUTE 2^(Y-Ny) WHERE 0.LE.(Y-Ny).LT.1
+;       THIS IS ACCOMPLISHED WITH A POLYNOMIAL APPROXIMATION
+;       TO 2^Z WHERE 0.LE.Z.LT.1  . ONCE THIS IS COMPUTED WE
+;       HAVE TO EFFECT THE MULTIPLY BY 2^Ny .
+;
+;**************************************************************
 ; Routine at 12452
 ;
 ; Used by the routine at DEXP.
 __EXP:
   LD HL,FP_LOG10E
-  CALL MULPHL
+  CALL MULPHL         ;y=FAC*LOG(e)
   CALL STAKFP
-  CALL __CINT
+  CALL __CINT         ;Determine integer power of 2.
   LD A,L
   RLA
   SBC A,A
   CP H
-  JP Z,__EXP_1
+  JP Z,__EXP_1        ;JUMP IF NOT OVERFLOW
   LD A,H
-  OR A
-  JP P,__EXP_0
-  CALL VALDBL
+  OR A                ; Test if new exponent zero             ;Is it positively too big?
+  JP P,RESZER         ; Result zero                           ;Yes, overflow.
+  CALL VALDBL                                                 ;No, underflow for negative.
   CALL USTAKFP
   LD HL,FP_ZERO
   JP HL2FACCU
-__EXP_0:
-  JP OV_ERR
+RESZER:
+  JP OV_ERR           ; Err $06 -  "Overflow"
+
 __EXP_1:
   LD (TEMP3),HL
   CALL __CDBL
@@ -11607,14 +11658,17 @@ XSTKFP:
   LD HL,(FBUFFR)
   JP (HL)
 
-; Negate number
+
+; EXPONENTIATION AND THE SQUARE ROOT FUNCTION
+
+; Negate number, a.k.a. PSHNEG
 ;
 ; Used by the routines at __SIN and __ATN.
 NEGAFT:
   CALL NEG
-  LD HL,NEG
-  EX (SP),HL
-  JP (HL)
+  LD HL,NEG            ;GET THE ADDRESS OF NEG
+  EX (SP),HL           ;SWITCH RET ADDR AND ADDR OF NEG
+  JP (HL)              ;RETURN, THE ADDRESS OF NEG IS ON THE STACK
 
 ; This entry point is used by the routine at __EXP.
 NEGAFT_0:
@@ -11631,33 +11685,33 @@ SUMSER:
   CALL STAKFP
   LD HL,(FBUFFR)
   CALL NEGAFT_0
-  CALL USTAKARG
-  JP DMUL
+  CALL USTAKARG         ; Move FPREG to BCDE               ;SQUARE X
+  JP DMUL               ; Square the value
   
 ; This entry point is used by the routine at __LOG.
 POLY:
-  LD A,(HL)
-  PUSH AF
-  INC HL
+  LD A,(HL)             ; Get number of coefficients       ;GET DEGREE
+  PUSH AF               ; Save count                       ;SAVE DEGREE
+  INC HL                ; Point to start of table          ;INCREMENT POINTER TO FIRST CONSTANT
   PUSH HL
   LD HL,FBUFFR          ; Buffer for fout
   CALL DBL_FACCU2HL
-  POP HL
-  CALL HL2FACCU
+  POP HL                ; Point to start of table
+  CALL HL2FACCU         ; Move coefficient to FPREG        ;MOVE FIRST CONSTANT TO FAC
 SUMLP:
-  POP AF
-  DEC A
-  RET Z
-  PUSH AF
-  PUSH HL
-  LD HL,FBUFFR
-  CALL MULPHL
-  POP HL
-  CALL HL2ARG
-  PUSH HL
-  CALL DADD
-  POP HL
-  JP SUMLP
+  POP AF                ; Restore count                    ;GET DEGREE
+  DEC A                 ; Cont coefficients                ;ARE WE DONE?
+  RET Z                 ; All done                         ;YES, RETURN
+  PUSH AF               ; Save count                       ;SAVE DEGREE
+  PUSH HL               ; Save address in table            ;SAVE CONSTANT POINTER
+  LD HL,FBUFFR          ; Buffer for fout
+  CALL MULPHL           ; Multiply FPREG by BCDE           ;EVALUATE THE POLY, MULTIPLY BY X
+  POP HL                ; Restore address in table         ;GET LOCATION OF CONSTANTS
+  CALL HL2ARG           ; Number at HL to BCDE             ;GET CONSTANT
+  PUSH HL               ; Save address in table            ;STORE LOCATION OF CONSTANTS SO FADD AND FMULT
+  CALL DADD             ; Add coefficient to FPREG         ; WILL NOT SCREW THEM UP, ADD IN CONSTANT
+  POP HL                ; Restore address in table         ;MOVE CONSTANT POINTER TO NEXT CONSTANT
+  JP SUMLP              ; More coefficients                ;SEE IF DONE
 
 ; Push FAC1 on stack
 ;
@@ -13127,7 +13181,7 @@ BCDEFP_ARG:
   RET
 
 ; This entry point is used by the routine at PUFOUT.
-DCR_A:
+DCRART:
   DEC A
   RET
 
@@ -13141,174 +13195,204 @@ POPHLRT:
   POP HL
   RET
 
+
 ; ASCII to Double precision FP number
+;	FLOATING POINT INPUT ROUTINE
 ;
+	;ALTERS ALL REGISTERS
+	;THE NUMBER IS LEFT IN FAC
+	;AT ENTRY, (HL) POINTS TO THE FIRST CHARACTER IN A TEXT BUFFER.
+	;THE FIRST CHARACTER IS ALSO IN A.  WE PACK THE DIGITS INTO THE FAC
+	;AS AN INTEGER AND KEEP TRACK OF WHERE THE DECIMAL POINT IS.
+	;C IS $FF IF WE HAVE NOT SEEN A DECIMAL POINT, 0 IF WE HAVE.
+	;B IS THE NUMBER OF DIGITS AFTER THE DECIMAL POINT.
+	;AT THE END, B AND THE EXPONENT (IN E) ARE USED TO DETERMINE HOW MANY
+	;TIMES WE MULTIPLY OR DIVIDE BY TEN TO GET THE CORRECT NUMBER.
+	;
 ; Used by the routines at __READ, OPRND, __VAL and L4F2E.
 FIN_DBL:
-  EX DE,HL
-  LD BC,$00FF
-  LD H,B
-  LD L,B
-  CALL MAKINT		;  (HL_FAC1)
-  EX DE,HL
-  LD A,(HL)
+  EX DE,HL             ;SAVE THE TEXT POINTER IN (DE)
+  LD BC,$00FF          ;CLEAR FLAGS:  B=DECIMAL PLACE COUNT,  C="." FLAG
+  LD H,B               ;ZERO (HL)
+  LD L,B               
+  CALL MAKINT          ;ZERO FAC, SET VALTYP TO "INTEGER"
+  EX DE,HL             ;GET THE TEXT POINTER BACK IN (HL) AND ZEROS IN (DE)
+  LD A,(HL)            ;RESTORE CHAR FROM MEMORY
 
 ; ASCII to FP number
-_ASCTFP:
-  CP '-'
-  PUSH AF
-  JP Z,_ASCTFP_0
-  CP '+'
-  JP Z,_ASCTFP_0
-  DEC HL
+_ASCTFP:                                                 ;IF WE ARE CALLED BY VAL OR INPUT OR READ, THE SIGNS MAY NOT BE CRUNCHED
+  CP '-'               ; '-': Negative?                  ;SEE IF NUMBER IS NEGATIVE
+  PUSH AF              ; Save it and flags               ;SAVE SIGN
+  JP Z,_ASCTFP_0       ; Yes - Convert number            ;IGNORE MINUS SIGN
+  CP '+'               ; Positive?                       ;IGNORE A LEADING SIGN
+  JP Z,_ASCTFP_0       ; Yes - Convert number
+  DEC HL               ; DEC 'cos GETCHR INCs            ;SET CHARACTER POINTER BACK ONE
+
 _ASCTFP_0:
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  JP C,_ASCTFP_DIGITS
-  CP '.'
-  JP Z,DPOINT
-  CP 'e'
-  JP Z,EXPONENTIAL
-  CP 'E'
-EXPONENTIAL:
-  JP NZ,_ASCTFP_4
-  PUSH HL
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  CP 'l'
-  JP Z,_ASCTFP_2
-  CP 'L'
-  JP Z,_ASCTFP_2
-  CP 'q'
-  JP Z,_ASCTFP_2
-  CP 'Q'
+  RST CHRGTB                                             ;HERE TO CHECK FOR A DIGIT, A DECIMAL POINT, "E" OR "D"
+  JP C,_ASCTFP_DIGITS  ; Set result to zero              ;GET THE NEXT CHARACTER OF THE NUMBER
+  CP '.'               ; Digit - Add to number           ;WE HAVE A DIGIT
+  JP Z,DPOINT                                            ;CHECK FOR A DECIMAL POINT
+  CP 'e'               ; "." - Flag point                ;WE HAVE ONE, I GUESS
+  JP Z,EXPONENTIAL                                       ;LOWER CASE "E"
+  CP 'E'               ;CHECK FOR A SINGLE PRECISION EXPONENT
+EXPONENTIAL:           
+  JP NZ,NOTE           ;NO
+  PUSH HL              ;SAVE TEXT PTR
+  RST CHRGTB           ;GET NEXT CHAR
+  CP 'l'               ;SEE IF LOWER CASE "L"
+  JP Z,_ASCTFP_2       ;IF SO POSSIBLE ELSE
+  CP 'L'               ;IS THIS REALLY AN "ELSE"?
+  JP Z,_ASCTFP_2       ;WAS ELSE
+  CP 'q'               ;SEE IF LOWER CASE "Q"
+  JP Z,_ASCTFP_2       ;IF SO POSSIBLE "EQV"
+  CP 'Q'               ;POSSIBLE "EQV"
 _ASCTFP_2:
-  POP HL
-  JP Z,_ASCTFP_3
-  RST GETYPR
-  JP NC,_ASCTFP_5
-  XOR A
-  JP _ASCTFP_6
+  POP HL               ;RESTORE [H,L]
+  JP Z,_ASCTFP_3       ;IT WAS JUMP!
+  RST GETYPR           ;IF DOUBLE DON'T DOWNGRADE TO SINGLE
+  JP NC,FINEX1
+  XOR A                ;MAKE A=0 SO NUMBER IS A SINGLE
+  JP FINEX
 _ASCTFP_3:
-  LD A,(HL)
-_ASCTFP_4:
-  CP '%'
-  JP Z,_ASCTFP_16
-  CP '#'
-  JP Z,_ASCTFP_17
-  CP '!'
-  JP Z,_ASCTFP_18
-  CP 'd'
-  JP Z,_ASCTFP_5
-  CP 'D'
-  JP NZ,_ASCTFP_10
-_ASCTFP_5:
-  OR A
-_ASCTFP_6:
-  CALL TO_DOUBLE
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
+  LD A,(HL)            ;RESTORE ORIGINAL CHAR
+NOTE:
+  CP '%'               ;TRAILING % (RSTS-11 COMPATIBILITY)    ; Integer variable ?
+  JP Z,FININT          ;MUST BE INTEGER.
+  CP '#'               ;FORCE DOUBLE PRECISION?               ; Double precision variable ?
+  JP Z,FINDBF          ;YES, FORCE IT & FINISH UP.
+  CP '!'               ;FORCE SINGLE PREC.                    ; Single precision variable ?
+  JP Z,FINSNF
+  CP 'd'               ;LOWER CASE "D"
+  JP Z,FINEX1
+  CP 'D'               ;CHECK FOR A DOUBLE PRECISION EXPONENT
+  JP NZ,FINE           ;WE DON'T HAVE ONE, THE NUMBER IS FINISHED
+FINEX1:
+  OR A                 ;DOUBLE PRECISION NUMBER -- TURN OFF ZERO FLAG
+FINEX:
+  CALL FINFRC          ;FORCE THE FAC TO BE SNG OR DBL
+  RST CHRGTB           ;GET THE FIRST CHARACTER OF THE EXPONENT
   PUSH DE
   LD D,$00
-  CALL SGNEXP
+  CALL SGNEXP          ;EAT SIGN OF EXPONENT  ( test '+', '-'..)
   LD C,D
   POP DE
-_ASCTFP_7:
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  JP NC,_ASCTFP_9
-  LD A,E
-  CP $0C
-  JP NC,_ASCTFP_8
-  RLCA
-  RLCA
-  ADD A,E
-  RLCA
-  ADD A,(HL)
-  SUB '0'
-  LD E,A
-  JP _ASCTFP_7
 
-_ASCTFP_8:
-  LD E,$80
-  JP _ASCTFP_7
-_ASCTFP_9:
+	;HERE TO GET THE NEXT DIGIT OF THE EXPONENT
+FINEC:
+  RST CHRGTB		; Gets next character (or token) from BASIC text.
+  JP NC,FINE_NODG
+  ;PACK THE NEXT DIGIT INTO THE EXPONENT
+  LD A,E               ;EXPONENT DIGIT -- MULTIPLY EXPONENT BY 10
+  CP 12                ;CHECK THAT THE EXPONENT DOES NOT OVERFLOW
+                       ;IF IT DID, E COULD GET GARBAGE IN IT.
+  JP NC,FINEDO         ;WE ALREADY HAVE TWO DIGITS
+  RLCA                 ;FIRST BY 4
+  RLCA
+  ADD A,E              ;ADD 1 TO MAKE 5
+  RLCA                 ;NOW DOUBLE TO GET 10
+  ADD A,(HL)           ;ADD IT IN
+  SUB '0'              ;SUBTRACT OFF ASCII CODE, THE RESULT IS
+                       ; POSITIVE ON LENGTH=2 BECAUSE OF THE ABOVE CHECK
+  LD E,A               ;STORE EXPONENT
+  JP FINEC             ;CONTINUE
+
+FINEDO:
+  LD E,$80             ;AN EXPONENT LIKE THIS WILL SAFELY CAUSE  OVERFLOW OR UNDERFLOW
+  JP FINEC             ;CONTINUE
+
+FINE_NODG:
   INC C
-  JP NZ,_ASCTFP_10
-  XOR A
-  SUB E
-  LD E,A
-_ASCTFP_10:
+  JP NZ,FINE
+  XOR A                ;THE EXPONENT IS NEGATIVE
+  SUB E                ;NEGATE IT
+  LD E,A               ;SAVE IT AGAIN
+
+	;HERE TO FINISH UP THE NUMBER
+FINE:
   RST GETYPR
-  JP M,_ASCTFP_11
+  JP M,FINE_0
   LD A,(FACCU)
-  OR A
-  JP Z,_ASCTFP_11
+  OR A                 ;CHECK IF THE NUMBER IS ZERO
+  JP Z,FINE_0
   LD A,D
   SUB B
   ADD A,E
   ADD A,$40
   LD (FACCU),A
   OR A
-  CALL M,_ASCTFP_13
-_ASCTFP_11:
-  POP AF
-  PUSH HL
-  CALL Z,INVSGN
-  RST GETYPR
-  JP NC,_ASCTFP_12
-  POP HL
-  RET PE
-  PUSH HL
-  LD HL,POPHLRT
-  PUSH HL
-  CALL CONIS2
-  RET
+  CALL M,FINE_OV
 
-_ASCTFP_12:
+FINE_0:
+  POP AF               ;GET THE SIGN
+  PUSH HL              ;GET THE TEXT POINTER
+  CALL Z,INVSGN        ;NEGATE IF NECESSARY
+  RST GETYPR           ;WE WANT -32768 TO BE AN INT, BUT UNTIL NOW IT WOULD BE A SNG
+;FINE2C:
+  JP NC,FINE_DBL
+  POP HL               ;GET THE TEXT POINTER IN (HL)
+  RET PE               ;IT IS NOT SNG, SO IT IS NOT -32768
+  PUSH HL              ;WE HAVE A SNG, SAVE TEXT POINTER
+  LD HL,POPHLRT        ;GET ADDRESS THAT POP'S H OFF STACK BECAUSE
+  PUSH HL              ; CONIS2 DOES FUNNY THINGS WITH THE STACK
+  CALL CONIS2          ;CHECK IF WE HAVE -32768
+  RET                  ;WE DON'T, POPHRT IS STILL ON THE STACK SO WE CAN JUST RETURN
+
+FINE_DBL:
   CALL DECROU
   POP HL
   RET
 
-_ASCTFP_13:
+FINE_OV:
   JP OV_ERR
-DPOINT:
-  RST GETYPR
-  INC C
-  JP NZ,_ASCTFP_10
-  JP NC,_ASCTFP_15
-  CALL TO_DOUBLE
-  LD A,(FACCU)
-  OR A
-  JP NZ,_ASCTFP_15
-  LD D,A
-_ASCTFP_15:
-  JP _ASCTFP_0
-_ASCTFP_16:
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  POP AF
-  PUSH HL
-  LD HL,POPHLRT
-  PUSH HL
-  LD HL,__CINT
-  PUSH HL
-  PUSH AF
-  JP _ASCTFP_10
-_ASCTFP_17:
-  OR A
-_ASCTFP_18:
-  CALL TO_DOUBLE
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  JP _ASCTFP_10
 
-TO_DOUBLE:
-  PUSH HL
-  PUSH DE
-  PUSH BC
-  PUSH AF
-  CALL Z,__CSNG
-  POP AF
-  CALL NZ,__CDBL
-  POP BC
-  POP DE
-  POP HL
-  RET
+
+	;HERE TO CHECK IF WE HAVE SEEN 2 DECIMAL POINTS AND SET THE DECIMAL POINT FLAG
+; a.k.a. FINDP
+DPOINT:
+  RST GETYPR           ;SET CARRY IF WE DON'T HAVE A DOUBLE
+  INC C                ;SET THE FLAG
+  JP NZ,FINE           ;WE HAD 2 DECIMAL POINTS, NOW WE ARE DONE
+  JP NC,DPOINT_0       
+  CALL FINFRC          ;THIS IS THE FIRST ONE, CONVERT FAC TO SNG IF WE DON'T ALREADY HAVE A DOUBLE
+  LD A,(FACCU)         ;CONTINUE LOOKING FOR DIGITS
+  OR A
+  JP NZ,DPOINT_0
+  LD D,A
+DPOINT_0:
+  JP _ASCTFP_0
+
+FININT:
+  RST CHRGTB           ; Gets next character (or token) from BASIC text.
+  POP AF               ;GET SIGN OFF THE STACK
+  PUSH HL              ;SAVE TEXT POINTER
+  LD HL,POPHLRT        ;ADDRESS POP (HL) AND RETURN
+  PUSH HL              
+  LD HL,__CINT         ;WILL WANT TO FORCE ONCE D.P. DONE
+  PUSH HL              
+  PUSH AF              ;PUT SIGN BACK ON THE STACK
+  JP FINE              ;ALL DONE
+
+
+FINDBF:
+  OR A                 ;SET NON-ZERO TO FORCE DOUBLE PREC
+FINSNF:
+  CALL FINFRC          ;FORCE THE TYPE
+  RST CHRGTB           ;READ AFTER TERMINATOR
+  JP FINE              ;ALL DONE
+
+FINFRC:
+  PUSH HL              ;SAVE TEXT POINTER
+  PUSH DE              ;SAVE EXPONENT INFORMATION
+  PUSH BC              ;SAVE DECIMAL POINT INFORMATION
+  PUSH AF              ;SAVE WHAT WE WANT THE FAC TO BE
+  CALL Z,__CSNG        ;CONVERT TO SNG IF WE HAVE TO
+  POP AF               ;GET TYPE FLAG BACK
+  CALL NZ,__CDBL       ;CONVERT TO DBL IF WE HAVE TO
+  POP BC               ;GET DECIMAL POINT INFORMATION BACK
+  POP DE               ;GET EXPONENT INFORMATION BACK
+  POP HL               ;GET TEXT POINTER BACK
+  RET                  ;ALL DONE
 
 _ASCTFP_DIGITS:
   SUB '0'
@@ -13321,65 +13405,78 @@ _ASCTFP_21:
   INC D
   LD A,D
   CP $07
-  JP NZ,_ASCTFP_22
+  JP NZ,ADDIG
   OR A
-  CALL TO_DOUBLE
+  CALL FINFRC
 
-_ASCTFP_22:
-  PUSH DE
-  LD A,B
-  ADD A,C
-  INC A
-  LD B,A
-  PUSH BC
-  PUSH HL
-  LD A,(HL)
-  SUB '0'
-  PUSH AF
-  RST GETYPR
-  JP P,_ASCTFP_26
-  LD HL,(FACLOW)
-  LD DE,$0CCD		; const
-  RST CPDEHL
-  JP NC,_ASCTFP_25
-  LD D,H
+
+; a.k.a. FINDIG
+	;HERE TO PACK THE NEXT DIGIT OF THE NUMBER INTO THE FAC
+	;WE MULTIPLY THE FAC BY TEN AND ADD IN THE NEXT DIGIT
+ADDIG:
+  PUSH DE           ;SAVE EXPONENT INFORMATION                  ; Save sign of exponent/digit
+  LD A,B            ;INCREMENT DECIMAL PLACE COUNT IF WE ARE    ; Get digits after point
+  ADD A,C           ; PAST THE DECIMAL POINT                    ; Add one if after point
+  INC A                                                         
+  LD B,A                                                        ; Re-save counter
+  PUSH BC           ;SAVE DECIMAL POINT INFORMATION             ; Save point flags
+  PUSH HL           ;SAVE TEXT POINTER                          ; Save code string address
+  LD A,(HL)         ;GET THE DIGIT
+  SUB '0'           ;CONVERT IT TO ASCII                        ; convert from ASCII
+  PUSH AF           ;SAVE THE DIGIT
+  RST GETYPR        ;SEE WHAT KIND OF A NUMBER WE HAVE          ; Get the number type (FAC)
+  JP P,FINDGV       ;WE DO NOT HAVE AN INTEGER 
+
+	;HERE TO PACK THE NEXT DIGIT OF AN INTEGER
+  LD HL,(FACLOW)    ;WE HAVE AN INTEGER, GET IT IN (HL)
+  LD DE,3277        ;SEE IF WE WILL OVERFLOW                    ; Const: $0CCD
+  RST CPDEHL        ;COMPAR RETURNS WITH CARRY ON IF            ; Compare HL with DE.
+  JP NC,FINDG2      ; (HL) .LT. (DE), SO THE NUMBER IS TOO BIG
+  LD D,H            ;COPY (HL) INTO (DE)
   LD E,L
-  ADD HL,HL
-  ADD HL,HL
-  ADD HL,DE
-  ADD HL,HL
-  POP AF
-  LD C,A
-  ADD HL,BC
-  LD A,H
-  OR A
-  JP M,_ASCTFP_24
-  LD (FACLOW),HL
-_ASCTFP_23:
-  POP HL
-  POP BC
-  POP DE
-  JP _ASCTFP_0
+  ADD HL,HL         ;MULTIPLY (HL) BY 2                         ; * 10
+  ADD HL,HL         ;MULTIPLY (HL) BY 2, (HL) NOW IS 4*(DE)
+  ADD HL,DE         ;ADD IN OLD (HL) TO GET 5*(DE)
+  ADD HL,HL         ;MULTIPLY BY 2 TO GET TEN TIMES THE OLD (HL)
+  POP AF            ;GET THE DIGIT
+  LD C,A            ;SAVE IT SO WE CAN USE DAD, B IS ALREADY ZERO
+  ADD HL,BC         ;ADD IN THE NEXT DIGIT
+  LD A,H            ;CHECK FOR OVERFLOW
+  OR A              ;OVERFLOW OCCURED IF THE MSB IS ON
+  JP M,FINDG1       ;WE HAVE OVERFLOW!!
+  LD (FACLOW),HL    ;EVERYTHING IS FINE, STORE THE NEW NUMBER
+FINDGE:
+  POP HL            ;ALL DONE, GET TEXT POINTER BACK
+  POP BC            ;GET DECIMAL POINT INFORMATION BACK
+  POP DE            ;GET EXPONENT INFORMATION BACK
+  JP _ASCTFP_0      ;GET THE NEXT CHARACTER
 
-_ASCTFP_24:
-  LD A,C
-  PUSH AF
-_ASCTFP_25:
+
+	;HERE TO HANDLE 32768, 32769
+FINDG1:
+  LD A,C            ;GET THE DIGIT
+  PUSH AF           ;PUT IT BACK ON THE STACK
+
+
+	;HERE TO CONVERT THE INTEGER DIGITS TO SINGLE PRECISION DIGITS
+FINDG2:
   CALL CONSI
-_ASCTFP_26:
+
+FINDGV:
   POP AF
   POP HL
   POP BC
   POP DE
-  JP NZ,_ASCTFP_27
+  JP NZ,FINDG3
   LD A,(FACCU)
   OR A
   LD A,$00
-  JP NZ,_ASCTFP_27
+  JP NZ,FINDG3
   LD D,A
   JP _ASCTFP_0
 
-_ASCTFP_27:
+	;HERE TO CONVERT A 7 DIGIT SINGLE PRECISION NUMBER TO DOUBLE PRECISION
+FINDG3:
   PUSH DE
   PUSH BC
   PUSH HL
@@ -13388,16 +13485,16 @@ _ASCTFP_27:
   LD (HL),$01
   LD A,D
   CP $10
-  JP C,_ASCTFP_28
+  JP C,FINDG_BCD
   POP AF
-  JP _ASCTFP_23
+  JP FINDGE         ;GET FLAGS OFF STACK AND WE ARE DONE
 
 
-_ASCTFP_28:
+FINDG_BCD:
   INC A
   OR A
   RRA
-  LD B,$00                ;ADD [A] TO [H,L]
+  LD B,$00
   LD C,A
   ADD HL,BC
   POP AF
@@ -13405,531 +13502,733 @@ _ASCTFP_28:
   LD A,D
   RRA
   LD A,C
-  JP NC,_ASCTFP_29
+  JP NC,FINDGE1     ; HI or LOW BCD digit ?
   ADD A,A
   ADD A,A
   ADD A,A
   ADD A,A
-_ASCTFP_29:
+FINDGE1:
   OR (HL)
   LD (HL),A
-  JP _ASCTFP_23
+  JP FINDGE
+
+
+
+
+
+
 
 ; 'in' <line number> message
 ;
 ; Used by the routine at ERESET.
-LNUM_MSG:
-  PUSH HL
-  LD HL,IN_MSG
-  CALL PRS
-  POP HL
+IN_PRT:
+  PUSH HL           ;SAVE LINE NUMBER
+  LD HL,IN_MSG      ;PRINT MESSAGE    (.." in "..)
+  CALL PRS          
+  POP HL            ;FALL INTO LINPRT
 
 
 ; Print HL in ASCII form at the current cursor position
 ; a.k.a. NUMPRT
+		;PRINT THE 2 BYTE NUMBER IN H,L
+		;ALTERS ALL REGISTERS
 ; Used by the routines at __LIST, PRPARM and FREEMEM.
 LINPRT:
   LD BC,PRNUMS
   PUSH BC
-  CALL MAKINT
-  XOR A
+  CALL MAKINT          ;PUT THE LINE NUMBER IN THE FAC AS AN INTEGER
+  XOR A                ;SET FORMAT TO FREE FORMAT
   LD (TEMP3),A
-  LD HL,NUMSTR
-  LD (HL),' '
-  OR (HL)
-  JP SPCFST
+  LD HL,FBUFFR+1
+  LD (HL),' '          ;SET UP THE SIGN
+  OR (HL)              ;TURN OFF THE ZERO FLAG
+  JP SPCFST            ;CONVERT THE NUMBER INTO DIGITS
 
-; Convert the binary number in FAC1 to ASCII
+
+
 ;
+;	OUTPUT THE VALUE IN THE FAC ACCORDING TO THE FORMAT SPECIFICATIONS
+;	IN A,B,C
+;	ALL REGISTERS ARE ALTERED
+;	THE ORIGINAL CONTENTS OF THE FAC IS LOST
+;
+;	THE FORMAT IS SPECIFIED IN A, B AND C AS FOLLOWS:
+;	THE BITS OF A MEAN THE FOLLOWING:
+;BIT 7	0 MEANS FREE FORMAT OUTPUT, I.E. THE OTHER BITS OF A MUST BE ZERO,
+;	TRAILING ZEROS ARE SUPPRESSED, A NUMBER IS PRINTED IN FIXED OR FLOATING
+;	POINT NOTATION ACCORDING TO ITS MAGNITUDE, THE NUMBER IS LEFT
+;	JUSTIFIED IN ITS FIELD, B AND C ARE IGNORED.
+;	1 MEANS FIXED FORMAT OUTPUT, I.E. THE OTHER BITS OF A ARE CHECKED FOR
+;	FORMATTING INFORMATION, THE NUMBER IS RIGHT JUSTIFIED IN ITS FIELD,
+;	TRAILING ZEROS ARE NOT SUPPRESSED.  THIS IS USED FOR PRINT USING.
+;BIT 6	1 MEANS GROUP THE DIGITS IN THE INTEGER PART OF THE NUMBER INTO GROUPS
+;	OF THREE AND SEPARATE THE GROUPS BY COMMAS
+;	0 MEANS DON'T PRINT THE NUMBER WITH COMMAS
+;BIT 5	1 MEANS FILL THE LEADING SPACES IN THE FIELD WITH ASTERISKS ("*")
+;BIT 4	1 MEANS OUTPUT THE NUMBER WITH A FLOATING DOLLAR SIGN ("$")
+;BIT 3	1 MEANS PRINT THE SIGN OF A POSITIVE NUMBER AS A PLUS SIGN ("+")
+;	INSTEAD OF A SPACE
+;BIT 2	1 MEANS PRINT THE SIGN OF THE NUMBER AFTER THE NUMBER
+;BIT 1	UNUSED
+;BIT 0	1 MEANS PRINT THE NUMBER IN FLOATING POINT NOTATION I.E. "E NOTATION"
+;	IF THIS BIT IS ON, THE COMMA SPECIFICATION (BIT 6) IS IGNORED.
+;	0 MEANS PRINT THE NUMBER IN FIXED POINT NOTATION.  NUMBERS .GE. 1E16
+;	CANNOT BE PRINTED IN FIXED POINT NOTATION.
+;
+;	B AND C TELL HOW BIG THE FIELD IS:
+;B   =	THE NUMBER OF PLACES IN THE FIELD TO THE LEFT OF THE DECIMAL POINT
+;	(B DOES NOT INCLUDE THE DECIMAL POINT)
+;C   =	THE NUMBER OF PLACES IN THE FIELD TO THE RIGHT OF THE DECIMAL POINT
+;	(C INCLUDES THE DECIMAL POINT)
+;	B AND C DO NOT INCLUDE THE 4 POSITIONS FOR THE EXPONENT IF BIT 0 IS ON
+;	FOUT ASSUMES B+C .LE. 24 (DECIMAL)
+;	IF THE NUMBER IS TOO BIG TO FIT IN THE FIELD, A PERCENT SIGN ("%") IS
+;	PRINTED AND THE FIELD IS EXTENDED TO HOLD THE NUMBER.
+
+
+; Convert number/expression to string (format not specified)
+;
+	;FLOATING OUTPUT OF FAC
+	;ALTERS ALL REGISTERS
+	;THE ORIGINAL CONTENTS OF THE FAC IS LOST
+;
+; a.k.a. NUMASC
+; Convert the binary number in FAC1 to ASCII
 ; Used by the routines at __PRINT, __STR_S and PUFOUT.
 FOUT:
-  XOR A
-; This entry point is used by the routine at USING.
-; Convert number/expression to string (format specified in 'A' register)
-FOUT_0:
-  CALL LINPRT_SUB
+  XOR A               ;ENTRY TO PRINT THE FAC IN FREE FORMAT
+                      ;SET FORMAT FLAGS TO FREE FORMATTED OUTPUT
 
-; Convert the binary number in FAC1 to ASCII.  A - Bit configuration for PRINT
-; USING options
-PUFOUT:
-  AND $08
-  JP Z,PUFOUT_0
-  LD (HL),'+'
-PUFOUT_0:
-  EX DE,HL
-  CALL VSIGN
-  EX DE,HL
-  JP P,SPCFST
-  LD (HL),'-'
-  PUSH BC
-  PUSH HL
-  CALL INVSGN
-  POP HL
-  POP BC
-  OR H
+; This entry point is used by the routine at USING.
+; Convert the binary number in FAC1 to ASCII.  A - Bit configuration for PRINT USING options
+PUFOUT:               ;ENTRY TO PRINT THE FAC USING THE FORMAT SPECIFICATIONS IN A, B AND C
+  CALL FOUINI         ;SAVE THE FORMAT SPECIFICATION IN A AND PUT A SPACE FOR POSITIVE NUMBERS IN THE BUFFER
+  AND $08             ;CHECK IF POSITIVE NUMBERS GET A PLUS SIGN      ; bit 3 - Sign (+ or -) preceeds number
+  JP Z,PUFOUT_0       ;THEY DON'T
+  LD (HL),'+'         ;THEY DO, PUT IN A PLUS SIGN
+PUFOUT_0:             
+  EX DE,HL            ;SAVE BUFFER POINTER
+  CALL VSIGN          ;GET THE SIGN OF THE FAC                        ; Test sign of FPREG
+  EX DE,HL            ;PUT THE BUFFER POINTER BACK IN (HL)
+  JP P,SPCFST         ;IF WE HAVE A NEGATIVE NUMBER, NEGATE IT        ; Positive - Space to start
+  LD (HL),'-'         ; AND PUT A MINUS SIGN IN THE BUFFER            ; "-" sign at start
+  PUSH BC             ;SAVE THE FIELD LENGTH SPECIFICATION
+  PUSH HL             ;SAVE THE BUFFER POINTER
+  CALL INVSGN         ;NEGATE THE NUMBER
+  POP HL              ;GET THE BUFFER POINTER BACK
+  POP BC              ;GET THE FIELD LENGTH SPECIFICATIONS BACK
+  OR H                ;TURN OFF THE ZERO FLAG, THIS DEPENDS ON THE FACT THAT FBUFFR IS NEVER ON PAGE 0.
+
 ; This entry point is used by the routine at LINPRT.
 SPCFST:
-  INC HL
-  LD (HL),'0'
-  LD A,(TEMP3)
-  LD D,A
-  RLA
-  LD A,(VALTYP)
-  JP C,SPCFST5
-  JP Z,SPCFST3
-  CP $04			; single precision ?
-  JP NC,PUFOUT_7
-  LD BC,$0000
-  CALL FOTCI
-PUFOUT_2:
-  LD HL,NUMSTR
-  LD B,(HL)
-  LD C,' '
-  LD A,(TEMP3)
-  LD E,A
-  AND $20			; bit 5 - Asterisks fill
-  JP Z,PUFOUT_3
-  LD A,B
-  CP C
-  LD C,'*'
-  JP NZ,PUFOUT_3
-  LD A,E
-  AND $04			; bit 2 - Sign (+ or -) follows ASCII number  
-  JP NZ,PUFOUT_3
-  LD B,C
-PUFOUT_3:
-  LD (HL),C
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  JP Z,PUFOUT_4
-  CP 'E'
-  JP Z,PUFOUT_4
-  CP 'D'
-  JP Z,PUFOUT_4
-  CP '0'
-  JP Z,PUFOUT_3
-  CP ','
-  JP Z,PUFOUT_3
-  CP '.'
-  JP NZ,PUFOUT_5
-PUFOUT_4:
-  DEC HL
-  LD (HL),'0'
-PUFOUT_5:
-  LD A,E
-  AND $10		; bit 4 - Print leading '$'  
-  JP Z,PUFOUT_6
-  DEC HL
-  LD (HL),'$'
-PUFOUT_6:
-  LD A,E
-  AND $04		; bit 2 - Sign (+ or -) follows ASCII number  
-  RET NZ
-  DEC HL
-  LD (HL),B
-  RET
+  INC HL              ;POINT TO WHERE THE NEXT CHARACTER GOES  ; First byte of number
+  LD (HL),'0'         ;PUT A ZERO IN THE BUFFER IN CASE THE NUMBER IS ZERO (IN FREE FORMAT)
+                      ;OR TO RESERVE SPACE FOR A FLOATING DOLLAR SIGN (FIXED FORMAT)
+  LD A,(TEMP3)        ;GET THE FORMAT SPECIFICATION
+  LD D,A              ;SAVE IT FOR LATER
+  RLA                 ;PUT THE FREE FORMAT OR NOT BIT IN THE CARRY
+  LD A,(VALTYP)       ;GET THE VALTYP, VNEG COULD HAVE CHANGED THIS SINCE -32768 IS INT AND 32768 IS SNG.
+  JP C,FOUTFX         ;THE MAN WANTS FIXED FORMATED OUTPUT
+  
+	;HERE TO PRINT NUMBERS IN FREE FORMAT
+  JP Z,FOUTZR         ;IF THE NUMBER IS ZERO, FINISH IT UP
+  CP $04              ;DECIDE WHAT KIND OF A VALUE WE HAVE
+  JP NC,FOUFRV        ;WE HAVE A SNG OR DBL
 
-PUFOUT_7:
-  PUSH HL
+	;HERE TO PRINT AN INTEGER IN FREE FORMAT
+  LD BC,$0000         ;SET THE DECIMAL POINT COUNT AND COMMA COUNT TO ZERO
+  CALL FOUTCI         ;CONVERT THE INTEGER TO DECIMAL
+                      ;FALL INTO FOUTZS AND ZERO SUPPRESS THE THING
+
+	;ZERO SUPPRESS THE DIGITS IN FBUFFR
+	;ASTERISK FILL AND ZERO SUPPRESS IF NECESSARY
+	;SET UP B AND CONDITION CODES IF WE HAVE A TRAILING SIGN
+FOUTZS:
+  LD HL,FBUFFR+1      ;GET POINTER TO THE SIGN
+  LD B,(HL)           ;SAVE THE SIGN IN B
+  LD C,' '            ;DEFAULT FILL CHARACTER TO A SPACE
+  LD A,(TEMP3)        ;GET FORMAT SPECS TO SEE IF WE HAVE TO
+  LD E,A              ; ASTERISK FILL.  SAVE IT                       ; bit 5 - Asterisks fill  
+  AND $20             
+  JP Z,FOUTZS_0       ;WE DON'T
+  LD A,B              ;WE DO, SEE IF THE SIGN WAS A SPACE
+  CP C                ;ZERO FLAG IS SET IF IT WAS
+  LD C,'*'            ;SET FILL CHARACTER TO AN ASTERISK
+  JP NZ,FOUTZS_0      ;SET THE SIGN TO AN ASTERISK IF IT WAS A SPACE
+  LD A,E              ;GET FORMAT SPECS AGAIN
+  AND $04             ;SEE IF SIGN IS TRAILING                        ; bit 2 - Sign (+ or -) follows ASCII number  
+  JP NZ,FOUTZS_0      ;IF SO DON'T ASTERISK FILL
+  LD B,C              ;B HAS THE SIGN, C THE FILL CHARACTER
+
+FOUTZS_0:
+  LD (HL),C           ;FILL IN THE ZERO OR THE SIGN
+  RST CHRGTB          ;GET THE NEXT CHARACTER IN THE BUFFER SINCE THERE ARE NO SPACES, "CHRGET" IS EQUIVALENT TO "INX	H"/"MOV	A,M"
+  JP Z,FOUTZS_1       ;IF WE SEE A REAL ZERO, IT IS THE END OF THE NUMBER, AND WE MUST BACK UP AND PUT IN A ZERO.
+                      ;CHRGET SETS THE ZERO FLAG ON REAL ZEROS OR COLONS, BUT WE WON'T SEE ANY COLONS IN THIS BUFFER.
+
+  CP 'E'              ;BACK UP AND PUT IN A ZERO IF WE SEE
+  JP Z,FOUTZS_1       ;AN "E" OR A "D" SO WE CAN PRINT 0 IN
+  CP 'D'              ;FLOATING POINT NOTATION WITH THE C FORMAT ZERO
+  JP Z,FOUTZS_1       
+  CP '0'              ;DO WE HAVE A ZERO?
+  JP Z,FOUTZS_0       ;YES, SUPPRESS IT
+  CP ','              ;DO WE HAVE A COMMA?
+  JP Z,FOUTZS_0       ;YES, SUPPRESS IT
+  CP '.'              ;ARE WE AT THE DECIMAL POINT?
+  JP NZ,FOUTZS_2      ;NO, I GUESS NOT
+FOUTZS_1:
+  DEC HL              ;YES, BACK UP AND PUT A ZERO BEFORE IT
+  LD (HL),'0'
+FOUTZS_2:
+  LD A,E              ;GET THE FORMAT SPECS TO CHECK FOR A FLOATING
+  AND $10             ; DOLLAR SIGN                                   ; bit 4 - Print leading '$'  
+  JP Z,FOUTZS_3       ;WE DON'T HAVE ONE
+  DEC HL              ;WE HAVE ONE, BACK UP AND PUT IN THE DOLLAR
+  LD (HL),'$'         ; SIGN
+FOUTZS_3:
+  LD A,E              ;DO WE HAVE A TRAILING SIGN?
+  AND $04                                                             ; bit 2 - Sign (+ or -) follows ASCII number  
+  RET NZ              ;YES, RETURN; NOTE THE NON-ZERO FLAG IS SET
+  DEC HL              ;NO, BACK UP ONE AND PUT THE SIGN BACK IN
+  LD (HL),B           ;PUT IN THE SIGN
+  RET                 ;ALL DONE
+
+
+	;HERE TO PRINT A SNG OR DBL IN FREE FORMAT
+FOUFRV:
+  PUSH HL             ;SAVE THE BUFFER POINTER
   CALL FTCH_SNG
-  LD D,B
-  INC D
-  LD BC,$0300			; const
-  LD A,(FACCU)
-  SUB $3F
-  JP C,PUFOUT_8
-  INC D
-  CP D
-  JP NC,PUFOUT_8
-  INC A
-  LD B,A
-  LD A,$02
-PUFOUT_8:
-  SUB $02
-  POP HL
-  PUSH AF
-  CALL FOTAN
-  LD (HL),'0'
-
-PUFOUT_8B:
+  LD D,B              ;THIS CALCULATES HOW MANY DIGITS
+  INC D               ;WE WILL PRINT
+  LD BC,$0300         ;B = DECIMAL POINT COUNT
+                      ;C = COMMA COUNT
+                      ;SET COMMA COUNT TO ZERO AND DECIMAL POINT COUNT FOR E NOTATION
+  LD A,(FACCU)        ;NORMAL ROUTE
+  SUB $3F             ;SEE IF NUMBER SHOULD BE PRINTED IN E NOTATION
+  JP C,FOFRS1         ;IT SHOULD, IT IS .LT. .01
+  INC D               ;CHECK IF IT IS TOO BIG
+  CP D                
+  JP NC,FOFRS1        ;IT IS TOO BIG, IT IS .GT. 10^D-1
+  INC A               ;IT IS OK FOR FIXED POINT NOTATION
+  LD B,A              ;SET DECIMAL POINT COUNT
+  LD A,$02            ;SET FIXED POINT FLAG, THE EXPONENT IS ZERO
+                      ; IF WE ARE USING FIXED POINT NOTATION
+FOFRS1:
+  SUB $02             ;E NOTATION: ADD D-2 TO ORIGINAL EXPONENT
+                      ;RESTORE EXP IF NOT D.P.
+  POP HL              ;GET THE BUFFER POINTER BACK
+  PUSH AF             ;SAVE THE EXPONENT FOR LATER
+  CALL FOUTAN         ;.01 .LE. NUMBER .LT. .1?
+  LD (HL),'0'         ;YES, PUT ".0" IN BUFFER
   CALL Z,INCHL
-  CALL PUFOUT_51
+  CALL FOUTCV         ;CONVERT THE NUMBER TO DECIMAL DIGITS
 
+	;HERE TO SUPPRESS THE TRAILING ZEROS
 SUPTLZ:
-  DEC HL                ; Move back through buffer
-  LD A,(HL)             ; Get character
+  DEC HL                ; Move back through buffer         ;MOVE BACK TO THE LAST CHARACTER
+  LD A,(HL)             ; Get character                    ;GET IT AND SEE IF IT WAS ZERO
   CP '0'                ; "0" character?
-  JP Z,SUPTLZ           ; Yes - Look back for more
-  CP '.'                ; A decimal point?
-  CALL NZ,INCHL         ; Move back over digit
-  POP AF                ; Get "E" flag
-  JP Z,NOENED           ; No "E" needed - End buffer
-  
+  JP Z,SUPTLZ           ; Yes - Look back for more         ;IT WAS, CONTINUE SUPPRESSING
+  CP '.'                ; A decimal point?                 ;HAVE WE SUPPRESSED ALL THE FRACTIONAL DIGITS?
+  CALL NZ,INCHL         ; Move back over digit             ;YES, IGNORE THE DECIMAL POINT ALSO
+  POP AF                ; Get "E" flag                     ;GET THE EXPONENT BACK
+  JP Z,NOENED           ; No "E" needed - End buffer       ;WE ARE DONE IF WE ARE IN FIXED POINT NOTATION
+                                                           ;FALL IN AND PUT THE EXPONENT IN THE BUFFER
+
+; a.k.a. FOFLDN
+;
+	;HERE TO PUT THE EXPONENT AND "E" OR "D" IN THE BUFFER
+	;THE EXPONENT IS IN A, THE CONDITION CODES ARE ASSUMED TO BE SET
+	;CORRECTLY.
+;
 DOEBIT:
-  LD (HL),'E'           ; Put "E" in buffer
-  INC HL                ; And move on
-  LD (HL),'+'           ; Put '+' in buffer
+  LD (HL),'E'           ; Put "E" in buffer                ;SAVE IT IN THE BUFFER
+  INC HL                ; And move on                      ;INCREMENT THE BUFFER POINTER
+
+	;PUT IN THE SIGN OF THE EXPONENT
+  LD (HL),'+'           ; Put '+' in buffer                ;A PLUS IF POSITIVE
   JP P,OUTEXP           ; Positive - Output exponent
-  LD (HL),'-'           ; Put "-" in buffer
-  CPL                   ; Negate exponent
+  LD (HL),'-'           ; Put "-" in buffer                ;A MINUS IF NEGATIVE
+  CPL                   ; Negate exponent                  ;NEGATE EXPONENT
   INC A
+
+	;CALCULATE THE TWO DIGIT EXPONENT
 OUTEXP:
-  LD B,'0'-1  ; $2F, '/'
-EXPTEN:
-  INC B
-  SUB 10                ; ASCII "0" - 1
-  JP NC,EXPTEN          
-  ADD A,'0'+10          ; Count subtractions
-  INC HL                ; Tens digit
-  LD (HL),B             ; More to do
-  INC HL                ; Restore and make ASCII
-  LD (HL),A             ; Move on
-SPCFST3:              ; Save MSB of exponent
-  INC HL                
-NOENED:                 ; Save LSB of exponent
-  LD (HL),$00
-  EX DE,HL
-  LD HL,FBUFFR+1		; Buffer for fout + 1
-  RET
+  LD B,'0'-1            ; ASCII "0" - 1                    ;INITIALIZE TEN'S DIGIT COUNT
+EXPTEN:                 
+  INC B                 ; Count subtractions               ;INCREMENT DIGIT
+  SUB 10                ; Tens digit                       ;SUBTRACT TEN
+  JP NC,EXPTEN          ; More to do                       ;DO IT AGAIN IF RESULT WAS POSITIVE
+  ADD A,'0'+10          ; Restore and make ASCII           ;ADD BACK IN TEN AND CONVERT TO ASCII
+                        
+	;PUT THE EXPONENT IN THE BUFFER
+  INC HL                ; Move on                          
+  LD (HL),B             ; Save MSB of exponent             ;PUT TEN'S DIGIT OF EXPONENT IN BUFFER
+  INC HL                                                   ;WHEN WE JUMP TO HERE, A IS ZERO
+  LD (HL),A             ; Save LSB of exponent             ;PUT ONE'S DIGIT IN BUFFER
 
-SPCFST5:
-  INC HL
-  PUSH BC
-  CP $04
-  LD A,D
-  JP NC,PUFOUT_24
-  RRA
-  JP C,PUFOUT_31
-  LD BC,$0603			; const
-  CALL PUFOUT_44
-  POP DE
-  LD A,D
-  SUB $05
-  CALL P,PUFOUT_37
-  CALL FOTCI
-SPCFST6:
-  LD A,E
-  OR A
-  CALL Z,DCXHRT
-  DEC A
-  CALL P,PUFOUT_37
-SPCFST7:
-  PUSH HL
-  CALL PUFOUT_2
-  POP HL
-  JP Z,SPCFST8
-  LD (HL),B
-  INC HL
-SPCFST8:
-  LD (HL),$00
-  LD HL,FBUFFR
-SPCFST9:
-  INC HL
-PUFOUT_20:
-  LD A,(NXTOPR)
-  SUB L
-  SUB D
-  RET Z
-  LD A,(HL)
-  CP ' '
-  JP Z,SPCFST9
-  CP '*'
-  JP Z,SPCFST9
-  DEC HL
-  PUSH HL
+FOUTZR:
+  INC HL                ;INCREMENT POINTER, HERE TO FINISH UP 
 
+	; PRINTING A FREE FORMAT ZERO
+NOENED:
+  LD (HL),$00           ;PUT A ZERO AT THE END OF THE NUMBER
+  EX DE,HL              ;SAVE THE POINTER TO THE END OF THE NUMBER IN (DE) FOR FFXFLV
+  LD HL,FBUFFR+1        ;GET A POINTER TO THE BEGINNING    ; Buffer for fout + 1
+  RET                   ;ALL DONE
+
+
+	;HERE TO PRINT A NUMBER IN FIXED FORMAT
+FOUTFX:
+  INC HL                ;MOVE PAST THE ZERO FOR THE DOLLAR SIGN
+  PUSH BC               ;SAVE THE FIELD LENGTH SPECIFICATIONS
+  CP $04                ;CHECK WHAT KIND OF VALUE WE HAVE
+  LD A,D                ;GET THE FORMAT SPECS
+  JP NC,FOUFXV          ;WE HAVE A SNG OR A DBL
+
+	;HERE TO PRINT AN INTEGER IN FIXED FORMAT
+  RRA                   ;CHECK IF WE HAVE TO PRINT IT IN FLOATING
+  JP C,FFXIFL           ; POINT NOTATION
+
+	;HERE TO PRINT AN INTEGER IN FIXED FORMAT-FIXED POINT NOTATION
+  LD BC,$0603           ;SET DECIMAL POINT COUNT TO 6 AND COMMA COUNT TO 3
+  CALL FOUICC           ;CHECK IF WE DON'T HAVE TO USE THE COMMAS
+  POP DE                ;GET THE FIELD LENGTHS
+  LD A,D                ;SEE IF WE HAVE TO PRINT EXTRA SPACES BECAUSE
+  SUB $05               ; THE FIELD IS TOO BIG
+  CALL P,FOTZER         ;WE DO, PUT IN ZEROS, THEY WILL LATER BE CONVERTED TO SPACES OR ASTERISKS BY FOUTZS
+  CALL FOUTCI           ;CONVERT THE NUMBER TO DECIMAL DIGITS
+
+FOUTTD:
+  LD A,E                ;DO WE NEED A DECIMAL POINT?
+  OR A                  
+  CALL Z,DCXHRT         ;WE DON'T, BACKSPACE OVER IT.
+  DEC A                 ;GET HOW MANY TRAILING ZEROS TO PRINT
+  CALL P,FOTZER         ;PRINT THEM
+                        ;IF WE DO HAVE DECIMAL PLACES, FILL THEM UP WITH ZEROS
+                        ;FALL IN AND FINISH UP THE NUMBER
+
+
+	;HERE TO FINISH UP A FIXED FORMAT NUMBER
+FOUTTS:
+  PUSH HL               ;SAVE BUFFER POINTER
+  CALL FOUTZS           ;ZERO SUPPRESS THE NUMBER
+  POP HL                ;GET THE BUFFER POINTER BACK
+  JP Z,FFXIX1           ;CHECK IF WE HAVE A TRAILING SIGN
+  LD (HL),B             ;WE DO, PUT THE SIGN IN THE BUFFER
+  INC HL                ;INCREMENT THE BUFFER POINTER
+FFXIX1:
+  LD (HL),$00           ;PUT A ZERO AT THE END OF THE NUMBER
+
+
+	;HERE TO CHECK IF A FIXED FORMAT-FIXED POINT NUMBER OVERFLOWED ITS
+	;FIELD LENGTH
+	;D = THE B IN THE FORMAT SPECIFICATION
+	;THIS ASSUMES THE LOCATION OF THE DECIMAL POINT IS IN TEMP2
+  LD HL,FBUFFR          ;GET A POINTER TO THE BEGINNING
+FOUBE1:
+  INC HL                ;INCREMENT POINTER TO THE NEXT CHARACTER
+FOUBE5:
+  LD A,(NXTOPR)         ;GET THE LOCATION OF THE DECIMAL POINT
+
+	;SINCE FBUFFR IS ONLY 35 (DECIMAL) LONG, WE
+	; ONLY HAVE TO LOOK AT THE LOW ORDER TO SEE
+	; IF THE FIELD IS BIG ENOUGH
+  SUB L                 ;FIGURE OUT HOW MUCH SPACE WE ARE TAKING
+  SUB D                 ;IS THIS THE RIGHT AMOUNT OF SPACE TO TAKE?
+  RET Z                 ;YES, WE ARE DONE, RETURN FROM FOUT
+  LD A,(HL)             ;NO, WE MUST HAVE TOO MUCH SINCE WE STARTED
+
+	; CHECKING FROM THE BEGINNING OF THE BUFFER
+	; AND THE FIELD MUST BE SMALL ENOUGH TO FIT IN THE BUFFER.
+	; GET THE NEXT CHARACTER IN THE BUFFER.
+  CP ' '                ;IF IT IS A SPACE OR AN ASTERISK, WE CAN
+  JP Z,FOUBE1           ; IGNORE IT AND MAKE THE FIELD SHORTER WITH
+  CP '*'                ; NO ILL EFFECTS
+  JP Z,FOUBE1
+  DEC HL                ;MOVE THE POINTER BACK ONE TO READ THE CHARACTER WITH CHRGET
+  PUSH HL               ;SAVE THE POINTER
+
+
+	;HERE WE SEE IF WE CAN IGNORE THE LEADING ZERO BEFORE A DECIMAL POINT.
+	;THIS OCCURS IF WE SEE THE FOLLOWING: (IN ORDER)
+	;	+,-	A SIGN (EITHER "-" OR "+")	[OPTIONAL]
+	;	$	A DOLLAR SIGN			[OPTIONAL]
+	;	0	A ZERO				[MANDATORY]
+	;	.	A DECIMAL POINT			[MANDATORY]
+	;	0-9	ANOTHER DIGIT			[MANDATORY]
+	;IF YOU SEE A LEADING ZERO, IT MUST BE THE ONE BEFORE A DECIMAL POINT
+	;OR ELSE FOUTZS WOULD HAVE SUPPRESSED IT, SO WE CAN JUST "INX	H"
+	;OVER THE CHARACTER FOLLOWING THE ZERO, AND NOT CHECK FOR THE
+	;DECIMAL POINT EXPLICITLY.
 ; Routine at 15122
-L3B12:
-  PUSH AF
-  LD BC,L3B12
-  PUSH BC
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  CP '-'
-  RET Z
+FOUBE2:
+  PUSH AF               ;PUT THE LAST CHARACTER ON THE STACK.
+                        ;THE ZERO FLAG IS SET.
+                        ;THE FIRST TIME THE ZERO ZERO FLAG IS NOT SET.
+  LD BC,FOUBE2          ;GET ADDRESS WE GO TO IF WE SEE A CHARACTER
+  PUSH BC               ; WE ARE LOOKING FOR
+  RST CHRGTB            ;GET THE NEXT CHARACTER
+  CP '-'                ;SAVE IT AND GET THE NEXT CHARACTER IF IT IS
+  RET Z                 ; A MINUS SIGN, A PLUS SIGN OR A DOLLAR SIGN
   CP '+'
-  RET Z
+  RET Z 
   CP '$'
-  RET Z
-  POP BC
-  CP '0'
-  JP NZ,PUFOUT_23
-  INC HL
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  JP NC,PUFOUT_23
-  DEC HL
-  JP PUFOUT_22
+  RET Z 
+  POP BC                ;IT ISN'T, GET THE ADDRESS OFF THE STACK
+  CP '0'                ;IS IT A ZERO?
+  JP NZ,FOUBE4          ;NO, WE CAN NOT GET RID OF ANOTHER CHARACTER
+  INC HL                ;SKIP OVER THE DECIMAL POINT
+  RST CHRGTB            ;GET THE NEXT CHARACTER
+  JP NC,FOUBE4          ;IT IS NOT A DIGIT, WE CAN'T SHORTEN THE FIELD
+  DEC HL                ;WE CAN!!!  POINT TO THE DECIMAL POINT
+;;;DEFB $01                ; "LD BC,nn" OVER THE NEXT 2 BYTES   <- Possible optimization
+  JP FOUBE3_0           ; "LD BC,nn" OVER THE NEXT 2 BYTES
   
-PUFOUT_21:
-  DEC HL
-  LD (HL),A
-PUFOUT_22:
-  POP AF
-  JP Z,PUFOUT_21
-  POP BC
-  JP PUFOUT_20
+FOUBE3:
+  DEC HL                ;POINT BACK ONE CHARACTER
+  LD (HL),A             ;PUT THE CHARACTER BACK
 
-PUFOUT_23:
-  POP AF
-  JP Z,PUFOUT_23
-  POP HL
-  LD (HL),'%'
-  RET
+
+	;IF WE CAN GET RID OF THE ZERO, WE PUT THE CHARACTERS ON THE STACK
+	;BACK INTO THE BUFFER ONE POSITION IN FRONT OF WHERE THEY ORIGINALLY
+	;WERE.  NOTE THAT THE MAXIMUM NUMBER OF STACK LEVELS THIS USES IS
+	;THREE -- ONE FOR THE LAST ENTRY FLAG, ONE FOR A POSSIBLE SIGN,
+	;AND ONE FOR A POSSIBLE DOLLAR SIGN.  WE DON'T HAVE TO WORRY ABOUT
+	;THE FIRST CHARACTER BEING IN THE BUFFER TWICE BECAUSE THE POINTER
+	;WHEN FOUT EXITS WILL BE POINTING TO THE SECOND OCCURANCE.
+FOUBE3_0:
+  POP AF                ;GET THE CHARACTER OFF THE STACK
+  JP Z,FOUBE3           ;PUT IT BACK IN THE BUFFER IF IT IS NOT THE LAST ONE
+  POP BC                ;GET THE BUFFER POINTER OFF THE STACK
+  JP FOUBE5             ;SEE IF THE FIELD IS NOW SMALL ENOUGH
+
+	;HERE IF THE NUMBER IS TOO BIG FOR THE FIELD
+FOUBE4:
+  POP AF                ;GET THE CHARACTERS OFF THE STACK
+  JP Z,FOUBE4           ;LEAVE THE NUMBER IN THE BUFFER ALONE
+  POP HL                ;GET THE POINTER TO THE BEGINNING OF THE NUMBER MINUS 1
+  LD (HL),'%'           ;PUT IN A PERCENT SIGN TO INDICATE THE NUMBER WAS TOO LARGE FOR THE FIELD
+  RET                   ;ALL DONE -- RETURN FROM FOUT
   
-PUFOUT_24:
-  PUSH HL
-  RRA
-  JP C,PUFOUT_32
+
+	;HERE TO PRINT A SNG OR DBL IN FIXED FORMAT
+FOUFXV:
+  PUSH HL               ;SAVE THE BUFFER POINTER
+  RRA                   ;GET FIXED OR FLOATING NOTATION FLAG IN CARRY
+  JP C,FFXFLV           ;PRINT THE NUMBER IN E-NOTATION
   CALL FTCH_SNG
-  LD D,B
+  LD D,B                ;SET D = NUMBER OF DIGITS TO PRINT FOR A DBL
   LD A,(FACCU)
-  SUB $4F
-  JP C,PUFOUT_25
-  POP HL
-  POP BC
-  CALL FOUT
-  LD HL,FBUFFR
-  LD (HL),'%'
-  RET
-  
-PUFOUT_25:
+  SUB $4F               ;  (WE CAN'T PRINT A NUMBER .GE. 10^16 IN FIXED POINT NOTATION)
+  JP C,FFXSDC           ;IF THE FAC WAS SMALL ENOUGH, GO PRINT IT
+
+	;HERE TO PRINT IN FREE FORMAT WITH A PERCENT SIGN A NUMBER .GE. 10^16
+;FFXSDO:
+  POP HL                ;GET THE BUFFER POINTER OFF THE STACK
+  POP BC                ;GET THE FIELD SPECIFICATION OFF THE STACK
+  CALL FOUT             ;PRINT THE NUMBER IN FREE FORMAT
+  LD HL,FBUFFR          ;POINT TO IN FRONT OF THE NUMBER
+  LD (HL),'%'           ;PUT IN THE PERCENT SIGN
+  RET                   ;ALL DONE--RETURN FROM FOUT
+
+	;HERE TO PRINT A SNG IN FIXED FORMAT--FIXED POINT NOTATION  
+FFXSDC:
   RST TSTSGN
-  CALL NZ,PUFOUT_63
+  CALL NZ,FOUTNV
   POP HL
   POP BC
-  JP M,PUFOUT_26
-  PUSH BC
-  LD E,A
-  LD A,B
-  SUB D
-  SUB E
-  CALL P,PUFOUT_37
-  CALL PUFOUT_42
-  CALL PUFOUT_51
-  OR E
-  CALL NZ,PUFOUT_41
-  OR E
-  CALL NZ,FOTED
-  POP DE
-  JP SPCFST6
+  JP M,FFXXVS
 
-PUFOUT_26:
-  LD E,A
-  LD A,C
-  OR A
-  CALL NZ,DCR_A		; DEC A, RET
-  ADD A,E
-  JP M,PUFOUT_27
-  XOR A
-PUFOUT_27:
-  PUSH BC
-  PUSH AF
-  CALL M,PUFOUT_60
-  POP BC
-  LD A,E
-  SUB B
-  POP BC
-  LD E,A
-  ADD A,D
-  LD A,B
-  JP M,PUFOUT_28
-  SUB D
-  SUB E
-  CALL P,PUFOUT_37
-  PUSH BC
-  CALL PUFOUT_42
-  JP PUFOUT_29
+	;HERE TO PRINT A NUMBER WITH NO FRACTIONAL DIGITS
+  PUSH BC               ;SAVE THE FIELD LENGTH SPECS AGAIN
+  LD E,A                ;SAVE THE EXPONENT IN E
+  LD A,B                ;WE HAVE TO PRINT LEADING ZEROS IF THE FIELD
+  SUB D                 ; HAS MORE CHARACTERS THAN THERE ARE DIGITS
+  SUB E                 ; IN THE NUMBER.
 
-PUFOUT_28:
-  CALL PUFOUT_37
-  LD A,C
-  CALL FOTED_0
-  LD C,A
-  XOR A
-  SUB D
-  SUB E
-  CALL PUFOUT_37
-  PUSH BC
-  LD B,A
-  LD C,A
-PUFOUT_29:
-  CALL PUFOUT_51
-  POP BC
-  OR C
-  JP NZ,PUFOUT_30
-  LD HL,(NXTOPR)
-PUFOUT_30:
-  ADD A,E
+	; IF WE ARE USING COMMAS, A MAY BE TOO BIG.
+	; THIS DOESN'T MATTER BECAUSE FOUTTS WILL FIND THE CORRECT BEGINNING.
+	; THERE IS ROOM IN FBUFFR BECAUSE THE MAXIMUM VALUE B CAN BE IS
+	; 24 (DECIMAL) SO D+C .LE. 16 (DECIMAL)  SINCE FAC .LT. 10^16.
+	; SO WE NEED 8 MORE BYTES FOR ZEROS.
+	; 4 COME SINCE WE WILL NOT NEED TO PRINT AN EXPONENT.
+	; FBUFFR ALSO CONTAINS AN EXTRA 4 BYTES FOR THIS CASE.
+	;(IT WOULD TAKE MORE THAN 4 BYTES TO CHECK FOR THIS.)
+
+  CALL P,FOTZER         ;FOUTZS WILL LATER SUPPRESS THEM
+  CALL FOUTCD           ;SETUP DECIMAL POINT AND COMMA COUNT
+  CALL FOUTCV           ;CONVERT THE NUMBER TO DECIMAL DIGITS
+  OR E                  ;PUT IN DIGITS AFTER THE NUMBER IF IT IS BIG ENOUGH, HERE A=0
+  CALL NZ,FOTZEC        ;THERE CAN BE COMMAS IN THESE ZEROS
+  OR E                  ;MAKE SURE WE GET A DECIMAL POINT FOR FOUTTS
+  CALL NZ,FOUTED
+  POP DE                ;GET THE FIELD LENGTH SPECS
+  JP FOUTTD             ;GO CHECK THE SIZE, ZERO SUPPRESS, ETC. AND FINISH THE NUMBER
+
+	;HERE TO PRINT A SNG OR DBL THAT HAS FRACTIONAL DIGITS
+FFXXVS:
+  LD E,A                ;SAVE THE EXPONENT
+  LD A,C                ;DIVIDE BY TEN THE RIGHT NUMBER OF TIMES SO
+  OR A                  ; THE RESULT WILL BE ROUNDED CORRECTLY AND
+  CALL NZ,DCRART        ; HAVE THE CORRECT NUMBER OF SIGNIFICANT
+  ADD A,E               ; DIGITS
+  JP M,FFXXV8           ;FOR LATER CALCULATIONS, WE WANT A ZERO IF THE
+  XOR A                 ; RESULT WAS NOT NEGATIVE
+FFXXV8:
+  PUSH BC               ;SAVE THE FIELD SPECS
+  PUSH AF               ;SAVE THIS NUMBER FOR LATER
+  CALL M,FINDIV
+  POP BC                ;GET THE NUMBER WE SAVED BACK IN B
+  LD A,E                ;WE HAVE TWO CASES DEPENDING ON WHETHER THE
+  SUB B                 ; THE NUMBER HAS INTEGER DIGITS OR NOT
+  POP BC                ;GET THE FILED SPECS BACK
+  LD E,A                ;SAVE HOW MANY DECIMAL PLACES BEFORE THE
+  ADD A,D               ; THE NUMBER ENDS
+  LD A,B                ;GET THE "B" FIELD SPEC
+  JP M,FFXXV3
+
+	;HERE TO PRINT NUMBERS WITH INTEGER DIGITS
+  SUB D                 ;PRINT SOME LEADING ZEROS IF THE FIELD IS
+  SUB E                 ; BIGGER THAN THE NUMBER OF DIGITS WE WILL
+  CALL P,FOTZER         ; PRINT
+  PUSH BC               ;SAVE FIELD SPEC
+  CALL FOUTCD           ;SET UP DECIMAL POINT AND COMMA COUNT
+  JP FFXXV6             ;CONVERT THE DIGITS AND DO THE TRIMMING UP
+
+	;HERE TO PRINT A NUMBER WITHOUT INTEGER DIGITS
+FFXXV3:
+  CALL FOTZER           ;PUT ALL ZEROS BEFORE THE DECIMAL POINT
+  LD A,C                ;SAVE C
+  CALL FOUTDP           ;PUT IN A DECIMAL POINT
+  LD C,A                ;RESTORE C
+  XOR A                 ;DECIDE HOW MANY ZEROS TO PRINT BETWEEN THE
+  SUB D                 ; DECIMAL POINT AND THE FIRST DIGIT WE WILL
+  SUB E                 ; PRINT.
+  CALL FOTZER           ;PRINT THE ZEROS
+  PUSH BC               ;SAVE EXPONENT AND THE "C" IN THE FIELD SPEC
+  LD B,A                ;ZERO THE DECIMAL PLACE COUNT
+  LD C,A                ;ZERO THE COMMA COUNT
+FFXXV6:
+  CALL FOUTCV           ;CONVERT THE NUMBER TO DECIMAL DIGITS
+  POP BC                ;GET THE FIELD SPECS BACK
+  OR C                  ;CHECK IF WE HAVE TO PRINT ANY ZEROS AFTER THE LAST DIGIT
+  JP NZ,FFXXV7          ;CHECK IF THERE WERE ANY DECIMAL PLACES AT ALL
+                        ;E CAN NEVER BE 200, (IT IS NEGATIVE) SO IF
+                        ; A=0 HERE, THERE IS NO WAY WE WILL CALL FOTZER 
+  LD HL,(NXTOPR)        ;THE END OF THE NUMBER IS WHERE THE DP IS
+FFXXV7:
+  ADD A,E               ;PRINT SOME MORE TRAILING ZEROS
   DEC A
-  CALL P,PUFOUT_37
-  LD D,B
-  JP SPCFST7
+  CALL P,FOTZER
+  LD D,B                ;GET THE "B" FIELD SPEC IN D FOR FOUTTS
+  JP FOUTTS             ;FINISH UP THE NUMBER
 
-PUFOUT_31:
-  PUSH HL
-  PUSH DE
-  CALL CONSI
-  POP DE
-PUFOUT_32:
+	;HERE TO PRINT AN INTEGER IN FIXED FORMAT--FLOATING POINT NOTATION
+FFXIFL:
+  PUSH HL               ;SAVE THE BUFFER POINTER
+  PUSH DE               ;SAVE THE FORMAT SPECS
+  CALL CONSI            ;CONVERT THE INTEGER TO A SNG
+  POP DE                ;GET THE FORMAT SPECS BACK
+;;;  XOR A                 ;SET FLAGS TO PRINT THE NUMBER AS A SNG
+                       ;FALL INTO FFXFLV
+FFXFLV:
   CALL FTCH_SNG
-  LD E,B
-  RST TSTSGN
+  LD E,B               ; () GET HOW MANY DIGITS WE PRINT
+
+  RST TSTSGN           ;SEE IF WE HAVE ZERO
   PUSH AF
-  CALL NZ,PUFOUT_63
+  CALL NZ,FOUTNV       ;IF NOT, NORMALIZE THE NUMBER SO ALL DIGITS TO BE PRINTED ARE IN THE INTEGER PART
   POP AF
-  POP HL
-  POP BC
-  PUSH AF
-  LD A,C
-  OR A
-  PUSH AF
-  CALL NZ,DCR_A		; DEC A, RET
+  POP HL               ;GET THE BUFFER POINTER BACK
+  POP BC               ;GET THE FIELD LENGTH SPECS
+  PUSH AF              ;SAVE THE EXPONENT
+  LD A,C               ;CALCULATE HOW MANY SIGNIFICANT DIGITS WE MUST
+  OR A                 ; PRINT
+  PUSH AF              ;SAVE THE "C" FIELD SPEC FOR LATER
+  CALL NZ,DCRART       ; (DEC A, RET)
   ADD A,B
   LD C,A
-  LD A,D
-  AND $04
-  CP $01
-  SBC A,A
-  LD D,A
+  LD A,D               ;GET THE "A" FIELD SPEC
+  AND $04              ;SEE IF THE SIGN IS A TRAILING SIGN
+  CP $01               ;SET CARRY IF A IS ZERO
+  SBC A,A              ;SET D=0 IF WE HAVE A TRAILING SIGN,
+  LD D,A               ; D=377 IF WE DO NOT
   ADD A,C
-  LD C,A
-  SUB E
-  PUSH AF
-  JP P,PUFOUT_33
-  CALL PUFOUT_60
-  JP NZ,PUFOUT_33
+  LD C,A               ;SET C=NUMBER OF SIGNIFICANT DIGITS TO PRINT
+  SUB E                ;IF WE HAVE LESS THAN E, THEN WE MUST GET RID
+  PUSH AF              ;SAVE COMPARISON # OF SIG DIGITS AND THE # OF DIGITS WE WILL PRINT
+  JP P,FFXLV3_0
+  CALL FINDIV          ; OF SOME BY DIVIDING BY TEN AND ROUNDING
+  JP NZ,FFXLV3_0
   PUSH HL
-  CALL DSHFRB
+  CALL DSHFRB          ;SHIFT NUMBER RIGHT ONE, SHIFT IN CARRY
   LD HL,FACCU
   INC (HL)
   POP HL
-PUFOUT_33:
-  POP AF
-  PUSH BC
-  PUSH AF
-  JP M,PUFOUT_34
-  XOR A
-PUFOUT_34:
+FFXLV3_0:
+  POP AF               ;GET # OF TRAILING ZEROS TO PRINT
+  PUSH BC              ;SAVE THE "B" FIELD SPEC AND # OF SIG DIGITS
+  PUSH AF              ;SAVE # OF TRAILING ZEROS TO PRINT
+  JP M,FFXLV3          ;TAKE INTO ACCOUNT DIGITS THAT WERE
+  XOR A                ;DIVIDED OFF AT FFXLV1
+FFXLV3:
   CPL
   INC A
-  ADD A,B
-  INC A
-  ADD A,D
-  LD B,A
-  LD C,$00
-  CALL Z,FOTAN
-  CALL PUFOUT_51
+  ADD A,B              ;SET THE DECIMAL PLACE COUNT
+  INC A                
+  ADD A,D              ;TAKE INTO ACCOUNT IF THE SIGN IS TRAILING
+  LD B,A               ; OR NOT
+  LD C,$00             ;SET COMMA COUNT TO ZERO, THE COMMA SPEC IS IGNORED.
+  CALL Z,FOUTAN        ;CONVERT THE NUMBER TO DECIMAL DIGITS
+  CALL FOUTCV          ;GET NUMBER TRAILING ZEROS TO PRINT
   POP AF
-  CALL P,PUFOUT_39
-  CALL FOTED
-  POP BC
-  POP AF
-  JP NZ,PUFOUT_35
-  CALL DCXHRT
-  LD A,(HL)
-  CP '.'
-  CALL NZ,INCHL
-  LD (NXTOPR),HL
-PUFOUT_35:
-  POP AF
+
+	;IF THE FIELD LENGTH IS LONGER THAN THE # OF DIGITS
+	;WE CAN PRINT
+  CALL P,FOTZNC        ;THE DECIMAL POINT COULD COME OUT IN HERE
+  CALL FOUTED          ;IN CASE D.P. IS LAST ON LIST
+  POP BC               ;GET # OF SIG DIGITS AND "B" FIELD SPAC BACK
+  POP AF               ;GET THE "C" FIELD SPEC BACK
+  JP NZ,FFXLV4         ;IF NON-ZERO PROCEED
+  CALL DCXHRT          ;SEE IF D.P. THERE
+  LD A,(HL)            ;FETCH TO MAKE SURE D.P.
+  CP '.'               ;IF NOT MUST BE ZERO
+  CALL NZ,INCHL        ;IF NOT MUST LEAVE AS IS
+  LD (NXTOPR),HL       ;NEED D.P. LOCATION IN TEMP2
+FFXLV4:                ; SO IGNORE IT.
+  POP AF               ;GET THE EXPONENT BACK
   LD A,(FACCU)
-  JP Z,PUFOUT_36
-  ADD A,E
+  JP Z,FFXLV2          ;EXPONENT=0 IF THE NUMBER IS ZERO
+  ADD A,E              ;SCALE IT CORRECTLY
   SUB B
   SUB D
-PUFOUT_36:
-  PUSH BC
-  CALL DOEBIT
-  EX DE,HL
-  POP DE
-  JP SPCFST7
+FFXLV2:
+  PUSH BC              ;SAVE THE "B" FIELD SPEC
+  CALL DOEBIT          ;PUT THE EXPONENT IN THE BUFFER
+  EX DE,HL             ;GET THE POINTER TO THE END IN (HL) IN CASE WE HAVE A TRAILING SIGN
+  POP DE               ;GET THE "B" FIELD SPEC IN D, PUT ON A
+  JP FOUTTS            ; POSSIBLE TRAILING SIGN AND WE ARE DONE
 
-PUFOUT_37:
-  OR A
-PUFOUT_38:
-  RET Z
-  DEC A
-  LD (HL),'0'
-  INC HL
-  JP PUFOUT_38
-PUFOUT_39:
-  JP NZ,PUFOUT_41
-PUFOUT_40:
-  RET Z
-  CALL FOTED
-PUFOUT_41:
-  LD (HL),'0'
-  INC HL
-  DEC A
-  JP PUFOUT_40
 
-PUFOUT_42:
-  LD A,E
+	;HERE TO PUT SOME ZEROS IN THE BUFFER
+	;THE COUNT IS IN A, IT CAN BE ZERO, BUT THE ZERO FLAG MUST BE SET
+	;ONLY (HL) AND A ARE ALTERED
+	;WE EXIT WITH A=0
+FOTZER:
+  OR A                 ;THIS IS BECAUSE FFXXV3 CALL US WITH THE CONDITION CODES NOT SET UP
+FOTZR1:
+  RET Z                ;RETURN IF WE ARE DONE
+  DEC A                ;WE ARE NOT DONE, SO DECREMENT THE COUNT
+  LD (HL),'0'          ;PUT A ZERO IN THE BUFFER
+  INC HL               ;UPDATE THE BUFFER POINTER
+  JP FOTZR1            ;GO SEE IF WE ARE NOW DONE
+
+
+	;HERE TO PUT ZEROS IN THE BUFFER WITH COMMAS OR A DECIMAL POINT IN THE MIDDLE.  
+	;THE COUNT IS IN A, IT CAN BE ZERO, BUT THE ZERO FLAG MUST BE SET.
+	;B THE DECIMAL POINT COUNT AND C THE COMMA COUNT ARE UPDATED
+	;A,B,C,H,L ARE ALTERED
+FOTZNC:
+  JP NZ,FOTZEC         ;ENTRY AFTER A "CALL FOUTCV"
+FOTZRC:
+  RET Z                ;RETURN IF WE ARE DONE
+  CALL FOUTED          ;SEE IF WE HAVE TO PUT A COMMA OR A DECIMAL POINT BEFORE THIS ZERO
+FOTZEC:                
+  LD (HL),'0'          ;PUT A ZERO IN THE BUFFER
+  INC HL               ;UPDATE THE BUFFER POINTER
+  DEC A                ;DECREMENT THE ZERO COUNT
+  JP FOTZRC            ;GO BACK AND SEE IF WE ARE DONE
+
+FOUTCD:
+  LD A,E               ;SETUP DECIMAL POINT COUNT
   ADD A,D
   INC A
-  LD B,A
-  INC A
-PUFOUT_43:
-  SUB $03
-  JP NC,PUFOUT_43
-  ADD A,$05
-  LD C,A
-PUFOUT_44:
-  LD A,(TEMP3)
-  AND $40
-  RET NZ
-  LD C,A
-  RET
+  LD B,A               
+  INC A                ;SETUP COMMA COUNT
+FOUTCD_0:
+  SUB $03              ;REDUCE [A] MOD 3
+  JP NC,FOUTCD_0
+  ADD A,$05            ;ADD 3 BACK IN AND ADD 2 MORE FOR SCALING
+  LD C,A               ;SAVE A POSSIBLE COMMA COUNT
+
+FOUICC:
+  LD A,(TEMP3)         ;GET THE FORMAT SPECS
+  AND $40              ;LOOK AT THE COMMA BIT
+  RET NZ               ;WE ARE USING COMMAS, JUST RETURN
+  LD C,A               ;WE AREN'T, ZERO THE COMMA COUNT
+  RET                  ;ALL DONE
+
 
 ;*****************************************************************
 ;
-;       $FOTAN  THIS ROUTINE IS CALLED BY THE FREE FORMAT OUTPUT
+;       $FOUTAN  THIS ROUTINE IS CALLED BY THE FREE FORMAT OUTPUT
 ;               CODE TO OUTPUT DECIMAL POINT AND LEADING ZEROS.
-;       $FOTED  THIS ROUTINE IS CALLED BY BOTH THE FREE FORMAT
+;       $FOUTED  THIS ROUTINE IS CALLED BY BOTH THE FREE FORMAT
 ;               OUTPUT ROUTINE AND THE PRINT USING CODE TO OUTPUT
 ;               THE DECIMAL POINT WHEN NECESSARY AND TO PUT IN
 ;               COMMAS "," AFTER EACH THREE DIGITS IF THIS OPTION
 ;               IS INVOKED.
-;       CALLING SEQUENCE:       CALL    $FOTAN
-;                               CALL    $FOTED
+;       CALLING SEQUENCE:       CALL    $FOUTAN
+;                               CALL    $FOUTED
 ;               WITH $FMTCX CONTAINING NUMBER PLACES PRIOR TO
 ;               DECIMAL POINT(NEGATIVELY) IN UPPER BYTE AND
 ;               NO PLACES BEFORE NEXT COMMA IN LOW BYTE
 ;
 ;*******************************************************************
-FOTAN:
+
+
+	;HERE TO PUT DECIMAL POINTS AND COMMAS IN THEIR CORRECT PLACES
+	;THIS SUBROUTINE SHOULD BE CALLED BEFORE THE NEXT DIGIT IS PUT IN THE
+	;BUFFER.  B=THE DECIMAL POINT COUNT, C=THE COMMA COUNT
+	;THE COUNTS TELL HOW MANY MORE DIGITS HAVE TO GO IN BEFORE THE COMMA
+	;OR DECIMAL POINT GO IN.  THE COMMA OR DECIMAL POINT THEN GOES BEFORE 
+	;THE LAST DIGIT IN THE COUNT.  FOR EXAMPLE, IF THE DECIMAL POINT SHOULD
+	;COME AFTER THE FIRST DIGIT, THE DECIMAL POINT COUNT SHOULD BE 2.
+FOUTAN:
   DEC B             ;IF NEGATIVE THEN LEADING ZEROS
-  JP P,FTD05
-  LD (NXTOPR),HL    ;SAVE DECIMAL POINT COUNT
+  JP P,FTD05                                            ;PROCESS AS NORMAL
+  LD (NXTOPR),HL    ;SAVE DECIMAL POINT COUNT           ;SAVE LOCATION OF DECIMAL POINT
   LD (HL),'.'       ;MOVE IN DECIMAL POINT
-FTN10:
+FTN10:              
   INC HL            ;POINT TO NEXT OUTPUT POSITION
   LD (HL),'0'       ;PUT IN LEADING ZERO
   INC B             ;WILL INCREMENT B UNTIL ZERO
-  LD C,B
+  LD C,B            
   JP NZ,FTN10       ;PUT IN LEADING ZEROS UNTIL B ZERO
-  INC HL            ;POINT TO NEXT BUFFER POSITION
+  INC HL            ;POINT TO NEXT AVAILABLE BUFFER LOCATION
   RET
 
-FOTED:
+FOUTED:
   DEC B             ;SEE IF TIME FOR D.P.
 FTD05:
-  JP NZ,FTD10       ;IF NOT D.P. TIME SEE IF COMMA TIME
-FOTED_0:
-  LD (HL),'.'       ;PUT IN D.P.
-  LD (NXTOPR),HL    ;SAVE ADDR OF DECIMAL POINT
-  INC HL            ;INCREMENT PAST D.P.
-  LD C,B
-  RET
+  JP NZ,FOUED1      ;IF NOT D.P. TIME SEE IF COMMA TIME
 
-FTD10:
+	;ENTRY TO PUT A DECIMAL POINT IN THE BUFFER
+FOUTDP:
+  LD (HL),'.'       ;YES, PUT THE DECIMAL POINT IN
+  LD (NXTOPR),HL    ;SAVE THE LOCATION OF THE DECIMAL POINT
+  INC HL            ;INCREMENT THE BUFFER POINTER PAST D.P. 
+  LD C,B            ;PUT ZERO IN C SO WE WON"T PRINT ANY COMMAS AFTER THE DECIMAL POINT.
+  RET               ;ALL DONE
+
+;HERE TO SEE IF IT IS TIME TO PRINT A COMMA
+FOUED1:
   DEC C             ;IF ZERO TIME FOR COMMA
-  RET NZ
-  LD (HL),','       ;COMMA
+  RET NZ            ;NOPE, WE CAN RETURN
+  LD (HL),','       ;YES, PUT A COMMA IN THE BUFFER
   INC HL            ;POINT TO NEXT BUFFER POSITION
-  LD C,$03          ;UPDATE D.P.&COMMA COUNTS
-  RET
+  LD C,$03          ;RESET THE COMMA COUNT SO WE WILL PRINT A COMMA AFTER THREE MORE DIGITS.
+  RET               ;ALL DONE
 
-PUFOUT_51:
+
+	;HERE TO CONVERT A SNG OR DBL NUMBER THAT HAS BEEN NORMALIZED TO DECIMAL DIGITS.
+	;THE DECIMAL POINT COUNT AND COMMA COUNT ARE IN B AND C RESPECTIVELY.
+	;(HL) POINTS TO WHERE THE FIRST DIGIT WILL GO.
+	;THIS EXITS WITH A=0.  (DE) IS LEFT UNALTERED.
+FOUTCV:
   PUSH DE
+	;HERE TO CONVERT A DOUBLE PRECISION NUMBER TO DECIMAL DIGITS
   PUSH HL
   PUSH BC
   CALL FTCH_SNG
@@ -13938,20 +14237,20 @@ PUFOUT_51:
   POP HL
   LD DE,FACCU+1 
   SCF
-PUFOUT_52:
+FOUCD1:
   PUSH AF
-  CALL FOTED
+  CALL FOUTED
   LD A,(DE)
-  JP NC,PUFOUT_53
+  JP NC,FOUTZS_23
   RRA
   RRA
   RRA
   RRA
-  JP PUFOUT_54
+  JP FOUTZS_24
 
-PUFOUT_53:
+FOUTZS_23:
   INC DE
-PUFOUT_54:
+FOUTZS_24:
   AND $0F
   ADD A,'0'
   LD (HL),A
@@ -13959,69 +14258,71 @@ PUFOUT_54:
   POP AF
   DEC A
   CCF
-  JP NZ,PUFOUT_52
-  JP FOTCI_2
+  JP NZ,FOUCD1
+  JP FOUCI3
 
 
 ;*************************************************************
 ;
-;       $FOTCI  CONVERT THE INTEGER IN (FACLO)-TWO BYTES TO
-;               ASCII DIGITS.
-;       CALLING SEQUENCE:       CALL    $FOTCI
-;               WITH DECIMAL POINT AND COMMA COUNTS IN (CX)
-;       $FOUTO  CONVERT INTEGER IN $FACLO:FACLO+1 TO OCTAL
-;       $FOUTH  CONVERT INTEGER IN $FACLO:FACLO+1 TO HEXIDECIMAL
-;       CALLING SEQUENCE:       CALL    $FOUTO/$FOUTH
-;               WITH $FACLO:FACLO+1 CONTAINING INTEGER TO BE
-;               PRINTED. RETURNS WITH (BX) POINTING TO $FBUFF
+;       $FOUTCI  CONVERT THE INTEGER IN (FACLO)-TWO BYTES TO ASCII DIGITS.
+;       $FOUTO and $FOUTH  do not exist here
 ;
 ;**************************************************************
-FOTCI:
+
+	;HERE TO CONVERT AN INTEGER INTO DECIMAL DIGITS
+	;THIS EXITS WITH A=0.  (DE) IS LEFT UNALTERED.
+FOUTCI:
   PUSH DE
   LD DE,POWERS_TAB       ;INTEGER POWER OF TEN TABLE (a.k.a. FOITB)
   LD A,$05               ;MAX DIGITS TO CONVERT
 
-FOTCI_0:                 ;ENTRY FOR FOTCV SO WE WILL ONLY CONVERT 4 DIGITS
-  CALL FOTED             ;CHECK FOR NEEDED D.P. OR ","
-  PUSH BC
-  PUSH AF
-  PUSH HL
-  EX DE,HL
-  LD C,(HL)
+	;HERE TO CALCULATE EACH DIGIT
+FOUCI1:                  ;ENTRY FOR FOTCV SO WE WILL ONLY CONVERT 4 DIGITS
+  CALL FOUTED            ;SEE IF A COMMA OR DP GOES BEFORE THE DIGIT
+  PUSH BC                ;SAVE COMMA AND DECIMAL POINT INFORMATION
+  PUSH AF                ;SAVE DIGIT COUNT
+  PUSH HL                ;SAVE BUFFER POINTER
+  EX DE,HL               ;GET THE POWER OF TEN POINTER IN (HL)
+  LD C,(HL)              ;PUT THE POWER OF TEN ON THE STACK
   INC HL
   LD B,(HL)
   PUSH BC
-  INC HL
-  EX (SP),HL
-  EX DE,HL
-  LD HL,(FACLOW)         ;FETCH INTEGER TO BE CONVERTED
-  LD B,'0'-1             ; WILL BUILD DIGIT IN (B)
-FOTCI_1:
-  INC B
-  ; HL=HL-DE             ;SUBTRACT OUT POWER OF TEN
-  LD A,L
-  SUB E
-  LD L,A
-  LD A,H
-  SBC A,D
-  LD H,A
-  JP NC,FOTCI_1          ;CONTINUE UNTIL DIGIT FORMED
-  ADD HL,DE              ;SUBTRACTED OUT ONE TOO MANY
-  LD (FACLOW),HL         ;SAVE UPDATED INTEGER
-  POP DE
-  POP HL
-  LD (HL),B              ;MOVE DIGIT TO BUFFER
-  INC HL                 ;POINT (HL) TO NEXT BUFF POS.
-  POP AF
-  POP BC
-  DEC A                  ;LOOP TILL DIGITS FORMED
-  JP NZ,FOTCI_0
-FOTCI_2:
-  CALL FOTED             ;SEE IF DECIMAL POINT NEEDED
-  LD (HL),A              ;AND PUT BINARY ZERO AFTER.
-  POP DE
-  RET
+  INC HL                 ;INCREMENT THE PWR OF TEN PTR TO NEXT POWER
+  EX (SP),HL             ;GET THE POWER OF TEN IN (HL) AND PUT THE POINTER ON THE STACK
+  EX DE,HL               ;PUT THE POWER OF TEN IN (DE)
+  LD HL,(FACLOW)         ;GET THE INTEGER IN (HL)
+  LD B,'0'-1             ;SET UP THE DIGIT COUNT, B=DIGIT TO BE PRINTED
 
+
+FOUCI2:
+  INC B                  ;INCREMENT THE DIGIT COUNT
+	; HL=HL-DE: SUBTRACT OUT POWER OF TEN
+  LD A,L                 ;SUBTRACT (DE) FROM (HL)
+  SUB E                  ;SUBTRACT THE LOW ORDERS
+  LD L,A                 ;SAVE THE NEW RESULT
+  LD A,H                 ;SUBTRACT THE HIGH ORDERS
+  SBC A,D
+  LD H,A                 ;SAVE THE NEW HIGH ORDER
+  JP NC,FOUCI2           ;IF (HL) WAS .GE. (DE) THEN SUBTRACT AGAIN
+  ADD HL,DE              ;WE ARE DONE, BUT WE SUBTRACTED (DE) ONCE TOO OFTEN, SO ADD IT BACK IN
+  LD (FACLOW),HL         ;SAVE UPDATED INTEGER
+  POP DE                 ;GET THE POWER OF TEN POINTER BACK
+  POP HL                 ;GET THE BUFFER POINTER BACK
+  LD (HL),B              ;PUT THE NEW DIGIT IN THE BUFFER
+  INC HL                 ;INCREMENT THE BUFFER POINTER TO NEXT DIGIT
+  POP AF                 ;GET THE DIGIT COUNT BACK
+  POP BC                 ;GET THE COMMA AND DP INFORMATION BACK
+  DEC A                  ;WAS THAT THE LAST DIGIT?
+  JP NZ,FOUCI1           ;NO, GO DO THE NEXT ONE
+FOUCI3:
+  CALL FOUTED            ;YES, SEE IF A DP GOES AFTER THE LAST DIGIT
+  LD (HL),A              ;PUT A ZERO AT THE END OF THE NUMBER, BUT DON'T INCREMENT (HL)
+                         ;SINCE AN EXPONENT OR A TRAILING SIGN MAY BE COMMING
+  POP DE                 ;GET (DE) BACK
+  RET                    ;ALL DONE, RETURN WITH A=0
+
+
+	;CONSTANTS USED BY FOUT
 
 ; Data at 15610
 POWERS_TAB:
@@ -14033,7 +14334,6 @@ POWERS_TAB:
 
 
 ; Routine at 15620
-;
 ; Used by the routines at __CSNG and PUFOUT.
 FTCH_SNG:
   RST GETYPR
@@ -14045,9 +14345,11 @@ FTCH_SNG:
   RET
 
   
+	;HERE TO INITIALLY SET UP THE FORMAT SPECS AND PUT IN A SPACE FOR THE
+	;SIGN OF A POSITIVE NUMBER
 ; This entry point is used by the routine at FOUT.
-LINPRT_SUB:
-  LD (TEMP3),A
+FOUINI:
+  LD (TEMP3),A              ;SAVE THE FORMAT SPECIFICATION
   PUSH AF
   PUSH BC
   PUSH DE
@@ -14059,11 +14361,14 @@ LINPRT_SUB:
   POP DE
   POP BC
   POP AF
-  LD HL,NUMSTR
-  LD (HL),' '
-  RET
+  LD HL,FBUFFR+1            ;WE START AT FBUFFR+1 IN CASE THE NUMBER WILL OVERFLOW ITS FIELD,
+                            ; THEN THERE IS ROOM IN FBUFFR FOR THE PERCENT SIGN.
+  LD (HL),' '               ;PUT IN A SPACE
+  RET                       ;ALL DONE
+
+
   
-PUFOUT_60:
+FINDIV:
   PUSH HL
   PUSH DE
   PUSH BC
@@ -14072,21 +14377,21 @@ PUFOUT_60:
   INC A
   LD E,A
   LD A,$01
-  JP Z,PUFOUT_62
+  JP Z,FOUTZS_32
   CALL FTCH_SNG
   PUSH HL
-PUFOUT_61:
+FOUTZS_31:
   CALL DSHFRB
   DEC E
-  JP NZ,PUFOUT_61
+  JP NZ,FOUTZS_31
   POP HL
   INC HL
   LD A,B
   RRCA
   LD B,A
   CALL BNORM_8
-  CALL PUFOUT_64
-PUFOUT_62:
+  CALL FOUTZS_34
+FOUTZS_32:
   POP BC
   ADD A,B
   POP BC
@@ -14094,7 +14399,7 @@ PUFOUT_62:
   POP HL
   RET
   
-PUFOUT_63:
+FOUTNV:
   PUSH BC
   PUSH HL
   CALL FTCH_SNG
@@ -14107,21 +14412,21 @@ PUFOUT_63:
   OR A
   RET
 
-PUFOUT_64:
+FOUTZS_34:
   PUSH BC
   CALL FTCH_SNG
-PUFOUT_65:
+FOUTZS_35:
   LD A,(HL)
   AND $0F
-  JP NZ,PUFOUT_66
+  JP NZ,FOUTZS_36
   DEC B
   LD A,(HL)
   OR A
-  JP NZ,PUFOUT_66
+  JP NZ,FOUTZS_36
   DEC HL
   DEC B
-  JP NZ,PUFOUT_65
-PUFOUT_66:
+  JP NZ,FOUTZS_35
+FOUTZS_36:
   LD A,B
   POP BC
   RET
@@ -17167,7 +17472,7 @@ ENDNUM:
   
   LD A,D              ;[A]=FLAG BITS
   OR $80              ;TURN ON THE "USING" BIT
-  CALL FOUT_0         ;PRINT THE VALUE
+  CALL PUFOUT         ;PRINT THE VALUE
   CALL PRS            ;ACTUALLY PRINT IT
 
 FNSTRF:
