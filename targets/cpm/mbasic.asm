@@ -86,7 +86,8 @@ defc CLMWID   =   14   ; MAKE COMMA COLUMNS FOURTEEN CHARACTERS
 defc LNCMPS   = (((LPTLEN/CLMWID)-1)*CLMWID) ;LAST COMMA FIELD POSIT
 
 
-;DATPSC	SET	128			;NUMBER OF DATA BYTES IN DISK SECTOR
+defc DATPSC   =  128    ;NUMBER OF DATA BYTES IN DISK SECTOR
+
 
 ;BUFLEN	SET	255			;LONG LINES
 ;NAMLEN	SET	40			;MAXIMUM LENGTH NAME -- 3 TO 127
@@ -1749,15 +1750,15 @@ PROFLG:
 MRGFLG:
   DEFB $00                ; 'In MERGE' status flag
   
-CHAIN_DEL:
-  DEFB $00                ; Flag to track the 'DELETE' option in a CHAIN command
-CHAIN_TO:
+MDLFLG:
+  DEFB $00                ; Flag to track the 'DELETE' or 'MERGE' option in a CHAIN command
+CMEPTR:
   DEFW $0000              ; End line number in a range specified for 'CHAIN'
-CHAIN_FROM:
+CMSPTR:
   DEFW $0000              ; Start line number in a range specified for 'CHAIN'
 CHNFLG:
   DEFB $00                ; 'In CHAIN' status flag
-CHAIN_LN:
+CHNLIN:
   DEFW $0000              ; Line number to go to after the CHAIN command execution
 
 SWPTMP:
@@ -1854,7 +1855,7 @@ p3_peek:
 __VPOKE:
   CALL GETWORD
   PUSH DE
-  CALL ADDR_RANGE
+  ;CALL PRODIR             ;DONT ALLOW DIRECT IF PROTECTED FILE
   CALL SYNCHR
   DEFM ","
   CALL GETINT             ; Get integer 0-255
@@ -1867,7 +1868,7 @@ __VPOKE:
 ; -- -- -- -- --
 __VPEEK:
   CALL GETWORD_HL
-  CALL ADDR_RANGE
+  ;CALL PRODIR             ;DONT ALLOW DIRECT IF PROTECTED FILE
   CALL p3_peek
   JP PASSA
 
@@ -1911,6 +1912,7 @@ BAKSTK:
   ADD HL,SP               ; ..ADDRESS OF THIS SUBROUTINE
 
 ; Look for "FOR" block with same index as specified in D
+; a.k.a. FNDFOR
 ;
 ; This entry point is used by the routine at __FOR.
 LOKFOR:
@@ -1923,23 +1925,25 @@ LOKFOR:
   JP LOKFOR
 
 LOKFOR_0:
-  CP TK_FOR               ; Is it a "FOR" token
-  RET NZ                  ; No - exit
+  CP TK_FOR               ; Is it a "FOR" token                     ;IS THIS STACK ENTRY A "FOR"?
+  RET NZ                  ; No - exit                               ;NO SO OK
   LD C,(HL)               ; BC = Address of "FOR" index
-  INC HL
+  INC HL                                                            ;DO EQUIVALENT OF PUSHM / XTHL
   LD B,(HL)
   INC HL                  ; Point to sign of STEP
-  PUSH HL                 ; Save pointer to sign
-  LD H,B                  ; HL = address of "FOR" index
+  PUSH HL                 ; Save pointer to sign                    ;PUT H  ON
+  LD H,B                  ; HL = address of "FOR" index             ;PUSH B / XTHL IS SLOWER
   LD L,C
-  LD A,D                  ; See if an index was specified
-  OR E                    ; DE = 0 if no index specified
-  EX DE,HL                ; Specified index into HL
-  JP Z,INDFND             ; Skip if no index given
+  LD A,D                  ; See if an index was specified           ;FOR THE "NEXT" STATMENT WITHOUT AN ARGUMENT
+  OR E                    ; DE = 0 if no index specified            ;WE MATCH ON ANYTHING
+  EX DE,HL                ; Specified index into HL                 ;MAKE SURE WE RETURN [D,E]
+  JP Z,INDFND             ; Skip if no index given                  ;POINTING TO THE VARIABLE
   EX DE,HL                ; Index back into DE
   CALL DCOMPR             ; Compare index with one given
+  
+; a.k.a. POPGOF
 INDFND:
-  LD BC,$0010             ; Offset to next block (FORSZC=14+2)
+  LD BC,$0010             ; FORSZC: Offset to next block            ;TO WIPE OUT A "FOR" ENTRY
   POP HL                  ; Restore pointer to sign
   RET Z                   ; Return if block found, WITH [H,L] POINTING THE BOTTOM OF THE ENTRY
   ADD HL,BC               ; Point to next block
@@ -3388,7 +3392,7 @@ ENDIF
 ; OPRND, __ERR, __ERL, OCTCNS, ISFUN, FN_USR, __DEF, DOFN, __WAIT, __WIDTH,
 ; FPSINT, FNDNUM, CONINT, LISPRT, SCCPTR, _LINE2PTR, __OPTION, LOOK_FOR, _ASCTFP,
 ; PUFOUT, L3338, RNDMON, __OPEN, FILGET, LINE_INPUT, __LOAD, __MERGE,
-; RETRTS, FN_INPUT, __WHILE, __CALL, __CHAIN, L45C9, L46AB, __GET, PUTBUF,
+; RETRTS, FN_INPUT, __WHILE, __CALL, __CHAIN, BCKUCM, L46AB, __GET, PUTBUF,
 ; FN_INKEY, DIMRET, HAVTYP, SBSCPT, NOTSCI, __ERASE, __CLEAR, KILFOR, DTSTR,
 ; FN_STRING, __VAL, FN_INSTR and INIT.
 ;
@@ -3618,7 +3622,7 @@ INTIDX_0:
 ; Err $05 - "Illegal function call"
 ;
 ; Used by the routines at __ERROR, __AUTO, __ERL, DOFN, CONINT, __DELETE,
-; __RENUM, __LOG, __NAME, __CVD, FN_INPUT, __CHAIN, L45A2, L46AB, __GET,
+; __RENUM, __LOG, __NAME, __CVD, FN_INPUT, __CHAIN, VALTYP, L46AB, __GET,
 ; __USING, NOTSCI, __TROFF, __CLEAR, __ASC, __MID_S, FN_INSTR and INIT.
 FC_ERR:
   LD E,$05				; Err $05 - "Illegal function call"
@@ -6734,13 +6738,13 @@ __DELETE:
   PUSH BC                 ;SAVE POINTER TO START OF DELETION FOR USE BY CHEAD AFTER FINI
   PUSH BC                 ;SAVE POINTER TO START OF 1ST LINE
   CALL SRCHLN             ;FIND THE LAST LINE
-  JP NC,FCERRG            ;MUST HAVE A MATCH ON THE UPPER BOUND
+  JP NC,_FCERRG           ;MUST HAVE A MATCH ON THE UPPER BOUND
   LD D,H                  ;[D,E] =  POINTER AT THE START OF THE LINE
   LD E,L                  ;BEYOND THE LAST LINE IN THE RANGE
   EX (SP),HL              ;SAVE THE POINTER TO THE NEXT LINE
   PUSH HL                 ;SAVE THE POINTER TO THE START OF THE FIRST LINE IN THE RANGE
   CALL DCOMPR             ;MAKE SURE THE START COMES BEFORE THE END
-FCERRG:
+_FCERRG:
   JP NC,FC_ERR            ;IF NOT, "ILLEGAL FUNCTION CALL"
   LD HL,OK_MSG            ;PRINT "OK" PREMATURELY
   CALL PRS
@@ -6781,7 +6785,7 @@ MLOOP:
 
 __PEEK:
   CALL GETWORD_HL         ;GET AN INTEGER IN [H,L]
-  CALL ADDR_RANGE         ;DONT ALLOW DIRECT IF PROTECTED FILE
+  CALL PRODIR             ;DONT ALLOW DIRECT IF PROTECTED FILE
   LD A,(HL)               ;GET THE VALUE TO RETURN
   JP PASSA                ;AND FLOAT IT
 
@@ -6789,7 +6793,7 @@ __PEEK:
 __POKE:
   CALL GETWORD            ;READ A FORMULA
   PUSH DE
-  CALL ADDR_RANGE
+  CALL PRODIR             ;DONT ALLOW DIRECT IF PROTECTED FILE
   CALL SYNCHR
   DEFM ","
   CALL GETINT             ; Get integer 0-255
@@ -12230,7 +12234,7 @@ __ATN:
   LD HL,FSUBS             ; Sub angle from PI/2              ;PUT FSUBS ON THE STACK SO WE WILL RETURN
   PUSH HL                 ; Save for angle > 1               ; TO IT AND SUBTRACT THE REULT FROM PI/2
 __ATN_0:
-  LD HL,ATNTAB            ; Coefficient table                ;EVALUATE APPROXIMATION POLYNOMIAL
+  LD HL,FP_ATNTAB         ; Coefficient table                ;EVALUATE APPROXIMATION POLYNOMIAL
   CALL SUMSER             ; Evaluate sum of series           
   LD HL,FP_HALFPI         ; PI/2 - angle in case > 1         ;GET POINTER TO PI/2 IN CASE WE HAVE TO
   RET                     ; Number > 1 - Sub from PI/2       ; SUBTRACT THE RESULT FROM PI/2
@@ -12238,7 +12242,7 @@ __ATN_0:
 
 	;CONSTANTS FOR ATN
 
-ATNTAB:
+FP_ATNTAB:
   DEFB $09
   DEFB $4A,$D7,$3B,$78    ; 1/17        ; .002866226
   DEFB $02,$6E,$84,$7B    ; -1/15       ; -.01616574
@@ -12269,8 +12273,8 @@ ATNTAB:
 ;File information:
 ;
 ;        1	Mode of the file
-;F.BLK1	(n)	1st block of space, usually FCB( CPM: 33, ONTEL: 42,
-;		MOSTEK: 47 ). Zero for others
+;F.BLK1	(n)	1st block of space, usually FCB
+;      ( CPM: 33, ONTEL: 42 MOSTEK: 47 ). Zero for others
 ;LOCOFS  2	CURLOC, # of sectors read or writeen for sequential.
 ;		For random files, it is the last record # +1.
 ;ORNOFS	 1/2	Seq Input: 	# of bytes in sector when read.
@@ -12329,7 +12333,7 @@ ORNCHK:
   POP BC                  ;RESTORE [B,C]
   JP ORNCHK               ;HAVE NEW BUFFER, USE PREVIOUS PROCEDURE
 CHKCTZ:
-  LD A,$80                ; (DATPSC) GET # OF BYTES IN FULL BUFFER
+  LD A,DATPSC             ;GET # OF BYTES IN FULL BUFFER
   SUB (HL)                ;SUBTRACT LEFT
   LD C,A                  ;PUT IN [B,C] FOR DAD
   LD B,0
@@ -12664,7 +12668,7 @@ PUTFIN:
   CP $7F                 ;LAST RECORD IN EXTENT?
   PUSH AF                ;SAVE INDICATOR
   LD DE,DIRTMP           ;DIRTMP: SAVE HERE
-  LD HL,$0029            ;0+DATOFS: POINT TO DATA
+  LD HL,$0029            ;DATOFS: POINT TO DATA
   ADD HL,BC
   PUSH DE                ;SAVE DIRTMP POINTER
   PUSH HL                ;SAVE DATA POINTER
@@ -12679,7 +12683,7 @@ PUTFIN:
 
 BUFMOV:
   PUSH BC                ;SAVE [B,C]
-  LD B,$80               ;DATPSC: # OF BYTES TO MOVE
+  LD B,DATPSC            ;# OF BYTES TO MOVE
 BUFSLP:                  
   LD A,(HL)              ;GET BYTE FROM BUFFER
   INC HL                 ;BUMP POINTER
@@ -12766,7 +12770,7 @@ READIN:
   PUSH HL                ;SAVE [H,L]
 
 ; ZERO OUT THE BUFFER IN CASE NOTHING READ
-  LD C,$80               ; DATPSC: NUMBER OF BYTES/BUFFER
+  LD C,DATPSC            ;NUMBER OF BYTES/BUFFER
   
 ZRRND:
   INC HL                 ;INCREMENT BUFFER POINTER
@@ -12802,7 +12806,7 @@ ENDIF
   OR A                  ;EOF?
   LD A,$00              ;Return 0 if EOF
   JP NZ,READI2          ;Assume EOF if error
-  LD A,$80              ;DATPSC: OTHERWISE, HAVE 128 BYTES
+  LD A,DATPSC           ;OTHERWISE, HAVE 128 BYTES
 READI2:
   POP HL                ;POINT BACK TO # READ
   LD (HL),A             ;STORE NUMBER READ
@@ -12819,7 +12823,7 @@ SETBUF:
   PUSH BC               ;SAVE [B,C]
   PUSH DE               ;SAVE [D,E]
   PUSH HL               ;SAVE [H,L]
-  LD HL,$0028           ;0+DATOFS-1: POINT TO BUFFER
+  LD HL,$0028           ;DATOFS-1: POINT TO BUFFER
   ADD HL,DE             ;ADD
   EX DE,HL              ;PUT BUFFER ADDRESS IN [D,E]
   LD C,$1A              ;SET UP BUFFER ADDRESS (BDOS function 26 - Set DMA address)
@@ -13185,7 +13189,7 @@ OPNSET:
 
 
 RNDFIN:
-  LD BC,$0029               ;(0+DATOFS) NOW ADVANCE POINTER TO DATA
+  LD BC,$0029               ;DATOFS: NOW ADVANCE POINTER TO DATA
   ADD HL,BC                 ;BY ADDING PROPER OFFSET
   LD C,$80                  ;# OF BYTES TO ZERO
 ZRRNDT:
@@ -13570,10 +13574,10 @@ FILID2:
 ; This entry point is used by the routine at __ERL.
 GETPTR:
   CALL FILID2           ;INDEX INTO FILE DATA BLOCK
-  LD HL,$0029           ;(DATOFC) POINT TO DATA BLOCK
+  LD HL,$0029           ;DATOFC: POINT TO DATA BLOCK
   CP $03                ;(MD.RND) RANDOM FILE?
   JP NZ,NTFIVD          ;NO, USE NORMAL OFFSET
-  LD HL,$00B2           ;YES
+  LD HL,$00B2           ;FD.DAT: YES
 
 NTFIVD:
   ADD HL,BC             ;ADD START OF FILE DATA BLOCK
@@ -13794,7 +13798,7 @@ STRCHR:
   JP QUIT2B             ;SPECIAL QUIT
 
 ; This entry point is used by the routines at __LOAD, __MERGE and __CHAIN.
-FILE_OPENIN:
+PRGFLI:
   LD D,$01              ;MD.SQI: SEQUENTIAL INPUT MODE
 ; This entry point is used by the routine at __MERGE.
 FILE_OPENOUT:
@@ -13811,7 +13815,7 @@ _RUN_FILE:
 __LOAD:
   XOR A                 ;FLAG ZERO FOR "LOAD"
   PUSH AF               ;SAVE "RUN"/"LOAD" FLAG
-  CALL FILE_OPENIN      ;FIND THAT FILE AND SETUP FOR USING INDSKC SUBROUTINE
+  CALL PRGFLI           ;FIND THAT FILE AND SETUP FOR USING INDSKC SUBROUTINE
   LD A,(MAXFIL)         ;SAVE THE NUMBER OF FILES
   LD (MAXFILSV),A       ;  (LSTFRE+1) SINCE WE MAKE IT LOOK LIKE ZERO
                         ;SO ,R OPTION CAN LEAVE FILES OPEN
@@ -13892,7 +13896,7 @@ LPBLDR:
   LD (VARTAB),HL          ;SAVE END TEMP FOR DECODING
   LD A,(PROFLG)           ;IS THIS A PROTECTED FILE?
   OR A                    ;SET CC'S
-  CALL NZ,__GET_33        ;TRANSLATE TO GOOD STUFF
+  CALL NZ,PDECOD          ;TRANSLATE TO GOOD STUFF
   CALL LINKER             ;FIX THE LINKS
   INC HL                  ;WHEN LINKER RETURNS, [H,L]
   INC HL                  ;POINTS TO DOUBLE ZERO
@@ -13930,7 +13934,7 @@ LOAD_OM_ERR:
 ; 'MERGE' BASIC command
 __MERGE:
   POP BC                  ;ELIMINATE NEWSTT RETURN
-  CALL FILE_OPENIN        ;READ THE NAME AND DISK
+  CALL PRGFLI             ;READ THE NAME AND DISK
   DEC HL                  ;MUST END THERE
   CALL CHRGTB
   JP Z,OKGETM             ;READ THE FILE
@@ -14089,10 +14093,10 @@ __FIELD:
   LD L,A
   LD (INTFLG),HL          ; (TEMPA), STORE MAX ALLOWED
   LD HL,$0000             ;ZERO MAX # OF CHARS
-  LD (TEMPB),HL
+  LD (RECORD),HL
   LD A,H                  ;MAKE [A]=0
   EX DE,HL                ;GET BACK TEXT POINTER
-  LD DE,$00B2             ;POINT TO 5.0 FIELD BUFFER   (FD.DAT)
+  LD DE,$00B2             ;FD.DAT: POINT TO 5.0 FIELD BUFFER
 __FIELD_NEXT:
   EX DE,HL                ;SAVE TEXT POINTER IN [D,E]
   ADD HL,BC               ;ADD ON DATA POINTER SO [H,L] NOW POINTS AT THE START OF THE DATA
@@ -14117,10 +14121,10 @@ __FIELD_NEXT:
   LD C,A                  ;SAVE # OF CHARACTERS IN [C]
   PUSH DE                 ;SAVE [D,E]
   PUSH HL                 ;SAVE [H,L]
-  LD HL,(TEMPB)           ;GET TOTAL SO FAR
+  LD HL,(RECORD)          ;GET TOTAL SO FAR
   LD B,$00                ;ACCUMULATE COUNT
   ADD HL,BC
-  LD (TEMPB),HL           ;SAVE TOTAL AGAIN
+  LD (RECORD),HL          ;SAVE TOTAL AGAIN
   EX DE,HL                ;TOTAL TO [D,E]
   LD HL,(INTFLG)          ;GET MAX ALLOWED
   CALL DCOMPR             ;IN RANGE?
@@ -14381,82 +14385,93 @@ DSKCHR:
 
 ; 'WHILE' BASIC instruction
 __WHILE:
-  LD (ENDFOR),HL
-  CALL LOOK_FOR_WEND
-  CALL CHRGTB
-  EX DE,HL
-  CALL __WEND_2
+  LD (ENDFOR),HL          ;KEEP THE WHILE TEXT POINTER HERE
+  CALL LOOK_FOR_WEND      ;SCAN FOR THE MATCHING WEND CAUSE AN ERRWH IF NO WEND TO MATCH
+  CALL CHRGTB             ;POINT AT CHARACTWER AFTER WEND
+  EX DE,HL                ;[D,E]= POSITION OF MATCHING WEND
+  CALL FNDWND             ;SEE IF THERE IS A STACK ENTRY FOR THIS WHILE
+  INC SP                  ;GET RID OF THE NEWSTT ADDRESS ON THE STACK
   INC SP
-  INC SP
-  JP NZ,__WHILE_0
-  ADD HL,BC
+  JP NZ,WNOTOL            ;IF NO MATCH NO NEED TO TRUNCATE THE STACK
+  ADD HL,BC               ;ELIMINATE EVERYTHING UP TO AND INCLUDING THE MATCHING WHILE ENTRY
   LD SP,HL
   LD (SAVSTK),HL
-__WHILE_0:
-  LD HL,(CURLIN)
+WNOTOL:
+  LD HL,(CURLIN)          ;MAKE THE STACK ENTRY
   PUSH HL
-  LD HL,(ENDFOR)
+  LD HL,(ENDFOR)          ;GET TEXT POINTER FOR WHILE BACK
   PUSH HL
-  PUSH DE
-  JP __WEND_0
+  PUSH DE                 ;SAVE THE WEND TEXT POINTER
+  JP __WEND_0             ;FINISH USING WEND CODE
 
 ; 'WEND' BASIC instruction
 __WEND:
-  JP NZ,SN_ERR
-  EX DE,HL
-  CALL __WEND_2
-  JP NZ,__WEND_5
-  LD SP,HL
+  JP NZ,SN_ERR            ;STATEMENT HAS NO ARGUMENTS
+  EX DE,HL                ;FIND MATCHING WHILE ENTRY ON STACK
+  CALL FNDWND
+  JP NZ,WE_ERR            ;MUST MATCH OR ELSE ERROR
+  LD SP,HL                ;TRUNCATE STACK AT MATCH POINT
   LD (SAVSTK),HL
-  EX DE,HL
-  LD HL,(CURLIN)
-  EX DE,HL
+  EX DE,HL                ;SAVE [H,L] POINTING INTO STACK ENTRY
+  LD HL,(CURLIN)          ;REMEMBER WEND LINE #
+  EX DE,HL                ;IN NXTLIN
   EX DE,HL
   LD (LOPLIN),HL
   EX DE,HL
-  INC HL
-  INC HL
-  LD E,(HL)
+  INC HL                  ;INDEX INTO STACK ENTRY TO GET VALUES
+  INC HL                  ;SKIP OVER TEXT POINTER OF WEND
+  LD E,(HL)               ;SET [D,E]=TEXT POINTER OF WHILE
   INC HL
   LD D,(HL)
   INC HL
-  LD A,(HL)
+  LD A,(HL)               ;[H,L]=LINE NUMBER OF WHILE
   INC HL
   LD H,(HL)
   LD L,A
-  LD (CURLIN),HL
-  EX DE,HL
-; This entry point is used by the routine at __WHILE.
-__WEND_0:
-  CALL EVAL
-  PUSH HL
-  CALL VSIGN
-  POP HL
-  JP Z,__WEND_1
-  LD BC,TK_WHILE
-  LD B,C		; ?
-  PUSH BC
-  INC SP
-  JP NEWSTT
-__WEND_1:
-  LD HL,(LOPLIN)
-  LD (CURLIN),HL
-  POP HL
-  POP BC
-  POP BC
-  JP NEWSTT
+  LD (CURLIN),HL          ;IN CASE OF ERROR OR CONTINUATION FIX CURLIN
+  EX DE,HL                ;GET TEXT POINTER OF WHILE FORMULA INTO [H,L]
 
 ; This entry point is used by the routine at __WHILE.
-__WEND_2:
-  LD HL,$0004
+__WEND_0:
+  CALL EVAL               ;EVALUATE FORMULA
+  PUSH HL                 ;SAVE TEXT POINTER
+  CALL VSIGN              ;GET IF TRUE OR FALSE
+  POP HL                  ;GET BACK WHILE TEXT POINTER
+  JP Z,FLSWHL             ;GO BACK AT WEND IF FALSE
+  LD BC,TK_WHILE          ;COMPLETE WHILE ENTRY
+  LD B,C                  ;NEED IT IN THE HIGH BYTE
+  PUSH BC
+  INC SP                  ;ONLY USE ONE BYTE
+  JP NEWSTT
+
+; 'FALSE' condition in WHILE/WEND
+FLSWHL:
+  LD HL,(LOPLIN)          ;SETUP CURLIN FOR WEND
+  LD (CURLIN),HL
+  POP HL                  ;TAKE OFF TEXT OF WEND AS NEW TEXT POINTER
+  POP BC                  ;GET RID OF TEXT POINTER OF WHILE
+  POP BC                  ;TAKE OFF LINE NUMBER OF WHILE
+  JP NEWSTT
+
+
+;
+; THIS SUBROUTINE SEARCHES THE STACK FOR AN WHILE ENTRY
+; WHOSE WEND TEXT POINTER MATCHES [D,E]. IT RETURNS WITH ZERO TRUE
+; IF A MATCH IS FOUND AND ZERO FALSE OTHERWISE. FOR ENTRIES
+; ARE SKIPPED OVER, BUT GOSUB ENTRIES ARE NOT.
+;
+
+; This entry point is used by the routine at __WHILE.
+FNDWND:
+  LD HL,$0004             ;SKIP OVER RETURN ADDRESS AND NEWSTT
   ADD HL,SP
 __WEND_3:
-  LD A,(HL)
-  INC HL
-  LD BC,$0082		; TK_FOR
-  CP C
+  LD A,(HL)               ;GET THE ENTRY TYPE
+  INC HL                  
+  LD BC,TK_FOR
+  CP C                    ;SEE IF ITS $FOR
   JP NZ,__WEND_4
-  LD BC,$0012		; 18
+  LD BC,$0012             ; FORSZC+2? (size of a 'FOR' entry on stack)
   ADD HL,BC
   JP __WEND_3
 
@@ -14465,113 +14480,140 @@ __WEND_4:
   CP C
   RET NZ
   PUSH HL
-  LD A,(HL)
+  LD A,(HL)               ;PICK UP THE WEND TEXT POINTER
   INC HL
   LD H,(HL)
   LD L,A
   CALL DCOMPR
   POP HL
   LD BC,$0006
-  RET Z
+  RET Z                   ;RETURN IF ENTRY MATCHES
   ADD HL,BC
   JP __WEND_3
   
-__WEND_5:
+WE_ERR:
   LD DE,$001E		; Err $1E - "WEND without WHILE"
   JP ERROR
 
 
 
 
+
+
+
 ; 'CALL' BASIC command
-; CALL <variable name>[«argument list»]
+; This is the CALL <simple var>[(<simple var>[,<simple var>]..)]
+; Stragegy:
+;
+; 1.) Make sure suboutine name is simple var, get value & save it
+; 2.) Allocate space on stack for param adresses
+; 3.) Evaluate params & stuff pointers on stack
+; 3.) POP off pointers ala calling convention
+; 4.) CALL suboutine with return address on stack
+
 
 ; Extended and Disk BASIC-80 user function calls may also be made with the CALL statement.
 ; The calling sequence used is the same as that in Microsoft's FORTRAN, COBOL and BASIC compilers.
 
-__CALL:
-  LD A,$80
-  LD (SUBFLG),A
-  CALL GETVAR
-  PUSH HL
-  EX DE,HL
-  CALL GETYPR
-  CALL VMOVFM
-  CALL GETWORD_HL
-  LD (INTFLG),HL
-  LD C,32
-  CALL CHKSTK             ; Check for C levels on stack
-  POP DE
-  LD HL,-64
-  ADD HL,SP
-  LD SP,HL
-  EX DE,HL
-  LD C,32
-  DEC HL
-  CALL CHRGTB
-  LD (TEMP),HL
-  JP Z,CALL_REGS          ; jp if no parameters
+defc MAXPRM = 32
 
-  CALL SYNCHR
+__CALL:
+  LD A,$80                ;Flag PTRGET not to allow arrays
+  LD (SUBFLG),A
+  CALL GETVAR             ;Evaluate var pointer
+  PUSH HL                 ;Save text pointer
+  EX DE,HL                ;Var pointer to [H,L]
+  CALL GETYPR             ;Get type of var
+  CALL VMOVFM             ;Store value in FAC
+  CALL GETWORD_HL         ;Evaluate var
+  LD (INTFLG),HL          ;Save it
+  LD C,MAXPRM             ;Check to see if we have space for max parm block
+  CALL CHKSTK             ; Check for C levels on stack
+  POP DE                  ;Get text pointer off stack
+  LD HL,-MAXPRM*2         ;Get space on stack for parms
+  ADD HL,SP
+  LD SP,HL                ;Adjust stack
+  EX DE,HL                ;Put text pointer in [H,L], stack pointer in [D,E]
+  LD C,MAXPRM             ;Get # of params again
+  DEC HL                  ;Back up text pointer
+  CALL CHRGTB             ;Get char
+  LD (TEMP),HL            ;Save text pointer
+  JP Z,CALLST             ;If end of line, GO!   (jp if no parameters)
+                          
+  CALL SYNCHR             ;Eat left paren
   DEFM "("
-CALL_PARM_LP:
-  PUSH BC
-  PUSH DE
-  CALL GETVAR
-  EX (SP),HL
-  LD (HL),E
+
+GETPAR:
+  PUSH BC                 ;Save count
+  PUSH DE                 ;Save pointer into stack
+  CALL GETVAR             ;Evaluate param address
+  EX (SP),HL              ;Save text pointer get pointer into stack
+  LD (HL),E               ;Save var address on stack
   INC HL
   LD (HL),D
   INC HL
-  EX (SP),HL
+  EX (SP),HL              ;Save back var pointer, get text pointer
   POP DE
   POP BC
-  LD A,(HL)
-  CP ','
-  JP NZ,CALL_PARM_END
-  DEC C
-  CALL CHRGTB
-  JP CALL_PARM_LP
-CALL_PARM_END:
+  LD A,(HL)               ;Look at terminator
+  CP ','                  ;Comma?
+  JP NZ,ENDPAR            ;Test
+  DEC C                   ;Decrement count of params
+  CALL CHRGTB             ;Get next char
+  JP GETPAR               ;Back for more
+ENDPAR:
   CALL SYNCHR
-  DEFM ")"
-
-  LD (TEMP),HL
-  LD A,33
-  SUB C
-  POP HL             ; (HL=Parameter 1)
-  DEC A              ; If the number of parameters is..
-  JP Z,CALL_REGS
-  POP DE             ; (DE=Parameter 2)
-  DEC A              ; ...less than ..
-  JP Z,CALL_REGS
-  POP BC             ; (BC=Parameter 3)
-  DEC A              ; ...or equal to 3,
-  JP Z,CALL_REGS     ; they are passed in the registers.
-  PUSH BC
-  PUSH HL
-  LD HL,$0002        ; If the number of parameters is greater than 3,
-  ADD HL,SP          ; parameters 3 through n will be in a contiguous data block
-  LD B,H             ; BC will point to the low byte of this data block
+  DEFM ")"                ;Should have left paren
+  LD (TEMP),HL            ;Save text pointer
+  LD A,MAXPRM+1           ;Calc # of params
+  SUB C                   
+  POP HL                  ;At least one, get its address in [H,L]    ; (HL=Parameter 1)
+  DEC A                   ;Was it one?                               ; If the number of parameters is..
+  JP Z,CALLST             ;Yes                  
+  POP DE                  ;Next address in [D,E]                     ; (DE=Parameter 2)
+  DEC A                   ;Two?                                      ; ...less than ..
+  JP Z,CALLST             ;Yes
+  POP BC                  ;Final in [B,C]                            ; (BC=Parameter 3)
+  DEC A                   ;Three?                                    ; ...or equal to 3,
+  JP Z,CALLST             ;Yes                                       ; they are passed in the registers.
+  PUSH BC                 ;Save back third parm                  
+  PUSH HL                 ;Save back first
+  LD HL,$0002             ;Point to rest of parm list                ; If the number of parameters is greater than 3,
+  ADD HL,SP                                                          ; parameters 3 through n will be in a contiguous data block
+  LD B,H                  ;Get into [B,C]                            ; BC will point to the low byte of this data block
   LD C,L
-  POP HL
+  POP HL                  ;Restore parm three
 
-CALL_REGS:
-  PUSH HL
-  LD HL,__CALL_3
-  EX (SP),HL
-  PUSH HL
-  LD HL,(INTFLG)
-  EX (SP),HL
-  RET
+CALLST:
+  PUSH HL                 ;Save parm three
+  LD HL,CALLRT            ;Where subroutines return
+  EX (SP),HL              ;Put it on stack, get back parm three
+  PUSH HL                 ;Save parm three
+  LD HL,(INTFLG)          ;Get subroutine address
+  EX (SP),HL              ;Save, get back parm three
+  RET                     ;Dispatch to subroutine
   
-__CALL_3:
-  LD HL,(SAVSTK)
+CALLRT:
+  LD HL,(SAVSTK)          ;Restore stack to former state
   LD SP,HL
-  LD HL,(TEMP)
-  JP NEWSTT
+  LD HL,(TEMP)            ;Get back text poiner
+  JP NEWSTT               ;Get next statement
 
 
+
+; This is the code for the CHAIN statement
+; The syntax is:
+; CHAIN [MERGE]<file name>[,[<line number>][,ALL][,DELETE <range>]]
+; The steps required to execute a CHAIN are:
+;
+; 1.) Scan arguments
+; 2.) Scan program for all COMMON statements and mark specified variables.
+; 3.) Squeeze unmarked entries from symbol table.
+; 4.) Copy string literals to string space
+; 5.) Move all simple variables and arrays into the bottom of string space.
+; 6.) Load new program
+; 7.) Move variables back down positioned after program.
+; 8.) Run program
 
 
 ; 'CHAIN' BASIC command
@@ -14580,113 +14622,114 @@ __CALL_3:
 ; CHAIN [MERGE] <filename>[,[<line number exp>] [,ALL] [,DELETE<range>]]
 ;
 __CHAIN:
-  XOR A
+  XOR A                   ;Assume no MERGE
   LD (MRGFLG),A
-  LD (CHAIN_DEL),A
-  LD A,(HL)
-  LD DE,TK_MERGE           ; d=0, e=TK_MERGE
-  CP E
-  JP NZ,__CHAIN_0
-  LD (MRGFLG),A
+  LD (MDLFLG),A           ;Also no MERGE w/ DELETE option
+  LD A,(HL)               ;Get current char
+  LD DE,TK_MERGE          ;Is it MERGE?; d=0, e=TK_MERGE
+  CP E                    ;Test
+  JP NZ,__CHAIN_0         ;NO
+  LD (MRGFLG),A           ;Set MERGE flag
   INC HL
 __CHAIN_0:
-  DEC HL
+  DEC HL                  ;Rescan file name
   CALL CHRGTB
-  CALL FILE_OPENIN
-  PUSH HL
-  LD HL,$0000
-  LD (CHAIN_LN),HL
-  POP HL
-  DEC HL
+  CALL PRGFLI             ;Evaluate file name and OPEN it
+  PUSH HL                 ;Save text pointer
+  LD HL,$0000             ;Get zero
+  LD (CHNLIN),HL          ;Assume no CHAIN line #
+  POP HL                  ;Restore text pointer
+  DEC HL                  ;Back up pointer
+  CALL CHRGTB             ;Scan char
+  JP Z,NTCHAL             ;No line number etc.
+  CALL SYNCHR             
+  DEFM ","                ;Must be comma
+  CP ','                  ;Ommit line # (Use ALL for instance)
+  JP Z,NTLINF             ;YES
+  CALL EVAL               ;Evaluate line # formula
+  PUSH HL                 ;Save text poiner
+  CALL GETWORD_HL         ;Force to int in [H,L]
+  LD (CHNLIN),HL          ;Save it for later
+  POP HL                  ;Restore text poiner
+  DEC HL                  ;Rescan last char
   CALL CHRGTB
-  JP Z,__CHAIN_3
+  JP Z,NTCHAL             ;No ALL i.e. preserve all vars across CHAIN
+NTLINF:
   CALL SYNCHR
-  DEFM ","
-  CP ','
-  JP Z,__CHAIN_1
-  CALL EVAL
-  PUSH HL
-  CALL GETWORD_HL
-  LD (CHAIN_LN),HL
-  POP HL
-  DEC HL
-  CALL CHRGTB
-  JP Z,__CHAIN_3
-__CHAIN_1:
+  DEFM ","                ;Should be comma here
+  LD DE,TK_DELETE         ;Test for DELETE option ; d=0, e=TK_DELETE
+  CP E                    ;Is it?
+  JP Z,CHMWDL             ;Yes
   CALL SYNCHR
-  INC L
-  LD DE,TK_DELETE          ; d=0, e=TK_DELETE
-  CP E
-  JP Z,CHAIN_DELETE
-  CALL SYNCHR
-  DEFM "A"
+  DEFM "A"                ;Check for "ALL"
   CALL SYNCHR
   DEFM "L"
   CALL SYNCHR
   DEFM "L"
-  JP Z,CHAIN_ALL
+  JP Z,DNCMDA             ;Goto step 3
   CALL SYNCHR
-  DEFM ","
-  CP E
-  JP NZ,SN_ERR
-  OR A
-CHAIN_DELETE:
-  PUSH AF
-  LD (CHAIN_DEL),A
-  CALL CHRGTB
-  CALL LNUM_RANGE
+  DEFM ","                ;Force comma to appear
+  CP E                    ;Must be DELETE
+  JP NZ,SN_ERR            ;No, give error
+  OR A                    ;Flag to goto DNCMDA
+CHMWDL:
+  PUSH AF                 ;Save ALL flag
+  LD (MDLFLG),A           ;Set MERGE w/ DELETE
+  CALL CHRGTB             ;Get char after comma
+  CALL LNUM_RANGE         ;Scan line range
   PUSH BC
-  CALL DEPTR
+  CALL DEPTR              ;Change pointers back to numbers
   POP BC
-  POP DE
-  PUSH BC
-  LD H,B
+  POP DE                  ;Pop max line off stack
+  PUSH BC                 ;Save pointer to start of 1st line
+  LD H,B                  ;Save pointer to start line
   LD L,C
-  LD (CHAIN_FROM),HL
-  CALL SRCHLN
-  JP NC,__CHAIN_2
-  LD D,H
-  LD E,L
-  LD (CHAIN_TO),HL
-  POP HL
-  CALL DCOMPR
-__CHAIN_2:
-  JP NC,FC_ERR
-  POP AF
-  JP NZ,CHAIN_ALL
-__CHAIN_3:
+  LD (CMSPTR),HL
+  CALL SRCHLN             ;Find the last line
+  JP NC,FCERRG            ;Must have exact match on end of range
+  LD D,H                  ;[D,E] =  pointer at the start of the line
+  LD E,L                  ;beyond the last line in the range
+  LD (CMEPTR),HL          ;Save pointer to end line
+  POP HL                  ;Get back pointer to start of range
+  CALL DCOMPR             ;Make sure the start comes before the end
+FCERRG:
+  JP NC,FC_ERR            ;If not, "Illegal function call"
+  POP AF                  ;Flag that says whether to go to DNCMDA
+  JP NZ,DNCMDA            ;"ALL" option was present
+NTCHAL:
   LD HL,(CURLIN)
   PUSH HL
-  LD HL,(TXTTAB)
-  DEC HL
-__CHAIN_4:
+  LD HL,(TXTTAB)          ;Start searching for COMMONs at program start
+  DEC HL                  ;Compensate for next instr
+CLPSCN:
+  INC HL                  ;Look at first char of next line
+  LD A,(HL)               ;Get char from program
   INC HL
-  LD A,(HL)
+  OR (HL)                 ;Are we pointing to program end?
+  JP Z,CLPFIN             ;Yes
   INC HL
-  OR (HL)
-  JP Z,L45C9_2
-  INC HL
-  LD E,(HL)
+  LD E,(HL)               ;Get line # in [D,E]
   INC HL
   LD D,(HL)
-  EX DE,HL
+  EX DE,HL                ;Save current line # in CURLIN for errors
   LD (CURLIN),HL
   EX DE,HL
-__CHAIN_5:
-  CALL CHRGTB
-; This entry point is used by the routine at L45C9.
-__CHAIN_6:
+CSTSCN:
+  CALL CHRGTB             ;Get statment type
+
+; This entry point is used by the routine at BCKUCM.
+AFTCOM:
   OR A
-  JP Z,__CHAIN_4
-  CP '9'+1
-  JP Z,__CHAIN_5
-  LD DE,TK_COMMON          ; d=0, e=TK_COMMON
-  CP E
-  JP Z,CHAIN_COMMON
-  CALL CHRGTB
-  CALL __DATA
-  DEC HL
-  JP __CHAIN_5
+  JP Z,CLPSCN             ;EOL Scan next one
+  CP ':'                  ;Are we looking at colon
+  JP Z,CSTSCN             ;Yes, get next statement
+  LD DE,TK_COMMON         ;Test for COMMON, avoid byte externals
+  CP E                    ;Is it a COMMON?
+  JP Z,CHAIN_COMMON       ;Yes, handle it
+  CALL CHRGTB             ;Get first char of statement
+  CALL __DATA             ;Skip over statement
+  DEC HL                  ;Back up to rescan terminator
+  JP CSTSCN               ;Scan next one
 
   
 ;	Example
@@ -14695,116 +14738,122 @@ __CHAIN_6:
 ;	110 CHAIN "PROG3",10 
   
 CHAIN_COMMON:
-  CALL CHRGTB
-  JP Z,__CHAIN_6
-; This entry point is used by the routine at L45C9.
-__CHAIN_7:
-  PUSH HL
-  LD A,$01
-  LD (SUBFLG),A
-  CALL PTRGET
-  JP Z,L45A2_3
-  LD A,B
-  OR $80
-  LD B,A
-  XOR A
-  CALL ARLDSV
-  LD A,$00
-  LD (SUBFLG),A
-  JP NZ,__CHAIN_8
-  LD A,(HL)
-  CP '('
-  JP NZ,__CHAIN_9
-  POP AF
-  JP L45C9_0
+  CALL CHRGTB             ;Get thing after COMMON
+  JP Z,AFTCOM             ;Get next thing
 
-__CHAIN_8:
-  LD A,(HL)
-  CP '('
-  JP Z,FC_ERR
-; This entry point is used by the routine at L45A2.
-__CHAIN_9:
-  POP HL
-  CALL PTRGET
-  LD A,D
-  OR E
-  JP NZ,L45A2_0
-  LD A,B
+; This entry point is used by the routine at BCKUCM.
+__CHAIN_7:
+  PUSH HL                 ;Save text pointer
+  LD A,$01                ;Call PTRGET to search for array
+  LD (SUBFLG),A
+  CALL PTRGET             ;This subroutine in F3 scans variables
+  JP Z,FNDAAY             ;Found array
+  LD A,B                  ;Try finding array with COMMON bit set
   OR $80
   LD B,A
-  LD DE,L45A2
+  XOR A                   ;Set zero CC
+  CALL ARLDSV             ;Search array table
+  LD A,$00                ;Clear SUBFLG in all cases
+  LD (SUBFLG),A
+  JP NZ,NTFN2T            ;Not found, try simple
+  LD A,(HL)               ;Get terminator, should be "("
+  CP '('                  ;Test
+  JP NZ,SCNSMP            ;Must be simple then
+  POP AF                  ;Get rid of saved text pointer
+  JP COMADY               ;Already was COMMON, ignore it
+
+NTFN2T:
+  LD A,(HL)               ;Get terminator
+  CP '('                  ;Array specifier?
+  JP Z,FC_ERR             ;No such animal, give "Function call" error
+
+; This entry point is used by the routine at VALTYP.
+SCNSMP:
+  POP HL                 ;Rescan variable name for start
+  CALL PTRGET            ;Evaluate as simple
+;COMPTR:
+  LD A,D                 ;If var not found, [D,E]=0
+  OR E
+  JP NZ,COMFNS           ;Found it
+  LD A,B                 ;Try to find in COMMON
+  OR $80                 ;Set COMMON bit
+  LD B,A
+
+  LD DE,COMPT2
   PUSH DE
   LD DE,VARRET
   PUSH DE
-  LD A,(VALTYP)
+  
+  LD A,(VALTYP)          ;Must have VALTYP in [D]
   LD D,A
-  JP NSCFOR
+  JP NSCFOR              ;Search symbol table
 
 ; Routine at 17826
-L45A2:
-  LD A,D
+COMPT2:
+  LD A,D                 ;Found?
   OR E
-  JP Z,FC_ERR
-; This entry point is used by the routine at __CHAIN.
-L45A2_0:
-  PUSH HL
-  LD B,D
-  LD C,E
-  LD HL,L45C9
-  PUSH HL
-L45A2_1:
-  DEC BC
-L45A2_2:
-  LD A,(BC)
-  DEC BC
-  OR A
-  JP M,L45A2_2
-  LD A,(BC)
-  OR $80
-  LD (BC),A
-  RET
+  JP Z,FC_ERR            ;No, who is this guy?
 
 ; This entry point is used by the routine at __CHAIN.
-L45A2_3:
+COMFNS:
+  PUSH HL                ;Save text pointer
+  LD B,D                 ;Get pointer to var in [B,C]
+  LD C,E
+  LD HL,BCKUCM           ;Loop back here
+  PUSH HL
+CBAKBL:
+  DEC BC                 ;Point at first char of rest
+LPBKNC:
+  LD A,(BC)              ;Back up until plus byte
+  DEC BC
+  OR A
+  JP M,LPBKNC
+  LD A,(BC)              ;Now point to 2nd char of var name
+  OR $80                 ;set COMMON bit
+  LD (BC),A
+  RET                    ;done
+                         
+; This entry point is used by the routine at __CHAIN.
+FNDAAY:
   LD (SUBFLG),A
   LD A,(HL)
   CP '('
-  JP NZ,__CHAIN_9
+  JP NZ,SCNSMP
   EX (SP),HL
   DEC BC
   DEC BC
-  CALL L45A2_1
+  CALL CBAKBL
 
 ; Routine at 17865
-L45C9:
+BCKUCM:
   POP HL
   DEC HL
   CALL CHRGTB
-  JP Z,__CHAIN_6
+  JP Z,AFTCOM
   CP '('
-  JP NZ,L45C9_1
+  JP NZ,BCKUCM_1
 ; This entry point is used by the routine at __CHAIN.
-L45C9_0:
+COMADY:
   CALL CHRGTB
   CALL SYNCHR
   DEFM ")"
-  JP Z,__CHAIN_6
-L45C9_1:
+  JP Z,AFTCOM
+BCKUCM_1:
   CALL SYNCHR
   DEFM ","
   JP __CHAIN_7
 
 ; This entry point is used by the routine at __CHAIN.
-L45C9_2:
+CLPFIN:
   POP HL
   LD (CURLIN),HL
   EX DE,HL
   LD HL,(ARYTAB)
   EX DE,HL
   LD HL,(VARTAB)
-L45C9_3:
+BCKUCM_3:
   CALL DCOMPR
-  JP Z,L45C9_6
+  JP Z,BCKUCM_6
   PUSH HL
   LD C,(HL)
   INC HL
@@ -14820,26 +14869,26 @@ L45C9_3:
   ADD HL,BC
   POP AF
   POP BC
-  JP M,L45C9_3
+  JP M,BCKUCM_3
   PUSH BC
-  CALL L45C9_4
+  CALL BCKUCM_4
   LD HL,(ARYTAB)
   ADD HL,DE
   LD (ARYTAB),HL
   EX DE,HL
   POP HL
-  JP L45C9_3
+  JP BCKUCM_3
 
-L45C9_4:
+BCKUCM_4:
   EX DE,HL
   LD HL,(STREND)
-L45C9_5:
+BCKUCM_5:
   CALL DCOMPR
   LD A,(DE)
   LD (BC),A
   INC DE
   INC BC
-  JP NZ,L45C9_5
+  JP NZ,BCKUCM_5
   LD A,C
   SUB L
   LD E,A
@@ -14853,13 +14902,13 @@ L45C9_5:
   LD (STREND),HL
   RET
 
-L45C9_6:
+BCKUCM_6:
   EX DE,HL
   LD HL,(STREND)
   EX DE,HL
-L45C9_7:
+BCKUCM_7:
   CALL DCOMPR
-  JP Z,CHAIN_ALL
+  JP Z,DNCMDA
   PUSH HL
   INC HL
   INC HL
@@ -14877,38 +14926,38 @@ L45C9_7:
   ADD HL,BC
   POP AF
   POP BC
-  JP M,L45C9_7
+  JP M,BCKUCM_7
   PUSH BC
-  CALL L45C9_4
+  CALL BCKUCM_4
   EX DE,HL
   POP HL
-  JP L45C9_7
+  JP BCKUCM_7
 
 ; CHAIN: With the ALL option, every variable in the current program is passed
 ; to the called program
 ;
-; Used by the routines at __CHAIN and L45C9.
-CHAIN_ALL:
+; Used by the routines at __CHAIN and BCKUCM.
+DNCMDA:
   LD HL,(VARTAB)
-CHAIN_ALL_0:
+DNCMDA_0:
   EX DE,HL
   LD HL,(ARYTAB)
   EX DE,HL
   CALL DCOMPR
-  JP Z,CHAIN_ALL_3
+  JP Z,DNCMDA_3
   CALL L46AB_5
-  JP NZ,CHAIN_ALL_1
+  JP NZ,DNCMDA_1
   CALL L46AB_0
   XOR A
-CHAIN_ALL_1:
+DNCMDA_1:
   LD E,A
   LD D,$00
   ADD HL,DE
-  JP CHAIN_ALL_0
-CHAIN_ALL_2:
+  JP DNCMDA_0
+DNCMDA_2:
   POP BC
 ; This entry point is used by the routine at L46AB.
-CHAIN_ALL_3:
+DNCMDA_3:
   EX DE,HL
   LD HL,(STREND)
   EX DE,HL
@@ -14924,7 +14973,7 @@ CHAIN_ALL_3:
   PUSH HL
   ADD HL,BC
   CP $03
-  JP NZ,CHAIN_ALL_2
+  JP NZ,DNCMDA_2
   LD (TEMP3),HL
   POP HL
   LD C,(HL)
@@ -14939,10 +14988,10 @@ L46AB:
   LD HL,(TEMP3)
   EX DE,HL
   CALL DCOMPR
-  JP Z,CHAIN_ALL_3
+  JP Z,DNCMDA_3
   LD BC,L46AB
   PUSH BC
-; This entry point is used by the routine at CHAIN_ALL.
+; This entry point is used by the routine at DNCMDA.
 L46AB_0:
   LD A,(HL)
   INC HL
@@ -14974,7 +15023,7 @@ L46AB_0:
   POP HL
   RET
 
-; This entry point is used by the routine at CHAIN_ALL.
+; This entry point is used by the routine at DNCMDA.
 L46AB_1:
   CALL GARBGE
   LD HL,(STREND)
@@ -14998,13 +15047,13 @@ L46AB_1:
   LD L,C
   DEC HL
   LD (FRETOP),HL
-  LD A,(CHAIN_DEL)
+  LD A,(MDLFLG)
   OR A
   JP Z,L46AB_2
-  LD HL,(CHAIN_FROM)
+  LD HL,(CMSPTR)
   LD B,H
   LD C,L
-  LD HL,(CHAIN_TO)
+  LD HL,(CMEPTR)
   CALL __DELETE_0
   LD (ARYTAB),HL
   LD (STREND),HL
@@ -15047,7 +15096,7 @@ L46AB_4:
   LD L,C
   LD (STREND),HL
   EX DE,HL
-  LD HL,(CHAIN_LN)
+  LD HL,(CHNLIN)
   EX DE,HL
   LD HL,(TXTTAB)
   DEC HL
@@ -15061,7 +15110,7 @@ L46AB_4:
   LD L,C
   JP NEWSTT
 
-; This entry point is used by the routine at CHAIN_ALL.
+; This entry point is used by the routine at DNCMDA.
 L46AB_5:
   LD A,(HL)
   INC HL
@@ -15139,7 +15188,7 @@ L46AB_11:
   LD A,(HL)
   CP $03
   JP NZ,L46AB_13
-  CALL __GET_27
+  CALL CMPFBC
   LD A,L
   SUB E
   LD L,A
@@ -15161,506 +15210,626 @@ L46AB_13:
   CALL OUTDO_CRLF
   JP FINPRT
 
+
+
+
+;
+; The 5.0 Disk code is essentially an extra level of buffering for random disk I/O files.
+; Sequential I/O is not affected by the 5.0 code.
+; Great care has been taken to insure compatibility with existing code 
+; to support diverse operating systems.
+; The 5.0 disk code has its own data structure for handling the variable length records in random files.
+; This data structure sits right after the regular data block for the file and consumes an amount of 
+; memory equal to MAXREC (The maximum allowed record size) plus 9 bytes.
+;
+;Here is the content of the data block:
+;
+;FD.SIZ size 2          ;Variable length record size default 128
+;FD.PHY size 2          ;Current physical record #
+;FD.LOG size 2          ;Current logical record number
+;FD.CHG size 1          ;Future flag for accross block PRINTs etc.
+;FD.OPS size 2          ;Output print position for PRINT, INPUT, WRITE
+;FD.DAT size FD.SIZ	    ;Actual FIELD data buffer
+;            ;Size is FD.SIZ bytes long
+;
+;DATE				FIX
+;----				---
+;8/6/1979           Make PUT, GET increment LOC correctly
+;8/14/1979          PUT in BASIC compiler switch (main source)
+
+
+
+
+
+;	VARECS - Variable record scan for OPEN
+
+;	Enter VARECS with file mode in [A]
+
+
 ; This entry point is used by the routine at __OPEN.
 VARECS:
-  CP $03
-  RET NZ
-  DEC HL
-  CALL CHRGTB
-  PUSH DE
-  LD DE,$0080
-  JP Z,L46AB_15
-  PUSH BC
-  CALL INTIDX
-  POP BC
-L46AB_15:
+  CP $03                ;Random?
+  RET NZ                ;No, give error later if he gave record length
+  DEC HL                ;Back up pointer
+  CALL CHRGTB           ;Test for eol
+  PUSH DE               ;Save [D,E]
+  LD DE,DATPSC          ;Assume record length=DATPSC
+  JP Z,NOTSEP           ;No other params for OPEN
+  PUSH BC               ;Save file data block pointer
+  CALL INTIDX           ;Get record length
+  POP BC                ;Get back file data block
+NOTSEP:
   PUSH HL
   LD HL,(RECSIZ)
   CALL DCOMPR
   JP C,FC_ERR
-  LD HL,$00A9		;(FD.SIZ) POINT TO RECORD SIZE
+  LD HL,$00A9           ;Stuff into data block: (FD.SIZ) POINT TO RECORD SIZE  
   ADD HL,BC
   LD (HL),E
   INC HL
   LD (HL),D
-  XOR A
-  LD E,$07
-L46AB_16:
-  INC HL
-  LD (HL),A
-  DEC E
-  JP NZ,L46AB_16
-  POP HL
-  POP DE
+  XOR A                 ;Clear other bytes in data block
+  LD E,$07              ;# of bytes to clear
+ZOFIVB:
+  INC HL                ;Increment pointer
+  LD (HL),A             ;Clear byte
+  DEC E                 ;Count down
+  JP NZ,ZOFIVB          ;Go back for more
+  POP HL                ;Text pointer 
+  POP DE                ;Restore [D,E]
   RET
 
 ; 'PUT' BASIC command
 __PUT:
-  DEFB $F6                ; OR $AF  masking the next instruction
+  DEFB $F6                ; OR $AF  masking the next instruction  ("ORI"to set non-zero flag)
 
 ; 'GET' BASIC command
 __GET:
-  XOR A
-  LD (PUTGET_FLG),A
-  CALL FILSCN		; Check we have the '#' channel specifier and put the associated file buffer in BC
-  CP $03
-  JP NZ,FMODE_ERR
-  PUSH BC
-  PUSH HL
-  LD HL,$00AD
+  XOR A                   ;Set zero
+  LD (PUTGET_FLG),A       ;Save flag
+  CALL FILSCN             ;Get pointer at file data block   (in BC)
+  CP $03                  ;Must be a random file
+  JP NZ,FMODE_ERR         ;If not, "Bad file mode"
+  PUSH BC                 ;Save pointer at file data block
+  PUSH HL                 ;Save text pointer
+  LD HL,$00AD             ;(FD.LOG) Fetch current logical posit
   ADD HL,BC
   LD E,(HL)
   INC HL
   LD D,(HL)
-  INC DE
-  EX (SP),HL
+  INC DE                  ;Compensate for "DCX D" when call INTIDX
+  EX (SP),HL              ;Save data block pointer and get text pointer
   LD A,(HL)
-  CP ','
-  CALL Z,INTIDX
-  DEC HL
+  CP ','                  ;Is there a record number
+  CALL Z,INTIDX           ;Read it if there, 1-indexed
+  DEC HL                  ;Make sure statement ends
   CALL CHRGTB
   JP NZ,SN_ERR
-  EX (SP),HL
-  LD A,D
-  OR E
-  JP Z,RECNO_ERR
+  EX (SP),HL              ;Save text pointer, get data block pointer
+  LD A,D                  ;Get record #
+  OR E                    ;Make sure its not zero
+  JP Z,RECNO_ERR          ;If so, "Bad record number"
   DEC HL
   LD (HL),E
   INC HL
   LD (HL),D
   DEC DE
-  POP HL
+  POP HL                  ;Get back text pointer 
   POP BC
-  PUSH HL
-  PUSH BC
-  LD HL,$00B0		; 176
+  PUSH HL                 ;Save back text pointer 
+  PUSH BC                 ;Pointer to file data block
+  LD HL,$00B0		      ;FD.OPS: Zero output file posit
   ADD HL,BC
   XOR A
   LD (HL),A
   INC HL
   LD (HL),A
-  LD HL,$00A9				;(FD.SIZ) POINT TO RECORD SIZE
+  LD HL,$00A9             ;(FD.SIZ) Get logical record size in [D,E]
   ADD HL,BC
   LD A,(HL)
   INC HL
   LD H,(HL)
   LD L,A
-  EX DE,HL
-  PUSH DE
-  PUSH HL
-  LD HL,$0080
-  CALL DCOMPR
-  POP HL
-  JP NZ,__GET_0
-  LD DE,$0000
-  JP __GET_7
+  EX DE,HL                ;Record size to [D,E], posit in [H,L]
+  PUSH DE                 ;Save record size (count of bytes)
 
-__GET_0:
-  LD B,D
+; Record size in [D,E]
+; Logical position in [H,L]
+; This code computes physical record # in [H,L]
+; offset into buffer in [D,E]
+
+  PUSH HL                 ;Save logical posit
+  LD HL,DATPSC            ;Get sector size
+  CALL DCOMPR             ;Compare the two
+  POP HL                  ;Restore logical posit
+  JP NZ,NTLSAP            ;If record size=sector size, done
+  LD DE,$0000             ;Set offset to zero
+  JP DONCLC               ;Done with calculations
+
+NTLSAP:
+  LD B,D                  ;Copy record size to [B,C]
   LD C,E
-  LD A,$10
-  EX DE,HL
-  LD HL,$0000
-  PUSH HL
-__GET_1:
+  LD A,16                 ;16 by 16 multiply
+  EX DE,HL                ;Put multiplier in [D,E]
+  LD HL,$0000             ;Set both parts of product to zero
+  PUSH HL                 ;2nd part is on stack
+FRMUL1:
   ADD HL,HL
   EX (SP),HL
-  JP NC,__GET_2
+  JP NC,FNOCRY
   ADD HL,HL
   INC HL
-  JP __GET_3
+  JP FNOCY0
 
-__GET_2:
+FNOCRY:
   ADD HL,HL
-__GET_3:
+FNOCY0:
   EX (SP),HL
   EX DE,HL
-  ADD HL,HL
+  ADD HL,HL               ;Rotate [D,E] left one
   EX DE,HL
-  JP NC,__GET_5
+  JP NC,FNOCY2            ;Add in [B,C] if Ho=1
   ADD HL,BC
   EX (SP),HL
-  JP NC,__GET_4
+  JP NC,FNOINH
   INC HL
-__GET_4:
+FNOINH:
   EX (SP),HL
-__GET_5:
-  DEC A
-  JP NZ,__GET_1
-  LD A,L
-  AND $7F
-  LD E,A
-  LD D,$00
-  POP BC
-  LD A,L
+FNOCY2:
+  DEC A                   ;are we done multiplying
+  JP NZ,FRMUL1            ;No, go back for next bit of product
+
+
+; Now divide by the number of bytes in a sector
+
+;	IFF	DATPSC-256
+;	MOV	E,L			;Remainder is just low byte
+;	MVI	D,0			;Of which HO is 0
+;	MOV	L,H			;Annd record # is shifted down
+;	POP	B			;Get most sig. Byte of record #
+;	MOV	H,C			;set record # to it
+;	MOV	A,B			;Make sure rest=0
+;	ORA	A
+;	JNZ	FCERR
+;	END IFF	DATPSC-256
+
+
+;	IF	DATPSC-128
+;	IF	DATPSC-256
+;	POP	D			;Get high word of dividend in [D,E]
+;	LXI	B,0			;Set dividend to zero.
+;KEPSUB:	PUSH	B			;Save dividend
+;	LXI	B,0-DATPSC		;Get divisor (# of bytes sector)
+;	DAD	B			;Subtract it
+;	JC	GUARCY			;Carry from low bytes implies cary from high
+;	XCHG				;Subtract -1 from high byte
+;	LXI	B,0-1
+;	DAD	B
+;	XCHG				;Put result back where it belongs
+;GUARCY:	POP	B			;Restore dividend
+;	JNC	DONDIV			;Finished
+;	INX	B			;Add one to it
+;	MOV	A,B			;See if overflowed
+;	ORA	C
+;	JNZ	KEPSUB			;Keep at it till done
+;	JMP	FCERR			;Yes give error
+;DONDIV:	PUSH	B			;Save dividend
+;	LXI	B,0+DATPSC		;Correct for one too many subtraction
+;	DAD	B			;By adding divisor back in
+;	POP	D			;Dividend ends up in [D,E], Remainder in [H,L]
+;	XCHG	
+;	ENDIF
+;	ENDIF
+
+
+
+;IFF DATPSC-128
+  LD A,L                  ;Get low byte of result
+  AND $7F                 ;Get rid of high bit
+  LD E,A                  ;this is it
+  LD D,$00                ;Set high byte of remainder to zero
+  POP BC                  ;Get high word of product
+  LD A,L                  ;Get MSB of low word
   LD L,H
   LD H,C
-  ADD HL,HL
-  JP C,FC_ERR
-  RLA
-  JP NC,__GET_6
-  INC HL
-__GET_6:
-  LD A,B
-  OR A
+  ADD HL,HL               ;Make space for it
+  JP C,FC_ERR             ;UH-OH record # to big!
+  RLA                     ;Is it set?
+  JP NC,DONINH            ;Not set
+  INC HL                  ;Copy it into low bit
+DONINH:
+  LD A,B                  ;Get high byte of record #
+  OR A                    ; Is it non-zero
   JP NZ,FC_ERR
-__GET_7:
-  LD (TEMPB),HL
-  POP HL
-  POP BC
-  PUSH HL
-  LD HL,$00B2
-  ADD HL,BC
-  LD (FIELD_PTR2),HL
-__GET_8:
-  LD HL,$0029
-  ADD HL,BC
+;END IFF DATPSC-128
+
+
+DONCLC:
+
+; At this point, record #is in [H,L]
+; offset into record in [D,E]
+; Stack:
+; COUNT of bytes to read or write
+; data block
+; Text pointer
+; Return Address
+
+  LD (RECORD),HL          ;Save record size
+  POP HL                  ;Get count
+  POP BC                  ;Pointer to file data block
+  PUSH HL                 ;Save back count
+  LD HL,$00B2             ;FD.DAT: Point to Field buffer
+  ADD HL,BC               ;Add start of data block
+  LD (LBUFF),HL           ;Save pointer to FIELD buffer
+NXTOPD:
+  LD HL,$0029             ;DATOFS: Point to physical buffer
+  ADD HL,BC               ;Add file block offset
   ADD HL,DE
-  LD (FIELD_PTR3),HL
-  POP HL
-  PUSH HL
-  LD HL,$0080
-  LD A,L
-  SUB E
-  LD L,A
+  LD (PBUFF),HL           ;PBUFF: Save
+  POP HL                  ;Get count
+  PUSH HL                 ;Save count
+  LD HL,DATPSC            ;[H,L]=DATPSC-offset
+  LD A,L                  
+  SUB E                   
+  LD L,A                  
   LD A,H
   SBC A,D
   LD H,A
-  POP DE
-  PUSH DE
-  CALL DCOMPR
-  JP C,__GET_9
-  LD H,D
+  POP DE                  ;Get back count (destroy offset)
+  PUSH DE                 ;Save COUNT
+  CALL DCOMPR             ;Which is smaller, count or DATPSC-offset?
+  JP C,DATMOF             ;The latter
+  LD H,D                  ;Copy count into bytes
   LD L,E
-__GET_9:
-  LD A,(PUTGET_FLG)
-  OR A
-  JP Z,__GET_12           ; JP if GET
-  LD DE,$0080
+DATMOF:
+  LD A,(PUTGET_FLG)       ;PUT or GET
+  OR A                    ;Set cc's
+  JP Z,FIVDRD             ;Was Read
+  LD DE,DATPSC            ;If bytes .LT. DATPSC then read(sector)
   CALL DCOMPR
-  JP NC,__GET_10
-  PUSH HL
-  CALL __GET_14
-  POP HL
-__GET_10:
+  JP NC,NOFVRD            ;(Idea-if writing full buffer, no need to read)
+  PUSH HL                 ;Save bytes
+  CALL GETSUB             ;Read record.
+  POP HL                  ;Bytes
+NOFVRD:
   PUSH BC
   LD B,H
   LD C,L
   EX DE,HL
-  LD HL,(FIELD_PTR3)
+  LD HL,(PBUFF)
   EX DE,HL
-  LD HL,(FIELD_PTR2)
-  CALL __GET_17
-  LD (FIELD_PTR2),HL
-  LD D,B
+  LD HL,(LBUFF)          ;Get ready to move bytes between buffers
+  CALL _LDIR             ;Move bytes to physical buffer
+  LD (LBUFF),HL          ;Store updated pointer
+  LD D,B                 ;COUNT TO [D,E]
   LD E,C
-  POP BC
-  CALL __GET_13
-__GET_11:
-  LD HL,(TEMPB)
-  INC HL
-  LD (TEMPB),HL
-  POP HL
-  LD A,L
+  POP BC                 ;Restore FDB pointer
+  CALL PUTSUB            ;Do write
+NXFVBF:
+  LD HL,(RECORD)
+  INC HL                 ;Increment it
+  LD (RECORD),HL         ;Save back
+  POP HL                 ;Count
+  LD A,L                 ;Make count correct
   SUB E
   LD L,A
   LD A,H
   SBC A,D
   LD H,A
   LD A,H
-  OR L
-  LD DE,$0000
-  PUSH HL
-  JP NZ,__GET_8
-  POP HL
-  POP HL
-  RET
+  OR L                   ;Is count zero?
+  LD DE,$0000            ;Set offset=0
+  PUSH HL                ;Save COUNT
+  JP NZ,NXTOPD           ;Keep working on it
+  POP HL                 ;Get rid of COUNT
+  POP HL                 ;Restore text pointer
+  RET                    ;Done
 
-__GET_12:
-  PUSH HL
-  CALL __GET_14
-  POP HL
+
+; Read code
+; [H,L]=bytes
+; [D,E]=count
+FIVDRD:
+  PUSH HL                ;Save bytes
+  CALL GETSUB            ;Do read
+  POP HL                 ;Get back bytes
   PUSH BC
   LD B,H
   LD C,L
   EX DE,HL
-  LD HL,(FIELD_PTR2)
+  LD HL,(LBUFF)          ;Point to logical buffer
   EX DE,HL
-  LD HL,(FIELD_PTR3)
-  CALL __GET_17
-  EX DE,HL
-  LD (FIELD_PTR2),HL
-  LD D,B
+  LD HL,(PBUFF)
+  CALL _LDIR
+  EX DE,HL               ;Get pointer to FIELD buffer in [H,L]
+  LD (LBUFF),HL          ;Save back updated logical buffer
+  LD D,B                 ;COUNT TO [D,E]
   LD E,C
   POP BC
-  JP __GET_11
+  JP NXFVBF
 
-__GET_13:
+PUTSUB:
   DEFB $F6                ; "OR n" to Mask 'XOR A'
-__GET_14:
+GETSUB:
   XOR A
-  LD (MAXTRK),A
+  LD (MAXTRK),A           ;GET/PUT Fflag
   PUSH BC
   PUSH DE
   PUSH HL
   EX DE,HL
-  LD HL,(TEMPB)
+  LD HL,(RECORD)
   EX DE,HL
-  LD HL,$00AB
-  ADD HL,BC
-  PUSH HL
-  LD A,(HL)
+  LD HL,$00AB             ;FD.PHY: Point to physical record #
+  ADD HL,BC               ;Add offset to file buffer
+  PUSH HL                 ;Save this pointer
+  LD A,(HL)               ;Get current phys. rec #
   INC HL
   LD H,(HL)
   LD L,A
   INC DE
-  CALL DCOMPR
-  POP HL
+  CALL DCOMPR             ;Do we already have record in buffer
+  POP HL                  ;Restore pointer
   LD (HL),E
   INC HL
-  LD (HL),D
-  JP NZ,__GET_15
-  LD A,(MAXTRK)
+  LD (HL),D               ;Store new record number
+  JP NZ,NTREDS            ;Curent and previos record numbers are different
+  LD A,(MAXTRK)           ;Trying to do read?
   OR A
-  JP Z,__GET_16
-__GET_15:
-  LD HL,__GET_16
-  PUSH HL
-  PUSH BC
-  PUSH HL
-  LD HL,$0026
-  ADD HL,BC
-  JP FIVDPT
+  JP Z,SUBRET             ;If trying to read and record already in buffer, do nothing
 
-__GET_16:
+NTREDS:
+  LD HL,SUBRET            ;Where to return to
+  PUSH HL
+  PUSH BC                 ;File data block
+  PUSH HL                 ;Dummy text pointer
+  LD HL,$0026             ;LOCOFS+1: where [H,L] is expected to be
+  ADD HL,BC
+  JP FIVDPT               ;Call old PUT/GET
+
+SUBRET:
   POP HL
   POP DE
   POP BC
-  RET
+  RET                     ;Restore all regs and return to caller
 
-__GET_17:
-  PUSH BC
-__GET_18:
-  LD A,(HL)
-  LD (DE),A
+
+; a.k.a. FDMOV: LDIR on the 8080/8085
+; Move bytes from [H,L] to [D,E] [B,C] times
+_LDIR:
+  PUSH BC                 ;Save count
+_LDIR1:
+  LD A,(HL)               ;Get byte
+  LD (DE),A               ;Store it
   INC HL
   INC DE
-  DEC BC
-  LD A,B
+  DEC BC                  ;Decrement count
+  LD A,B                  ;Gone to zero?
   OR C
-  JP NZ,__GET_18
-  POP BC
+  JP NZ,_LDIR1            ;Go back for more
+  POP BC                  ;Return with count
   RET
 
 ; This entry point is used by the routine at __LOF.
 FILOFV:
-  POP AF
-  PUSH DE
-  PUSH BC
-  PUSH AF
-  LD B,H
+  POP AF                  ;Get character off stack
+  PUSH DE                 ;Save [D,E]
+  PUSH BC                 ;Save [B,C]
+  PUSH AF                 ;Save back char
+  LD B,H                  ;[B,C]=file data block
   LD C,L
-  CALL __GET_28
-  JP Z,__GET_21
-  CALL __GET_26
-  LD HL,$00B1		; 177
+  CALL CMPFPS             ;Any room in buffer
+  JP Z,DERFOV             ;No
+  CALL SETFPI             ;save new position
+  LD HL,$00B1             ;FD.DAT-1: Index into data buffer
+  ADD HL,BC               ;Add start of file control block
+  ADD HL,DE               ;Add offset into buffer
+  POP AF                  ;Get back char
+  LD (HL),A               ;Store in buffer
+  PUSH AF                 ;Save char
+  LD HL,$0028             ;NMLOFS: Set up [H,L] to point at print posit
   ADD HL,BC
-  ADD HL,DE
-  POP AF
-  LD (HL),A
-  PUSH AF
-  LD HL,$0028
-  ADD HL,BC
-  LD D,(HL)
-  LD (HL),$00
-  CP $0D
-  JP Z,__GET_20
-  ADD A,$E0
-  LD A,D
+  LD D,(HL)               ;Get present position
+  LD (HL),$00             ;Assume set it to zero
+  CP $0D                  ;Is it <Cr>?
+  JP Z,FISCR              ;Yes
+  ADD A,$E0               ;Set carry for spaces & higher
+  LD A,D                  ;Add one to current posit
   ADC A,$00
   LD (HL),A
-__GET_20:
-  POP AF
+FISCR:
+  POP AF                  ;Restore all regs
   POP BC
   POP DE
   POP HL
   RET
 
-__GET_21:
+DERFOV:
   JP FIELD_OV_ERR
 
 ; This entry point is used by the routine at INDSKB.
 FILIFV:
   PUSH DE
-  CALL __GET_27
-  JP Z,__GET_21
-  CALL __GET_26
-  LD HL,$00B1		; 177
-  ADD HL,BC
+  CALL CMPFBC             ;Save [D,E]
+  JP Z,DERFOV             ;Compare to present posit
+  CALL SETFPI             ;Return with null 
+  LD HL,$00B1             ;FD.DAT-1: Set new position
+  ADD HL,BC               ;Point to data
   ADD HL,DE
-  LD A,(HL)
-  OR A
-  POP DE
-  POP HL
-  POP BC
+  LD A,(HL)               ;Get the byte
+  OR A                    ;Clear carry (no EOF)
+  POP DE                  ;Restore [D,E]
+  POP HL                  ;Restore [H,L]
+  POP BC                  ;Restore [B,C]
   RET
 
-__GET_23:
-  LD HL,$00A9				;(FD.SIZ) POINT TO RECORD SIZE
-  JP __GET_25
+GETFSZ:
+  LD HL,$00A9             ;FD.SIZ: Point to record size
+  JP GETFP1               ;Continue
 
-__GET_24:
-  LD HL,$00B0		; 176
-__GET_25:
-  ADD HL,BC
-  LD E,(HL)
+GETFPS:
+  LD HL,$00B0             ;FD.OPS: Point to output position
+GETFP1:
+  ADD HL,BC               ;Add offset into buffer
+  LD E,(HL)               ;Get value
   INC HL
   LD D,(HL)
   RET
 
-__GET_26:
-  INC DE
-  LD HL,$00B0		; 176
-  ADD HL,BC
+SETFPI:
+  INC DE                  ;Increment current posit
+  LD HL,$00B0             ;FD.OPS: Point to output position
+  ADD HL,BC               ;Add file control block address
   LD (HL),E
   INC HL
   LD (HL),D
   RET
 
 ; This entry point is used by the routine at L46AB.
-__GET_27:
-  LD B,H
+CMPFBC:
+  LD B,H                  ;Copy file data block into [B,C]
   LD C,L
-__GET_28:
-  CALL __GET_24
-  PUSH DE
-  CALL __GET_23
-  EX DE,HL
-  POP DE
-  CALL DCOMPR
+CMPFPS:
+  CALL GETFPS             ;Get present posit
+  PUSH DE                 ;Save it
+  CALL GETFSZ             ;Get file size
+  EX DE,HL                ;into [H,L]
+  POP DE                  ;Get back posit
+  CALL DCOMPR             ;See if were at end
   RET
+
+
+
+	; Protected files
 
 ; This entry point is used by the routine at __MERGE.
 PROSAV:
-  CALL CHRGTB
-  LD (TEMP),HL
-  CALL SCCPTR
-  CALL __GET_30
-  LD A,$FE
+  CALL CHRGTB             ;Get char after "S"
+  LD (TEMP),HL            ;Save text pointer
+  CALL SCCPTR             ;Get rid of GOTO pointers
+  CALL PENCOD             ;encode binary
+  LD A,$FE                ;Put out 254 at start of file
   CALL BINPSV
-  CALL __GET_33
-  JP GTMPRT            ;Restore code string address
+  CALL PDECOD             ;Re-decode binary
+  JP GTMPRT               ;Back to NEWSTT
 
-__GET_30:
-  LD BC,$0D0B
-  LD HL,(TXTTAB)
-  EX DE,HL
-__GET_31:
-  LD HL,(VARTAB)
-  CALL DCOMPR
-  RET Z
-  LD HL,ATNTAB
-  LD A,L
+
+defc N1 = 11  ;Number of bytes to use from ATNCON (FP_ATNTAB)
+defc N2 = 13  ;Number of bytes to use from SINCON (FP_SINTAB)
+
+
+PENCOD:
+  LD BC,N1+N2*256         ;Initialize both counters  (B=N1, C=N2)
+  LD HL,(TXTTAB)          ;Starting point
+  EX DE,HL                ;Into [D,E]
+ENCDBL:
+  LD HL,(VARTAB)          ;At end?
+  CALL DCOMPR             ;Test
+  RET Z                   ;Yes
+  LD HL,FP_ATNTAB         ;Point to first scramble table
+  LD A,L                  ;Use [C] to index into it
   ADD A,C
   LD L,A
   LD A,H
   ADC A,$00
   LD H,A
-  LD A,(DE)
-  SUB B
-  XOR (HL)
-  PUSH AF
-  LD HL,FP_SINTAB
+  LD A,(DE)               ;Get byte from program
+  SUB B                   ;Subtract counter for no reason
+  XOR (HL)                ;XOR entry
+  PUSH AF                 ;Save result
+  LD HL,FP_SINTAB         ;calculate offset into SINCON using [B]
   LD A,L
   ADD A,B
   LD L,A
   LD A,H
   ADC A,$00
   LD H,A
-  POP AF
-  XOR (HL)
-  ADD A,C
-  LD (DE),A
-  INC DE
-  DEC C
-  JP NZ,__GET_32
-  LD C,$0B
-__GET_32:
-  DEC B
-  JP NZ,__GET_31
-  LD B,$0D
-  JP __GET_31
+  POP AF                  ;Get back current byte
+  XOR (HL)                ;XOR on this one too
+  ADD A,C                 ;Add counter for randomness
+  LD (DE),A               ;Store back in program
+  INC DE                  ;Incrment pointer
+  DEC C                   ;decrment first table index
+  JP NZ,CNTZER            ;Still non-Zero
+  LD C,N1                 ;Re-initialize counter 1
+CNTZER:
+  DEC B                   ;dedecrement counter-2
+  JP NZ,ENCDBL            ;Still non-zero, go for more
+  LD B,N2                 ;Re-initialize counter 2
+  JP ENCDBL               ;Keep going until done
 
 ; This entry point is used by the routine at __LOAD.
-__GET_33:
-  LD BC,$0D0B
-  LD HL,(TXTTAB)
-  EX DE,HL
-__GET_34:
-  LD HL,(VARTAB)
-  CALL DCOMPR
-  RET Z
-  LD HL,FP_SINTAB
+PDECOD:
+  LD BC,N1+N2*256         ;Initialize both counters  (B=N1, C=N2)
+  LD HL,(TXTTAB)          ;Starting point
+  EX DE,HL                ;Into [D,E]
+DECDBL:
+  LD HL,(VARTAB)          ;At end?
+  CALL DCOMPR             ;Test
+  RET Z                   ;Yes
+  LD HL,FP_SINTAB         ;calculate offset into SINCON using [B]
   LD A,L
   ADD A,B
   LD L,A
   LD A,H
   ADC A,$00
   LD H,A
-  LD A,(DE)
-  SUB C
-  XOR (HL)
-  PUSH AF
-  LD HL,ATNTAB
-  LD A,L
+  LD A,(DE)              ;Get byte from program
+  SUB C                  ;Subtract counter for randomness
+  XOR (HL)               ;XOR on this one too
+  PUSH AF                ;Save result
+  LD HL,FP_ATNTAB        ;Point to first scramble table
+  LD A,L                 ;Use [C] to index into it
   ADD A,C
   LD L,A
   LD A,H
   ADC A,$00
   LD H,A
-  POP AF
-  XOR (HL)
-  ADD A,B
-  LD (DE),A
-  INC DE
-  DEC C
-  JP NZ,__GET_35
-  LD C,$0B
-__GET_35:
+  POP AF                 ;Get back current byte
+  XOR (HL)               ;XOR entry
+  ADD A,B                ;Add counter for no reason
+  LD (DE),A              ;Store back in program
+  INC DE                 ;Increment pointer
+  DEC C                  ;decrment first table index
+  JP NZ,CNTZR2           ;Still non-Zero
+  LD C,N1                ;Re-initialize counter 1
+CNTZR2:
   DEC B
-  JP NZ,__GET_34
-  LD B,$0D
-  JP __GET_34
+  JP NZ,DECDBL           ;Decrement counter-2, Still non-zero, go for more
+  LD B,N2                ;Re-initialize counter 2
+  JP DECDBL              ;Keep going until done
+
 
 ; This entry point is used by the routines at __DELETE and __POKE.
-ADDR_RANGE:
-  PUSH HL
-  LD HL,(CURLIN)
-  LD A,H
+PRODIR:
+  PUSH HL                ;Save [H,L]
+  LD HL,(CURLIN)         ;Get current line #
+  LD A,H                 ;Direct?
   AND L
-  POP HL
-  INC A
+  POP HL                 ;Restore [H,L]
+  INC A                  ;If A=0, direct
   RET NZ
+
 
 ; This entry point is used by the routines at PROMPT, __LIST, LISPRT and __MERGE.
 PROCHK:
-  PUSH AF
-  LD A,(PROFLG)
-  OR A
-  JP NZ,FC_ERR
-  POP AF
+  PUSH AF                ;Save flags
+  LD A,(PROFLG)          ;Is this a protected file?
+  OR A                   ;Set CC's
+  JP NZ,FC_ERR           ;Yes, give error
+  POP AF                 ;Restore flags
   RET
 
+
 ; Data block at 19141
-TEMPB:
+RECORD:
   DEFW $0000
 
 ; Data block at 19143
-FIELD_PTR2:
+LBUFF:
   DEFW $0000
 
 ; Data block at 19145
-FIELD_PTR3:
+PBUFF:
   DEFW $0000
 
 ; Used to toggle between PUT / GET mode
@@ -17049,7 +17218,7 @@ CREARY_RNZ:
 ; THE COUNT OF ADDITIONAL CHARACTERS IS STORED. FOLLOWING THIS
 ; COMES THE CHARACTERS IN ORDER WITH THE HIGH BIT TURNED ON SO A BACKWARD SCAN IS POSSIBLE
 ;
-; This entry point is used by the routines at L45C9, L46AB, TVAR and ARRLP.
+; This entry point is used by the routines at BCKUCM, L46AB, TVAR and ARRLP.
 ARR_GET:
   LD A,(HL)               ;GET THE CHARACTER COUNT
   INC HL
@@ -18186,8 +18355,8 @@ GTMPRT:
 ;
 ; Used by the routines at BAKSTK, _ERROR_REPORT, PROMPT, SRCHLP, __FOR, ATOH,
 ; __GOTO, __LET, DOFN, __LIST, __DELETE, __RENUM, __OPTION, MULTEN,
-; DDIV_SUB, __LOAD, __MERGE, __FIELD, __LSET, __WEND, __CHAIN, L45C9,
-; CHAIN_ALL, L46AB, __GET, VARNOT, SBSCPT, ZERARY, MOVUP, ENFMEM, __TROFF,
+; DDIV_SUB, __LOAD, __MERGE, __FIELD, __LSET, __WEND, __CHAIN, BCKUCM,
+; DNCMDA, L46AB, __GET, VARNOT, SBSCPT, ZERARY, MOVUP, ENFMEM, __TROFF,
 ; __ERASE, __CLEAR, __NEXT, PUTTMP, GRBDON, TVAR, ARRLP, ARYSTR, STRADD,
 ; GSTRDE, FRETMS and FN_INSTR.
 DCOMPR:
@@ -18204,7 +18373,7 @@ DCOMPR:
 ; LNOMOD, __LINE, __INPUT, __READ, FRMEQL, OPNPAR, __ERL, EVLPAR,
 ; ISFUN, DEF_USR, __DEF, DOFN, GETFNM, __WAIT, SETIO, __POKE, __RENUM,
 ; __OPTION, LOOK_FOR, __NAME, __OPEN, FILGET, __LOAD, __MERGE, __FIELD,
-; FN_INPUT, __CALL, __CHAIN, L45C9, L46AB, DIMRET, __USING, __TROFF, __CLEAR,
+; FN_INPUT, __CALL, __CHAIN, BCKUCM, L46AB, DIMRET, __USING, __TROFF, __CLEAR,
 ; FN_STRING, LFRGNM, FN_INSTR, MID_ARGSEP and INIT.
 SYNCHR:
   LD A,(HL)
