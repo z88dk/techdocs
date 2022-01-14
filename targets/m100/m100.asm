@@ -1776,34 +1776,38 @@ BREAK_MSG:
 ; Search FOR or GOSUB block on stack (skip 2 words)
 ; Used by the routines at __RETURN and __NEXT.
 BAKSTK:
-  LD HL,$0004
-  ADD HL,SP
+  LD HL,$0004       ; IGNORING EVERYONES "NEWSTT" AND THE RETURN..
+  ADD HL,SP         ; ..ADDRESS OF THIS SUBROUTINE
+
+; Look for "FOR" block with same index as specified in D
+; a.k.a. FNDFOR
+;
 ; This entry point is used by the routine at __FOR.
 LOKFOR:
   LD A,(HL)         ; Get block ID
   INC HL            ; Point to index address
-  CP TK_FOR			; Is it a "FOR" token
-  RET NZ            ; No - exit
-  LD C,(HL)
-  INC HL
-  LD B,(HL)
-  INC HL
-  PUSH HL
-  LD H,B
+  CP TK_FOR			; Is it a "FOR" token                     ;IS THIS STACK ENTRY A "FOR"?
+  RET NZ            ; No - exit                               ;NO SO OK
+  LD C,(HL)         ; BC = Address of "FOR" index
+  INC HL                                                      ;DO EQUIVALENT OF PUSHM / XTHL
+  LD B,(HL)         
+  INC HL            ; Point to sign of STEP
+  PUSH HL           ; Save pointer to sign                    ;PUT H  ON
+  LD H,B            ; HL = address of "FOR" index             ;PUSH B / XTHL IS SLOWER
   LD L,C
-  LD A,D
-  OR E
-  EX DE,HL
-  JP Z,INDFND
-  EX DE,HL
-  RST CPDEHL
+  LD A,D            ; See if an index was specified           ;FOR THE "NEXT" STATMENT WITHOUT AN ARGUMENT
+  OR E              ; DE = 0 if no index specified            ;WE MATCH ON ANYTHING
+  EX DE,HL          ; Specified index into HL                 ;MAKE SURE WE RETURN [D,E]
+  JP Z,INDFND       ; Skip if no index given                  ;POINTING TO THE VARIABLE
+  EX DE,HL          ; Index back into DE
+  RST CPDEHL        ; Compare index with one given
 
 INDFND:
-  LD BC,22
-  POP HL
-  RET Z
-  ADD HL,BC
-  JP LOKFOR
+  LD BC,22          ; Offset to next block               ;TO WIPE OUT A "FOR" ENTRY
+  POP HL            ; Restore pointer to sign
+  RET Z             ; Return if block found, WITH [H,L] POINTING THE BOTTOM OF THE ENTRY
+  ADD HL,BC         ; Point to next block
+  JP LOKFOR         ; Keep on looking
 
 ; $0422: Initialize system and go to BASIC ready
 ;
@@ -23739,7 +23743,9 @@ MASDEL_0:
   POP HL
   RET
 
-; = LDIR
+
+; a.k.a. FDMOV: LDIR on the 8080/8085
+; Move bytes from [H,L] to [D,E] [B,C] times
 ;
 ; Used by the routines at CSAVEM, CLOADM, LDIR_B, ESC_J, MCLEAR, TXT_CTL_U and
 ; MASDEL.
