@@ -12436,33 +12436,36 @@ BREAK_MSG:
 ; Search FOR or GOSUB block on stack (skip 2 words)
 ; Used by 'RETURN' and 'NEXT'
 BAKSTK:
-  LD HL,$0004       ; Look for "FOR" block with
-  ADD HL,SP         ; same index as specified in D
-  ; --- START PROC LOKFOR ---
+  LD HL,$0004       ; IGNORING EVERYONES "NEWSTT" AND THE RETURN..
+  ADD HL,SP         ; ..ADDRESS OF THIS SUBROUTINE
+
+; Look for "FOR" block with same index as specified in D
+; a.k.a. FNDFOR
+;
 LOKFOR:
   LD A,(HL)         ; Get block ID
   INC HL            ; Point to index address
-  CP TK_FOR         ; Is it a "FOR" token
-  RET NZ            ; No - exit
+  CP TK_FOR         ; Is it a "FOR" token                     ;IS THIS STACK ENTRY A "FOR"?
+  RET NZ            ; No - exit                               ;NO SO OK
   LD C,(HL)         ; BC = Address of "FOR" index
-  INC HL
+  INC HL                                                      ;DO EQUIVALENT OF PUSHM / XTHL
   LD B,(HL)
   INC HL            ; Point to sign of STEP
-  PUSH HL           ; Save pointer to sign
-  LD H,B            ; HL = address of "FOR" index
+  PUSH HL           ; Save pointer to sign                    ;PUT H  ON
+  LD H,B            ; HL = address of "FOR" index             ;PUSH B / XTHL IS SLOWER
   LD L,C           
-  LD A,D            ; See if an index was specified
-  OR E              ; DE = 0 if no index specified
-  EX DE,HL          ; Specified index into HL
-  JR Z,INDFND       ; Skip if no index given
+  LD A,D            ; See if an index was specified           ;FOR THE "NEXT" STATMENT WITHOUT AN ARGUMENT
+  OR E              ; DE = 0 if no index specified            ;WE MATCH ON ANYTHING
+  EX DE,HL          ; Specified index into HL                 ;MAKE SURE WE RETURN [D,E]
+  JR Z,INDFND       ; Skip if no index given                  ;POINTING TO THE VARIABLE
   EX DE,HL          ; Index back into DE
   RST DCOMPR		; Compare index with one given
   
 ; INDFND
 INDFND:
-  LD BC,22          ; Offset to next block
+  LD BC,22          ; Offset to next block               ;TO WIPE OUT A "FOR" ENTRY
   POP HL            ; Restore pointer to sign
-  RET Z             ; Return if block found
+  RET Z             ; Return if block found, WITH [H,L] POINTING THE BOTTOM OF THE ENTRY
   ADD HL,BC         ; Point to next block
   JR LOKFOR         ; Keep on looking
 
@@ -12555,7 +12558,7 @@ DATSNR:
 ; entry for '?SN ERROR'
 ;
 ; Used by the routines at LNUM_RANGE, RUNLIN, __AUTO, EVAL, OCTCNS, NOT_KEYWORD, __RENUM_0,
-; __SYNCHR, L55A7, GETVAR, __CLEAR, __OPEN, L7439, L77FE and __MAX.
+; __SYNCHR, __CALL, GETVAR, __CLEAR, __OPEN, L7439, L77FE and __MAX.
 SN_ERR:
   LD E,$02	; "Syntax error"
   
@@ -13901,7 +13904,7 @@ ELSE
   CALL HGONE			; Hook 1 in runloop execute event
 ENDIF
   CP '_'			; $5F
-  JP Z,L55A7
+  JP Z,CALL_SHCUT
   SUB TK_END                 ; $81 = TK_END .. is it a token?
   JP C,__LET                 ; No - try to assign it, MUST BE A LET
   CP TK_LOCATE+1-TK_END      ; END to LOCATE ?
@@ -17448,49 +17451,52 @@ NCASE:
   OR A              ;SET CC'S PROPERLY
   RET               ;RETURN
 
+
+; '_' works like a shortcut for 'CALL'
 ; Routine at 21927
-L55A7:
+CALL_SHCUT:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
+
 
 __CALL:
   LD DE,PROCNM
   LD B,$0F
-L55A7_0:
+__CALL_0:
   LD A,(HL)
   AND A
-  JR Z,L55A7_1
+  JR Z,__CALL_1
   CP ':'
-  JR Z,L55A7_1
-  CP '('
-  JR Z,L55A7_1
+  JR Z,__CALL_1
+  CP '('               ;Eat left paren
+  JR Z,__CALL_1
   LD (DE),A
   INC DE
   INC HL
-  DJNZ L55A7_0
-L55A7_1:
+  DJNZ __CALL_0
+__CALL_1:
   LD A,B
   CP $0F		; Did we find 0, ':', or '(' at first position ?
-  JR Z,L55A7_5
-L55A7_2:		; No, skip spaces
+  JR Z,__CALL_5
+__CALL_2:		; No, skip spaces
   XOR A
   LD (DE),A
   DEC DE
   LD A,(DE)
   CP ' '
-  JR Z,L55A7_2
+  JR Z,__CALL_2
   LD B,$40
   LD DE,SLTATR
-L55A7_3:
+__CALL_3:
   LD A,(DE)
   AND $20
-  JR NZ,L55A7_6
-L55A7_4:
+  JR NZ,__CALL_6
+__CALL_4:
   INC DE
-  DJNZ L55A7_3
-L55A7_5:
+  DJNZ __CALL_3
+__CALL_5:
   JP SN_ERR
   
-L55A7_6:
+__CALL_6:
   PUSH BC
   PUSH DE
   PUSH HL
@@ -17508,7 +17514,7 @@ L55A7_6:
   CALL CALSLT
   POP DE
   POP BC
-  JR C,L55A7_4
+  JR C,__CALL_4
   RET
 
 ; Routine at 22008
@@ -22316,8 +22322,8 @@ __LOAD:
 
 ; Routine at 19825
 __MERGE:
-  XOR A                 ;FLAG ZERO FOR "LOAD"
-  PUSH AF               ;SAVE "RUN"/"LOAD" FLAG
+  XOR A             ;FLAG ZERO FOR "LOAD"
+  PUSH AF           ;SAVE "RUN"/"LOAD" FLAG
   CALL FILE_PARMS
 IF NOHOOK
  IF PRESERVE_LOCATIONS
@@ -26400,7 +26406,7 @@ L7D75_6:
 
 ; Routine at 32282
 ;
-; Used by the routines at L55A7, L55F8, L564A and L7D75.
+; Used by the routines at __CALL, L55F8, L564A and L7D75.
 RDSLT_WORD:
   CALL RDSLT_WORD_0
   LD E,D
@@ -26418,7 +26424,7 @@ RDSLT_WORD_0:
 
 ; Routine at 32298
 ;
-; Used by the routines at L55A7, L55F8 and L7D75.
+; Used by the routines at __CALL, L55F8 and L7D75.
 L7E2A:
   LD A,$40
   SUB B
