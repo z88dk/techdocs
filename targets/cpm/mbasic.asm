@@ -1741,8 +1741,8 @@ INTFLG:
   DEFB $00                ; This flag is set if STOP (=4) or CTRL + STOP (=3) is pressed
 IMPFLG:
   DEFB $00                ; This flag is related to the INPUT status
-FRETOP_SV:
-  DEFW $0000              ; Temporary usage of the free string area
+SAVFRE:
+  DEFW $0000              ; Temporary usage of the free string area (used by CHAIN to keep a copy of FRETOP)
 RECSIZ:
   DEFW $0000              ; $0bea:  maximum record size for use with random files.
 PROFLG:
@@ -2477,7 +2477,7 @@ FINI:
 
 ; Update interpreter pointers
 ;
-; Used by the routines at __LOAD and L46AB.
+; Used by the routines at __LOAD and CAYSTR.
 LINKER:
   LD HL,(TXTTAB)
   EX DE,HL
@@ -2573,7 +2573,7 @@ FNDLN1:
 ; Routine at 3832
 ;
 ; Used by the routines at PROMPT, __GOTO, __DELETE, __RENUM, _LINE2PTR,
-; __CHAIN, L46AB, __EDIT and SYNCHR.
+; __CHAIN, CAYSTR, __EDIT and SYNCHR.
 SRCHLN:
   LD HL,(TXTTAB)        ; Start of program text
 
@@ -3294,7 +3294,7 @@ PUTFID:
 ; LEFT ON THE STACK WHEN A STATEMENT IS EXECUTED SO
 ; IT CAN MERELY DO A RETURN WHEN IT IS DONE.
 ;
-; Used by the routines at __LOAD, __WEND, __CALL, L46AB and KILFOR.
+; Used by the routines at __LOAD, __WEND, __CALL, CAYSTR and KILFOR.
 NEWSTT:
   PUSH HL
 
@@ -3392,7 +3392,7 @@ ENDIF
 ; OPRND, __ERR, __ERL, OCTCNS, ISFUN, FN_USR, __DEF, DOFN, __WAIT, __WIDTH,
 ; FPSINT, FNDNUM, CONINT, LISPRT, SCCPTR, _LINE2PTR, __OPTION, LOOK_FOR, _ASCTFP,
 ; PUFOUT, L3338, RNDMON, __OPEN, FILGET, LINE_INPUT, __LOAD, __MERGE,
-; RETRTS, FN_INPUT, __WHILE, __CALL, __CHAIN, BCKUCM, L46AB, __GET, PUTBUF,
+; RETRTS, FN_INPUT, __WHILE, __CALL, __CHAIN, BCKUCM, CAYSTR, __GET, PUTBUF,
 ; FN_INKEY, DIMRET, HAVTYP, SBSCPT, NOTSCI, __ERASE, __CLEAR, KILFOR, DTSTR,
 ; FN_STRING, __VAL, FN_INSTR and INIT.
 ;
@@ -3603,7 +3603,7 @@ LPDCHG:
 
 ; Get subscript
 ;
-; Used by the routines at L46AB, __GET and SBSCPT.
+; Used by the routines at CAYSTR, __GET and SBSCPT.
 ;
 ; INTIDX READS A FORMULA FROM THE CURRENT POSITION AND
 ; TURNS IT INTO A POSITIVE INTEGER
@@ -3622,7 +3622,7 @@ INTIDX_0:
 ; Err $05 - "Illegal function call"
 ;
 ; Used by the routines at __ERROR, __AUTO, __ERL, DOFN, CONINT, __DELETE,
-; __RENUM, __LOG, __NAME, __CVD, FN_INPUT, __CHAIN, VALTYP, L46AB, __GET,
+; __RENUM, __LOG, __NAME, __CVD, FN_INPUT, __CHAIN, VALTYP, CAYSTR, __GET,
 ; __USING, NOTSCI, __TROFF, __CLEAR, __ASC, __MID_S, FN_INSTR and INIT.
 FC_ERR:
   LD E,$05				; Err $05 - "Illegal function call"
@@ -3800,7 +3800,7 @@ __GOTO_0:
 
 ; entry for '?UL ERROR'
 ;
-; Used by the routines at PROMPT, __GOTO, __ON, L46AB, __EDIT and SYNCHR.
+; Used by the routines at PROMPT, __GOTO, __ON, CAYSTR, __EDIT and SYNCHR.
 UL_ERR:
   LD E,$08                ; Err $08 - "Undefined line number"
   JP ERROR                ;C=MATCH, SO IF NO MATCH WE GIVE A "US" ERROR
@@ -3836,7 +3836,7 @@ NXTDTA:
 ; 'COMMON' and 'DATA' BASIC instructions
 ;
 ; Used by the routines at __FOR, __RESUME, __IF, FDTLP, __DEF, __CHAIN and
-; L46AB.
+; CAYSTR.
 
 ; "DATA" TERMINATES ON ":" AND 0. 
 ; ":" ONLY APPLIES IF QUOTES HAVE MATCHED UP
@@ -4402,7 +4402,7 @@ NEXITM:
 
 ; Routine at 6144
 ;
-; Used by the routines at __PRINT, LTSTND, __LOF, __LOAD, L46AB, NOTSCI and
+; Used by the routines at __PRINT, LTSTND, __LOF, __LOAD, CAYSTR, NOTSCI and
 ; STKERR.
 ;
 ;FINISH 'PRINT' BY RESETTING FLAGS
@@ -4858,7 +4858,7 @@ OPNPAR:
 ;
 ; Used by the routines at __FOR, FORFND, __LET, __IF, __PRINT, FRMEQL,
 ; DOFN, FPSINT, GETINT, __POKE, __RANDOMIZE, FNAME, __OPEN, FILGET, __WEND,
-; __CHAIN, L46AB, NOTSCI, ISSTRF, FN_STRING and FN_INSTR.
+; __CHAIN, CAYSTR, NOTSCI, ISSTRF, FN_STRING and FN_INSTR.
 ; a.k.a. GETNUM, evaluate expression
 EVAL:
   DEC HL              ; Evaluate expression & save          ;BACK UP CHARACTER POINTER
@@ -5597,7 +5597,7 @@ NOT_0:
 ; Used by the routines at TSTNUM, SAVSTP, __PRINT, NOTQTI, __READ,
 ; _EVAL, EVAL_VARIABLE, DOFN, __POKE, INVSGN, VSIGN, VMOVMF, __CINT,
 ; __CSNG, __CDBL, TSTSTR, __FIX, __INT, _ASCTFP, MULTEN, DDIV_SUB, PUFOUT,
-; FOUBE3, RNGTST, FILIND, LINE_INPUT, __CALL, L46AB, VARNOT, __TROFF,
+; FOUBE3, RNGTST, FILIND, LINE_INPUT, __CALL, CAYSTR, VARNOT, __TROFF,
 ; FN_STRING, FN_INSTR and __FRE.
 GETYPR:
   LD A,(VALTYP)
@@ -6757,7 +6757,7 @@ _FCERRG:
 ; [B,C]=START OF LINE BEING DELETED
 ; [D,E]=START OF NEXT LINE
 ;
-; This entry point is used by the routines at PROMPT and L46AB.
+; This entry point is used by the routines at PROMPT and CAYSTR.
 __DELETE_0:
   EX DE,HL                ;[D,E] NOW HAVE THE POINTER TO THE LINE BEYOND THIS ONE
   LD HL,(VARTAB)          ;COMPACTIFYING TO VARTAB
@@ -8465,7 +8465,7 @@ VMOVE:
 
 ; Routine at 10468
 ;
-; Used by the routines at CHRGTB, LOADFP and L46AB.
+; Used by the routines at CHRGTB, LOADFP and CAYSTR.
 MOVE1:
   LD A,(DE)               ; Get source            ;GET WORD, ENTRY FROM VMOVMF
   LD (HL),A               ; Save destination      ;PUT IT WHERE IT BELONGS
@@ -10540,7 +10540,7 @@ LINPRT:
 	;THE ORIGINAL CONTENTS OF THE FAC IS LOST
 ;
 ; a.k.a. NUMASC
-; Used by the routines at __PRINT, LISPRT, FOUBE3, L46AB and __STR_S.
+; Used by the routines at __PRINT, LISPRT, FOUBE3, CAYSTR and __STR_S.
 FOUT:                   ;ENTRY TO PRINT THE FAC IN FREE FORMAT
   XOR A                 ;SET FORMAT FLAGS TO FREE FORMATTED OUTPUT
 
@@ -13495,7 +13495,7 @@ FILINP:
 ; Get stream number (C=default #channel)
 ; Look for '#' channel specifier and put the associated file buffer in BC
 ;
-; Used by the routines at __PRINT and L46AB.
+; Used by the routines at __PRINT and CAYSTR.
 FILGET:
   CP '#'             ;NUMBER SIGN THERE?
   RET NZ             ;NO, NOT DISK READER
@@ -13828,7 +13828,7 @@ __LOAD:
   DEFM "R"              ;ONLY OPTION IS RUN
   JP NZ,SN_ERR          ;AND THAT BETTER BE THE END
   POP AF                ;GET RID OF "RUN"/"LOAD" FLAG
-; This entry point is used by the routine at L46AB.
+; This entry point is used by the routine at CAYSTR.
 CHNENT:
   XOR A                 ;SO FILES AREN'T CLOSED
   LD (MAXFIL),A			; HIGHEST FILE NUMBER ALLOWED
@@ -13941,7 +13941,7 @@ __MERGE:
   CALL LOAD_END           ;CLOSE OUT TIME
   JP SN_ERR               ;AND "SYNTAX ERROR"
 
-; This entry point is used by the routine at L46AB.
+; This entry point is used by the routine at CAYSTR.
 OKGETM:
   XOR A                   ;NO RUN OPTION WITH "MERGE"
   LD (AUTORUN),A          ;SET UP THE FLAG
@@ -14666,7 +14666,7 @@ NTLINF:
   DEFM "L"
   CALL SYNCHR
   DEFM "L"
-  JP Z,DNCMDA             ;Goto step 3
+  JP Z,DNCMDA             ;Goto step 4
   CALL SYNCHR
   DEFM ","                ;Force comma to appear
   CP E                    ;Must be DELETE
@@ -14742,7 +14742,7 @@ CHAIN_COMMON:
   JP Z,AFTCOM             ;Get next thing
 
 ; This entry point is used by the routine at BCKUCM.
-__CHAIN_7:
+NXTCOM:
   PUSH HL                 ;Save text pointer
   LD A,$01                ;Call PTRGET to search for array
   LD (SUBFLG),A
@@ -14815,399 +14815,419 @@ LPBKNC:
                          
 ; This entry point is used by the routine at __CHAIN.
 FNDAAY:
-  LD (SUBFLG),A
-  LD A,(HL)
-  CP '('
-  JP NZ,SCNSMP
-  EX (SP),HL
+  LD (SUBFLG),A          ;Array found, clear SUBFLG
+  LD A,(HL)              ;Make sure really array spec
+  CP '('                 ;Really an array?
+  JP NZ,SCNSMP           ;No, scan as simp
+  EX (SP),HL             ;Save text pointer, get rid of saved text pointer
+  DEC BC                 ;Point at last char of name extension
   DEC BC
-  DEC BC
-  CALL CBAKBL
+  CALL CBAKBL            ;Back up before variable and mark as COMMON
 
 ; Routine at 17865
 BCKUCM:
-  POP HL
-  DEC HL
+  POP HL                 ;Restore text pointer
+  DEC HL                 ;Rescan terminator
   CALL CHRGTB
-  JP Z,AFTCOM
-  CP '('
-  JP NZ,BCKUCM_1
+  JP Z,AFTCOM            ;End of COMMON statement
+  CP '('                 ;End of COMMON array spec?
+  JP NZ,CHKCST           ;No, should be comma
 ; This entry point is used by the routine at __CHAIN.
 COMADY:
-  CALL CHRGTB
+  CALL CHRGTB            ;Fetch char after paren
   CALL SYNCHR
-  DEFM ")"
-  JP Z,AFTCOM
-BCKUCM_1:
-  CALL SYNCHR
-  DEFM ","
-  JP __CHAIN_7
+  DEFM ")"               ;Right paren should follow
+  JP Z,AFTCOM            ;End of COMMON
+CHKCST:
+  CALL SYNCHR            ;Force comma to appear here
+  DEFM ","               ;Get next COMMON variable
+  JP NXTCOM
 
+
+; Step 3 - Squeeze..
 ; This entry point is used by the routine at __CHAIN.
 CLPFIN:
   POP HL
   LD (CURLIN),HL
   EX DE,HL
-  LD HL,(ARYTAB)
-  EX DE,HL
-  LD HL,(VARTAB)
-BCKUCM_3:
-  CALL DCOMPR
-  JP Z,BCKUCM_6
-  PUSH HL
-  LD C,(HL)
+  LD HL,(ARYTAB)         ;End of simple var squeeze
+  EX DE,HL               ;To [D,E]
+  LD HL,(VARTAB)         ;Start of simps
+CLPSLP:
+  CALL DCOMPR            ;Are we done?
+  JP Z,DNCMDS            ;Yes done, with simps
+  PUSH HL                ;Save where this simp is
+  LD C,(HL)              ;Get VALTYP
   INC HL
   INC HL
-  LD A,(HL)
-  OR A
-  PUSH AF
-  AND $7F
-  LD (HL),A
+  LD A,(HL)              ;Get COMMON bit
+  OR A                   ;Set minus if COMMON
+  PUSH AF                ;Save indicator
+  AND $7F                ;Clear COMMON bit
+  LD (HL),A              ;Save back
   INC HL
-  CALL ARR_GET
-  LD B,$00
+  CALL IADAHL            ;Skip over rest of var name
+  LD B,$00               ;Skip VALTYP bytes
   ADD HL,BC
-  POP AF
-  POP BC
-  JP M,BCKUCM_3
-  PUSH BC
-  CALL BCKUCM_4
-  LD HL,(ARYTAB)
-  ADD HL,DE
-  LD (ARYTAB),HL
-  EX DE,HL
-  POP HL
-  JP BCKUCM_3
+  POP AF                 ;Get indicator whether to delete
+  POP BC                 ;Pointer to where var started
+  JP M,CLPSLP
+  PUSH BC                ;This is where we will resume scanning vars later
+  CALL VARDLS            ;Delete variable
+  LD HL,(ARYTAB)         ;Now correct ARYTAB by # of bytes deleted
+  ADD HL,DE              ;Add negative difference between old and new
+  LD (ARYTAB),HL         ;Save new ARYTAB
+  EX DE,HL               ;To [D,E]
+  POP HL                 ;Get current place back in [H,L]
+  JP CLPSLP
 
-BCKUCM_4:
-  EX DE,HL
-  LD HL,(STREND)
-BCKUCM_5:
-  CALL DCOMPR
-  LD A,(DE)
-  LD (BC),A
-  INC DE
+VARDLS:
+  EX DE,HL               ;Point to where var ends
+  LD HL,(STREND)         ;One beyond last byte to move
+DLSVLP:
+  CALL DCOMPR            ;Done?
+  LD A,(DE)              ;Grab byte
+  LD (BC),A              ;Move down
+  INC DE                 ;Increment pointers
   INC BC
-  JP NZ,BCKUCM_5
-  LD A,C
-  SUB L
+  JP NZ,DLSVLP
+  LD A,C                 ;Get difference between old and new
+  SUB L                  ;Into [D,E] ([D,E]=[B,C]-[H,L])
   LD E,A
   LD A,B
   SBC A,H
   LD D,A
-  DEC DE
-  DEC BC
-  LD H,B
+  DEC DE                 ;Correct # of bytes
+  DEC BC                 ;Moved one too far
+  LD H,B                 ;Get new STREND [H,L]
   LD L,C
-  LD (STREND),HL
+  LD (STREND),HL         ;Store it
   RET
 
-BCKUCM_6:
+DNCMDS:
+  EX DE,HL               ;Limit of array search
+  LD HL,(STREND)         ;To [D,E]
   EX DE,HL
-  LD HL,(STREND)
-  EX DE,HL
-BCKUCM_7:
-  CALL DCOMPR
-  JP Z,DNCMDA
-  PUSH HL
-  INC HL
-  INC HL
-  LD A,(HL)
-  OR A
-  PUSH AF
-  AND $7F
-  LD (HL),A
-  INC HL
-  CALL ARR_GET
-  LD C,(HL)
+CLPAKP:
+  CALL DCOMPR            ;Done?
+  JP Z,DNCMDA            ;Yes
+  PUSH HL                ;Save pointer to VALTYP
+  INC HL                 ;Move down to COMMON bit
+  INC HL                 
+  LD A,(HL)              ;Get it
+  OR A                   ;Set CC's
+  PUSH AF                ;Save COMMON indicator
+  AND $7F                ;Clear COMMON bit
+  LD (HL),A              ;Save back
+  INC HL                 ;Point to length of array
+  CALL IADAHL            ;Add length of var name
+  LD C,(HL)              ;Get length of array in [B,C]
   INC HL
   LD B,(HL)
   INC HL
-  ADD HL,BC
-  POP AF
-  POP BC
-  JP M,BCKUCM_7
-  PUSH BC
-  CALL BCKUCM_4
-  EX DE,HL
-  POP HL
-  JP BCKUCM_7
+  ADD HL,BC              ;[H,L] now points after array
+  POP AF                 ;Get back COMMON indicator
+  POP BC                 ;Get pointer to start of array
+  JP M,CLPAKP            ;COMMON, dont delete!
+  PUSH BC                ;Save so we can resume
+  CALL VARDLS            ;Delete variable
+  EX DE,HL               ;Put STREND in [D,E]
+  POP HL                 ;Point to next var
+  JP CLPAKP              ;Look at next array
 
-; CHAIN: With the ALL option, every variable in the current program is passed
-; to the called program
+
+
+; CHAIN: With the ALL option, every variable in the current program is passed to the called program
+
+; Step 4 - Copy literals into string space
+; This code is very smilar to the string garbage collect code
 ;
 ; Used by the routines at __CHAIN and BCKUCM.
 DNCMDA:
-  LD HL,(VARTAB)
-DNCMDA_0:
-  EX DE,HL
-  LD HL,(ARYTAB)
-  EX DE,HL
-  CALL DCOMPR
-  JP Z,DNCMDA_3
-  CALL L46AB_5
-  JP NZ,DNCMDA_1
-  CALL L46AB_0
-  XOR A
-DNCMDA_1:
+  LD HL,(VARTAB)         ;Look at simple strings
+CSVAR:
+  EX DE,HL               ;Into [D,E]
+  LD HL,(ARYTAB)         ;Limit of search
+  EX DE,HL               ;Start in [H,L], limit in [D,E]
+  CALL DCOMPR            ;Done?
+  JP Z,CAYVAR            ;Yes
+
+  CALL DNCMDA_SUB        ;Get VALTYP of array
+  JP NZ,CSKPVA           ;If not string, skip this var
+
+  CALL CDVARS            ;Copy this guy into string space if nesc
+  XOR A                  ;CDVARS has already incremented [H,L]
+CSKPVA:
   LD E,A
-  LD D,$00
+  LD D,$00               ;Add length of VALTYP
   ADD HL,DE
-  JP DNCMDA_0
-DNCMDA_2:
-  POP BC
-; This entry point is used by the routine at L46AB.
-DNCMDA_3:
-  EX DE,HL
-  LD HL,(STREND)
-  EX DE,HL
-  CALL DCOMPR
-  JP Z,L46AB_1
-  CALL L46AB_5
-  PUSH AF
-  LD C,(HL)
+  JP CSVAR
+
+CAYVA2:
+  POP BC                 ;Adjust stack
+
+; This entry point is used by the routine at CAYSTR.
+CAYVAR:
+  EX DE,HL               ;Save where we are
+  LD HL,(STREND)         ;New limit of search
+  EX DE,HL               ;In [D,E], limit in [H,L]
+  CALL DCOMPR            ;Done?
+  JP Z,DNCCLS            ;Yes
+  CALL DNCMDA_SUB        ;Get VALTYP of array
+  PUSH AF                ;Save VALTYP
+  LD C,(HL)              ;Get length of array
   INC HL
-  LD B,(HL)
+  LD B,(HL)              ;Into [B,C]
   INC HL
-  POP AF
-  PUSH HL
+  POP AF                 ;Get back VALTYP
+  PUSH HL                ;Save pointer to array element
+  ADD HL,BC              ;Point after array
+  CP $03                 ;String array?
+  JP NZ,CAYVA2           ;No, look at next one
+  LD (TEMP3),HL          ;Save pointer to end of array
+  POP HL                 ;Get back pointer to array start
+  LD C,(HL)              ;Pick up number of DIMs
+  LD B,$00               ;Make double with high zero
+  ADD HL,BC              ;Go past DIMS
   ADD HL,BC
-  CP $03
-  JP NZ,DNCMDA_2
-  LD (TEMP3),HL
-  POP HL
-  LD C,(HL)
-  LD B,$00
-  ADD HL,BC
-  ADD HL,BC
-  INC HL
+  INC HL                 ;One more to account for # of DIMs
 
 ; Routine at 18091
-L46AB:
+CAYSTR:
+  EX DE,HL               ;Save current position in [D,E]
+  LD HL,(TEMP3)          ;Get end of array
   EX DE,HL
-  LD HL,(TEMP3)
-  EX DE,HL
-  CALL DCOMPR
-  JP Z,DNCMDA_3
-  LD BC,L46AB
-  PUSH BC
-; This entry point is used by the routine at DNCMDA.
-L46AB_0:
-  LD A,(HL)
-  INC HL
-  LD E,(HL)
-  INC HL
-  LD D,(HL)
-  INC HL
-  OR A
-  RET Z
-  PUSH HL
-  LD HL,(VARTAB)
-  CALL DCOMPR
-  POP HL
-  RET C
-  PUSH HL
-  LD HL,(TXTTAB)
-  CALL DCOMPR
-  POP HL
-  RET NC
-  PUSH HL
-  DEC HL
-  DEC HL
-  DEC HL
-  PUSH HL
-  CALL STRCPY
-  POP HL
-  LD B,$03
-  CALL MOVE1
-  POP HL
-  RET
+  CALL DCOMPR            ;See if at end of array
+  JP Z,CAYVAR            ;Get next array
+  LD BC,CAYSTR            ;Do next str in array
+  PUSH BC                ;Save branch address on stack
 
 ; This entry point is used by the routine at DNCMDA.
-L46AB_1:
-  CALL GARBGE
-  LD HL,(STREND)
-  LD B,H
+CDVARS:
+  LD A,(HL)              ;Get length of array
+  INC HL
+  LD E,(HL)              ;Also pick up pointer into [D,E]
+  INC HL
+  LD D,(HL)
+  INC HL                 ;[H,L] points after descriptor
+  OR A                   ;
+  RET Z                  ;Ignore null strings
+  PUSH HL                ;Save where we are
+  LD HL,(VARTAB)         ;Is string in program text or disk buffers?
+  CALL DCOMPR            ;Compare
+  POP HL                 ;Restore where we are
+  RET C                  ;No, must be in string space
+  PUSH HL                ;save where we are again.
+  LD HL,(TXTTAB)         ;is it in buffers?
+  CALL DCOMPR            ;test
+  POP HL                 ;Restore where we are
+  RET NC                 ;in buffers, do nothing
+  PUSH HL                ;Save where we are for nth time
+  DEC HL                 ;Point to start of descriptor
+  DEC HL
+  DEC HL
+  PUSH HL                ;Save pointer to start
+  CALL STRCPY            ;Copy string into DSCTMP
+  POP HL                 ;Destination in [H,L], source in [D,E]
+  LD B,$03               ;# of bytes to move
+  CALL MOVE1             ;Move em
+  POP HL                 ;Where we are
+  RET
+
+
+; Step 5 - Move stuff up into string space!
+; This entry point is used by the routine at DNCMDA.
+DNCCLS:
+  CALL GARBGE            ;Get rid of unused strings
+  LD HL,(STREND)         ;Load end of vars
+  LD B,H                 ;Into [B,C]
   LD C,L
-  EX DE,HL
+  EX DE,HL               ;Start of simps into [D,E]
   LD HL,(VARTAB)
   EX DE,HL
-  LD HL,(ARYTAB)
+  LD HL,(ARYTAB)         ;Get length of simps in [H,L]
   LD A,L
   SUB E
   LD L,A
   LD A,H
   SBC A,D
   LD H,A
-  LD (TEMP9),HL
-  LD HL,(FRETOP)
-  LD (FRETOP_SV),HL
-  CALL MOVSTR
-  LD H,B
+  LD (TEMP9),HL          ;Save here
+  LD HL,(FRETOP)         ;Destination of high byte
+  LD (SAVFRE),HL         ;Save FRETOP to restore later
+  CALL MOVSTR            ;Move stuff up
+  LD H,B                 ;Now adjust top of memory below saved vars
   LD L,C
-  DEC HL
-  LD (FRETOP),HL
-  LD A,(MDLFLG)
-  OR A
-  JP Z,L46AB_2
-  LD HL,(CMSPTR)
-  LD B,H
+  DEC HL                 ;One lower to be sure
+  LD (FRETOP),HL         ;Update FRETOP to reflect new value
+  LD A,(MDLFLG)          ;MERGE w/ DELETE?
+  OR A                   ;Test
+  JP Z,CAYSTR_2          ;No
+  LD HL,(CMSPTR)         ;Start of lines to delete
+  LD B,H                 ;Into [B,C]
   LD C,L
-  LD HL,(CMEPTR)
-  CALL __DELETE_0
-  LD (ARYTAB),HL
+  LD HL,(CMEPTR)         ;End of lines to delete
+  CALL __DELETE_0        ;Delete the lines
+  LD (ARYTAB),HL         ;Re-link lines just in case
   LD (STREND),HL
   CALL LINKER
-L46AB_2:
-  LD A,$01
-  LD (CHNFLG),A
-  LD A,(MRGFLG)
-  OR A
-  JP NZ,OKGETM
-  LD A,(MAXFIL)			; HIGHEST FILE NUMBER ALLOWED
-  LD (MAXFILSV),A
-  JP CHNENT
 
+
+; Step 6 - load new program
+CAYSTR_2:
+  LD A,$01               ;Set CHAIN flag
+  LD (CHNFLG),A
+  LD A,(MRGFLG)          ;MERGEing?
+  OR A                   ;Set cc'S
+  JP NZ,OKGETM           ;Do MERGE
+  LD A,(MAXFIL)          ;Save the number of files
+  LD (MAXFILSV),A        ;Since we make it look like zero
+  JP CHNENT              ;Jump to LOAD code
+
+
+; Step 7 - Move stuff back down
 ; This entry point is used by the routines at __LOAD and L4D05.
 CHNRET:
-  XOR A
+  XOR A                  ;Clear CHAIN, MERGE flags
   LD (CHNFLG),A
   LD (MRGFLG),A
-  LD HL,(VARTAB)
-  LD B,H
+  LD HL,(VARTAB)         ;Get current VARTAB
+  LD B,H                 ;Into [B,C]
   LD C,L
-  LD HL,(TEMP9)
-  ADD HL,BC
+  LD HL,(TEMP9)          ;Get length of simps
+  ADD HL,BC              ;Add to present VARTAB to get new ARYTAB
   LD (ARYTAB),HL
-  LD HL,(FRETOP)
-  INC HL
-  EX DE,HL
-  LD HL,(FRETOP_SV)
-  LD (FRETOP),HL
-L46AB_4:
-  CALL DCOMPR
-  LD A,(DE)
+  LD HL,(FRETOP)         ;Where to start moving
+  INC HL                 ;One higher
+  EX DE,HL               ;Into [D,E]
+  LD HL,(SAVFRE)         ;Last byte to move
+  LD (FRETOP),HL         ;Restore FRETOP from this
+MVBKVR:
+  CALL DCOMPR            ;Done?
+  LD A,(DE)              ;Move byte down
   LD (BC),A
-  INC DE
+  INC DE                 ;Increment pointers
   INC BC
-  JP NZ,L46AB_4
-  DEC BC
-  LD H,B
+  JP NZ,MVBKVR
+  DEC BC                 ;Point to last var byte
+  LD H,B                 ;[H,L]=last var byte
   LD L,C
-  LD (STREND),HL
+  LD (STREND),HL         ;This is new end
+  EX DE,HL               ;Get CHAIN line #
+  LD HL,(CHNLIN)         ;Test for zero
   EX DE,HL
-  LD HL,(CHNLIN)
-  EX DE,HL
-  LD HL,(TXTTAB)
-  DEC HL
-  LD A,D
-  OR E
-  JP Z,NEWSTT
-  CALL SRCHLN
-  JP NC,UL_ERR
-  DEC BC
+  LD HL,(TXTTAB)         ;Put in [D,E]
+  DEC HL                 ;Get prog start in [H,L]
+  LD A,D                 ;Point at zero before program
+  OR E                   ;line #=0, go...
+  JP Z,NEWSTT            ;Try to find destination line
+  CALL SRCHLN            ;Not there...
+  JP NC,UL_ERR           ;Point to zero on previous line
+  DEC BC                 ;Make text pointer for NEWSTT
   LD H,B
-  LD L,C
+  LD L,C                 ;Bye...
   JP NEWSTT
 
 ; This entry point is used by the routine at DNCMDA.
-L46AB_5:
-  LD A,(HL)
+DNCMDA_SUB:
+  LD A,(HL)            ;Get VALTYP
+  INC HL               ;Point to length of long var name
   INC HL
   INC HL
-  INC HL
-  PUSH AF
-  CALL ARR_GET
-  POP AF
-  CP $03
+  PUSH AF              ;Save VALTYP
+  CALL IADAHL          ;Move past long variable name
+  POP AF               ;Ge back VALTYP
+  CP $03               ;String?
   RET
 
 IF ORIGINAL
+;COMMON:
   JP __DATA
 ENDIF
 
 __WRITE:
-  LD C,$02
+  LD C,$02             ; MD.SQO: Setup output file
   CALL FILGET          ; Look for '#' channel specifier and put the associated file buffer in BC
   DEC HL
-  CALL CHRGTB
-  JP Z,L46AB_11
-__WRITE_0:
-  CALL EVAL
-  PUSH HL
-  CALL GETYPR
-  JP Z,L46AB_10
-  CALL FOUT
-  CALL CRTST
-  LD HL,(FACCU)
-  INC HL
+  CALL CHRGTB          ;Get another character
+  JP Z,WRTFIN          ;Done with WRITE
+WRTMLP:
+  CALL EVAL            ;Evaluate formula
+  PUSH HL              ;Save the text pointer
+  CALL GETYPR          ;See if we have a string
+  JP Z,WRTSTR          ;We do
+  CALL FOUT            ;Convert to a string
+  CALL CRTST           ;Literalize string
+  LD HL,(FACCU)        ;Get pointer to string
+  INC HL               ;Point to address field
   LD E,(HL)
   INC HL
   LD D,(HL)
-  LD A,(DE)
-  CP ' '
-  JP NZ,__WRITE_1
+  LD A,(DE)            ;Is number positive?
+  CP ' '               ;Test
+  JP NZ,WRTNEG         ;No, must be negative
   INC DE
   LD (HL),D
   DEC HL
   LD (HL),E
   DEC HL
-  DEC (HL)
-__WRITE_1:
-  CALL PRS1
-__WRITE_2:
-  POP HL
-  DEC HL
-  CALL CHRGTB
-  JP Z,L46AB_11
-  CP ';'
-  JP Z,__WRITE_3
+  DEC (HL)             ;Adjust length of string
+WRTNEG:
+  CALL PRS1            ;Print the number
+NXTWRV:
+  POP HL               ;Get back text pointer
+  DEC HL               ;Back up pointer
+  CALL CHRGTB          ;Get next char
+  JP Z,WRTFIN          ;end
+  CP ';'               ;Semicolon?
+  JP Z,WASEMI          ;Was one
   CALL SYNCHR
-  DEFM ","
-  DEC HL
-__WRITE_3:
-  CALL CHRGTB
-  LD A,$2C
+  DEFM ","             ;Only possib left is comma
+  DEC HL               ;to compensate for later CHRGET
+WASEMI:
+  CALL CHRGTB          ;Fetch next char
+  LD A,','             ;put out comma
   CALL OUTDO
-  JP __WRITE_0
+  JP WRTMLP            ;Back for more
 
-L46AB_10:
-  LD A,'"'
-  CALL OUTDO
-  CALL PRS1
-  LD A,'"'
-  CALL OUTDO
-  JP __WRITE_2
+WRTSTR:
+  LD A,'"'             ;put out double quote
+  CALL OUTDO           ;Send it
+  CALL PRS1            ;print the string
+  LD A,'"'             ;Put out another double quote
+  CALL OUTDO           ;Send it
+  JP NXTWRV            ;Get next value
 
-L46AB_11:
-  PUSH HL
-  LD HL,(PTRFIL)
+WRTFIN:
+  PUSH HL              ;Save text pointer
+  LD HL,(PTRFIL)       ;See if disk file
   LD A,H
   OR L
-  JP Z,L46AB_13
-  LD A,(HL)
-  CP $03
-  JP NZ,L46AB_13
-  CALL CMPFBC
-  LD A,L
+  JP Z,NTRNDW          ;No
+  LD A,(HL)            ;Get file mode
+  CP $03               ;MD.RND: Random?
+  JP NZ,NTRNDW         ;NO
+  CALL CMPFBC          ;See how many bytes left
+  ; HL=HL-DE
+  LD A,L               ;do subtract
   SUB E
   LD L,A
   LD A,H
   SBC A,D
   LD H,A
-  LD DE,$FFFE
+  LD DE,-2             ;Subtract number of bytes in CR/LF sequence
   ADD HL,DE
-  JP NC,L46AB_13
-L46AB_12:
-  LD A,' '
-  CALL OUTDO
-  DEC HL
-  LD A,H
+  JP NC,NTRNDW         ;Not enough, give error eventually
+CRLFSQ:
+  LD A,' '             ;Put out spaces
+  CALL OUTDO           ;Send space
+  DEC HL               ;Count down
+  LD A,H               ;Count down
   OR L
-  JP NZ,L46AB_12
-L46AB_13:
-  POP HL
-  CALL OUTDO_CRLF
+  JP NZ,CRLFSQ
+NTRNDW:
+  POP HL               ;Restore [H,L]
+  CALL OUTDO_CRLF      ;Do crlf
   JP FINPRT
 
 
@@ -15510,6 +15530,7 @@ NXFVBF:
   INC HL                 ;Increment it
   LD (RECORD),HL         ;Save back
   POP HL                 ;Count
+  ; HL=HL-DE
   LD A,L                 ;Make count correct
   SUB E
   LD L,A
@@ -15684,7 +15705,7 @@ SETFPI:
   LD (HL),D
   RET
 
-; This entry point is used by the routine at L46AB.
+; This entry point is used by the routine at CAYSTR.
 CMPFBC:
   LD B,H                  ;Copy file data block into [B,C]
   LD C,L
@@ -16083,7 +16104,7 @@ SCNSEM:
 ;			PTRFIL if non-zero print to disk file pointed to by PTRFIL
 ;
 ; Used by the routines at PROMPT, NEWSTT_0, LNOMOD, NOTQTI, __LIST, __FILES,
-; L46AB, QINLIN, PINLIN, DELCHR, TTYLIN, PUTBUF, TAB_LOOP, OUTDO_CRLF,
+; CAYSTR, QINLIN, PINLIN, DELCHR, TTYLIN, PUTBUF, TAB_LOOP, OUTDO_CRLF,
 ; NTPRTR, OUTCH1, __USING, NOTSCI, ISSTRF, __EDIT, NOTDGI, NTCTCT and PRS1.
 OUTDO:
   PUSH AF
@@ -16379,7 +16400,7 @@ FININL:
 ; Print and go to new line
 ;
 ; Used by the routines at _ERROR_REPORT, __PRINT, PRNTNB, LNOMOD, __LIST,
-; __FILES, L46AB, PINLIN, DELCHR, TTYLIN, NOTAB, CONSOLE_CRLF, NOTSCI, NOTDGI,
+; __FILES, CAYSTR, PINLIN, DELCHR, TTYLIN, NOTAB, CONSOLE_CRLF, NOTSCI, NOTDGI,
 ; EDIT_DONE, NTCTCT and DONCMD.
 OUTDO_CRLF:
   LD A,$0D              ; CR
@@ -17218,8 +17239,8 @@ CREARY_RNZ:
 ; THE COUNT OF ADDITIONAL CHARACTERS IS STORED. FOLLOWING THIS
 ; COMES THE CHARACTERS IN ORDER WITH THE HIGH BIT TURNED ON SO A BACKWARD SCAN IS POSSIBLE
 ;
-; This entry point is used by the routines at BCKUCM, L46AB, TVAR and ARRLP.
-ARR_GET:
+; This entry point is used by the routines at BCKUCM, CAYSTR, TVAR and ARRLP.
+IADAHL:
   LD A,(HL)               ;GET THE CHARACTER COUNT
   INC HL
 ADDAHL:
@@ -18124,7 +18145,7 @@ EDIT_QUIT:
 ; Used by the routines at PROMPT and VARNOT.
 MOVUP:
   CALL ENFMEM             ; See if enough memory
-; This entry point is used by the routines at L46AB, NOTDGI and SCNEND.
+; This entry point is used by the routines at CAYSTR, NOTDGI and SCNEND.
 MOVSTR:
   PUSH BC                 ; Save end of source
   EX (SP),HL              ; Swap source and dest" end
@@ -18356,7 +18377,7 @@ GTMPRT:
 ; Used by the routines at BAKSTK, _ERROR_REPORT, PROMPT, SRCHLP, __FOR, ATOH,
 ; __GOTO, __LET, DOFN, __LIST, __DELETE, __RENUM, __OPTION, MULTEN,
 ; DDIV_SUB, __LOAD, __MERGE, __FIELD, __LSET, __WEND, __CHAIN, BCKUCM,
-; DNCMDA, L46AB, __GET, VARNOT, SBSCPT, ZERARY, MOVUP, ENFMEM, __TROFF,
+; DNCMDA, CAYSTR, __GET, VARNOT, SBSCPT, ZERARY, MOVUP, ENFMEM, __TROFF,
 ; __ERASE, __CLEAR, __NEXT, PUTTMP, GRBDON, TVAR, ARRLP, ARYSTR, STRADD,
 ; GSTRDE, FRETMS and FN_INSTR.
 DCOMPR:
@@ -18373,7 +18394,7 @@ DCOMPR:
 ; LNOMOD, __LINE, __INPUT, __READ, FRMEQL, OPNPAR, __ERL, EVLPAR,
 ; ISFUN, DEF_USR, __DEF, DOFN, GETFNM, __WAIT, SETIO, __POKE, __RENUM,
 ; __OPTION, LOOK_FOR, __NAME, __OPEN, FILGET, __LOAD, __MERGE, __FIELD,
-; FN_INPUT, __CALL, __CHAIN, BCKUCM, L46AB, DIMRET, __USING, __TROFF, __CLEAR,
+; FN_INPUT, __CALL, __CHAIN, BCKUCM, CAYSTR, DIMRET, __USING, __TROFF, __CLEAR,
 ; FN_STRING, LFRGNM, FN_INSTR, MID_ARGSEP and INIT.
 SYNCHR:
   LD A,(HL)
@@ -18990,7 +19011,7 @@ SAVSTR:
 ; STRCPY CREATES A COPY OF THE STRING WHOSE DESCRIPTOR IS POINTED TO BY [H,L].
 ; ON RETURN [D,E] POINTS TO DSCTMP WHICH HAS THE STRING INFO (LENGTH, WHERE COPIED TO)
 ;
-; This entry point is used by the routines at __LET, DOFN, L46AB and FN_INSTR.
+; This entry point is used by the routines at __LET, DOFN, CAYSTR and FN_INSTR.
 STRCPY:
   LD A,(HL)               ; Get string length                    ;GET LENGTH
   INC HL                                                         ;MOVE UP TO THE POINTER
@@ -19035,7 +19056,7 @@ CRTMST:
 
 ; Create String
 ;
-; Used by the routines at __PRINT, L46AB, __STR_S and PRS.
+; Used by the routines at __PRINT, CAYSTR, __STR_S and PRS.
 CRTST:
   DEC HL                  ; DEC - INCed after
 
@@ -19152,7 +19173,7 @@ PRS:
 
 ; Print string at HL
 ;
-; Used by the routines at PRNTNB, __INPUT, L46AB and ISSTRF.
+; Used by the routines at PRNTNB, __INPUT, CAYSTR and ISSTRF.
 PRS1:
   CALL GSTRCU             ;RETURN TEMP POINTER BY FACLO
   CALL LOADFP_0           ;[D]=LENGTH [B,C]=POINTER AT DATA
@@ -19219,7 +19240,7 @@ TESTOS:
 
 ; Garbage collection
 ;
-; Used by the routines at L46AB, ENFMEM and __FRE.
+; Used by the routines at CAYSTR, ENFMEM and __FRE.
 GARBGE:
   LD HL,(MEMSIZ)          ; Get end of RAM pointer               ;START FROM TOP DOWN
 ; This entry point is used by the routine at SCNEND.
@@ -19257,7 +19278,7 @@ SMPVAR:
   INC HL                  ;
   INC HL                  ;POINT AT THE VALUE
   PUSH AF                 ;SAVE VALTYP                              ; Save type of variable
-  CALL ARR_GET            ;AND SKIP OVER EXTRA CHARACTERS AND COUNT
+  CALL IADAHL             ;AND SKIP OVER EXTRA CHARACTERS AND COUNT
   POP AF                                                            ; Restore type of variable
   CP $03                  ;SEE IF ITS A STRING
   JP NZ,SKPVAR            ;IF NOT, JUST SKIP AROUND IT
@@ -19312,7 +19333,7 @@ ARRLP:
   PUSH AF                 ; Save type of array                  ;SAVE THE VALTYP
   INC HL                                                        ;SKIP THE NAME CHARACTERS
   INC HL
-  CALL ARR_GET            ; Get next                            ;SKIP THE EXTRA CHARACTERS
+  CALL IADAHL             ; Get next                            ;SKIP THE EXTRA CHARACTERS
   LD C,(HL)                                                     ;PICK UP THE LENGTH
   INC HL
   LD B,(HL)
@@ -21942,6 +21963,7 @@ ENDIF
   LD HL,(TXTTAB)
   EX DE,HL
   CALL ENFMEM
+  ; HL=HL-DE
   LD A,L                  ; SUBTRACT MEMSIZ-TXTTAB
   SUB E
   LD L,A
