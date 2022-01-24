@@ -640,6 +640,7 @@ SCALXY:
   JP _SCALXY
 
 ; Routine at 273
+; a.k.a. MAPXYC
 ;
 ; Places cursor at current cursor address
 MAPXY:
@@ -4649,8 +4650,8 @@ IF NOHOOK
 ELSE
   CALL HISFL			; Hook for ISFLIO std routine
 ENDIF
-  PUSH HL
-  LD HL,(PTRFIL)
+  PUSH HL               ;Save text pointer
+  LD HL,(PTRFIL)        ;See if 'disk file'
   LD A,L
   OR H
   POP HL
@@ -7712,12 +7713,7 @@ __SIN:
 ;  CALL __CDBL
 ;  JP VALDBL
 ;;
-
-;; Trick to inspect constants, "PRINT  SIN(X)" to display the value
-;; (to preserve the code size, comment out the next three instructions)
-;  LD HL,_const_
-;  CALL HL2FACCU
-;  JP VALDBL
+;; (to preserve the code size, comment out the some of next instructions)
 ;;
                           ;WILL CALCULATE X=FAC/(2*PI)
   LD HL,FP_EPSILON        ;FP_EPSILON: 1/(2*PI) =~ 0.159155
@@ -8020,6 +8016,7 @@ __EXP_3:
   RET P
   JP OV_ERR			; Err $06 -  "Overflow"
 
+
 ; Routine at 11231
 __RND:
   CALL SIGN			; test FP number sign
@@ -8046,8 +8043,6 @@ __RND_0:
   LD HL,FACCU
   LD (HL),$40
   XOR A
-L2C18:
-	; L2C18+2:  
   LD (FACCU+8),A
   JP DECNRM		; Single precision normalization
 
@@ -8534,7 +8529,7 @@ ISIGN:
 	;ALTERS D,E
 ;
 ; Routine at 11953
-; Used by the routines at IADD, IMULT, IDIV and CIRCLE_SUB.
+; Used by the routines at IADD, IMULT, IDIV and CGTCNT.
 PUSHF:
   EX DE,HL            ; Save code string address        ;SAVE (HL)
   LD HL,(FACLOW)      ; LSB,NLSB of FPREG               ;GET LO'S
@@ -8548,7 +8543,7 @@ PUSHF:
 
 ; Routine at 11966
 ;
-; Used by the routine at L7684.
+; Used by the routine at DOSND.
 MOVFM:
   CALL LOADFP         ; Number at HL to BCDE       ;GET NUMBER IN REGISTERS
                                                    ;FALL INTO MOVFR AND PUT IT IN FAC
@@ -8592,11 +8587,13 @@ BCDEFP:
   LD B,H              
   RET                 
                       
-; Routine at 11990
+
+; Load single precision FP value from (HL) into BCDE in reverse byte order
+; a.k.a. LOADFP_CBED
 ;
-; Load single precision FP value from (HL) in reverse byte order
+; Routine at 11990
 ; Used by the routine at __NEXT.
-LOADFP_REV:
+HLBCDE:
   LD C,(HL)
   INC HL
   LD B,(HL)
@@ -8607,24 +8604,30 @@ LOADFP_REV:
   INC HL
   RET
 
-; Routine at 11999
+
+; Load FP value pointed by HL to BCDE,
+; a.k.a. MOVRM
 ;
+;GET NUMBER IN REGISTERS (B,C,D,E) FROM MEMORY [(HL)]
+;ALTERS B,C,D,E,H,L
+;AT EXIT (HL):=(HL)+4
+;
+; Routine at 11999
 ; Used by the routines at MOVFM, L324B, __NEXT and GNXARY.
-; $2EDF
 LOADFP:
-  LD E,(HL)
-  INC HL
+  LD E,(HL)         ; Get LSB of number                 ;GET LO
+  INC HL                                                ;POINT TO MO
 ; This entry point is used by the routine at PRS1.
 LOADFP_0:
-  LD D,(HL)
-  INC HL
-  LD C,(HL)
-  INC HL
-  LD B,(HL)
+  LD D,(HL)         ; Get NMSB of number                ;GET MO, ENTRY FOR BILL
+  INC HL                                                ;POINT TO HO
+  LD C,(HL)         ; Get MSB of number                 ;GET HO
+  INC HL                                                ;POINT TO EXPONENT
+  LD B,(HL)         ; Get exponent of number            ;GET EXPONENT
 
 INCHL:
-  INC HL
-  RET
+  INC HL            ; Used for conditional "INC HL"     ;INC POINTER TO BEGINNING OF NEXT NUMBER
+  RET                                                   ;ALL DONE
 
 
 	;MOVE NUMBER FROM FAC TO MEMORY [(HL)]
@@ -8663,6 +8666,7 @@ VMOVE:
   
 ; This entry point is used by the routines at __RND, GET_RNDX, FPTHL and MAKTKN.
 ; Copy B bytes from DE to HL
+                                 
   ; --- START PROC L2EF7 ---
 MOVE1:
   LD A,(DE)         ; Get source            ;GET WORD, ENTRY FROM VMOVMF
@@ -8700,7 +8704,7 @@ VMOVFM:
 	;MOVE ANY TYPE VALUE FROM FAC TO MEMORY [(HL)]
 	;ALTERS A,B,D,E,H,L
 ; Routine at 12045
-; Used by the routines at L7684.
+; Used by the routines at DOSND.
 VMOVAF:
   LD HL,ARG         ;ENTRY FROM FIN, DMUL10, DDIV10
 
@@ -8736,7 +8740,7 @@ VMVVFM:
 ; aka CMPNUM, Compare FP reg to BCDE
 ; Routine at 12065
 ;
-; Used by the routines at CONIS2, GETWORD_HL, FCOMP_UNITY and __NEXT.
+; Used by the routines at CONIS2, GETWORD_HL, CMPONE and __NEXT.
 FCOMP:
   LD A,C            ; Get exponent of number
   OR A              ;CHECK IF ARG IS ZERO
@@ -8874,8 +8878,8 @@ DCOMP:
 	;ALTERS A,B,C,D,E,H,L
 ;
 ; Routine at 12170
-; Used by the routines at __EXP, EVAL, NOT, DANDOR, DEPINT, L577A, __CIRCLE,
-; CIRCLE_SUB, L7684 and PARMADDR.
+; Used by the routines at __EXP, EVAL, NOT, DANDOR, DEPINT, VARGET, __CIRCLE,
+; CGTCNT, DOSND and PARMADDR.
   ; --- START PROC L2F8A ---
 __CINT:
   RST GETYPR        ;SEE WHAT WE HAVE
@@ -8893,7 +8897,7 @@ __CINT:
 	;ALTERS A ONLY
 ;
 ; This entry point is used by the routines at __SGN, CONIS2, __FIX, IMULT,
-; IMULDV, IN_PRT, OPRND, OCTCNS, __POS, FN_POINT, __CIRCLE and CIRCLE_SUB.
+; IMULDV, IN_PRT, OPRND, OCTCNS, __POS, FN_POINT, __CIRCLE and CGTCNT.
 MAKINT:
   LD (FACLOW),HL    ;STORE THE NUMBER IN FACLO
 ; This entry point is used by the routine at IMOD.
@@ -9302,7 +9306,7 @@ __FIX_7:
 	;ALTERS A,B,C,D,E
 ;
 ; Routine at 12618
-; Used by the routine at L7684.
+; Used by the routine at DOSND.
 MLDEBC:
   PUSH HL                                                   ;SAVE [H,L]
   LD HL,$0000			; Clear partial product             ;ZERO PRODUCT REGISTERS
@@ -9626,7 +9630,7 @@ FSUB:
 
 ; Routine at 12892
 ;
-; Used by the routines at IMULT, __CIRCLE and CIRCLE_SUB.
+; Used by the routines at IMULT, __CIRCLE and CGTCNT.
 FMULT:
   CALL DEC_HL2ARG
   CALL CONDS
@@ -12558,7 +12562,7 @@ DATSNR:
 ; entry for '?SN ERROR'
 ;
 ; Used by the routines at LNUM_RANGE, RUNLIN, __AUTO, EVAL, OCTCNS, NOT_KEYWORD, __RENUM_0,
-; __SYNCHR, __CALL, GETVAR, __CLEAR, __OPEN, L7439, L77FE and __MAX.
+; __SYNCHR, __CALL, GETVAR, __CLEAR, __OPEN, __PLAY_2, L77FE and __MAX.
 SN_ERR:
   LD E,$02	; "Syntax error"
   
@@ -14159,9 +14163,9 @@ INTIDX_0:
 ; entry for '?FC ERROR'
 ;
 ; Used by the routines at __LOG, __ERROR, __AUTO, OPRND, __WIDTH, FNDNUM,
-; __DELETE, __RENUM_0, __RENUM_NXT, L5683, L575A, PAINT_PARMS, IN_GFX_MODE, __PAINT, __CIRCLE, CIRCLE_SUB,
-; __DRAW, M_DIAGONAL, _SCALE, FORECOLOR, L5E91, REUSST, __SWAP, __CLEAR, __ASC, __MID_S,
-; FN_INSTR, LHSMID, __LFILES, FN_INPUT, __SOUND, L748E, L7684, L77D4, ON_OPTIONS, __STRIG,
+; __DELETE, __RENUM_0, __RENUM_NXT, SCNVAR, ATRSCN, IN_GFX_MODE, __PAINT, __CIRCLE, CGTCNT,
+; __DRAW, DMOVE, DSCALE, DCOLR, CHKRNG, REUSST, __SWAP, __CLEAR, __ASC, __MID_S,
+; FN_INSTR, LHSMID, __LFILES, FN_INPUT, __SOUND, L748E, SNDFCE, L77D4, ON_OPTIONS, __STRIG,
 ; __SCREEN, SET_BAUDRATE, __SPRITE, PUT_SPRITE, __BASE, __CVD and __MAX.
 ;  $475A
 FC_ERR:
@@ -15330,7 +15334,7 @@ OPNPAR:
 ; Evaluate expression
 ;
 ; Used by the routines at __LET, __IF, DOFN, INTIDX, FNDNUM, GETWORD, __CIRCLE,
-; CIRCLE_SUB, L61C4, FN_STRING, FN_INSTR, FILE_PARMS, BSAVE_PARM, __BASE and __VPOKE.
+; CGTCNT, L61C4, FN_STRING, FN_INSTR, FILE_PARMS, BSAVE_PARM, __BASE and __VPOKE.
 ; a.k.a. GETNUM, evaluate expression
 EVAL:
   DEC HL           ; Evaluate expression & save      ;BACK UP CHARACTER POINTER
@@ -15763,7 +15767,7 @@ VARPTR_0:
   EX DE,HL              ;GET VALUE TO RETURN IN [H,L]
   LD A,H                ;MAKE SURE NOT UNDEFINED VAR
   OR L                  ;SET CC'S. ZERO IF UNDEF
-  JP Z,FC_ERR           ;ALL OVER IF UNDEF (DONT WANT USER POKING INTO ZERO IF HE'S TOO LAZY TO CHECK
+  JP Z,FC_ERR           ;ALL OVER IF UNDEF (DONT WANT USER POKING INTO ZERO IF HE'S TOO LAZY TO CHECK)
   CALL MAKINT           ;MAKE IT AN INT
   POP HL                ;RESTORE TEXT POINTER
   RET
@@ -15813,7 +15817,7 @@ RETNUM:
   RET
 
 
-; This entry point is used by the routine at L575A.
+; This entry point is used by the routine at SCNVAR.
 ; EVAL_VARIABLE (a.k.a. CONVAR)
 EVAL_VARIABLE:
   CALL GETVAR           ;GET A POINTER TO THE VARIABLE IN [D,E]
@@ -16637,7 +16641,7 @@ __WIDTH_4:
 FPSINT:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
 ;
-; This entry point is used by the routines at INTIDX, COORD_PARMS and __CIRCLE.
+; This entry point is used by the routines at INTIDX, SCAN1 and __CIRCLE.
 ; $520F
 FPSINT_0:
   CALL EVAL           ;EVALUATE A FORMULA
@@ -16662,7 +16666,7 @@ DEPINT:
 FNDNUM:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
 ; This entry point is used by the routines at SETIO, __WAIT, L492A, __ERROR,
-; ISFUN, __WIDTH, __POKE, PAINT_PARMS, __PAINT, LHSMID, MID_ARGSEP, FILSCN, __OPEN, RETRTS,
+; ISFUN, __WIDTH, __POKE, ATRSCN, __PAINT, LHSMID, MID_ARGSEP, FILSCN, __OPEN, RETRTS,
 ; FN_INPUT, __SOUND, __LOCATE, L77D4, __COLOR, __SCREEN, SET_BAUDRATE, PUT_SPRITE, __VDP,
 ; __VPOKE and __MAX.
 
@@ -17607,140 +17611,148 @@ L564A:
   JP CALSLT
 
 
+
+;
+;       MACLNG - MACRO LANGUAGE DRIVER
+;
+; MICROSOFT GRAPHICS AND SOUND MACRO LANGUAGES
+;
+
+
 ; Data block at 22124
-DECODE_JPTAB:
-  LD   (MCLTAB),DE
-  CALL EVAL
-  PUSH HL
-  LD   DE,$0000
-  PUSH DE
-  PUSH AF
-DECODE_JPTAB_0:
+MACLNG:
+  LD   (MCLTAB),DE  ;SAVE POINTER TO COMMAND TABLE
+  CALL EVAL         ;EVALUATE STRING ARGUMENT
+  PUSH HL           ;SAVE TXTPTR TILL DONE
+  LD   DE,$0000     ;PUSH DUMMY ENTRY TO MARK END OF STK
+  PUSH DE           ;DUMMY ADDR
+  PUSH AF           ;DUMMY LENGTH
+MCLNEW:
   CALL GETSTR
-  CALL LOADFP
+  CALL LOADFP       ;GET LENGTH & POINTER
   LD   B,C
   LD   C,D
   LD   D,E
   LD   A,B
-; Routine at 22147
-L5683:
   OR C
-  JR Z,DECODE_JPTAB_2
+  JR Z,MCLOOP       ;Don't Push if addr is 0
   LD A,D
   OR A
-  JR Z,DECODE_JPTAB_2
-  PUSH BC
-  PUSH DE
-DECODE_JPTAB_2:
-  POP AF
+  JR Z,MCLOOP       ; or if Len is 0...
+  PUSH BC           ;PUSH ADDR OF STRING
+  PUSH DE           ;PUT IN [AL]
+MCLOOP:
+  POP AF            ;GET LENGTH OFF STACK
   LD (MCLLEN),A
-  POP HL
-  LD A,H
+  POP HL            ;GET ADDR
+  LD A,H            ;SEE IF LAST ENTRY
   OR L
-  JR NZ,L5683_1
+  JR NZ,MACLNG_0
   LD A,(MCLFLG)
   OR A
-  JP Z,MCL_ITEM_1
+  JP Z,MC_POPTRT
   JP L748E_0
 
 
-L5683_1:
-  LD (MCLPTR),HL
-; This entry point is used by the routines at L7439 and L7684.
-L5683_2:
-  CALL MCL_ITEM
-  JR Z,DECODE_JPTAB_2
-  ADD A,A
-  LD C,A
-  LD HL,(MCLTAB)
-L5683_3:
-  LD A,(HL)
-  ADD A,A
-L5683_4:
-  CALL Z,FC_ERR			; Err $05 - "Illegal function call"
-  CP C
-  JR Z,L5683_5
-  INC HL
-  INC HL
-  INC HL
-  JR L5683_3
+MACLNG_0:           ;ALL FINISHED IF ZERO
+  LD (MCLPTR),HL    ;SET UP POINTER
 
-L5683_5:
-  LD BC,L5683_2
-  PUSH BC
-  LD A,(HL)
+; This entry point is used by the routines at __PLAY_2 and DOSND.
+MCLSCN:
+  CALL FETCHR       ;GET A CHAR FROM STRING
+  JR Z,MCLOOP       ;END OF STRING - SEE IF MORE ON STK
+  ADD A,A           ;PUT CHAR * 2 INTO [C]
   LD C,A
-  ADD A,A
-  JR NC,L5683_9
-  OR A
-  RRA
-  LD C,A
-  PUSH BC
-  PUSH HL
-  CALL MCL_ITEM
-  LD DE,$0001
-  JP Z,L5683_7
-  CALL ISLETTER_A	; Check it is in the 'A'..'Z' range
-  JP NC,L5683_6
-  CALL L5719_0
-  SCF
-  JR L5683_8
+  LD HL,(MCLTAB)    ;POINT TO COMMAND TABLE
+MSCNLP:
+  LD A,(HL)         ;GET CHAR FROM COMMAND TABLE
+  ADD A,A           ;CHAR = CHAR * 2 (CLR HI BIT FOR CMP)
+GOFCER:
+  CALL Z,FC_ERR     ;END OF TABLE.    ( Err $05 - "Illegal function call" )
+  CP C              ;HAVE WE GOT IT?
+  JR Z,MISCMD       ;YES.
+  INC HL            ;MOVE TO NEXT ENTRY
+  INC HL
+  INC HL
+  JR MSCNLP
 
-L5683_6:
-  CALL MCL_PREV_ITEM
-L5683_7:
-  OR A
-L5683_8:
+MISCMD:
+  LD BC,MCLSCN      ;RETURN TO TOP OF LOOP WHEN DONE
+  PUSH BC
+  LD A,(HL)         ;SEE IF A VALUE NEEDED
+  LD C,A            ;PASS GOTTEN CHAR IN [C]
+  ADD A,A
+  JR NC,MNOARG      ;COMMAND DOESN'T REQUIRE ARGUMENT
+  OR A              ;CLEAR CARRY
+  RRA               ;MAKE IT A CHAR AGAIN
+  LD C,A            ;PUT IN [C]
+  PUSH BC
+  PUSH HL           ;SAVE PTR INTO CMD TABLE
+  CALL FETCHR       ;GET A CHAR
+  LD DE,$0001       ;DEFAULT ARG=1
+  JP Z,VSNARG_0     ;NO ARG IF END OF STRING
+  CALL ISLETTER_A   ;SEE IF POSSIBLE LETTER
+  JP NC,VSNARG
+  CALL VALSC3       ;GET THE VALUE
+  SCF               ;SET CARRY TO FLAG USING NON-DEFAULT
+  JR ISCMD3
+
+VSNARG:
+  CALL DECFET       ;PUT CHAR BACK INTO STRING
+VSNARG_0:
+  OR A              ;CLEAR CARRY
+ISCMD3:
   POP HL
-  POP BC
-L5683_9:
-  INC HL
-  LD A,(HL)
+  POP BC            ;GET BACK COMMAND CHAR
+MNOARG:
+  INC HL            ;POINT TO DISPATCH ADDR
+  LD A,(HL)         ;GET ADDRESS INTO HL
   INC HL
   LD H,(HL)
   LD L,A
-  JP (HL)
-  
+  JP (HL)           ;DISPATCH
 
-; This entry point is used by the routines at L5719, L575A and M_DIAGONAL.
-GET_MCL_ITEM:
-  CALL MCL_ITEM
-  JR Z,L5683_4
+
+
+; This entry point is used by the routines at VALSCN, SCNVAR and DMOVE.
+FETCHZ:
+  CALL FETCHR       ;GET A CHAR FROM STRING
+  JR Z,GOFCER       ;GIVE ERROR IF END OF LINE
   RET
 
 ; Routine at 22254
 ;
-; Used by the routines at L5683, L5719, PLAY_NOTE and L7684.
-MCL_ITEM:
+; Used by the routines at L5683, VALSCN, PLAY_NOTE and DOSND.
+FETCHR:
   PUSH HL
-MCL_ITEM_0:
-  LD HL,MCLLEN
+FETCH2:
+  LD HL,MCLLEN      ;POINT TO STRING LENGTH
   LD A,(HL)
   OR A
-  JR Z,MCL_ITEM_1
-  DEC (HL)
-  LD HL,(MCLPTR)
-  LD A,(HL)
-  INC HL
+  JR Z,MC_POPTRT    ;RETURN Z=0 IF END OF STRING
+  DEC (HL)          ;UPDATE COUNT FOR NEXT TIME
+  LD HL,(MCLPTR)    ;GET PTR TO STRING
+  LD A,(HL)         ;GET CHARACTER FROM STRING
+  INC HL            ;UPDATE PTR FOR NEXT TIME
   LD (MCLPTR),HL
-  CP $20	; ' ' ?
-  JR Z,MCL_ITEM_0
-  CP $60	; "'" ?
-  JR C,MCL_ITEM_1
-  SUB $20
+  CP ' '            ;SKIP SPACES
+  JR Z,FETCH2
+  CP 'a'-1          ;CONVERT LOWER CASE TO UPPER
+  JR C,MC_POPTRT
+  SUB $20           ;DO CONVERSION
 ; This entry point is used by the routine at L5683.
-MCL_ITEM_1:
+MC_POPTRT:
   POP HL
   RET
 
 ; Routine at 22283
 ;
-; Used by the routines at L5683, L5719, M_DIAGONAL, PLAY_NOTE and L7684.
-MCL_PREV_ITEM:
+; Used by the routines at L5683, VALSCN, DMOVE, PLAY_NOTE and DOSND.
+DECFET:
   PUSH HL
-  LD HL,MCLLEN
+  LD HL,MCLLEN      ;INCREMENT LENGTH
   INC (HL)
-  LD HL,(MCLPTR)
+  LD HL,(MCLPTR)    ;BACK UP POINTER
   DEC HL
   LD (MCLPTR),HL
   POP HL
@@ -17748,100 +17760,103 @@ MCL_PREV_ITEM:
 
 ; Routine at 22297
 ;
-; Used by the routine at M_DIAGONAL.
-L5719:
-  CALL GET_MCL_ITEM
+; Used by the routine at DMOVE.
+VALSCN:
+  CALL FETCHZ       ;GET FIRST CHAR OF ARGUMENT
 ; This entry point is used by the routine at L5683.
-L5719_0:
-  CP '='
-  JP Z,L577A
-  CP '+'
-  JR Z,L5719
-  CP '-'
-  JR NZ,L5719_1
-  LD DE,L5795
+VALSC3:
+  CP '='            ;NUMERIC?
+  JP Z,VARGET
+  CP '+'            ;PLUS SIGN?
+  JR Z,VALSCN       ;THEN SKIP IT
+  CP '-'            ;NEGATIVE VALUE?
+  JR NZ,VALSC2
+  LD DE,NEGD        ;IF SO, NEGATE BEFORE RETURNING
   PUSH DE
-  JR L5719
+  JR VALSCN         ;EAT THE "-"
   
-; This entry point is used by the routine at L7684.
-L5719_1:
-  LD DE,$0000
-L5719_2:
-  CP ','
-  JR Z,MCL_PREV_ITEM
-  CP ';'
-  RET Z
-  CP ':'
-  JR NC,MCL_PREV_ITEM
+; This entry point is used by the routine at DOSND.
+VALSC2:
+  LD DE,$0000       ;INITIAL VALUE OF ZERO
+NUMLOP:
+  CP ','            ;COMMA
+  JR Z,DECFET       ;YES, BACK UP AND RETURN
+  CP ';'            ;SEMICOLON?
+  RET Z             ;YES, JUST RETURN
+  CP '9'+1          ;NOW SEE IF ITS A DIGIT
+  JR NC,DECFET      ;IF NOT, BACK UP AND RETURN
   CP '0'
-  JR C,MCL_PREV_ITEM
+  JR C,DECFET
 
-  LD HL,$0000
-  LD B,$0A
+  LD HL,$0000       ;[HL] is accumulator
+  LD B,$0A          ;[HL]=[DE]*10
 MUL10:
   ADD HL,DE
-  JR C,FC_ERR_D
+  JR C, SCNFC       ;overflow - JMP Function Call Error
   DJNZ MUL10
   
-  SUB '0'
+  SUB '0'           ;ADD IN THE DIGIT
   LD E,A
   LD D,$00
   ADD HL,DE
-  JR C,FC_ERR_D
-  EX DE,HL
-  CALL MCL_ITEM
-  JR NZ,L5719_2
+  JR C, SCNFC       ;overflow - JMP Function Call Error
+  EX DE,HL          ;VALUE SHOULD BE IN [DE]
+  CALL FETCHR       ;GET NEXT CHAR
+  JR NZ,NUMLOP      ;branch if not end of string
   RET
 
-; Routine at 22362
+
+; (GW-BASIC has extra code here to "Allow VARPTR$(variable) for BASCOM compatibility")
 ;
-; Used by the routines at L577A and X_MACRO.
-L575A:
-  CALL GET_MCL_ITEM
-  LD DE,BUF
-  PUSH DE
-  LD B,$28	; '('
-  CALL ISLETTER_A	; Check it is in the 'A'..'Z' range
-  JR C,FC_ERR_D
-L575A_0:
-  LD (DE),A
+; Routine at 22362
+; Used by the routines at VARGET and MCLXEQ.
+SCNVAR:
+  CALL FETCHZ       ;MAKE SURE FIRST CHAR IS LETTER
+  LD DE,BUF         ;PLACE TO COPY NAME FOR PTRGET
+  PUSH DE           ;SAVE ADDR OF BUF FOR "ISVAR"
+  LD B,40           ;COPY MAX OF 40 CHARACTERS
+  CALL ISLETTER_A   ;MAKE SURE IT'S A LETTER
+  JR C, SCNFC       ;FC ERROR IF NOT LETTER
+SCNVLP:
+  LD (DE),A         ;STORE CHAR IN BUF
   INC DE
-  CP ';'		;$3B
-  JR Z,L575A_2
-  CALL GET_MCL_ITEM
-  DJNZ L575A_0
-; This entry point is used by the routine at L5719.
-FC_ERR_D:
-  CALL FC_ERR			; Err $05 - "Illegal function call"
-L575A_2:
-  POP HL
-  JP EVAL_VARIABLE
+  CP ';'            ;A SEMICOLON?
+  JR Z,SCNV2        ;YES - END OF VARIABLE NAME
+  CALL FETCHZ       ;GET NEXT CHAR
+  DJNZ SCNVLP
+
+; This entry point is used by the routine at VALSCN.
+ SCNFC:
+  CALL FC_ERR       ;ERROR - VARIABLE TOO LONG
+SCNV2:
+  POP HL            ;GET PTR TO BUF
+  JP EVAL_VARIABLE  ;GO GET ITS VALUE
 
 ; Routine at 22394
 ;
-; Used by the routine at L5719.
-L577A:
-  CALL L575A
-  CALL __CINT
-  EX DE,HL
+; Used by the routine at VALSCN.
+VARGET:
+  CALL SCNVAR       ;SCAN & EVALUATE VARIABLE
+  CALL __CINT       ;MAKE IT AN INTEGER
+  EX DE,HL          ;IN [DE]
   RET
 
 ; Routine at 22402
 ;
 ; Used by the DRAW and PLAY routines.
 ;  Plays MML stored in string variable A$ *3 / Executes a drawing substring
-X_MACRO:
-  CALL L575A
-  LD A,(MCLLEN)
+MCLXEQ:
+  CALL SCNVAR       ;SCAN VARIABLE NAME
+  LD A,(MCLLEN)     ;SAVE CURRENT STRING POS & LENGTH
   LD HL,(MCLPTR)
-  EX (SP),HL
+  EX (SP),HL        ;POP OFF RET ADDR, PUSH MCLPTR
   PUSH AF
-  LD C,$02
+  LD C,$02          ;MAKE SURE OF ROOM ON STACK
   CALL CHKSTK
-  JP DECODE_JPTAB_0
+  JP MCLNEW
 
 ; Routine at 22421
-L5795:
+NEGD:
   XOR A
   SUB E
   LD E,A
@@ -17850,93 +17865,121 @@ L5795:
   LD D,A
   RET
 
+
+
+
+;
+; ALLOW A COORDINATE OF THE FORM (X,Y) OR STEP(X,Y)
+; THE LATTER IS RELATIVE TO THE GRAPHICS AC.
+; THE GRAPHICS AC IS UPDATED WITH THE NEW VALUE
+; RESULT IS RETURNED WITH [B,C]=X AND [D,E]=Y
+; CALL SCAN1 TO GET FIRST IN A SET OF TWO PAIRS SINCE IT ALLOWS
+; A NULL ARGUMENT TO IMPLY THE CURRENT AC VALUE AND
+; IT WILL SKIP A "@" IF ONE IS PRESENT
+;
+
 ; Routine at 22428
 ;
 ; Used by the routines at LINE, __PAINT, __CIRCLE and PUT_SPRITE.
-COORD_PARMS:
-  LD A,(HL)
-  CP $40		; ?
-  CALL Z,__CHRGTB  ; Gets next character (or token) from BASIC text.
-  LD BC,$0000
+SCAN1:
+  LD A,(HL)         ;GET THE CURRENT CHARACTER
+  CP '@'            ;ALLOW MEANINGLESS "@"
+  CALL Z,__CHRGTB   ;BY SKIPPING OVER IT
+  LD BC,$0000       ;ASSUME NO COODINATES AT ALL (-SECOND)
   LD D,B
   LD E,C
-  CP TK_MINUS		; Token for '-'
-  JR Z,COORD_PARMS_1
-; This entry point is used by the routines at __PSET and FN_POINT.
-COORD_PARMS_DST:
-  LD A,(HL)
-  CP TK_STEP		; If STEP is used, coordinates are interpreted relative to the current cursor position.
-					; In this case the values can also be negative.
-  PUSH AF
-  CALL Z,__CHRGTB  ; Gets next character (or token) from BASIC text.
-  RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB '('
-  CALL FPSINT_0
-  PUSH DE
-  RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB ','
-  CALL FPSINT_0
-  RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB ')'
-  POP BC
-  POP AF
+  CP TK_MINUS		; "-", SEE IF ITS SAME AS PREVIOUS
+  JR Z,SCANN        ;USE GRAPHICS ACCUMULATOR
 
-COORD_PARMS_1:
-  PUSH HL
-  LD HL,(GRPACX)
-  JR Z,RELATIVE_XPOS		; JP if 'STEP' is specified
-  LD HL,$0000
-RELATIVE_XPOS:
-  ADD HL,BC
-  LD (GRPACX),HL
-  LD (GXPOS),HL
-  LD B,H
-  LD C,L
-  LD HL,(GRPACY)
-  JR Z,RELATIVE_YPOS		; JP if 'STEP' is specified
-  LD HL,$0000
-RELATIVE_YPOS:
-  ADD HL,DE
-  LD (GRPACY),HL
-  LD (GYPOS),HL
-  EX DE,HL
-  POP HL
+;
+; THE STANDARD ENTRY POINT
+;
+
+; This entry point is used by the routines at __PSET and FN_POINT.
+SCAND:
+  LD A,(HL)         ;GET THE CURRENT CHARACTER
+  ;CP TK_MINUS       ; '-'
+  CP TK_STEP        ;IS IT RELATIVE?    ; If STEP is used, coordinates are interpreted relative to the current cursor position.
+                                        ; In this case the values can also be negative.
+  PUSH AF           ;REMEMBER
+  CALL Z,__CHRGTB   ;SKIP OVER $STEP TOKEN
+  RST SYNCHR        
+  DEFB '('          ;SKIP OVER OPEN PAREN
+  CALL FPSINT_0     ;SCAN X INTO [D,E]
+  PUSH DE           ;SAVE WHILE SCANNING Y
+  RST SYNCHR        
+  DEFB ','          ;SCAN COMMA
+  CALL FPSINT_0     ;GET Y INTO [D,E]
+  RST SYNCHR        
+  DEFB ')'          
+  POP BC            ;GET BACK X INTO [B,C]
+  POP AF            ;RECALL IF RELATIVE OR NOT
+
+SCANN:
+  PUSH HL           ;SAVE TEXT POINTER
+  LD HL,(GRPACX)    ;GET OLD POSITION
+  JR Z,SCXREL       ;IF ZERO,RELATIVE SO USE OLD BASE           ; JP if 'STEP' is specified
+  LD HL,$0000       ;IN ABSOLUTE CASE, JUST Y USE ARGEUMENT
+SCXREL:             
+  ADD HL,BC         ;ADD NEW VALUE
+  LD (GRPACX),HL    ;UPDATE GRAPHICS ACCUMLATOR
+  LD (GXPOS),HL     ;STORE SECOND COORDINTE FOR CALLER
+  LD B,H            ;RETURN X IN BC
+  LD C,L            
+  LD HL,(GRPACY)    ;GET OLDY POSITION
+  JR Z,SCYRE        ;IF ZERO, RELATIVE SO USE OLD BASE          ; JP if 'STEP' is specified
+  LD HL,$0000       ;ABSOLUTE SO OFFSET BY 0
+SCYRE:              
+  ADD HL,DE         
+  LD (GRPACY),HL    ;UPDATE Y PART OF ACCUMULATOR
+  LD (GYPOS),HL     ;STORE Y FOR CALLER
+  EX DE,HL          ;RETURN Y IN [D,E]
+  POP HL            ;GET BACK THE TEXT POINTER                  ; code string address
   RET
+
+
+
+;
+; PSET (X,Y)[,ATTRIBUTE] DEFAULT ATTRIBUTE TO FORCLR
+; PRESET (X,Y)[,ATTRIBUTE] DEFAULT ATTIBUTE TO BAKCLR
+;
 
 ; Routine at 22501
 __PRESET:
   LD A,(BAKCLR)
   JR __PSET_0
 
+
 ; Routine at 22506
 __PSET:
   LD A,(FORCLR)                ; Get default color (PSET=foreground)
 ; This entry point is used by the routine at __PRESET.
 __PSET_0:
-  PUSH AF                      ; Save default color
-  CALL COORD_PARMS_DST         ; Get coordinates in BC, DE
-  POP AF                       ; Restore default color
-  CALL PAINT_PARMS_0           ; Get color, if specified
-  PUSH HL                      ; Save code string address
-  CALL SCALXY
-  JR NC,__PSET_1
-  CALL MAPXY                   ; Find position in VRAM. CLOC=memory address, CMASK=color pixelmask
-  CALL SETC
-__PSET_1:
+  PUSH AF                      ; Save default color               ;SAVE DEFAULT ATTRIBUTE
+  CALL SCAND                   ; Get coordinates in BC, DE        ;SCAN A SINGLE COORDINATE
+  POP AF                       ; Restore default color            ;GET BACK DEFAULT ATTRIBUTE
+  CALL ATRENT                  ; Get color, if specified          ;SCAN POSSIBLE ATTRIBUTE
+  PUSH HL                      ; Save code string address         ;SAVE TEXT POINTER
+  CALL SCALXY                                                     ;SCALE INTO BOUNDS
+  JR NC,PSTNOT                                                    ;NO PSET IF NOT IN BOUNDS
+  CALL MAPXY                   ;MAP INTO A "C"           ; Find position in VRAM. CLOC=memory address, CMASK=color pixelmask
+  CALL SETC                    ;ACTUALLY DO THE SET
+PSTNOT:
   POP HL                       ; Restore code string address
   RET
+
 
 ; Routine at 22531
 ;
 ; Used by the routine at OPRND.
 FN_POINT:
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  PUSH HL			; Save code string address
-  CALL FETCHC		; Save cursor
-  POP DE			; Move code string address to DE
-  PUSH HL			; Save cursor position
-  PUSH AF			; Save cursor mask
-  LD HL,(GYPOS)		; Make a copy of GX, GY
+  RST CHRGTB		; Gets next character (or token) from BASIC text.       ;POINT IS RECOGNIZED IN EVAL SO NEED TO SKIP ONE MORE CHAR
+  PUSH HL			; Save code string address                              ; Save the text pointer.
+  CALL FETCHC		; Save cursor                                           ;Preserve the graphics cursor, GXPOS,
+  POP DE			; Move code string address to DE                        ;and GYPOS across the POINT function
+  PUSH HL			; Save cursor position                                  ;so cases like
+  PUSH AF			; Save cursor mask                                      ;LINE (x1,y1)-(x2,y2),POINT(x3,y3) will
+  LD HL,(GYPOS)		; Make a copy of GX, GY                                 ;work correctly.
   PUSH HL
   LD HL,(GXPOS)		; etc..
   PUSH HL
@@ -17944,23 +17987,23 @@ FN_POINT:
   PUSH HL
   LD HL,(GRPACX)
   PUSH HL
-  EX DE,HL			; Move code string address to HL
-  CALL COORD_PARMS_DST         ; Get coordinates in BC, DE
-  PUSH HL			; Save code string address
-  CALL SCALXY
-  LD HL,$FFFF
-  JR NC,FN_POINT_0
+  EX DE,HL			; Move code string address to HL                        ;Put the text pointer back in HL.
+  CALL SCAND        ; Get coordinates in BC, DE                             ;READ THE SPECIFICATION OF THE POINT
+  PUSH HL			; Save code string address                              ;SAVE THE TEXT POINTER
+  CALL SCALXY                                                               ;SCALE THE POINT
+  LD HL,-1                                                                  ;ASSUME ILLEGAL POINT
+  JR NC,PNTNOT                                                              ;NOT LEGAL - RETURN -1
   CALL MAPXY		; Set addresses for dot position
-  CALL READC
+  CALL READC                                                                ;READ OUT THE ATTRIBUTE
   LD L,A
   LD H,$00
-FN_POINT_0:
-  CALL MAKINT
+PNTNOT:
+  CALL MAKINT                                                               ;Restore text pointer
   POP DE			; Code string address
   POP HL
   LD (GRPACX),HL	; Restore GX, GY..
-  POP HL
-  LD (GRPACY),HL	; ..etc..
+  POP HL                                                                    ;Restore GXPOS, GYPOS, and the graphics
+  LD (GRPACY),HL	; ..etc..                                               ;cursor.
   POP HL
   LD (GXPOS),HL		; ..to the original ..
   POP HL
@@ -17969,70 +18012,87 @@ FN_POINT_0:
   POP HL			; Restore cursor position
   PUSH DE			; Save code string address
   CALL STOREC		; Restore cursor
-  POP HL			; Restore code string address
+  POP HL			; Restore code string address                           ;Retrieve the text pointer and return.
   RET
 
-; Routine at 22605
+
 ;
+; ATTRIBUTE SCAN
+; LOOK AT THE CURRENT POSITION AND IF THERE IS AN ARGUMENT READ IT AS
+; THE 8-BIT ATTRIBUTE VALUE TO SEND TO SETATR. IF STATEMENT HAS ENDED
+; OR THERE IS A NULL ARGUMENT, SEND FORCLR  TO SETATR
+;
+; Routine at 22605
 ; Used by the routines at LINE, __PAINT and __CIRCLE.
-PAINT_PARMS:
+ATRSCN:
   LD A,(FORCLR)
 ; This entry point is used by the routine at __PSET.
-PAINT_PARMS_0:
+ATRENT:
   PUSH BC
   PUSH DE
   LD E,A
   CALL IN_GFX_MODE       ; "Illegal function call" if not in graphics mode
   DEC HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
-  JR Z,PAINT_PARMS_1
-  RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB ','
-  CP ','
-  JR Z,PAINT_PARMS_1
-  CALL GETINT              ; Get integer 0-255
-PAINT_PARMS_1:
-  LD A,E
-  PUSH HL
-  CALL SETATR		; Set attribute byte
-  JP C,FC_ERR			; Err $05 - "Illegal function call"
+  JR Z,ATRFIN            ;USE DEFAULT
+  RST SYNCHR
+  DEFB ','               ;INSIST ON COMMA
+  CP ','                 ;ANOTHER COMMA FOLLOWS?
+  JR Z,ATRFIN            ;IF SO, NULL ARGUMENT SO USE DEFAULT
+  CALL GETINT            ;GET THE BYTE  ; Get integer 0-255
+ATRFIN:
+  LD A,E                 ;GET ATTRIBUTE INTO [A]
+  PUSH HL                ;SAVE THE TEXT POINTER
+  CALL SETATR            ; Set attribute byte
+  JP C,FC_ERR            ;Graphics not available          ; Err $05 - "Illegal function call"
   POP HL
-  POP DE
+  POP DE                 ;GET BACK CURRENT POINT
   POP BC
   JP __CHRCKB		; Gets current character (or token) from BASIC text.
 
-; Routine at 22641
+
+
 ;
-; Used by the routines at LINE and DRAW_LINE.
-GX_DELTA:
-  LD HL,(GXPOS)
+; XDELT SETS [H,L]=ABS(GXPOS-[B,C]) AND SETS CARRY IF [B,C].GT.GXPOS
+; ALL REGISTERS EXCEPT [H,L] AND [A,PSW] ARE PRESERVED
+; NOTE: [H,L] WILL BE A DELTA BETWEEN GXPOS AND [B,C] - ADD 1 FOR AN X "COUNT"
+;
+
+; Routine at 22641
+; Used by the routines at LINE and DOGRPH.
+XDELT:
+  LD HL,(GXPOS)          ;GET ACCUMULATOR POSITION
   LD A,L
   SUB C
-  LD L,A
+  LD L,A                 ;DO SUBTRACT INTO [H,L]
   LD A,H
   SBC A,B
   LD H,A
-; This entry point is used by the routine at GY_DELTA.
-GX_DELTA_0:
-  RET NC
+; This entry point is used by the routine at YDELT.
+XDELT_0:
+  RET NC                 ;IF NO CARRY, NO NEED TO NEGATE COUNT
   
-; This entry point is used by the routines at DRAW_LINE, __PAINT_4, INVSGN_DE, DRAW_CIRCLE and
-; M_DIAGONAL.
-INVSGN_HL:
-  XOR A
-  SUB L		; Negate exponent
-  LD L,A	; Re-save exponent
+; This entry point is used by the routines at DOGRPH, STPAIN, NEGDE, CPLOT8 and
+; DMOVE.
+NEGHL:
+  XOR A                   ;STANDARD [H,L] NEGATE
+  SUB L                   ; Negate exponent
+  LD L,A                  ; Re-save exponent
   SBC A,H
   SUB L
   LD H,A
   SCF
   RET
 
-		
-; Routine at 22659
+
 ;
-; Used by the routines at LINE and DRAW_LINE.
-GY_DELTA:
+; YDELT SETS [H,L]=ABS(GYPOS-[D,E]) AND SETS CARRY IF [D,E].GT.GYPOS
+; ALL REGISTERS EXCEPT [H,L] AND [A,PSW] ARE PRESERVED
+;
+
+; Routine at 22659
+; Used by the routines at LINE and DOGRPH.
+YDELT:
   LD HL,(GYPOS)
   ; HL=HL-DE
   LD A,L
@@ -18042,12 +18102,21 @@ GY_DELTA:
   SBC A,D
   LD H,A
   ;
-  JR GX_DELTA_0
+  JR XDELT_0
+
+
+
+;
+; XCHGX EXCHANGES [B,C] WITH GXPOS
+; XCHGY EXCHANGES [D,E] WITH GYPOS
+; XCHGAC PERFORMS BOTH OF THE ABOVE
+; NONE OF THE OTHER REGISTERS IS AFFECTED
+;
 
 ; Routine at 22670
 ;
-; Used by the routines at SWAP_GXGY and LINE.
-SWAP_GY:
+; Used by the routines at XCHGAC and LINE.
+XCHGY:
   PUSH HL
   LD HL,(GYPOS)
   EX DE,HL
@@ -18056,12 +18125,12 @@ SWAP_GY:
   RET
 
 ; Routine at 22680
-;
-; Used by the routines at LINE and DRAW_LINE.
-SWAP_GXGY:
-  CALL SWAP_GY
+; Used by the routines at LINE and DOGRPH.
+XCHGAC:
+  CALL XCHGY
+
 ; This entry point is used by the routine at LINE.
-SWAP_GX:
+XCHGX:
   PUSH HL
   PUSH BC
   LD HL,(GXPOS)
@@ -18071,109 +18140,124 @@ SWAP_GX:
   POP HL
   RET
 
-; Routine at 22695
+
+
 ;
+; LINE [(X1,Y1)]-(X2,Y2) [,ATTRIBUTE[,B[F]]]
+; DRAW A LINE FROM (X1,Y1) TO (X2,Y2) EITHER
+; 1. STANDARD FORM -- JUST A LINE CONNECTING THE 2 POINTS
+; 2. ,B=BOXLINE -- RECTANGLE TREATING (X1,Y1) AND (X2,Y2) AS OPPOSITE CORNERS
+; 3. ,BF= BOXFILL --  FILLED RECTANGLE WITH (X1,Y1) AND (X2,Y2) AS OPPOSITE CORNERS
+;
+
+; Routine at 22695
 ; Used by the routine at __LINE.
 LINE:
-  CALL COORD_PARMS
-  PUSH BC
+  CALL SCAN1         ;SCAN THE FIRST COORDINATE
+  PUSH BC            ;SAVE THE POINT
   PUSH DE
-  RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB TK_MINUS		; Token for '-'
-  CALL COORD_PARMS_DST         ; Get coordinates in BC, DE
-  CALL PAINT_PARMS
-  POP DE
+  RST SYNCHR
+  DEFB TK_MINUS      ;MAKE SURE ITS PROPERLY SEPERATED
+  CALL SCAND         ;SCAN THE SECOND SET            ; Get coordinates in BC, DE
+  CALL ATRSCN        ;SCAN THE ATTRIBUTE
+  POP DE             ;GET BACK THE FIRST POINT
   POP BC
-  JR Z,DOTLINE
-  
-  RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB ','
-  RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB 'B'
-  JP Z,BOXLIN
-  RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB 'F'			; 'BOX FILLED'
+  JR Z,DOLINE        ;IF STATEMENT ENDED ITS A NORMAL LINE
+  RST SYNCHR
+  DEFB ','           ;OTHERWISE MUST HAVE A COMMA
+  RST SYNCHR
+  DEFB 'B'           ;AND A "B"
+  JP Z,BOXLIN        ;IF JUST "B" THE NON-FILLED BOX
+
+  RST SYNCHR
+  DEFB 'F'           ;MUST BE FILLED BOX
 DOBOXF:
-  PUSH HL
-  CALL SCALXY
-  CALL SWAP_GXGY
-  CALL SCALXY
-  CALL GY_DELTA
-  CALL C,SWAP_GY
-  INC HL
-  PUSH HL
-  CALL GX_DELTA
-  CALL C,SWAP_GX
-  INC HL
-  PUSH HL
-  CALL MAPXY		; Set addresses for initial dot position
-  POP DE
-  POP BC
-LINE_0:
-  PUSH DE
-  PUSH BC
-  CALL FETCHC			; Save cursor
-  PUSH AF
-  PUSH HL
-  EX DE,HL
-  CALL NSETCX
-  POP HL
-  POP AF
-  CALL STOREC			; Restore cursor
-  CALL DOWNC
-  POP BC
-  POP DE
-  DEC BC
-  LD A,B
+  PUSH HL            ;SAVE THE TEXT POINTER
+  CALL SCALXY        ;SCALE FIRST POINT
+  CALL XCHGAC        ;SWITCH POINTS
+  CALL SCALXY        ;SCALE SECOND POINT
+  CALL YDELT         ;SEE HOW MANY LINES AND SET CARRY
+  CALL C,XCHGY       ;MAKE [D,E] THE SMALLEST Y
+  INC HL             ;MAKE [H,L] INTO A COUNT
+  PUSH HL            ;SAVE COUNT OF LINES
+  CALL XDELT         ;GET WIDTH AND SMALLEST X
+  CALL C,XCHGX       ;MAKE [B,C] THE SMALLEST X
+  INC HL             ;MAKE [H,L] INTO A WIDTH COUNT
+  PUSH HL            ;SAVE WIDTH COUNT
+  CALL MAPXY         ;MAP INTO A "C"         (Set addresses for initial dot position)
+  POP DE             ;GET WIDTH COUNT
+  POP BC             ;GET LINE COUNT
+
+BOXLOP:
+  PUSH DE            ;SAVE WIDTH
+  PUSH BC            ;SAVE NUMBER OF LINES
+  CALL FETCHC        ;LOOK AT CURRENT C                  ; Save cursor
+  PUSH AF            ;SAVE BIT MASK OF CURRENT "C"
+  PUSH HL            ;SAVE ADDRESS
+  EX DE,HL           ;SET UP FOR NSETCX WITH COUNT
+  CALL NSETCX        ;IN [H,L] OF POINTS TO SETC
+  POP HL             ;GET BACK STARTING C
+  POP AF             ;ADDRESS AND BIT MASK
+  CALL STOREC        ;SET UP AS CURRENT "C"              ; Restore cursor
+  CALL DOWNC         ;MOVE TO NEXT LINE DOWN IN Y
+  POP BC             ;GET BACK NUMBER OF LINES
+  POP DE             ;GET BACK WIDTH
+  DEC BC             ;COUNT DOWN LINES
+  LD A,B             ;SEE IF ANY LEFT
   OR C
-  JR NZ,LINE_0
-  POP HL
+  JR NZ,BOXLOP       ;KEEP DRAWING MORE LINES
+  POP HL             ;RESTORE TEXT POINTER
   RET
   
-DOTLINE:
-  PUSH BC
+DOLINE:
+  PUSH BC            ;SAVE COORDINATES
   PUSH DE
-  PUSH HL
-  CALL DRAW_LINE
-  LD HL,(GRPACX)
+  PUSH HL            ;SAVE TEXT POINTER
+  CALL DOGRPH
+  LD HL,(GRPACX)     ;RESTORE ORIGINAL SECOND COORDINATE
   LD (GXPOS),HL
-  LD HL,(GRPACY)
+  LD HL,(GRPACY)     ;FOR BOXLIN CODE
   LD (GYPOS),HL
-  POP HL
+  POP HL             ;RESTORE TEXT POINTER
   POP DE
   POP BC
   RET
   
 BOXLIN:
-  PUSH HL
+  PUSH HL            ;SAVE TEXT POINTER
   LD HL,(GYPOS)
-  PUSH HL
-  PUSH DE
-  EX DE,HL
-  CALL DOTLINE
-  POP HL
+  PUSH HL            ;SAVE Y2
+  PUSH DE            ;SAVE Y1
+  EX DE,HL           ;MOVE Y2 TO Y1
+  CALL DOLINE        ;DO TOP LINE
+  POP HL             ;MOVE Y1 TO Y2
   LD (GYPOS),HL
   EX DE,HL
-  CALL DOTLINE
-  POP HL
-  LD (GYPOS),HL
-  LD HL,(GXPOS)
-  PUSH BC
-  LD B,H
+  CALL DOLINE
+  POP HL             ;GET BACK Y2
+  LD (GYPOS),HL      ;AND RESTORE
+  LD HL,(GXPOS)      ;GET X2
+  PUSH BC            ;SAVE X1
+  LD B,H             ;SET X1=X2
   LD C,L
-  CALL DOTLINE
+  CALL DOLINE
   POP HL
-  LD (GXPOS),HL
-  LD B,H
+  LD (GXPOS),HL      ;SET X2=X1
+  LD B,H             ;RESTORE X1 TO [B,C]
   LD C,L
-  CALL DOTLINE
-  POP HL
+  CALL DOLINE
+  POP HL             ;RESTORE THE TEXT POINTER
   RET
+
+
+;
+; DOGRPH DRAWS A LINE FROM ([B,C],[D,E]) TO (GXPOS,GYPOS)
+;
 
 ; Routine at 22844
 ;
-; Used by the routines at LINE and DRAW_LINE_GRPAC.
-DRAW_LINE:
+; Used by the routines at LINE and CLINE2.
+DOGRPH:
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -18181,85 +18265,116 @@ IF NOHOOK
 ELSE
   CALL HDOGR			; Hook for line drawing event
 ENDIF
+  CALL SCALXY           ;CHEATY SCALING - JUST TRUNCATE FOR NOW
+  CALL XCHGAC
   CALL SCALXY
-  CALL SWAP_GXGY
-  CALL SCALXY
-  CALL GY_DELTA
-  CALL C,SWAP_GXGY
-  PUSH DE
-  PUSH HL
-  CALL GX_DELTA
-  EX DE,HL
-  LD HL,RIGHTC
-  JR NC,DRAW_LINE_0
+  CALL YDELT            ;GET COUNT DIFFERENCE IN [H,L]
+  CALL C,XCHGAC         ;IF CURRENT Y IS SMALLER NO EXCHANGE
+  PUSH DE               ;SAVE Y1 COORDINATE
+  PUSH HL               ;SAVE DELTA Y
+  CALL XDELT
+  EX DE,HL              ;PUT DELTA X INTO [D,E]
+  LD HL,RIGHTC          ;ASSUME X WILL GO RIGHT
+  JR NC,LINCN2
   LD HL,LEFTC
-DRAW_LINE_0:
-  EX (SP),HL
-  RST DCOMPR		; Compare HL with DE.
-  JR NC,DRAW_LINE_1
-  LD (MINDEL),HL
-  POP HL
-  LD (MAXUPD+1),HL	; MAXUPD = JP nn for RIGHTC, LEFTC and DOWNC 
-  LD HL,DOWNC
-  LD (MINUPD+1),HL	; MINUPD = JP nn for RIGHTC, LEFTC and DOWNC 
-  EX DE,HL
-  JR DRAW_LINE_2
 
-DRAW_LINE_1:
-  EX (SP),HL
-  LD (MINUPD+1),HL	; MINUPD = JP nn for RIGHTC, LEFTC and DOWNC 
-  LD HL,DOWNC
-  LD (MAXUPD+1),HL	; MAXUPD = JP nn for RIGHTC, LEFTC and DOWNC 
-  EX DE,HL
-  LD (MINDEL),HL
-  POP HL
-DRAW_LINE_2:
-  POP DE
+LINCN2:
+  EX (SP),HL            ;PUT ROUTINE ADDRESS ON STACK AND GET DELTA Y
+  RST DCOMPR            ;SEE WHICH DELTA IS BIGGER
+  JR NC,YDLTBG          ;YDELTA IS BIGGER OR EQUAL
+  LD (MINDEL),HL        ;SAVE MINOR AXIS DELTA (Y)
+  POP HL                ;GET X ACTION ROUTINE
+  LD (MAXUPD+1),HL      ;SAVE IN MAJOR ACTION ADDRESS    ; MAXUPD = JP nn for RIGHTC, LEFTC and DOWNC 
+  LD HL,DOWNC           ;ALWAYS INCREMENT Y
+  LD (MINUPD+1),HL      ;WHICH IS THE MINOR AXIS         ; MINUPD = JP nn for RIGHTC, LEFTC and DOWNC 
+  EX DE,HL              ;[H,L]=DELTA X=MAJOR DELTA
+  JR LINCN3             ;MERGE WITH YDLTBG CASE AND DO DRAW
+
+YDLTBG:
+  EX (SP),HL            ;ACTION ROUTINE FOR X INTO [H,L],  SAVE DELTA Y ON THE STACK
+  LD (MINUPD+1),HL      ;SAVE ADDRESS OF MINOR AXIS UPDATE      ; MINUPD = JP nn for RIGHTC, LEFTC and DOWNC 
+  LD HL,DOWNC           ;Y IS ALWAYS INCREMENT MODE
+  LD (MAXUPD+1),HL      ;SAVE AS MAJOR AXIS UPDATE              ; MAXUPD = JP nn for RIGHTC, LEFTC and DOWNC 
+  EX DE,HL              ;[H,L]=DELTA X
+  LD (MINDEL),HL        ;SAVE MINOR DELTA
+  POP HL                ;[H,L]=DELTA Y=MAJOR DELTA
+
+
+
+
+; MAJOR AXIS IS ONE WITH THE LARGEST DELTA
+; MINOR IS THE OTHER
+; READY TO DRAW NOW
+; MINUPD+1=ADDRESS TO GO TO UPDATE MINOR AXIS COORDINATE
+; MAXUPD+1=ADDRESS TO GO TO UPDATE MAJOR AXIS COORDINATE
+; [H,L]=MAJOR AXIS DELTA=# OF POINTS-1
+; MINDEL=DELTA ON MINOR AXIS
+;
+; IDEA IS
+;  SET SUM=MAJOR DELTA/2
+;  [B,C]=# OF POINTS
+;  MAXDEL=-MAJOR DELTA (CONVENIENT FOR ADDING)
+; LINE LOOP (LINLP3):
+;       DRAW AT CURRENT POSITION
+;       UPDATE MAJOR AXIS
+;       SUM=SUM+MINOR DELTA
+;       IF SUM.GT.MAJOR DELTA THEN UPDATE MINOR AND SUM=SUM-MAJOR DELTA
+;       DECREMENT [B,C] AND TEST FOR 0 -- LOOP IF NOT
+; END LOOP
+;
+LINCN3:
+  POP DE                ;GET BACK Y1
   PUSH HL
-  CALL INVSGN_HL
-  LD (MAXDEL),HL
-  CALL MAPXY		; Set addresses for initial dot position
+  CALL NEGHL
+  LD (MAXDEL),HL        ;SAVE MAJOR DELTA FOR SUMMING
+  CALL MAPXY            ;GET POSITION INTO BITMSK AND [H,L]             ; Set addresses for initial dot position
   POP DE
-  PUSH DE
-  CALL DE_DIV2		; "RR DE"
-  POP BC
-  INC BC
-  JR DRAW_LINE_SEGMENT
+  PUSH DE               ;START SUM AT MAXDEL/2
+  CALL DE_DIV2          ; "RR DE"
+  POP BC                ;GET COUNT IN [B,C]
+  INC BC                ;NUMBER OF POINTS IS DELTA PLUS ONE
+  JR LINLP3
 
 ; Routine at 22931
-DRAW_LINE_3:
+LINLOP:
   POP HL
-  LD A,B
+  LD A,B               ;CONTINUE UNTIL COUNT EXHAUSTED
   OR C
   RET Z
-DRAW_LINE_4:
-  CALL MAXUPD
-; This entry point is used by the routine at DRAW_LINE.
-DRAW_LINE_SEGMENT:
-  CALL SETC
+LINLOP_0:
+  CALL MAXUPD          ;UPDATE MAJOR AXIS
+
+
+	
+; Inner loop of line code.
+;
+; This entry point is used by the routine at DOGRPH.
+LINLP3:
+  CALL SETC               ;SET CURRENT POINT
   DEC BC
   PUSH HL
-  LD HL,(MINDEL)
+  LD HL,(MINDEL)          ;ADD SMALL DELTA TO SUM
   ADD HL,DE
   EX DE,HL
   LD HL,(MAXDEL)
   ADD HL,DE
-  JR NC,DRAW_LINE_3
+  JR NC,LINLOP          ;TIME TO UPDATE MINOR?
   EX DE,HL
   POP HL
-  LD A,B
+  LD A,B                ;CONTINUE UNTIL COUNT EXHAUSTED
   OR C
   RET Z
-  CALL MINUPD		; MINUPD = JP nn for RIGHTC, LEFTC and DOWNC 
-  JR DRAW_LINE_4
+  CALL MINUPD           ;UPDATE MAJOR AXIS		; MINUPD = JP nn for RIGHTC, LEFTC and DOWNC 
+  JR LINLOP_0
 
+
+; a.k.a. HLFDE
 ; Routine at 22964
-;
-; "RR DE" - Used by the routines at DRAW_LINE, __CIRCLE and L5E66.
+; "RR DE" - Used by the routines at DOGRPH, __CIRCLE and DSCLDE.
 DE_DIV2:
   LD A,D
-  OR A
-  RRA
+  OR A          ;CLEAR CARRY
+  RRA           ;SCALE MEANS SHIFTING RIGHT ONE
   LD D,A
   LD A,E
   RRA
@@ -18269,546 +18384,605 @@ DE_DIV2:
 
 ; Routine at 22972
 ;
-; Used by the routine at PAINT_PARMS.
+; Used by the routine at ATRSCN.
 IN_GFX_MODE:
   LD A,(SCRMOD)
   CP $02
   RET P
   JP FC_ERR			; Err $05 - "Illegal function call"
 
+
+; PAINT - Fill an area with color
+;
 ; Routine at 22981
 __PAINT:
-  CALL COORD_PARMS
-  PUSH BC
+  CALL SCAN1            ;GET (X,Y) OF START
+  PUSH BC               ;SAVE COORDS OF START
   PUSH DE
-  CALL PAINT_PARMS
-  LD A,(ATRBYT)
-  LD E,A
+  CALL ATRSCN           ;SET FILL ATTRIBUTE AS CURRENT
+  LD A,(ATRBYT)         ;DEFAULT BORDER COLOR IS SAME AS FILL
+  LD E,A                ;DEFAULT ATTRIBUTE TO [E] LIKE GETBYT
   DEC HL
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  JR Z,__PAINT_0
-  RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB ','
-  CALL GETINT              ; Get integer 0-255
-__PAINT_0:
-  LD A,E
-  CALL PNTINI
+  RST CHRGTB
+  JR Z,GOTBRD           ;NOTHING THERE - USE DEFAULT
+  RST SYNCHR
+  DEFB ','              ;MAKE SURE OF COMMA
+  CALL GETINT           ;GET BORDER COLOR ARGUMENT
+GOTBRD:
+  LD A,E                ;BORDER ATTRIBUTE TO A
+  CALL PNTINI           ;INIT PAINT STUFF & CHECK BORDER ATTRIB
   JP C,FC_ERR			; Err $05 - "Illegal function call"
-  POP DE
+  POP DE                ;GET BACK START COORDS
   POP BC
-
-O_PAINT:
-  PUSH HL
-  CALL L5E91
-  CALL MAPXY		; Set addresses for initial dot position
-  LD DE,$0001
+  PUSH HL               ;SAVE TXTPTR UNTIL DONE
+  CALL CHKRNG           ;MAKE SURE POINT IS ON SCREEN
+  CALL MAPXY                          ; Set addresses for initial dot position
+  LD DE,$0001           ;ENTRY COUNT IS ONE (SKIP NO BORDER)
   LD B,$00
-  CALL __PAINT_SUB_2
-  JR Z,__PAINT_1
-  PUSH HL
-  CALL L5AED
-  POP DE
-  ADD HL,DE
-  EX DE,HL
+  CALL SCANR1           ;SCAN RIGHT FROM INITIAL POSITION
+  JR Z,POPTRT           ;STARTED ON BORDER - GET TXTPTR & QUIT
+  PUSH HL               ;SAVE NO. OF POINTED PAINTED TO RIGHT
+  CALL SCANL1           ;NOW SCAN LEFT FROM INITIAL POS.
+  POP DE                ;GET RIGHT SCAN COUNT.
+  ADD HL,DE             ;ADD TO LEFT SCAN COUNT
+  EX DE,HL              ;COUNT TO [DE]
   XOR A
-  CALL __PAINT_SUB_0
-  LD A,$40
-  CALL __PAINT_SUB_0
-  LD B,$C0
-  JR __PAINT_4
+  CALL ENTST1
+  LD A,$40              ;MAKE ENTRY FOR GOING DOWN
+  CALL ENTST1
+  LD B,$C0              ;CAUSE PAINTING UP
+  JR STPAIN             ;START PAINTING UPWARD
 
-; This entry point is used by the routines at __PAINT_4 and __CIRCLE.
-__PAINT_1:
-  POP HL
+; This entry point is used by the routines at STPAIN and __CIRCLE.
+POPTRT:
+  POP HL                ;GET BACK TEXTPTR
   RET
 
+
+;
+; MAIN PAINT LOOP
+;
+
 ; Data block at 23050
-__PAINT_2:
-  CALL CKCNTC
+PNTLOP:
+  CALL CKCNTC           ;CHECK FOR CTRL-C ABORT
   LD   A,(LOHDIR)
   OR   A
-  JR   Z,__PAINT_3
+  JR   Z,PNTLP1
   LD   HL,(LOHADR)
   PUSH HL
   LD   HL,(LOHMSK)
   PUSH HL
   LD   HL,(LOHCNT)
   PUSH HL
-__PAINT_3:
+PNTLP1:
   POP  DE
   POP  BC
   POP  HL
   LD   A,C
-  CALL STOREC		; Restore cursor
-__PAINT_4:
-  LD  A,B
-  LD  (PDIREC),A  ; Direction of the paint
-  ADD A,A
-  JR Z,__PAINT_1
-  PUSH DE
-  JR NC,__PAINT_5
-  CALL TUPC
-  JR __PAINT_6
+  CALL STOREC           ; Restore cursor
 
-__PAINT_5:
-  CALL TDOWNC
-__PAINT_6:
-  POP DE
-  JR C,__PAINT_3
+STPAIN:
+  LD  A,B               ;GET DIRECTION
+  LD  (PDIREC),A        ; Direction of the paint
+  ADD A,A               ;SEE WHETHER TO GO UP, DOWN, OR QUIT
+  JR Z,POPTRT           ;IF ZERO, ALL DONE.
+  PUSH DE               ;SAVE SKPCNT IN CASE TUP&TDOWN DON'T
+  JR NC,PDOWN           ;IF POSITIVE, GO DOWN FIRST
+  CALL TUPC             ;MOVE UP BEFORE SCANNING
+  JR PDOWN2
+
+PDOWN:
+  CALL TDOWNC           ;SEE IF AT BOTTOM & MOVE DOWN IF NOT
+PDOWN2:
+  POP DE                ;GET SKPCNT BACK
+  JR C,PNTLP1           ;OFF SCREEN - GET NEXT ENTRY
   LD B,$00
-  CALL __PAINT_SUB_2
-  JP Z,__PAINT_3
+  CALL SCANR1           ;SCAN RIGHT & SKIP UP TO SKPCNT BORDER
+  JP Z,PNTLP1           ;IF NO POINTS PAINTED, GET NEXT ENTRY
+
   XOR A
   LD (LOHDIR),A
-  CALL L5AED
-  LD E,L
+  CALL SCANL1           ;NOW SCAN LEFT FROM START POINT
+  LD E,L                ;[DE] = LEFT MOVCNT
   LD D,H
-  OR A
-  JR Z,__PAINT_7
-  DEC HL
-  DEC HL
+  OR A                  ;SEE IF LINE WAS ALREADY PAINTED
+  JR Z,PNTLP3           ;IT WAS - DON'T MAKE OVERHANG ENTRY
+  DEC HL                ;IF LMVCNT.GT.1, NEED TO MAKE ENTRY
+  DEC HL                ;IN OPPOSITE DIRECTION FOR OVERHANG.
   LD A,H
-  ADD A,A
-  JR C,__PAINT_7
+  ADD A,A               ;SEE IF [HL] WAS .GT. 1
+  JR C,PNTLP3
   LD (LOHCNT),DE
-  CALL FETCHC			; Save cursor
+  CALL FETCHC			;GET CURRENT POINT ADDRESS
   LD (LOHADR),HL
-  LD (LOHMSK),A
-  LD A,(PDIREC)
+  LD (LOHMSK),A         ;CMASK
+  LD A,(PDIREC)         ;GET BACK DIRECTION AND INDEX
   CPL
   LD (LOHDIR),A
-__PAINT_7:
-  LD HL,(MOVCNT)
-  ADD HL,DE
-  EX DE,HL
-  CALL __PAINT_SUB
-; This entry point is used by the routine at CRT_CTL.
-__PAINT_8:
-  LD HL,(CSAVEA)
-  LD A,(CSAVEM)
-  CALL STOREC			; Restore cursor
-__PAINT_9:
-  LD HL,(SKPCNT)
-  LD DE,(MOVCNT)
+PNTLP3:
+  LD HL,(MOVCNT)        ;GET COUNT PAINTED DURING RIGHT SCAN
+  ADD HL,DE             ;ADD TO LEFT MOVCNT
+  EX DE,HL              ;ENTRY COUNT TO [DE]
+  CALL ENTSLR           ;GO MAKE ENTRY.
+
+  LD HL,(CSAVEA)        ;SET CURRENT LOCATION BACK TO END
+  LD A,(CSAVEM)         ;OF RIGHT SCAN.
+  CALL STOREC
+
+PNTLP4:
+  LD HL,(SKPCNT)        ;CALC SKPCNT - MOVCNT TO SEE IF
+  LD DE,(MOVCNT)        ;ANY MORE BORDER TO SKIP
   OR A
   SBC HL,DE
-  JR Z,__PAINT_12
-  JR C,__PAINT_10
-  EX DE,HL
+  JR Z,GOPLOP           ;NO MORE - END OF THIS SCAN
+  JR C,PNTLP6           ;RIGHT OVERHANG - SEE IF ENTRY NEEDED
+  EX DE,HL              ;SKIP COUNT TO [DE] FOR SCANR
   LD B,$01
-  CALL __PAINT_SUB_2
-  JR Z,__PAINT_12
-  OR A
-  JR Z,__PAINT_9
-  EX DE,HL
-  LD HL,(CSAVEA)
-  LD A,(CSAVEM)
+  CALL SCANR1           ;HERE IF NEED TO CONTINUE RIGHT SCAN
+  JR Z,GOPLOP           ;NO MORE POINTS.
+  OR A                  ;SEE IF LINE ALREADY PAINTED
+  JR Z,PNTLP4           ;YES, DON'T ENTER ANYTHING
+  EX DE,HL              ;ENTRY COUNT TO [DE]
+  LD HL,(CSAVEA)        ;MAKE ENTRY AT LOCATION SAVED BY SCANR
+  LD A,(CSAVEM)         ;SO WE CAN ENTER A POSITIVE SKPCNT
   LD C,A
   LD A,(PDIREC)
   LD B,A
-  CALL __PAINT_SUB_1
-  JR __PAINT_9
+  CALL ENTSTK           ;MAKE ENTRY
+  JR PNTLP4             ;CONTINUE UNTIL SKPCNT .LE. 0
   
-__PAINT_10:
-  CALL INVSGN_HL
-  DEC HL
-  DEC HL
-  LD A,H
+PNTLP6:
+  CALL NEGHL            ;MAKE NEW SKPCNT POSITIVE
+  DEC HL                ;IF SKPCNT-MOVCNT .LT. -1
+  DEC HL                ;THEN RIGHT OVERHANG ENTRY IS NEEDED.
+  LD A,H                ;SEE IF POSITIVE.
   ADD A,A
-  JR C,__PAINT_12
-  INC HL
-  PUSH HL
-__PAINT_11:
-  CALL LEFTC
+  JR C,GOPLOP           ;OVERHANG TOO SMALL FOR NEW ENTRY
+
+  INC HL                ;NOW MOVE LEFT TO BEGINNING OF SCAN
+  PUSH HL               ;SO WE CAN ENTER A POSITIVE SKPCNT
+RTOVH1:
+  CALL LEFTC            ;START IS -(SKPCNT-MOVCNT)-1 TO LEFT
   DEC HL
   LD A,H
   OR L
-  JR NZ,__PAINT_11
-  POP DE
-  LD A,(PDIREC)
+  JR NZ,RTOVH1
+;RTOVH2:
+  POP DE                ;GET BACK ENTRY SKPCNT INTO [DE]
+  LD A,(PDIREC)         ;MAKE ENTRY IN OPPOSITE DIRECTION
   CPL
-  CALL __PAINT_SUB_0
-__PAINT_12:
-  JP __PAINT_2
+  CALL ENTST1           ;MAKE ENTRY
+GOPLOP:
+  JP PNTLOP             ;GO PROCESS NEXT ENTRY
+
+
 
 ; Routine at 23234
 ;
-; Used by the routine at __PAINT_4.
-__PAINT_SUB:
-  LD A,(LFPROG)
-  LD C,A
+; Used by the routine at STPAIN.
+ENTSLR:
+  LD A,(LFPROG)         ;DON'T STACK IF SCANNED LINE
+  LD C,A                ;WAS ALREADY PAINTED
   LD A,(RTPROG)
   OR C
-  RET Z
+  RET Z                 ;Z IF SCAN LINE ALREADY PAINTED
+
   LD A,(PDIREC)
-; This entry point is used by the routines at __PAINT and __PAINT_4.
-__PAINT_SUB_0:
-  LD B,A
-  CALL FETCHC			; Save cursor
-  LD C,A
-; This entry point is used by the routine at __PAINT_4.
-__PAINT_SUB_1:
+; This entry point is used by the routines at __PAINT and STPAIN.
+ENTST1:
+  LD B,A                ;DIRECTION IN [B]
+  CALL FETCHC			;LOAD REGS WITH CURRENT "C"
+  LD C,A                ;BIT MASK IN [C]
+
+; This entry point is used by the routine at STPAIN.
+ENTSTK:
   EX (SP),HL
   PUSH BC
   PUSH DE
   PUSH HL
   LD C,$02
-  JP CHKSTK
+  JP CHKSTK             ;IS ENOUGH SPACE LEFT OUT
 
 ; Data block at 23260
-__PAINT_SUB_2:
-  CALL SCANR
-  LD   (SKPCNT),DE	; Skip count
-  LD   (MOVCNT),HL
-  LD   A,H
+SCANR1:
+  CALL SCANR            ;PERFORM LOW LEVEL RIGHT SCAN
+  LD   (SKPCNT),DE      ;SAVE UPDATED SKPCNT
+  LD   (MOVCNT),HL      ;SAVE MOVCNT
+  LD   A,H              ;SET CC'S ON MOVCNT
   OR   L
-  LD   A,C
+  LD   A,C              ;GET ALREADY-PAINTED FLAG FROM [C]
   LD   (RTPROG),A
   RET
 
 
 ; Data block at 23277
-L5AED:
-  CALL FETCHC			; Save cursor
-  PUSH HL
+SCANL1:
+  CALL FETCHC           ;GET CURRENT LOCATION
+  PUSH HL               ;AND SWAP WITH CSV
   PUSH AF
   LD   HL,(CSAVEA)
   LD   A,(CSAVEM)
-  CALL STOREC			; Restore cursor
-  POP  AF
+  CALL STOREC           ;REPOS AT BEGINNING OF SCAN
+  POP  AF               ;REGET PLACE WHERE RT SCN STOPPED
   POP  HL
-  LD   (CSAVEA),HL
+  LD   (CSAVEA),HL      ;AND SAVE IT IN TEMP LOCATION
   LD   (CSAVEM),A
-  CALL SCANL
-  LD   A,C
-  LD   (LFPROG),A
+  CALL SCANL            ;NOW DO LOW LEVEL LEFT SCAN
+  LD   A,C              ;GET ALREADY-PAINTED FLAG FROM [C]
+  LD   (LFPROG),A       ;WHETHER IT WAS ALREADY PAINTED
   RET
 		
 
+
 ; Routine at 23307
 ;
-; Used by the routines at DRAW_CIRCLE, U_LINE, L_LINE, H_DIAGONAL, E_DIAGONAL, G_DIAGONAL and M_DIAGONAL.
-INVSGN_DE:
+; Used by the routines at CPLOT8, DRUP, DRLEFT, DRWHHH, DRWEEE, DRWGGG and DMOVE.
+NEGDE:
   EX DE,HL
-  CALL INVSGN_HL
+  CALL NEGHL
   EX DE,HL
   RET
 
+
+
+;
+;       CIRCLE - DRAW A CIRCLE
+;
+; SYNTAX: CIRCLE @(X,Y),RADIUS[,ATRB[,+/-STARTANG[,+/-ENDANG[,ASPECT]]]]
+;
+
 ; Routine at 23313
 __CIRCLE:
-  CALL COORD_PARMS
-  RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB ','
-  CALL FPSINT_0
-DO_CIRC:
-  PUSH HL
+  CALL SCAN1            ;GET (X,Y) OF CENTER INTO GRPACX,Y
+  RST SYNCHR
+  DEFB ','              ;EAT COMMA
+  CALL FPSINT_0         ;GET THE RADIUS
+  PUSH HL               ;SAVE TXTPTR
   EX DE,HL
-  LD (GXPOS),HL
-  CALL MAKINT
-  CALL __CSNG
-  LD BC,$7040		; BCDE = 0.707107
+  LD (GXPOS),HL         ;SAVE HERE TILL START OF MAIN LOOP
+  CALL MAKINT           ;PUT INTEGER INTO FAC
+  CALL __CSNG           ;CONVERT TO SINGLE PRECISION
+  LD BC,$7040           ;LOAD REGS WITH SQR(2)/2   (BCDE = 0.707107)
   LD DE,$0771
-  CALL FMULT
-  CALL __CINT
-  LD (CNPNTS),HL
-  XOR A
+  CALL FMULT            ;DO FLOATING PT MULTIPLY
+  CALL __CINT           ;CONVERT TO INTEGER & GET INTO [HL]
+  LD (CNPNTS),HL        ;CNPNTS=RADIUS*SQR(2)/2=# PTS TO PLOT
+  XOR A                 ;ZERO OUT CLINEF - NO LINES TO CENTER
   LD (CLINEF),A
-  LD (CSCLXY),A
-  POP HL
-  CALL PAINT_PARMS
-  LD C,$01
-  LD DE,$0000
-  CALL CIRCLE_SUB
-  PUSH DE
-  LD C,$80
-  LD DE,$FFFF
-  CALL CIRCLE_SUB
-  EX (SP),HL
+  LD (CSCLXY),A         ;INITIALLY SCALING Y
+  POP HL                ;REGET TXTPTR
+  CALL ATRSCN           ;SCAN POSSIBLE ATTRIBUTE
+  LD C,$01              ;SET LO BIT IN CLINEF FOR LINE TO CNTR
+  LD DE,$0000           ;DEFAULT START COUNT = 0
+  CALL CGTCNT
+  PUSH DE               ;SAVE COUNT FOR LATER COMPARISON
+  LD C,$80              ;SET HI BIT IN CLINEF FOR LINE TO CNTR
+  LD DE,$FFFF           ;DEFAULT END COUNT = INFINITY
+  CALL CGTCNT
+  EX (SP),HL            ;GET START COUNT, PUSH TXTPTR TILL DONE
   XOR A
-  EX DE,HL
-  RST DCOMPR		; Compare HL with DE.
+  EX DE,HL              ;REVERSE REGS TO TEST FOR .LT.
+  RST DCOMPR            ;SEE IF END .GE. START
   LD A,$00
-  JR NC,__CIRCLE_0
-  DEC A
-  EX DE,HL
-  PUSH AF
+  JR NC,CSTPLT          ;YES, PLOT POINTS BETWEEN STRT & END
+  DEC A                 ;PLOT POINTS ABOVE & BELOW
+  EX DE,HL              ;SWAP START AND END SO START .LT. END
+  PUSH AF               ;Swap sense of center line flags
   LD A,(CLINEF)
   LD C,A
   RLCA
   RLCA
   OR C
   RRCA
-  LD (CLINEF),A
+  LD (CLINEF),A         ;Store swapped flags
   POP AF
-__CIRCLE_0:
-  LD (CPLOTF),A
-  LD (CSTCNT),DE
-  LD (CENCNT),HL
-  POP HL
-  DEC HL
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  JR NZ,__CIRCLE_1
-  PUSH HL
-  CALL GTASPC
+CSTPLT:
+  LD (CPLOTF),A         ;SET UP PLOT POLARITY FLAG
+  LD (CSTCNT),DE        ;STORE START COUNT
+  LD (CENCNT),HL        ;AND END COUNT
+  POP HL                ;GET TXTPTR
+  DEC HL                ;NOW SEE IF LAST CHAR WAS A COMMA
+  RST CHRGTB
+  JR NZ,CIRC1           ;SOMETHING THERE
+  PUSH HL               ;SAVE TXTPTR
+  CALL GTASPC           ;GET DEFAULT ASPECT RATIO INTO [HL]
   LD A,H
-  OR A
-  JR Z,__CIRCLE_3
+  OR A                  ;IS ASPECT RATIO GREATER THAN ONE?
+  JR Z,CIRC2            ;BRIF GOOD ASPECT RATIO
   LD A,$01
   LD (CSCLXY),A
-  EX DE,HL
-  JR __CIRCLE_3
-__CIRCLE_1:
-  RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB ','
+  EX DE,HL              ;ASPECT RATIO IS GREATER THAN ONE, USE INVERSE
+  JR CIRC2              ;NOW GO CONVERT TO FRACTION OF 256
+
+CIRC1:
+  RST SYNCHR
+  DEFB ','              ;EAT COMMA
   CALL EVAL
-  PUSH HL
-  CALL __CSNG
-  CALL SIGN			; test FP number sign
-  JP Z,FC_ERR			; Err $05 - "Illegal function call"
-  JP M,FC_ERR			; Err $05 - "Illegal function call"
-  CALL FCOMP_UNITY		; == 1 ?
-  JR NZ,__CIRCLE_2
-  INC A
-  LD (CSCLXY),A
-  CALL FDIV
+  PUSH HL               ;SAVE TXTPTR
+  CALL __CSNG           ;MAKE IT FLOATING POINT
+  CALL SIGN                ; test FP number sign
+  JP Z,FC_ERR              ; Err $05 - "Illegal function call"
+  JP M,FC_ERR              ; Err $05 - "Illegal function call"
+  CALL CMPONE           ;SEE IF GREATER THAN ONE
+  JR NZ,__CIRCLE_2      ;LESS THAN ONE - SCALING Y
+  INC A                 ;MAKE [A] NZ
+  LD (CSCLXY),A         ;FLAG SCALING X
+  CALL FDIV             ;RATIO = 1/RATIO
 __CIRCLE_2:
-  LD BC,$2543			; BCDE = 256 (float)
+  LD BC,$2543			;MAKE NUMBER FRACTION OF 256   (BCDE = 256 (float))
   LD DE,$0060
-  CALL FMULT
-  CALL __CINT
-__CIRCLE_3:
-  LD (ASPECT),HL
-  LD DE,$0000
-  LD (CRCSUM),DE
-  LD HL,(GXPOS)
+  CALL FMULT            ;BY MULTIPLYING BY 2^8 (256)
+  CALL __CINT           ;MAKE IT AN INTEGER IN [HL]
+CIRC2:
+  LD (ASPECT),HL        ;STORE ASPECT RATIO
+
+;
+;       CIRCLE ALGORITHM
+;
+;       [HL]=X=RADIUS * 2 (ONE BIT FRACTION FOR ROUNDING)
+;       [DE]=Y=0
+;       SUM =0
+; LOOP: IF Y IS EVEN THEN
+;             REFLECT((X+1)/2,(Y+1)/2) (I.E., PLOT POINTS)
+;             IF X.LT.Y THEN EXIT
+;       SUM=SUM+2*Y+1
+;       Y=Y+1
+;       IF SUM.GGWGRP.RNO
+;             SUM=SUM-2*X+1
+;             X=X-1
+;       ENDIF
+;       GOTO LOOP
+;
+
+  LD DE,$0000           ;INIT Y = 0
+  LD (CRCSUM),DE        ;SUM = 0
+  LD HL,(GXPOS)         ;X = RADIUS*2
   ADD HL,HL
-__CIRCLE_4:
+
+CIRCLP:
   CALL CKCNTC
-  LD A,E
-  RRA
-  JR C,__CIRCLE_5
-  PUSH DE
+  LD A,E                ;TEST EVENNESS OF Y
+  RRA                   ;TO SEE IF WE NEED TO PLOT
+  JR C,CRCLP2           ;Y IS ODD - DON'T TEST OR PLOT
+  PUSH DE               ;SAVE Y AND X
   PUSH HL
-  INC HL
-  EX DE,HL
+  INC HL                ;ACTUAL COORDS ARE (X+1)/2,(Y+1)/2
+  EX DE,HL              ;(PLUS ONE BEFORE DIVIDE TO ROUND UP)
   CALL DE_DIV2		; "RR DE"
   EX DE,HL
   INC DE
   CALL DE_DIV2		; "RR DE"
-  CALL DRAW_CIRCLE
-  POP DE
-  POP HL
-  RST DCOMPR		; Compare HL with DE.
-  JP NC,__PAINT_1
+  CALL CPLOT8
+  POP DE                ;RESTORE X AND Y
+  POP HL                ;INTO [DE] AND [HL] (BACKWARDS FOR CMP)
+  RST DCOMPR            ;QUIT IF Y .GE. X
+  JP NC,POPTRT          ;GO POP TXTPTR AND QUIT
   EX DE,HL
-__CIRCLE_5:
-  LD B,H
-  LD C,L
+CRCLP2:
+  LD B,H                ;GET OFFSETS INTO PROPER REGISTERS
+  LD C,L                ;[BC]=X
   LD HL,(CRCSUM)
-  INC HL
+  INC HL                ;SUM = SUM+2*Y+1
   ADD HL,DE
   ADD HL,DE
-  LD A,H
+  LD A,H                ;NOW CHECK SIGN OF RESULT
   ADD A,A
-  JR C,__CIRCLE_6
-  PUSH DE
-  EX DE,HL
-  LD H,B
+  JR C,CNODEX           ;DON'T ADJUST X IF WAS NEGATIVE
+  PUSH DE               ;SAVE Y
+  EX DE,HL              ;[DE]=SUM
+  LD H,B                ;[HL]=X
   LD L,C
-  ADD HL,HL
+  ADD HL,HL             ;[HL]=2*X-1
   DEC HL
-  EX DE,HL
+  EX DE,HL              ;PREPARE TO SUBTRACT
   OR A
-  SBC HL,DE
-  DEC BC
-  POP DE
-__CIRCLE_6:
-  LD (CRCSUM),HL
-  LD H,B
+  SBC HL,DE             ;CALC SUM-2*X+1
+  DEC BC                ;X=X-1
+  POP DE                ;GET Y BACK
+CNODEX:
+  LD (CRCSUM),HL        ;UPDATE CIRCLE SUM
+  LD H,B                ;GET X BACK TO [HL]
   LD L,C
-  INC DE
-  JR __CIRCLE_4
+  INC DE                ;Y=Y+1
+  JR CIRCLP
 
 ; Routine at 23546
 ;
-; Used by the routine at DRAW_CIRCLE.
-CIRCLE_ASPECT:
+; Used by the routine at CPLOT8.
+CPLSCX:
   PUSH DE
-  CALL CALC_ASPECT
-  POP HL
-  LD A,(CSCLXY)
+  CALL SCALEY
+  POP HL                ;GET UNSCALED INTO [HL]
+  LD A,(CSCLXY)         ;SEE WHETHER ASPECT WAS .GT. 1
   OR A 
   RET Z
   EX DE,HL
-  RET
+  RET                   ;DON'T SWAP IF ZERO
+
+
+;
+; REFLECT THE POINTS AROUND CENTER
+; [HL]=X OFFSET FROM CENTER, [DE]=Y OFFSET FROM CENTER
+;
 
 ; Routine at 23558
 ;
 ; Used by the routine at __CIRCLE.
-DRAW_CIRCLE:
-  LD (CPCNT),DE
-  PUSH HL
-  LD HL,$0000
+CPLOT8:
+  LD (CPCNT),DE         ;POINT COUNT IS ALWAYS = Y
+  PUSH HL               ;SAVE X
+  LD HL,$0000           ;START CPCNT8 OUT AT 0
   LD (CPCNT8),HL
-  CALL CIRCLE_ASPECT
-  LD (CXOFF),HL
-  POP HL
+  CALL CPLSCX           ;SCALE Y AS APPROPRIATE
+  LD (CXOFF),HL         ;SAVE CXOFF
+  POP HL                ;GET BACK X
   EX DE,HL
-  PUSH HL
-  CALL CIRCLE_ASPECT
+  PUSH HL               ;SAVE INITIAL [DE]
+  CALL CPLSCX           ;SCALE X AS APPROPRIATE
   LD (CYOFF),DE
-  POP DE
-  CALL INVSGN_DE
-  CALL DRAW_CIRCLE_0
+  POP DE                ;GET BACK INITIAL [DE]
+  CALL NEGDE            ;START: [DE]=-Y,[HL]=X,CXOFF=Y,CY=X
+
+  CALL CPLOT4           ;PLOT +X,-SY -Y,-SX -X,+SY +Y,-SX
+
   PUSH HL
   PUSH DE
-  LD HL,(CNPNTS)
-  LD (CPCNT8),HL
-  LD DE,(CPCNT)
+  LD HL,(CNPNTS)        ;GET # PNTS PER OCTANT
+  LD (CPCNT8),HL        ;AND SET FOR DOING ODD OCTANTS
+  LD DE,(CPCNT)         ;GET POINT COUNT
   OR A
-  SBC HL,DE
-  LD (CPCNT),HL
-  LD HL,(CXOFF)
-  CALL INVSGN_HL
+  SBC HL,DE             ;ODD OCTANTS ARE BACKWARDS SO
+  LD (CPCNT),HL         ;PNTCNT = PNTS/OCT - PNTCNT
+  LD HL,(CXOFF)         ;NEED TO NEGATE CXOFF TO START OUT RIGHT
+  CALL NEGHL
   LD (CXOFF),HL
   POP DE
   POP HL
-  CALL INVSGN_DE
-DRAW_CIRCLE_0:
-  LD A,$04
-DRAW_CIRCLE_1:
-  PUSH AF
-  PUSH HL
+  CALL NEGDE            ;ALSO NEED TO MAKE [DE]=-SX=-[DE]
+                        ;PLOT +Y,-SX -X,-SY -Y,+SX +X,+SY
+                        ;(FALL THRU TO CPLOT4)
+CPLOT4:
+  LD A,$04              ;LOOP FOUR TIMES
+CPLOT:
+  PUSH AF               ;SAVE LOOP COUNT
+  PUSH HL               ;SAVE BOTH X & Y OFFSETS
   PUSH DE
-  PUSH HL
+  PUSH HL               ;SAVE TWICE
   PUSH DE
-  LD DE,(CPCNT8)
-  LD HL,(CNPNTS)
+  LD DE,(CPCNT8)        ;GET NP*OCTANT*8
+  LD HL,(CNPNTS)        ;ADD SQR(2)*RADIUS FOR NEXT OCTANT
   ADD HL,HL
   ADD HL,DE
-  LD (CPCNT8),HL
-  LD HL,(CPCNT)
-  ADD HL,DE
-  EX DE,HL
-  LD HL,(CSTCNT)
-  RST DCOMPR		; Compare HL with DE.
-  JR Z,DRAW_CIRCLE_4
-  JR NC,DRAW_CIRCLE_2
-  LD HL,(CENCNT)
-  RST DCOMPR		; Compare HL with DE.
-  JR Z,DRAW_CIRCLE_3
-  JR NC,DRAW_CIRCLE_6
+  LD (CPCNT8),HL        ;UPDATE FOR NEXT TIME
+  LD HL,(CPCNT)         ;CALC THIS POINT'S POINT COUNT
+  ADD HL,DE             ;ADD IN PNTCNT*OCTANT*NP
+  EX DE,HL              ;SAVE THIS POINT'S COUNT IN [DE]
+  LD HL,(CSTCNT)        ;GET START COUNT
+  RST DCOMPR
+  JR Z,CLINSC           ;SEE IF LINE TO CENTER REQUIRED
+  JR NC,CNBTWN          ;IF SC .GT. PC, THEN NOT BETWEEN
+  LD HL,(CENCNT)        ;GET END COUNT
+  RST DCOMPR
+  JR Z,CLINEC           ;GO SEE IF LINE FROM CENTER NEEDED
+  JR NC,CBTWEN          ;IF EC .GT. PC, THEN BETWEEN
 
-DRAW_CIRCLE_2:
-  LD A,(CPLOTF)
-  OR A
-  JR NZ,DRAW_CIRCLE_8
-  JR DRAW_CIRCLE_7
+CNBTWN:
+  LD A,(CPLOTF)         ;SEE WHETHER TO PLOT OR NOT
+  OR A                  ;IF NZ, PLOT POINTS NOT IN BETWEEN
+  JR NZ,CPLTIT          ;NEED TO PLOT NOT-BETWEEN POINTS
+  JR GCPLFN             ;DON'T PLOT - FIX UP STACK & RETURN
 
-DRAW_CIRCLE_3:
-  LD A,(CLINEF)
-  ADD A,A
-  JR NC,DRAW_CIRCLE_8
-  JR DRAW_CIRCLE_5
-DRAW_CIRCLE_4:
-  LD A,(CLINEF)
-  RRA
-  JR NC,DRAW_CIRCLE_8
-DRAW_CIRCLE_5:
-  POP DE
+CLINEC:
+  LD A,(CLINEF)         ;GET CENTER LINE FLAG BYTE
+  ADD A,A               ;BIT 7=1 MEANS DRAW LINE FROM CENTER
+  JR NC,CPLTIT          ;NO LINE REQUIRED - JUST PLOT POINT
+  JR CLINE              ;LINE REQUIRED.
+
+CLINSC:
+  LD A,(CLINEF)         ;GET CENTER LINE FLAG BYTE
+  RRA                   ;BIT 0=1 MEANS LINE FROM CENTER NEEDED.
+  JR NC,CPLTIT          ;NO LINE REQUIRED - JUST PLOT POINT
+
+CLINE:
+  POP DE                ;GET X & Y OFFSETS
   POP HL
-  CALL CALC_POSITION
-  CALL DRAW_LINE_GRPAC
-  JR DRAW_CIRCLE_9
+  CALL GTABSC           ;GO CALC TRUE COORDINATE OF POINT
+  CALL CLINE2           ;DRAW LINE FROM [BC],[DE] TO CENTER
+  JR CPLFIN
   
-DRAW_CIRCLE_6:
-  LD A,(CPLOTF)
+CBTWEN:
+  LD A,(CPLOTF)         ;SEE WHETHER PLOTTING BETWEENS OR NOT
   OR A
-  JR Z,DRAW_CIRCLE_8
-DRAW_CIRCLE_7:
-  POP DE
+  JR Z,CPLTIT           ;IF Z, THEN DOING BETWEENS
+GCPLFN:
+  POP DE                ;CLEAN UP STACK
   POP HL
-  JR DRAW_CIRCLE_9
+  JR CPLFIN
 
-DRAW_CIRCLE_8:
-  POP DE
+CPLTIT:
+  POP DE                ;GET X & Y OFFSETS
   POP HL
-  CALL CALC_POSITION
-  CALL SCALXY
-  JR NC,DRAW_CIRCLE_9
-  CALL MAPXY		; Set addresses for initial dot position
-  CALL SETC
-DRAW_CIRCLE_9:
-  POP DE
+  CALL GTABSC           ;CALC TRUE COORDINATE OF POINT
+  CALL SCALXY           ;SEE IF POINT OFF SCREEN
+  JR NC,CPLFIN          ;NC IF POINT OFF SCREEN - NO PLOT
+  CALL MAPXY
+  CALL SETC             ;PLOT THE POINT
+CPLFIN:
+  POP DE                ;GET BACK OFFSETS
   POP HL
-  POP AF
+  POP AF                ;GET BACK LOOP COUNT
   DEC A
-  RET Z
-  PUSH AF
-  PUSH DE
-  LD DE,(CXOFF)
-  CALL INVSGN_DE
-  LD (CXOFF),HL
-  EX DE,HL
+  RET Z                 ;QUIT IF DONE.
+  PUSH AF               ; PUSH PSW
+  PUSH DE               ;SAVE X OFFSET
+  LD DE,(CXOFF)         ;SWAP [HL] AND CXOFF
+  CALL NEGDE            ;NEGATE NEW [HL]
+  LD (CXOFF),HL         ;SWAP [DE] AND CYOFF
+  EX DE,HL              ;NEGATE NEW [DE]
   POP DE
   PUSH HL
   LD HL,(CYOFF)
   EX DE,HL
   LD (CYOFF),HL
-  CALL INVSGN_DE
+  CALL NEGDE
   POP HL
-  POP AF
-  JP DRAW_CIRCLE_1
+  POP AF                ; POP PSW
+  JP CPLOT              ;PLOT NEXT POINT
 
 ; Routine at 23757
 ;
-; Used by the routines at DRAW_CIRCLE and M_DIAGONAL.
-DRAW_LINE_GRPAC:
-  LD HL,(GRPACX)
-  LD (GXPOS),HL
+; Used by the routines at CPLOT8 and DMOVE.
+CLINE2:
+  LD HL,(GRPACX)        ;DRAW LINE FROM [BC],[DE]
+  LD (GXPOS),HL         ;TO GRPACX,Y
   LD HL,(GRPACY)
   LD (GYPOS),HL
-  JP DRAW_LINE
+  JP DOGRPH             ;GO DRAW THE LINE
 
-; Routine at 23772
 ;
-; Used by the routines at DRAW_CIRCLE and M_DIAGONAL.
-CALC_POSITION:
-  PUSH DE
-  LD DE,(GRPACX)
-  ADD HL,DE
-  LD B,H
+; GTABSC - GET ABSOLUTE COORDS
+; ([BC],[DE])=(GRPACX+[HL],GRPACY+[DE])
+;
+; Routine at 23772
+; Used by the routines at CPLOT8 and DMOVE.
+GTABSC:
+  PUSH DE               ;SAVE Y OFFSET FROM CENTER
+  LD DE,(GRPACX)        ;GET CENTER POS
+  ADD HL,DE             ;ADD TO DX
+  LD B,H                ;[BC]=X CENTER + [HL]
   LD C,L
   POP DE
-  LD HL,(GRPACY)
+  LD HL,(GRPACY)        ;GET CENTER Y
   ADD HL,DE
-  EX DE,HL
+  EX DE,HL              ;[DE]=Y CENTER + [DE]
   RET
+
 
 ; Routine at 23787
-;
-; Used by the routine at CIRCLE_ASPECT.
-CALC_ASPECT:
-  LD HL,(ASPECT)
-  LD A,L
-  OR A
-  JR NZ,CALC_ASPECT_0
-  OR H
-  RET NZ
-  EX DE,HL
+; Used by the routine at CPLSCX.
+SCALEY:
+  LD HL,(ASPECT)        ;SCALE [DE] BY ASPECT RATIO
+  LD A,L                ;CHECK FOR *0 AND *1 CASES
+  OR A                  ;ENTRY TO DO [A]*[DE] ([A] NON-Z)
+  JR NZ,SCAL2           ;NON-ZERO
+  OR H                  ;TEST HI BYTE
+  RET NZ                ;IF NZ, THEN WAS *1 CASE
+  EX DE,HL              ;WAS *0 CASE - PUT 0 IN [DE]
   RET
 
-CALC_ASPECT_0:
+	
+SCAL2:
   LD C,D
   LD D,$00
   PUSH AF
-  CALL CALC_ASPECT_SUB
-  LD E,$80
+  CALL SCL_MULTIPLY
+  LD E,$80              ; ROUND UP
   ADD HL,DE
   LD E,C
   LD C,H
   POP AF
-  CALL CALC_ASPECT_SUB
+  CALL SCL_MULTIPLY
   LD E,C
   ADD HL,DE
   EX DE,HL
@@ -18816,73 +18990,78 @@ CALC_ASPECT_0:
 
 ; Routine at 23818
 ;
-; Used by the routine at CALC_ASPECT.
-CALC_ASPECT_SUB:
+; Used by the routine at SCALEY.
+SCL_MULTIPLY:
   LD B,$08
   LD HL,$0000
-CALC_ASPECT_SUB_0:
+SCL_MULTIPLY_0:
   ADD HL,HL
   ADD A,A
-  JR NC,CALC_ASPECT_SUB_1
+  JR NC,SCL_MULTIPLY_1
   ADD HL,DE
-CALC_ASPECT_SUB_1:
-  DJNZ CALC_ASPECT_SUB_0
+SCL_MULTIPLY_1:
+  DJNZ SCL_MULTIPLY_0
   RET
 
-; Routine at 23831
+
 ;
+; PARSE THE BEGIN AND END ANGLES
+;  SETTING APPROPRIATE BITS IN CLINEF IF NEG.
+;
+
+; Routine at 23831
 ; Used by the routine at __CIRCLE.
-CIRCLE_SUB:
+CGTCNT:
   DEC HL
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
+  RST CHRGTB            ;GET CURRENT CHAR
+  RET Z                 ;IF NOTHING, RETURN DFLT IN [DE]
+  RST SYNCHR
+  DEFB ','              ;EAT THE COMMA
+  CP ','                ;USE DEFAULT IF NO ARGUMENT.
   RET Z
-  RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB ','
-  CP ','
-  RET Z
-  PUSH BC
-  CALL EVAL
-  EX (SP),HL
-  PUSH HL
-  CALL __CSNG
-  POP BC
-  LD HL,FACCU
-  LD A,(HL)
+  PUSH BC               ;SAVE FLAG BYTE IN [C]
+  CALL EVAL             ;EVALUATE THE THING
+  EX (SP),HL            ;POP FLAG BYTE, PUSH TXTPTR
+  PUSH HL               ;RESAVE FLAG BYTE
+  CALL __CSNG           ;MAKE IT A SINGLE PRECISION VALUE
+  POP BC                ;GET BACK FLAG BYTE
+  LD HL,FACCU           ;NOW SEE WHETHER POSITIVE OR NOT
+  LD A,(HL)             ;GET EXPONENT BYTE
   OR A
-  JP P,CIRCLE_SUB_0
-  AND $7F
+  JP P,CGTCNT_0
+  AND $7F               ;MAKE IT POSITIVE
   LD (HL),A
-  LD HL,CLINEF
+  LD HL,CLINEF          ;SET BIT IN [C] IN CLINEF
   LD A,(HL)
   OR C
   LD (HL),A
 
-CIRCLE_SUB_0:
-  LD BC,$1540			; BCDE = 0.159155
+CGTCNT_0:
+  LD BC,$1540			;LOAD REGS WITH 1/2*PI  (BCDE = 0.159155)
   LD DE,$5591
-  CALL FMULT
-  CALL FCOMP_UNITY		; == 1 ?
-  JP Z,FC_ERR			; Err $05 - "Illegal function call"
-  CALL PUSHF
-  LD HL,(CNPNTS)
+  CALL FMULT            ;MULTIPLY BY 1/(2*PI) TO GET FRACTION
+  CALL CMPONE           ;SEE IF RESULT IS GREATER THAN ONE
+  JP Z,FC_ERR			;FC ERROR IF SO   (Err $05 - "Illegal function call")
+  CALL PUSHF            ;SAVE FAC ON STAC
+  LD HL,(CNPNTS)        ;GET NO. OF POINTS PER OCTANT
+  ADD HL,HL             ;TIMES 8 FOR TRUE CIRCUMFERENCE
   ADD HL,HL
   ADD HL,HL
-  ADD HL,HL
-  CALL MAKINT
-  CALL __CSNG
-  POP BC
+  CALL MAKINT           ;STICK IT IN FAC
+  CALL __CSNG           ;AND MAKE IT SINGLE PRECISION
+  POP BC                ;GET BACK ANG/2*PI IN REGS
   POP DE
-  CALL FMULT
-  CALL __CINT
-  POP DE
+  CALL FMULT            ;DO THE MULTIPLY
+  CALL __CINT           ;CONVERT TO INTEGER IN [HL]
+  POP DE                ;GET BACK TXTPTR
   EX DE,HL
   RET
 
 ; Routine at 23907
 ;
-; Used by the routines at __CIRCLE and CIRCLE_SUB.
-FCOMP_UNITY:
-  LD BC,$1041		; BCDE = 1 (float) 
+; Used by the routines at __CIRCLE and CGTCNT.
+CMPONE:
+  LD BC,$1041           ;MAKE SURE FAC IS LESS THAN ONE  ..BCDE = 1 (float)
   LD DE,$0000
   CALL FCOMP
   DEC A
@@ -18892,276 +19071,290 @@ FCOMP_UNITY:
 __DRAW:
   LD A,(SCRMOD)
   CP $02
-  JP C,FC_ERR			; Err $05 - "Illegal function call"
-  LD DE,DRAW_TAB
+  JP C,FC_ERR           ;DRAW not allowed in text mode   (Err $05 - "Illegal function call")
+  LD DE,DRAW_TAB        ;DISPATCH TABLE FOR GML
   XOR A
   LD (DRWFLG),A
   LD (MCLFLG),A
-  JP DECODE_JPTAB
+  JP MACLNG
 
 
 
-; Routine at 23939
+; Data at 23939   ($5D83)
 ; JP table for the Graphics Macro Language (GML)
-;$5D83
+
 DRAW_TAB:
 
-  DEFB 'U'+$80
-  DEFW U_LINE	; Draw a line of <DE> pixels in a straight upward direction
+  DEFB 'U'+$80  ;UP
+  DEFW DRUP     ; Draw a line of <DE> pixels in a straight upward direction
 
-  DEFB 'D'+$80
-  DEFW D_LINE	; Draw a line of <DE> pixels in a straight downward direction
+  DEFB 'D'+$80  ;DOWN
+  DEFW DRDOWN	; Draw a line of <DE> pixels in a straight downward direction
 
-  DEFB 'L'+$80
-  DEFW L_LINE	; Draw a line of <DE> pixels to the left
+  DEFB 'L'+$80  ;LEFT
+  DEFW DRLEFT	; Draw a line of <DE> pixels to the left
 
-  DEFB 'R'+$80
-  DEFW R_LINE	; Draw a line of <DE> pixels to the right
+  DEFB 'R'+$80  ;RIGHT
+  DEFW DRIGHT	; Draw a line of <DE> pixels to the right
 
-  DEFB 'M'
-  DEFW M_DIAGONAL	; Draw a line to a specific location (x,y) or a location relative to the current position (M+20,-20)
+  DEFB 'M'		;MOVE
+  DEFW DMOVE	; Draw a line to a specific location (x,y) or a location relative to the current position (M+20,-20)
 
-  DEFB 'E'+$80
-  DEFW E_DIAGONAL	; Draw a diagonal line of <DE> pixels (line goes upward and to the right)
+  DEFB 'E'+$80	; -,-
+  DEFW DRWEEE	; Draw a diagonal line of <DE> pixels (line goes upward and to the right)
 
-  DEFB 'F'+$80
-  DEFW F_DIAGONAL	; Draw a diagonal line of <DE> pixels (line goes downward and to the right)
+  DEFB 'F'+$80	; +,-
+  DEFW DRWFFF	; Draw a diagonal line of <DE> pixels (line goes downward and to the right)
 
-  DEFB 'G'+$80
-  DEFW G_DIAGONAL	; Draw a diagonal line of <DE> pixels (line goes downward and to the left)
+  DEFB 'G'+$80	; +,+
+  DEFW DRWGGG	; Draw a diagonal line of <DE> pixels (line goes downward and to the left)
 
-  DEFB 'H'+$80
-  DEFW H_DIAGONAL	; Draw a diagonal line of <DE> pixels (line goes upward and to the left)
+  DEFB 'H'+$80	; -,+
+  DEFW DRWHHH	; Draw a diagonal line of <DE> pixels (line goes upward and to the left)
 
-  DEFB 'A'+$80
-  DEFW ROTATE	; Change the orientation of the drawing to 0 (normal), 1 (90 degrees clockwise), 2 (180 degrees clockwise) or 3 (270 degrees clockwise)
+  DEFB 'A'+$80  ;ANGLE COMMAND
+  DEFW DANGLE	; Change the orientation of the drawing to 0 (normal), 1 (90 degrees clockwise), 2 (180 degrees clockwise) or 3 (270 degrees clockwise)
 
-  DEFB 'B'
-  DEFW MOVEONLY	; Move to the location specified by the command, but don't draw a line 
+  DEFB 'B'      ;MOVE WITHOUT PLOTTING
+  DEFW DNOPLT	; Move to the location specified by the command, but don't draw a line 
 
-  DEFB 'N'
-  DEFW KEEP_POS	; Return to the starting position after performing the command 
+  DEFB 'N'      ;DON'T CHANGE CURRENT COORDS
+  DEFW DNOMOV	; Return to the starting position after performing the command 
 
-  DEFB 'X'
-  DEFW X_MACRO	; X<string> Execute a sub-string of instructions 
+  DEFB 'X'      ;EXECUTE STRING
+  DEFW MCLXEQ	; X<string> Execute a sub-string of instructions 
 
-  DEFB 'C'+$80
-  DEFW FORECOLOR	; Change the foreground (drawing) color to <color>
+  DEFB 'C'+$80      ;COLOR
+  DEFW DCOLR	; Change the foreground (drawing) color to <color>
   
-  DEFB 'S'+$80
-  DEFW _SCALE	; S<scale> Scale every length specified after this command by <scale/4> pixels.
+  DEFB 'S'+$80   ;SCALE
+  DEFW DSCALE	; S<scale> Scale every length specified after this command by <scale/4> pixels.
   
-  DEFB $00		; Table termination
+  DEFB $00		;END OF TABLE   (Table termination)
 
-  
-  
   
   
+  
+  
+;MOVE +0,-Y
 ; Draw a line of <DE> pixels in a straight upward direction
-U_LINE:
-  CALL INVSGN_DE
-; Draw a line of <DE> pixels in a straight downward direction
-D_LINE:
-  LD BC,$0000
-  JR LINE_SUB
+DRUP:
+  CALL NEGDE
 
+;MOVE +0,+Y
+; Draw a line of <DE> pixels in a straight downward direction
+DRDOWN:
+  LD BC,$0000     ;DX=0
+  JR DOMOVR       ;TREAT AS RELATIVE MOVE
+
+
+;MOVE -X,+0
 ; Routine at 23993
-;
 ; Used by the routine at L5D83.
 ; Draw a line of <DE> pixels to the left
-L_LINE:
-  CALL INVSGN_DE
-; Draw a line of <DE> pixels to the right
-R_LINE:
-  LD B,D
-  LD C,E
-  LD DE,$0000
-  JR LINE_SUB
+DRLEFT:
+  CALL NEGDE
 
+;MOVE +X,+0
+; Draw a line of <DE> pixels to the right
+DRIGHT:
+  LD B,D          ;[BC]=VALUE
+  LD C,E
+  LD DE,$0000     ;DY=0
+  JR DOMOVR       ;TREAT AS RELATIVE MOVE
+
+;MOVE -X,-Y
 ; Routine at 24003
 ; Draw a diagonal line of <DE> pixels (line goes upward and to the left)
-H_DIAGONAL:
-  CALL INVSGN_DE
+DRWHHH:
+  CALL NEGDE
+
+;MOVE +X,+Y
 ; Draw a diagonal line of <DE> pixels (line goes downward and to the right)
-F_DIAGONAL:
+DRWFFF:
   LD B,D
   LD C,E
-  JR LINE_SUB
+  JR DOMOVR
 
+;MOVE +X,-Y
 ; Routine at 24010
 ; Draw a diagonal line of <DE> pixels (line goes upward and to the right)
-E_DIAGONAL:
+DRWEEE:
   LD B,D
   LD C,E
-; This entry point is used by the routine at G_DIAGONAL.
-E_DIAGONAL_0:
-  CALL INVSGN_DE
-  JR LINE_SUB
+; This entry point is used by the routine at DRWGGG.
+DRWHHC:
+  CALL NEGDE
+  JR DOMOVR
 
+;MOVE -X,+Y
 ; Routine at 24017
 ; Draw a diagonal line of <DE> pixels (line goes downward and to the left)
-G_DIAGONAL:
-  CALL INVSGN_DE
+DRWGGG:
+  CALL NEGDE
   LD B,D
   LD C,E
-  JR E_DIAGONAL_0
+  JR DRWHHC       ;MAKE DY POSITIVE & GO
+
+
 
 ; Routine at 24024
 ; Draw a line to a specific location (x,y) or a location relative to the current position (M+20,-20)
-M_DIAGONAL:
-  CALL GET_MCL_ITEM
-  LD B,$00
-  CP '+'
-  JR Z,M_DIAGONAL_0
+DMOVE:
+  CALL FETCHZ     ;GET NEXT CHAR AFTER COMMA
+  LD B,$00        ;ASSUME RELATIVE
+  CP '+'          ;IF "+" OR "-" THEN RELATIVE
+  JR Z,MOVREL
   CP '-'
-  JR Z,M_DIAGONAL_0
-  INC B
-M_DIAGONAL_0:
+  JR Z,MOVREL
+  INC B           ;NON-Z TO FLAG ABSOLUTE
+  
+MOVREL:
   LD A,B
-  PUSH AF
-  CALL MCL_PREV_ITEM
-  CALL L5719
-  PUSH DE
-  CALL GET_MCL_ITEM
-  CP ','
-  JP NZ,FC_ERR			; Err $05 - "Illegal function call"
-  CALL L5719
-  POP BC
-  POP AF
+  PUSH AF         ;SAVE ABS/REL FLAG ON STACK
+  CALL DECFET     ;BACK UP SO VALSCN WILL SEE "-"
+  CALL VALSCN     ;GET X VALUE
+  PUSH DE         ;SAVE IT
+  CALL FETCHZ     ;NOW CHECK FOR COMMA
+  CP ','          ;COMMA?
+  JP NZ,FC_ERR    ; If not, Err $05 - "Illegal function call"
+  CALL VALSCN     ;GET Y VALUE IN D
+  POP BC          ;GET BACK X VALUE
+  POP AF          ;GET ABS/REL FLAG
   OR A
-  JR NZ,LINE_SUB_4
+  JR NZ,DRWABS    ;NZ - ABSOLUTE
   
 
-; This entry point is used by the DRAW routines at U_LINE, L_LINE, H_DIAGONAL and E_DIAGONAL.
-LINE_SUB:
-  CALL L5E66
-  PUSH DE
-  LD D,B
-  LD E,C
-  CALL L5E66
-  EX DE,HL
+; This entry point is used by the DRAW routines at DRUP, DRLEFT, DRWHHH and DRWEEE.
+DOMOVR:
+  CALL DSCLDE     ;ADJUST Y OFFSET BY SCALE
+  PUSH DE         ;SAVE Y OFFSET
+  LD D,B          ;GET X INTO [DE]
+  LD E,C          ;GO SCALE IT.
+  CALL DSCLDE     ;GET ADJUSTED X INTO [HL]
+  EX DE,HL        ;GET ADJUSTED Y INTO [DE]
   POP DE
-  LD A,(DRWANG)
-  RRA
-  JR NC,LINE_SUB_2
-  PUSH AF
-  CALL INVSGN_HL
+  LD A,(DRWANG)   ;GET ANGLE BYTE
+  RRA             ;LOW BIT TO CARRY
+  JR NC,ANGEVN    ;ANGLE IS EVEN - DON'T SWAP X AND Y
+  PUSH AF         ;SAVE THIS BYTE
+  CALL NEGHL      ;ALWAYS NEGATE NEW DY
   EX DE,HL
-  POP AF
-LINE_SUB_2:
-  RRA
-  JR NC,LINE_SUB_3
-  CALL INVSGN_HL
-  CALL INVSGN_DE
-LINE_SUB_3:
-  CALL CALC_POSITION
-
-LINE_SUB_4:
-  LD A,(DRWFLG)
-  ADD A,A
-  JR C,MOVEONLY_MODE
-  PUSH AF
-  PUSH BC
-  PUSH DE
-  CALL DRAW_LINE_GRPAC
+  POP AF          ;GET BACK SHIFTED ANGLE
+ANGEVN:
+  RRA             ;TEST SECOND BIT
+  JR NC,ANGPOS    ;DON'T NEGATE COORDS IF NOT SET
+  CALL NEGHL
+  CALL NEGDE      ;NEGATE BOTH DELTAS
+ANGPOS:
+  CALL GTABSC     ;GO CALC TRUE COORDINATES
+DRWABS:
+  LD A,(DRWFLG)   ;SEE WHETHER WE PLOT OR NOT
+  ADD A,A         ;CHECK HI BIT
+  JR C,DSTPOS     ;JUST SET POSITION.
+  PUSH AF         ;SAVE THIS FLAG
+  PUSH BC         ;SAVE X,Y COORDS
+  PUSH DE         ;BEFORE SCALE SO REFLECT DISTANCE OFF
+  CALL CLINE2     ;SCALE IN CASE COORDS OFF SCREEN
   POP DE
-  POP BC
-  POP AF
-MOVEONLY_MODE:
-  ADD A,A			; KEEP_POS mode ?
-  JR C,NO_REPOS		; If so, jump over
-  LD (GRPACY),DE
+  POP BC          ;GET THEM BACK
+  POP AF          ;GET BACK FLAG
+DSTPOS:
+  ADD A,A         ;SEE WHETHER TO STORE COORDS
+  JR C,DNSTOR     ;DON'T UPDATE IF B6=1
+  LD (GRPACY),DE  ;UPDATE GRAPHICS AC
   LD H,B
   LD L,C
   LD (GRPACX),HL
-NO_REPOS:
-  XOR A					; Reset draw mode when finished drawing
+DNSTOR:
+  XOR A           ;CLEAR SPECIAL FUNCTION FLAGS   (Reset draw mode when finished drawing)
   LD (DRWFLG),A
   RET
 
 ; Routine at 24130
 ; Set flags to return to the starting position after performing the command 
-KEEP_POS:
-  LD A,$40
-  JR SET_DRWFLG
+DNOMOV:
+  LD A,$40        ;SET BIT SIX IN FLAG BYTE
+  JR DSTFLG
 
 ; Routine at 24134
 ; Set flags to move to the location specified by the command, but don't draw a line 
-MOVEONLY:
-  LD A,$80
-; This entry point is used by the routine at KEEP_POS.
-SET_DRWFLG:
+DNOPLT:
+  LD A,$80        ;SET BIT 7
+
+; This entry point is used by the routine at DNOMOV.
+DSTFLG:
   LD HL,DRWFLG
   OR (HL)
-  LD (HL),A
+  LD (HL),A       ;STORE UPDATED BYTE
   RET
 
 ; Data block at 24142
 ; Change the orientation of the drawing to 0 (normal), 1 (90 degrees clockwise), 2 (180 degrees clockwise) or 3 (270 degrees clockwise)
-ROTATE:
-  JR NC,_SCALE
-  LD A,E
+DANGLE:
+  JR NC,DSCALE    ;ERROR IF NO ARG
+  LD A,E          ;MAKE SURE LESS THAN 4
   CP $04
-  JR NC,_SCALE
-  LD (DRWANG),A		; DrawAngle (0..3): 1=90 degrees rotation .. 3=270 degrees, etc..
+  JR NC,DSCALE    ;ERROR IF NOT
+  LD (DRWANG),A	  ; DrawAngle (0..3): 1=90 degrees rotation .. 3=270 degrees, etc..
   RET
 
 ; S<scale> Scale every length specified after this command by <scale/4> pixels.
-_SCALE:
+DSCALE:
   JP NC,FC_ERR			; Err $05 - "Illegal function call"
-  LD A,D
+  LD A,D          ;MAKE SURE LESS THAN 256
   OR A
   JP NZ,FC_ERR			; Err $05 - "Illegal function call"
   LD A,E
-  LD (DRWSCL),A			; Draw Scaling
+  LD (DRWSCL),A   ;STORE SCALE FACTOR
   RET
 
 ; Routine at 24166
 ;
-; Used by the routine at M_DIAGONAL.
-L5E66:
-  LD A,(DRWSCL)
-  OR A
+; Used by the routine at DMOVE.
+DSCLDE:
+  LD A,(DRWSCL)   ;GET SCALE FACTOR
+  OR A            ;ZERO MEANS NO SCALING
   RET Z
   LD HL,$0000
-L5E66_0:
-  ADD HL,DE
+DSCLP:
+  ADD HL,DE       ;ADD IN [DE] SCALE TIMES
   DEC A
-  JR NZ,L5E66_0
-  EX DE,HL
-  LD A,D
+  JR NZ,DSCLP
+  EX DE,HL        ;PUT IT BACK IN [DE]
+  LD A,D          ;SEE IF VALUE IS NEGATIVE
   ADD A,A
-  PUSH AF
-  JR NC,L5E66_1
-  DEC DE
-L5E66_1:
-  CALL DE_DIV2		; "RR DE"
-  CALL DE_DIV2		; "RR DE"
-  POP AF
-  RET NC
-  LD A,D
+  PUSH AF         ;SAVE RESULTS OF TEST
+  JR NC,DSCPOS
+  DEC DE          ;MAKE IT TRUNCATE DOWN
+DSCPOS:
+  CALL DE_DIV2    ;DIVIDE BY FOUR
+  CALL DE_DIV2
+  POP AF          ;SEE IF WAS NEGATIVE
+  RET NC          ;ALL DONE IF WAS POSITIVE
+  LD A,D          ;OR IN HIGH 2 BITS TO MAKE NEGATIVE
   OR $C0
   LD D,A
-  INC DE
+  INC DE          ;ADJUST SO TRUNCATING TO LOWER VALUE
   RET
 
 
 
-FORECOLOR:
-  JR NC,_SCALE
-  LD A,E
-  CALL SETATR		; Set attribute byte
-  JP C,FC_ERR			; Err $05 - "Illegal function call"
+DCOLR:
+  JR NC,DSCALE    ; "NCFER": FC ERROR IF NO ARG
+  LD A,E          ;GO SET ATTRIBUTE
+  CALL SETATR     ; Set attribute byte
+  JP C,FC_ERR     ;ERROR IF ILLEGAL ATTRIBUTE   ( Err $05 - "Illegal function call" )
   RET
 
 ; Routine at 24209
 ;
 ; Used by the routine at __PAINT.
-L5E91:
-  PUSH HL
+CHKRNG:
+  PUSH HL         ;SAVE TXTPTR
   CALL SCALXY
-  JP NC,FC_ERR			; Err $05 - "Illegal function call"
-  POP HL
+  JP NC,FC_ERR    ;OUT OF BOUNDS - ERROR   ( Err $05 - "Illegal function call" )
+  POP HL          ;REGET TXTPTR
   RET
 
   
@@ -20084,7 +20277,7 @@ PLS_PRNT:
 ; Used by the routine at SMKVAR.
 MOVUP:
   CALL ENFMEM   ; $6267 = ENFMEM (reference not aligned to instruction)
-; This entry point is used by the routines at GNXARY, L7439 and L748E.
+; This entry point is used by the routines at GNXARY, __PLAY_2 and L748E.
 MOVUP_0:
   PUSH BC
   EX (SP),HL
@@ -20100,7 +20293,7 @@ MOVUP_1:
 
 ; Routine at 25182
 ;
-; Used by the routines at __GOSUB, EVAL_1, DOFN, X_MACRO, __PAINT_SUB and EXEC_ONGOSUB.
+; Used by the routines at __GOSUB, EVAL_1, DOFN, MCLXEQ, ENTSLR and EXEC_ONGOSUB.
 ; $625E
 CHKSTK:
   PUSH HL
@@ -20611,7 +20804,7 @@ L64A4:
 IS_LETTER:
   LD A,(HL)         ; Get byte
 
-; This entry point is used by the routines at TOKENIZE, OPRND, L5683, L575A and GETVAR.
+; This entry point is used by the routines at TOKENIZE, OPRND, L5683, SCNVAR and GETVAR.
 ; Check char in 'A' being in the 'A'..'Z' range
 ISLETTER_A:
   CP 'A'             ; < "A" ?
@@ -20730,7 +20923,7 @@ __NEXT_1:
   PUSH HL
   RST GETYPR 				; Get the number type (FAC)
   JR NC,__NEXT_4	
-  CALL LOADFP_REV			; Load single precision FP value from (HL) in reverse byte order
+  CALL HLBCDE			; Load single precision FP value from (HL) in reverse byte order
   CALL FADD
   POP HL
   CALL FPTHL
@@ -24227,13 +24420,13 @@ __MOTOR_0:
 
 ; Routine at 29642
 __SOUND:
-  CALL GETINT              ; Get integer 0-255
-  CP 14				; PSG Channel range
-  JP NC,FC_ERR
-  PUSH AF
-  RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
+  CALL GETINT          ;Get frequency.      ; Get integer 0-255
+  CP 14                ; PSG Channel range
+  JP NC,FC_ERR         ;Frequency too low
+  PUSH AF              ;Save frequency
+  RST SYNCHR
   DEFB ','
-  CALL GETINT              ; Get integer 0-255
+  CALL GETINT          ;Get duration.
 ;:::::::::::::::::::::
 L73D8:
   POP AF
@@ -24245,9 +24438,23 @@ L73D8:
 __SOUND_0:
   JP WRTPSG
 
+
+
+
 ; Data block at 29668
 L73E4:
   DEFB ' '
+
+
+;
+; PLAY - MUSIC MACRO LANGUAGE
+;
+
+; Takumi Miyamoto, former employee at ASCII Corporation, tells about a bug in the play statement:
+; "Few people seemed to notice it, but there was a bug in BASIC play statements in MSX1-2+.
+; It caused an extra space for one count when a play command ended.
+; In other words, there was a short pause at the moment of the transition from one play sentence to the next.
+; The tempo shifts for a moment, but many of you may not have noticed it."
 
 __PLAY:
 IF NOHOOK
@@ -24268,7 +24475,7 @@ ENDIF
   LD (SAVSP),HL		; Used by PLAY command in BASIC
   POP HL
   PUSH AF
-L73FD:
+__PLAY_0:
   CALL EVAL
   EX (SP),HL
   PUSH HL
@@ -24276,14 +24483,15 @@ L73FD:
   CALL LOADFP
   LD A,E
   OR A
-  JR NZ,L7413
+  JR NZ,__PLAY_1
+  
   LD E,$01
   LD BC,L73E4		; points to ' '.. empty play queue
   LD D,C
   LD C,B
 
 ; Routine at 29715
-L7413:
+__PLAY_1:
   POP AF
   PUSH AF
   CALL GETVCP	; Returns pointer to play queue
@@ -24306,35 +24514,35 @@ L7413:
   INC B
   LD A,B
   CP $03			; TK_MID_S ?
-  JR NC,L7439_0
+  JR NC,__PLAY_3
   DEC HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
-  JR Z,L7439
+  JR Z,__PLAY_2
   PUSH BC
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
-  JR L73FD
+  JR __PLAY_0
 
 ; Routine at 29753
-L7439:
+__PLAY_2:
   LD  A,B
   LD  (VOICEN),A
-  CALL L7507
+  CALL DOSND_SUB
   INC B
   LD A,B
   CP $03
-  JR C,L7439
-; This entry point is used by the routine at L7413.
-L7439_0:
+  JR C,__PLAY_2
+; This entry point is used by the routine at __PLAY_1.
+__PLAY_3:
   DEC HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP NZ,SN_ERR
   PUSH HL
 ; This entry point is used by the routine at L748E.
-L7439_1:
+__PLAY_4:
   XOR A
 ; This entry point is used by the routine at L748E.
-L7439_2:
+__PLAY_5:
   PUSH AF
   LD (VOICEN),A
   LD B,A
@@ -24372,22 +24580,22 @@ L7439_2:
   EI
   LD A,$FF
   LD (MCLFLG),A
-  JP L5683_2
+  JP MCLSCN
 
 ; Routine at 29838
 ;
-; Used by the routine at L7684.
+; Used by the routine at DOSND.
 L748E:
-  LD A,(MCLLEN)
+  LD A,(MCLLEN)     ;POINT TO STRING LENGTH
   OR A
   JR NZ,L748E_1
 ; This entry point is used by the routine at L5683.
 L748E_0:
-  CALL L7507
+  CALL DOSND_SUB
 L748E_1:
   LD A,(VOICEN)
   CALL GETVCP
-  LD A,(MCLLEN)
+  LD A,(MCLLEN)     ;Get str len
   LD (HL),A
   INC HL
   LD DE,(MCLPTR)
@@ -24425,13 +24633,13 @@ L748E_1:
 L748E_2:
   POP BC
   POP BC
-; This entry point is used by the routine at L7439.
+; This entry point is used by the routine at __PLAY_2.
 L748E_3:
   EI
   POP AF
   INC A
   CP $03
-  JP C,L7439_2
+  JP C,__PLAY_5
   DI
   LD A,(INTFLG)
   CP $03
@@ -24449,7 +24657,7 @@ L748E_4:
   OR $80
   LD (HL),A
   CP $83		; TK_NEXT ?
-  JP NZ,L7439_1
+  JP NZ,__PLAY_4
 L748E_5:
   POP HL
   RET
@@ -24459,24 +24667,24 @@ L748E_6:
 
 ; Routine at 29959
 ;
-; Used by the routines at L7439 and L748E.
-L7507:
+; Used by the routines at __PLAY_2 and L748E.
+DOSND_SUB:
   LD A,(PRSCNT)
   INC A
   LD (PRSCNT),A
   LD E,$FF
-; This entry point is used by the routine at L7684.
-L7507_0:
+; This entry point is used by the routine at DOSND.
+DOSND_SUB_0:
   PUSH HL
   PUSH BC
-L7507_1:
+DOSND_SUB_1:
   PUSH DE
   LD A,(VOICEN)
   DI
   CALL PUTQ
   EI
   POP DE
-  JR Z,L7507_1
+  JR Z,DOSND_SUB_1
   POP BC
   POP HL
   RET
@@ -24484,7 +24692,7 @@ L7507_1:
 
 ; Routine at 29985
 ;
-; Used by the routines at L7439 and L7684.
+; Used by the routines at __PLAY_2 and DOSND.
 L7521:
   LD A,(VOICEN)
   PUSH BC
@@ -24499,7 +24707,7 @@ L7521:
 ; Data table at 29998
 ;$5D83
 PLAY_TAB:
-  DEFB 'A'
+  DEFB 'A'           ;THE NOTES A-G
   DEFW PLAY_NOTE
   
   DEFB 'B' 
@@ -24520,8 +24728,8 @@ PLAY_TAB:
   DEFB 'G' 
   DEFW PLAY_NOTE
 
-  DEFB 'M'+$80
-  DEFW ENVELOPE_CYCLE	; Envelope cycle setting *2 (1..65535)
+  DEFB 'M'+$80          ;Music Meta Command
+  DEFW PLYMET           ; Envelope cycle setting *2 (1..65535)
 
   DEFB 'V'+$80
   DEFW VOLUME			; Volume (0..15)
@@ -24529,50 +24737,72 @@ PLAY_TAB:
   DEFB 'S'+$80
   DEFW ENVELOPE_SHAPE	; Envelope shape *2 (0..15)
   
-  DEFB 'N'+$80
-  DEFW RAISE_NOTE		; Plays Note raised to n (0..96)
+  DEFB 'N'+$80          ;PLAY NUMERIC NOTE
+  DEFW PLYNUM		    ; Plays Note raised to n (0..96)
 
-  DEFB 'O'+$80
-  DEFW OCTAVE			; Octave (1..8)
+  DEFB 'O'+$80          ;OCTAVE
+  DEFW POCTAV			; Octave (1..8)
   
-  DEFB 'R'+$80
+  DEFB 'R'+$80          ; GW-BASIC has 'P' for 'Pause'
   DEFW REST				; Rest setting (1..64)
 
-  DEFB 'T'+$80
+  DEFB 'T'+$80          ;TEMPO
   DEFW TEMPO			; Tempo setting (32..255)
 
-  DEFB 'L'+$80
+  DEFB 'L'+$80          ;LENGTH
   DEFW LENGTH			; Length (1..64)
 
-  DEFB 'X'		; .. Plays MML string stored in variable A$
-  DEFW X_MACRO
+  DEFB 'X'              ;EXECUTE STRING
+  DEFW MCLXEQ           ; .. Plays MML string stored in variable A$
   
-  DEFB $00
+  DEFB $00              ;END OF TABLE
 
 
-PLAY_TAB_2:
-  DEFB $10
-  DEFB $12
-  DEFB $14
-  DEFB $16
-  DEFB $00
-  
-  DEFB $00
-  DEFB $02
-  DEFB $04
-  DEFB $06
-  DEFB $08
-  DEFB $0a
 
-  DEFB $0a
-  DEFB $0c
-  DEFB $0e
-  DEFB $10
+; TABLE OF INDEXES INTO NOTE_TAB FOR EACH NOTE
+; VALUE OF 0 MEANS NOTE NOT ALLOWED.
+
+NOTE_XLT:
+  DEFB 8*2       ;A- (G#)
+  DEFB 9*2       ;A
+  DEFB 10*2      ;A#
+  DEFB 11*2      ;B
+
+  DEFB $00       ;NO C- OR B#
+  DEFB $00
+
+  DEFB 1*2       ;C
+  DEFB 2*2       ;C#
+  DEFB 3*2       ;D
+  DEFB 4*2       ;D#
+  DEFB 5*2       ;E
+
+  DEFB 5*2       ;NO E# OR F-
   
-  
-PLAY_TAB_3:
-  DEFW  $0D5D,  $0C9C,  $0BE7,  $0B3C,  $0A9B,  $0A02
-  DEFW  $0973,  $08EB,  $086B,  $07F2,  $0780,  $0714
+  DEFB 6*2       ;F
+  DEFB 7*2       ;F#
+  DEFB 8*2       ;G
+ 
+ 
+; TABLE OF NOTE FREQUENCIES
+; IN GW-BASIC THESE WERE THE FREQUENCIES IN HERTZ OF THE TOP OCTAVE (6)
+; DIVIDED DOWN BY POWERS OF TWO TO GET ALL OTHER OCTAVES
+;
+
+	
+NOTE_TAB:
+  DEFW  $0D5D    ;C
+  DEFW  $0C9C    ;C#
+  DEFW  $0BE7    ;D
+  DEFW  $0B3C    ;D#
+  DEFW  $0A9B    ;E
+  DEFW  $0A02    ;F
+  DEFW  $0973    ;F#
+  DEFW  $08EB    ;G
+  DEFW  $086B    ;G#
+  DEFW  $07F2    ;A
+  DEFW  $0780    ;A#
+  DEFW  $0714    ;B
 
   
   
@@ -24583,12 +24813,12 @@ VOLUME:
 SET_VOLUME:
   LD A,15		; Max volume: 15
   CP E
-  JR C,_FC_ERR_C
+  JR C,PLGO_FC
 
 SET_ENVELOPE:
   XOR A
   OR D
-  JR NZ,_FC_ERR_C
+  JR NZ,PLGO_FC
   LD L,$12
   CALL GETVC2
   LD A,$40
@@ -24597,11 +24827,15 @@ SET_ENVELOPE:
   LD (HL),A
   RET
 
+
+
+; PLYMET - Process Music Meta Commands.
+; ..on AY it sets the envelope cycle *2 (1..65535)
+
+
 ; Routine at 30110
-;
 ; Used by the routine at L752E.
-; Envelope cycle setting *2 (1..65535)
-ENVELOPE_CYCLE:
+PLYMET:
   LD A,E
   JR C,SET_ENV_CYCLE
   CPL
@@ -24609,7 +24843,7 @@ ENVELOPE_CYCLE:
   LD E,A
 SET_ENV_CYCLE:
   OR D
-  JR Z,_FC_ERR_C
+  JR Z,PLGO_FC
   LD L,$13
   CALL GETVC2
   PUSH HL
@@ -24635,59 +24869,61 @@ SET_ENV_CYCLE:
 ENVELOPE_SHAPE:
   LD A,E
   CP 15+1		; Max envelope shape: 15
-  JR NC,_FC_ERR_C
+  JR NC,PLGO_FC
   OR $10
   LD E,A
   JR SET_ENVELOPE
+
 
 ; Data block at 30152
   ; --- START PROC LENGTH ---
 ; Length (1..64)
 LENGTH:
-  JR C,SET_LENGHT
-  LD E,4			; Default Length: 4
+  JR C,SET_LENGHT      ;JP IF ARGUMENT AVAILABLE
+  LD E,4               ; Default Length: 4
 SET_LENGHT:
   LD A,E
-  CP 64+1				; Max Length: 64
-  JR NC,_FC_ERR_C
-  LD L,$10
+  CP 64+1              ;ALLOW ONLY UP TO 64
+  JR NC,PLGO_FC        ;FC ERROR IF TOO BIG
+  LD L,$10             ;STORE NOTE LENGTH
+
   ; --- START PROC L75D3 ---
 SETVC2:
   CALL GETVC2
   XOR  A
   OR D
-  JR NZ,_FC_ERR_C
+  JR NZ,PLGO_FC
   OR E
-  JR Z,_FC_ERR_C
+  JR Z,PLGO_FC
   LD (HL),A
   RET
 
-  ; --- START PROC _FC_ERR_C ---
-_FC_ERR_C:
+  ; --- START PROC PLGO_FC ---
+PLGO_FC:
   CALL FC_ERR
   
   ; --- START PROC TEMPO ---
 ; Tempo setting (32..255)
 TEMPO:
-  JR C,SET_TEMPO
-  LD E,120		; Default tempo: 120
+  JR C,SET_TEMPO    ;JP IF ARGUMENT AVAILABLE
+  LD E,120          ; Default tempo: 120
 SET_TEMPO:
   LD A,E
-  CP 32			; Max tempo: 32
-  JR C,_FC_ERR_C
-  LD L,$11
+  CP 32             ;ALLOW ONLY 32 - 255
+  JR C,PLGO_FC      ;FC ERROR IF TOO SMALL
+  LD L,$11          ;Store Beats per minute
   JR SETVC2
 
 ; Routine at 30191
 ; Octave (1..8)
-OCTAVE:
-  JR C,SET_OCTAVE
-  LD E,4		; Default octave: 4
+POCTAV:
+  JR C,SET_OCTAVE   ;JP IF ARGUMENT AVAILABLE
+  LD E,4            ; Default octave: 4
 SET_OCTAVE:
   LD A,E
-  CP 8+1		; Max octave: 8
-  JR NC,_FC_ERR_C
-  LD L,$0F
+  CP 8+1            ; Max octave: 8
+  JR NC,PLGO_FC     ;FC ERROR IF TO BIG
+  LD L,$0F          ;Store octave value
   JR SETVC2
   
 ; Routine at 30204
@@ -24700,13 +24936,14 @@ REST:
 SET_REST:
   XOR A
   OR D
-  JR NZ,_FC_ERR_C
+  JR NZ,PLGO_FC
   OR E
-  JR Z,_FC_ERR_C
-  CP $41
-  JR NC,_FC_ERR_C
-; This entry point is used by the routine at RAISE_NOTE.
-REST_1:
+  JR Z,PLGO_FC
+  CP 65             ;If was .gt. 64
+  JR NC,PLGO_FC     ; then error
+
+; This entry point is used by the routine at PLYNUM.
+PLYNO3:
   LD HL,$0000
   PUSH HL
   LD L,$10
@@ -24719,90 +24956,93 @@ REST_1:
   LD (HL),$80
   DEC HL
   DEC HL
-  JR L7684_1
+  JR DOSND_0
 
 ; Routine at 30241
-RAISE_NOTE:
-  JR NC,_FC_ERR_C
-  XOR A
+PLYNUM:
+  JR NC,PLGO_FC     ;ERROR IF NO ARG
+  XOR A             ;GET NOTE NUMBER INTO [AL]
   OR D
-  JR NZ,_FC_ERR_C
-  OR E
-  JR Z,REST_1
-  CP 96+1			; Max RAISE value: 96
-  JR NC,_FC_ERR_C
+  JR NZ,PLGO_FC
+  OR E              ;SEE IF ZERO (PAUSE)
+  JR Z,PLYNO3       ;DO THE PAUSE
+  CP 96+1			;ALLOW ONLY 0..96    (Max RAISE value: 96)
+  JR NC,PLGO_FC     ;FC ERROR IF TOO BIG
   LD A,E
   LD B,$00
   LD E,B
-RAISE_NOTE_0:
-  SUB $0C
-  INC E
-  JR NC,RAISE_NOTE_0
-  ADD A,$0C
-  ADD A,A
-  LD C,A
-  JP PLAY_NOTE_4
+PLYNUM_0:
+  SUB 12            ;DIVIDE BY 12
+  INC E             ;OCTAVE counter
+  JR NC,PLYNUM_0
+  ADD A,12
+  ADD A,A           ;NOTE*2..
+  LD C,A            ;.. in BC
+  JP PLYNU3         ;PLAY NOTE
 
 ; Routine at 30270
 PLAY_NOTE:
   LD B,C
   LD A,C
-  SUB $40
-  ADD A,A
+  SUB 'A'-1         ;MAP TO 1..7
+  ADD A,A           ;MAP TO 2..14 (THIS ASSUMES SHARP)
   LD C,A
-  CALL MCL_ITEM
-  JR Z,PLAY_NOTE_2
-  CP '#'		; Sharp (raise half tone) 
-  JR Z,PLAY_SHARP_NOTE
-  CP '+'		; Sharp (raise half tone) 
-  JR Z,PLAY_SHARP_NOTE
-  CP '-'		; Flat (Lower half tone)
-  JR Z,PLAY_FLAT_NOTE
-  CALL MCL_PREV_ITEM
-  JR PLAY_NOTE_2
+  CALL FETCHR       ;GET NEXT CHARACTER
+  JR Z,PLYNO2       ;END OF STRING - NO SHARP OR FLAT
+  CP '#'            ;CHECK FOR POSSIBLE SHARP
+  JR Z,PLYSHARP     ;SHARP IT THEN
+  CP '+'            ;"+" ALSO MEANS SHARP
+  JR Z,PLYSHARP
+  CP '-'            ;"-" MEANS FLAT
+  JR Z,PLYFLAT
+  CALL DECFET       ;PUT CHAR BACK IN STRING.
+  JR PLYNO2         ;TREAT AS UNMODIFIED NOTE.
 
 ; Flat (Lower half tone)
-PLAY_FLAT_NOTE:
-  DEC C
-  LD A,B
+PLYFLAT:
+  DEC C             ;DECREMENT TWICE TO FLAT IT
+  LD A,B            ;INTO [AL] FOR XLAT
   CP 'C'
-  JR Z,PLAY_NOTE_1		; 'C flat' does not exist, compensate..
+  JR Z,PLAY_NOTE_1  ; 'C flat' does not exist, compensate..
   CP 'F'
-  JR NZ,PLAY_NOTE_2		; 'F flat' does not exist, compensate..
+  JR NZ,PLYNO2      ; 'F flat' does not exist, compensate..
 PLAY_NOTE_1:
-  DEC C			; lower the table ptr
-PLAY_NOTE_2:
-  DEC C			; lower the table ptr
+  DEC C
+PLYNO2:
+  DEC C             ;MAP BACK TO UNSHARPED
 ; Sharp (raise half tone) 
-PLAY_SHARP_NOTE:
+PLYSHARP:
   LD L,$0F
   CALL GETVC2
   LD E,(HL)
   LD B,$00
-  LD HL,PLAY_TAB_2
+  LD HL,NOTE_XLT    ;POINT TO TRANSLATE TABLE
   ADD HL,BC
   LD C,(HL)
-; This entry point is used by the routine at RAISE_NOTE.
-PLAY_NOTE_4:
-  LD HL,PLAY_TAB_3
+
+
+; Play note.  BC = ptr to the freq. table,  E=octave
+; This entry point is used by the routine at PLYNUM.
+PLYNU3:
+  LD HL,NOTE_TAB
   ADD HL,BC
-  LD A,E
+  LD A,E             ; A = OCTAVE
   LD E,(HL)
   INC HL
   LD D,(HL)
-PLAY_NOTE_5:
-  DEC A
-  JR Z,L7684_0
+PLYNU3_0:
+  DEC A              ; OCTAVE properly set ?
+  JR Z,DOSND         ; ok, go for sound
   SRL D
   RR E
-  JR PLAY_NOTE_5
+  JR PLYNU3_0        ; OCTAVE shifting
 
 ; Routine at 30340
-L7684:
-  CALL FC_ERR  ;???
+SNDFCE:
+  CALL FC_ERR        ; Complain
   
 ; This entry point is used by the routine at PLAY_NOTE.
-L7684_0:
+DOSND:
   ADC A,E
   LD E,A
   ADC A,D
@@ -24813,21 +25053,22 @@ L7684_0:
   CALL GETVC2
   LD C,(HL)
   PUSH HL
-  CALL MCL_ITEM
-  JR Z,L7684_2
-  CALL L5719_1
+  CALL FETCHR
+  JR Z,PLYNU4        ;Brif end of string
+  CALL VALSC2        ;See if possible number
+
 ; This entry point is used by the routine at REST.
-L7684_1:
-  LD A,$40
+DOSND_0:
+  LD A,64            ;If was .gt. 64
   CP E
-  JR C,L7684
+  JR C,SNDFCE        ; then error
   XOR A
   OR D
-  JR NZ,L7684
-  OR E
-  JR Z,L7684_2
+  JR NZ,SNDFCE
+  OR E               ;Any Length?
+  JR Z,PLYNU4        ;Brif not, just do note
   LD C,E
-L7684_2:
+PLYNU4:
   POP HL
   LD D,$00
   LD B,D
@@ -24838,34 +25079,34 @@ L7684_2:
   EX DE,HL
   CALL HL_CSNG
   CALL VMOVAF
-  LD HL,SP_FPCONST		; Single precision float const
+  LD HL,FP_SNDCONST		; Single precision float const: 12000, (calibrate to 1 second units)
   CALL MOVFM
-  CALL DDIV		; /
+  CALL DDIV
   CALL __CINT
   LD D,H
   LD E,L
-L7684_3:
-  CALL MCL_ITEM
-  JR Z,L7684_5
-  CP '.'			; $2E
-  JR NZ,L7684_4
-  SRL D
-  RR E
+PLYDOT:
+  CALL FETCHR
+  JR Z,PLYDOX          ;Brif EOS
+  CP '.'               ;Note duration extender?
+  JR NZ,PLYDO2         ;Brif not
+  SRL D                ;Duration = Duration * 1.5
+  RR E                 ;Ovf/2
   ADC HL,DE
   LD A,$E0
-  AND H
-  JR Z,L7684_3
+  AND H                ;Still too big?
+  JR Z,PLYDOT          ;Itterate if not
   XOR H
   LD H,A
-  JR L7684_5
-L7684_4:
-  CALL MCL_PREV_ITEM
-L7684_5:
+  JR PLYDOX
+PLYDO2:
+  CALL DECFET          ;Put char back	
+PLYDOX:
   LD DE,$0005
   RST DCOMPR		; Compare HL with DE.
-  JR C,L7684_6
+  JR C,DOSND_1
   EX DE,HL
-L7684_6:
+DOSND_1:
   LD BC,$FFF7		; -9
   POP HL
   PUSH HL
@@ -24890,7 +25131,7 @@ L7684_6:
   EX (SP),HL
   LD A,E
   AND $40
-  JR Z,L7715+1
+  JR Z,DOSND_2
   INC HL
   LD E,(HL)
   INC HL
@@ -24902,19 +25143,21 @@ L7684_6:
   INC HL
   INC C
   INC C
-L7715:
-	; L7715+1: POP HL
-  CP $E1
+
+  DEFB $FE                  ; 'CP $E1'  masking 'POP HL'
+  
+DOSND_2:
+  POP HL
   POP DE
   LD A,D
   OR E
-  JR Z,L7684_7
+  JR Z,DOSND_3
   LD (HL),D
   INC HL
   LD (HL),E
   INC C
   INC C
-L7684_7:
+DOSND_3:
   LD L,$07
   CALL GETVC2
   LD (HL),C
@@ -24929,7 +25172,7 @@ L7684_7:
   DEC HL
   LD A,D
   OR E
-  JR NZ,L7684_8
+  JR NZ,DOSND_4
   PUSH HL
   LD A,(SAVVOL)
   OR $80
@@ -24937,22 +25180,22 @@ L7684_7:
   ADD HL,BC
   LD (HL),A
   POP HL
-L7684_8:
+DOSND_4:
   POP DE
   LD B,(HL)
   INC HL
-L7684_9:
+DOSND_5:
   LD E,(HL)
   INC HL
-  CALL L7507_0
-  DJNZ L7684_9
+  CALL DOSND_SUB_0
+  DJNZ DOSND_5
   CALL L7521
   JP C,L748E
-  JP L5683_2
+  JP MCLSCN
 
-; Pointed by routine at L7684
-; numeric float const  (10?)
-SP_FPCONST:
+; Pointed by routine at DOSND
+; numeric float const
+FP_SNDCONST:
   DEFB $00
   DEFB $00
   DEFB $45
@@ -25668,7 +25911,7 @@ PUT_SPRITE:
   DEFB ','
   CP ','
   JR Z,PUT_SPRITE_1
-  CALL COORD_PARMS
+  CALL SCAN1
   EX (SP),HL
   LD A,E
   CALL WRTVRM
