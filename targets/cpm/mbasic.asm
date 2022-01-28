@@ -18399,17 +18399,17 @@ DCOMPR:
 SYNCHR:
   LD A,(HL)
   EX (SP),HL
-  CP (HL)
+  CP (HL)           ;CMPC-IS CHAR THE RIGHT ONE?
 IF ORIGINAL
   JP NZ,SYNCHR_0
 ELSE
-  JP NZ,SN_ERR
+  JP NZ,SN_ERR      ;GIVE ERROR IF CHARS DONT MATCH
 ENDIF
   INC HL
   EX (SP),HL
   INC HL            ;LOOK AT NEXT CHAR
-  LD A,(HL)         ;GET IT
-  CP ':'            ;IS IT END OF STATMENT OR BIGGER
+  LD A,(HL)         ; Get next code string byte       ;SEE CHRGET RST FOR EXPLANATION
+  CP ':'            ; Z if ":"                        ;IS IT END OF STATMENT OR BIGGER
   RET NC
   JP CHRGTB_1       ;REST OF CHRGET
 
@@ -20167,83 +20167,103 @@ ENDIF
 
 
 ;---------------------
+
 __PSET:
-        LD A,(FORCLR)                ; Get default color (PSET=foreground)
+        LD A,(FORCLR)             ; Get default color (PSET=foreground)
 ; This entry point is used by the routine at __PRESET.
 __PSET_0:
-        PUSH AF                      ; Save default color
-        CALL COORD_PARMS_DST         ; Get coordinates in BC, DE
-        POP AF                       ; Restore default color
-        CALL PAINT_PARMS_0           ; Get color, if specified
-        PUSH    HL                   ; Save code string address
+        PUSH AF                   ; Save default color               ;SAVE DEFAULT ATTRIBUTE
+        CALL SCAND                ; Get coordinates in BC, DE        ;SCAN A SINGLE COORDINATE
+        POP AF                    ; Restore default color            ;GET BACK DEFAULT ATTRIBUTE
+        CALL ATRENT               ; Get color, if specified          ;SCAN POSSIBLE ATTRIBUTE
+        PUSH    HL                ; Save code string address         ;SAVE TEXT POINTER
 
 IF ZXPLUS3
 ;
 ELSE
-        CALL SCALXY
-        JR NC,__PSET_1
+        CALL SCALXY               ;SCALE INTO BOUNDS
+        JR NC,__PSET_1            ;NO PSET IF NOT IN BOUNDS
 ENDIF
 
-        CALL MAPXY                   ; Find position in VRAM. CLOC=memory address, CMASK=color pixelmask
-        CALL SETC
+        CALL MAPXY                ;MAP INTO A "C"           ; Find position in VRAM. CLOC=memory address, CMASK=color pixelmask
+        CALL SETC                 ;ACTUALLY DO THE SET
 
 __PSET_1:
-        POP     HL                   ; Restore code string address
+        POP     HL                ; Restore code string address
         RET
 
 
+
+
+
 ;---------------------
+
+;
+; ALLOW A COORDINATE OF THE FORM (X,Y) OR STEP(X,Y)
+; THE LATTER IS RELATIVE TO THE GRAPHICS AC.
+; THE GRAPHICS AC IS UPDATED WITH THE NEW VALUE
+; RESULT IS RETURNED WITH [B,C]=X AND [D,E]=Y
+; CALL SCAN1 TO GET FIRST IN A SET OF TWO PAIRS SINCE IT ALLOWS
+; A NULL ARGUMENT TO IMPLY THE CURRENT AC VALUE AND
+; IT WILL SKIP A "@" IF ONE IS PRESENT
+;
+
 ; Used by the routines at LINE, (__PAINT, __CIRCLE and PUT_SPRITE).
-COORD_PARMS:
-  LD A,(HL)
-  CP $40		; ?
-  CALL Z,CHRGTB  ; Gets next character (or token) from BASIC text.
-  LD BC,$0000
+SCAN1:
+  LD A,(HL)        ;GET THE CURRENT CHARACTER
+  CP '@'           ;ALLOW MEANINGLESS "@"
+  CALL Z,CHRGTB    ;BY SKIPPING OVER IT
+  LD BC,$0000      ;ASSUME NO COODINATES AT ALL (-SECOND)
   LD D,B
   LD E,C
-  CP TK_MINUS		; Token for '-'
-  JR Z,COORD_PARMS_1
+  CP TK_MINUS      ; "-", SEE IF ITS SAME AS PREVIOUS
+  JR Z,SCANN       ;USE GRAPHICS ACCUMULATOR
+
+;
+; THE STANDARD ENTRY POINT
+;
 
 ; This entry point is used by the routines at __PSET, __PRESET and FN_POINT.
-COORD_PARMS_DST:
-  LD A,(HL)
-  CP TK_STEP		; If STEP is used, coordinates are interpreted relative to the current cursor position.
-					; In this case the values can also be negative.
-  PUSH AF
-  CALL Z,CHRGTB     ; Gets next character (or token) from BASIC text.
-  CALL SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB '('
-  CALL FPSINT_0
-  PUSH DE
-  CALL SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB ','
-  CALL FPSINT_0
-  CALL SYNCHR 		;   Check syntax: next byte holds the byte to be found
+SCAND:
+  LD A,(HL)         ;GET THE CURRENT CHARACTER
+  ;CP TK_MINUS       ; '-'
+  CP TK_STEP		;IS IT RELATIVE?    ; If STEP is used, coordinates are interpreted relative to the current cursor position.
+					                    ; In this case the values can also be negative.
+  PUSH AF           ;REMEMBER
+  CALL Z,CHRGTB     ;SKIP OVER $STEP TOKEN
+  CALL SYNCHR
+  DEFB '('          ;SKIP OVER OPEN PAREN
+  CALL FPSINT_0     ;SCAN X INTO [D,E]
+  PUSH DE           ;SAVE WHILE SCANNING Y
+  CALL SYNCHR
+  DEFB ','          ;SCAN COMMA
+  CALL FPSINT_0     ;GET Y INTO [D,E]
+  CALL SYNCHR
   DEFB ')'
-  POP BC
-  POP AF
+  POP BC            ;GET BACK X INTO [B,C]
+  POP AF            ;RECALL IF RELATIVE OR NOT
 
-COORD_PARMS_1:
-  PUSH HL            		; code string address
-  LD HL,(GRPACX)
-  JR Z,RELATIVE_XPOS		; JP if 'STEP' is specified
-  LD HL,$0000
-RELATIVE_XPOS:
-  ADD HL,BC
-  LD (GRPACX),HL
-  LD (GXPOS),HL
-  LD B,H
+SCANN:
+  PUSH HL           ;SAVE TEXT POINTER
+  LD HL,(GRPACX)    ;GET OLD POSITION
+  JR Z,SCXREL       ;IF ZERO,RELATIVE SO USE OLD BASE           ; JP if 'STEP' is specified
+  LD HL,$0000       ;IN ABSOLUTE CASE, JUST Y USE ARGEUMENT
+SCXREL:
+  ADD HL,BC         ;ADD NEW VALUE
+  LD (GRPACX),HL    ;UPDATE GRAPHICS ACCUMLATOR
+  LD (GXPOS),HL     ;STORE SECOND COORDINTE FOR CALLER
+  LD B,H            ;RETURN X IN BC
   LD C,L
-
-  LD HL,(GRPACY)
-  JR Z,RELATIVE_YPOS		; JP if 'STEP' is specified
-  LD HL,$0000
-RELATIVE_YPOS:
+  LD HL,(GRPACY)    ;GET OLDY POSITION
+  JR Z,SCYRE        ;IF ZERO, RELATIVE SO USE OLD BASE          ; JP if 'STEP' is specified
+  LD HL,$0000       ;ABSOLUTE SO OFFSET BY 0
+SCYRE:
   ADD HL,DE
-  LD (GRPACY),HL
-  LD (GYPOS),HL
-  EX DE,HL
-  POP HL            		; code string address
+  LD (GRPACY),HL    ;UPDATE Y PART OF ACCUMULATOR
+  LD (GYPOS),HL     ;STORE Y FOR CALLER
+  EX DE,HL          ;RETURN Y IN [D,E]
+  POP HL            ;GET BACK THE TEXT POINTER                  ; code string address
+
   
 IF ZXPLUS3
   xor a
@@ -20865,7 +20885,7 @@ FN_POINT:
         PUSH DE
 
 
-        CALL COORD_PARMS_DST
+        CALL SCAND
 
 ;  CALL SCALXY
 ;  LD HL,$FFFF
@@ -20953,22 +20973,29 @@ ENDIF
 
 ;=====================================================================
 
-PAINT_PARMS:
+;
+; ATTRIBUTE SCAN
+; LOOK AT THE CURRENT POSITION AND IF THERE IS AN ARGUMENT READ IT AS
+; THE 8-BIT ATTRIBUTE VALUE TO SEND TO SETATR. IF STATEMENT HAS ENDED
+; OR THERE IS A NULL ARGUMENT, SEND FORCLR  TO SETATR
+;
+
+ATRSCN:
   LD A,(FORCLR)
-PAINT_PARMS_0:
+ATRENT:
   PUSH BC
   PUSH DE
   LD E,A
   ;CALL IN_GFX_MODE            ; "Illegal function call" if not in graphics mode
   DEC HL
   CALL CHRGTB		; Gets next character (or token) from BASIC text.
-  JR Z,PAINT_PARMS_1
+  JR Z,ATRFIN
   CALL SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
   CP ','
-  JR Z,PAINT_PARMS_1
+  JR Z,ATRFIN
   CALL GETINT             ; Get integer 0-255
-PAINT_PARMS_1:
+ATRFIN:
   LD A,E
   PUSH HL
   CALL SETATR           ; Set attribute byte
@@ -20981,14 +21008,21 @@ PAINT_PARMS_1:
 ;=====================================================================
 
 
+
+; XCHGX EXCHANGES [B,C] WITH GXPOS
+; XCHGY EXCHANGES [D,E] WITH GYPOS
+; XCHGAC PERFORMS BOTH OF THE ABOVE
+
+; NONE OF THE OTHER REGISTERS IS AFFECTED
+
 ; Routine at 22680
 ;
-; Used by the routines at LINE and DRAW_LINE.
-SWAP_GXGY:
-  CALL SWAP_GY
+; Used by the routines at LINE and DOGRPH.
+XCHGAC:
+  CALL XCHGY
 
 ; This entry point is used by the routine at LINE.
-SWAP_GX:
+XCHGX:
   PUSH HL
   PUSH BC
   LD HL,(GXPOS)
@@ -20998,21 +21032,28 @@ SWAP_GX:
   POP HL
   RET
 
-; Used by the routines at LINE and DRAW_LINE.
-GX_DELTA:
-  LD HL,(GXPOS)
+
+;
+; XDELT SETS [H,L]=ABS(GXPOS-[B,C]) AND SETS CARRY IF [B,C].GT.GXPOS
+; ALL REGISTERS EXCEPT [H,L] AND [A,PSW] ARE PRESERVED
+; NOTE: [H,L] WILL BE A DELTA BETWEEN GXPOS AND [B,C] - ADD 1 FOR AN X "COUNT"
+;
+
+; Used by the routines at LINE and DOGRPH.
+XDELT:
+  LD HL,(GXPOS)      ;GET ACCUMULATOR POSITION
   LD A,L
-  SUB C
-  LD L,A
+  SUB C 
+  LD L,A             ;DO SUBTRACT INTO [H,L]
   LD A,H
   SBC A,B
   LD H,A
 
-; This entry point is used by the routine at GY_DELTA.
-GX_DELTA_0:
-  RET NC
+; This entry point is used by the routine at YDELT.
+XDELT_0:
+  RET NC             ;IF NO CARRY, NO NEED TO NEGATE COUNT
 
-INVSGN_HL:
+NEGHL:
   XOR A
   SUB L		; Negate exponent
   LD L,A	; Re-save exponent
@@ -21023,7 +21064,12 @@ INVSGN_HL:
   RET
 
 
-GY_DELTA:
+;
+; YDELT SETS [H,L]=ABS(GYPOS-[D,E]) AND SETS CARRY IF [D,E].GT.GYPOS
+; ALL REGISTERS EXCEPT [H,L] AND [A,PSW] ARE PRESERVED
+;
+
+YDELT:
   LD HL,(GYPOS)
   ; HL=HL-DE
   LD A,L
@@ -21032,9 +21078,12 @@ GY_DELTA:
   LD A,H
   SBC A,D
   LD H,A
-  JR GX_DELTA_0
+  JR XDELT_0
 
-SWAP_GY:
+
+; XCHGY EXCHANGES [D,E] WITH GYPOS
+
+XCHGY:
   PUSH HL
   LD HL,(GYPOS)
   EX DE,HL
@@ -21043,19 +21092,41 @@ SWAP_GY:
   RET
 
 
+
 ;=====================================================================
 
+;
+; LINE [(X1,Y1)]-(X2,Y2) [,ATTRIBUTE[,B[F]]]
+; DRAW A LINE FROM (X1,Y1) TO (X2,Y2) EITHER
+; 1. STANDARD FORM -- JUST A LINE CONNECTING THE 2 POINTS
+; 2. ,B=BOXLINE -- RECTANGLE TREATING (X1,Y1) AND (X2,Y2) AS OPPOSITE CORNERS
+; 3. ,BF= BOXFILL --  FILLED RECTANGLE WITH (X1,Y1) AND (X2,Y2) AS OPPOSITE CORNERS
+;
+
 LINE:
-  CALL COORD_PARMS
-  PUSH BC
+
+
+;  CP TK_MINUS       ; '-'
+;  EX DE,HL
+;  LD HL,(GR_X)
+;  EX DE,HL
+;  CALL NZ,SCAN1
+;  PUSH BC
+;  PUSH DE
+;  RST SYNCHR
+;  DEFB TK_MINUS     ; '-'
+
+
+  CALL SCAN1        ;SCAN THE FIRST COORDINATE
+  PUSH BC           ;SAVE THE POINT
   PUSH DE
   CALL SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB TK_MINUS		; Token for '-'
-  CALL COORD_PARMS_DST
-  CALL PAINT_PARMS  ;  Deals also with default color
-  POP DE
-  POP BC
-  JR Z,DOTLINE
+  DEFB TK_MINUS		;MAKE SURE ITS PROPERLY SEPERATED   ; Token for '-'
+  CALL SCAND        ;SCAN THE SECOND SET                ; Get coordinates in BC, DE
+  CALL ATRSCN       ;SCAN THE ATTRIBUTE                 ;  Deals also with default color
+  POP DE            ;GET BACK THE FIRST POINT
+  POP BC            
+  JR Z,DOLINE       ;IF STATEMENT ENDED ITS A NORMAL LINE
   
   CALL SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
@@ -21067,52 +21138,50 @@ LINE:
   DEFB 'F'			; 'BOX FILLED'
 
 DOBOXF:
-  PUSH HL            		; code string address
-  ;CALL SCALXY
-  CALL SWAP_GXGY
-  ;CALL SCALXY
-  CALL GY_DELTA
-  CALL C,SWAP_GY
-  INC HL
-  PUSH HL
-  CALL GX_DELTA
-  CALL C,SWAP_GX
-  INC HL
-  PUSH HL
-  CALL MAPXY
-  POP DE
-  POP BC
-LINE_0:
-  PUSH DE
-  PUSH BC
-
-  CALL FETCHC			; Save cursor
-  PUSH AF
-  PUSH HL
+  PUSH HL             ;SAVE THE TEXT POINTER
+  ;CALL SCALXY        ;SCALE FIRST POINT
+  CALL XCHGAC         ;SWITCH POINTS
+  ;CALL SCALXY        ;SCALE SECOND POINT
+  CALL YDELT          ;SEE HOW MANY LINES AND SET CARRY
+  CALL C,XCHGY        ;MAKE [D,E] THE SMALLEST Y
+  INC HL              ;MAKE [H,L] INTO A COUNT
+  PUSH HL             ;SAVE COUNT OF LINES
+  CALL XDELT          ;GET WIDTH AND SMALLEST X
+  CALL C,XCHGX        ;MAKE [B,C] THE SMALLEST X
+  INC HL              ;MAKE [H,L] INTO A WIDTH COUNT
+  PUSH HL             ;SAVE WIDTH COUNT
+  CALL MAPXY          ;MAP INTO A "C"         (Set addresses for initial dot position)
+  POP DE              ;GET WIDTH COUNT
+  POP BC              ;GET LINE COUNT
+BOXLOP:
+  PUSH DE             ;SAVE WIDTH
+  PUSH BC             ;SAVE NUMBER OF LINES
+  CALL FETCHC         ;LOOK AT CURRENT C                  ; Save cursor
+  PUSH AF             ;SAVE BIT MASK OF CURRENT "C"
+  PUSH HL             ;SAVE ADDRESS
+  
 IF ZXPLUS3
   ld hl,(ALOC)		; 'pixeladdress' result for attributes, saved by MAPXY
   push hl
 ENDIF
-  EX DE,HL
-
-  CALL NSETCX           ; Set horizontal screenpixels
+  EX DE,HL            ;SET UP FOR NSETCX WITH COUNT
+  CALL NSETCX         ;IN [H,L] OF POINTS TO SETC         ; Set horizontal screenpixels
 
 IF ZXPLUS3
   pop hl
   ld (ALOC),hl		; 'pixeladdress' result for attributes, saved by MAPXY
 ENDIF
-  POP HL
-  POP AF
-  CALL STOREC			; Restore cursor
-
-  CALL DOWNC
-  POP BC
-  POP DE
-  DEC BC
-  LD A,B
+  POP HL              ;GET BACK STARTING C
+  POP AF              ;ADDRESS AND BIT MASK
+  CALL STOREC         ;SET UP AS CURRENT "C"              ; Restore cursor
+  CALL DOWNC          ;MOVE TO NEXT LINE DOWN IN Y
+  POP BC              ;GET BACK NUMBER OF LINES
+  POP DE              ;GET BACK WIDTH
+  DEC BC              ;COUNT DOWN LINES
+  LD A,B              ;SEE IF ANY LEFT
   OR C
-  JR NZ,LINE_0
-  POP HL            		; code string address
+  JR NZ,BOXLOP        ;KEEP DRAWING MORE LINES
+  POP HL              ;RESTORE TEXT POINTER
   RET
 
 
@@ -21127,75 +21196,79 @@ STOREC:
   RET
 
   
-DOTLINE:
-  PUSH BC
+DOLINE:
+  PUSH BC                   ;SAVE COORDINATES
   PUSH DE
-  PUSH HL
-  CALL DRAW_LINE
-  LD HL,(GRPACX)
+  PUSH HL                   ;SAVE TEXT POINTER
+  CALL DOGRPH
+  LD HL,(GRPACX)            ;RESTORE ORIGINAL SECOND COORDINATE
   LD (GXPOS),HL
-  LD HL,(GRPACY)
+  LD HL,(GRPACY)            ;FOR BOXLIN CODE
   LD (GYPOS),HL
-  POP HL
+  POP HL                    ;RESTORE TEXT POINTER
   POP DE
   POP BC
   RET
   
 BOXLIN:
-  PUSH HL            		; code string address
+  PUSH HL            		;SAVE TEXT POINTER
   LD HL,(GYPOS)
-  PUSH HL
-  PUSH DE
-  EX DE,HL
-  CALL DOTLINE
-  POP HL
+  PUSH HL                   ;SAVE Y2
+  PUSH DE                   ;SAVE Y1
+  EX DE,HL                  ;MOVE Y2 TO Y1
+  CALL DOLINE               ;DO TOP LINE
+  POP HL                    ;MOVE Y1 TO Y2
   LD (GYPOS),HL
   EX DE,HL
-  CALL DOTLINE
-  POP HL
-  LD (GYPOS),HL
-  LD HL,(GXPOS)
-  PUSH BC
-  LD B,H
+  CALL DOLINE
+  POP HL                    ;GET BACK Y2
+  LD (GYPOS),HL             ;AND RESTORE
+  LD HL,(GXPOS)             ;GET X2
+  PUSH BC                   ;SAVE X1
+  LD B,H                    ;SET X1=X2
   LD C,L
-  CALL DOTLINE
+  CALL DOLINE
   POP HL
-  LD (GXPOS),HL
-  LD B,H
+  LD (GXPOS),HL             ;SET X2=X1
+  LD B,H                    ;RESTORE X1 TO [B,C]
   LD C,L
-  CALL DOTLINE
-  POP HL            		; code string address
+  CALL DOLINE
+  POP HL                    ;RESTORE THE TEXT POINTER
   RET
 
-; Routine at 22844
+
 ;
-; Used by the routines at LINE and DRAW_LINE_GRPAC.
-DRAW_LINE:
+; DOGRPH DRAWS A LINE FROM ([B,C],[D,E]) TO (GXPOS,GYPOS)
+;
+
+; Routine at 22844
+; Used by the routines at LINE and DOGRPH_GRPAC.
+DOGRPH:
+  ;CALL SCALXY       ;CHEATY SCALING - JUST TRUNCATE FOR NOW
+  CALL XCHGAC
   ;CALL SCALXY
-  CALL SWAP_GXGY
-  ;CALL SCALXY
-  CALL GY_DELTA
-  CALL C,SWAP_GXGY
-  PUSH DE
-  PUSH HL
-  CALL GX_DELTA
-  EX DE,HL
-  LD HL,RIGHTC
-  JR NC,DRAW_LINE_0
+  CALL YDELT         ;GET COUNT DIFFERENCE IN [H,L]
+  CALL C,XCHGAC      ;IF CURRENT Y IS SMALLER NO EXCHANGE
+  PUSH DE            ;SAVE Y1 COORDINATE
+  PUSH HL            ;SAVE DELTA Y
+  CALL XDELT
+  EX DE,HL           ;PUT DELTA X INTO [D,E]
+  LD HL,RIGHTC       ;ASSUME X WILL GO RIGHT
+  JR NC,LINCN2
   LD HL,LEFTC
-DRAW_LINE_0:
+LINCN2:
   EX (SP),HL
   CALL DCOMPR		; Compare HL with DE.
-  JR NC,DRAW_LINE_1
+  JR NC,DOGRPH_1
   LD (MINDEL+1),HL
   POP HL
   LD (MAXUPD+1),HL	; MAXUPD = JP nn for RIGHTC, LEFTC and DOWNC 
   LD HL,DOWNC
   LD (MINUPD+1),HL	; MINUPD = JP nn for RIGHTC, LEFTC and DOWNC 
   EX DE,HL
-  JR DRAW_LINE_2
+  JR DOGRPH_2
 
-DRAW_LINE_1:
+DOGRPH_1:
   EX (SP),HL
   LD (MINUPD+1),HL	; MINUPD = JP nn for RIGHTC, LEFTC and DOWNC 
   LD HL,DOWNC
@@ -21203,10 +21276,10 @@ DRAW_LINE_1:
   EX DE,HL
   LD (MINDEL+1),HL	; The original ROM version uses a system variable.  We do SMC.
   POP HL
-DRAW_LINE_2:
+DOGRPH_2:
   POP DE
   PUSH HL
-  CALL INVSGN_HL
+  CALL NEGHL
   LD (MAXDEL+1),HL	; The original ROM version uses a system variable.  We do SMC.
   CALL MAPXY		; Initialize CLOC, CMASK, etc..
   POP DE
@@ -21214,10 +21287,10 @@ DRAW_LINE_2:
   CALL DE_DIV2		; DE=DE/2
   POP BC
   INC BC
-  JR DRAW_LINE_SEGMENT
+  JR DOGRPH_SEGMENT
 
 ; Routine at 22931
-DRAW_LINE_3:
+DOGRPH_3:
   POP HL
   LD A,B
   OR C
@@ -21225,8 +21298,8 @@ DRAW_LINE_3:
 MAXUPD:
   CALL 0		; <- SMC, MAXUPD = JP nn for RIGHTC, LEFTC and DOWNC 
 
-; This entry point is used by the routine at DRAW_LINE.
-DRAW_LINE_SEGMENT:
+; This entry point is used by the routine at DOGRPH.
+DOGRPH_SEGMENT:
   CALL SETC
   DEC BC
   PUSH HL
@@ -21237,7 +21310,7 @@ MINDEL:
 MAXDEL:
   LD HL,0		; <- SMC
   ADD HL,DE
-  JR NC,DRAW_LINE_3
+  JR NC,DOGRPH_3
   EX DE,HL
   POP HL
   LD A,B
@@ -21249,7 +21322,7 @@ MINUPD:
 
 ; Routine at 22964
 ;
-; "RR DE" - Used by the routines at DRAW_LINE, __CIRCLE and L5E66.
+; "RR DE" - Used by the routines at DOGRPH, __CIRCLE and L5E66.
 DE_DIV2:
   LD A,D
   OR A
