@@ -1070,15 +1070,16 @@ MENU_MSG:
 ;
 ; Used by the routines at LINKER, __FOR, __DEF, __LET, ON_ERROR, __IF, TAB,
 ; __INPUT, __READ, FDTLP, OPNPAR, VARPTR, NVRFIL, UCASE, DEPINT, __POKE,
-; __POWER, __DATE_S, __DAY_S, OUTS_B_CHARS, LINE_GFX, MAX_FN, __SOUND, MOTOR_ON,
+; __POWER, __DATE_S, __DAY_S, OUTS_B_CHARS, LINE, MAX_FN, __SOUND, MOTOR_ON,
 ; __CALL, __SCREEN, __LCOPY, __NAME, __CSAVE, CSAVEM, __CLOAD, STRING_S,
 ; LFRGNM, INSTR, __CLEAR, INXD, USING, __OPEN, __MERGE, __SAVE, INPUT_S, L4F2E,
 ; TEL_SET_STAT, KBDMAP_LCASE and __MAX.
+
 SYNCHR:
   LD A,(HL)
   EX (SP),HL
-  CP (HL)
-  JP NZ,SN_ERR
+  CP (HL)            ;CMPC-IS CHAR THE RIGHT ONE?
+  JP NZ,SN_ERR       ;GIVE ERROR IF CHARS DONT MATCH
   INC HL
   EX (SP),HL
 
@@ -1087,7 +1088,7 @@ SYNCHR:
 ; Used by the routines at ERRMOR, PROMPT, TOKENIZE, STEP, EXEC, __DEF, DEFCON,
 ; ATOH_2, ON_ERROR, __RESUME, __IF, __PRINT, TAB, __LINE, __READ, FDTLP, EVAL3,
 ; OPRND, ERR, ERL, VARPTR, UCASE, FPSINT, FNDNUM, CONINT, __POWER, POWER_CONT,
-; TIME_S_FN, DATE_S_FN, DAY_S_FN, __MDM, __KEY, LINE_GFX, CSRLIN, MAX_FN,
+; TIME_S_FN, DATE_S_FN, DAY_S_FN, __MDM, __KEY, LINE, CSRLIN, MAX_FN,
 ; _HIMEM, SOUND_ON, MOTOR_OFF, __CALL, __SCREEN, __LCOPY, __KILL, __CSAVE,
 ; SAVEM, CSAVEM, __CLOAD, LOADM_RUNM, CLOADM, LDIR_B, PRPARM, STRING_S, __VAL,
 ; INSTR, _ASCTFP, PUFOUT, __CLEAR, __NEXT, INXD, GETVAR, SCPTLP, USING,
@@ -1176,7 +1177,7 @@ RST65:
 ;
 ; Used by the routines at CHGET, CHSNS, LPT_OUT, CRT_CTL, WAND_CTL, __EOF,
 ; _MAXRAM, __WIDTH, __SCREEN, __KILL, __NAME, SAVEM, LOADM_RUNM, HL_CSNG,
-; __CLEAR, OUTC_SUB, FILIDX, SETFIL, __OPEN, NULOPN, CLOSE1, __MERGE, __SAVE,
+; __CLEAR, OUTC_SUB, FILIDX, SETFIL, __OPEN, NULOPN, CLSFIL, __MERGE, __SAVE,
 ; __CLOSE, RDBYT, INPUT_S, L4F2E, __LOF, __LOC, __LFILES, __DSKO_S, DSKI_S,
 ; GET_DEVICE, TELCOM_RDY, TEL_TERM, TEL_UPLD, TXT_ESC, FONT and KBDMAP_LCASE.
 RST38H:
@@ -1828,7 +1829,7 @@ PRG_END:
   LD E,$13
   JP NZ,ERROR
 BASIC_MAIN_1:
-  JP _ENDPRG
+  JP ENDCON
   JP ERROR
 
 ; 'SN err' entry for Input STMT
@@ -2736,14 +2737,14 @@ STATEMENT:
 ; NEWSTT FALLS INTO CHRGET. THIS FETCHES THE FIRST CHAR AFTER
 ; THE STATEMENT TOKEN AND THE CHRGET'S "RET" DISPATCHES TO STATEMENT
 ;
-__CHRGTB:
-  INC HL                ; Point to next character        ;DUPLICATION OF CHRGET RST FOR SPEED
+__CHRGTB:               ; DUPLICATION OF CHRGET RST FOR SPEED
+  INC HL                ; Point to next character         ;LOOK AT NEXT CHAR
 
 ; Same as RST 10H but with no pre-increment of HL
 ; Gets current character (or token) from BASIC text.
 __CHRCKB:
   LD A,(HL)             ; Get next code string byte      ;SEE CHRGET RST FOR EXPLANATION
-  CP ':'                ; Z if ":"
+  CP ':'                ; Z if ":"                       ;IS IT END OF STATMENT OR BIGGER
   RET NC                ; NC if > "9"
 
 ;
@@ -2891,7 +2892,7 @@ INTIDX_0:
 ; entry for '?FC ERROR'
 ;
 ; Used by the routines at __ERROR, NVRFIL, CONINT, POWER_ON, __IPL, __MDM,
-; OUTS_B_CHARS, LINE_GFX, __SOUND, __LCOPY, KILLASC, __NAME, CSAVEM, __CLOAD,
+; OUTS_B_CHARS, LINE, __SOUND, __LCOPY, KILLASC, __NAME, CSAVEM, __CLOAD,
 ; LOADM_RUNM, CLOADM, PRPARM, __ASC, __MID_S, INSTR, __LOG, __SQR, __CONT,
 ; __CLEAR, BS_ERR, USING, INPUT_S and __MAX.
 FC_ERR:
@@ -3647,7 +3648,7 @@ FINPRT:
 ; Routine at 3141
 __LINE:
   CP TK_INPUT		; Token for INPUT to support the "LINE INPUT" statement
-  JP NZ,LINE_GFX
+  JP NZ,LINE
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   CP '#'            ;SEE IF THERE IS A FILE NUMBER
   JP Z,LINE_INPUT   ;DO DISK INPUT LINE
@@ -4287,6 +4288,7 @@ IDIV:
 
 ; Get next expression value (a.k.a. "EVAL" !)
 ; Used by the routines at EVAL_1 and CONCAT.
+; a.k.a. EVAL (in that case 'EVAL' was called 'FRMEVL')
 OPRND:
   RST CHRGTB			; Gets next character (or token) from BASIC text.
   JP Z,MO_ERR			;TEST FOR MISSING OPERAND - IF NONE, Err $18 - "Missing Operand" Error
@@ -4571,7 +4573,7 @@ DOCMP:
   AND B                   ;ANY BITS MATCH?
   ADD A,$FF               ;MAP 0 TO 0
   SBC A,A                 ;AND ALL OTHERS TO 377
-  CALL INT_RESULT_A       ;CONVERT [A] TO AN INTEGER SIGNED
+  CALL CONIA              ;CONVERT [A] TO AN INTEGER SIGNED
   JP NOT_0                ;RETURN FROM OPERATOR APPLICATION PLACE SO THE TEXT POINTER
                           ;WILL GET SET UP TO WHAT IT WAS WHEN LPOPER RETURNED.
 
@@ -4719,6 +4721,7 @@ __POS:
   LD A,(TTYPOS)        ;GET TELETYPE POSITION, SEE WHERE WE ARE
 
 ; Load the integer in the A register into FAC1.
+; a.k.a. SNGFLT
 ;
 ; Used by the routines at ERR, __LPOS, __INP, __PEEK and __VAL.
 PASSA:
@@ -4794,7 +4797,7 @@ __OUT:
 
 ; Get subscript
 ;
-; Used by the routines at STEP and LINE_GFX.
+; Used by the routines at STEP and LINE.
 FPSINT:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
 
@@ -4834,9 +4837,10 @@ FNDNUM:
 ; Get a number to 'A'
 ;
 ; Used by the routines at ON_ERROR, __ERROR, UCASE, DEPINT, __POKE, POWER_ON,
-; __DATE_S, __MDM, OUTS_B_CHARS, LINE_GFX, __SOUND, __CALL, __SCREEN, INSTR,
+; __DATE_S, __MDM, OUTS_B_CHARS, LINE, __SOUND, __CALL, __SCREEN, INSTR,
 ; FILIDX, __OPEN, __CLOSE, INPUT_S, TEL_SET_STAT, TEL_UPLD, TXT_CTL_Y and __MAX.
-; Get integer 0-255
+
+; a.k.a. GETBYT, get integer in 0-255 range
 GETINT:
   CALL EVAL         ;EVALUATE A FORMULA
 
@@ -5138,6 +5142,7 @@ __POKE:
   RET
 
 ; Get a number to DE (0..65535)
+; a.k.a. FRMQNT
 ;
 ; Used by the routines at __POKE, __SOUND, __CALL, CSAVEM and __CLEAR.
 GETWORD:
@@ -5630,7 +5635,7 @@ ENDIF
 ; LCD Device control block
 LCD_CTL:
   DEFW LCDLPT_OPN
-  DEFW _CLOSE
+  DEFW NOCLSB
   DEFW LCD_OUTPUT
 
 ; LCD and LPT file open routine
@@ -5662,7 +5667,7 @@ LCD_OUTPUT_0:
 ; Used by the routines at OUTC_SUB and BOOT.
 POPALL:
   POP AF
-; This entry point is used by the routines at CHGET, LINE_GFX and CARDET.
+; This entry point is used by the routines at CHGET, LINE and CARDET.
 POPALL_0:
   POP BC
   POP DE
@@ -5673,7 +5678,7 @@ POPALL_0:
 ; CRT device control block
 CRT_CTL:
   DEFW CRT_OPN
-  DEFW _CLOSE
+  DEFW NOCLSB
   DEFW CRT_OUTPUT
 
 ; Routine at 5368
@@ -5795,7 +5800,7 @@ RAM_CLS:
   CALL NZ,RAM_INPUT_2
   CALL GET_RAM_PTR
   LD (HL),$00
-  JP _CLOSE
+  JP NOCLSB
   
 ; This entry point is used by the routine at RAM_INPUT.
 RAM_CLS_0:
@@ -6021,7 +6026,7 @@ CAS_CLS_0:
 CAS_CLS_1:
   XOR A
   LD (CASPRV),A
-  JP _CLOSE
+  JP NOCLSB
 
 ; CAS file output routine
 CAS_OUTPUT:
@@ -6135,7 +6140,7 @@ DEVICE_RET:
 ; $1754: LPT device control block
 LPT_CTL:
   DEFW LCDLPT_OPN
-  DEFW _CLOSE
+  DEFW NOCLSB
   DEFW LPT_OUTPUT
 
 ; LPT file output routine
@@ -6204,7 +6209,7 @@ COM_CLS:
   CALL CLSCOM
   XOR A
   LD (COMPRV),A
-  JP _CLOSE
+  JP NOCLSB
 
 ; COM and MDM file output routine
 COM_OUTPUT:
@@ -6442,7 +6447,7 @@ __EOF:
   CALL __EOF_1
   LD C,A
   SBC A,A
-  CALL INT_RESULT_A
+  CALL CONIA            ;CONVERT [A] TO AN INTEGER SIGNED
   POP HL
   INC HL
   INC HL
@@ -7221,7 +7226,8 @@ __PRESET:
 ; LINE (graphics)
 ;
 ; Used by the routine at __LINE.
-LINE_GFX:
+LINE:
+  ; CP TK_STEP		; If STEP is used, coordinates are interpreted relative to the current cursor position.
   CP TK_MINUS       ; '-'
   EX DE,HL
   LD HL,(GR_X)
@@ -7234,19 +7240,19 @@ LINE_GFX:
   CALL COORD_PARMS
   PUSH DE
   LD DE,PLOT
-  JP Z,LINE_GFX_1
+  JP Z,LINE_1
   PUSH DE
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
   CALL GETINT                 ; Get integer 0-255
   POP DE
   RRCA
-  JP C,LINE_GFX_0
+  JP C,LINE_0
   LD DE,UNPLOT
-LINE_GFX_0:
+LINE_0:
   DEC HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
-LINE_GFX_1:
+LINE_1:
   EX DE,HL
   LD (PIVOTCALL+1),HL
   EX DE,HL
@@ -7256,43 +7262,43 @@ LINE_GFX_1:
   DEFB ','
   RST SYNCHR
   DEFB 'B'
-  JP Z,LINE_GFX_4
+  JP Z,LINE_4
   RST SYNCHR
   DEFB 'F'			; look for 'BF' (Box Filled)
   POP DE
   EX (SP),HL
   LD A,E
   SUB L
-  JP NC,LINE_GFX_2
+  JP NC,LINE_2
   CPL
   INC A
   LD L,E
-LINE_GFX_2:
+LINE_2:
   LD B,A
   INC B
-LINE_GFX_3:
+LINE_3:
   LD E,L
-  CALL LINE_GFX_5
+  CALL LINE_5
   INC L
   DEC B
-  JP NZ,LINE_GFX_3
+  JP NZ,LINE_3
   POP HL
   RET
   
-LINE_GFX_4:
+LINE_4:
   POP DE
   EX (SP),HL
   PUSH DE
   LD E,L
-  CALL LINE_GFX_5
+  CALL LINE_5
   POP DE
   PUSH DE
   LD D,H
-  CALL LINE_GFX_5
+  CALL LINE_5
   POP DE
   PUSH HL
   LD H,D
-  CALL LINE_GFX_5
+  CALL LINE_5
   POP HL
   LD L,E
 
@@ -7300,47 +7306,47 @@ LINE_GFX_4:
   
 ; Routine at 7378
 ;
-; Used by the routine at LINE_GFX.
+; Used by the routine at LINE.
 L1CD2:
   POP DE
   EX (SP),HL
-  CALL LINE_GFX_5
+  CALL LINE_5
   POP HL
   RET
   
-LINE_GFX_5:
+LINE_5:
   PUSH HL
   PUSH DE
   PUSH BC
   LD A,L
   SUB E
-  JP NC,LINE_GFX_6
+  JP NC,LINE_6
   EX DE,HL
   CPL
   INC A
-LINE_GFX_6:
+LINE_6:
   LD B,A
   LD C,$14		; C="INC D"
   LD A,H
   SUB D
-  JP NC,LINE_GFX_7
+  JP NC,LINE_7
   CPL
   INC A
   INC C
-LINE_GFX_7:
+LINE_7:
   CP B
-  JP C,LINE_GFX_8
+  JP C,LINE_8
   LD H,A
   LD L,B
   LD A,$1C		; INC	E
-  JP LINE_GFX_9
+  JP LINE_9
   
-LINE_GFX_8:
+LINE_8:
   LD L,A
   LD H,B
   LD A,C
   LD C,$1C		; INC	E
-LINE_GFX_9:
+LINE_9:
   LD (PIVOTCALL+3),A
 
 L1D02:
@@ -7352,7 +7358,7 @@ L1D02:
   AND A
   RRA
   LD C,A
-LINE_GFX_10:
+LINE_10:
   PUSH HL
   PUSH DE
   PUSH BC
@@ -7364,16 +7370,16 @@ LINE_GFX_10:
   LD A,C
   ADD A,L
   LD C,A
-  JP C,LINE_GFX_11
+  JP C,LINE_11
   CP H
-  JP C,LINE_GFX_12
-LINE_GFX_11:
+  JP C,LINE_12
+LINE_11:
   SUB H
   LD C,A
   CALL PIVOTCALL+3
-LINE_GFX_12:
+LINE_12:
   DEC B
-  JP NZ,LINE_GFX_10
+  JP NZ,LINE_10
   JP POPALL_0
   
 ; This entry point is used by the routines at __PSET and __PRESET.
@@ -7398,12 +7404,12 @@ COORD_PARMS_0:
   EX DE,HL
   LD A,(HL)
   CP ')'
-  JP NZ,LINE_GFX_15
+  JP NZ,LINE_15
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   LD A,$01
   RET
 
-LINE_GFX_15:
+LINE_15:
   PUSH DE
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
@@ -7458,7 +7464,7 @@ CSRLIN:
   DEC A
 ; This entry point is used by the routine at MAXFILES.
 CSRLIN_0:
-  CALL INT_RESULT_A
+  CALL CONIA        ;CONVERT [A] TO AN INTEGER SIGNED
   POP HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   RET
@@ -8033,7 +8039,7 @@ __NAME_0:
 
 ; This entry point is used by the routines at __KILL, SAVEM and LOADM_RUNM.
 __NAME_1:
-  CALL FILE_PARMS
+  CALL NAMSCN
   RET NZ
   LD D,RAM_DEVTYPE		; 'RAM' device
   RET
@@ -9060,7 +9066,7 @@ GETPARM_LOOP:
 
 ; This entry point is used by the routines at __CSAVE and CSAVEM.
 GETPARM_SAVE:
-  CALL FILE_PARMS
+  CALL NAMSCN
   JP NZ,GETPARM_6
 
 GETPARM_DEV:
@@ -12010,7 +12016,7 @@ __SGN:
 ; Get back from function, result in A (signed)
 ;
 ; Used by the routines at __EOF and CSRLIN.
-INT_RESULT_A:         ;ENTRY TO CONVERT A SIGNED NUMBER IN A TO AN INTEGER
+CONIA       :         ;ENTRY TO CONVERT A SIGNED NUMBER IN A TO AN INTEGER
   LD L,A              ;PUT IT IN THE LO POSITION
   RLA                 ;EXTEND THE SIGN TO THE HO     ; Sign bit to carry
   SBC A,A                                            ; Carry to all bits of A
@@ -12106,10 +12112,11 @@ BCDEFP:
   LD B,H
   RET
 
-; Load 4 byte single precision buffer in HL into BCDE
+
+; Load single precision FP value from (HL) into BCDE in reverse byte order
+; a.k.a. LOADFP_CBED
 ;
 ; Used by the routine at __NEXT.
-; a.k.a. LOADFP_CBED
 HLBCDE:
   LD C,(HL)
   INC HL
@@ -12121,24 +12128,31 @@ HLBCDE:
   INC HL
   RET
 
-; Load FP value pointed by HL to BCDE
+
+; Load FP value pointed by HL to BCDE,
+; a.k.a. MOVRM
+;
+;GET NUMBER IN REGISTERS (B,C,D,E) FROM MEMORY [(HL)]
+;ALTERS B,C,D,E,H,L
+;AT EXIT (HL):=(HL)+4
+;
 ;
 ; Used by the routines at TESTR, MOVFM, INEG and __NEXT.
 LOADFP:
-  LD E,(HL)
-  INC HL
+  LD E,(HL)          ; Get LSB of number                 ;GET LO
+  INC HL                                                 ;POINT TO MO
 ; This entry point is used by the routine at PRS1.
 LOADFP_0:
-  LD D,(HL)
-  INC HL
-  LD C,(HL)
-  INC HL
-  LD B,(HL)
+  LD D,(HL)          ; Get NMSB of number                ;GET MO, ENTRY FOR BILL
+  INC HL                                                 ;POINT TO HO
+  LD C,(HL)          ; Get MSB of number                 ;GET HO
+  INC HL                                                 ;POINT TO EXPONENT
+  LD B,(HL)          ; Get exponent of number            ;GET EXPONENT
 ; This entry point is used by the routines at PROMPT, PUFOUT, TEL_TERM and
 ; BOOT.
 INCHL:
-  INC HL
-  RET
+  INC HL             ; Used for conditional "INC HL"     ;INC POINTER TO BEGINNING OF NEXT NUMBER
+  RET                                                    ;ALL DONE
 
 
 	;MOVE NUMBER FROM FAC TO MEMORY [(HL)]
@@ -12398,7 +12412,7 @@ __CINT:
 	;ALTERS A ONLY
 ;
 ;
-; Used by the routines at NVRFIL, PASSA, INT_RESULT_A, __INT, IMULT,
+; Used by the routines at NVRFIL, PASSA, CONIA, __INT, IMULT,
 ; INT_DIV, FIN_DBL, LINPRT and INTEXP.
 MAKINT:
   LD (FACLOW),HL    ;STORE THE NUMBER IN FACLO
@@ -14703,6 +14717,7 @@ ENFMEM:
   ADD HL,SP
   POP HL
   RET C
+
 ; This entry point is used by the routines at RAM_INPUT, MAKTXT, CSAVEM, __CLOAD,
 ; CLOADM, __CLEAR, BS_ERR and __MAX.
 ; Clear registers and warm boot:
@@ -14717,6 +14732,7 @@ OM_ERR:
 
 ; This entry point is used by the routines at PROMPT, __RUN, __LCOPY, __NEW,
 ; __CLOAD, INXD, __MENU and BASIC.
+; a.k.a. RUNC
 RUN_FST:
   LD HL,(BASTXT)
   DEC HL
@@ -15044,7 +15060,7 @@ INPBRK:
   POP BC               ; Return not needed and more
 
 ; This entry point is used by the routine at BASIC_MAIN.
-_ENDPRG:
+ENDCON:
   LD HL,(CURLIN)       ; Get current line number
   PUSH HL              
   PUSH AF              ; Save STOP / END statusct break?
@@ -15287,8 +15303,8 @@ KILFOR:
 ; Used by the routines at PROMPT, __PRINT, TAB, __READ, __LIST, _INLIN, _OUTDO,
 ; CONSOLE_CRLF and INIT_PRINT_h.
 ISFLIO :
-  PUSH HL
-  LD HL,(PTRFIL)
+  PUSH HL             ;Save text pointer
+  LD HL,(PTRFIL)      ;See if 'disk file'
   LD A,H
   OR L
   POP HL
@@ -15439,7 +15455,7 @@ ESCA_0:
 
 ; calls ESC_Y, set cursor position (H,L)
 ;
-; Used by the routines at LINE_GFX, ERAFNK, DSPFNK, __MENU, DOTTED_FNAME,
+; Used by the routines at LINE, ERAFNK, DSPFNK, __MENU, DOTTED_FNAME,
 ; CURS_HOME, SHOW_TIME, TXT_ESC, TXT_CTL_I, TXT_CTL_E, TXT_CTL_T, TXT_CTL_R,
 ; TXT_CTL_C, MCLEAR, MOVE_TEXT, TXT_CTL_Y and TXT_CTL_V.
 ; H=X position, L=Y position
@@ -17790,7 +17806,7 @@ FNAME:
 
 ; This entry point is used by the routines at __NAME, PRPARM, __OPEN, __MERGE
 ; and __SAVE.
-FILE_PARMS:
+NAMSCN:
   CALL EVAL
   PUSH HL
   CALL GETSTR
@@ -17804,7 +17820,7 @@ FILE_PARMS:
   LD L,E			; pointer to string
   LD E,A			; size of string
 FNAME_1:
-  CALL PARSE_DEVNAME		; Parse Device Name, Z flag set if RAM device
+  CALL PAR_DNAME		; Parse Device Name, Z flag set if RAM device
   PUSH AF
   LD BC,FILNAM
   LD D,$09
@@ -17863,7 +17879,7 @@ FNAME_7:
   JP FNAME_3
 
 ; This entry point is used by the routine at DSKI_S.
-GET_FNAME_CHAR:
+SCNBLK:
   LD A,(HL)
   INC HL
   DEC E
@@ -17874,7 +17890,7 @@ GET_FNAME_CHAR:
 ;
 ; AT THIS ENTRY POINT THE FAC HAS THE FILE NUMBER IN IT ALREADY
 ;
-;
+; a.k.a. GETFLP
 ; Routine at 19585 ($4c81)
 FILFRM:
   CALL CONINT          ;GET THE FILE NUMBER INTO [A]
@@ -17886,8 +17902,8 @@ FILFRM:
 ;
 ; Get information for the file number in the A register. Equal to VARPTR(#x).
 ;
-; Used by the routines at VARPTR_BUF, SETFIL, NULOPN and CLOSE1.
-; a.k.a. VARPTR_A
+; Used by the routines at VARPTR_BUF, SETFIL, NULOPN and CLSFIL.
+; a.k.a. VARPTR_A, GETPTR
 FILIDX:
   LD L,A                ;GET FILE NUMBER INTO [L]
   LD A,(MAXFIL)         ;IS THIS FILE # LEGAL?
@@ -17955,7 +17971,7 @@ SETFIL:
 __OPEN:
   LD BC,FINPRT
   PUSH BC
-  CALL FILE_PARMS
+  CALL NAMSCN
   JP NZ,__OPEN_0
   LD D,RAM_DEVTYPE		; D = 'RAM' device ?
   
@@ -18050,7 +18066,7 @@ _OPEN_0:
 ; Routine at 19768
 ;
 ; Used by the routines at __CLOSE, INIT_PRINT_h and L4F2E.
-CLOSE1:
+CLSFIL:
   PUSH HL
   OR A
   JP NZ,NTFL0
@@ -18061,7 +18077,7 @@ CLOSE1:
 ; NTFL0 - "NoT FiLe number 0"
 NTFL0:
   CALL FILIDX
-  JP Z,_CLOSE_0
+  JP Z,NOCLSB_0
   
   LD (PTRFIL),HL			; Redirect I/O
   PUSH HL
@@ -18075,11 +18091,11 @@ NTFL0:
 ; LCD, CRT, and LPT file close routine
 ;
 ; Used by the routines at RAM_CLS, CAS_CLS and COM_CLS.
-_CLOSE:
+NOCLSB:
   CALL INPUT_S_6
   POP HL
-; This entry point is used by the routine at CLOSE1.
-_CLOSE_0:
+; This entry point is used by the routine at CLSFIL.
+NOCLSB_0:
   PUSH HL
   LD DE,$0007
   ADD HL,DE
@@ -18112,7 +18128,7 @@ __MERGE:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   CP 'M'
   JP Z,LOADM_RUNM
-  CALL FILE_PARMS
+  CALL NAMSCN
   JP Z,MERGE_SUB
   LD A,D
   CP RAM_DEVTYPE	; D = 'RAM' device ?
@@ -18174,7 +18190,7 @@ __SAVE:
   CP 'M'
   JP Z,SAVEM
   CALL _CLVAR
-  CALL FILE_PARMS
+  CALL NAMSCN
   JP Z,__LCOPY_6
   LD A,D
   CP RAM_DEVTYPE	; D = 'RAM' device ?
@@ -18255,7 +18271,7 @@ IF M100
   OR A
 ENDIF
 
-  CALL CLOSE1
+  CALL CLSFIL
   POP AF                ;GET BACK OLD ARGUMENT
   DEC A                 ;DECREMENT ARGUMENT
   JP P,__CLOSE_0        ;LOOP ON MORE VALUES
@@ -18271,7 +18287,7 @@ __CLOSE_1:
 IF M100
   SCF
 ENDIF
-  CALL CLOSE1
+  CALL CLSFIL
   POP HL                ;GET BACK THE TEXT POINTER
   LD A,(HL)             ;SEE IF MORE ARGUMENTS
   CP ','                ;DELIMITED BY COMMA
@@ -18312,6 +18328,7 @@ OUTC_FOUT_0:
   JP GET_DEVICE
 
 ; Routine at 20090
+; a.k.a. INDSKC
 ;
 ; Used by the routines at INXD, INPUT_S, L4F2E and TXT_CTL_V.
 RDBYT:
@@ -18415,13 +18432,13 @@ INPUT_S_5:
   JP C,EF_ERR
   JP INPUT_S_3
 
-; This entry point is used by the routine at _CLOSE.
+; This entry point is used by the routine at NOCLSB.
 INPUT_S_6:
   CALL INIT_PRINT_h_0
   PUSH HL
   LD B,$00
   CALL ZERO_MEM
-; This entry point is used by the routine at CLOSE1.
+; This entry point is used by the routine at CLSFIL.
 POPHLRT2:
   POP HL
   RET
@@ -18440,6 +18457,7 @@ INIT_PRINT_h:
   DEC B
   JP NZ,INIT_PRINT_h
   RET
+
 ; This entry point is used by the routine at INPUT_S.
 INIT_PRINT_h_0:
   LD HL,(PTRFIL)
@@ -18457,7 +18475,7 @@ EXEC_FILE:
   CALL ISFLIO        ; Tests if I/O to device is taking place
   JP Z,EXEC
   XOR A
-  CALL CLOSE1
+  CALL CLSFIL
   JP DS_ERR
 
 ; FILINP AND FILGET -- SCAN A FILE NUMBER AND SETUP PTRFIL
@@ -18506,7 +18524,7 @@ CLOSE_STREAM:
   LD BC,STKERR_0
   PUSH BC
   XOR A
-  JP CLOSE1
+  JP CLSFIL
 
 ; This entry point is used by the routine at __READ.
 FILIND:
@@ -18713,7 +18731,7 @@ BN_ERR:
 
 ; IE error: internal error
 ;
-; Used by the routines at NULOPN and CLOSE1.
+; Used by the routines at NULOPN and CLSFIL.
 IE_ERR:
   LD E,$32
   
@@ -18769,7 +18787,7 @@ DSKI_S:
 ; Routine at 20597
 ; Used by the routine at FNAME.
 ; Parse Device Name, Z flag set if RAM device
-PARSE_DEVNAME:
+PAR_DNAME:
   RST $38
   DEFB HC_PARD		; Offset: 40, Hook 1 for "Parse device name" event
 
@@ -18778,12 +18796,12 @@ PARSE_DEVNAME:
   JP C,POSDSK
   PUSH HL
   LD D,E
-  CALL GET_FNAME_CHAR
+  CALL SCNBLK
   JP Z,L5077_1
 L5077_0:
   CP ':'
   JP Z,GET_DEVNAME
-  CALL GET_FNAME_CHAR
+  CALL SCNBLK
   JP P,L5077_0
 L5077_1:
   LD E,D
@@ -18906,7 +18924,7 @@ ENDIF
 
 ; Routine at 20771
 ;
-; Used by the routines at __EOF, NULOPN, CLOSE1 and __CLOSE.
+; Used by the routines at __EOF, NULOPN, CLSFIL and __CLOSE.
 GET_DEVICE:
   RST $38
   DEFB HC_GEND		; Offset: 48
@@ -27067,6 +27085,7 @@ FREEMEM:
   LD HL,(VARTAB)
   EX DE,HL
   LD HL,(STKTOP)
+  ; HL=HL-DE
   LD A,L
   SUB E
   LD L,A
