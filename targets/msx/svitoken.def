@@ -1,5 +1,6 @@
 
 
+
 ;  Token codes are automatically assigned per group type (STATEMENTS, FUNCTIONS, etc..)
 ;  Few exceptions recur in code portions for special cases.
 
@@ -131,17 +132,18 @@ defc TK_PRESET   =  $C3
 defc TK_SOUND    =  $C4
 defc TK_SCREEN   =  $C5
 defc TK_VPOKE    =  $C6
-defc TK_SPRITE   =  $C7	; Token for 'SPRITE'
-defc TK_VDP      =  $C8	; Token for 'VDP'
-defc TK_BASE     =  $C9	; Token for 'BASE'
-defc TK_CALL     =  $CA
-defc TK_TIME     =  $CB	; Token for 'TIME'
-defc TK_KEY      =  $CC	; Token for 'KEY'
-defc TK_MAX      =  $CD
-defc TK_MOTOR    =  $CE
-defc TK_BLOAD    =  $CF
 
-defc TK_BSAVE    =  $D0	; Token for 'BSAVE'
+defc TK_KEY      =  $C7   ; on MSX -> TK_SPRITE
+defc TK_CLICK    =  $C8   ; on MSX -> TK_VDP   
+defc TK_SWITCH   =  $C9   ; on MSX -> TK_BASE  
+defc TK_MAX      =  $CA   ; on MSX -> TK_CALL  
+defc TK_MON      =  $CB   ; on MSX -> TK_TIME  
+defc TK_MOTOR    =  $CC   ; on MSX -> TK_KEY   
+defc TK_BLOAD    =  $CD   ; on MSX -> TK_MAX   
+defc TK_BSAVE    =  $CE   ; on MSX -> TK_MOTOR 
+defc TK_MDM      =  $CF   ; on MSX -> TK_BLOAD 
+defc TK_DIAL     =  $D0   ; on MSX -> TK_BSAVE 
+
 defc TK_DSKO_S   =  $D1
 defc TK_SET      =  $D2
 defc TK_NAME     =  $D3	; Token for 'NAME'
@@ -203,4 +205,5 @@ defc TK_MOD      =  $FD	; Token for 'MOD'
 defc TK_BKSLASH  =  $FE	; Token for '\'
 
 defc LSTOPK      =  TK_BKSLASH+1-TK_PLUS
+
 
