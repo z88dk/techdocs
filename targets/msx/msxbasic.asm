@@ -5,9 +5,6 @@
 ;
 
 
-; TODO:  FIX data space after HL_CSNG_7
-
-
 ; Variant with HOOKs disabled:
 ;
 ; z80asm -DNOHOOK -b msxbasic
@@ -21,8 +18,6 @@
 ; z80asm -DSPECTRUM_SKIN -DNOHOOK -b msxbasic
 ; 
 
-; NON WORKING attempt to adapt this ROM to a 32K Spectravideo SVI:
-; z80asm -DNOHOOK -DPRESERVE_LOCATIONS -DNOCALBAS -DSVI -a msxbasic.asm
 
 defc BEL    =  $07		; Control "G", BEEP via the console output
 defc TAB    =  $09		; TAB
@@ -70,11 +65,7 @@ defc STACK_INIT = MAXRAM-10
   INCLUDE "msxhook.def"
   INCLUDE "msxtoken.def"
   
-IF SVI
-  INCLUDE "svi.def"
-ELSE
   INCLUDE "msx.def"
-ENDIF
 
 
 ORG $0000
@@ -84,12 +75,10 @@ ORG $0000
 ;
 ; Check RAM and sets slot for command area.
 STARTUP:
+
+
   DI
-IF SVI
-  JP _SVISTARTUP
-ELSE
   JP _STARTUP
-ENDIF
 
 ; Used to initialize CHFONT
 FONT:
@@ -98,6 +87,7 @@ FONT:
   ELSE
   DEFW _FONT
   ENDIF
+
 _VDP_RD:
   DEFB VDP_DATAIN
 _VDP_WR:
@@ -1066,59 +1056,6 @@ SELEXP_0:
   RET
 
 
-IF SVI
-SVI_CRTTAB:
-  DEFB $01,$3b,$fe,$01,$3c,$fe,$01,$07,$fa,$01,$3d,$fe,$01,$00,$00,$78
-  
-_SVISTARTUP:
-  LD SP,$F000
-  LD HL,$0000
-SVINITDLY:
-  DEC HL
-  LD A,H
-  OR L
-  JR NZ,SVINITDLY
-  OUT (PSG_ADDR),A		; SVI mode bank switching
-  LD A,$DF
-  OUT (PSG_DATA),A
-  CALL _INITIO
-  ; Let's complete INITIO here, to preserve the mem position of the other function entries
-  LD BC,$1051		; Port $51 (CRT 6845 Controller register R0-R17), count: $10
-  LD HL,SVI_CRTTAB
-SVINITIO:
-  LD A,B
-  DEC A
-  OUT ($50),A		; CRT 6845 Adress latch
-  OUTD				; Writes the value from (HL) to the (C) port, then decrements B and HL.
-  JR NZ,SVINITIO
-
-
-  LD DE,$FFFF
-  LD HL,$FE00
-_STARTUP_10:
-  LD A,(HL)
-  CPL
-  LD (HL),A
-  CP (HL)
-  CPL
-  LD (HL),A
-  JR NZ,_STARTUP_11
-  NOP
-  NOP
-  NOP
-  DEC H
-  LD A,H
-  CP $C0
-  JR NC,_STARTUP_10
-_STARTUP_11:
-
-
-; Line up to $03F6 to preserve the mem position of the other function entries
-SVILINEUP:
-DEFS $03F6-SVILINEUP
-
-
-ELSE
 ; This entry point is used by the routine at STARTUP.
 ; $02D7
 _STARTUP:
@@ -1317,7 +1254,6 @@ _STARTUP_14:
   EX DE,HL
   LD (SLT2),HL
   
-ENDIF
 
 ; $03F6
   IM 1
@@ -4481,13 +4417,12 @@ _STMOTR:
 
 _STMOTR_0:
   JR NZ,_STMOTR_1+1
-  LD A,9
+  LD A,9		; MOTOR OFF
   
 _STMOTR_1:
 	; L183C+1: LD A,8
   defb $C2	; JP NZ,NN (always false), masks the next 2 bytes
-  LD A,8
-
+  LD A,8		; MOTOR ON
   OUT (PPI_MOUT),A
   RET
 
@@ -4724,8 +4659,10 @@ ELSE
 ENDIF
   RET
 
-; Routine at 5266
+
+;PUTQ - append data to back of queue
 ;
+; Routine at 5266
 ; Used by the routine at PUTQ.
 ; Put byte in queue
 _PUTQ:
@@ -5921,6 +5858,7 @@ _TAPOOF_0:
   JR NZ,_TAPOOF_0
   POP AF
   POP BC
+
 ; This entry point is used by the routine at TAPIOF.
 _TAPIOF:
   PUSH AF
@@ -12465,7 +12403,6 @@ LOKFOR:
   EX DE,HL          ; Index back into DE
   RST DCOMPR		; Compare index with one given
   
-; INDFND
 INDFND:
   LD BC,22          ; Offset to next block               ;TO WIPE OUT A "FOR" ENTRY
   POP HL            ; Restore pointer to sign
@@ -12550,7 +12487,7 @@ ENDIF
   LD E,$15              ;"NO RESUME" ERROR (Err $15)
   JR NZ,ERROR			;YES, FORGOT RESUME
 PRG_END_0:
-  JP _ENDPRG            ;NO, LET IT END
+  JP ENDCON             ;NO, LET IT END
 
 ; Routine at 16463
 ;
@@ -13028,7 +12965,7 @@ CZLOO2:
   JR Z,CZLIN            ;END OF LINE, DONE.
   CP ' '                ;EMBEDDED CONSTANT?
   JR NC,CZLOOP          ;NO, GET NEXT
-  CP $0B			    ;IS IT LINEFEED OR BELOW?
+  CP $0A+1              ;IS IT LINEFEED OR BELOW?
   JR C,CZLOOP           ;THEN SKIP PAST
   CALL __CHRCKB		    ;GET CONSTANT
   RST CHRGTB		    ;GET OVER IT
@@ -13932,7 +13869,7 @@ ENDIF
 ; NEWSTT FALLS INTO CHRGET. THIS FETCHES THE FIRST CHAR AFTER
 ; THE STATEMENT TOKEN AND THE CHRGET'S "RET" DISPATCHES TO STATEMENT
 ;
-__CHRGTB:
+__CHRGTB:               ; DUPLICATION OF CHRGET RST FOR SPEED
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -13940,12 +13877,12 @@ IF NOHOOK
 ELSE
   CALL HCNRG		; Hook for CHRGTR std routine
 ENDIF
-  INC HL                ; Point to next character         ;DUPLICATION OF CHRGET RST FOR SPEED
+  INC HL                ; Point to next character         ;LOOK AT NEXT CHAR
   ; --- START PROC __CHRCKB ---
   ; Gets current character (or token) from BASIC text.
 __CHRCKB:
   LD A,(HL)             ; Get next code string byte       ;SEE CHRGET RST FOR EXPLANATION
-  CP ':'                ; Z if ":"
+  CP ':'                ; Z if ":"                        ;IS IT END OF STATMENT OR BIGGER
   RET NC                ; NC if > "9"
 
 ;
@@ -16785,7 +16722,7 @@ PLOOP2:
   OR A                   ;SET CC'S
   LD (BC),A              ;SAVE THIS CHAR
   RET Z                  ;IF END OF SOURCE BUFFER, ALL DONE.
-  CP $0B                 ;(OCTCON) IS IT SMALLER THAN SMALLEST EMBEDDED CONSTANT?   (Not a number constant prefix ?)
+  CP OCTCON              ;IS IT SMALLER THAN SMALLEST EMBEDDED CONSTANT?   (Not a number constant prefix ?)
   JR C,NTEMBL            ;YES, DONT TREAT AS ONE
   CP DBLCON+1            ;IS IT EMBEDED CONSTANT?
   JP C,NUMLIN            ; JP if control code     	;PRINT LEADING SPACE IF NESC.
@@ -16967,7 +16904,7 @@ NUMLIN:
   PUSH BC                 ;SAVE IT
   CP OCTCON               ;OCTAL CONSTANT?
   JP Z,FOUTO              ;PRINT IT
-  CP $0C                  ;(HEXCON) HEX CONSTANT?
+  CP HEXCON               ;HEX CONSTANT?
   JP Z,FOUTH              ;PRINT IN HEX
   LD HL,(CONLO)           ;GET LINE # VALUE IF ONE.
   JP FOUT                 ;PRINT REMAINING POSSIBILITIES.
@@ -16978,9 +16915,9 @@ CONLIN:
   POP DE                   ;RESTORE CHAR COUNT
   LD A,(CONSAV)            ;GET SAVED CONSTANT TOKEN
   LD E,'O'                 ;ASSUME OCTAL CONSTANT
-  CP $0B                   ;(OCTCON) OCTAL CONSTANT?
+  CP OCTCON                ;OCTAL CONSTANT?
   JR Z,SAVBAS              ;YES, PRINT IT
-  CP $0C                   ;(HEXCON) HEX CONSTANT?
+  CP HEXCON                ;HEX CONSTANT?
   LD E,'H'                 ;ASSUME SO.
   JR NZ,NUMSLN             ;NOT BASE CONSTANT
 SAVBAS:
@@ -17374,7 +17311,7 @@ CHGPTR:
   POP HL                  ;GET CURRENT LINE #
   PUSH HL                 ;SAVE BACK
   PUSH BC                 ;SAVE BACK TEXT PTR
-  CALL IN_PRT           ;PRINT IT
+  CALL IN_PRT             ;PRINT IT
 SCNPOP:
   POP HL                  ;POP OFF CURRENT TEXT POINTER
 SCNEX3:
@@ -17422,17 +17359,19 @@ CONCH2:
   POP HL
   RET
 
+
+; SYNCHR - REPLACEMENTS FOR COMPAR & SYNCHK IN RSTLES VERSION
 ; Routine at 21900
 ;
 ; Used by the routine at _SYNCHR.
 __SYNCHR:
   LD A,(HL)
   EX (SP),HL
-  CP (HL)
+  CP (HL)           ;CMPC-IS CHAR THE RIGHT ONE?
   INC HL
   EX (SP),HL
-  JP NZ,SN_ERR
-  JP __CHRGTB  ; Gets next character (or token) from BASIC text.
+  JP NZ,SN_ERR      ;GIVE ERROR IF CHARS DONT MATCH
+  JP __CHRGTB
 
 ; Routine at 21911
 ;
@@ -17612,6 +17551,8 @@ L564A:
 
 
 
+; ________________________________________________________
+
 ;
 ;       MACLNG - MACRO LANGUAGE DRIVER
 ;
@@ -17650,11 +17591,11 @@ MCLOOP:
   JR NZ,MACLNG_0
   LD A,(MCLFLG)
   OR A
-  JP Z,MC_POPTRT
+  JP Z,MC_POPTRT    ;ALL FINISHED IF ZERO
   JP L748E_0
 
 
-MACLNG_0:           ;ALL FINISHED IF ZERO
+MACLNG_0:
   LD (MCLPTR),HL    ;SET UP POINTER
 
 ; This entry point is used by the routines at __PLAY_2 and DOSND.
@@ -17865,6 +17806,8 @@ NEGD:
   LD D,A
   RET
 
+; ________________________________________________________
+;  End of MACRO LANGUAGE block 
 
 
 
@@ -20673,7 +20616,7 @@ INPBRK:
   POP BC                 ; Return not needed and more
 ; This entry point is used by the routine at PRG_END.
 ; $6401
-_ENDPRG:
+ENDCON:
   LD HL,(CURLIN)		 ; Get current line number
   PUSH HL                
   PUSH AF                ; Save STOP / END statusct break?
@@ -20809,7 +20752,7 @@ IS_LETTER:
 ISLETTER_A:
   CP 'A'             ; < "A" ?
   RET C              ; Carry set if not letter
-  CP $5B             ; > "Z" ?
+  CP 'Z'+1           ; > "Z" ?
   CCF                
   RET                ; Carry set if not letter
 
@@ -22199,7 +22142,7 @@ FILE_PARMS:
   LD L,E			; pointer to string
   LD E,A			; size of string
   
-  CALL L6F15		; Parse Device Name
+  CALL PAR_DNAME		; Parse Device Name
   PUSH AF
   LD BC,FILNAM
   LD D,11
@@ -22790,7 +22733,6 @@ INDSKB:
   ; Read byte, C flag is set if EOF
 RDBYT:
   PUSH HL
-L6C72:
   PUSH DE
   PUSH BC
   CALL INDSKB               ; GET A CHARACTER FROM A SEQUENTIAL FILE IN [PTRFIL]
@@ -23016,7 +22958,7 @@ EXEC_FILE:
   JP Z,EXEC
   XOR A
   CALL CLOSE
-  JP L6E71		; Err $39 - Direct statement in a file
+  JP DS_ERR		; Err $39 - Direct statement in a file
 
 ; FILINP AND FILGET -- SCAN A FILE NUMBER AND SETUP PTRFIL
 
@@ -23250,7 +23192,7 @@ AO_ERR:
   LD E,$36 ; - File already open
   
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
-L6E71:
+DS_ERR:
   LD E,$39 ; - Direct statement in a file
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
@@ -23262,7 +23204,7 @@ CF_ERR:
   LD E,$3B ; - File not OPEN
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
-L6E7A:
+FIELD_OV_ERR:
   LD E,$32 ; - FIELD overflow
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
@@ -23388,10 +23330,10 @@ BSAVE_PARM:
   RET
 
 ; Data block at 28437
-; --- START PROC L6F15 ---
+; --- START PROC PAR_DNAME ---
 ;
 ; Parse Device Name
-L6F15:
+PAR_DNAME:
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -23580,12 +23522,12 @@ DO_BSAVE:
   CALL START_TAP_OUT		; start tape for writing
   POP HL
   PUSH HL
-  CALL L7003			; send word to tape
+  CALL BSAVE_HL			; send word to tape
   LD HL,(SAVEND)
   PUSH HL
-  CALL L7003			; send word to tape
+  CALL BSAVE_HL			; send word to tape
   LD HL,(SAVENT)
-  CALL L7003			; send word to tape
+  CALL BSAVE_HL			; send word to tape
   POP DE
   POP HL
 DO_BSAVE_0:
@@ -23604,7 +23546,7 @@ DO_BSAVE_1:
 ;
 ; Used by the routine at DO_BSAVE.
 ; send word to tape
-L7003:
+BSAVE_HL:
   LD A,L
   CALL TAPOUT_SUB		; send byte to tape
   LD A,H
@@ -23628,7 +23570,7 @@ BLOAD_HL:
 TAPE_LOAD:
   LD C,TK_BSAVE
   CALL L70B8
-  CALL START_TAP_IN                   ; start tape for reading
+  CALL _CSRDON                    ; start tape for reading
   POP BC
   CALL BLOAD_HL                   ; get word from tape
   ADD HL,BC
@@ -23647,6 +23589,7 @@ TAPE_LOAD_0:
   JR Z,TAPE_LOAD_1
   INC HL
   JR TAPE_LOAD_0
+
 TAPE_LOAD_1:
   CALL TAPIOF
   JP TAPE_LOAD_END
@@ -23740,7 +23683,7 @@ L70B6:
 ;
 ; Used by the routines at TAPE_LOAD, __CLOAD and L71D9.
 L70B8:
-  CALL START_TAP_IN                   ; start tape for reading
+  CALL _CSRDON                   ; start tape for reading
   LD B,$0A
 
 L70B8_0:
@@ -23861,7 +23804,7 @@ __CSAVE_1_1:
 ;
 ; Used by the routine at __CLOAD.
 L715D:
-  CALL START_TAP_IN                   ; start tape for reading
+  CALL _CSRDON                   ; start tape for reading
   SBC A,A
   CPL
   LD D,A
@@ -24045,7 +23988,7 @@ CAS_INPUT:
   CALL INIT_INPUT
   JR NZ,CAS_INPUT_1
   PUSH HL
-  CALL START_TAP_IN                   ; start tape for reading
+  CALL _CSRDON                   ; start tape for reading
   POP HL
   LD B,$00
 CAS_INPUT_0:
@@ -24194,7 +24137,7 @@ BLOAD_A:
 
 ; Routine at 29406
 ;
-; Used by the routines at DO_BSAVE, L7003, SEND_CAS_FNAME, __CSAVE_1 and CAS_OUTPUT.
+; Used by the routines at DO_BSAVE, BSAVE_HL, SEND_CAS_FNAME, __CSAVE_1 and CAS_OUTPUT.
 ; send byte to tape
 TAPOUT_SUB:
   PUSH HL
@@ -24208,8 +24151,8 @@ TAPOUT_SUB:
 ; Routine at 29417
 ;
 ; Used by the routines at TAPE_LOAD, L70B8, L715D and CAS_INPUT.
-; start tape for reading
-START_TAP_IN:
+; start tape for reading  (Cassette motor on and wait for Sync and Header)
+_CSRDON:
   PUSH HL
   PUSH DE
   PUSH BC
@@ -24231,7 +24174,7 @@ START_TAP_OUT:
   PUSH BC
   PUSH AF
   CALL TAPOON
-; This entry point is used by the routines at L6C50, TAPOUT_SUB and START_TAP_IN.
+; This entry point is used by the routines at L6C50, TAPOUT_SUB and _CSRDON.
 FILEFN_EXIT:
   POP AF
 ; This entry point is used by the routines at L6C78 and BLOAD_A.
@@ -24396,7 +24339,7 @@ EOF_REACHED:
 
 ; Routine at 29618
 ;
-; Used by the routines at START_TAP_IN and LPTCHR.
+; Used by the routines at _CSRDON and LPTCHR.
 IO_ERR:
   LD E,$13				; Err $13 - "Device I/O error"
   JP ERROR
@@ -24661,6 +24604,7 @@ L748E_4:
 L748E_5:
   POP HL
   RET
+
 L748E_6:
   CALL GICINI
   JR L748E_5
@@ -25413,7 +25357,7 @@ ON_INTERVAL:
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB TK_VAL+$80	; "INTERVAL"
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB TK_EQUAL			; Token for '='
+  DEFB TK_EQUAL		; Token for '='
   CALL GETWORD
   LD A,D
   OR E
@@ -26391,23 +26335,11 @@ ENDIF
   CALL BASE_RAM
   LD (BOTTOM),HL
   
-IF SVI
-  LD BC,$0076		; temporary workaround not to touch REPCNT ($F3F7 or >)
-ELSE
   LD BC,$0090		; > $0076 crashes the SVI
-ENDIF
-  
   LD DE,RDPRIM		; Prepare System variables region, first location is $F380 (RDPRIM)
   LD HL,__RDPRIM	; 
   LDIR
 
-IF SVI
-	inc hl
-	inc de
-	ld bc, $90-$77
-	ldir
-ENDIF
-  
   ;CALL INIT32
   ;HALT
   
@@ -26961,9 +26893,9 @@ L7FFF:
  DEFW $0100		; ASPCT2 Horizontal / Vertical aspect for CIRCLE command  
 
 ; "RESUME NEXT"   ($7FB6 -> $F40F)
-; _ENDPRG:
+; ENDCON:
 ; 
-  DEFB ':'	; SAVTXT often points to this value (copied to "_ENDPRG" in RAM)
+  DEFB ':'	; SAVTXT often points to this value (copied to "ENDCON" in RAM)
 L7FB7:
   LD DE,PROCNM		; $FD89
   AND A
