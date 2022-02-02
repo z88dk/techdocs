@@ -52,7 +52,8 @@ defc NAMLEN   =   40                ;  ;MAXIMUM LENGTH NAME -- 3 TO 127
 
 ; --- Prefixes, Tokens.. --- 
 
-;defc OCTCON   = 11  ; $0B - EMBEDED OCTAL CONSTANT
+defc OCTCON   = 11  ; $0B - EMBEDED OCTAL CONSTANT
+defc HEXCON   = 12  ; $0C - EMBEDED HEX CONSTANT
 
 defc PTRCON   = 13  ; $0D - A LINE REFERENCE CONSTANT
 defc LINCON   = 14  ; $0E - A LINE NUMBER UNCONVERTED TO POINTER
@@ -1883,7 +1884,7 @@ FN_CSRLIN:
   
   LD A,H
   INC A             ; top-left corner is at 1:1 as for GW-BASIC, while MSX had 0:0
-  CALL INT_RESULT_A
+  CALL CONIA        ;CONVERT [A] TO AN INTEGER SIGNED
   POP HL
   RET
 
@@ -2505,7 +2506,7 @@ CZLOO2:
   JP Z,CZLIN              ;END OF LINE, DONE.
   CP DBLCON+1             ;EMBEDDED CONSTANT?
   JP NC,CZLOOP            ;NO, GET NEXT
-  CP $0B                  ;IS IT LINEFEED OR BELOW?
+  CP $0A+1                ;IS IT LINEFEED OR BELOW?
   JP C,CZLOOP             ;THEN SKIP PAST
   CALL __CHRCKB           ;GET CONSTANT
   CALL CHRGTB             ;GET OVER IT
@@ -2767,7 +2768,9 @@ CRNCH_MORE:
   POP HL
   CALL MAKUPL             ;GET BACK THE CHARACTER
   PUSH HL                 ;RESAVE THE TEXT POINTER
+
   LD HL,WORD_PTR          ;GET POINTER TO ALPHA DISPATCH TABLE
+
   SUB 'A'                 ;SUBTRACT ALPHA OFFSET
   ADD A,A                 ;MULTIPLY BY TWO
   LD C,A                  ;SAVE OFFSET IN [C] FOR DAD.
@@ -3026,7 +3029,7 @@ NTSNGT:
   POP HL                  ; RESTORE TEXT POINTER
   CALL UCASE              ; MAKE CHAR UPPER CASE
   CP 'H'                  ; '&H' HEX CONSTANT?
-  LD A,$0B				  ; Octal Number prefix  (OCTCON)
+  LD A,OCTCON             ; Octal Number prefix
   JP NZ,WUZOCT
   LD A,$0C				  ; Hex Number prefix
 WUZOCT:
@@ -3420,7 +3423,7 @@ CHRGTB_1:
   JP NC,NOTLFT            ; NC if < "0"                    NOT SPECIAL TRY OTHER POSSIB.
   OR A                    ; Test for zero - Leave carry
   RET Z
-  CP $0B                  ;(OCTCON) IS IT INLINE CONSTANT ?
+  CP OCTCON               ;IS IT INLINE CONSTANT ?
   JP C,NOTCON             ;NO, SHOULD BE TAB OR LF
   CP $1E                  ;ARE WE TRYING TO RE-SCAN A CONSTANT?
   JP NZ,NTRSCC            ;NO.
@@ -5200,6 +5203,7 @@ IDIV:
 
 ; Get next expression value (a.k.a. "EVAL" !)
 ; Used by the routines at EVAL and CONCAT.
+; a.k.a. EVAL (in that case 'EVAL' was called 'FRMEVL')
 OPRND:
   CALL CHRGTB             ; Gets next character (or token) from BASIC text.
   JP Z,OPERAND_ERR        ;TEST FOR MISSING OPERAND - IF NONE, Err $18 - "Missing Operand" Error
@@ -5568,7 +5572,7 @@ DOCMP:
   AND B                   ;ANY BITS MATCH?
   ADD A,$FF               ;MAP 0 TO 0
   SBC A,A                 ;AND ALL OTHERS TO 377
-  CALL INT_RESULT_A       ;CONVERT [A] TO AN INTEGER SIGNED
+  CALL CONIA              ;CONVERT [A] TO AN INTEGER SIGNED
   JP NOT_0                ;RETURN FROM OPERATOR APPLICATION PLACE SO THE TEXT POINTER
                           ;WILL GET SET UP TO WHAT IT WAS WHEN LPOPER RETURNED.
 
@@ -5741,11 +5745,14 @@ SNGFLI:
   INC A        ;IN ADDS VERSION TAB POSITIONS START AT COLUMN 1.
 
 ; Exit from function, result in A
+; a.k.a. SNGFLT
 ;
 ; Used by the routines at __ERR, ISMID, __DELETE, __LOF and __VAL.
 PASSA:
   LD L,A       ;MAKE [A] AN UNSIGNED INTEGER
   XOR A
+
+; a.k.a. SNGFLT
 ; This entry point is used by the routine at __LOC.
 GIVINT:
   LD H,A
@@ -6363,6 +6370,8 @@ FNDNUM:
 ; Used by the routines at __ON, __ERROR, ISFUN, __WAIT, __WIDTH,
 ; SETIO, __POKE, __OPEN, RETRTS, FN_INPUT, __NULL, FN_STRING,
 ; FN_INSTR and MID_ARGSEP.
+
+; a.k.a. GETBYT, get integer in 0-255 range
 GETINT:
   CALL EVAL               ;EVALUATE A FORMULA
 
@@ -6470,7 +6479,7 @@ PLOOP2:
   OR A                     ;SET CC'S
   LD (BC),A                ;SAVE THIS CHAR
   RET Z                    ;IF END OF SOURCE BUFFER, ALL DONE.
-  CP $0B                   ;(OCTCON) IS IT SMALLER THAN SMALLEST EMBEDDED CONSTANT?   (Not a number constant prefix ?)
+  CP OCTCON                ;IS IT SMALLER THAN SMALLEST EMBEDDED CONSTANT?   (Not a number constant prefix ?)
   JP C,NTEMBL              ;YES, DONT TREAT AS ONE
   CP DBLCON+1              ;IS IT EMBEDED CONSTANT?
   LD E,A                                                 ;SAVE CHAR IN [E]
@@ -6501,7 +6510,7 @@ PLOOPG:
 DETOKEN_NEXT_6:
   LD (INTFLG),A
   LD A,E
-  CP $0B                  ; (OCTCON) IS IT SMALLER THAN SMALLEST EMBEDDED CONSTANT? (Not a number constant prefix ?)
+  CP OCTCON                ;IS IT SMALLER THAN SMALLEST EMBEDDED CONSTANT? (Not a number constant prefix ?)
   JP C,PLOOPZ           ; ...then JP
   CP DBLCON+1                   ;IS IT EMBEDED CONSTANT?
   JP C,NUMLIN           ; JP if control code
@@ -6641,9 +6650,9 @@ NUMLIN:
   POP AF                  ;RESTORE CONSTANT TYPE
   LD BC,CONLIN            ;PUT RETURN ADDR ON STACK
   PUSH BC                 ;SAVE IT
-  CP $0B                  ;(OCTCON) OCTAL CONSTANT?
+  CP OCTCON               ;OCTAL CONSTANT?
   JP Z,FOUTO              ;PRINT IT
-  CP $0C                  ;(HEXCON) HEX CONSTANT?
+  CP HEXCON               ;HEX CONSTANT?
   JP Z,FOUTH              ;PRINT IN HEX
   LD HL,(CONLO)           ;GET LINE # VALUE IF ONE.
   JP FOUT                 ;PRINT REMAINING POSSIBILITIES.
@@ -6654,9 +6663,9 @@ CONLIN:
   POP DE                  ;RESTORE CHAR COUNT
   LD A,(CONSAV)           ;GET SAVED CONSTANT TOKEN
   LD E,'O'                ;ASSUME OCTAL CONSTANT
-  CP $0B                  ;(OCTCON) OCTAL CONSTANT?
+  CP OCTCON               ;OCTAL CONSTANT?
   JP Z,SAVBAS             ;YES, PRINT IT
-  CP $0C                  ;(HEXCON) HEX CONSTANT?
+  CP HEXCON               ;HEX CONSTANT?
   LD E,'H'                ;ASSUME SO.
   JP NZ,NUMSLN            ;NOT BASE CONSTANT
 SAVBAS:
@@ -6800,7 +6809,9 @@ __POKE:
   POP DE
   LD (DE),A
   RET
-  
+
+; Get a number to DE
+; a.k.a. FRMQNT
 ; This entry point is used by the routines at DEF_USR and __CLEAR.
 GETWORD:
   CALL EVAL
@@ -8317,7 +8328,7 @@ __SGN:
 ; Get back from function, result in A (signed)
 ;
 ; Used by the routines at DOCMP and __EOF.
-INT_RESULT_A:
+CONIA:
   LD L,A                ;PUT IT IN THE LO POSITION
   RLA                   ;EXTEND THE SIGN TO THE HO     ; Sign bit to carry
   SBC A,A                                              ; Carry to all bits of A
@@ -8768,7 +8779,7 @@ CONIS1:                 ;ENTRY FROM IADD
 	;PUT (HL) IN FACLO, SET VALTYP TO INT
 	;ALTERS A ONLY
 ;
-; Used by the routines at __ERL, OCTCNS, PASSA, INT_RESULT_A, __CINT, INT,
+; Used by the routines at __ERL, OCTCNS, PASSA, CONIA, __CINT, INT,
 ; IMULT, IMULT5, IDIV2, FIN and IN_PRT.
 MAKINT:
   LD (FACCU),HL         ;STORE THE NUMBER IN FACLO
@@ -12344,7 +12355,7 @@ CHKCTZ:
 WASEOF:
   SUB $01
   SBC A,A
-  JP INT_RESULT_A         ;CONVERT TO AN INTEGER AND RETURN
+  JP CONIA                ;CONVERT TO AN INTEGER AND RETURN
 
 ; This entry point is used by the routine at __LOF.
 ;
@@ -12354,7 +12365,7 @@ OUTSEQ:
   LD D,B                  ;PUT FILE BLOCK OFFSET IN [D,E]
   LD E,C
   INC DE                  ;POINT TO FCB
-; This entry point is used by the routine at CPM_FCLOSE.
+; This entry point is used by the routine at CPM_CLSFIL.
 OUTSEQ_0:
   LD HL,$0027             ;(0+ORNOFS) POINT TO NUMBER IN BUFFER
   ADD HL,BC               ;ADD START OF FILE DATA BLOCK
@@ -12415,7 +12426,7 @@ OUTSOK:
 ; IF FILE IS SEQUENTIAL OUTPUT, SEND FINAL SECTOR OF DATA
 ;
 ; Used by the routine at __LOAD.
-CPM_FCLOSE:
+CPM_CLSFIL:
   CALL FILIDX             ;GET POINTER TO DATA
   JP Z,NTOPNC             ;RETURN IF NOT OPEN
                           ;SAVE FILE #
@@ -12518,7 +12529,7 @@ FILOU3:
   CP $03                  ;RANDOM?
   JP Z,FILOFV             ;YES, FINISH UP IN FIVDK.MAC
   POP AF                  ;TAKE THE CHARACTER OFF
-; This entry point is used by the routine at CPM_FCLOSE.
+; This entry point is used by the routine at CPM_CLSFIL.
 FILOU4:
   PUSH DE
   PUSH BC
@@ -12818,7 +12829,7 @@ READI2:
 
 ; Set DMA address
 ;
-; Used by the routines at __EOF, CPM_FCLOSE, INDSKB and __OPEN.
+; Used by the routines at __EOF, CPM_CLSFIL, INDSKB and __OPEN.
 SETBUF:
   PUSH BC               ;SAVE [B,C]
   PUSH DE               ;SAVE [D,E]
@@ -13538,7 +13549,7 @@ FILSCN:
 ;
 ; AT THIS ENTRY POINT THE FAC HAS THE FILE NUMBER IN IT ALREADY
 ;
-;
+; a.k.a. GETFLP
 ; This entry point is used by the routines at __EOF, __LOC and __LOF.
 FILFRM:
   CALL CONINT           ;GET THE FILE NUMBER INTO [A]
@@ -13550,7 +13561,8 @@ FILFRM:
 ; [B,C] IS SET TO POINT AT THE FILE DATA BLOCK FOR FILE [E]
 ; [A] GIVE THE MODE OF THE FILE AND ZERO IS SET  IF THE FILE IS MODE ZERO (NOT OPEN).
 ;
-; This entry point is used by the routines at CPM_FCLOSE and __OPEN.
+; This entry point is used by the routines at CPM_CLSFIL and __OPEN.
+; a.k.a. VARPTR_A, GETPTR
 FILIDX:
   LD E,A                ;GET FILE NUMBER INTO [E]
 FILID2:
@@ -13920,7 +13932,7 @@ LPBLDR:
 ; a.k.a. PRGFIN
 LOAD_END:
   CALL FINPRT             ;ZERO PTRFIL
-  CALL CPM_FCLOSE         ;CLOSE FILE ZERO
+  CALL CPM_CLSFIL         ;CLOSE FILE ZERO
   JP GTMPRT               ;Restore code string address      ; REFETCH TEXT POINTER
 
 ; Routine at 16680
@@ -14021,7 +14033,7 @@ BSAVLP:
 ; CLOSE[[#]<file number>[,[#]<file number ••• >]]
 ;
 __CLOSE:
-  LD BC,CPM_FCLOSE        ;SERVICE ROUTINE ADDRESS
+  LD BC,CPM_CLSFIL        ;SERVICE ROUTINE ADDRESS
   LD A,(MAXFIL)           ;HIGHEST POSSIBLE ARGUMENT, WHICH MEANS DO ALL POSSIBLE
   JP NZ,RETRTS_0          ;NOT END OF STATEMENT, SO SCAN ARGUMENTS
   PUSH HL                 ;SAVE THE TEXT POINTER
@@ -18189,7 +18201,8 @@ CHKSTK:
   JP C,OM_ERR             ; Not enough - ?OM Error
   ADD HL,SP               ; Test if stack is overflowed
   POP HL                  ; Restore code string address
-  RET C                   ; Return if enough mmory
+  RET C                   ; Return if enough memory
+
 ; This entry point is used by the routines at LOAD_OM_ERR, BSNTERC, __CLEAR
 ; and DONCMD.
 OM_ERR:
@@ -18274,6 +18287,7 @@ CLRPTR:
   LD (VARTAB),HL          ;NEW START OF VARIABLES
   
 ; This entry point is used by the routines at PROMPT, ATOH, __LOAD and L4D05.
+; a.k.a. RUNC
 RUN_FST:
   LD HL,(TXTTAB)          ;POINT AT THE START OF TEXT
   DEC HL
@@ -20928,7 +20942,7 @@ __POINT_0:
 ;		CALL PASSA
 		RET
 
-        ;CALL INT_RESULT_A
+        ;CALL CONIA
 		;CALL MAKINT
         ;POP HL
         ;RET
