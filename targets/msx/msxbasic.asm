@@ -3279,7 +3279,7 @@ L0D2C:
   LD A,($FBEB)				; KBD ROW #6
   CP $E8					; CTRL-STOP  ?
   JR NZ,L0D3A
-  LD IX,WARM_BT
+  LD IX,READYR
   JP _CALBAS
 
 ; Routine at 3386
@@ -4446,7 +4446,9 @@ ELSE
   CALL HNMI		; Hook for NMI std routine
 ENDIF
   RETN
-  
+
+
+; a.k.a. RSTFNK  
 ; This entry point is used by the routine at INIFNK.
 _INIFNK:
   LD BC,$00A0		; 160
@@ -4454,6 +4456,7 @@ _INIFNK:
   LD HL,FNKTAB
   LDIR
   RET
+
 
 ; Message at 5033
 FNKTAB:
@@ -5845,7 +5848,7 @@ L19C7:
   RET
 
 ; Routine at 6621
-;
+; a.k.a. CTWOFF
 ; Used by the routine at TAPOOF.
 _TAPOOF:
   PUSH BC
@@ -5859,6 +5862,7 @@ _TAPOOF_0:
   POP AF
   POP BC
 
+; a.k.a. CTOFF
 ; This entry point is used by the routine at TAPIOF.
 _TAPIOF:
   PUSH AF
@@ -8427,7 +8431,7 @@ __SGN:
 ; Get back from function, result in A (signed)
 ;
 ; This entry point is used by the routines at DOCMP, CAS_EOF, FN_PLAY and __STRIG.
-INT_RESULT_A:         ;ENTRY TO CONVERT A SIGNED NUMBER IN A TO AN INTEGER
+CONIA:                ;ENTRY TO CONVERT A SIGNED NUMBER IN A TO AN INTEGER
   LD L,A              ;PUT IT IN THE LO POSITION
   RLA                 ;EXTEND THE SIGN TO THE HO     ; Sign bit to carry
   SBC A,A                                            ; Carry to all bits of A
@@ -11322,7 +11326,6 @@ FNCTAB_FN:
   DEFW __ASC
   DEFW __CHR_S
   DEFW __PEEK
-
   DEFW __VPEEK
   DEFW __SPACE_S
   DEFW __OCT_S
@@ -12579,7 +12582,7 @@ ERRESM:		;(4096h)
 ; THIS ROUTINE IS CALLED TO RESET THE STACK IF BASIC IS
 ; EXTERNALLY STOPPED AND THEN RESTARTED.
 
-WARM_BT:
+READYR:
   LD BC,RESTART		; 01 1E 41
 
 ; Routine at $409D
@@ -13215,7 +13218,11 @@ IF NOHOOK
 ELSE
   CALL HCRUS			; Hook 2 for Tokenise
 ENDIF
+
   LD HL,WORD_PTR      ;GET POINTER TO ALPHA DISPATCH TABLE
+
+; On Spectravideo SVI this entry is tracked in the initial JP table (LBCA:) to facilitate the HOOK insertion
+
   SUB 'A'             ;SUBTRACT ALPHA OFFSET
   ADD A,A             ;MULTIPLY BY TWO
   LD C,A              ;SAVE OFFSET IN [C] FOR DAD.
@@ -15271,7 +15278,7 @@ OPNPAR:
 ; Evaluate expression
 ;
 ; Used by the routines at __LET, __IF, DOFN, INTIDX, FNDNUM, GETWORD, __CIRCLE,
-; CGTCNT, L61C4, FN_STRING, FN_INSTR, FILE_PARMS, BSAVE_PARM, __BASE and __VPOKE.
+; CGTCNT, L61C4, FN_STRING, FN_INSTR, NAMSCN, BSAVE_PARM, __BASE and __VPOKE.
 ; a.k.a. GETNUM, evaluate expression
 EVAL:
   DEC HL           ; Evaluate expression & save      ;BACK UP CHARACTER POINTER
@@ -15964,7 +15971,7 @@ DOCMP:
   AND B                   ;ANY BITS MATCH?
   ADD A,$FF               ;MAP 0 TO 0
   SBC A,A                 ;AND ALL OTHERS TO 377
-  CALL INT_RESULT_A       ;CONVERT [A] TO AN INTEGER SIGNED
+  CALL CONIA              ;CONVERT [A] TO AN INTEGER SIGNED
   JR NOT_0                ;RETURN FROM OPERATOR APPLICATION PLACE SO THE TEXT POINTER
                           ;WILL GET SET UP TO WHAT IT WAS WHEN LPOPER RETURNED.
 
@@ -16096,13 +16103,14 @@ __POS:
 
 
 ; Exit from function, result in A
+; a.k.a. SNGFLT
 ;
 ; This entry point is used by the routines at __INP_0, OPRND, __LPOS, __PEEK,
 ; __VAL, __PDL, FN_VDP and __VPEEK.
 PASSA:
   LD L,A            ;MAKE [A] AN UNSIGNED INTEGER
   XOR A
-  
+
 GIVINT:
   LD H,A
   JP MAKINT
@@ -16607,7 +16615,7 @@ FNDNUM:
 ; FN_INPUT, __SOUND, __LOCATE, L77D4, __COLOR, __SCREEN, SET_BAUDRATE, PUT_SPRITE, __VDP,
 ; __VPOKE and __MAX.
 
-; Get integer 0-255
+; a.k.a. GETBYT, get integer in 0-255 range
 GETINT:
   CALL EVAL           ;EVALUATE A FORMULA
 ; This entry point is used by the routines at __CHR_S, FN_STRING, FN_INSTR, FILFRM,
@@ -17066,7 +17074,8 @@ __POKE:
   RET
 
 ; Routine at 21551
-;
+; Get a number to DE (0..65535)
+; a.k.a. FRMQNT
 ; Used by the routines at SETIO, DEF_USR, __POKE, __CLEAR, ONGO and __TIME.
 GETWORD:
   CALL EVAL
@@ -20261,6 +20270,7 @@ ENFMEM:
   ADD HL,SP
   POP HL
   RET C
+
 ; This entry point is used by the routines at __CLEAR and MAXFILES.
 OM_ERR:
   CALL LINKER
@@ -20288,7 +20298,7 @@ CLRPTR:
   LD (VARTAB),HL		; Pointer to start of variable space
   
   ; --- START PROC RUN_FST ---
-;; RUNFST:
+; a.k.a. RUNC
 RUN_FST:
   ; Clear all variables
 IF NOHOOK
@@ -20361,7 +20371,7 @@ CLREG:
   INC HL
   INC HL
 
-; This entry point is used by the routine at WARM_BT.
+; This entry point is used by the routine at READYR.
 STKERR:
 IF NOHOOK
  IF PRESERVE_LOCATIONS
@@ -21185,6 +21195,7 @@ PRNUMS:
 
 ; Create string entry and print it
 ;
+; a.k.a. STROUT
 ; Used by the routines at IN_PRT, L4B4A, LTSTND, __DELETE, LINE2PTR, L61C4, __CLOAD,
 ; L710B, _CSTART and L7D29.
 PRS:
@@ -21501,6 +21512,7 @@ TSALP:
 
 ; Get string pointed by FPREG 'Type Error' if it is not
 ;
+; a.k.a. FRESTR
 ; FRETMP IS PASSED A POINTER TO A STRING DESCRIPTOR IN [D,E]
 ; THIS VALUE IS RETURNED IN [H,L]. ALL THE OTHER REGISTERS ARE MODIFIED.
 ; A CHECK TO IS MADE TO SEE IF THE STRING DESCRIPTOR [D,E] POINTS TO
@@ -21512,7 +21524,7 @@ TSALP:
 ;
 ; Routine at 26576
 ;
-; Used by the routines at __NEXT, __LEN, FN_INSTR, LHSMID, FILE_PARMS and __SPRITE.
+; Used by the routines at __NEXT, __LEN, FN_INSTR, LHSMID, NAMSCN and __SPRITE.
 ; $67D0
 GETSTR:
   CALL TSTSTR           ; Make sure it's a string
@@ -22128,13 +22140,13 @@ __FRE:
 ;
 ; Used by the routines at __OPEN, _RUN_FILE, __SAVE and __BSAVE.
 ; AKA  NAMSCN (name scan) - evaluate filespecification
-FILE_PARMS:
+NAMSCN:
   CALL EVAL
   PUSH HL
   CALL GETSTR
   LD A,(HL)
   OR A					; stringsize zero ?
-  JR Z,FILE_PARMS_2		; yep, bad filename error
+  JR Z,NAMSCN_2		; yep, bad filename error
   INC HL
   LD E,(HL)
   INC HL
@@ -22148,33 +22160,33 @@ FILE_PARMS:
   LD D,11
   INC E
 ; This entry point is used by the routine at FNAME_6.
-FILE_PARMS_0:
+NAMSCN_0:
   DEC E						; end of filespecification string ?
   JR Z,L6A61				; yep, fill remaining FILNAME with spaces
   LD A,(HL)
   CP ' '					; control characters ?
-  JR C,FILE_PARMS_2			; yep, bad filename error
+  JR C,NAMSCN_2			; yep, bad filename error
   CP '.'					; filename/extension seperator ?
   JR Z,FNAME_7				; yep, handle extension
   LD (BC),A
   INC BC
   INC HL
   DEC D						; FILNAM full ?
-  JR NZ,FILE_PARMS_0		; nope, next
+  JR NZ,NAMSCN_0		; nope, next
 ; This entry point is used by the routine at L6A61.
-FILE_PARMS_1:
+NAMSCN_1:
   POP AF
   PUSH AF
   LD D,A					; devicecode
   LD A,(FILNAM)
   INC A						; first character FILNAME charactercode 255 ?
-  JR Z,FILE_PARMS_2			; yep, bad filename error (because this is internally used as runflag)
+  JR Z,NAMSCN_2			; yep, bad filename error (because this is internally used as runflag)
   POP AF
   POP HL
   RET
 
 ; This entry point is used by the routine at FNAME_7.
-FILE_PARMS_2:
+NAMSCN_2:
   JP NM_ERR					; Err $38 -  'Bad file name'
 
 ; Routine at 27210
@@ -22182,17 +22194,17 @@ FILE_PARMS_2:
 ; Used by the routine at FNAME_7.
 FNAME_6:
   INC HL
-  JR FILE_PARMS_0
+  JR NAMSCN_0
 
 ; Routine at 27213
 ;
-; Used by the routine at FILE_PARMS.
+; Used by the routine at NAMSCN.
 FNAME_7:
   LD A,D
   CP 11
-  JP Z,FILE_PARMS_2
+  JP Z,NAMSCN_2
   CP 3
-  JP C,FILE_PARMS_2
+  JP C,NAMSCN_2
   JR Z,FNAME_6
   LD A,' '
   LD (BC),A
@@ -22202,21 +22214,21 @@ FNAME_7:
 
 ; Routine at 27233
 ;
-; Used by the routine at FILE_PARMS.
+; Used by the routine at NAMSCN.
 L6A61:
   LD A,' '
   LD (BC),A
   INC BC
   DEC D
   JR NZ,L6A61
-  JR FILE_PARMS_1
+  JR NAMSCN_1
 
 ;
 ; CONVERT ARGUMENT TO FILE NUMBER AND SET [B,C] TO POINT TO FILE DATA BLOCK
 ;
 ; AT THIS ENTRY POINT THE FAC HAS THE FILE NUMBER IN IT ALREADY
 ;
-;
+; a.k.a. GETFLP
 ; Routine at 27242
 ;
 ; Used by the routines at __LOC, __LOF, __EOF and __FPOS.
@@ -22229,7 +22241,7 @@ FILFRM:
 ; [A] GIVE THE MODE OF THE FILE AND ZERO IS SET, IF THE FILE IS MODE ZERO (NOT OPEN).
 ;
 ; This entry point is used by the routines at OPRND, FILSCN and __OPEN.
-; a.k.a. VARPTR_A
+; a.k.a. VARPTR_A, GETPTR
 FILIDX:
   LD L,A                  ;GET FILE NUMBER INTO [L]
   LD A,(MAXFIL)           ;IS THIS FILE # LEGAL?
@@ -22309,7 +22321,7 @@ ENDIF
 __OPEN:
   LD BC,FINPRT
   PUSH BC
-  CALL FILE_PARMS
+  CALL NAMSCN
   LD A,(HL)
   CP TK_FOR			; 'FOR'
   LD E,$04
@@ -22397,8 +22409,8 @@ ENDIF
   RET
 
 ; Data block at 27428
-  ; --- START PROC CLOSE ---
-CLOSE:
+  ; --- START PROC CLSFIL ---
+CLSFIL:
   PUSH HL
   OR   A
   JR   NZ,NTFL0
@@ -22409,10 +22421,10 @@ CLOSE:
 ; NTFL0 - "NoT FiLe number 0"
 NTFL0:
   CALL FILIDX
-  JR   Z,L6B4A 		; CLOSE_1
+  JR   Z,NOCLSB_0 		; CLOSE_1
   LD   (PTRFIL),HL
   PUSH HL
-  JR   C,L6B41		; CLOSE_0
+  JR   C,NOCLSB		; CLOSE_0
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -22423,13 +22435,13 @@ ENDIF
   JP   IE_ERR			; Err $33 - "Internal Error"
 
  ; CLOSE_0
-L6B41:
+NOCLSB:
   LD   A,$02
   CALL GET_DEVICE
   CALL CLRBUF
   POP  HL
  ; CLOSE_1
-L6B4A:
+NOCLSB_0:
   PUSH HL
   LD   DE,$0007
   ADD  HL,DE
@@ -22460,7 +22472,7 @@ __LOAD:
 __MERGE:
   XOR A             ;FLAG ZERO FOR "LOAD"
   PUSH AF           ;SAVE "RUN"/"LOAD" FLAG
-  CALL FILE_PARMS
+  CALL NAMSCN
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -22510,7 +22522,7 @@ _LOAD_0:
 
 ; Routine at 27555
 __SAVE:
-  CALL FILE_PARMS
+  CALL NAMSCN
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 3
@@ -22572,7 +22584,7 @@ ENDIF
   JP NM_ERR					; Err $38 -  'Bad file name'
 
 ; Routine at 27610
-L6BDA:
+GETDEV:
   PUSH HL
   PUSH DE
   LD HL,(PTRFIL)
@@ -22631,7 +22643,7 @@ RETRTS_0:
   JP (HL)                  ;DISPATCH TO DO THE FUNCTION
 
 __CLOSE:
-  LD BC,CLOSE              ;SERVICE ROUTINE ADDRESS
+  LD BC,CLSFIL             ;SERVICE ROUTINE ADDRESS
   LD A,(MAXFIL)            ;HIGHEST POSSIBLE ARGUMENT, WHICH MEANS DO ALL POSSIBLE
   JR _CLOSE
 
@@ -22643,7 +22655,7 @@ CLSALL:
   LD A,(NLONLY)
   OR A
   RET M
-  LD BC,CLOSE
+  LD BC,CLSFIL
   XOR A
   LD A,(MAXFIL)
   JR _CLOSE
@@ -22707,7 +22719,7 @@ L6C57:
   LD C,A
   LD A,$06
   CALL GET_DEVICE
-  JP FILEFN_EXIT
+  JP POPALL
 
 ;
 ; GET A CHARACTER FROM A SEQUENTIAL FILE IN [PTRFIL]
@@ -22728,7 +22740,9 @@ INDSKB:
   CP $09
   RET
 
-; Data block at 27761
+
+; Routine at 27761
+; a.k.a. INDSKC
   ; --- START PROC RDBYT ---
   ; Read byte, C flag is set if EOF
 RDBYT:
@@ -22750,7 +22764,7 @@ ENDIF
 RDBYT_0:
   LD A,$08
   CALL GET_DEVICE
-  JP FILEFN_EXIT_0
+  JP POPALL_0
 
 ; Routine at 27783
 ;
@@ -22834,7 +22848,7 @@ CLRBUF:
   CALL GETBUF
   PUSH HL
   LD B,$00
-  CALL L6CF5
+  CALL DOCLR
 POPHLRT2:
   POP HL
   RET
@@ -22842,12 +22856,12 @@ POPHLRT2:
 ; Routine at 27893
 ;
 ; Used by the routine at CLRBUF.
-L6CF5:
+DOCLR:
   XOR A
-L6CF5_0:
+DOCLR_0:
   LD (HL),A
   INC HL
-  DJNZ L6CF5_0
+  DJNZ DOCLR_0
   RET
 
 ; Routine at 27899
@@ -22957,7 +22971,7 @@ EXEC_FILE:
   CALL ISFLIO
   JP Z,EXEC
   XOR A
-  CALL CLOSE
+  CALL CLSFIL
   JP DS_ERR		; Err $39 - Direct statement in a file
 
 ; FILINP AND FILGET -- SCAN A FILE NUMBER AND SETUP PTRFIL
@@ -23012,7 +23026,7 @@ CLOSE_STREAM:
   LD BC,STKERR_0
   PUSH BC
   XOR A
-  JP CLOSE
+  JP CLSFIL
 
 ; Routine at 28035
 ;
@@ -23182,7 +23196,7 @@ STRCHR:
 
 ; Routine at 28267
 ;
-; Used by the routines at L55F8, FILE_PARMS, __SAVE, L6BD4, GET, __BSAVE, BLOAD_1,
+; Used by the routines at L55F8, NAMSCN, __SAVE, L6BD4, GET, __BSAVE, BLOAD_1,
 ; L71AB, L71D9 and GET_DEVNO.
 NM_ERR:
   LD E,$38 ; - Bad file name
@@ -23231,7 +23245,7 @@ ERR_NO_RNDACC:
 
 ; Routine at 28306
 __BSAVE:
-  CALL FILE_PARMS
+  CALL NAMSCN
   PUSH DE
   RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
   DEFB ','
@@ -23268,7 +23282,7 @@ __BSAVE_0:
 ; Data block at 28358
 ; $6EC6
 __BLOAD:
-  CALL FILE_PARMS
+  CALL NAMSCN
   PUSH DE
   XOR A
   LD  (RUNBNF),A	; Reset "Run Binary File After loading" flag (see below)
@@ -23306,7 +23320,7 @@ TAPE_LOAD_END:
   OR A
   JR Z,SPSVEX
   XOR A
-  CALL CLOSE
+  CALL CLSFIL
   LD HL,POPHLRT2      ;   POP HL / RET
   PUSH HL
   LD HL,(SAVENT)
@@ -23316,7 +23330,7 @@ TAPE_LOAD_END:
 SPSVEX:
   POP HL
   XOR A
-  JP CLOSE
+  JP CLSFIL
 
 ; Routine at 28427
 ;
@@ -23519,7 +23533,7 @@ DO_BSAVE:
   LD A,TK_BSAVE
   CALL SEND_CAS_FNAME
   XOR A
-  CALL START_TAP_OUT		; start tape for writing
+  CALL CWRTON		; start tape for writing
   POP HL
   PUSH HL
   CALL BSAVE_HL			; send word to tape
@@ -23532,7 +23546,7 @@ DO_BSAVE:
   POP HL
 DO_BSAVE_0:
   LD A,(HL)
-  CALL TAPOUT_SUB		; send byte to tape
+  CALL CASOUT		; send byte to tape
   RST DCOMPR		; Compare HL with DE.
   JR NC,DO_BSAVE_1
   INC HL
@@ -23548,18 +23562,18 @@ DO_BSAVE_1:
 ; send word to tape
 BSAVE_HL:
   LD A,L
-  CALL TAPOUT_SUB		; send byte to tape
+  CALL CASOUT		; send byte to tape
   LD A,H
-  JP TAPOUT_SUB		; send byte to tape
+  JP CASOUT		; send byte to tape
 
 ; Routine at 28683
 ;
 ; Used by the routine at TAPE_LOAD.
 ; get word from tape
 BLOAD_HL:
-  CALL BLOAD_A                   ; get byte from tape
+  CALL _CASIN                   ; get byte from tape
   LD L,A
-  CALL BLOAD_A                   ; get byte from tape
+  CALL _CASIN                   ; get byte from tape
   LD H,A
   RET
 
@@ -23570,7 +23584,7 @@ BLOAD_HL:
 TAPE_LOAD:
   LD C,TK_BSAVE
   CALL L70B8
-  CALL _CSRDON                    ; start tape for reading
+  CALL _CSROON                    ; start tape for reading
   POP BC
   CALL BLOAD_HL                   ; get word from tape
   ADD HL,BC
@@ -23583,7 +23597,7 @@ TAPE_LOAD:
   EX DE,HL
   POP DE
 TAPE_LOAD_0:
-  CALL BLOAD_A                   ; get byte from tape
+  CALL _CASIN                   ; get byte from tape
   LD (HL),A
   RST DCOMPR		; Compare HL with DE.
   JR Z,TAPE_LOAD_1
@@ -23683,11 +23697,11 @@ L70B6:
 ;
 ; Used by the routines at TAPE_LOAD, __CLOAD and L71D9.
 L70B8:
-  CALL _CSRDON                   ; start tape for reading
+  CALL _CSROON                   ; start tape for reading
   LD B,$0A
 
 L70B8_0:
-  CALL BLOAD_A         ; get byte from tape
+  CALL _CASIN         ; get byte from tape
   CP C
   JR NZ,L70B8
   DJNZ L70B8_0
@@ -23696,7 +23710,7 @@ L70B8_0:
   PUSH HL
   LD B,$06           ; 6 bytes
 L70B8_1:
-  CALL BLOAD_A         ; get byte from tape
+  CALL _CASIN         ; get byte from tape
   LD (HL),A
   INC HL
   DJNZ L70B8_1
@@ -23763,17 +23777,17 @@ PRNAME_LOOP:
 ;
 ; Used by the routines at __CSAVE, DO_BSAVE and L71D9.
 SEND_CAS_FNAME:
-  CALL START_TAP_OUT		; start tape for writing
+  CALL CWRTON		; start tape for writing
   LD B,$0A
 SEND_CAS_FNAME_0:
-  CALL TAPOUT_SUB		; send byte to tape
+  CALL CASOUT		; send byte to tape
   DJNZ SEND_CAS_FNAME_0
   LD B,$06
   LD HL,FILNAM
 SEND_CAS_FNAME_1:
   LD A,(HL)
   INC HL
-  CALL TAPOUT_SUB		; send byte to tape
+  CALL CASOUT		; send byte to tape
   DJNZ SEND_CAS_FNAME_1
   JP TAPOOF
 
@@ -23784,18 +23798,18 @@ __CSAVE_1:
   PUSH HL
   CALL DEPTR
   XOR A
-  CALL START_TAP_OUT		; start tape for writing
+  CALL CWRTON		; start tape for writing
   POP DE
   LD HL,(SAVEND)
 __CSAVE_1_0:
   LD A,(DE)
   INC DE
-  CALL TAPOUT_SUB		; send byte to tape
+  CALL CASOUT		; send byte to tape
   RST DCOMPR		; Compare HL with DE.
   JR NZ,__CSAVE_1_0
   LD L,$07
 __CSAVE_1_1:
-  CALL TAPOUT_SUB		; send byte to tape
+  CALL CASOUT		; send byte to tape
   DEC L
   JR NZ,__CSAVE_1_1
   JP TAPOOF
@@ -23804,14 +23818,14 @@ __CSAVE_1_1:
 ;
 ; Used by the routine at __CLOAD.
 L715D:
-  CALL _CSRDON                   ; start tape for reading
+  CALL _CSROON                   ; start tape for reading
   SBC A,A
   CPL
   LD D,A
 L715D_0:
   LD B,$0A       ; 10 bytes
 L715D_1:
-  CALL BLOAD_A     ; get byte from tape
+  CALL _CASIN     ; get byte from tape
   LD E,A
   CALL ENFMEM   ; $6267 = ENFMEM (reference not aligned to instruction)
   LD A,E
@@ -23968,11 +23982,11 @@ CAS_OUTPUT:
 ; This entry point is used by the routine at CAS_CLOSE.
 CAS_OUTPUT_0:
   XOR A
-  CALL START_TAP_OUT		; start tape for writing
+  CALL CWRTON		; start tape for writing
   LD B,$00
 CAS_OUTPUT_1:
   LD A,(HL)
-  CALL TAPOUT_SUB		; send byte to tape
+  CALL CASOUT		; send byte to tape
   INC HL
   DJNZ CAS_OUTPUT_1
   JP TAPOOF
@@ -23988,11 +24002,11 @@ CAS_INPUT:
   CALL INIT_INPUT
   JR NZ,CAS_INPUT_1
   PUSH HL
-  CALL _CSRDON                   ; start tape for reading
+  CALL _CSROON                   ; start tape for reading
   POP HL
   LD B,$00
 CAS_INPUT_0:
-  CALL BLOAD_A                   ; get byte from tape
+  CALL _CASIN                   ; get byte from tape
   LD (HL),A
   INC HL
   DJNZ CAS_INPUT_0
@@ -24020,7 +24034,7 @@ CAS_EOF:
   SUB $1A		; EOF
   SUB $01
   SBC A,A
-  JP INT_RESULT_A
+  JP CONIA      ;CONVERT [A] TO AN INTEGER SIGNED
 
 ; Routine at 29308
 CAS_UNGETC:
@@ -24127,40 +24141,40 @@ GET_DEVNO:
 ;
 ; Used by the routines at BLOAD_HL, TAPE_LOAD, L70B8, L715D and CAS_INPUT.
 ; get byte from tape
-BLOAD_A:
+_CASIN:
   PUSH HL
   PUSH DE
   PUSH BC
   CALL TAPIN	; Get byte from cassette
-  JR NC,FILEFN_EXIT_0
-  JR TAPE_ERROR
+  JR NC,POPALL_0
+  JR DIOERR
 
 ; Routine at 29406
 ;
 ; Used by the routines at DO_BSAVE, BSAVE_HL, SEND_CAS_FNAME, __CSAVE_1 and CAS_OUTPUT.
 ; send byte to tape
-TAPOUT_SUB:
+CASOUT:
   PUSH HL
   PUSH DE
   PUSH BC
   PUSH AF
   CALL TAPOUT
-  JR NC,FILEFN_EXIT
-  JR TAPE_ERROR
+  JR NC,POPALL
+  JR DIOERR
 
 ; Routine at 29417
 ;
 ; Used by the routines at TAPE_LOAD, L70B8, L715D and CAS_INPUT.
 ; start tape for reading  (Cassette motor on and wait for Sync and Header)
-_CSRDON:
+_CSROON:
   PUSH HL
   PUSH DE
   PUSH BC
   PUSH AF
   CALL TAPION
-  JR NC,FILEFN_EXIT
-; This entry point is used by the routines at BLOAD_A and TAPOUT_SUB.
-TAPE_ERROR:
+  JR NC,POPALL
+; This entry point is used by the routines at _CASIN and CASOUT.
+DIOERR:
   CALL TAPIOF
   JP IO_ERR
 
@@ -24168,17 +24182,17 @@ TAPE_ERROR:
 ;
 ; Used by the routines at DO_BSAVE, SEND_CAS_FNAME, __CSAVE_1 and CAS_OUTPUT.
 ; start tape for writing
-START_TAP_OUT:
+CWRTON:
   PUSH HL
   PUSH DE
   PUSH BC
   PUSH AF
   CALL TAPOON
-; This entry point is used by the routines at L6C50, TAPOUT_SUB and _CSRDON.
-FILEFN_EXIT:
+; This entry point is used by the routines at L6C50, CASOUT and _CSROON.
+POPALL:
   POP AF
-; This entry point is used by the routines at L6C78 and BLOAD_A.
-FILEFN_EXIT_0:
+; This entry point is used by the routines at L6C78 and _CASIN.
+POPALL_0:
   POP BC
   POP DE
   POP HL
@@ -24218,8 +24232,8 @@ CONSOLE_CRLF:
   OR A               ;SET CC'S
   RET Z              ;IF ALREADY ZERO, RETURN
   
-; This entry point is used by the routines at L4A5A, __LLIST, L61C4, L710B and
-; __KEY.
+; This entry point is used by the routines at L4A5A, __LLIST, L61C4, L710B and __KEY.
+; a.k.a. CRDO
 OUTDO_CRLF:
 
 IF NOHOOK
@@ -24339,7 +24353,7 @@ EOF_REACHED:
 
 ; Routine at 29618
 ;
-; Used by the routines at _CSRDON and LPTCHR.
+; Used by the routines at _CSROON and LPTCHR.
 IO_ERR:
   LD E,$13				; Err $13 - "Device I/O error"
   JP ERROR
@@ -25554,7 +25568,7 @@ FN_PLAY_0:
 FN_PLAY_1:
   DEC A
 FN_PLAY_2:
-  CALL INT_RESULT_A
+  CALL CONIA        ;CONVERT [A] TO AN INTEGER SIGNED
   POP HL
   RET
   
@@ -25582,7 +25596,7 @@ __STRIG_0:
   CALL GTTRIG
 ; This entry point is used by the routine at __PAD.
 __STRIG_1:
-  JP INT_RESULT_A
+  JP CONIA           ;CONVERT [A] TO AN INTEGER SIGNED
 
 ; Routine at 31066
 __PDL:
