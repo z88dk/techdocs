@@ -2048,7 +2048,7 @@ RECNO_ERR:
 ; 'FIELD overflow' error entry
 ;
 ; Used by the routines at __FIELD and __GET.
-FIELD_OV_ERR:
+FO_ERR:
   LD E,$32                ;"FIELD OVERFLOW"
   DEFB $01                ; "LD BC,nn" to jump over the next word without executing it
 
@@ -2211,14 +2211,15 @@ ERROR_REPORT:
   LD HL,ERROR_MESSAGES      ;GET START OF ERROR TABLE
   LD A,E                    ;GET ERROR CODE
   CP $44                    ;(LSTERR) IS IT PAST LAST ERROR?
-  JP NC,UNKNOWN_ERR         ;YES, TOO BIG TO PRINT
+  JP NC,UE_ERR              ;YES, TOO BIG TO PRINT
   CP $32                    ;(DSKERR+1) DISK ERROR?
   JP NC,NTDER2              ;JP if error code is between $32 and $43
   CP $1F                    ;(NONDSK+1) IS IT BETWEEN LAST NORMAL & FIRST DISK?
   JP C,LEPSKP               ;YES, OK TO PRINT IT (JP if error code is < $1F)
 
+; a.k.a. UPERR
 ; Used by the routines at ERROR_REPORT and _ERROR_REPORT.
-UNKNOWN_ERR:
+UE_ERR:
 ; if error code is bigger than $43 then force it to $28-$13=$15 ("Unprintable error")
   LD A,$28  ;(ERRUE+DSKERR-NONDSK): PRINT "UNPRINTABLE ERROR"
 
@@ -2248,7 +2249,7 @@ _ERROR_REPORT:
   JP NZ,_LEPSKP             ;NO,PRINT
   POP HL                    ;GET LINE # OFF STACK
   LD HL,ERROR_MESSAGES
-  JP UNKNOWN_ERR            ;MAKE UNPRINTABLE ERROR
+  JP UE_ERR                 ;MAKE UNPRINTABLE ERROR
 
 
 _LEPSKP:
@@ -8889,7 +8890,7 @@ VALSNG:
 
 
 ; Test for string type, 'Type Error' if it is not
-; a.k.a. FRCSTR
+; a.k.a. CHKSTR, FRCSTR
 ;
 	;FORCE THE FAC TO BE A STRING
 	;ALTERS A ONLY
@@ -14140,7 +14141,7 @@ __FIELD_NEXT:
   EX DE,HL                ;TOTAL TO [D,E]
   LD HL,(INTFLG)          ;GET MAX ALLOWED
   CALL DCOMPR             ;IN RANGE?
-  JP C,FIELD_OV_ERR       ;NO, GIVE ERROR
+  JP C,FO_ERR             ;NO, GIVE ERROR
   POP HL                  ;RESTORE [H,L]
   POP DE                  ;RESTORE [D,E]
   EX DE,HL                ;[H,L] POINT AT STRING DESCRIPTOR
@@ -15677,7 +15678,7 @@ FISCR:
   RET
 
 DERFOV:
-  JP FIELD_OV_ERR
+  JP FO_ERR
 
 ; This entry point is used by the routine at INDSKB.
 FILIFV:
