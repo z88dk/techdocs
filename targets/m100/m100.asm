@@ -1983,14 +1983,15 @@ ERROR_REPORT:
   CALL CONSOLE_CRLF
   LD A,E
   CP $3B
-  JP NC,UNKNOWN_ERR
+  JP NC,UE_ERR
   CP $32
   JP NC,NTDER2 		; JP if error code is between $32 and $3A
   CP $17
   JP C,LEPSKP
 
-UNKNOWN_ERR:
-  LD A,$30		
+; a.k.a. UPERR
+UE_ERR:
+  LD A,$30		; a.k.a. ERRUE
 
 ; if error code is bigger than $3A then force it to $30-$1B=$15 ("Unprintable error")
 NTDER2:
@@ -4995,15 +4996,15 @@ DETOKEN_NEXT_4:
   ; ..or with the ':REM' sequence..
   DEC BC
   LD A,(BC)
-  CP $4D         ; 'M'
+  CP 'M'
   RET NZ
   DEC BC
   LD A,(BC)
-  CP $45         ; 'E'
+  CP 'E'
   RET NZ
   DEC BC
   LD A,(BC)
-  CP $52         ; 'R'
+  CP 'R'
   RET NZ
   DEC BC
   LD A,(BC)
@@ -12607,7 +12608,7 @@ VALSNG_0:
 
 
 ; Test for string type, 'Type Error' if it is not
-; a.k.a. FRCSTR
+; a.k.a. CHKSTR, FRCSTR
 ;
 	;FORCE THE FAC TO BE A STRING
 	;ALTERS A ONLY
@@ -18706,7 +18707,7 @@ DS_ERR:
   defb $01	; LD BC,NN
 
 ; FF error: file not found
-;
+; a.k.a. DERFNF
 ; Used by the routines at RAM_OPN, __KILL, __NAME and CLOADM.
 FF_ERR:
   LD E,$34
