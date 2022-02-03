@@ -1360,20 +1360,10 @@ _BREAKX:
   IN A,(PPI_C)
   AND $F0
 
-IF SVI
-  SCF
-  RET
-  ;OR $06
-ELSE
   OR $07
-ENDIF
   OUT (PPI_COUT),A
   
   IN A,(PPI_B)
-IF SVI
-  AND $22
-  DEFS 10
-ELSE
   AND $10
   RET NZ
   IN A,(PPI_C)
@@ -1381,21 +1371,14 @@ ELSE
   OUT (PPI_COUT),A
   IN A,(PPI_B)
   AND $02
-ENDIF
   RET NZ
   PUSH HL
   LD HL,(PUTPNT)
   LD (GETPNT),HL
   POP HL
-IF SVI
-  LD A,(OLDKEY+6)
-  AND $DF		; TK_SPC ?
-  LD (OLDKEY+6),A
-ELSE
   LD A,(OLDKEY+7)
   AND $EF		; TK_EQUAL ?
   LD (OLDKEY+7),A
-ENDIF
   LD A,$0D
   LD (REPCNT),A
   SCF
@@ -1406,27 +1389,6 @@ ENDIF
 ;
 ; Used by the routine at INITIO.
 _INITIO:
-IF SVI
-
-  ; (28 bytes)
-  LD A,$0E
-  LD E,$FF
-  CALL WRTPSG
-  LD A,$07
-  LD E,$80
-  CALL WRTPSG
-  LD A,$92
-  OUT (PPI_MOUT),A
-  LD A,$10
-  OUT (PPI_COUT),A
-;  LD A,$FF
-;  OUT (PRN_STB),A
-  LD A,0
-  LD (KANAMD),A
-  NOP
-
-ELSE
-  
   LD A,$07
   LD E,$80
   CALL _WRTPSG
@@ -1439,8 +1401,6 @@ ELSE
   CALL L110C
   AND $40
   LD (KANAMD),A
-  
-ENDIF
   LD A,$FF
   OUT (PRN_STB),A  
   
@@ -2031,7 +1991,7 @@ _SETWRT:
 
 ; Routine at 2028
 ;
-; Used by the routines at SETRD, _LDIRMV, _RDVRM and L0BD8.
+; Used by the routines at SETRD, _LDIRMV, _RDVRM and GETCOD.
 _SETRD:
   LD A,L
   DI
@@ -2574,7 +2534,7 @@ ENDIF
   RET NC
   LD HL,(CSRY)
   PUSH HL
-  CALL L0BD8
+  CALL GETCOD
   LD (CODSAV),A
   LD L,A
   LD H,$00
@@ -3012,7 +2972,7 @@ RESET_CONSOLE_0:
 ; Routine at 3032
 ;
 ; Used by the routines at DISP_CURSOR, TTY_CR, L24F2, L2550, L25D7 and L2634.
-L0BD8:
+GETCOD:
   PUSH HL
   CALL TXT_LOC
   CALL _SETRD
@@ -3038,7 +2998,7 @@ OUT_CHAR:
 
 ; Routine at 3058
 ;
-; Used by the routines at ESC_CLINE, ESC_L_2, RESET_CONSOLE, L0BD8 and OUT_CHAR.
+; Used by the routines at ESC_CLINE, ESC_L_2, RESET_CONSOLE, GETCOD and OUT_CHAR.
 TXT_LOC:
   PUSH BC
   LD E,H
@@ -6474,7 +6434,7 @@ TTY_CR_1:
 TTY_CR_2:
   PUSH DE
   PUSH BC
-  CALL L0BD8
+  CALL GETCOD
   POP BC
   POP DE
   AND A
@@ -6578,7 +6538,7 @@ L24F2_0:
   PUSH HL
 L24F2_1:
   PUSH BC
-  CALL L0BD8
+  CALL GETCOD
   POP DE
   PUSH BC
   LD C,E
@@ -6686,7 +6646,7 @@ L2550_3:
   JR Z,L2550_5
   INC H
 L2550_4:
-  CALL L0BD8
+  CALL GETCOD
   DEC H
   CALL OUT_CHAR
   INC H
@@ -6704,7 +6664,7 @@ L2550_5:
   PUSH HL
   INC L
   LD H,$01
-  CALL L0BD8
+  CALL GETCOD
   EX (SP),HL
   CALL OUT_CHAR
   POP HL
@@ -6760,7 +6720,7 @@ L25D7_0:
 L25D7_1:
   DEC H
   JR Z,L25D7_2
-  CALL L0BD8
+  CALL GETCOD
   CP $20
   JR Z,L25D7_1
 L25D7_2:
@@ -6824,7 +6784,7 @@ L2641:
   RET Z				; ret if so
   LD DE,L2668
   PUSH DE
-  CALL L0BD8
+  CALL GETCOD
   CP '0'
   CCF
   RET NC
@@ -6840,12 +6800,12 @@ L2641:
   RET NC
   CP 'z'+1
   RET C
-  CP $86		; TK_DIM ?
+  CP $86
   CCF
   RET NC
-  CP $A0		; TK_WIDTH ?
+  CP $A0
   RET C
-  CP $A6		; TK_ERROR ?
+  CP $A6
   CCF
 L2668:
   LD A,$00
@@ -9028,7 +8988,7 @@ VALSNG_0:
 
 
 ; Test for string type, 'Type Error' if it is not
-; a.k.a. FRCSTR
+; a.k.a. CHKSTR, FRCSTR
 ;
 	;FORCE THE FAC TO BE A STRING
 	;ALTERS A ONLY
@@ -12329,34 +12289,35 @@ ERROR_MESSAGES:
   ; Err $19
   DEFM "Line buffer overflow"
   DEFB $00
-  ; Err $1A
+
+  ; Err $32
   DEFM "FIELD overflow"
   DEFB $00
-  ; Err $1B
+  ; Err $33
   DEFM "Internal error"
   DEFB $00
-  ; Err $1C
+  ; Err $34
   DEFM "Bad file number"
   DEFB $00
-  ; Err $1D
+  ; Err $35
   DEFM "File not found"
   DEFB $00
-  ; Err $1E
+  ; Err $36
   DEFM "File already open"
   DEFB $00
-  ; Err $1F
+  ; Err $37
   DEFM "Input past end"
   DEFB $00
-  ; Err $20
+  ; Err $38
   DEFM "Bad file name"
   DEFB $00
-  ; Err $21
+  ; Err $39
   DEFM "Direct statement in file"
   DEFB $00
-  ; Err $22
+  ; Err $3A
   DEFM "Sequential I/O only"
   DEFB $00
-  ; Err $23
+  ; Err $3B
   DEFM "File not OPEN"
   DEFB $00
   
@@ -12504,16 +12465,16 @@ DATSNR:
 ; Used by the routines at LNUM_RANGE, RUNLIN, __AUTO, EVAL, OCTCNS, NOT_KEYWORD, __RENUM_0,
 ; __SYNCHR, __CALL, GETVAR, __CLEAR, __OPEN, __PLAY_2, L77FE and __MAX.
 SN_ERR:
-  LD E,$02	; "Syntax error"
+  LD E,$02	; DERSN - "Syntax error"
   
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
 ; a.k.a. OERR, DZERR
 O_ERR:
-  LD E,$0B	; "Division by zero"
+  LD E,$0B	; DERDV0 - "Division by zero"
   
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
 NF_ERR:
-  LD E,$01	;  "NEXT without FOR"
+  LD E,$01	; DERNF - "NEXT without FOR"
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
 DD_ERR:
@@ -12521,23 +12482,23 @@ DD_ERR:
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
 UFN_ERR:
-  LD E,$12  ; "Undefined user function"
+  LD E,$12  ; DERUF - "Undefined user function"
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
 RW_ERR:
-  LD E,$16	; "RESUME without error"
+  LD E,$16	; DERRE - "RESUME without error"
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
 OV_ERR:
-  LD E,$06  ; "Overflow"
+  LD E,$06  ; DEROV - "Overflow"
   
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
 MO_ERR:
-  LD E,$18	; "Missing operand"
+  LD E,$18	; DERMO - "Missing operand"
   
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
 TM_ERR:
-  LD E,$0D	; "Type mismatch"
+  LD E,$0D	; DERTM - "Type mismatch"
 
 ; This entry point is used by the routines at PRG_END, TOKENIZE_COLON, FC_ERR, UL_ERR,
 ; __ERROR, FDTLP, IDTEST, CHKSTK, __CONT, TSTOPL, TESTR, CONCAT, NM_ERR, __CLOAD and IO_ERR.
@@ -12639,13 +12600,14 @@ ELSE
 ENDIF
   LD A,E
   CP $3C
-  JR NC,UNKNOWN_ERR 	; JP if error code is bigger than $3B
+  JR NC,UE_ERR	 	; JP if error code is bigger than $3B
   CP $32
   JR NC,NTDER2 		; JP if error code is between $32 and $3B
   CP $1A
   JR C,LEPSKP   	; JP if error code is < $1A
 
-UNKNOWN_ERR:
+; a.k.a. UPERR
+UE_ERR:
   LD A,$2F		; if error code is bigger than $3B then force it to $2f-$18=$17 ("Unprintable error")
 
 ; JP here if error code is between $32 and $3B, sub $18
@@ -12677,7 +12639,7 @@ ENDIF
   JR NZ,_LEPSKP        ;NO,PRINT
   POP HL               ;GET LINE # OFF STACK
   LD HL,ERROR_MESSAGES
-  JR UNKNOWN_ERR
+  JR UE_ERR
 
 _LEPSKP:
   LD A,BEL
@@ -12723,7 +12685,7 @@ ENDIF
   LD (SAVTXT),HL
   LD A,(AUTFLG)		; AUTO mode ?
   OR A
-  JR Z,L415F
+  JR Z,PROMPT_1
   LD HL,(AUTLIN)
   PUSH HL
   CALL LINPRT
@@ -12731,14 +12693,12 @@ ENDIF
   PUSH DE
   CALL SRCHLN		; Get first line number
   LD A,'*'
-  JR C,L415B
+  JR C,PROMPT_0
   LD A,' '
-L415B:
+PROMPT_0:
   RST OUTDO  		; Output char to the current device
-
-L415C:
   LD (AUTFLG),A		; AUTO mode
-L415F:
+PROMPT_1:
   CALL ISFLIO		; Tests if I/O to device is taking place
   JR NZ,INI_STREAM
   CALL PINLIN
@@ -22142,17 +22102,18 @@ __FRE:
 ; AKA  NAMSCN (name scan) - evaluate filespecification
 NAMSCN:
   CALL EVAL
+;NAMSC1:
   PUSH HL
   CALL GETSTR
   LD A,(HL)
   OR A					; stringsize zero ?
-  JR Z,NAMSCN_2		; yep, bad filename error
+  JR Z,NAMSCN_2			; yep, bad filename error
   INC HL
   LD E,(HL)
   INC HL
   LD H,(HL)
-  LD L,E			; pointer to string
-  LD E,A			; size of string
+  LD L,E				; pointer to string
+  LD E,A				; size of string
   
   CALL PAR_DNAME		; Parse Device Name
   PUSH AF
@@ -22165,14 +22126,14 @@ NAMSCN_0:
   JR Z,L6A61				; yep, fill remaining FILNAME with spaces
   LD A,(HL)
   CP ' '					; control characters ?
-  JR C,NAMSCN_2			; yep, bad filename error
+  JR C,NAMSCN_2				; yep, bad filename error
   CP '.'					; filename/extension seperator ?
   JR Z,FNAME_7				; yep, handle extension
   LD (BC),A
   INC BC
   INC HL
   DEC D						; FILNAM full ?
-  JR NZ,NAMSCN_0		; nope, next
+  JR NZ,NAMSCN_0			; nope, next
 ; This entry point is used by the routine at L6A61.
 NAMSCN_1:
   POP AF
@@ -22180,7 +22141,7 @@ NAMSCN_1:
   LD D,A					; devicecode
   LD A,(FILNAM)
   INC A						; first character FILNAME charactercode 255 ?
-  JR Z,NAMSCN_2			; yep, bad filename error (because this is internally used as runflag)
+  JR Z,NAMSCN_2				; yep, bad filename error (because this is internally used as runflag)
   POP AF
   POP HL
   RET
@@ -22584,6 +22545,8 @@ ENDIF
   JP NM_ERR					; Err $38 -  'Bad file name'
 
 ; Routine at 27610
+; This function is never called by other rountines in the same ROM bank
+; It is most probably used by MSXDOS.  On the Spectravideo SVI it is located at $6463.
 GETDEV:
   PUSH HL
   PUSH DE
@@ -22883,7 +22846,7 @@ ELSE
   CALL HSAVD			; Init Hook for LOC, LOF, EOF, FPOS
 ENDIF
   CALL FILFRM
-  JR Z,__EOF_0
+  JR Z,DERFNO
   LD A,$0A
   JR C,__EOF_1
 IF NOHOOK
@@ -22893,7 +22856,7 @@ IF NOHOOK
 ELSE
   CALL HLOC				; Hook for LOC
 ENDIF
-  JR _IE_ERR
+  JR DERIER				;  Internal error
 
 ; Routine at 27924
 __LOF:
@@ -22905,7 +22868,7 @@ ELSE
   CALL HSAVD			; Init Hook for LOC, LOF, EOF, FPOS
 ENDIF
   CALL FILFRM
-  JR Z,__EOF_0
+  JR Z,DERFNO
   LD A,$0C
   JR C,__EOF_1
 IF NOHOOK
@@ -22915,7 +22878,7 @@ IF NOHOOK
 ELSE
   CALL HLOF				; Hook for LOF
 ENDIF
-  JR _IE_ERR
+  JR DERIER				;  Internal error
 
 ; Routine at 27941
 __EOF:
@@ -22927,8 +22890,11 @@ ELSE
   CALL HSAVD			; Init Hook for LOC, LOF, EOF, FPOS
 ENDIF
   CALL FILFRM
+
 ; This entry point is used by the routines at __LOC and __LOF.
-__EOF_0:
+; Possible "File Not Open" or "Bad file mode" condition
+; On the Spectravideo SVI it was called "DERFND"
+DERFNO:
   JP Z,CF_ERR			; Err $3B - "File not OPEN"
   LD A,$0E		; ? LINCON ??
 ; This entry point is used by the routines at __LOC, __LOF and __FPOS.
@@ -22942,7 +22908,7 @@ ELSE
   CALL HEOF				; Hook for EOF
 ENDIF
 ; This entry point is used by the routines at __LOC, __LOF and __FPOS.
-_IE_ERR:
+DERIER:
   JP IE_ERR				; Err $33 - "Internal Error"
 
 ; Routine at 27961
@@ -22964,7 +22930,7 @@ IF NOHOOK
 ELSE
   CALL HFPOS			; Hook for FPOS
 ENDIF
-  JR _IE_ERR
+  JR DERIER				;  Internal error
 
 ; Routine at 27976
 EXEC_FILE:
@@ -23199,42 +23165,42 @@ STRCHR:
 ; Used by the routines at L55F8, NAMSCN, __SAVE, L6BD4, GET, __BSAVE, BLOAD_1,
 ; L71AB, L71D9 and GET_DEVNO.
 NM_ERR:
-  LD E,$38 ; - Bad file name
+  LD E,$38 ; DERNMF - Bad file name
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
 AO_ERR:
-  LD E,$36 ; - File already open
+  LD E,$36 ; DERFAO - File already open, on Spectravideo it was called DERFAD
   
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
 DS_ERR:
-  LD E,$39 ; - Direct statement in a file
+  LD E,$39 ; DERFDR - Direct statement in a file
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
 FF_ERR:
-  LD E,$35 ; - File not found
+  LD E,$35 ; DERFNF - File not found
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
 CF_ERR:
-  LD E,$3B ; - File not OPEN
+  LD E,$3B ; DERFNO - File not OPEN
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
-FIELD_OV_ERR:
-  LD E,$32 ; - FIELD overflow
+FO_ERR:
+  LD E,$32 ; DERFOV - FIELD overflow
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
 BN_ERR:
-  LD E,$34 ; - Bad file number
+  LD E,$34 ; DERBFN - Bad file number
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
 IE_ERR:
-  LD E,$33 ; - Internal error
+  LD E,$33 ; DERIER - Internal error
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
 EF_ERR:
-  LD E,$37 ; - Input past end
+  LD E,$37 ; DERRPE - Input past end
 
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
-ERR_NO_RNDACC:
+DERSAP:
   LD E,$3A ; - Sequential I/O Only
 
   XOR A
@@ -23851,7 +23817,7 @@ L715D_1:
 GRP_CTL:
   DEFW DEVICE_OPEN
   DEFW DO_NOTHING		; CLOSE operation
-  DEFW ERR_NO_RNDACC
+  DEFW DERSAP			; "Sequential I/O access only" error
   DEFW GRP_OUTPUT
 
   DEFW FC_ERR		; INPUT operation
@@ -23878,7 +23844,7 @@ L719F:
 CRT_CTL:
   DEFW DEVICE_OPEN
   DEFW DO_NOTHING		; CLOSE operation
-  DEFW ERR_NO_RNDACC
+  DEFW DERSAP           ; "Sequential I/O access only" error
   DEFW CRT_OUTPUT
   
   DEFW FC_ERR		; INPUT operation
@@ -23910,7 +23876,7 @@ CRT_OUTPUT:
 CAS_CTL:
   DEFW CAS_OPEN
   DEFW CAS_CLOSE
-  DEFW ERR_NO_RNDACC
+  DEFW DERSAP            ; "Sequential I/O access only" error
   DEFW CAS_OUTPUT
   
   DEFW CAS_INPUT
@@ -24094,7 +24060,7 @@ DEVICE_RET:
 LPT_CTL:
   DEFW DEVICE_OPEN
   DEFW DO_NOTHING		; CLOSE operation
-  DEFW ERR_NO_RNDACC
+  DEFW DERSAP           ; "Sequential I/O access only" error
   DEFW LPT_OUTPUT
  
   DEFW FC_ERR		; INPUT operation
