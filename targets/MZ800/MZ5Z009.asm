@@ -103,7 +103,7 @@
 ;defc PRNTT   =  0A58H
 ;defc EQTBL   =  0DDDH
 ;defc _TEMPO  =  0041H
-;defc _RET    =  00B2H
+;defc __RET   =  00B2H
 ;defc _CLRDE  =  013DH
 ;defc HLFTCH  =  015EH
 ;defc HALT    =  02F8H
@@ -114,7 +114,7 @@
 ;defc LDDEMD  =  0132H
 ;defc ADDP1   =  0323H
 ;defc HCLS    =  0652H
-;defc _NOP    =  00A6H
+;defc NOTXT   =  00A6H
 ;defc ASCHL   =  025EH
 ;defc ADDP2   =  032AH
 ;defc SETDNM  =  0397H
@@ -416,42 +416,63 @@ defc ERRTXT  = 0FDA0H
 ;
 ;
 ;        ORG    0
-        JP     STARTP
-        JP     GETL
-        JP     CR1
-        JP     CR2
-        JP     CRT1S
-        JP     PRNTT
-        JP     CRT1C
-        JP     CRTMSG
+
+;   RAM - Monitor - jump table
 ;
-;.IOSVC: EQU    3
-        JP     IOSVC           ;RST3 superviser call entry
+        JP      STARTP          ; Monitor / Basic  -  Home entry
 ;
-        JP     INKEY0
-BRKCHK:
-        JP     BRKEY
-        JP     SAVE1
-        JP     SAVE2
-        JP     LOAD1
-        JP     LOAD2
-        JP     LOAD_2
-        JP     _RET            ;RST6
-        JP     TIMST
+        JP      GETL            ; Get line from keyboard to memory (DE).
 ;
+        JP      CR1             ; Output newline to screen
 ;
-        DEFS   2               ;dummy
+        JP      CR2             ; Line feed when cursor is not at beginning of line
 ;
-        JP     _RET            ;RST7 debuger reserve
+        JP      CRT1S           ; print a space on the screen
 ;
-        JP     TIMRD
-BEEP:   JP     CTRLG
-_TEMPO:
-        JP     _TEMP
-        JP     MLDSP
-        JP     MLDSP
-        JP     GETL
+        JP      PRNTT           ; Move cursor to next tab position
 ;
+        JP      CRT1C           ; Display accu on screen (execution of control characters)
+;
+        JP      CRTMSG          ; Output text (DE) on screen (execution of control characters)
+;
+_DOCMD:                           
+        JP      IOSVC           ; Software - execute command (RST _DOCMD: RST3 supervisor call entry)
+;
+        JP      INKEY0          ; Query whether key is pressed
+;
+BRKCHK: JP      BRKEY           ; Query whether (Shift) - BREAK is pressed
+;
+        JP      SAVE1           ; File - write identifier on tape (cassette)
+;
+        JP      SAVE2           ; File - write data to tape (cassette)
+;
+        JP      LOAD1           ; Read file identifier from tape (cassette)
+;
+        JP      LOAD2           ; File - read data from tape (cassette)
+;
+        JP      LOAD_2          ; File - compare data on tape with storage data
+;
+        JP      __RET           ; RET (formerly Music - Play Text (DE)), RST6
+;
+        JP      TIMST           ; set time
+;
+        DEFS    2               ; dummy
+;
+        JP      __RET           ; RET (formerly interrupt for clock)
+;
+        JP      TIMRD           ; read time
+;
+_BEEP:  JP      CTRLG           ; Treat reference tone according to code in Accu
+;
+_TEMPO: JP      _TEMP           ; set pace
+;
+        JP      MLDSP           ; turn off the sound
+;
+        JP      MLDSP           ; turn off the sound
+;
+        JP      GETL            ; Get line from keyboard to memory (DE).
+;
+
 SYSSTA:
         DEFW   _START
 ERRORP:
@@ -461,28 +482,28 @@ ERRORP:
 ;
         DEFS   4
 ;
-        JP     INKEY_S         ;org 58H
+        JP     INKEY           ;org 58H
 ;---------------------------------
 ;
 ;   crt driver contrl code tabel
 ;
 ;---------------------------------
-CONTTB: DEFW   _RET            ;@ 00
-        DEFW   _RET            ;A 01
-        DEFW   _RET            ;B 02
+CONTTB: DEFW   __RET           ;@ 00
+        DEFW   __RET           ;A 01
+        DEFW   __RET           ;B 02
         DEFW   CTR_M           ;C 03
-        DEFW   _RET            ;D 04
+        DEFW   __RET           ;D 04
         DEFW   CTR_E           ;E 05 sft lock
         DEFW   CTR_F           ;F 06 sft normal
-        DEFW   _RET            ;G 07 beep
-        DEFW   _RET            ;H 08
-        DEFW   CTAB            ;I 09
-        DEFW   _RET            ;J 0A
-        DEFW   _RET            ;K 0B
-        DEFW   _RET            ;L 0C
+        DEFW   __RET           ;G 07 beep
+        DEFW   __RET           ;H 08
+        DEFW   C_TAB           ;I 09
+        DEFW   __RET           ;J 0A
+        DEFW   __RET           ;K 0B
+        DEFW   __RET           ;L 0C
         DEFW   CTR_M           ;M 0D cr
         DEFW   SPLSW           ;N 0E spool exec/stop
-        DEFW   _RET            ;O 0F
+        DEFW   __RET           ;O 0F
         DEFW   DEL             ;P 10 del
         DEFW   CDOWN           ;Q 11 cursor down
         DEFW   CUP             ;R 12 cursor up
@@ -493,12 +514,12 @@ CONTTB: DEFW   _RET            ;@ 00
         DEFW   CTR_W           ;W 17 graph
         DEFW   INST            ;X 18 inst
         DEFW   CTR_Y           ;Y 19 alpha
-        DEFW   _RET            ;Z 1A
+        DEFW   __RET           ;Z 1A
         DEFW   CTR_M           ;[ 1B esc
-        DEFW   _RET            ;\ 1C
-        DEFW   _RET            ;] 1D
-        DEFW   _RET            ;^ 1E
-        DEFW   _RET            ;_ 1F
+        DEFW   __RET           ;\ 1C
+        DEFW   __RET           ;] 1D
+        DEFW   __RET           ;^ 1E
+        DEFW   __RET           ;_ 1F
 
 
 ;
@@ -509,7 +530,7 @@ CTRLJB: ADD    A,A
         JP     (HL)
 ;
 ;
-_NOP:
+NOTXT:                         ; Default for text without characters
         NOP
 ;
 _HL:
@@ -523,7 +544,7 @@ DI_:
         CALL   SPLOFF
         POP    AF
         DI
-_RET:
+__RET:
         RET
 ;
 ;
@@ -861,7 +882,7 @@ defc __MSG   =    0BH
 defc _GETL   =    0CH
         DEFW   GETL
 defc _INKEY  =    0DH
-        DEFW   INKEY_S
+        DEFW   INKEY
 defc _BREAK  =    0EH
         DEFW   BRKEY
 defc _HALT   =    0FH
@@ -2805,7 +2826,7 @@ CTR_W:  LD     A,2             ;GRAPH
 ;
 ;----------------------------------
 ;
-CTAB:   LD     B,0             ;tab
+C_TAB:  LD     B,0             ;tab
         LD     HL,(CURXY)
         INC    L
         LD     A,L
@@ -3009,7 +3030,7 @@ GCRT56: OR     A
 ;   A=0  : INKEY$(0)=KEY DATA
 ;   A>0  : INKEY$(1)=FLASH GET
 ;
-INKEY_S:
+INKEY:
         INC    A
         JR     Z,INKEYFF
         DEC    A
@@ -3453,10 +3474,10 @@ IF RAMDISK
 ELSE
         DEFW   CRTINI
 ENDIF
-        DEFW   _RET            ;ROPEN
-        DEFW   _RET            ;WOPEN
-        DEFW   _RET            ;CLOSE
-        DEFW   _RET            ;KILL
+        DEFW   __RET           ;ROPEN
+        DEFW   __RET           ;WOPEN
+        DEFW   __RET           ;CLOSE
+        DEFW   __RET           ;KILL
         DEFW   CRTIN
         DEFW   CRTOUT
         DEFW   CRTPOS
@@ -3466,14 +3487,14 @@ _KB:
         DEFW   0
         DEFB   81H             ;Streem, R
         DEFW   0
-        DEFW   _RET            ;INIT
-        DEFW   _RET            ;ROPEN
-        DEFW   _RET            ;WOPEN
-        DEFW   _RET            ;CLOSE
-        DEFW   _RET            ;KILL
+        DEFW   __RET           ;INIT
+        DEFW   __RET           ;ROPEN
+        DEFW   __RET           ;WOPEN
+        DEFW   __RET           ;CLOSE
+        DEFW   __RET           ;KILL
         DEFW   CRTIN
-        DEFW   _RET
-        DEFW   _RET
+        DEFW   __RET
+        DEFW   __RET
 ;
 CRTIN:
         RST    3
@@ -3566,7 +3587,7 @@ CRT1C0:
         LD     E,D
 CRT1C1: LD     A,L
         CP     E
-        JP     NC,BEEP         ;error range
+        JP     NC,_BEEP        ;error range
 CRT1C2: 
         LD     HL,PLTCOD       ;plotter code  trans.
         LD     B,0
@@ -3575,7 +3596,7 @@ CRT1C2:
         INC    A
         JR     Z,CRT1C9        ; no operation when ffh
         DEC    A
-        JP     Z,BEEP          ;beep when null code
+        JP     Z,_BEEP         ;beep when null code
 CRT1C4: CALL   PLTOUT
 CRT1C9: LD     A,C
         CP     20H
@@ -3620,12 +3641,12 @@ PLTCOD: DEFB   0               ;00
         DEFB   0               ;01
         DEFB   0               ;02
         DEFB   0               ;03
-        DEFB   0FFH             ;04 CTR_D
-        DEFB   0FFH             ;05 CTR_E
-        DEFB   0FFH             ;06 CTR_F
+        DEFB   0FFH            ;04 CTR_D
+        DEFB   0FFH            ;05 CTR_E
+        DEFB   0FFH            ;06 CTR_F
         DEFB   1DH             ;07
         DEFB   0               ;08
-        DEFB   0FFH             ;09 CTAB
+        DEFB   0FFH            ;09 C_TAB
         DEFB   0               ;0A
         DEFB   0               ;0B
         DEFB   0               ;0C
@@ -3639,12 +3660,12 @@ PLTCOD: DEFB   0               ;00
         DEFB   0EH             ;14 LEFT
         DEFB   0               ;15 HOME
         DEFB   0               ;16 CLR
-        DEFB   0FFH             ;17 GRAPH
+        DEFB   0FFH            ;17 GRAPH
         DEFB   0               ;18 INST
-        DEFB   0FFH             ;19 ALPHA
-        DEFB   0FFH             ;1A KANA
+        DEFB   0FFH            ;19 ALPHA
+        DEFB   0FFH            ;1A KANA
         DEFB   0DH             ;1B
-        DEFB   0FFH             ;1C hirakana
+        DEFB   0FFH            ;1C hirakana
         DEFB   0               ;1D
         DEFB   0               ;1E
         DEFB   0               ;1F
@@ -3758,14 +3779,14 @@ _USR:
         DEFB   0
         DEFB   9FH             ;STRM, FNM, W1C, R1C, W, R
         DEFW   0
-        DEFW   _RET            ;INIT
+        DEFW   __RET           ;INIT
         DEFW   USRRO           ;ROPEN
         DEFW   USRWO           ;WOPEN
-        DEFW   _RET            ;CLOSE
-        DEFW   _RET            ;KILL
+        DEFW   __RET           ;CLOSE
+        DEFW   __RET           ;KILL
         DEFW   USRIN           ;INP
         DEFW   USROUT          ;OUT
-        DEFW   _RET            ;POS
+        DEFW   __RET           ;POS
 ;
 USRRO:  
 USRWO:  LD     HL,ELMD1
@@ -4543,9 +4564,9 @@ _LPT:
         DEFW   0
         DEFW   LPTINI
         DEFW   ER59            ;ROPEN
-        DEFW   _RET            ;WOPEN
-        DEFW   _RET            ;CLOSE
-        DEFW   _RET            ;KILL
+        DEFW   __RET           ;WOPEN
+        DEFW   __RET           ;CLOSE
+        DEFW   __RET           ;KILL
         DEFW   0               ;INP
         DEFW   LPT1C_
         DEFW   LPTPOS
@@ -8223,7 +8244,7 @@ _CMTF2: DEFB   0C0H             ;CMT, 1OPN
         DEFW   CTINI           ;INIT
         DEFW   CTRINF          ;RO
         DEFW   CTWINF          ;WO
-        DEFW   _RET            ;START
+        DEFW   __RET           ;START
         DEFW   256             ;Block/byte
         DEFW   CTRDAT          ;INP
         DEFW   CTWDAT          ;OUT
@@ -9264,7 +9285,7 @@ _RS:
         DEFW   RSKL            ;KILL
         DEFW   RSINP           ;INP1C
         DEFW   RSOUT           ;OUT1C
-        DEFW   _RET            ;POS
+        DEFW   __RET           ;POS
 ;
 RSINI:  RET    C
         PUSH   IY
@@ -15380,7 +15401,7 @@ ENDIF
         DEFW   SOUND
         DEFW   ER01
         DEFW   NOISE
-        DEFW   _BEEP
+        DEFW   BEEP
 ; MZ-1500 .VOICE:
         DEFW   ER01
         DEFW   ER01
@@ -16018,7 +16039,7 @@ EDITL:  LD     DE,(EDLINE)
         INC    HL
         INC    HL
         JR     NC,$+5
-        LD     HL,_NOP
+        LD     HL,NOTXT
         EX     DE,HL
         PUSH   DE
         LD     (EDLINE),HL
@@ -17503,7 +17524,7 @@ IFDQSK: INC    HL
         JR     IFDQSK
 ;
 ;
-_BEEP:                    ;BEEP command
+BEEP:                    ;BEEP command
         RST    3
         DEFB   _BELL
         RET
@@ -26867,7 +26888,6 @@ PPCHCK: LD     A,(PSEL)
         BIT    P_PLT,A         ;if not plotter
         JP     Z,LPTMER        ; then err
         RET
-;nop
 
 
 ;        END  (A471)
