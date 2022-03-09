@@ -11,6 +11,13 @@
 ; z88dk-z80asm -b -m -DSYS mz-5z009.asm
 
 
+; V1.0B+ MODIFIED versions
+; 64 KB
+; z88dk-z80asm -b -m -DRAMDISK mz-5z009.asm
+; 
+; PILSOFT MOD, 20.02.89:  64 KB, IO EC~EF
+; z88dk-z80asm -b -m -DRAMDISK -DALTFN -DMOD_B mz-5z009.asm
+
 ; RS232 mode:
 ; (default):   MZ-700, MZ-1500
 ; -DRSYS   :   MZ-800
@@ -2199,8 +2206,12 @@ INST0:
         PUSH   HL              ;HL' counts
         EXX
         POP    BC
+IF RAMDISK
+        CALL   INST_0
+ELSE
         LDDR
         XOR    A
+ENDIF
         LD     (DE),A          ;last addr space
         POP    BC              ;lines pop
         POP    HL
@@ -3437,7 +3448,11 @@ _CRT:
         DEFB   0
         DEFB   8AH             ;Streem, O1C, W
         DEFW   0
+IF RAMDISK
+        DEFW   CRTINI_0
+ELSE
         DEFW   CRTINI
+ENDIF
         DEFW   _RET            ;ROPEN
         DEFW   _RET            ;WOPEN
         DEFW   _RET            ;CLOSE
@@ -3452,7 +3467,7 @@ _KB:
         DEFB   81H             ;Streem, R
         DEFW   0
         DEFW   _RET            ;INIT
-       DEFW   _RET            ;ROPEN
+        DEFW   _RET            ;ROPEN
         DEFW   _RET            ;WOPEN
         DEFW   _RET            ;CLOSE
         DEFW   _RET            ;KILL
@@ -3759,11 +3774,23 @@ USRWO:  LD     HL,ELMD1
         LD     A,D
         OR     E
         JP     Z,ER60
+
+IF RAMDISK
+        ;-------------------------
+        LD     (USROUT+1),DE
+		RET
+USRIN:
+USROUT: LD     HL,ZWRK1			; "ZWRK1" is probably patched by the code above before a jp happens
+        ;-------------------------
+ELSE
+
         LD     (ZWRK1),DE
         RET
-;
 USRIN:  
 USROUT: LD     HL,(ZWRK1)
+
+ENDIF
+;
         JP     (HL)
 
 ;       END  (0FABH)
@@ -3995,7 +4022,20 @@ GMODE:                    ;graphic color mode
 ;
 ;
 IBUFE:                    ;CMT work
+IFDEF RAMDISK
+        DEFB   0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e
+        DEFB   0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e
+        DEFB   0xe0, 0xe0, 0xe0, 0xe0, 0xe0, 0xe0, 0xe0, 0xe0
+		DEFM   "MZ-5Z009"
+        DEFB   0xd7, 0xd7, 0xd7, 0xd7, 0xd7, 0xd7, 0xd7, 0xd7
+        DEFB   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+		DEFM   "*********V.1.02*********"
+        DEFB   0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e
+        DEFB   0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e
+        DEFS   24
+ELSE
         DEFS   128
+ENDIF
 ;
         DEFS   34
         DEFB   0EFH            ;FLSDT
@@ -4030,6 +4070,48 @@ FUNBUF:
         DEFB   0DH
         DEFS   15-7
 
+IF ALTFN
+        DEFB   6
+        DEFM   "LIST  "
+        DEFS   15-6
+
+        DEFB   6
+        DEFM   "LOAD  "
+        DEFS   15-6
+
+        DEFB   6
+        DEFM   "SAVE  "
+        DEFS   15-6
+
+        DEFB   7
+        DEFM   "VERIFY"
+        DEFB   0DH
+        DEFS   15-7
+
+        DEFB   14
+        DEFM   "INIT\"CRT:M2\""
+		DEFB   0x14,0x14
+        DEFS   15-14
+
+        DEFB   15
+        DEFM   "INIT\"LPT:M0,S2,"
+
+        DEFB   11
+        DEFM   "OUT@ $E9,0"
+		DEFB   0x14
+        DEFS   15-11
+
+        DEFB   8
+        DEFM   "DEF.CMT"
+        DEFB   0DH
+        DEFS   15-8
+
+        DEFB   8
+        DEFM   "DIRRAM "
+        DEFB   0DH
+        DEFS   15-8
+
+ELSE
         DEFB   5
         DEFM   "LIST "
         DEFS   15-5
@@ -4065,7 +4147,7 @@ FUNBUF:
         DEFB   6
         DEFM   "LOAD  "
         DEFS   15-6
-
+ENDIF
 
 ;
 INBUFC:                    ;INBUF counter
@@ -5243,6 +5325,26 @@ HLDEC2: POP    HL
 ;       END  (17EAH)
 
 
+;=========================
+IF RAMDISK
+INST_0:
+        LD     A,B
+		OR     C
+		RET    Z
+		LDDR
+		XOR    A
+		RET
+
+CRTINI_0:
+        LD     A,$C0
+		LD     (_SET+2),A
+		LD     (BOXC0+1),A
+		JP     CRTINI
+
+ENDIF
+;=========================
+
+
 XMON_END:
 DEFS $1800-XMON_END
 
@@ -5326,6 +5428,7 @@ ZBUFE:
 PRTSTR:
         CALL   IO_RDY
         CALL   PRTST0
+
 IO_OK:
         XOR    A
         LD     (QSEG),A
@@ -6296,7 +6399,8 @@ DIRM3:  DEFM   "OBJ"           ;1
         DEFM   "SYS"           ;10
         DEFM   "GR "           ;11
         DEFM   " ? "           ;12
-MAXMOD: EQU    11
+
+defc MAXMOD  =    11
 
 
 ;
@@ -6638,15 +6742,71 @@ ERRCVR:
         LD     (QSEG),A
         JP     DUST            ;I/O open check
 ;JP MLDSP
-        DEFS   3
 
-;
+
+IF MOD_B
+EMSV1_00:
+		PUSH   AF
+		LD     A,(ZCH)
+
+ELSE
+
+        DEFS   3
 QSEG:
         DEFB   0
+
+ENDIF
 ;
 ;       END  (1FDA)
 
-defs 38
+;=========================
+IF RAMDISK
+
+IF MOD_B
+MODB_SUB:
+        ADD     A,0ECH     ; EM_P0   (0EFH: EM_P1)
+		LD      C,A
+		POP     AF
+		LD      B,L
+		RET
+	   
+ELSE
+        DEFS    6
+ENDIF
+
+SEEK_0:
+        CALL    LDEND
+        PUSH    BC
+        LD      HL,(ELMD24)     ;exec addr
+        LD      BC,DSAVE_0+2
+        XOR     A
+        SBC     HL,BC
+        POP     BC
+        POP     HL
+        RET     NZ
+        LD      HL,(TEXTST)
+        INC     HL
+        INC     HL
+        INC     HL
+SEEK_LOOP:
+        INC     HL
+        LD      A,(HL)
+		OR      A
+		JR      NZ,SEEK_LOOP
+		JP      (HL)
+		
+		
+
+ENDIF
+;=========================
+IF MOD_B
+defs 3
+QSEG:
+ENDIF
+
+XWORK_END:
+DEFS $2000-XWORK_END
+
 
 ;        ORG    2000H
 TEXTBF: 
@@ -7462,10 +7622,16 @@ TMLPS:  CALL   TIMW
         OUT    (SIOAC),A
         LD     BC,1            ;WAIT 0.7ms
         CALL   TIMW
+IF RAMDISK
+        LD     A,0A5H
+        CALL   TRANS
+		JP     TRANS_0
+ELSE
         LD     A,0C0H
         OUT    (SIOAC),A
         LD     A,0A5H
         JR     TRANS
+ENDIF
 ;
 ;
 ;
@@ -7850,6 +8016,7 @@ SVALM:  LD     (RETSP),SP
         LD     (FNUPB),A
         LD     (FLAGF),A
         LD     (FNUPS),A
+SVALM0:
         LD     HL,RMTOP
         CALL   EMLD2
         LD     A,D
@@ -9076,11 +9243,11 @@ _KY1:   LD     A,(BC)
 ;
 
 
-        IF     RSYS
-RMCH:   EQU    3
-        ELSE
-RMCH:   EQU    1
-        ENDIF
+IF     RSYS
+        defc RMCH =   3
+ELSE
+        defc RMCH =   1
+ENDIF
 ;
 ;
 _RS:
@@ -9205,8 +9372,9 @@ SETIY2: ADD    IY,DE
 ;
 ;***  PORT ADDRESS EQU  ***
 ;
-defc CHADT  =    0B0H
-defc CHACT  =    0B1H
+; Serial interface port (also valid on the MZ80K, e.g. MZ-8BIO3 board)
+defc CHADT  =    0B0H	; Data port
+defc CHACT  =    0B1H	; 
 defc CHBDT  =    0B2H
 defc CHBCT  =    0B3H
 ;
@@ -9280,7 +9448,7 @@ __D:    DEFB   CHDCT
         DEFB   3
         ENDIF
 ;
-TBLN:   EQU    __B-__A
+defc TBLN  =  __B-__A
 ;
 
 
@@ -9537,7 +9705,11 @@ _RAM:
         DEFM   "RAM"
         DEFB   0
         DEFB   5FH
+IF MOD_B
+        DEFB   23H             ;1WOPN
+ELSE
         DEFB   20H             ;1WOPN
+ENDIF
         DEFB   32              ;Max dir
         DEFW   EMINI           ;INIT
         DEFW   EMRINF
@@ -9550,7 +9722,12 @@ _RAM:
         DEFW   EMWDIR
         DEFW   EMFRKB
 ;
-EMFRKB: CALL   EMFRB
+EMFRKB:
+IF RAMDISK
+        CALL   EMFRB_DI
+ELSE
+        CALL   EMFRB
+ENDIF
         LD     C,H
         LD     B,0             ;/256
         SRL    C               ;/512
@@ -9579,7 +9756,6 @@ EMSETU: LD     HL,2
         LD     DE,0
         JP     EMSV2           ;File end mark
 
-
 ;
 EMINI:  RET    C
         LD     A,(EMFLG)
@@ -9589,7 +9765,11 @@ EMINI:  RET    C
         CALL   TEST1
         DEFM   ","
         PUSH   HL
+IF RAMDISK
+        CALL   EMCLR_DI
+ELSE
         CALL   EMCLR
+ENDIF
         POP    HL
         CALL   TEST1
         DEFB   0
@@ -9645,18 +9825,23 @@ EMPWR2: CALL   EMLD1
         INC    A
         LD     (EMFLG),A
         JP     PBCCLR
-EMPWR4: CALL   EMCLR
+EMPWR4:
+        CALL   EMCLR
         LD     HL,0            ;check EMM installed?
         LD     A,5AH
         CALL   EMSV1
         CALL   EMLD1
         SUB    5AH
+EMPWR_SMC:
+IF MOD_B
+        LD     DE,0FFFFH        ;64KB MOD
+ELSE
         LD     DE,0C000H        ;Initial set 48KB
+ENDIF
         JR     Z,EMINI2
         XOR    A
         LD     (EMFLG),A
         RET
-
 
 ;
 ;  Dir search start
@@ -9673,7 +9858,11 @@ EMON:   LD     A,(EMFLG)
 ;
 EMRINF: LD     BC,HL
         LD     HL,(EMPTR)
+IF RAMDISK
+        CALL   EMLD2_DI
+ELSE
         CALL   EMLD2
+ENDIF
         LD     A,D
         OR     E
         SCF
@@ -9696,9 +9885,14 @@ EMRINF: LD     BC,HL
         EX     DE,HL
         LD     (HL),E             ;Save data area adrs
         INC    HL
+		
+IF RAMDISK
+        JP     EMRINF_EI
+ELSE
         LD     (HL),D
         OR     A
         RET
+ENDIF
 ;
 ;  Read data
 ;    ent HL:buffer adrs
@@ -9710,12 +9904,15 @@ EMRDAT: EX     DE,HL
         INC    HL
         INC    HL
         INC    HL
+IF RAMDISK
+        CALL   EMLDD_0
+ELSE
         CALL   EMLDD
+ENDIF
         LD     (IY+30),L
         LD     (IY+31),H
         OR     A
         RET
-
 
 ;
 ;  Write file
@@ -9725,7 +9922,11 @@ EMWINF: PUSH   AF
         CALL   SERFLW
         PUSH   HL
         LD     HL,2
+IF RAMDISK
+        CALL   EMLD2_DI_0
+ELSE
         CALL   EMLD2
+ENDIF
         LD     (EMWP0),DE
         PUSH   DE
         LD     HL,64+7
@@ -9737,7 +9938,11 @@ EMWINF: PUSH   AF
         POP    HL              ;inf adrs
         LD     BC,64
         POP    AF
+IF RAMDISK
+        CALL   EMSVB_EI
+ELSE
         CALL   EMSVB
+ENDIF
         LD     (EMWP1),DE
         RET
 
@@ -9835,8 +10040,13 @@ EMWDIR: LD     HL,(ELMD30)
 
 
 ;
+IF MOD_B
+;defc EM_P0   =   0ECH
+;defc EM_P1   =   0EFH
+ELSE
 defc EM_P0   =   0EAH
 defc EM_P1   =   0EBH
+ENDIF
 
 ;
 ; EMM 1 Byte Write
@@ -9845,12 +10055,20 @@ defc EM_P1   =   0EBH
 ;
 EMSV1:
         PUSH   BC
+IF MOD_B
+        CALL   EMSV1_00
+        IN     B,(C)
+        LD     B,H
+        OUT    (C),A
+        POP    BC
+ELSE
         LD     C,EM_P1
         LD     B,H
         OUT    (C),L
         OUT    (EM_P0),A
         POP    BC
         OR     A
+ENDIF
         RET
 ;
 ; EMM 1 Byte Read
@@ -9859,12 +10077,20 @@ EMSV1:
 ;
 EMLD1:
         PUSH   BC
+IF MOD_B
+        CALL   EMSV1_00
+        IN     B,(C)
+        LD     B,H
+		IN     A,(C)
+        POP    BC
+ELSE
         LD     C,EM_P1
         LD     B,H
         OUT    (C),L
         IN     A,(EM_P0)
         POP    BC
         OR     A
+ENDIF
         RET
 ;
 ; EMM 2 Byte Write
@@ -11026,7 +11252,7 @@ TEMPOW: DEFS   1
 ;
 ;
 
-KEYBF:  EQU    11A4H           ;KEYBUF label
+defc KEYBF  =    11A4H           ;KEYBUF label
 ;-------------------------------
 ;
 ; INIT "CRT:
@@ -11336,7 +11562,7 @@ SET1:   OR     C
         RET
 ;
 ;
-_RESET:  OR     A
+_RESET: OR     A
         LD     A,60H           ;w1 reset
         JR     NZ,SET1
 ;
@@ -11429,12 +11655,12 @@ RNGER:  POP    HL
 ;-------------------------------
 ;
 ;
-X0:     EQU    KEYBF           ;2
-DX:     EQU    X0+2            ;2
-XDIRE:  EQU    DX+2            ;1
-Y0:     EQU    XDIRE+1         ;2
-DY:     EQU    Y0+2            ;2
-YDIRE:  EQU    DY+2            ;1
+defc X0      =    KEYBF           ;2
+defc DX      =    X0+2            ;2
+defc XDIRE   =    DX+2            ;1
+defc Y0      =    XDIRE+1         ;2
+defc DY      =    Y0+2            ;2
+defc YDIRE   =    DY+2            ;1
 ;
 ;
 WLINE0: LD     A,0FFH
@@ -12175,41 +12401,37 @@ CHENGE: LD     (P14),A
 ;
 ; work area
 ;
-CI_D:   EQU    KEYBF           ;2
-DYY:    EQU    CI_D+2          ;2
-XX:     EQU    DYY+2           ;2
-YY:     EQU    XX+2            ;2
-CYE:    EQU    YY+2            ;2
-KBL:    EQU    CYE+2           ;1 \ÄÙÛ BLOCK NO.
-SBL:    EQU    KBL+1           ;1 \mÄÙÛ BLOCK NO.
+defc CI_D   =    KEYBF           ;2
+defc DYY    =    CI_D+2          ;2
+defc XX     =    DYY+2           ;2
+defc YY     =    XX+2            ;2
+defc CYE    =    YY+2            ;2
+defc KBL    =    CYE+2           ;1 \ÄÙÛ BLOCK NO.
+defc SBL    =    KBL+1           ;1 \mÄÙÛ BLOCK NO.
 ;
 ;
-;ÛÛ CYE oÛºlym ÀÙ\
-FUYE:   EQU    SBL+1           ;2
-;ÛÛ XX oÛºlym ÀÙ\
-FUXX:   EQU    FUYE+2          ;2
-;ÛÛ CYE ÃßÜ oÛºlym ÀÙ\
-FUYYHI: EQU    FUXX+2          ;2
-;ÛÛ XX ÃßÜ oÛºlym ÀÙ\
-FUXXHI: EQU    FUYYHI+2        ;2
+defc FUYE   =    SBL+1           ;2
+defc FUXX   =    FUYE+2          ;2
+defc FUYYHI =    FUXX+2          ;2
+defc FUXXHI =    FUYYHI+2        ;2
 ;
-FUNOYE: EQU    FUXXHI+2        ;2
+defc FUNOYE =   FUXXHI+2        ;2
 ;
-CIR_BK: EQU    FUNOYE+2        ;9 Block data
+defc CIR_BK =   FUNOYE+2        ;9 Block data
 ;
 ;
-KAIX:   EQU    CIR_BK+9        ;2 \ÄÙ X
-KAIY:   EQU    KAIX+2          ;2 \ÄÙ Y
-SYUX:   EQU    KAIY+2          ;2 \mÄÙ X
-SYUY:   EQU    SYUX+2          ;2 \mÄÙ Y
-XXHI:   EQU    SYUY+2          ;2 XXÛ ÃßÜ DATA
-YYHI:   EQU    XXHI+2          ;2 YEÛ ÃßÜ DATA
+defc KAIX   =   CIR_BK+9        ;2 \ÄÙ X
+defc KAIY   =   KAIX+2          ;2 \ÄÙ Y
+defc SYUX   =   KAIY+2          ;2 \mÄÙ X
+defc SYUY   =   SYUX+2          ;2 \mÄÙ Y
+defc XXHI   =   SYUY+2          ;2 XXÛ ÃßÜ DATA
+defc YYHI   =   XXHI+2          ;2 YEÛ ÃßÜ DATA
 ;
-XXX:    EQU    YYHI+2          ;2
-YYY:    EQU    XXX+2           ;2
+defc XXX    =   YYHI+2          ;2
+defc YYY    =   XXX+2           ;2
 ;
-CIR_HF: EQU    YYY+2           ;1
-CIR_HD: EQU    CIR_HF+1        ;1
+defc CIR_HF =    YYY+2           ;1
+defc CIR_HD =    CIR_HF+1        ;1
 ;
 
 
@@ -12222,9 +12444,9 @@ CIR_HD: EQU    CIR_HF+1        ;1
 ;        if CF then A:fill color
 ;
 ; ----------------------------
-LSTA:   EQU    KEYBF
-RSTA:   EQU    LSTA+2
-SPBOX:  EQU    RSTA+2
+defc LSTA    =   KEYBF
+defc RSTA    =   LSTA+2
+defc SPBOX   =   RSTA+2
 ;
 WBOX:
         LD     (SPBOX),SP
@@ -12299,6 +12521,7 @@ BOXF:
         LD     SP,(SPBOX)      ;line routions pop
 BOXC:   LD     A,(PWMODE)
         OR     A
+BOXC0:
         LD     A,0C0H           ;w0 pset
         JR     Z,BOXF0
         LD     A,40H           ;w0 or
@@ -12499,34 +12722,39 @@ POSSV:
 ;
 SBDTAP: DEFS   8
 ;
-SDT0:   EQU    1200H
-SDT7:   EQU    1207H
+
+; This structure shares the memory space allocated for KEYBUF
+
+defc SDT0   =    1200H
+defc SDT7   =    1207H
 ;
-SCNT:   EQU    1208H           ;1
-HCNT:   EQU    SCNT+1          ;1
-VCNT:   EQU    HCNT+1          ;1
-BCNT:   EQU    VCNT+1          ;1
+defc SCNT   =    1208H           ;1
+defc HCNT   =    SCNT+1          ;1
+defc VCNT   =    HCNT+1          ;1
+defc BCNT   =    VCNT+1          ;1
 ;
-STRAP:  EQU    BCNT+1          ;2
-SDTAP:  EQU    STRAP+2         ;2
-BDTAP:  EQU    SDTAP+2         ;2
+defc STRAP  =    BCNT+1          ;2
+defc SDTAP  =    STRAP+2         ;2
+defc BDTAP  =    SDTAP+2         ;2
 ;
-DEFX0:  EQU    BDTAP+2         ;1
-DEFY0:  EQU    DEFX0+1         ;1
-DEFX8:  EQU    DEFY0+1         ;2
-DEFY8:  EQU    DEFX8+2         ;2
+defc DEFX0  =    BDTAP+2         ;1
+defc DEFY0  =    DEFX0+1         ;1
+defc DEFX8  =    DEFY0+1         ;2
+defc DEFY8  =    DEFX8+2         ;2
 ;
-PX:     EQU    DEFY8+2         ;2
-PY:     EQU    PX+2            ;2
+defc PX     =    DEFY8+2         ;2
+defc PY     =    PX+2            ;2
 ;
-VADD:   EQU    PY+2            ;2
-LDOT:   EQU    VADD+2          ;1
+defc VADD   =    PY+2            ;2
+defc LDOT   =    VADD+2          ;1
 ;
-DEFX:   EQU    LDOT+1          ;1
-DEFY:   EQU    DEFX+1          ;1
-DEF8:   EQU    DEFY+1          ;2
+defc DEFX   =    LDOT+1          ;1
+defc DEFY   =    DEFX+1          ;1
+defc DEF8   =    DEFY+1          ;2
 ;
-NSDT:   EQU    DEF8+2          ;2
+defc NSDT   =    DEF8+2          ;2    ->  $1223
+
+
 ;
 ;
 CLLADD: DEFW   LOD00
@@ -13429,6 +13657,7 @@ DSAVE:  LD     A,B
         LD     L,(IY+2)
         LD     H,(IY+3)
         PUSH   HL
+DSAVE_0:
         LD     (BXL),HL
         LD     A,3
         CALL   ESAVE
@@ -13919,6 +14148,7 @@ DPEEK2: LD     E,A
         LD     A,E
         EXX
 DPEEK3: RET
+
 ;
 ;
 ;  //  COMP. BXL,BXR  //
@@ -13943,6 +14173,320 @@ COMP1:  SBC    HL,DE
         RET
 ;
 ;       END  (558BH)
+
+
+IF RAMDISK
+TRANS_0:
+        LD     A,0C0H
+        OUT    (SIOAC),a
+        RET
+
+EMFRB_DI:
+        DI
+        CALL   EMFRB
+        EI
+        RET
+
+EMCLR_DI:
+        DI
+        CALL   EMCLR
+        EI
+        RET
+
+EMLD2_DI:
+        DI
+        JP     EMLD2
+
+EMRINF_EI:
+        LD     (HL),D
+        OR     A
+        EI
+        RET
+
+EMLDD_0:
+        DI
+        CALL   EMLDD
+        EI
+        RET
+
+;  EMLD2_DI_0 is identical to EMLD2_DI !
+;  Probably the patches were applied manually in small steps
+EMLD2_DI_0:
+        DI
+        JP     EMLD2
+
+EMSVB_EI:
+        CALL   EMSVB
+        EI
+        RET
+
+LET_0:
+        CALL   LET
+        LD     A,(PRCSON)
+        CP     3
+        JP     Z,ER04
+        RET
+
+        NOP
+
+BORDER:
+        CALL   IBYTE
+        LD     BC,6CFH         ;B counter C scrool reg
+        OUT    (C),E
+        RET
+
+; !!!
+SCROLL:
+        CALL   $8551
+        LD     BC,1CFH
+        OUT    (C),E
+        INC    B
+        OUT    (C),D
+        RET
+		
+SYNC:
+        IN     A,(LSDMD)       ;check dipsw
+        AND    40H
+        JR     Z,SYNC
+SYNC_0:
+        IN     A,(LSDMD)       ;check dipsw
+        AND    40H
+        JR     NZ,SYNC_0
+        RET
+
+EMSV1_0:
+        PUSH   HL
+        PUSH   AF
+        SET    7,H
+        LD     A,(CRTMD2)
+        DEC    A
+        JR     NZ,EMSV1_1
+        SCF
+        RR     H
+        RR     L
+        RES    6,H
+        LD     A,18H
+        RES    5,H
+        JR     C,EMSV1_2
+EMSV1_1:
+        LD     A,14H
+EMSV1_2:
+        OUT    (LSWF),A        ;write plane
+        IN     A,(LSE0)        ;bank change
+        POP    AF
+        LD     (HL),A
+        IN     A,(LSE1)        ;bank off
+        OR     A
+        POP    HL
+        RET
+
+EMLD1_A:
+        PUSH   HL
+        PUSH   AF
+        SET    7,H
+        LD     A,(CRTMD2)
+        DEC    A
+        JR     NZ,EMLD1_A0
+        SCF
+        RR     H
+        RR     L
+        RES    6,H
+        LD     A,18H
+        RES    5,H
+        JR     C,EMLD1_A1
+EMLD1_A0:
+        LD     A,14H
+EMLD1_A1:
+        OUT    (LSRF),A        ;write plane
+        IN     A,(LSE0)        ;bank change
+        POP    AF
+        LD     L,(HL)
+        IN     A,(LSE1)        ;bank off
+        LD     A,L
+        OR     A
+        POP    HL
+        RET
+
+VRAM:
+        LD     A,0x3C		;   "INC A"
+        LD     (CRTPW0-1),A
+        PUSH   HL
+        CALL   CRTPWR
+        CALL   CLSHET
+        LD     A,(MEMOP)
+        OR     A
+        POP    HL
+        JP     Z,ER59_
+        CALL   ENDCHK
+        JR     Z,VRAM0
+        CALL   TEST1
+        SBC    A,L
+        JR     Z,VRAM0
+        CALL   TESTX
+        AND    C
+
+        PUSH   HL
+        LD     HL,EMSV1
+        LD     (HL),0C5H       ; "PUSH BC"
+        INC    HL
+IF MOD_B
+        LD     (HL),0CDH       ; "CALL .."
+ELSE
+        LD     (HL),0EH        ; "LD C,.."
+ENDIF
+        INC    HL
+IF MOD_B
+        LD     (HL),0D6H       ; 
+ELSE
+        LD     (HL),0EBH       ; ".. EM_P1"
+ENDIF
+        LD     HL,EMLD1
+        LD     (HL),0C5H       ; "PUSH BC"
+        INC    HL
+IF MOD_B
+        LD     (HL),0CDH       ; "CALL .."
+ELSE
+        LD     (HL),0EH        ; "LD C,.."
+ENDIF
+        INC    HL
+IF MOD_B
+        LD     (HL),0D6H       ; 
+ELSE
+        LD     (HL),0EBH       ; ".. EM_P1"
+ENDIF
+
+        XOR    A
+        CALL   EMMPWR
+        POP    HL
+        RET
+
+VRAM0:
+        PUSH   HL
+        LD     HL,EMSV1
+        LD     (HL),0C3H       ; "JP  .."
+        INC    HL
+        LD     (HL),EMSV1_0%256
+        INC    HL
+        LD     (HL),EMSV1_0/256
+        LD     HL,EMLD1
+        LD     (HL),0C3H       ; "JP  .."
+        INC    HL
+        LD     (HL),EMLD1_A%256
+        INC    HL
+        LD     (HL),EMLD1_A/256
+
+        LD     HL,$3FFF
+        LD     (EMPWR_SMC+1),HL
+
+        XOR    A               ;   "NOP"
+        LD     (CRTPW0-1),A    ; prevent "option vram" flag from being enabled
+        LD     (MEMOP),A       ; disable "option vram" flag
+        PUSH   BC
+        CALL   EMMPWR          ;  EMM power on routine
+        POP    BC
+        POP    HL
+        RET
+
+
+FAST:
+        JR     Z,FAST_0
+        CALL   TEST1
+        SBC    A,L
+        JR     Z,FAST_0
+        CALL   TESTX
+        AND    C
+        PUSH   HL
+        LD     HL,SLOW_TBL
+        JR     FAST_1
+FAST_0:
+        PUSH   HL
+        LD     HL,FAST_TBL
+FAST_1:
+        LD     A,(HL)
+        LD     (DLY3+2),A
+        INC    HL
+        LD     A,(HL)
+        LD     (DLY1+1),A
+        INC    HL
+        LD     A,(HL)
+        LD     (DLY4+1),A
+        POP    HL
+        RET
+        
+
+SLOW_TBL:
+        DEFB   76, 24, 105
+
+FAST_TBL:
+        DEFB   35, 11, 49
+
+
+SCREEN:
+        CALL   IBYTE
+        OUT    (LSRF),A        ;read plane
+		CALL   HCH2CH
+        CALL   IBYTE
+        PUSH   HL
+        PUSH   DE
+        PUSH   BC
+        LD     B,A
+        LD     A,(MEMOP)       ;option vram exist ?
+        OR     A
+        LD     A,B
+        JR     NZ,RD_SUB3_1
+        AND    0E3H
+RD_SUB3_1:
+        OUT    (LSWF),A        ;write plane
+        LD     HL,8000H
+        PUSH   HL
+        POP    DE
+        LD     BC,2000H
+        LD     A,(DMD)			; display mode
+        CP     3
+        JR     C,RD_SUB3_2
+        LD     BC,4000H
+RD_SUB3_2:
+        IN     A,(LSE0)        ;bank change !!
+        LDIR
+        IN     A,(LSE1)        ;  bank reset
+        POP    BC
+        POP    DE
+        POP    HL
+        RET
+		
+
+; map 'write mode' values to be sent to LSWF port
+;
+SPECG:
+        PUSH   BC
+        CALL   ENDCHK
+        LD     B,0C0H	; no value
+        JR     Z,SPECG_1
+        LD     B,020H
+        CP     45H		; 'E'
+        JR     Z,SPECG_1
+        LD     B,060H
+        CP     52H		; 'R'
+        JR     Z,SPECG_1
+        LD     B,0
+        CP     53H		; 'S'
+        JP     NZ,ER01
+SPECG_1:
+        LD     A,B          ; A='Write mode' (to be sent to [LSWF] port)
+        LD     (_SET+2),A		;w0 pset
+        LD     (BOXC0+1),A		;w0 pset
+        POP    BC
+        CP     0C0H
+        RET    Z
+        INC    HL
+        RET
+		
+		defs  8
+
+; --- $5728 ---
+START_0:
+
+ENDIF
 
 
 MON_END:
@@ -14317,10 +14861,19 @@ CTBL1:
         DEFB   'E'+80H
         DEFM   "WAI"
         DEFB   'T'+80H
+
+
+IF RAMDISK
+        DEFB   80H             
+
+        DEFM   "VRA"          ; C0
+        DEFB   'M'+80H
+ELSE
         DEFM   "SWA"
         DEFB   'P'+80H
-;
+
         DEFB   80H             ; C0
+ENDIF
 
         DEFM   "ERRO"
         DEFB   'R'+80H
@@ -14354,10 +14907,21 @@ CTBL1:
 ;
         DEFM   "ROPE"
         DEFB   'N'+80H
+;
+
+IF RAMDISK
+        DEFB   80H
+
+        DEFM   "SPEC"
+        DEFB   'G'+80H
+
+ELSE
         DEFM   "XOPE"
         DEFB   'N'+80H
 
         DEFB   80H
+ENDIF
+
         DEFB   80H
         DEFB   80H
 
@@ -14371,6 +14935,18 @@ CTBL1:
         DEFB   'E'+80H
         DEFM   "KIL"
         DEFB   'L'+80H
+
+IF RAMDISK
+        DEFB   80H
+        DEFB   80H
+
+        DEFM   "INI"
+        DEFB   'T'+80H
+        DEFM   "FAS"
+        DEFB   'T'+80H
+        DEFM   "SCREE"
+        DEFB   'N'+80H
+ELSE
         DEFM   "LOC"
         DEFB   'K'+80H
         DEFM   "UNLOC"
@@ -14380,6 +14956,8 @@ CTBL1:
 
         DEFB   80H
         DEFB   80H
+ENDIF
+
         DEFB   80H
 ;
         DEFM   "T"
@@ -14441,12 +15019,23 @@ CTBL1:
 
 GTABL:
         DEFB   80H             ; FE 80
+
+
+IF RAMDISK
+        DEFM   "SYN"
+        DEFB   'C'+80H
+        DEFM   "BORDE"
+        DEFB   'R'+80H
+        DEFM   "SCROL"
+        DEFB   'L'+80H
+ELSE
         DEFM   "CSE"
         DEFB   'T'+80H
         DEFM   "CRESE"
         DEFB   'T'+80H
         DEFM   "CCOLO"
         DEFB   'R'+80H
+ENDIF
         DEFB   80H
         DEFB   80H
         DEFB   80H
@@ -14704,7 +15293,11 @@ SJPTBL:
         DEFW   GPRINT
         DEFW   KLIST
         DEFW   AXIS
+;IF MOD_B
+;        DEFW   LOAD+1	; ???
+;ELSE
         DEFW   LOAD
+;ENDIF
         DEFW   SAVE
         DEFW   MERGE
         DEFW   CHAIN
@@ -14715,9 +15308,13 @@ SJPTBL:
         DEFW   TEST
         DEFW   PAGE
         DEFW   PAUSE
-        DEFW   SWAP
+        DEFW   SWAP            ; <- with a RAMDISK mod, the 'SWAP' keyword is not defined
 ;
+IF RAMDISK
+        DEFW   VRAM            ; C0
+ELSE
         DEFW   ER01            ; C0
+ENDIF
         DEFW   ERROR
         DEFW   _ELSE
         DEFW   USR
@@ -14735,8 +15332,12 @@ SJPTBL:
         DEFW   CLOSE
 ;
         DEFW   ROPEN           ; D0
-        DEFW   XOPEN
+        DEFW   XOPEN           ; <- with a RAMDISK mod, this keyword is not defined
+IF RAMDISK
+        DEFW   SPECG
+ELSE
         DEFW   ER01
+ENDIF
         DEFW   ER01
         DEFW   ER01
         DEFW   DIR
@@ -14744,19 +15345,32 @@ SJPTBL:
         DEFW   ER01
         DEFW   RENAME          ; D8
         DEFW   KILL
-        DEFW   LOCK
-        DEFW   UNLOCK
+
+        DEFW   LOCK            ; <- with a RAMDISK mod, this keyword is not defined
+        DEFW   UNLOCK          ; <- with a RAMDISK mod, this keyword is not defined
         DEFW   INIT
+IF RAMDISK
+		DEFW   FAST
+		DEFW   SCREEN
+ELSE
         DEFW   ER01
         DEFW   ER01
+ENDIF
         DEFW   ER01
 ;
 ;
 GJPTBL:
         DEFW   ER01            ; FE 80
-        DEFW   ER01
-        DEFW   ER01
-        DEFW   ER01
+
+IF RAMDISK
+        DEFW   SYNC
+        DEFW   BORDER
+        DEFW   SCROLL
+ELSE
+        DEFW   ER01           ; CSET
+        DEFW   ER01           ; CRESET
+        DEFW   ER01           ; CCOLOR
+ENDIF
         DEFW   ER01
         DEFW   ER01
         DEFW   ER01
@@ -15758,7 +16372,7 @@ RENOVR: LD     HL,10
 ;
 ; Error message & exeption
 ;
-MAXERR: EQU    70
+defc MAXERR  =    70
 ;
 ;
 ER01:
@@ -16245,7 +16859,11 @@ STRDE1: LD     E,(HL)
 FOR:                    ;FOR TO STEP
         POP    BC
         LD     (FORRTA),BC
+IF RAMDISK
+        CALL   LET_0
+ELSE
         CALL   LET
+ENDIF
         LD     IX,0
         ADD    IX,SP
         LD     (FRTXPT),HL
@@ -16952,9 +17570,17 @@ LIST:                    ;LIST#n   Start-End
         CALL   GETLU
         RST    3
         DEFB   _LUCHK
+IF RAMDISK
+        JP     C,ER44
+ELSE
         JP     C,ER64__
+ENDIF
         BIT    1,A             ;W?
+IF RAMDISK
+        JP     Z,__ER59
+ELSE
         JP     Z,ER64__
+ENDIF
         CALL   TEST1
         DEFM   ","
         POP    AF
@@ -17858,16 +18484,23 @@ ELMWRK: DEFS   4
 ;
 ; LOAD "dev:filename"
 ;
+IF MOD_B
+        DEFB   0CDH              ;   (CALL): This is useless, it is unclear why the "LOAD" function was shifted on MOD B
+ENDIF
+
 LOAD:
         CALL   TEST1
         DEFB   0E5H             ;ALL
+
         JR     NZ,_LOAD_2
         XOR    A
 __LSALL:
         RST    3
         DEFB   _LSALL
         RET
-_LOAD_2: CALL   ELMT
+
+_LOAD_2:
+        CALL   ELMT
         CALL   TEST1
         DEFM   ","
         JP     Z,LOADA
@@ -17881,21 +18514,36 @@ _LOAD_2: CALL   ELMT
         CALL   CLRVAR
         CALL   LDFIL
         JR     LOAD9
+
 LDOBJ:  LD     HL,(ELMD22)     ;load addr
         PUSH   HL
         LD     DE,(MEMLMT)
         CALL   COMPR
         LD     DE,(ELMD20)     ;size
         LD     BC,(MEMMAX)
+
         CALL   NC,MEMOBJ
         JP     C,ER18
         POP    HL
         RST    3
         DEFB   _LOADF
-LOAD9:  CALL   LDEND
+LOAD9:
+IF RAMDISK
+        JP     SEEK_0
+IF MOD_B
+        NOP
+ELSE
+		NOP
+		NOP
+ENDIF
+ELSE
+        CALL   LDEND
         POP    HL
         RET
+ENDIF
 ;
+
+
 MEMOBJ: ADD    HL,DE
         RET    C
         EX     DE,HL
@@ -17906,6 +18554,7 @@ COMPR:
         SBC    HL,DE
         POP    HL
         RET
+
 ;
 ; CHAIN "dev:filename"
 ;
@@ -25510,7 +26159,15 @@ IMDBUF:
         DEFB   06H
         DEFM   "MZ-5Z009"
 TTJPEX:
+IF RAMDISK
+IF MOD_B
+        DEFM   " V1.0B+ "
+ELSE
+        DEFM   " V1.0B +"
+ENDIF
+ELSE
         DEFM   " V1.0A  "
+ENDIF
         DEFB   0DH
         DEFM   "   C"
         DEFB   05H
@@ -26210,9 +26867,14 @@ PPCHCK: LD     A,(PSEL)
         BIT    P_PLT,A         ;if not plotter
         JP     Z,LPTMER        ; then err
         RET
-;
-NEWAD0:
-;
+;nop
+
 
 ;        END  (A471)
+
+
+NEWAD0:
+
+; Block filler present in the MOD_A tape dump
+;defb $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a 
 
