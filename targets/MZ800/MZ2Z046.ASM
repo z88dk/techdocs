@@ -66,8 +66,8 @@ defc  _CAP     =      0x06            ; Switch to capital letters
 defc  LEADIN   =      0x09            ; Printer initiation code - control characters
 defc  LF       =      0x0A            ; newline
 defc  CR       =      0x0D            ; carriage return
-defc  DEL      =      0x7F            ; control character for DELete (CTL-P)
-;defc  _DEL      =      0x10            ; control character for DELete (CTL-P)
+;;  defc  DEL      =      0x7F            ; control character for DELete (CTL-P)
+;; defc  _DEL      =      0x10            ; control character for DELete (CTL-P)
 defc  C_DOWN   =      0x11            ; cursor down
 defc  C_UP     =      0x12            ; cursor up
 defc  C_RIGHT  =      0x13            ; cursor right
@@ -79,7 +79,7 @@ defc  CTRL_Z   =      0x1A            ; end of file character
 defc  ESC      =      0x1B            ; Code of the BREAK key
 ;
 defc  _NOTXT   =      0x80            ; Code 'no error text'
-defc  _free    =      0x80            ; Code 'intermediate code not used'
+defc  _free    =      0x80            ; Code 'token code not used'
 
 ;
 ;
@@ -204,8 +204,10 @@ defc  DLY12    =      00996H          ; Time loop approx. 7 msec
 defc  _SHORT   =      00A01H          ; write a short impulse on tape
 defc  LONG     =      00A1AH          ; write a long pulse to tape
 defc  DLY3     =      00A4AH          ; Time loop about 330 usec
+
 defc  _ADCN    =      00BB9H          ; Convert ASCII code to display code
 defc  _DACN    =      00BCEH          ; Convert display code to ASCII code
+
 defc  KTBL     =      00BEAH          ; Keyboard decode table for Normal mode
 defc  KTBLS    =      00C2AH          ; Keyboard decode table for Shift mode
 defc  KTBLG    =      00CE9H          ; Keyboard decode table for Shift-Graphic mode
@@ -310,7 +312,7 @@ defc  LST_DA   =      0FFH            ; Printer - Data Port
 ;
 ;
 ;
-defc  SCREEN   =      08000H          ; Start address of Graphic - image memory
+defc  BITBUF   =      08000H          ; Start address of Graphic - image memory
 defc  ZC000    =      0C000H          ; Start address of character generator - RAM in MZ-700 mode
 defc  ZD800    =      0D800H          ; Start address of color memory in MZ-700 mode
 defc  XF400    =      0F400H          ; Start address of jump table in ROM monitor
@@ -425,14 +427,14 @@ CONTTB: DEFW    __RET           ; CTRL  @
         DEFW    SPLSW           ; CTRL  N   (start/stop printing )
         DEFW    __RET           ; CTRL  O
         DEFW    A06BE           ; CTRL  P   (Control character: DELete)
-        DEFW    A09CF           ; CTRL  Q   (Control character: Cursor down)
-        DEFW    A09F9           ; CTRL  R   (Control character: Cursor up)
-        DEFW    A09D4           ; CTRL  S   (Control character: Cursor right)
-        DEFW    A09FE           ; CTRL  T   (Control character: Cursor left)
+        DEFW    CDOWN           ; CTRL  Q   (Control character: Cursor down)
+        DEFW    CUP             ; CTRL  R   (Control character: Cursor up)
+        DEFW    CRIGHT          ; CTRL  S   (Control character: Cursor right)
+        DEFW    CLEFT           ; CTRL  T   (Control character: Cursor left)
         DEFW    A0992           ; CTRL  U   (Control character: HOME)
-        DEFW    A061D           ; CTRL  V   (Control character: CLR)
-        DEFW    A0A1E           ; CTRL  W   (Control character: Graphic mode)
-        DEFW    A0776           ; CTRL  X   (Control character: INSerT)
+        DEFW    HCLSW           ; CTRL  V   (Control character: CLR)
+        DEFW    CTR_W           ; CTRL  W   (Control character: Graphic mode)
+        DEFW    INST            ; CTRL  X   (Control character: INSerT)
         DEFW    CTR_F           ; CTRL  Y   (Switch to Alpha - mode)
         DEFW    __RET           ; CTRL  Z   (free for switching character color)
         DEFW    CTR_M           ; CTRL  [   (CR ?)
@@ -455,9 +457,9 @@ NOTXT:  DEFB    NUL             ; Default for text without characters
 A00A7:  JP      (HL)            ; Call program from address (HL).
 ;
 ;
-;   Disable interrupts     (Software command code:  16)
+;   Disable interrupts     (SVC code:  16)
 ;
-A00A8:  EI                      ; Enable interrupt
+SVC_DI: EI                      ; Enable interrupt
         PUSH    AF              ; Register - save value
         CALL    A44A3           ; wait until all parts of the melody have been played
         CALL    A14F8           ; Printer - Disable interrupt
@@ -466,9 +468,9 @@ A00A8:  EI                      ; Enable interrupt
 __RET:  RET
 ;
 ;
-;   Enable interrupt      (Software command code:  17)
+;   Enable interrupt      (SVC code:  17)
 ;
-A00B3:  PUSH    AF              ; Register - save value
+SVC_EI: PUSH    AF              ; Register - save value
         CALL    A14FC           ; Printer - enable interrupt
         POP     AF              ; rescued register - fetch value
         EI                      ; Enable interrupt
@@ -477,33 +479,33 @@ A00B3:  PUSH    AF              ; Register - save value
 ;
 ;   Save registers IX, HL, BC, DE and AF
 ;
-A00BA:  EX      (SP),IX         ; IX - Store Register / Get Return Address
+PUSHRA: EX      (SP),IX         ; IX - Store Register / Get Return Address
         PUSH    HL              ; HL - register - save value
         PUSH    BC              ; BC - register - save value
         PUSH    DE              ; DE - register - save value
         PUSH    AF              ; AF - register - save value
         PUSH    HL              ; HL - register - store value again
-        LD      HL,T00D3        ; Pointer to routine for repeating register values
+        LD      HL,POPRA        ; Pointer to routine for repeating register values
         EX      (SP),HL         ; Store address / get value for HL
         JP      (IX)            ; Return to calling program
 ;
 ;
-;   Save registers IX, HL, BC, DE and AF
+;   Save registers IX, HL, BC and DE
 ;
-A00C7:  EX      (SP),IX         ; IX - Store Register / Get Return Address
+PUSHR:  EX      (SP),IX         ; IX - Store Register / Get Return Address
         PUSH    HL              ; HL - register - save value
         PUSH    BC              ; BC - register - save value
         PUSH    DE              ; DE - register - save value
         PUSH    HL              ; HL - register - store value again
-        LD      HL,T00D4        ; Pointer to routine for repeating register values
+        LD      HL,POPR         ; Pointer to routine for repeating register values
         EX      (SP),HL         ; Store address / get value for HL
         JP      (IX)            ; Return to calling program
 ;
 ;
 ;   saved registers - reload values
 ;
-T00D3:  POP     AF              ;! saved registers - reload values
-T00D4:  POP     DE              ;!
+POPRA:  POP     AF              ;! saved registers - reload values
+POPR:   POP     DE              ;!
         POP     BC              ;!
         POP     HL              ;!
         POP     IX              ;!
@@ -512,7 +514,7 @@ T00D4:  POP     DE              ;!
 ;
 ;   Start BASIC - interpreter after switching on
 ;
-A00DA:  DI                      ; Disable interrupts
+COLDST: DI                      ; Disable interrupts
         LD      SP,0            ; Reset stack pointer
         IM      2               ; Specify interrupt mode
         OUT     (_E0RAM),A      ; Switch to RAM from 0E000H to 0FFFFH
@@ -522,24 +524,25 @@ A00DA:  DI                      ; Disable interrupts
 ;
 ;   Abort program without error message; no 'CONT' possible
 ;
-A00E6:  XOR     A               ; Code for 'Abort program; no 'CONT' possible'
+BREAKX: XOR     A               ; Code for 'Abort program; no 'CONT' possible'
         DEFB    LD_HL
 ;
 ;
 ;   Abort the program with 'BREAK'
 ;
-A00E8:  LD      A,080H          ; Code for 'Abort program with 'BREAK'
+BREAKZ: LD      A,080H          ; Code for 'Abort program with 'BREAK'
         DEFB    LD_HL
 ;
 ;
 ;   Devices - output name and error number in Accu
 ;
-A00EB:  OR      10000000B       ; Code 'Output device name for error number'
+IOERR:  OR      10000000B       ; Code 'Output device name for error number'
+
 ;
 ;
 ;   Handle error with number in Accu
 ;
-A00ED:  PUSH    AF              ; Save error number
+ERRORJ: PUSH    AF              ; Save error number
         CALL    MLDSP           ; turn off the sound
         POP     AF              ; Retrieve saved error number
         LD      HL,(ERRORP)     ; Get start address of error handler
@@ -548,9 +551,9 @@ A00ED:  PUSH    AF              ; Save error number
 ;
 ;   Count the length of the text (DE); the end of the text is marked by the character NUL
 ;
-;   (Software command code:  23)
+;   (SVC code:  23)
 ;
-A00F6:  PUSH    DE              ; Save pointer to beginning of text
+COUNT:  PUSH    DE              ; Save pointer to beginning of text
         LD      B,0             ; Set counter to zero
 A00F9:  LD      A,(DE)          ; get a character text
         OR      A               ; equal to end-of-text character (NUL) ?
@@ -565,21 +568,21 @@ A0102:  POP     DE              ; retrieve the saved pointer to the beginning of
 ;
 ;   Output table of values (HL) to ports; B contains number of values in table
 ;
-;   (Software command code:  36)
+;   (SVC code:  36)
 ;
-A0104:  LD      A,(HL)          ; fetch the value to be output from the table
+IOOUT:  LD      A,(HL)          ; fetch the value to be output from the table
         INC     HL              ; Skip value in table
         LD      C,(HL)          ; Get port number from table
         INC     HL              ; Skip port number in table
         OUT     (C),A           ; Output value from table to port
-        DJNZ    A0104           ; output more values
+        DJNZ    IOOUT           ; output more values
         RET
 ;
 ;
-;   Convert ASCII value (HL) to hex value after DE, compare to upper limit in B
+;   Convert ASCII value (HL) to hex value in DE, compare to upper limit in B
 ;
-A010D:  RST     _DOCMD          ; Software - Execute command
-        DEFB    19              ; Command 19 convert ASCII value (HL) into hex value after DE
+DEVASC: RST     _DOCMD          ; Software - Execute command
+        DEFB    19              ; Command 19 convert ASCII value (HL) into hex value in DE
         LD      A,D             ; Get high byte of evaluated value
         OR      A               ; equals zero  ?
         JP      NZ,A1F7F        ; no --> Error 3 Illegal data error
@@ -594,7 +597,7 @@ A010D:  RST     _DOCMD          ; Software - Execute command
 ;
 ;   Compare Accu with bytes specified after CALL
 ;
-A011B:  EX      (SP),HL         ; Get return address
+CHKACC: EX      (SP),HL         ; Get return address
         PUSH    BC              ; Register - save value
         LD      B,(HL)          ; Get number of bytes specified
 A011E:  INC     HL              ; Pointer to next character to be compared
@@ -613,7 +616,7 @@ A012A:  POP     BC              ; saved register - retrieve value again
 ;
 ;   Get address from table (HL) to DE; Count up HL
 ;
-A012D:  LD      E,(HL)          ; Get low - byte address from table
+LDDEMI: LD      E,(HL)          ; Get low - byte address from table
         INC     HL              ; Skip low - byte address
         LD      D,(HL)          ; Get high byte address from table
         INC     HL              ; Skip high - byte address
@@ -622,7 +625,7 @@ A012D:  LD      E,(HL)          ; Get low - byte address from table
 ;
 ;   Get address from table (HL) to DE; do not change HL
 ;
-A0132:  LD      E,(HL)          ; Get low - byte address from table
+LDDEMD: LD      E,(HL)          ; Get low - byte address from table
         INC     HL              ; Pointer to table on high - byte address
         LD      D,(HL)          ; Get high byte address from table
         DEC     HL              ; Set the pointer to the table back to the low byte
@@ -631,43 +634,43 @@ A0132:  LD      E,(HL)          ; Get low - byte address from table
 ;
 ;   Delete memory area (HL); B contains number of bytes to delete
 ;
-A0137:  XOR     A               ; Accu = zero
+CLRHL:  XOR     A               ; Accu = zero
 ;
 ;
 ;   Assign memory area (HL) with constant in Accu; B contains number of bytes
 ;
-A0138:  LD      (HL),A          ; set a byte to a constant value
+SETHL:  LD      (HL),A          ; set a byte to a constant value
         INC     HL              ; Pointer to memory area to next byte
-        DJNZ    A0138           ; occupy further bytes with constants
+        DJNZ    SETHL           ; occupy further bytes with constants
         RET
 ;
 ;
 ;   Delete storage area (DE); B contains number of bytes
 ;
-A013D:  XOR     A               ; Accu to zero
-A013E:  LD      (DE),A          ; delete a byte
+CLRDE:  XOR     A               ; Accu to zero
+SETDE:  LD      (DE),A          ; delete a byte
         INC     DE              ; Pointer to memory area to next byte
-        DJNZ    A013E           ; delete more bytes
+        DJNZ    SETDE           ; delete more bytes
         RET
 ;
 ;
-;   move storage area from (HL) to (DE); B contains number of bytes
+;   Move storage area from (HL) to (DE); B contains number of bytes
 ;
-A0143:  LD      A,(HL)          ; fetch a byte from source area
+LDDEHL: LD      A,(HL)          ; fetch a byte from source area
         LD      (DE),A          ; and drop it in the target area
         INC     HL              ; Pointer to source area to next byte
         INC     DE              ; Pointer to target area to next byte
-        DJNZ    A0143           ; move more bytes
+        DJNZ    LDDEHL          ; move more bytes
         RET
 ;
 ;
 ;   Move storage area from (DE) to (HL); B contains number of bytes
 ;
-A014A:  LD      A,(DE)          ; fetch a byte from source area
+LDHLDE: LD      A,(DE)          ; fetch a byte from source area
         LD      (HL),A          ; and drop it in the target area
         INC     HL              ; Pointer to target area to next byte
         INC     DE              ; Pointer to source area to next byte
-        DJNZ    A014A           ; move more bytes
+        DJNZ    LDHLDE          ; move more bytes
         RET
 ;
 ;
@@ -693,17 +696,17 @@ ADDHLA: ADD     A,L             ; Add Accu to the low byte value
 ;
 ;   Skip spaces (HL).
 ;
-A015D:  INC     HL              ; Pointer to text on next character
-A015E:  LD      A,(HL)          ; get a character text
+INCHLF: INC     HL              ; Pointer to text on next character
+HLFTCH: LD      A,(HL)          ; get a character text
         CP      ' '             ; equal to space ?
-        JR      Z,A015D         ; yes --> search for the next relevant text character
+        JR      Z,INCHLF        ; yes --> search for the next relevant text character
         RET
 ;
 ;
 ;   Test whether the next relevant text character (HL) is the same byte after the CALL call
 ;   if so --> ZERO - flag set and characters skipped
 ;
-A0164:  CALL    A015E           ; Skip spaces (HL).
+TEST1:  CALL    HLFTCH          ; Skip spaces (HL).
         EX      (SP),HL         ; Get return address from stack
         CP      (HL)            ; Accu same byte after CALL call?
         INC     HL              ; Skip comparison characters
@@ -716,7 +719,7 @@ A0164:  CALL    A015E           ; Skip spaces (HL).
 ;   Syntax Check. If next relevant text character (HL) is a valid code, then call
 ;   Otherwise --> Error 1 Syntax error
 ;
-A016E:  CALL    A015E           ; Skip spaces (HL).
+TESTX:  CALL    HLFTCH          ; Skip spaces (HL).
         EX      (SP),HL         ; Get return address / HL - register - save value
         CP      (HL)            ; Accu same byte after CALL call?
         INC     HL              ; Skip comparison characters
@@ -724,109 +727,109 @@ A016E:  CALL    A015E           ; Skip spaces (HL).
         INC     HL              ; skip compared syntax character
         RET     Z               ; Syntax is OK
         LD      A,1             ; Error 1 Syntax error
-        JP      A00ED           ; Handle error with number in Accu
+        JP      ERRORJ         ; Handle error with number in Accu
 ;
 ;
 ;   Table with the start addresses of the software commands
 ;
-W017C:  DEFW    A1587           ; Code  0  Call Software - Machine - Monitor
+IOSVCT: DEFW    MONOP           ; Code  0  Call Software - Machine - Monitor
         DEFW    CR1             ; Code  1  Output newline to screen
         DEFW    CR2             ; Code  2  Line feed when cursor is not at beginning of line
         DEFW    CRT1C           ; Code  3  Display accu on screen (execution control mark)
-        DEFW    A0EA2           ; Code  4  Display accu on screen (display control characters)
-        DEFW    A0D94           ; Code  5  Output text (DE) with upper/lower case
-        DEFW    A14F0           ; Code  6  Output characters in Accu to printer
-        DEFW    A14B9           ; Code  7  Output characters in the Accu to the printer (and screen).
-        DEFW    A0E2A           ; Code  8  Output line feed to screen or printer
-        DEFW    A0E2C           ; Code  9  Accu on screen or printer (execution control card)
-        DEFW    A0E3A           ; Code 10  Accu on screen or printer (display control line)
-        DEFW    A0E48           ; Code 11  Output text (DE) on screen or printer
+        DEFW    CRT1CX          ; Code  4  Display accu on screen (display control characters)
+        DEFW    CRTSIMU         ; Code  5  Output text (DE) with upper/lower case
+        DEFW    LPTOUT          ; Code  6  Output characters in Accu to printer
+        DEFW    LPT1C           ; Code  7  Output characters in the Accu to the printer (and screen).
+        DEFW    PR_CR           ; Code  8  Output line feed to screen or printer
+        DEFW    PR_1C           ; Code  9  Accu on screen or printer (execution control card)
+        DEFW    PR_1CX          ; Code 10  Accu on screen or printer (display control line)
+        DEFW    PR_MSG          ; Code 11  Output text (DE) on screen or printer
         DEFW    GETL            ; Code 12  Get line from keyboard to memory (DE).
         DEFW    INKEY           ; Code 13  Keyboard query for status in Accu
         DEFW    BRKEY           ; Code 14  Query whether (Shift) - BREAK is pressed
-        DEFW    A02F8           ; Code 15  if space pressed --> wait for other key
-        DEFW    A00A8           ; Code 16  Disable interrupts
-        DEFW    A00B3           ; Code 17  Enable interrupt
-        DEFW    A094D           ; Code 18  Place cursor on coordinates in HL
-        DEFW    A029E           ; Code 19  Convert ASCII value (HL) to hex value according to DE
-        DEFW    A02CE           ; Code 20  Convert hexadecimal value (HL) into hex value after DE
-        DEFW    A02E9           ; Code 21  Convert hexadecimal ASCII characters in Accu to hex
-        DEFW    A025E           ; Code 22  Convert hex value in HL to decimal ASCII to (DE)
-        DEFW    A00F6           ; Code 23  Count the length of the text (DE).
-        DEFW    A031C           ; Code 24  Pointer to I/O work area, basic var., strings corr.
-        DEFW    A0323           ; Code 25  Fix pointers to basic variables and strings
-        DEFW    A032A           ; Code 26  Fix pointers to string ranges
-        DEFW    A0340           ; Code 27  Output error text according to error number in Accu
-        DEFW    A3C1C           ; Code 28  Convert display code characters to ASCII code
-        DEFW    A3C00           ; Code 29  Convert ASCII characters in Accu to display code
-        DEFW    A14A6           ; Code 30  Query joystick for direction
-        DEFW    A14AA           ; Code 31  Query the joystick's fire button
+        DEFW    HALT            ; Code 15  if space pressed --> wait for other key
+        DEFW    SVC_DI          ; Code 16  Disable interrupts
+        DEFW    SVC_EI          ; Code 17  Enable interrupt
+        DEFW    CURMOV          ; Code 18  Place cursor on coordinates in HL
+        DEFW    DEASC           ; Code 19  Convert ASCII value (HL) to hex value according to DE
+        DEFW    DEHEX           ; Code 20  Convert hexadecimal value (HL) into hex value in DE
+        DEFW    CKHEX           ; Code 21  Convert hexadecimal ASCII characters in Accu to hex
+        DEFW    ASCHL           ; Code 22  Convert hex value in HL to decimal ASCII to (DE)
+        DEFW    COUNT           ; Code 23  Count the length of the text (DE).
+        DEFW    ADDP0           ; Code 24  Pointer to I/O work area, basic var., strings corr.
+        DEFW    ADDP1           ; Code 25  Fix pointers to basic variables and strings
+        DEFW    ADDP2           ; Code 26  Fix pointers to string ranges
+        DEFW    ERRX            ; Code 27  Output error text according to error number in Accu
+        DEFW    DACN            ; Code 28  Convert display code characters to ASCII code
+        DEFW    ADCN            ; Code 29  Convert ASCII characters in Accu to display code
+        DEFW    STICK           ; Code 30  Query joystick for direction
+        DEFW    STRIG           ; Code 31  Query the joystick's fire button
         DEFW    CTRLG           ; Code 32  Output reference tone
-        DEFW    A4422           ; Code 33  Assign values ??(DE) to the tone generator in the Accu
-        DEFW    A437A           ; Code 34  Play tone by generator number/frequency or note/length
-        DEFW    A44AF           ; Code 35  Treat music by status in Accu
-        DEFW    A0104           ; Code 36  Output table of values ??(HL) to ports; B = number
+        DEFW    PLAY            ; Code 33  Assign values ??(DE) to the tone generator in the Accu
+        DEFW    MSOUND          ; Code 34  Play tone by generator number/frequency or note/length
+        DEFW    MCTRL           ; Code 35  Treat music by status in Accu
+        DEFW    IOOUT           ; Code 36  Output table of values ??(HL) to ports; B = number
         DEFW    TIMRD           ; Code 37  read time
         DEFW    TIMST           ; Code 38  set time
-        DEFW    A1989           ; Code 39  provide the next data block of the file
-        DEFW    A1BFA           ; Code 40  delete all file data in the computer
-        DEFW    A1EF0           ; Code 41  Pointer to record by record number. provide
-        DEFW    A1F32           ; Code 42  provide dynamic cache
-        DEFW    A1F06           ; Code 43  Clear dynamic cache
-        DEFW    A1A45           ; Code 44  Examine text (DE) for device names
-        DEFW    A1AC0           ; Code 45  Evaluate device names and file numbers
-        DEFW    A19E8           ; Code 46  File management record by file no. provide
-        DEFW    A1B83           ; Code 47  Open (program) file
-        DEFW    A1CC6           ; Code 48  Load program according to specified identifier
-        DEFW    A1CEA           ; Code 49  Save program
-        DEFW    A1CDB           ; Code 50  Compare (program) file
-        DEFW    A1AE9           ; Code 51  Open file according to provided data
-        DEFW    A18D0           ; Code 52  if screen --> get line from keyboard
-        DEFW    A18E4           ; Code 53  provide a line from device/file
-        DEFW    A194C           ; Code 54  Text constant (HL) up to comma or character in C already.
-        DEFW    A180F           ; Code 55  Output text (DE) on selected device
-        DEFW    A1BB9           ; Code 56  Close file or delete file data in the computer
-        DEFW    A1D2D           ; Code 57  Read or print table of contents
-        DEFW    A0314           ; Code 58  Pointer to device table/device no. notice
-        DEFW    A3AE0           ; Code 59  Write or read RAM card contents to quick disk
-        DEFW    A1E6D           ; Code 60  Initialize device
-        DEFW    A343C           ; Code 61  delete file
-        DEFW    A347B           ; Code 62  Rename file
-        DEFW    A341B           ; Code 63  Protect or share file
-        DEFW    A30D0           ; Code 64  RANDOM - remember block number
-        DEFW    A326D           ; Code 65  Read record from RANDOM file
-        DEFW    A30F5           ; Code 66  Write record to RANDOM file
-        DEFW    A1FC0           ; Code 67  Delete file data of the output file
-        DEFW    A32CC           ; Code 68  SWAP - Write or load main program
-        DEFW    A0652           ; Code 69  clear entire screen
-        DEFW    A4D08           ; Code 70  Check if graphic coordinate in DE',HL' is OK
-        DEFW    A4D13           ; Code 71  Set graphic cursor to coordinates in DE',HL'
-        DEFW    A4694           ; Code 72  Set or reset point in graphic
-        DEFW    A46CE           ; Code 73  Draw a line in Graphic
-        DEFW    A4F52           ; Code 74  Graphic - pattern - output text
-        DEFW    A4BE9           ; Code 75  Draw rectangle
-        DEFW    A5036           ; Code 76  Paint area (B=number of colors/(HL)=border color values)
-        DEFW    A47E7           ; Code 77  draw circle
-        DEFW    A4629           ; Code 78  Query whether point is set in graphic
-        DEFW    A14AE           ; Code 79  Output screen content to graphic printer
-        DEFW    A03BE           ; Code 80  Screen - set operating mode
-        DEFW    A044F           ; Code 81  Memorize pallet block number/output to controller
-        DEFW    A0476           ; Code 82  Match color code in B to pallet code number in Accu
-        DEFW    A04AE           ; Code 83  Set values ??for screen - scroll - area
-        DEFW    A048A           ; Code 84  Set character color
-        DEFW    A0493           ; Code 85  Graphic - set palette value
-        DEFW    A458E           ; Code 86  Initialize screen
-        DEFW    A4D2D           ; Code 87  Output text with magnification
+        DEFW    INP1C0          ; Code 39  provide the next data block of the file
+        DEFW    CLRIO           ; Code 40  delete all file data in the computer
+        DEFW    SEGADR          ; Code 41  Pointer to record by record number. provide
+        DEFW    OPSEG           ; Code 42  provide dynamic cache
+        DEFW    DELSEG          ; Code 43  Clear dynamic cache
+        DEFW    DEV             ; Code 44  Examine text (DE) for device names
+        DEFW    DEV_FN          ; Code 45  Evaluate device names and file numbers
+        DEFW    LUCHK           ; Code 46  File management record by file no. provide
+        DEFW    LOPEN           ; Code 47  Open (program) file
+        DEFW    LOADFL          ; Code 48  Load program according to specified identifier
+        DEFW    SAVEFL          ; Code 49  Save program
+        DEFW    VRFYFL          ; Code 50  Compare (program) file
+        DEFW    RWOPEN          ; Code 51  Open file according to provided data
+        DEFW    INPSTRT         ; Code 52  if screen --> get line from keyboard
+        DEFW    INPMSG          ; Code 53  provide a line from device/file
+        DEFW    INPDT           ; Code 54  Text constant (HL) up to comma or character in C already.
+        DEFW    PRTSTR          ; Code 55  Output text (DE) on selected device
+        DEFW    CLKL            ; Code 56  Close file or delete file data in the computer
+        DEFW    FDIR            ; Code 57  Read or print table of contents
+        DEFW    SETDFL          ; Code 58  Pointer to device table/device no. notice
+        DEFW    LSALL           ; Code 59  Write or read RAM card contents to quick disk
+        DEFW    FINIT           ; Code 60  Initialize device
+        DEFW    FDELET          ; Code 61  delete file
+        DEFW    FRENAM          ; Code 62  Rename file
+        DEFW    FLOCK           ; Code 63  Protect or share file
+        DEFW    RECST           ; Code 64  RANDOM - remember block number
+        DEFW    INREC           ; Code 65  Read record from RANDOM file
+        DEFW    PRREC           ; Code 66  Write record to RANDOM file
+        DEFW    ERRCVR          ; Code 67  Delete file data of the output file
+        DEFW    FSWAP           ; Code 68  SWAP - Write or load main program
+        DEFW    HCLS            ; Code 69  clear entire screen
+        DEFW    POSCK           ; Code 70  Check if graphic coordinate in DE',HL' is OK
+        DEFW    POSSV           ; Code 71  Set graphic cursor to coordinates in DE',HL'
+        DEFW    PSET            ; Code 72  Set or reset point in graphic
+        DEFW    WLINE           ; Code 73  Draw a line in Graphic
+        DEFW    CHARW           ; Code 74  Graphic - pattern - output text
+        DEFW    WBOX            ; Code 75  Draw rectangle
+        DEFW    WPAINT          ; Code 76  Paint area (B=number of colors/(HL)=border color values)
+        DEFW    WCIRCL          ; Code 77  draw circle
+        DEFW    WPOINT          ; Code 78  Query whether point is set in graphic
+        DEFW    HCPY            ; Code 79  Output screen content to graphic printer
+        DEFW    DSMODE          ; Code 80  Screen - set operating mode
+        DEFW    DPALBK          ; Code 81  Memorize pallet block number/output to controller
+        DEFW    DPALST          ; Code 82  Match color code in B to pallet code number in Accu
+        DEFW    DWIND           ; Code 83  Set values ??for screen - scroll - area
+        DEFW    DCOLOR          ; Code 84  Set character color
+        DEFW    DGCOL           ; Code 85  Graphic - set palette value
+        DEFW    ICRT            ; Code 86  Initialize screen
+        DEFW    SYMBOL          ; Code 87  Output text with magnification
 ;
 ;
-;   Execute software command   (RST 018H - Routine)
+;   RST 3:  Execute software SVC command   (RST 018H - Routine)
 ;
 IOSVC:  EX      (SP),HL         ; Get return address
         PUSH    AF              ; Register - save value
         LD      A,(HL)          ; Get software command number
         INC     HL              ; Command - skip number
         PUSH    HL              ; store new return address
-        LD      HL,W017C        ; Pointer to table with start addresses of routines
+        LD      HL,IOSVCT       ; Pointer to table with start addresses of routines
         ADD     A,A             ; Command number times two (2 bytes per address)
         ADD     A,L             ; and add the start address to the low byte
         JR      NC,A0239        ; no carry
@@ -836,45 +839,45 @@ A0239:  LD      L,A             ; Remember low byte result
         INC     HL              ; Pointer to table on high - byte address
         LD      H,(HL)          ; Get high byte start address from table
         LD      L,A             ; Enter low - byte address
-        LD      (D0244 + 1),HL  ; Enter start address in JP command
+        LD      (IOSVCX+1),HL   ; Enter start address in JP command
         POP     HL              ; fetch saved return address
         POP     AF              ; rescued register - fetch value
         EX      (SP),HL         ; Store return address/HL - register - get value
-D0244:  JP      0               ; Execute software command (address is entered)
+IOSVCX: JP      0               ; Execute software command (address is entered)
 ;
 ;
 ;   Call routine (IX) with error handling
 ;
-A0247:  PUSH    HL              ;! Register - save values
+IOCALL: PUSH    HL              ;! Register - save values
         PUSH    DE              ;!
-        LD      (D0252 + 1),IX  ; Enter the start address of the routine
-        LD      IX,A00EB        ; Address 'Output error with device name'
+        LD      (IOCALX+1),IX   ; Enter the start address of the routine
+        LD      IX,IOERR        ; Address 'Output error with device name'
         OR      A               ; reset carry flag (code 'no error')
-D0252:  CALL    0               ; Call routine (address is entered)
+IOCALX: CALL    0               ; Call routine (address is entered)
         POP     DE              ;! saved registers - retrieve values
         POP     HL              ;!
         RET     NC              ; no error --> OK
         OR      A               ; end of file ?
         SCF                     ; Set code 'Error Occurred'
         RET     Z               ; End of file --> OK
-        JP      A00EB           ; Error with device - output name
+        JP      IOERR           ; Error with device - output name
 ;
 ;
 ;   Convert hex value in HL to decimal ASCII value to (DE)
 ;
-;   (Software command code:  22)
+;   (SVC code:  22)
 ;
-A025E:  PUSH    HL              ; save value to be implemented
+ASCHL:  PUSH    HL              ; save value to be implemented
         PUSH    BC              ; Register - save value
         PUSH    DE              ; Push pointer to text memory on stack
         LD      DE,10000        ; specify priority
-        CALL    A0284           ; implement a position
+        CALL    ASCHL2          ; implement a position
         LD      DE,1000         ; specify priority
-        CALL    A0284           ; implement a position
+        CALL    ASCHL2          ; implement a position
         LD      DE,100          ; specify priority
-        CALL    A0284           ; implement a position
+        CALL    ASCHL2          ; implement a position
         LD      DE,10           ; specify priority
-        CALL    A0284           ; implement a position
+        CALL    ASCHL2          ; implement a position
         LD      A,L             ; Get value of last digit
         POP     DE              ; Get pointer to ASCII - text - memory
         OR      '0'             ; Convert number to ASCII characters
@@ -889,7 +892,7 @@ A025E:  PUSH    HL              ; save value to be implemented
 ;
 ;   implement a position according to the priority in DE
 ;
-A0284:  LD      A,-1            ; Default for counter
+ASCHL2: LD      A,-1            ; Default for counter
 A0286:  INC     A               ; counter plus one
         OR      A               ; Reset carry flag
         SBC     HL,DE           ; Subtract the value of the position once
@@ -913,13 +916,13 @@ A0293:  LD      B,1             ; Specify code 'digit entered'
 ;
 ;   Convert decimal or hexadecimal ASCII value (HL) into hex value according to DE
 ;
-;   (Software command code:  19)
+;   (SVC code:  19)
 ;
-A029E:  CALL    A0164           ; Comparison on byte after CALL call
+DEASC:  CALL    TEST1           ; Comparison on byte after CALL call
         DEFM    "$"             ; ID 'hexadecimal - value' ?
-        JR      Z,A02CE         ; yes --> convert hexadecimal value (HL) into hex value after DE
+        JR      Z,DEHEX         ; yes --> convert hexadecimal value (HL) into hex value in DE
         LD      DE,0            ; Default value result
-A02A7:  CALL    A015E           ; Skip spaces (HL).
+A02A7:  CALL    HLFTCH          ; Skip spaces (HL).
         SUB     '0'             ; Convert ASCII characters to decimal value
         CP      10              ; digit ?
         RET     NC              ; no --> numerical value implemented
@@ -944,16 +947,16 @@ A02A7:  CALL    A015E           ; Skip spaces (HL).
         JR      A02A7           ; examine whether additional digits are specified
 ;
 A02C9:  LD      A,2             ; Error 2 Overflow error
-        JP      A00ED           ; Handle error with number in Accu
+        JP      ERRORJ          ; Handle error with number in Accu
 ;
 ;
 ;   Convert hexadecimal ASCII value (HL) to hex value according to DE
 ;
-;   (Software command code:  20)
+;   (SVC code:  20)
 ;
-A02CE:  LD      DE,0            ; Default value result
+DEHEX:  LD      DE,0            ; Default value result
 A02D1:  LD      A,(HL)          ; get a text character
-        CALL    A02E9           ; Convert hexadecimal ASCII characters in Accu to hex value
+        CALL    CKHEX           ; Convert hexadecimal ASCII characters in Accu to hex value
         RET     C               ; no hex-ASCII character --> done
         INC     HL              ; skip evaluated character
         EX      DE,HL           ; old value to HL / pointer to text to DE
@@ -967,15 +970,15 @@ A02D1:  LD      A,(HL)          ; get a text character
         JR      C,A02C9         ; Carry over --> Error 2 Overflow error
         ADD     A,L             ; Add the value of the new digit
         LD      L,A             ; note the result
-        EX      DE,HL           ; Value after DE / pointer to remaining text after HL
+        EX      DE,HL           ; value in DE / pointer to remaining text after HL
         JR      A02D1           ; implement another position
 ;
 ;
 ;   Convert hexadecimal ASCII characters in Accu to hex value after Accu
 ;
-;   (Software command code:  21)
+;   (SVC code:  21)
 ;
-A02E9:  SUB     '0'             ; Convert ASCII characters to decimal - value
+CKHEX:  SUB     '0'             ; Convert ASCII characters to decimal - value
         CP      10              ; decimal digit ?
         CCF                     ; Reverse result comparison
         RET     NC              ; is decimal - digit --> done
@@ -990,12 +993,12 @@ A02E9:  SUB     '0'             ; Convert ASCII characters to decimal - value
 ;   Check whether the space bar is pressed
 ;   If so -->  wait until another key is pressed
 ;
-;   (Software command code:  15)
+;   (SVC code:  15)
 ;
-A02F8:  CALL    A0305           ; Check whether button or 'BREAK' is pressed
+HALT:   CALL    HALTSB          ; Check whether button or 'BREAK' is pressed
         CP      ' '             ; Space key pressed ?
         RET     NZ              ; no
-A02FE:  CALL    A0305           ; Check whether button or 'BREAK' is pressed
+A02FE:  CALL    HALTSB          ; Check whether button or 'BREAK' is pressed
         OR      A               ; key pressed ?
         JR      Z,A02FE         ; no --> keep waiting
         RET
@@ -1003,67 +1006,67 @@ A02FE:  CALL    A0305           ; Check whether button or 'BREAK' is pressed
 ;
 ;   Check whether button is pressed with BREAK --> Interrupt program
 ;
-A0305:  RST     _DOCMD          ; Software - Execute command
+HALTSB: RST     _DOCMD          ; Software - Execute command
         DEFB    14              ; Code 14 Query whether (Shift) BREAK is pressed
-        JR      Z,A0310         ; yes --> interrupt program (BREAK)
+        JR      Z,HALTBR        ; yes --> interrupt program (BREAK)
         LD      A,-1            ; Code 'keyboard query with debouncing'
         RST     _DOCMD          ; Software - Execute command
         DEFB    13              ; Code 13 Keypad query for status in Accu
         CP      ESC             ; Shift-BREAK pressed?
         RET     NZ              ; no
-A0310:  JP      A00E8           ; Shift - BREAK pressed --> interrupt program
+HALTBR: JP      BREAKZ          ; Shift - BREAK pressed --> interrupt program
 ;
         RET
 ;
 ;
 ;   Pointer to device table and device number as DEFAULT - remember device
 ;
-;   (Software command code:  58)
+;   (SVC code:  58)
 ;
-A0314:  LD      (S106A),DE      ; Pointer to device - remember table (DEFAULT).
-        LD      (S1069),A       ; Devices - remember number
+SETDFL: LD      (DDEV),DE       ; Pointer to device - remember table (DEFAULT).
+        LD      (DCHAN),A       ; Devices - remember number
         RET
 ;
 ;
 ;   Fix pointers to file work areas, basic variables and string areas
 ;
-;   (Software command code:  24)
+;   (SVC code:  24)
 ;
-A031C:  LD      HL,(S1072)      ; Get pointers to file work areas (I/O work area).
+ADDP0:  LD      HL,(POOL)       ; Get pointers to file work areas (I/O work area).
         ADD     HL,DE           ; Correct pointer
-        LD      (S1072),HL      ; and remember new pointer
+        LD      (POOL),HL       ; and remember new pointer
 ;
 ;
 ;   Correct pointers to Basic - variable and string ranges
 ;
-;   (Software command code:  25)
+;   (SVC code:  25)
 ;
-A0323:  LD      HL,(S1074)      ; Get pointer to start of basic variable
+ADDP1:  LD      HL,(VARST)      ; Get pointer to start of basic variable
         ADD     HL,DE           ; Correct pointer
-        LD      (S1074),HL      ; and remember again
+        LD      (VARST),HL      ; and remember again
 ;
 ;
 ;   Correct pointers to string areas
 ;
-;   (Software command code:  26)
+;   (SVC code:  26)
 ;
-A032A:  LD      HL,(S1076)      ; Get pointer to beginning of string text area
+ADDP2:  LD      HL,(STRST)      ; Get pointer to beginning of string text area
         ADD     HL,DE           ; Correct pointer
-        LD      (S1076),HL      ; and remember again
-        LD      HL,(S1078)      ; Get pointer to start of string workspace
+        LD      (STRST),HL      ; and remember again
+        LD      HL,(VARED)      ; Get pointer to start of string workspace
         ADD     HL,DE           ; Correct pointer
-        LD      (S1078),HL      ; and remember again
-        LD      HL,(S107A)      ; Get pointer to end of string workspace
+        LD      (VARED),HL      ; and remember again
+        LD      HL,(TMPEND)     ; Get pointer to end of string workspace
         ADD     HL,DE           ; Correct pointer
-        LD      (S107A),HL      ; and remember again
+        LD      (TMPEND),HL     ; and remember again
         RET
 ;
 ;
 ;   Output error text according to error number in Accu
 ;
-;   (Software command code:  27)
+;   (SVC code:  27)
 ;
-A0340:  LD      C,A             ; Remember error number
+ERRX:   LD      C,A             ; Remember error number
         RST     _DOCMD          ; Software - Execute command
         DEFB    32              ; Output code 32 reference tone
         RST     _DOCMD          ; Software - Execute command
@@ -1072,7 +1075,7 @@ A0340:  LD      C,A             ; Remember error number
         JR      Z,A0353         ; no
         LD      HL,S11A4        ; Specify pointer to cache
         PUSH    HL              ; Remember pointer to beginning of memory
-        CALL    A0397           ; Devices - Provide Names by Storage (HL).
+        CALL    SETDNM          ; Devices - Provide Names by Storage (HL).
         POP     DE              ; Pointers to Recycled Devices - Get Names
         RST     _DOCMD          ; Software - Execute command
         DEFB    5               ; Code 5 Output text (DE) with upper/lower case
@@ -1084,7 +1087,7 @@ A0353:  LD      A,C             ; Get error number
         OUT     (_E0ROM),A      ; Switch to ROM - monitor from 0E000H to 0FFFFH
         JR      A035F           ; Output error text
 ;
-A035D:  LD      C,69            ; Error 69 Unprintable error
+ERRXU:  LD      C,69            ; Error 69 Unprintable error
 A035F:  LD      DE,ZFDA0        ; Pointer to start of error text table in ROM monitor
 A0362:  DEC     C               ; Counter minus one
         JR      Z,A036F         ; Pointer is on correct error text --> output
@@ -1092,12 +1095,12 @@ A0365:  LD      A,(DE)          ; Get a character from the error text table
         INC     DE              ; Table pointer to next text character
         OR      A               ; end of text character ?
         JP      P,A0365         ; no --> find end of text
-        JR      Z,A035D         ; End of table --> Specify error 69 Unprintable error
+        JR      Z,ERRXU         ; End of table --> Specify error 69 Unprintable error
         JR      A0362           ; test whether pointer is on correct error text
 ;
 A036F:  LD      A,(DE)          ; get first text character
         CP      _NOTXT          ; Code 'no text available' ?
-        JR      Z,A035D         ; Yes --> Specify error 69 Unprintable error
+        JR      Z,ERRXU         ; Yes --> Specify error 69 Unprintable error
         EX      DE,HL           ; Pointer to error text after HL
         LD      DE,S11A4        ; Specify pointer to cache
 A0378:  LD      A,(HL)          ; one character Get error text from table
@@ -1114,7 +1117,7 @@ A0381:  AND     01111111B       ; mask actual text character
         INC     DE              ; skip last character of text in memory
         LD      HL,M03B6        ; Text " error"
         LD      B,8             ; Specify text length
-        CALL    A0143           ; Move text from (HL) to (DE).
+        CALL    LDDEHL          ; Move text from (HL) to (DE).
         LD      DE,S11A4        ; Pointer to memory with edited error text
         RST     _DOCMD          ; Software - Execute command
         DEFB    5               ; Code 5 Output text (DE) with upper/lower case
@@ -1123,16 +1126,16 @@ A0381:  AND     01111111B       ; mask actual text character
 ;
 ;   Devices - Provide name of current device after (HL).
 ;
-A0397:  LD      DE,(S1044)      ; Pointers to current devices - get table
+SETDNM: LD      DE,(ZEQT)       ; Pointers to current devices - get table
         INC     DE              ;! Pointer to next devices - table
         INC     DE              ;! skip
         RST     _DOCMD          ; Software - Execute command
         DEFB    23              ; Code 23 Count length of text (DE).
-        CALL    A014A           ; Move memory area from (DE) to (HL).
-        LD      A,(S1046)       ; Get current device number
+        CALL    LDHLDE          ; Move memory area from (DE) to (HL).
+        LD      A,(ZCH)         ; Get current device number
         ADD     A,'1'           ; convert to ASCII
         LD      (HL),A          ; and after devices - enter the name
-        LD      A,(S1051)       ; Devices - numbers - get flag
+        LD      A,(ZFLAG2)      ; Devices - numbers - get flag
         AND     00001111B       ; maximum devices - mask number
         JR      Z,A03B0         ; no device number allowed
         INC     HL              ; entered devices - skip number
@@ -1146,11 +1149,11 @@ M03B6:  DEFB    ' ', _SML       ; Text  "error"
 		DEFB    NUL
 ;
 ;
-;   Screen - set operating mode  (Software command code: 80)
+;   Screen - set operating mode  (SVC code: 80)
 ;
-A03BE:  CALL    A00C7           ; Save registers IX, HL, BC and DE
+DSMODE: CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      B,A             ; Screen - remember operating mode
-        LD      A,(S1099)       ; Get flag 'additional graphic RAM available' (1=yes)
+        LD      A,(MEMOP)       ; Get 'additional graphic RAM available' flag (1=yes)
         OR      A               ; Additional graphic RAM available?
         LD      A,B             ; get new screen - operating mode
         JR      NZ,A03D1        ; Graphic RAM available --> all operating modes are permitted
@@ -1175,15 +1178,15 @@ A03D1:  PUSH    AF              ; new screen - remember operating mode
         LD      HL,B1389        ; Pointer to default for color code mode 4
         LD      BC,256*8+0101B  ; maximum palette value / default for color planes
         LD      D,11111101B     ; Specification for mask 'Number of screen pages'
-A03F7:  LD      (S109C),BC      ; remember maximum palette value / default for color planes
+A03F7:  LD      (CPLANE),BC     ; remember maximum palette value / default for color planes
         LD      A,D             ; Get mask for number of screen pages
-        LD      (S109E),A       ; and remember
+        LD      (PMASK),A       ; and remember
         LD      (W137F),HL      ; Pointer to color code - remember default
-        CALL    A0441           ; Initialize palette registers for basic colors
+        CALL    PALOFF          ; Initialize palette registers for basic colors
         POP     AF              ; Screen - Get operating mode
         DEC     A               ; minus one (--> 0 - 3)
         RLCA                    ; and now two
-        LD      (S1098),A       ; Note value for display - mode - register
+        LD      (DMD),A         ; Note value for display - mode - register
         OUT     (CRTCDM),A      ; Output value to display - mode - register
         AND     00000100B       ; Mask flag '40/80 characters per line'
         CALL    A04EF           ; Change routine to 40 or 80 characters per line
@@ -1198,11 +1201,11 @@ A0417:  SCF                     ; Set code 'Error Occurred'
 ;   Set scroll area to full screen and initialize palette registers
 ;
 A0419:  LD      HL,256 * 24 + 0 ; Specify Y - Coordinate minimum / maximum
-        CALL    A04AE           ; Calculate values ??for scroll area from Y coordinates
-        LD      A,(S109C)       ; Get default used color planes
-        LD      (S109B),A       ; and remember as currently used color planes
+        CALL    DWIND           ; Calculate values ??for scroll area from Y coordinates
+        LD      A,(CPLANE)      ; Get default used color planes
+        LD      (CMODE),A       ; and remember as currently used color planes
         XOR     A               ; Accu to zero
-        CALL    A044F           ; Pallet block - remember number and output to controller
+        CALL    DPALBK          ; Pallet block - remember number and output to controller
         LD      HL,W137F        ; Pointer to Pointer to color code - default
         LD      E,(HL)          ;! Get pointer to default palette register
         INC     HL              ;!
@@ -1221,7 +1224,7 @@ A043A:  LD      B,4             ; four values ??in memory
 ;
 ;   Initialize palette registers for basic colors Black/Blue/Red/Light White
 ;
-A0441:  PUSH    BC              ; Register - save value
+PALOFF: PUSH    BC              ; Register - save value
         XOR     A               ; Default initial value (zero)
         LD      B,5             ; output five values
         LD      C,PALLET        ; Specify the port number of the palette register
@@ -1232,12 +1235,12 @@ A0447:  OUT     (C),A           ; Output pallet value
         RET
 ;
 ;
-;   Palette block - Set number (Software command code: 81)
+;   Palette block - Set number (SVC code: 81)
 ;
-A044F:  CALL    A00C7           ; Save registers IX, HL, BC and DE
+DPALBK: CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      (S137E),A       ; current pallet block - remember number
         LD      E,A             ; Pallet block - remember number
-        LD      A,(S1098)       ; Get value for Display - Mode - Register
+        LD      A,(DMD)         ; Get value for Display - Mode - Register
         CP      2               ; Resolution 320 x 200 pixels / 16 colors ?
         JR      NZ,A0470        ; not the finest graphic resolution
         LD      A,E             ; Pallet block - get number
@@ -1261,9 +1264,9 @@ A0470:  LD      A,E             ; Pallet block - get number
 ;   Assign the color code in B to the pallet code number in the Accu
 ;   and output it to the palette register
 ;
-;   (Software command code:  82)
+;   (SVC code:  82)
 ;
-A0476:  CALL    A00C7           ; Save registers IX, HL, BC and DE
+DPALST: CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      HL,S1381        ; Pointer to storage for palette values
         LD      D,0             ; High - byte offset to zero
         LD      E,A             ; Specify pallet code number as low byte offset
@@ -1281,22 +1284,22 @@ A0476:  CALL    A00C7           ; Save registers IX, HL, BC and DE
 ;
 ;   Set current drawing color to palette value in accu
 ;
-;   (Software command code:  84)
+;   (SVC code:  84)
 ;
-A048A:  PUSH    AF              ; Save pallet value
+DCOLOR: PUSH    AF              ; Save pallet value
         CALL    A049C           ; Correct palette value for maximum resolution
-        LD      (S109B),A       ; current character - remember palette value
+        LD      (CMODE),A       ; current character - remember palette value
         POP     AF              ; retrieve saved pallet value
         RET
 ;
 ;
 ;   Set current graphic color to palette value in Accu
 ;
-;   (Software command code:  85)
+;   (SVC code:  85)
 ;
-A0493:  PUSH    AF              ; Save pallet value
+DGCOL:  PUSH    AF              ; Save pallet value
         CALL    A049C           ; Correct palette value for maximum resolution
-        LD      (S109F),A       ; Remember current graphic palette value
+        LD      (GMODE),A       ; Remember current graphic palette value
         POP     AF              ; recover saved pallet value
         RET
 ;
@@ -1305,7 +1308,7 @@ A0493:  PUSH    AF              ; Save pallet value
 ;
 A049C:  PUSH    BC              ; Register - save value
         LD      B,A             ; Remember pallet value
-        LD      A,(S1098)       ; Get value for Display - Mode - Register
+        LD      A,(DMD)         ; Get value for Display - Mode - Register
         CP      6               ; Resolution 640 x 200 pixels / 4 colors ?
         LD      A,B             ; retrieve saved pallet value
         JR      NZ,A04AC        ; not maximum resolution
@@ -1319,9 +1322,9 @@ A04AC:  POP     BC              ; rescued register - fetch value
 ;   Calculate values for screen - scroll - area
 ;   from start to end coordinates and output to display controller
 ;
-;   (Software command code:  83)
+;   (SVC code:  83)
 ;
-A04AE:  CALL    A00C7           ; Save registers IX, HL, BC and DE
+DWIND:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      (S136F),HL      ; Y - Remember coordinate minimum / maximum
         LD      A,H             ;! Calculate the number of lines in the scroll area
         SUB     L               ;!
@@ -1356,14 +1359,14 @@ A04AE:  CALL    A00C7           ; Save registers IX, HL, BC and DE
         LD      HL,S1376        ; Pointers to prepared values ??for screen controllers
         LD      BC,256*6+CRTCMP ; Port number Multi-purpose register in the display controller
         OTDR                    ; Output provided values ??to screen controllers
-        CALL    A0652           ; Software command 69 clears the entire screen
+        CALL    HCLS            ; Software command 69 clears the entire screen
         JP      A0992           ; Execute control character 'HOME'
 ;
 ;
 ;   Change screen routines to 40 or 80 characters per line
 ;   (if Accu is not zero --> 80 characters per line)
 ;
-A04EF:  CALL    A00C7           ; Save registers IX, HL, BC and DE
+A04EF:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         OR      A               ; 40 or 80 characters per line?
         LD      A,40            ; 40 characters per line
         LD      DE,256*INC_HL + _NOP
@@ -1388,10 +1391,10 @@ A04FE:  LD      (W136B),A       ; Note counter '40/80 characters per line'
         LD      (D053F),A       ;!
         LD      (D054B),A       ;!
         LD      BC,256 * 11 + 7 ; 10 two-byte values / 7 one-byte values
-        LD      HL,W054F        ; Pointer to table with values to be changed
+        LD      HL,CHTBL        ; Pointer to table with values to be changed
         CALL    A0531           ; Change program according to table (HL).
         CALL    A45D0           ; Change graphic routine to 40 or characters/line
-        JP      A0652           ; Software - command 69 delete complete screen
+        JP      HCLS            ; Software - command 69 delete complete screen
 ;
 ;
 ;   Change program routines according to table (HL).
@@ -1428,21 +1431,25 @@ D054B:  NOP                     ; INC HL stands here if the first value was ente
 ;
 ;   Table for changing the monitor text routines to 40 or 80 characters per line
 ;
-W054F:  DEFW    A05E5 + 1       ; Address
+
+;
+;  word patch
+;
+CHTBL:  DEFW    A05E5 + 1       ; Address
         DEFW    80              ; Value for 80 characters per line
         DEFW    40              ; Value for 40 characters per line
 ;
         DEFW    A063D           ; Address
         DEFW    021CBH          ; Value for 80 characters per line   (SLA C)
-        DEFW    00000H          ; Value for 40 characters per line    (NOP NOP)
+        DEFW    00000H          ; Value for 40 characters per line   (NOP NOP)
 ;
         DEFW    A0666 + 1       ; Address
         DEFW    400             ; Value for 80 characters per line
         DEFW    200             ; Value for 40 characters per line
 ;
         DEFW    A0669 + 1       ; Address
-        DEFW    SCREEN + 16000  ; Value for 80 characters per line
-        DEFW    SCREEN +  8000  ; Value for 40 characters per line
+        DEFW    BITBUF + 16000  ; Value for 80 characters per line
+        DEFW    BITBUF +  8000  ; Value for 40 characters per line
 ;
         DEFW    A071F + 1       ; Address
         DEFW    80              ; Value for 80 characters per line
@@ -1472,6 +1479,9 @@ W054F:  DEFW    A05E5 + 1       ; Address
         DEFW    8 * 80 - 1      ; Value for 80 characters per line
         DEFW    8 * 40 - 1      ; Value for 40 characters per line
 ;
+;
+;
+;byte patch
 ;
 ;
         DEFW    A06E4 + 1       ; Address
@@ -1505,19 +1515,19 @@ W054F:  DEFW    A05E5 + 1       ; Address
 ;
 ;   Display characters in Accu on screen
 ;
-A05AD:  CALL    A00BA           ; Save registers IX, HL, BC, DE and AF
-        LD      HL,(W1084)      ; Get pointer to current location in text memory
+A05AD:  CALL    PUSHRA          ; Save registers IX, HL, BC, DE and AF
+        LD      HL,(POSADR)     ; Get pointer to current location in text memory
         LD      C,A             ; note the character to be output
         CP      ' '             ; Space ?
         JR      NZ,A05B9        ; no
         XOR     A               ; Note space as 000H
 A05B9:  LD      (HL),A          ; Enter text characters in pseudo image memory
-        LD      HL,(W1086)      ; Get text cursor position in Graphic screen
+        LD      HL,(BITADR)     ; Get text cursor position in Graphic screen
         LD      A,C             ; get the character to be output
         CALL    A05CE           ; Enter characters in the Accu in Graphic screen
         XOR     A               ; Code 'Concatenate line if to next line'
         LD      (D09E1 + 1),A   ; Enter jump offset in routine
-        CALL    A09D4           ; Execute 'Cursor right'
+        CALL    CRIGHT          ; Execute 'Cursor right'
         LD      A,7             ; Code 'move cursor only'
         LD      (D09E1 + 1),A   ; Enter jump offset in routine
         RET
@@ -1532,7 +1542,7 @@ A05CE:  RST     _DOCMD          ; Software - Execute command
         PUSH    HL              ; Register - save value
         LD      H,0             ; High - byte value to zero
         LD      L,A             ; Specify display code character as low - byte value
-        LD      A,(S109B)       ; current character - get palette value
+        LD      A,(CMODE)       ; current character - get palette value
         OR      10000000B       ; plus code 'Replace (REPLACE)'
         OUT     (CRTCWF),A      ; to 'Write-Format-Register' of the display controller
         ADD     HL,HL           ;! display code character times two
@@ -1596,14 +1606,14 @@ A0615:  LD      E,H             ; Y - coordinate of the row as low - byte offset
 ;
 ;   Cursor - control character CLR (clear screen (section))
 ;
-A061D:  CALL    A00C7           ; Save registers IX, HL, BC and DE
+HCLSW:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      A,(S136F)       ; Y - Get Minimum Coordinate (Scroll - Area)
         LD      H,A             ; specify as the Y coordinate
         CALL    A0615           ; Provide pointer to concatenation flag by Y coordinate in H
         LD      A,(S1371)       ; Get number of lines in scroll area
         LD      B,A             ;! and remember
         LD      E,A             ;!
-        CALL    A0137           ; Clear memory area (HL) (concatenation flags)
+        CALL    CLRHL           ; Clear memory area (HL) (concatenation flags)
         LD      C,E             ; Number of lines in the scroll area
         LD      A,(S1370)       ; Y - Get Coordinate Maximum (Scroll - Range)
         INC     A               ; Y - coordinate of line inter scroll area
@@ -1628,17 +1638,17 @@ A063D:  NOP                     ;! if 80 characters/line it says SLA C
         JR      A06AC           ; Reset scroll offset
 ;
 ;
-;   Clear entire screen (Software command code: 69)
+;   Clear entire screen (SVC code: 69)
 ;
-A0652:  CALL    A00BA           ; Save registers IX, HL, BC, DE and AF
-        LD      HL,S2000 + 2000 ; Pointer to end of pseudo image memory (text memory)
+HCLS:   CALL    PUSHRA          ; Save registers IX, HL, BC, DE and AF
+        LD      HL,TEXTBF+2000  ; Pointer to end of pseudo image memory (text memory)
         LD      BC,50           ; 50 half lines of 40 bytes each
         CALL    A0671           ; Delete storage area from back to front
         LD      B,25            ; maximum 25 lines
         LD      HL,S13A9        ; Pointer to memory with concatenation flags of text lines
-        CALL    A0137           ; Delete memory area (HL).
+        CALL    CLRHL           ; Delete memory area (HL).
 A0666:  LD      BC,200          ; Number of 40 byte range for erasure (200/400)
-A0669:  LD      HL,SCREEN+8000  ; Pointer to end of graphic frame buffer (SCREEN+16000)
+A0669:  LD      HL,BITBUF+8000  ; Pointer to end of graphic frame buffer (BITBUF+16000)
         CALL    A0671           ; Delete storage area from back to front
         JR      A06AC           ; Reset scroll offset
 ;
@@ -1649,7 +1659,7 @@ A0669:  LD      HL,SCREEN+8000  ; Pointer to end of graphic frame buffer (SCREEN
 A0671:  LD      (D06A2 + 1),SP  ; Save stack pointer at start routine
         LD      (D0683 + 1),HL  ; Enter pointer to end of memory area
         LD      HL,0            ; Default for erasing value
-        LD      A,(S109C)       ; Get background color value
+        LD      A,(CPLANE)      ; Get background color value
         OR      10000000B       ; plus code 'Replace (REPLACE)'
         OUT     (CRTCWF),A      ; to 'Write-Format-Register' of the display controller
 A0682:  DI                      ; Disable interrupts
@@ -1716,7 +1726,7 @@ A06BE:  EXX                     ; switch to second register set
 ;
 ;   Delete character at cursor position
 ;
-A06CC:  LD      HL,(S1082)      ; Get current cursor coordinates
+A06CC:  LD      HL,(CURXY)      ; Get current cursor coordinates
         DEC     L               ; X - coordinate minus one
         JP      P,A06E6         ; still in line --> remember new coordinate
         CALL    A0615           ; Provide pointer to concatenation flag by Y coordinate in H
@@ -1730,9 +1740,9 @@ A06CC:  LD      HL,(S1082)      ; Get current cursor coordinates
         JR      Z,A06E6         ; is minimal - coordinate
         DEC     H               ; Y - coordinate minus one
 A06E4:  LD      L,39            ; X - coordinate at maximum (39/79)
-A06E6:  LD      (S1082),HL      ; new current cursor - remember coordinates
-        CALL    A0822           ; Cursor at the beginning of the next logical screen line
-        CALL    A0960           ; Text image memory address from current cursor coordinate
+A06E6:  LD      (CURXY),HL      ; new current cursor - remember coordinates
+        CALL    LINCAL          ; Cursor at the beginning of the next logical screen line
+        CALL    PONTC           ; Text image memory address from current cursor coordinate
         PUSH    BC              ; Number of characters in line/remaining number of characters in cursor line
         LD      D,H             ;! Duplicate text - image storage address to DE
         LD      E,L             ;!
@@ -1745,12 +1755,12 @@ A06E6:  LD      (S1082),HL      ; new current cursor - remember coordinates
         XOR     A               ; Accu to zero (code 'Space')
         LD      (DE),A          ; enter as the last character of the line
         POP     BC              ; Number of characters in line/remaining number of characters in cursor line
-        LD      HL,(S1082)      ; Get current cursor coordinates
+        LD      HL,(CURXY)      ; Get current cursor coordinates
         INC     HL              ; X - coordinate cursor plus one
         CALL    A097A           ; Calculate graphic image memory coordinate from coordinate in HL
 A0703:  EXX
         LD      D,8 + 1         ; eight rows of dots make a character
-        LD      HL,(S109D)      ; get maximum palette value / mask for screen pages
+        LD      HL,(MAXCF)      ; get maximum palette value / mask for screen pages
         DEC     D               ; Correct number of point rows
         EXX
         JR      A0723           ; move the rest of the line
@@ -1764,7 +1774,7 @@ A070D:  LD      C,39            ; Number of characters to move in line (39/79)
         LD      L,E             ;!
         JR      A0703           ; Move characters in graphic image memory
 ;
-A0718:  LD      HL,(S109D)      ; get maximum palette value / mask for screen pages
+A0718:  LD      HL,(MAXCF)      ; get maximum palette value / mask for screen pages
         DEC     D               ; Remaining number of rows minus one
         EXX
         JR      Z,A070D         ; once done --> test whether more lines
@@ -1813,7 +1823,7 @@ A0755:  EX      DE,HL           ; Pointer to graphic memory after HL
         DI                      ; Disable interrupts
         IN      A,(_CGVIN)      ; Turn on character set rom and video ram
         OUT     (_00RAM),A      ; Switch to RAM from 00000H - 07FFFH
-        LD      A,(S109C)       ; Get background color value
+        LD      A,(CPLANE)      ; Get background color value
         OR      10000000B       ; plus code 'Replace (REPLACE)'
         OUT     (CRTCWF),A      ; and to the 'Write-Format-Register' of the display controller
 A0767:  XOR     A               ; Accu to zero
@@ -1822,13 +1832,13 @@ A0767:  XOR     A               ; Accu to zero
         DJNZ    A0767           ; delete more bytes in the graphic screen
         IN      A,(_CGVOT)      ; Turn off character set rom and video ram
         EI                      ; Release interrupt again
-        LD      HL,(S1082)      ; Get current cursor coordinates
-        JP      A094D           ; Set cursor to current coordinates in HL
+        LD      HL,(CURXY)      ; Get current cursor coordinates
+        JP      CURMOV          ; Set cursor to current coordinates in HL
 ;
 ;
 ;   Cursor - control character INSerT
 ;
-A0776:  EXX                     ; switch to second register set
+INST:   EXX                     ; switch to second register set
         PUSH    HL              ; HL' - register - save value
         PUSH    DE              ; DE' - register - save value
         PUSH    BC              ; BC' - register - save value
@@ -1844,8 +1854,8 @@ A0776:  EXX                     ; switch to second register set
 ;
 ;   Insert character (space) at cursor position in line
 ;
-A0784:  LD      HL,(S1082)      ; Get current cursor coordinates
-        CALL    A0822           ; Cursor at the beginning of the next logical screen line
+A0784:  LD      HL,(CURXY)      ; Get current cursor coordinates
+        CALL    LINCAL          ; Cursor at the beginning of the next logical screen line
         PUSH    HL              ; Remember cursor coordinates of next logical line
         CALL    A0963           ; Calculate text memory address from coordinates in HL
         DEC     HL              ; Set pointer to last character in current line
@@ -1888,7 +1898,7 @@ A07BC:  CALL    A07DC           ; move a line of text in the Graphic screen
 A07C2:  LD      DE,40           ; Distance to next graphic line (40/80)
         LD      B,8             ; eight graphic lines make up one text line
         DI                      ; Disable interrupts
-        LD      A,(S109C)       ; Get background color value
+        LD      A,(CPLANE)      ; Get background color value
         OR      10000000B       ; plus code 'Replace (REPLACE)'
         OUT     (CRTCWF),A      ; and to the 'Write-Format-Register' of the display controller
         IN      A,(_CGVIN)      ; Turn on character set rom and video ram
@@ -1907,7 +1917,7 @@ A07D3:  XOR     A               ; Accu to zero (code 'Space')
 ;
 A07DC:  EXX
         LD      D,8 + 1         ; Number Graphic - Lines for one line of text
-A07DF:  LD      HL,(S109D)      ; get maximum palette value / mask for screen pages
+A07DF:  LD      HL,(MAXCF)      ; get maximum palette value / mask for screen pages
         DEC     D               ; Remaining number of graphic lines minus one
         EXX
         RET     Z               ; finished
@@ -1958,7 +1968,7 @@ A081A:  IN      A,(_CGVOT)      ; Turn off character set rom and video ram
 ;   Calculate number of connected characters from cursor coordinates in HL to DE
 ;   Set the cursor coordinate in HL to the beginning of the next logical screen line
 ;
-A0822:  LD      B,1             ; Default for number of lines
+LINCAL: LD      B,1             ; Default for number of lines
 A0824:  LD      A,39            ; Specify maximum X coordinate
         SUB     L               ; Calculate remaining number of characters in cursor line
         LD      C,A             ; and remember
@@ -1988,7 +1998,7 @@ A0845:  LD      L,0             ; X - coordinate to zero
 ;
 ;   Scroll screen content
 ;
-A0848:  CALL    A00BA           ; Save registers IX, HL, BC, DE and AF
+A0848:  CALL    PUSHRA          ; Save registers IX, HL, BC, DE and AF
         LD      A,(S136F)       ; Y - Get Minimum Coordinate (Scroll - Area)
         LD      H,A             ; as the Y coordinate of the start of the scroll area
         LD      L,0             ; X - coordinate start scroll - area to zero
@@ -2013,7 +2023,7 @@ A0866:  ADD     HL,BC           ;! Calculate number of characters to be moved
         LDIR                    ; Scroll text in pseudo-image memory
         POP     BC              ; Get number of characters in line
 A0870:  LD      B,C             ; Specify the number of characters in the line as a counter
-        CALL    A013D           ; Delete memory area (DE) (B contains number)
+        CALL    CLRDE           ; Delete memory area (DE) (B contains number)
         LD      A,(S136F)       ; Y - Get Minimum Coordinate (Scroll - Area)
         LD      H,A             ; and note it as the Y coordinate
         CALL    A0615           ; Provide pointer to concatenation flag by Y coordinate in H
@@ -2025,7 +2035,7 @@ A0870:  LD      B,C             ; Specify the number of characters in the line a
         LD      D,H             ;! Duplicate pointers to concatenation flags
         LD      E,L             ;!
         INC     DE              ; Pointer to next flag
-        CALL    NZ,A014A        ; Move memory area from (DE) to (HL).
+        CALL    NZ,LDHLDE       ; Move memory area from (DE) to (HL).
         LD      (HL),0          ; Clear flag of last line in scroll area
         LD      A,(S1370)       ; Y - Get Coordinate Maximum (Scroll - Range)
         LD      H,A             ; and note it as the Y coordinate
@@ -2052,7 +2062,7 @@ A08AF:  IN      A,(CRTCDM)      ; Screen - Controller - Read Status
         OUT     (C),H           ; Output high byte scroll offset to screen controller
         DEC     B               ; Address on 'low byte scroll offset register'
         OUT     (C),L           ; Output low-byte scroll offset to screen controller
-        LD      A,(S109B)       ; current character - get palette value
+        LD      A,(CMODE)       ; current character - get palette value
         OUT     (CRTCRF),A      ; output to the screen controller's 'Read-Format-Register'
         OR      10000000B       ; plus code 'Replace (REPLACE)'
         OUT     (CRTCWF),A      ; to 'Write-Format-Register' of the display controller
@@ -2070,16 +2080,16 @@ A08D4:  LD      BC,320 - 1      ; Number of bytes -1 for a text line in graphic 
         LD      A,(S1370)       ; Y - Get Coordinate Maximum (Scroll - Range)
         LD      H,A             ; as the new Y coordinate
         LD      L,0             ; X - coordinate at zero (left edge)
-        JP      A094D           ; Set cursor to current coordinates in HL
+        JP      CURMOV          ; Set cursor to current coordinates in HL
 ;
 ;
 ;   Change character at cursor position for cursor blinking
 ;
-A08E5:  CALL    A00BA           ; Save registers IX, HL, BC, DE and AF
+A08E5:  CALL    PUSHRA          ; Save registers IX, HL, BC, DE and AF
         EXX
         PUSH    HL              ; Register - save value
         LD      HL,B1391        ; Pointer to cursor - Bit pattern for alpha mode
-        LD      A,(S108D)       ; Current keyboard mode (0=Alpha / 1=Small / 2=Graphic)
+        LD      A,(CURMAK)      ; Current keyboard mode (0=Alpha / 1=Small / 2=Graphic)
         OR      A               ; alpha mode ?
         JR      Z,A08FC         ; Yes
         LD      HL,B1399        ; Pointer to cursor bit pattern for lowercase cursor
@@ -2088,15 +2098,15 @@ A08E5:  CALL    A00BA           ; Save registers IX, HL, BC, DE and AF
         LD      HL,B13A1        ; Pointer to cursor bit pattern for graphic cursor
 A08FC:  EXX
         DI                      ; Disable interrupts
-        LD      A,(S108C)       ; Get flag 'original/cursor character' (0=original)
+        LD      A,(CURFLG)      ; Get flag 'original/cursor character' (0=original)
         XOR     00000001B       ; reverse flag
-        LD      (S108C),A       ; and remember new flag
-        LD      HL,(W1086)      ; Get text cursor position in Graphic screen
+        LD      (CURFLG),A      ; and remember new flag
+        LD      HL,(BITADR)     ; Get text cursor position in Graphic screen
         LD      D,0             ; High - byte offset to zero
         LD      A,(W136B)       ; Get counter '40/80 characters per line'
         LD      E,A             ; and specify as low - byte offset
         LD      B,8             ; eight graphic lines make up one text line
-        LD      A,(S109B)       ; current character - get palette value
+        LD      A,(CMODE)       ; current character - get palette value
         OR      00100000B       ; plus code 'XOR'
         OUT     (CRTCWF),A      ; and to the 'Write-Format-Register' of the display controller
         IN      A,(_CGVIN)      ; Turn on character set rom and video ram
@@ -2118,12 +2128,12 @@ A091C:  EXX
 ;
 ;   Initialize keyboard and display cursor characters on screen
 ;
-A092B:  CALL    A00BA           ; Save registers IX, HL, BC, DE and AF
+A092B:  CALL    PUSHRA          ; Save registers IX, HL, BC, DE and AF
         XOR     A               ;!  Initialize cursor - blink - encoder
         OUT     (KEYP_A),A      ;!
         CPL                     ;!
         OUT     (KEYP_A),A      ;!
-        LD      A,(S108C)       ; Get flag 'original/cursor character' (0=original)
+        LD      A,(CURFLG)      ; Get flag 'original/cursor character' (0=original)
         OR      A               ; Original characters in display ?
         RET     NZ              ; no --> cursor character in image memory
         JR      A08E5           ; Enter cursor characters in graphic memory
@@ -2131,8 +2141,8 @@ A092B:  CALL    A00BA           ; Save registers IX, HL, BC, DE and AF
 ;
 ;   Enter original character at cursor position
 ;
-A093B:  CALL    A00BA           ; Save registers IX, HL, BC, DE and AF
-        LD      A,(S108C)       ; Get flag 'original/cursor character' (0=original)
+A093B:  CALL    PUSHRA          ; Save registers IX, HL, BC, DE and AF
+        LD      A,(CURFLG)      ; Get flag 'original/cursor character' (0=original)
         OR      A               ; Original characters in graphic memory ?
         RET     Z               ; yes --> done
         JR      A08E5           ; Enter original character at cursor position
@@ -2149,27 +2159,27 @@ A0945:  IN      A,(KEYP_C)      ; Cursor - query timer
 ;
 ;   Coordinates in HL as current cursor - remember coordinates
 ;
-;   (Software command code:  18)
+;   (SVC code:  18)
 ;
-A094D:  CALL    A00C7           ; Save registers IX, HL, BC and DE
-        LD      (S1082),HL      ; current cursor - remember coordinates
+CURMOV: CALL    PUSHR           ; Save registers IX, HL, BC and DE
+        LD      (CURXY),HL      ; current cursor - remember coordinates
         CALL    A0963           ; Calculate text memory address from coordinates in HL
-        LD      (W1084),HL      ; Remember pointer to current position in text memory
+        LD      (POSADR),HL     ; Remember pointer to current position in text memory
         CALL    A0977           ; Calculate graphic memory address from cursor coordinates
-        LD      (W1086),HL      ; Remember text cursor position in Graphic screen
+        LD      (BITADR),HL     ; Remember text cursor position in Graphic screen
         RET
 ;
 ;
 ;   Calculate text cursor position in pseudo image memory from current cursor coordinate
 ;
-A0960:  LD      HL,(S1082)      ; Get current cursor coordinates
+PONTC:  LD      HL,(CURXY)      ; Get current cursor coordinates
 ;
 ;
 ;   Convert text cursor position in pseudo image memory from coordinates in HL
 ;
 A0963:  PUSH    DE              ;!  Register - save values
         PUSH    AF              ;!
-        LD      D,S2000/256     ; High - byte starting address of text memory
+        LD      D,TEXTBF/256    ; High - byte starting address of text memory
         LD      E,L             ; Specify X coordinate as low byte
         LD      A,H             ; Y - get coordinate
         ADD     A,A             ;!  times 2
@@ -2189,7 +2199,7 @@ A0972:  NOP                     ; or ADD HL,HL for times 80 (80 characters/line)
 ;
 ;   Graphic - Calculate memory address from current cursor coordinate
 ;
-A0977:  LD      HL,(S1082)      ; Get current cursor coordinates
+A0977:  LD      HL,(CURXY)      ; Get current cursor coordinates
 ;
 ;
 ;   Graphic - Calculate memory address from coordinates in HL
@@ -2227,10 +2237,10 @@ A0992:  LD      L,0             ; X - coordinate at zero (left edge)
 ;
 ;   Print newline on screen if cursor is not at beginning of line
 ;
-;   (Software command code:  2)
+;   (SVC code:  2)
 ;
-CR2:    CALL    A00C7           ; Save registers IX, HL, BC and DE
-        LD      HL,(S1082)      ; Get current cursor coordinates
+CR2:    CALL    PUSHR           ; Save registers IX, HL, BC and DE
+        LD      HL,(CURXY)      ; Get current cursor coordinates
         LD      A,L             ; X - Get cursor coordinate
         OR      A               ; equal to zero (left margin) ?
         JR      NZ,CR1          ; no --> output line feed on screen
@@ -2240,7 +2250,7 @@ CR2:    CALL    A00C7           ; Save registers IX, HL, BC and DE
         RET     Z               ; no --> cursor is at the beginning of the line
 ;
 ;
-;   Output newline to screen (Software command code: 1)
+;   Output newline to screen (SVC code: 1)
 ;
 CR1:    LD      A,CR            ; Specify newline character
         JP      CRT1C           ; Display accu on screen (execution of control characters)
@@ -2250,7 +2260,7 @@ CR1:    LD      A,CR            ; Specify newline character
 ;
 CTR_M:  XOR     A               ;! Convert 'uppercase flag' to
         LD      (D0DAA + 1),A   ;! Reset text output routine
-        LD      HL,(S1082)      ; Get current cursor coordinates
+        LD      HL,(CURXY)      ; Get current cursor coordinates
         PUSH    HL              ; and remember
         INC     H               ; Y - coordinate cursor plus one
         CALL    A0615           ; Provide pointer to concatenation flag by Y coordinate in H
@@ -2272,13 +2282,13 @@ A09CA:  DEC     E               ; Y - Coordinate of the end of the logical line
 ;
 ;   Cursor - control character cursor down
 ;
-A09CF:  LD      HL,(S1082)      ; Get current cursor coordinates
+CDOWN:  LD      HL,(CURXY)      ; Get current cursor coordinates
         JR      A09E0           ; Y - coordinate plus one
 ;
 ;
 ;   Cursor - control character cursor right
 ;
-A09D4:  LD      HL,(S1082)      ; Get current cursor coordinates
+CRIGHT: LD      HL,(CURXY)      ; Get current cursor coordinates
         INC     L               ; X - coordinate plus one
         LD      A,(S136A)       ; Get maximum X coordinate
         CP      L               ; compare with current X - coordinate
@@ -2301,18 +2311,18 @@ A09EA:  LD      A,(S1370)       ; Y - Get Coordinate Maximum (Scroll - Range)
         PUSH    HL              ; remember new cursor coordinates
         CALL    A0848           ; scroll screen
         POP     HL              ; new cursor - get coordinates
-A09F6:  JP      A094D           ; Set cursor to current coordinates in HL
+A09F6:  JP      CURMOV          ; Set cursor to current coordinates in HL
 ;
 ;
 ;   Cursor - Cursor up control character
 ;
-A09F9:  LD      HL,(S1082)      ; Get current cursor coordinates
+CUP:    LD      HL,(CURXY)      ; Get current cursor coordinates
         JR      A0A09           ; Y - coordinate minus one
 ;
 ;
 ;   Cursor - control character cursor left
 ;
-A09FE:  LD      HL,(S1082)      ; Get current cursor coordinates
+CLEFT:  LD      HL,(CURXY)      ; Get current cursor coordinates
         LD      A,L             ; Get X coordinate
         OR      A               ; equal to zero (left margin) ?
         JR      NZ,A0A14        ; no --> X - coordinate minus one
@@ -2344,15 +2354,15 @@ CTR_E:  LD      A,1             ; Flag for 'Lowercase mode'
 ;
 ;   Switch keyboard to graphics mode
 ;
-A0A1E:  LD      A,2             ; Flag for 'Graphics mode'
-        LD      (S108D),A       ; Current keyboard mode (0=Alpha / 1=Lowercase / 2=Graphics)
+CTR_W:  LD      A,2             ; Flag for 'Graphics mode'
+        LD      (CURMAK),A      ; Current keyboard mode (0=Alpha / 1=Lowercase / 2=Graphics)
         RET
 ;
 ;
 ;   Move cursor to next tabulator position (TAB key)
 ;
 C_TAB:  LD      B,0             ; counter to zero
-        LD      HL,(S1082)      ; Get current cursor coordinates
+        LD      HL,(CURXY)      ; Get current cursor coordinates
         INC     L               ; X - coordinate plus one
         LD      A,L             ; Get X coordinate
 A0A2B:  INC     B               ; counter plus one
@@ -2366,10 +2376,10 @@ A0A31:  ADD     A,10            ;! Calculate next tab position
         CP      L               ; compare with new X - coordinate
         RET     C               ; new X coordinate is greater than maximum --> forgotten
         PUSH    HL              ; remember new cursor coordinates
-        LD      A,(S108F)       ; Get parallel output flag printer
+        LD      A,(INPFLG)      ; Get parallel output flag printer
         OR      A               ; Parallel output set?
         JR      Z,A0A54         ; no --> place cursor on coordinates
-        LD      A,(S1082)       ; Get current X - coordinate cursor
+        LD      A,(CURX)        ; Get current X - coordinate cursor
         LD      H,A             ; Note the current X coordinate
         LD      A,L             ; Get new X coordinate
         SUB     H               ; Calculate coordinate difference
@@ -2381,13 +2391,13 @@ A0A4B:  PUSH    BC              ; Save coordinate difference
         POP     BC              ; Get saved remaining number of spaces
         DJNZ    A0A4B           ; print more spaces
 A0A54:  POP     HL              ; Get new cursor coordinate
-        JP      A094D           ; Set cursor to current coordinates in HL
+        JP      CURMOV          ; Set cursor to current coordinates in HL
 ;
 ;
 ;   Move cursor to next tabulator position (emit spaces)
 ;
 PRNTT:  CALL    CRT1S           ; print a space on the screen
-        LD      A,(S1082)       ; Get current X - coordinate cursor
+        LD      A,(CURX)        ; Get current X - coordinate cursor
 A0A5E:  SUB     10              ; subtract 10 (10s TAB)
         JR      NC,A0A5E        ; still OK --> continue to pull off
         ADD     A,10            ; add 10 again
@@ -2398,7 +2408,7 @@ A0A5E:  SUB     10              ; subtract 10 (10s TAB)
 ;   Get line from keyboard and set pointer to actual input
 ;
 A0A67:  PUSH    HL              ; Register - save value
-        LD      HL,(S1082)      ; Get current cursor coordinates
+        LD      HL,(CURXY)      ; Get current cursor coordinates
         PUSH    HL              ; and save
         PUSH    DE              ; Pointer to input - save memory
         CALL    A0615           ; Provide pointer to concatenation flag by Y coordinate in H
@@ -2418,7 +2428,7 @@ A0A82:  POP     HL              ; rescued register - fetch value
         RET
 ;
 ;
-;   Get line from keyboard to memory (DE) (Software command code: 12)
+;   Get line from keyboard to memory (DE) (SVC code: 12)
 ;
 GETL:   PUSH    BC              ;!Register - save values
         PUSH    HL              ;!
@@ -2429,7 +2439,7 @@ A0A87:  CALL    A0B21           ; fetch a character from keyboard with cursor bl
         CP      ESC             ; BREAK ?
         JR      Z,A0AB4         ; yes --> cancel input
         PUSH    AF              ; remember entered character
-        LD      A,(S108D)       ; Current keyboard mode (0=Alpha / 1=Small / 2=Graphic)
+        LD      A,(CURMAK)      ; Current keyboard mode (0=Alpha / 1=Small / 2=Graphic)
         CP      2               ; Graphic mode ?
         JR      NZ,A0AAF        ; no --> check for control characters
         POP     AF              ; get entered character
@@ -2463,7 +2473,7 @@ A0AB5:  RST     _DOCMD          ; Software - Execute command
 ;
 ;   Current text - screen line after input - fetch memory
 ;
-A0ABB:  LD      HL,(S1082)      ; Get current cursor coordinates
+A0ABB:  LD      HL,(CURXY)      ; Get current cursor coordinates
         CALL    A05F9           ; Y coordinate start current line/next line.
         LD      A,E             ;! Calculate the number of connected screen lines
         SUB     D               ;!
@@ -2547,7 +2557,7 @@ INKEY:  INC     A               ; State equal to -1 ?
 ;   Fetch a character from keyboard with cursor blinking
 ;
 A0B21:  CALL    A0BAB           ; check whether there are still characters from the function key
-        CALL    A00C7           ; Save registers IX, HL, BC and DE
+        CALL    PUSHR           ; Save registers IX, HL, BC and DE
         CALL    A092B           ; Initiate keyboard and display cursor characters on screen
         EX      AF,AF           ;! Save value of register AF'
         PUSH    AF              ;!
@@ -2657,7 +2667,7 @@ A0BAB:  PUSH    HL              ; Register - save value
 ;
 ;   Query whether keyboard status has changed
 ;
-A0BC1:  CALL    A00C7           ; Save registers IX, HL, BC and DE
+A0BC1:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      DE,S0D3A        ; Pointer to values ??of last row status
         LD      HL,S0D30        ; Pointers to values ??of current row states
         LD      BC,256 * 10 + 0 ; 10 = number of columns 0 = default for flags
@@ -2693,7 +2703,7 @@ A0BF4:  EI                      ; Enable interrupt
 ;   Query keyboard, return in Accu ASCII code
 ;   of the pressed key or 000H if no key is pressed
 ;
-A0BF6:  CALL    A00C7           ; Save registers IX, HL, BC and DE
+A0BF6:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      HL,S0D30        ; Pointers to current column state values
         LD      DE,S0D3A        ; Pointer to values ??of last column status
         PUSH    HL              ;! save pointer
@@ -2824,7 +2834,7 @@ A0CAB:  CALL    A0D18           ; Convert the bit set in the Accu to a bit numbe
         LD      BC,W0D47        ; Set pointer to table for normal mode
         JR      Z,A0CEF         ; CTRL plus other key
         PUSH    AF              ; Save row value column 9
-        LD      A,(S108D)       ; Current keyboard mode (0=Alpha / 1=Small / 2=Graphic)
+        LD      A,(CURMAK)      ; Current keyboard mode (0=Alpha / 1=Small / 2=Graphic)
         CP      1               ; lowercase cursor ?
         JR      NZ,A0CCC        ; no
         POP     AF              ; Get row value of column 9
@@ -2834,7 +2844,7 @@ A0CCC:  POP     AF              ; Get row value of column 9
         BIT     0,A             ; SHIFT key pressed?
         JR      NZ,A0CD4        ; no
         LD      BC,W0D59        ; Pointer to keyboard table for SHIFT mode
-A0CD4:  LD      A,(S108D)       ; Current keyboard mode (0=Alpha / 1=Small / 2=Graphic)
+A0CD4:  LD      A,(CURMAK)      ; Current keyboard mode (0=Alpha / 1=Small / 2=Graphic)
         CP      2               ; Graphic mode ?
         JR      NZ,A0CE8        ; no
         LD      BC,W0D6B        ; Specify keyboard table for SHIFT graphic mode
@@ -2963,9 +2973,10 @@ M0D8F:  DEFM    "[\\]^/"
 ;   Output text in (DE);
 ;   Convert uppercase to lowercase according to control characters
 ;
-;   (Software command code:  5)
+;   (SVC code:  5)
 ;
-A0D94:  CALL    A00C7           ; Save registers IX, HL, BC and DE
+CRTSIMU:
+        CALL    PUSHR           ; Save registers IX, HL, BC and DE
 A0D97:  LD      A,(DE)          ; Get a character of the text to be output
         INC     DE              ; Pointer to text on next character
         OR      A               ; Text character equal to NUL (end of text) ?
@@ -3077,52 +3088,52 @@ A0E0F:  RST     _DOCMD          ; Software - Execute command
 ;
 A0E17:  EX      AF,AF           ; save character to be printed
         LD      HL,CRT1C        ; Output address Accu on screen (execution of control characters)
-        LD      A,(S1090)       ; Get flag 'execute control characters'
+        LD      A,(DISPX)       ; Get flag 'execute control characters'
         OR      A               ; Execute control characters ?
         JR      Z,A0E24         ; Yes
-        LD      HL,A0EA2        ; Output address Accu on screen (output of control characters)
+        LD      HL,CRT1CX       ; Output address Accu on screen (output of control characters)
 A0E24:  EX      AF,AF           ; get the character to be output
         JP      (HL)            ; Output characters in Accu
 ;
 ;
 ;   Provide current X coordinate screen
 ;
-A0E26:  LD      A,(S1082)       ; Get current X - coordinate cursor
+A0E26:  LD      A,(CURX)        ; Get current X - coordinate cursor
         RET
 ;
 ;
 ;   Output line feed to screen or printer
 ;
-;   (Software command code:  8)
+;   (SVC code:  8)
 ;
-A0E2A:  LD      A,CR            ; Code for 'Line feed'
+PR_CR:  LD      A,CR            ; Code for 'Line feed'
 ;
 ;
 ;   Output characters in the Accu to the screen or printer (execution of control characters)
 ;
-;   (Software command code:  9)
+;   (SVC code:  9)
 ;
-A0E2C:  PUSH    AF              ; save character to be printed
-        LD      A,(S1091)       ; Monitor - Printer - Get status
+PR_1C:  PUSH    AF              ; save character to be printed
+        LD      A,(FILOUT)      ; Monitor - Printer - Get status
         OR      A               ; output on screen?
         JR      NZ,A0E36        ; no --> Output characters to printer
         POP     AF              ; get the character to be printed
         JR      CRT1C           ; Display accu on screen (execution of control characters)
 ;
 A0E36:  POP     AF              ; get the character to be output
-        JP      A14B9           ; Output characters in Accu to printer
+        JP      LPT1C           ; Output characters in Accu to printer
 ;
 ;
 ;   Output characters in the Accu to the screen or printer (display control characters)
 ;
-;   (Software command code:  10)
+;   (SVC code:  10)
 ;
-A0E3A:  PUSH    AF              ; save character to be printed
-        LD      A,(S1091)       ; Monitor - Printer - Get status
+PR_1CX: PUSH    AF              ; save character to be printed
+        LD      A,(FILOUT)      ; Monitor - Printer - Get status
         OR      A               ; output on screen?
         JR      NZ,A0E44        ; no --> Output characters to printer
         POP     AF              ; get the character to be output
-        JR      A0EA2           ; Display accu on screen (display control characters)
+        JR      CRT1CX          ; Display accu on screen (display control characters)
 ;
 A0E44:  POP     AF              ; get the character to be output
         JP      A14E0           ; Output Accu to printer (display control characters)
@@ -3130,23 +3141,23 @@ A0E44:  POP     AF              ; get the character to be output
 ;
 ;   Output text (DE) on screen or printer
 ;
-;   (Software command code:  11)
+;   (SVC code:  11)
 ;
-A0E48:  CALL    A00C7           ; Save registers IX, HL, BC and DE
-        LD      HL,A0E2C        ; Address 'Output Accu on screen or printer'
-        JR      A0E56           ; Output text (DE).
+PR_MSG: CALL    PUSHR           ; Save registers IX, HL, BC and DE
+        LD      HL,PR_1C        ; Address 'Output Accu on screen or printer'
+        JR      CRTMS2           ; Output text (DE).
 ;
 ;
 ;   Output text (DE) with execution of control characters on screen
 ;
-CRTMSG: CALL    A00C7           ; Save registers IX, HL, BC and DE
+CRTMSG: CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      HL,CRT1C        ; Display address 'Accu on screen (execution of control characters)
-A0E56:  LD      A,(DE)          ; get a character text
+CRTMS2: LD      A,(DE)          ; get a character text
         OR      A               ; equal to NUL (end of text character) ?
         RET     Z               ; yes --> done
         CALL    A00A7           ; JP (HL) (call output routine (HL))
         INC     DE              ; Pointer to text to be output to next character
-        JR      A0E56           ; output additional characters of text
+        JR      CRTMS2           ; output additional characters of text
 ;
 ;
 ;   print a space on the screen
@@ -3156,17 +3167,17 @@ CRT1S:  LD      A,' '           ; Specify space character
 ;
 ;  Display accu on screen (execution of control characters)
 ;
-;   (Software command code:  3)
+;   (SVC code:  3)
 ;
-CRT1C:  CALL    A00BA           ; Save registers IX, HL, BC, DE and AF
+CRT1C:  CALL    PUSHRA          ; Save registers IX, HL, BC, DE and AF
 A0E64:  LD      C,A             ; note the character to be output
-        LD      A,(S108F)       ; Get parallel output flag printer
+        LD      A,(INPFLG)      ; Get parallel output flag printer
         OR      A               ; set  ?
         JR      Z,A0E99         ; no --> no parallel output
         LD      A,C             ; get the character to be output
         CP      ' '             ; control character ?
         JR      NC,A0E96        ; no --> output characters
-        LD      DE,(S1082)      ; Get current cursor coordinates
+        LD      DE,(CURXY)      ; Get current cursor coordinates
         LD      HL,(S1369)      ; X - Get minimum/maximum coordinate
         CP      C_LEFT          ; 'cursor left' ?
         JR      Z,A0E83         ; yes --> compare to minimal coordinates
@@ -3194,14 +3205,14 @@ A0E99:  LD      A,C             ; get the character to be output
 ;
 ;   Display accu on screen (display control characters)
 ;
-;   (Software command code:  4)
+;   (SVC code:  4)
 ;
-A0EA2:  CALL    A00BA           ; Save registers IX, HL, BC, DE and AF
+CRT1CX: CALL    PUSHRA          ; Save registers IX, HL, BC, DE and AF
         LD      C,A             ; note the character to be output
         CP      CR              ; Carriage return?
         JR      Z,A0E64         ; yes --> perform line feed
         CALL    A05AD           ; Display characters in Accu on screen
-        LD      A,(S108F)       ; Get parallel output flag printer
+        LD      A,(INPFLG)      ; Get parallel output flag printer
         OR      A               ; Parallel output set?
         RET     Z               ; no --> done
         LD      A,C             ; get output character
@@ -3217,14 +3228,14 @@ A0EBF:  CP      '`'
         JR      C,A0ED4         ; Output point to printer
         CP      0C1H
         JR      C,A0ED6         ; Output correct character to printer
-        CALL    A011B           ; Compare Accu with bytes specified after CALL
+        CALL    CHKACC          ; Compare Accu with bytes specified after CALL
         DEFB    3               ; compare three characters
         DEFB    0D7H            ;!  characters familiar to printers
         DEFB    0CFH            ;!
         DEFB    0FFH            ;!
         JR      Z,A0ED6         ; known character --> output to printer
 A0ED4:  LD      A,'.'           ; Dot for unknown character
-A0ED6:  JP      A14F0           ; Output characters in Accu to printer
+A0ED6:  JP      LPTOUT          ; Output characters in Accu to printer
 
 ;
 ;
@@ -3269,28 +3280,28 @@ B0ED9:  DEFB    0               ; CTRL @   (characters not allowed)
 STARTP:  DI                      ; Disable interrupts
         XOR     A               ; Code for '320 x 200 pixels / 4 colors'
         OUT     (CRTCDM),A      ; to 'Display-Mode-Register' of the screen controllerben
-        LD      (S108F),A       ; Reset printer parallel output flag
-        LD      (S1091),A       ; Monitor - Printer - Reset status
+        LD      (INPFLG),A      ; Reset printer parallel output flag
+        LD      (FILOUT),A      ; Monitor - Printer - Reset status
         LD      SP,0            ; Set stack pointer to RAM - end
         IM      2               ; Specify interrupt mode
         LD      A,00000100B     ; Code for 'Disable Timer - Interrupt'
         OUT     (KEYP_F),A      ; output to control module 8255
         OUT     (_00RAM),A      ; Switch to RAM from 00000H - 07FFFH
         OUT     (_E0RAM),A      ; Switch to RAM from 0E000H to 0FFFFH
-        CALL    A0441           ; Initialize palette registers for basic colors
-        LD      A,A0FFE/256     ; High - Byte Pointer to Interrupt - Vector
+        CALL    PALOFF          ; Initialize palette registers for basic colors
+        LD      A,IV_LPT/256    ; High - Byte Pointer to Interrupt - Vector
         LD      I,A             ; in the interrupt register
-        LD      A,A0FFE%256     ; Low - Byte Pointer to Interrupt - Vector
+        LD      A,IV_LPT%256    ; Low - Byte Pointer to Interrupt - Vector
         OUT     (PIOB_C),A      ; output to Z-80 PIO channel B
         LD      A,00001111B     ; Code for 'Mode 0 - Select'
         OUT     (PIOB_C),A      ; output to Z-80 PIO channel B
         PUSH    BC              ; Load - save code
-        CALL    A0F4E           ; Query whether graphic extension is installed
+        CALL    CRTPWR          ; Query whether graphic extension is installed
         CALL    A44B9           ; Muisc - initialize routines
         CALL    A3F58           ; Determine if RAM card is initialized
         POP     BC              ; retrieve the saved loading code
 B0F2A:  DEFB    LD_HL           ; Skip autostart skip sequence
-        JR      A0F4B           ; Skip autostart sequence
+        JR      STRTP9          ; Skip autostart sequence
 ;
 ;
 ;   Loading - use current device
@@ -3314,12 +3325,12 @@ B0F2A:  DEFB    LD_HL           ; Skip autostart skip sequence
 A0F48:  LD      A,C             ; Devices - get number
         RST     _DOCMD          ; Software - Execute command
         DEFB    58              ; cmd 58-  Remember pointer to device table/number for DEFAULT
-A0F4B:  JP      A00DA           ; Cold Start Monitor - Basic
+STRTP9: JP      COLDST          ; Cold Start Monitor - Basic
 ;
 ;
 ;   Query whether graphic extension is installed
 ;
-A0F4E:  DI                      ; Disable interrupts
+CRTPWR: DI                      ; Disable interrupts
         XOR     A               ; Code for 'small graphic - resolution'
         OUT     (CRTCDM),A      ; to the 'Display-Mode-Register' of the graphic controller
         LD      A,00010100B     ; Code for 'Screen B/Level III'
@@ -3338,14 +3349,14 @@ A0F4E:  DI                      ; Disable interrupts
         LD      A,0             ; Specify code for 'additional graphic not available'
         JR      NZ,A0F6C        ; Additional - Graphic not available
         INC     A               ; Set code for 'additional graphic available'
-A0F6C:  LD      (S1099),A       ; Note flag 'additional graphic RAM available' (1=yes)
+A0F6C:  LD      (MEMOP),A       ; Update 'additional graphic RAM available' flag (1=yes)
         IN      A,(_CGVOT)      ; Turn off character set rom and video ram
         EI                      ; Release interrupt again
         LD      A,1             ; Code for '320 x 200 pixels / 4 colors'
-        CALL    A03BE           ; Screen - set operating mode
+        CALL    DSMODE          ; Screen - set operating mode
         XOR     A               ; Accu to zero
-        LD      (S108C),A       ; Clear flag 'original/cursor character' (0=original)
-        LD      (S108D),A       ; Current keyboard mode (0=Alpha / 1=Small / 2=Graphic)
+        LD      (CURFLG),A      ; Clear flag 'original/cursor character' (0=original)
+        LD      (CURMAK),A      ; Current keyboard mode (0=Alpha / 1=Small / 2=Graphic)
         RET
 ;
 ;
@@ -3371,7 +3382,7 @@ W0F7F:  DEFW    0               ; Pointer to next devices table (non-existent)
 ;
 A0F98:  LD      HL,S1001        ; Pointer to storage for file names in handle
         RST     _DOCMD          ; Software - Execute command
-        DEFB    19              ; Code 19 convert ASCII value (HL) into hex value after DE
+        DEFB    19              ; Code 19 convert ASCII value (HL) into hex value in DE
         LD      A,D             ;!  Start address zero?
         OR      E               ;!
         JP      Z,A1FAF         ; yes --> Error 60 Illegal filename error
@@ -3390,9 +3401,9 @@ A0FA7:  LD      HL,(S1048)      ; Get start address of USR routine
 ;   Beginning addresses of the interrupt routines for music and printers
 ;   (addresses must be on an even address)
 ;
-A0FFC:  DEFW    A421A           ; Start address for music interrupt
+IV_PSG:  DEFW    PSGINT          ; Start address for music interrupt
 ;
-A0FFE:  DEFW    A1561           ; Start address for printer interrupt
+IV_LPT:  DEFW    LPTINT          ; Start address for printer interrupt
 
 ;
 ;   Storage for file identifier (directory entry)
@@ -3426,9 +3437,9 @@ S1043:  DEFS    1               ; File access mode
                                 ; Bit 1  =  Open for writing
                                 ; Bit 2  =  Random R/W access mode
 ;
-S1044:  DEFS    2               ; Pointer to current devices - table
+ZEQT:   DEFS    2               ; Pointer to current devices - table
 ;
-S1046:  DEFS    2               ; Current device number
+ZCH:    DEFS    2               ; Current device number
 ;
 S1048:  DEFS    2               ; Start address of the USR routine
 ;
@@ -3447,7 +3458,7 @@ S1050:  DEFB    1               ; Geräte - Typ - Byte
                                 ; Bit 6  =  mehrere Dateinamen auf Gerät zulässig
                                 ; Bit 7  =  nicht im Block - Modus
 ;
-S1051:  DEFS    1               ; Geräte - Nummern - Byte
+ZFLAG2:  DEFS    1              ; Geräte - Nummern - Byte
                                 ; Bit 0-3  =  Geräte - Nummer maximal
                                 ; Bit 4    =  End - of - File nicht erlaubt
                                 ; Bit 5    =  nur eine Datei zum Schreiben eröffnen
@@ -3484,95 +3495,110 @@ S1065:  DEFS    2               ; Anfangsadresse  'freie Kilobyte bereitstellen'
         DEFS    2
 ;
 ;
-;   Speicher für DEFAULT - Geräte - Daten
+;   Memory for default device data
 ;
-S1069:  DEFS    1               ; DEFAULT   Geräte - Nummer
+DCHAN:  DEFS    1               ; Default device number 
 ;
-S106A:  DEFS    2               ; DEFAULT   Zeiger auf Geräte - Tabelle
-;
-;
-;
-W106C:  DEFW    W0DDD           ; Zeiger auf Geräte-Tabelle Bildschirm  (erstes Gerät in Kette)
-;
-W106E:  DEFW    W1479           ; Zeiger auf Geräte-Tabelle Drucker
+DDEV:   DEFS    2               ; Pointer to default device table 
 ;
 ;
-;   Speicherbereich für Zeiger auf die verschiedenen Bereiche
 ;
-S1070:  DEFS    2               ; Pointer to Basic - beginning of program
+__CRT:  DEFW    W0DDD           ; Zeiger auf Geräte-Tabelle Bildschirm  (erstes Gerät in Kette)
 ;
-S1072:  DEFS    2               ; Pointer to file work areas (I/O work area)
-;
-S1074:  DEFS    2               ; Pointer to start of Basic variable
-;
-S1076:  DEFS    2               ; Pointer to start of string text area
-;
-S1078:  DEFS    2               ; Pointer to start of string work area
-;
-S107A:  DEFS    2               ; Pointer to end of string work area
-;
-S107C:  DEFS    2               ; Pointer to start of arithmetic memory
-;
-S107E:  DEFS    2               ; LIMIT - address
-;
-W1080:  DEFW    XFF00           ; maximum allowed RAM address
+__LPT:  DEFW    W1479           ; Zeiger auf Geräte-Tabelle Drucker
 ;
 ;
-;   Speicherbereich für Cursorverwaltung
+;   Work area pointers
 ;
-S1082:  DEFS    1               ; current X - coordinate text cursor
+TEXTST: DEFS    2               ; Basic - beginning of program ("Text start")
 ;
-S1083:  DEFS    1               ; current Y - coordinate text cursor
+POOL:   DEFS    2               ; File work areas (I/O work area)
 ;
-W1084:  DEFW    S2000           ; Pointer to current position in text memory
+VARST:  DEFS    2               ; Start of Basic variables area
 ;
-W1086:  DEFW    08000H          ; Text cursor position in Graphic screen
+STRST:  DEFS    2               ; Start of string text area
 ;
-S1088:  DEFS    2               ; X - Coordinate Graphic - Cursor
+VARED:  DEFS    2               ; Var & string end
 ;
-S108A:  DEFS    2               ; Y - Coordinate Graphic - Cursor
+TMPEND: DEFS    2               ; End of string work area
 ;
-S108C:  DEFS    1               ; Flag 'Original/cursor character' (0=Original)
+INTFAC: DEFS    2               ; Start of arithmetic memory (FAC)
 ;
-S108D:  DEFS    1               ; Current keyboard mode (0=Alpha / 1=Small / 2=Graphic)
+MEMLMT: DEFS    2               ; LIMIT - address
 ;
-S108E:  DEFS    1               ; Text output flag for cassette routine
+MEMMAX: DEFW    0FF00H          ; Maximum allowed RAM address  (last available memory)
+
+
 ;
-S108F:  DEFS    1               ; Printer parallel output flag
 ;
-S1090:  DEFS    1               ; 'Execute control characters' flag
+;   Memory area for cursor management 
 ;
-S1091:  DEFS    1               ; Monitor - Printer - Status
+CURX:
+CURXY:  DEFS    1               ; current X - coordinate text cursor
 ;
-S1092:  DEFB    1               ; Printer - type - number (bit of number set)
+CURY:   DEFS    1               ; current Y - coordinate text cursor
 ;
+POSADR: DEFW    TEXTBF          ; Pointer to current position in text memory
+;
+BITADR: DEFW    08000H          ; Text cursor position in Graphic screen
+;
+POINTX: DEFS    2               ; X - Coordinate Graphic - Cursor
+;
+POINTY: DEFS    2               ; Y - Coordinate Graphic - Cursor
+;
+CURFLG: DEFS    1               ; Flag 'Original/cursor character' (0=Original)
+;
+CURMAK: DEFS    1               ; Current keyboard mode (0=Alpha [normal] / 1=Small [sftlock] / 2=Graphics)
+
+;
+; CRT/LPT work
+;
+CMTMSG: DEFS    1               ; Text output flag for cassette routine  (if =0 disp cmt-msg)
+;
+INPFLG: DEFS    1               ; Printer parallel output flag (0=plot off, 1=plot on)
+;
+DISPX:  DEFS    1               ; 'Execute control characters' flag  (0=MSG, 1=MSGX)
+;
+FILOUT: DEFS    1               ; Monitor - Printer - Status (0=CRT, 1=LPT)
+;
+PSEL:   DEFB    1               ; Printer - type - number (bit of number set)
+;
+;PCRLF:
         DEFB    CR              ; CR - code - value
 ;
+;LPT_TM:
         DEFB    14              ; Time-out counter printer
 ;
-S1095:  DEFS    1               ; Column number printer
+LPOSB:  DEFS    1               ; Column number printer
 ;
-        DEFS    1
+;PSMAL:
+        DEFS    1               ; LPT small/capital
 ;
-S1097:  DEFB    1               ; Printer - Mode - Flag (1=Text / 2=Graphic)
+PNMODE: DEFB    1               ; Printer - Mode - Flag (1=Text / 2=Graphic)
 ;
-S1098:  DEFS    1               ; Value for Display - Mode - Register
 ;
-S1099:  DEFS    1               ; Flag 'Additional graphic RAM available' (1=yes)
+;  CRT display mode workspace
 ;
-S109A:  DEFS    1               ; current override value
 ;
-S109B:  DEFB    3               ; current character - palette value
+DMD:    DEFS    1               ; Value for Display - Mode - Register  (0: 320p 4col / 2: 320p 16col / 4: 640p 2col / 6: 640p 4col)
 ;
-S109C:  DEFB    3               ; background color value
+MEMOP:  DEFS    1               ; Flag 'Additional graphic RAM available' (1=yes)
 ;
-S109D:  DEFB    4               ; maximum pallet value
+PWMODE: DEFS    1               ; Current gfx override value (graphic operation mode)
 ;
-S109E:  DEFB    11111111B       ; Mask for screen page (used Grapic - pages)
+CMODE:  DEFB    3               ; Current character - palette value
 ;
-S109F:  DEFB    3               ; current graphic palette value
+CPLANE: DEFB    3               ; Background color value / curent active plane
+;
+MAXCF:  DEFB    4               ; maximum pallet value
+;
+PMASK:  DEFB    11111111B       ; Mask for screen page (used Grapic - pages)
+;
+GMODE:  DEFB    3               ; current graphic palette value
 ;
         DEFS    80              ; Memory for stack in MZ-80K mode
+
+
 ;
 S10F0:  DEFS    128             ; Memory for file - identifier (cassette)
 ;
@@ -3950,83 +3976,83 @@ W13DA:  DEFW    B13DC           ; Anfangsadresse der Umsetztabelle für ASCII-Zei
 B13DC:  DEFB    39              ; Anzahl Zeichen in Tabelle
 ;
         DEFB    '#'             ; Sharp - Code
-        DEFB    '#'             ; ASCII - Code - Zeichen
+        DEFB    '#'             ;        ... -> ASCII
         DEFB    '@'             ; Sharp - Code
-        DEFB    '@'             ; ASCII - Code - Zeichen
+        DEFB    '@'             ;        ... -> ASCII
         DEFB    '['             ; Sharp - Code     (Eckige Klammer auf)
-        DEFB    '['             ; ASCII - Code - Zeichen
-        DEFB    '\\'             ; Sharp - Code     (Backslash)
-        DEFB    '\\'             ; ASCII - Code - Zeichen
+        DEFB    '['             ;        ... -> ASCII
+        DEFB    '\\'            ; Sharp - Code     (Backslash)
+        DEFB    '\\'            ;        ... -> ASCII
         DEFB    ']'             ; Sharp - Code     (Eckige Klammer zu)
-        DEFB    ']'             ; ASCII - Code - Zeichen
+        DEFB    ']'             ;        ... -> ASCII
         DEFB    08BH            ; Sharp - Code
-        DEFB    '^'             ; ASCII - Code - Zeichen
+        DEFB    '^'             ;        ... -> ASCII
         DEFB    090H            ; Sharp - Code
-        DEFB    '_'             ; ASCII - Code - Zeichen
+        DEFB    '_'             ;        ... -> ASCII
         DEFB    093H            ; Sharp - Code
-        DEFB    '`'             ; ASCII - Code - Zeichen
+        DEFB    '`'             ;        ... -> ASCII
         DEFB    0A1H            ; Sharp - Code
-        DEFB    'a'             ; ASCII - Code - Zeichen
+        DEFB    'a'             ;        ... -> ASCII
         DEFB    09AH            ; Sharp - Code
-        DEFB    'b'             ; ASCII - Code - Zeichen
+        DEFB    'b'             ;        ... -> ASCII
         DEFB    09FH            ; Sharp - Code
-        DEFB    'c'             ; ASCII - Code - Zeichen
+        DEFB    'c'             ;        ... -> ASCII
         DEFB    09CH            ; Sharp - Code
-        DEFB    'd'             ; ASCII - Code - Zeichen
+        DEFB    'd'             ;        ... -> ASCII
         DEFB    092H            ; Sharp - Code
-        DEFB    'e'             ; ASCII - Code - Zeichen
+        DEFB    'e'             ;        ... -> ASCII
         DEFB    0AAH            ; Sharp - Code
-        DEFB    'f'             ; ASCII - Code - Zeichen
+        DEFB    'f'             ;        ... -> ASCII
         DEFB    097H            ; Sharp - Code
-        DEFB    'g'             ; ASCII - Code - Zeichen
+        DEFB    'g'             ;        ... -> ASCII
         DEFB    098H            ; Sharp - Code
-        DEFB    'h'             ; ASCII - Code - Zeichen
+        DEFB    'h'             ;        ... -> ASCII
         DEFB    0A6H            ; Sharp - Code
-        DEFB    'i'             ; ASCII - Code - Zeichen
+        DEFB    'i'             ;        ... -> ASCII
         DEFB    0AFH            ; Sharp - Code
-        DEFB    'j'             ; ASCII - Code - Zeichen
+        DEFB    'j'             ;        ... -> ASCII
         DEFB    0A9H            ; Sharp - Code
-        DEFB    'k'             ; ASCII - Code - Zeichen
+        DEFB    'k'             ;        ... -> ASCII
         DEFB    0B8H            ; Sharp - Code
-        DEFB    'l'             ; ASCII - Code - Zeichen
+        DEFB    'l'             ;        ... -> ASCII
         DEFB    0B3H            ; Sharp - Code
-        DEFB    'm'             ; ASCII - Code - Zeichen
+        DEFB    'm'             ;        ... -> ASCII
         DEFB    0B0H            ; Sharp - Code
-        DEFB    'n'             ; ASCII - Code - Zeichen
+        DEFB    'n'             ;        ... -> ASCII
         DEFB    0B7H            ; Sharp - Code
-        DEFB    'o'             ; ASCII - Code - Zeichen
+        DEFB    'o'             ;        ... -> ASCII
         DEFB    09EH            ; Sharp - Code
-        DEFB    'p'             ; ASCII - Code - Zeichen
+        DEFB    'p'             ;        ... -> ASCII
         DEFB    0A0H            ; Sharp - Code
-        DEFB    'q'             ; ASCII - Code - Zeichen
+        DEFB    'q'             ;        ... -> ASCII
         DEFB    09DH            ; Sharp - Code
-        DEFB    'r'             ; ASCII - Code - Zeichen
+        DEFB    'r'             ;        ... -> ASCII
         DEFB    0A4H            ; Sharp - Code
-        DEFB    's'             ; ASCII - Code - Zeichen
+        DEFB    's'             ;        ... -> ASCII
         DEFB    096H            ; Sharp - Code
-        DEFB    't'             ; ASCII - Code - Zeichen
+        DEFB    't'             ;        ... -> ASCII
         DEFB    0A5H            ; Sharp - Code
-        DEFB    'u'             ; ASCII - Code - Zeichen
+        DEFB    'u'             ;        ... -> ASCII
         DEFB    0ABH            ; Sharp - Code
-        DEFB    'v'             ; ASCII - Code - Zeichen
+        DEFB    'v'             ;        ... -> ASCII
         DEFB    0A3H            ; Sharp - Code
-        DEFB    'w'             ; ASCII - Code - Zeichen
+        DEFB    'w'             ;        ... -> ASCII
         DEFB    09BH            ; Sharp - Code
-        DEFB    'x'             ; ASCII - Code - Zeichen
+        DEFB    'x'             ;        ... -> ASCII
         DEFB    0BDH            ; Sharp - Code
-        DEFB    'y'             ; ASCII - Code - Zeichen
+        DEFB    'y'             ;        ... -> ASCII
         DEFB    0A2H            ; Sharp - Code
-        DEFB    'z'             ; ASCII - Code - Zeichen
+        DEFB    'z'             ;        ... -> ASCII
         DEFB    0BEH            ; Sharp - Code   (geschweifte Klammer auf)
-        DEFB    '{'             ; ASCII - Code - Zeichen
+        DEFB    '{'             ;        ... -> ASCII
         DEFB    0C0H            ; Sharp - Code   (senkrechter Strich)
-        DEFB    '|'             ; ASCII - Code - Zeichen
+        DEFB    '|'             ;        ... -> ASCII
         DEFB    080H            ; Sharp - Code   (geschweifte Klammer zu)
-        DEFB    '}'             ; ASCII - Code - Zeichen
+        DEFB    '}'             ;        ... -> ASCII
         DEFB    094H            ; Sharp - Code
-        DEFB    '~'             ; ASCII - Code - Zeichen
+        DEFB    '~'             ;        ... -> ASCII
         DEFB    07FH            ; Sharp - Code
-        DEFB    DEL             ; ASCII - Code - Zeichen
+        DEFB    07FH            ;        ... -> ASCII  (DEL)
 ;
 ;
 ;   Zeichen für Ausgabe auf ASCII - Gerät umsetzen
@@ -4050,7 +4076,7 @@ A1442:  CALL    A1440           ; Zeichen im Accu auf Gerät ausgeben
 ;
 ;   Textzeichen im Accu zur Ausgabe auf ASCII - Gerät umsetzen
 ;
-A1448:  PUSH    BC              ; Register - Wert retten
+A1448:  PUSH    BC              ; Keep register value
         LD      C,0             ; Code for 'von Sharp in ASCII - Code umsetzen'
         CALL    A1450           ; Zeichen in Austauschtabelle suchen
         POP     BC              ; geretteten Register - Wert holen
@@ -4059,7 +4085,7 @@ A1448:  PUSH    BC              ; Register - Wert retten
 ;
 ;   Zeichen im Accu in Austauschtabelle suchen und Ersatzzeichen bereitstellen
 ;
-A1450:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+A1450:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      HL,(W13DA)      ; Anfangsadresse der Umsetztabelle holen
         LD      B,(HL)          ; Anzahl Zeichen in Tabelle holen
         INC     HL              ; Anzahl Zeichen überspringen
@@ -4086,7 +4112,7 @@ A146A:  LD      A,(DE)          ; Austauschzeichen aus Tabelle holen
 ;
 A146C:  CALL    A1440           ; Routine (IX) aufrufen   (Zeichen bereitstellen)
         RET     C               ; Fehler aufgetreten -->  Abbruch
-        PUSH    BC              ; Register - Wert retten
+        PUSH    BC              ; Keep register value
         LD      C,1             ; Code for 'von ASCII in Sharp - Code umsetzen'
         CALL    A1450           ; Zeichen im Accu umsetzen
         POP     BC              ; geretteten Register - Wert wieder holen
@@ -4114,23 +4140,23 @@ W1479:  DEFW    W3AD7           ; Zeiger auf nächste Geräte - Tabelle   (CMT:)
 ;
 ;   aktuelle X - Koordinate Drucker bereitstellen
 ;
-A1492:  LD      A,(S108F)       ; Parallelausgabeflag Drucker  holen
+A1492:  LD      A,(INPFLG)      ; Parallelausgabeflag Drucker  holen
         OR      A               ; Parallelausgabe gesetzt  ?
-        LD      A,(S1095)       ; Spaltennummer Drucker  holen
+        LD      A,(LPOSB)       ; Spaltennummer Drucker  holen
         RET     Z               ; keine Parallelausgabe -->  Wert Drucker zurückliefern
-        LD      A,(S1082)       ; X - Koordinate Textcursor holen
+        LD      A,(CURX)        ; X - Koordinate Textcursor holen
         RET
 ;
 ;
 ;   Uhrzeit auf Sekunden in DE und Flag Vormittag/Nachmittag im Accu setzen
 ;
-;   (Software command code:  38)
+;   (SVC code:  38)
 ;
 TIMST:  CALL    A1517           ; IPL - ROM - Routine aufrufen
         DEFB    003H            ; Low - Byte Anfangsadresse  'Uhrzeit setzen'
 ;
 ;
-;   Uhrzeit lesen     (Software command code:  37)
+;   Uhrzeit lesen     (SVC code:  37)
 ;
 TIMRD:  CALL    A1517           ; IPL - ROM - Routine aufrufen
         DEFB    006H            ; Low - Byte Anfangsadresse  'Uhrzeit lesen'
@@ -4138,31 +4164,31 @@ TIMRD:  CALL    A1517           ; IPL - ROM - Routine aufrufen
 ;
 ;   Joy - Stick nach Richtung abfragen   (Accu gleich Joy-Stick-Nummer)
 ;
-;   (Software command code:  30)
+;   (SVC code:  30)
 ;
-A14A6:  CALL    A1517           ; IPL - ROM - Routine aufrufen
+STICK:  CALL    A1517           ; IPL - ROM - Routine aufrufen
         DEFB    009H            ; Low - Byte Anfangsadresse  'Joy - Stick abfragen'
 ;
 ;
 ;   Abfrage, ob Feuerknopf des Jopy - Sticks gedrückt ist
 ;
-;   (Software command code:  31)
+;   (SVC code:  31)
 ;
-A14AA:  CALL    A1517           ; IPL - ROM - Routine aufrufen
+STRIG:  CALL    A1517           ; IPL - ROM - Routine aufrufen
         DEFB    00CH            ; Low - Byte Anfangsadresse  'Feuerknopf abfragen'
 ;
 ;
 ;   Graphic - Bildschirm - Inhalt auf Graphic - Drucker ausgeben
 ;
-;   (Software command code:  79)
+;   (SVC code:  79)
 ;
-A14AE:  CALL    A1508           ; warten, bis Melodie gespielt; dann IPL-ROM-Routine aufrufen
+HCPY:   CALL    A1508           ; warten, bis Melodie gespielt; dann IPL-ROM-Routine aufrufen
         DEFB    00FH            ; Low - Byte Anfangsadresse  'Graphic auf Drucker kopieren'
 ;
 ;
 ;   ASCII - Zeichen im Accu an Drucker ausgeben
 ;
-A14B2:  LD      HL,S1090        ; Zeiger auf Flag  'Steuerzeichen ausführen'
+A14B2:  LD      HL,DISPX        ; Zeiger auf Flag  'Steuerzeichen ausführen'
         BIT     0,(HL)          ; Steuerzeichen ausführen  ?
         JR      NZ,A14E0        ; nein -->  Steuerzeichen anzeigen
 ;
@@ -4171,7 +4197,7 @@ A14B2:  LD      HL,S1090        ; Zeiger auf Flag  'Steuerzeichen ausführen'
 ;
 ;   Software - Kommando  7)
 ;
-A14B9:  PUSH    IY              ; Register - Wert retten
+LPT1C:  PUSH    IY              ; Keep register value
         EX      AF,AF           ; auszugebendes Zeichen retten
         LD      A,012H          ; Code for 'Zeichen an Drucker ausgeben, wenn nicht Parallelausgabe'
         LD      (B14DF),A       ; in Routine eintragen
@@ -4180,9 +4206,9 @@ A14C3:  LD      (B14D6),A       ; in Routine eintragen
         EX      AF,AF           ; auszugebendes Zeichen holen
         CALL    A14D8           ; Zeichen im Accu an Drucker ausgeben
         POP     IY              ; geretteten Register - Wert wieder holen
-        PUSH    BC              ; Register - Wert retten
+        PUSH    BC              ; Keep register value
         LD      B,A             ; auszugebendes Zeichen retten
-        LD      A,(S108F)       ; Parallelausgabeflag Drucker  holen
+        LD      A,(INPFLG)      ; Parallelausgabeflag Drucker  holen
         OR      A               ; Parallelausgabe  ?
         LD      A,B             ; auzugebendes Zeichen holen
         POP     BC              ; geretteten Register - Wert holen
@@ -4198,7 +4224,7 @@ B14DF:  DEFB    012H            ; Low - Byte Anfangsadresse  'Zeichen auf Drucke
 ;
 ;   Zeichen im Accu auf Bildschirm und Drucker ausgeben   (Steuerzeichen anzeigen)
 ;
-A14E0:  PUSH    IY              ; Register - Wert retten
+A14E0:  PUSH    IY              ; Keep register value
         EX      AF,AF           ; auszugebendes Zeichen retten
         LD      A,015H          ; Code for 'Steuerzeichen auf Drucker anzeigen'
         LD      (B14DF),A       ; in Routine eintragen
@@ -4212,9 +4238,9 @@ A14EC:  CALL    A1508           ; warten, bis Melodie gespielt; dann IPL-ROM-Rou
         DEFB    018H            ; Low - Byte Anfangsadresse  'Drucker initialisieren'
 ;
 ;
-;   Zeichen im Accu auf Drucker ausgeben     (Software command code:  6)
+;   Zeichen im Accu auf Drucker ausgeben     (SVC code:  6)
 ;
-A14F0:  CALL    A1508           ; warten, bis Melodie gespielt; dann IPL-ROM-Routine aufrufen
+LPTOUT: CALL    A1508           ; warten, bis Melodie gespielt; dann IPL-ROM-Routine aufrufen
         DEFB    01BH            ; Low - Byte Anfangsadresse  'Zeichen auf Drucker ausgeben'
 ;
 ;
@@ -4250,11 +4276,11 @@ A1504:  CALL    A1508           ; warten, bis Melodie gespielt; dann IPL-ROM-Rou
 ;
 ;   wenn P5-A - Drucker -->  erst Music spielen und dann ROM - Routine aufrufen
 ;
-A1508:  EX      AF,AF           ; Register - Wert retten
-        LD      A,(S1092)       ; Drucker - Nummern - byte holen
+A1508:  EX      AF,AF           ; Keep register value
+        LD      A,(PSEL)        ; Drucker - Nummern - byte holen
         BIT     1,A             ; MZ - 80 A   P5 - Drucker  ?
         JR      Z,A1516         ; nein -->  ROM - Routine direkt aufrufen
-        PUSH    BC              ; Register - Wert retten
+        PUSH    BC              ; Keep register value
         LD      B,3             ; Code for 'warten, bis Music - Daten gespielt'
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    35              ; Code 35  Music nach Status in B behandeln
@@ -4299,9 +4325,9 @@ A1543:  LD      H,0F4H          ; High - Byte ROM - Routinen - Adresse vorgeben
 A1546:  LD      B,A             ; Fehlerstatus merken
         EX      AF,AF           ; geretteten Accu - Wert holen
         DEC     B               ; Fehlerstatus gleich 1  ?
-        JP      Z,A00E8         ; ja -->  Programm abbrechen  (BREAK)
+        JP      Z,BREAKZ        ; ja -->  Programm abbrechen  (BREAK)
         DEC     B               ; Fehlerstatus gleich 2  ?
-        JP      NZ,A00ED        ; nein -->  Fehler mit Nummer im Accu behandeln
+        JP      NZ,ERRORJ       ; nein -->  Fehler mit Nummer im Accu behandeln
 A1550:  LD      HL,(S13CE)      ; Anzahl Zeichen im Drucker - Spooler holen
         LD      A,H             ;! gleich Null  ?
         OR      L               ;!
@@ -4309,13 +4335,13 @@ A1550:  LD      HL,(S13CE)      ; Anzahl Zeichen im Drucker - Spooler holen
         CALL    A14FC           ; Drucker - Interrupt freigeben
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    14              ; Code 14   Abfrage, ob (Shift) BREAK gedrückt ist
-        JP      Z,A00E8         ; ja -->  Programm abbrechen  (BREAK)
+        JP      Z,BREAKZ        ; ja -->  Programm abbrechen  (BREAK)
         JR      A1550           ; warten, bis Drucker - Spooler leer
 ;
 ;
 ;   PIO - Interrupt für Drucker behandeln
 ;
-A1561:  DI                      ; Interrupt sperren
+LPTINT: DI                      ; Interrupt sperren
         PUSH    AF              ;! Register - Werte retten
         PUSH    HL              ;!
         PUSH    BC              ;!
@@ -4338,9 +4364,9 @@ S1585:  DEFS    2               ; Speicher für Stackpointer
 ;
 ;   Software - Maschinen - Monitor aufrufen
 ;
-;   (Software command code:  0)
+;   (SVC code:  0)
 ;
-A1587:  PUSH    HL              ; Register - Wert retten
+MONOP:  PUSH    HL              ; Keep register value
         LD      DE,(ERRORP)     ; Fehlerbehandlungsadresse holen
         PUSH    DE              ; und retten
         LD      DE,T15CE        ; neuen Fehlerbehandlungsadresse
@@ -4351,7 +4377,7 @@ A1587:  PUSH    HL              ; Register - Wert retten
         LD      (S1364),A       ; als Länge Eingabe - Speicher merken
         LD      (A1644 + 1),SP  ; Stackpointer merken
         XOR     A               ; Accu auf Null
-        LD      (S1091),A       ; Monitor - Drucker - Status  zurücksetzen
+        LD      (FILOUT),A      ; Monitor - Drucker - Status  zurücksetzen
 A15A5:  LD      SP,0            ; Stackpointer neu setzen
 ;
 ;
@@ -4443,9 +4469,9 @@ M15E0:  DEFM    "D"             ; D  (Dump)
 ;
 ;   Monitor - Befehl  P   (Ausgabe Drucker umschalten)
 ;
-A15FE:  LD      A,(S1091)       ; Monitor - Drucker - Status  holen
+A15FE:  LD      A,(FILOUT)      ; Monitor - Drucker - Status  holen
         XOR     00000001B       ; Druckerstatus umkehren
-        LD      (S1091),A       ; und wieder merken
+        LD      (FILOUT),A      ; und wieder merken
         RET
 ;
 ;
@@ -4539,7 +4565,7 @@ A1670:  LD      (DE),A          ; Code for 'BREAK'  merken
 ;
 ;   4 ASCII - Hex - Zeichen (DE) umsetzen in Hex - Wert nach HL
 ;
-A1672:  PUSH    HL              ; Register - Wert retten
+A1672:  PUSH    HL              ; Keep register value
         CALL    A168C           ; Zeiger in DE auf nächstes relevantes Zeichen setzen
         PUSH    DE              ; Zeiger auf Textanfang merken
         CALL    A169E           ; 2 ASCII-Hex-Zeichen (DE) umsetzen in Hex nach Accu
@@ -4587,7 +4613,7 @@ A1697:  CALL    A168C           ; Zeiger in DE auf nächstes relevantes Zeichen s
 ;
 ;   2 ASCII - Hex - Zeichen (DE) umsetzen in HEX - Wert nach Accu
 ;
-A169E:  PUSH    BC              ; Register - Wert retten
+A169E:  PUSH    BC              ; Keep register value
         PUSH    DE              ; Zeiger auf Textanfang retten
         CALL    A1692           ; HEX-ASCII-Zeichen (DE) umsetzen in Hex-Wert nach Accu
         JR      C,A16B8         ; kein HEX - Zeichen -->  gerettete Register holen
@@ -4723,10 +4749,10 @@ A1735:  RST     _DOCMD          ; Software - Kommando ausführen
 ;   Monitor - Befehl  M   (Speicherbereich ändern)
 ;
 A1738:  CALL    A1672           ; 4 ASCII-Hex-Zeichen (DE) umsetzen in Hex-Wert nach HL
-        LD      A,(S1091)       ; Monitor - Drucker - Status holen
+        LD      A,(FILOUT)      ; Monitor - Drucker - Status holen
         PUSH    AF              ; aktuellen Status merken
         XOR     A               ; Code for 'Ausgabe auf Bildschirm'
-        LD      (S1091),A       ; als Monitor - Drucker - Status  merken
+        LD      (FILOUT),A      ; als Monitor - Drucker - Status  merken
 A1743:  RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    2               ; Code 2  Zeilenvorschub, wenn Cursor nicht auf Anfang Zeile
         CALL    A1711           ; Doppelpunkt, Anfangsadresse und = ausgeben
@@ -4740,7 +4766,7 @@ A1743:  RST     _DOCMD          ; Software - Kommando ausführen
         CALL    A1651           ; Zeile von Tastatur holen und auswerten
         JR      NC,A1743        ; kein Fehler oder BREAK -->  nächste Zeile
         POP     AF              ; geretteten Drucker - Status holen
-        LD      (S1091),A       ; alten Monitor - Drucker - Status wieder vorgeben
+        LD      (FILOUT),A      ; alten Monitor - Drucker - Status wieder vorgeben
         RET
 ;
 ;
@@ -4894,9 +4920,9 @@ S180D:  DEFS    2               ; Zeiger auf Sektornummer im Sektor
 ;
 ;   Text (DE) auf angewähltem Gerät oder Datei ausgeben
 ;
-;   (Software command code:  55)
+;   (SVC code:  55)
 ;
-A180F:  CALL    A181A           ; interne Geräte-Nummer als AUsgabe-Nummer vorgeben
+PRTSTR: CALL    A181A           ; interne Geräte-Nummer als AUsgabe-Nummer vorgeben
         CALL    A1821           ; Text (DE) auf Datei/Gerät ausgeben
 ;
 ;
@@ -4916,7 +4942,7 @@ A181A:  LD      A,(S1042)       ; interne aktuelle Geräte-/Dateinummer holen
 ;
 ;   Text (DE) auf aktuellem Gerät oder aktueller Datei ausgeben
 ;
-A1821:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+A1821:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      A,(S1050)       ; Geräte - Typ - Byte holen
         BIT     7,A             ; nicht Block - orientiertes Gerät  ?
         LD      HL,T1848        ; Adresse  'Zeichen an Datei ausgeben'
@@ -4925,7 +4951,7 @@ A1821:  CALL    A00C7           ; Register IX, HL, BC und DE retten
         LD      HL,T1835        ; Adresse  'Text über Ausgaberoutine ausgeben'
         JR      NZ,A183D        ; Text (DE) mit Länge in B über Routine (HL) ausgeben
 T1835:  LD      IX,(S105F)      ; Adresse  'Daten ausgeben'  aus Geräte - Tabelle holen
-        CALL    A0247           ; Routine (IX) mit Fehlerbehandlung aufrufen
+        CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         RET
 ;
 ;
@@ -4943,7 +4969,7 @@ A183D:  LD      A,B             ; Restanzahl Zeichen holen
 ;
 ;   Zeichen im Accu an Datei ausgeben
 ;
-T1848:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+T1848:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      E,(IY+64)       ;! relativen Sektorzeiger holen
         LD      D,(IY+65)       ;!
         LD      HL,(S180B)      ; Zeiger auf Anfang Speicher für Sektor holen
@@ -4965,7 +4991,7 @@ T1848:  CALL    A00C7           ; Register IX, HL, BC und DE retten
 ;
 ;   aktuellen Sektor der Datei wegschreiben
 ;
-A1871:  PUSH    BC              ; Register - Wert retten
+A1871:  PUSH    BC              ; Keep register value
         LD      B,0010B         ; Code for 'Schreiben / nicht letzter Sektor'
 A1874:  CALL    A1D27           ; aktuelles Gerät gleich Diskette  ?
         LD      IX,T1835        ; Adresse  'Sektor über Geräte-Ausgabe-Routine ausgeben'
@@ -4995,7 +5021,7 @@ A189A:  LD      HL,(S180B)      ; Zeiger auf Anfang Speicher für Sektor holen
         XOR     A               ; Carry - Flag zurücksetzen
         SBC     HL,DE           ; Zeiger auf Ende Sektor  ?
         JR      NZ,A189A        ; nein -->  Rest Speicher mit Dateiendezeichen auffüllen
-        PUSH    BC              ; Register - Wert retten
+        PUSH    BC              ; Keep register value
         LD      HL,(S180B)      ; Zeiger auf Anfang Speicher für Sektor holen
         DEC     HL              ; Zeiger auf Stelle für Block - Nummer
         LD      (HL),-1         ;! Code for 'letzter Block'  eintragen
@@ -5026,31 +5052,32 @@ B18C6:  DEFB    OR_N            ; Code for 'Stand By'
 ;
 A18C7:  XOR     A               ; Code for 'Datei schliessen'
         LD      IX,(S1059)      ; Adresse  'Datei schliessen' aus Geräte-Tabelle holen
-        CALL    A0247           ; Routine (IX) mit Fehlerbehandlung aufrufen
+        CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         RET
 ;
 ;
 ;   wenn aktuelles Gerät gleich Bildschirm -->  Zeile von Tastatur holen
 ;
-;   (Software command code:  52)
+;   (SVC code:  52)
 ;
-A18D0:  CALL    A1803           ; Abfrage, ob aktuelles Gerät gleich Bildschirm ist
+INPSTRT:
+        CALL    A1803           ; Abfrage, ob aktuelles Gerät gleich Bildschirm ist
         RET     NZ              ; nicht Bildschirm -->  fertig
-        PUSH    DE              ; Register - Wert retten
+        PUSH    DE              ; Keep register value
         LD      DE,S11A4        ; Zeiger auf Zwischenspeicher vorgeben
         CALL    A0A67           ; Zeiger von Tastatur holen und Zeiger auf Eingabe stellen
         LD      (A193B + 1),DE  ; Zeiger auf eingegebenen Text in Routine eintragen
         POP     DE              ; geretteten Register - Wert holen
         RET     NC              ; Eingabe nicht geBREAKt
-        JP      A00E8           ; Programm abbrechen  (BREAK)
+        JP      BREAKZ          ; Programm abbrechen  (BREAK)
 ;
 ;
 ;   einen Datensatz aus Datei oder vom angewähltem Gerät bereitstellen
 ;   (mit Untersuchung auf 'End of File')
 ;
-;   (Software command code:  53)
+;   (SVC code:  53)
 ;
-A18E4:  PUSH    HL              ; Register - Wert retten
+INPMSG: PUSH    HL              ; Keep register value
         PUSH    DE              ; Zeiger auf Stelle für Datensatz merken
         CALL    A181A           ; interne Geräte-Nummer als Ausgabe-Nummer vorgeben
         LD      HL,(S1040)      ; Zeiger auf aktuellen Daten-Verwaltungssatz holen
@@ -5077,7 +5104,7 @@ A18E4:  PUSH    HL              ; Register - Wert retten
 ;   End of File  setzen und eventuell Fehler ausgeben
 ;
 A1908:  SET     7,(HL)          ; Code for 'End of File'  setzen
-        LD      HL,S1051        ; Geräte - Nummer - Flag holen
+        LD      HL,ZFLAG2       ; Geräte - Nummer - Flag holen
         BIT     4,(HL)          ; End - of File nicht erlaubt  ?
         RET     Z               ; End of File erlaubt
         JP      A1FB5           ; Fehler 63   Out of file error
@@ -5095,7 +5122,7 @@ A1913:  CALL    A1803           ; Abfrage, ob aktuelles Gerät gleich Bildschirm 
         LD      HL,A1929        ; Adresse  'Daten bereitstellen aufrufen'  vorgeben
         JR      NZ,A1975        ; ja -->  Datensatz über einzelne Zeichen einlesen
 A1929:  LD      IX,(S105D)      ; Anfangsadresse  'Daten bereistellen' aus Geräte-Tabelle holen
-        CALL    A0247           ; Routine (IX) mit Fehlerbehandlung aufrufen
+        CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         RET
 ;
 ;
@@ -5110,7 +5137,7 @@ A1931:  LD      A,'?'           ; ?   (Fragezeichen)  vorgeben
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    52              ; Code 52  wenn akt. Gerät=Bildschirm -->  Zeile von Tastatur
 A193B:  LD      HL,0            ; Zeiger auf Text holen  (wird eingetragen)
-        CALL    A015E           ; Leerzeichen (Spaces)  (HL) überspringen
+        CALL    HLFTCH          ; Leerzeichen (Spaces)  (HL) überspringen
         OR      A               ; Textendezeichen  (NUL)  ?
         JR      Z,A1931         ; ja -->  erneut Text von Tastatur holen
         LD      C,NUL           ; Textendezeichen als Endezeichen vorgeben
@@ -5122,10 +5149,10 @@ A193B:  LD      HL,0            ; Zeiger auf Text holen  (wird eingetragen)
 ;
 ;   Textkonstante (HL) bis Trennzeichen oder Zeichen in C nach (DE) bereitstellen
 ;
-;   (Software command code:  54)
+;   (SVC code:  54)
 ;
-A194C:  LD      B,0             ; Zähler  'Anzahl übertragene Zeichen '  auf Null
-        CALL    A0164           ; Vergleich auf Byte hinter CALL - Aufruf
+INPDT:  LD      B,0             ; Zähler  'Anzahl übertragene Zeichen '  auf Null
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL - Aufruf
         DEFB    '\"'            ; Anführungszeichen  (Kennung Textkonstante)  ?
         JR      NZ,A1967        ; kein Anführungszeichen
 A1954:  LD      A,(HL)          ; ein Zeichen Text holen
@@ -5139,7 +5166,7 @@ A1954:  LD      A,(HL)          ; ein Zeichen Text holen
         INC     B               ; Zähler  'Anzahl übertragene Zeichen '  plus eins
         JR      A1954           ; testen, ob weitere Zeichen
 ;
-A1961:  CALL    A0164           ; Vergleich auf Byte hinter CALL - Aufruf
+A1961:  CALL    TEST1           ; Vergleich auf Byte hinter CALL - Aufruf
         DEFM    ","             ; Komma  ?
         OR      A               ; Carry - Flag zurücksetzen   (Code for 'kein Fehler')
         RET
@@ -5175,12 +5202,12 @@ A197A:  CALL    0               ; ein Zeichen bereitstellen   (Adresse wird eing
 ;
 ;   nächsten Datenblock der Datei  (oder ein Zeichen)  bereitstellen
 ;
-;   (Software command code:  39)
+;   (SVC code:  39)
 ;
-A1989:  LD      A,(S1050)       ; Geräte - Typ - Byte holen
+INP1C0: LD      A,(S1050)       ; Geräte - Typ - Byte holen
         BIT     7,A             ; nicht Block - orientiertes Gerät  ?
         JP      NZ,A1FAC        ; ja -->  Fehler 59'  Can't execute error
-T1991:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+T1991:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      E,(IY+64)       ;! relativen Sektorzeiger holen
         LD      D,(IY+65)       ;!
         LD      HL,(S105B)      ; maximale Anzahl Zeichen im Sektor holen
@@ -5240,9 +5267,9 @@ A19DD:  DEC     HL              ; Zeiger auf vorheriges Zeichen
 ;
 ;   internen Datei - Verwaltungs - Datensatz nach Datei-/Geräte-Nummer aufbereiten
 ;
-;   (Software command code:  46)
+;   (SVC code:  46)
 ;
-A19E8:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+LUCHK:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      HL,B1A35        ; Zeiger auf Vorgabe für Gerät Bildschirm  (CRT:)
         CP      136             ; Gerät Bildschirm  ?
         JR      Z,A19FC         ; ja -->  Daten für Bildschirm vorgeben
@@ -5262,7 +5289,7 @@ A19FC:  LD      (S1040),HL      ; Zeiger auf aktuellen Daten-Verwaltungssatz mer
         LD      DE,S1000        ; Zeiger auf Speicher für Dateikennung vorgeben
         CALL    A1C66           ; 64 Byte  (Länge Kennungsdaten)  von (HL) nach (DE) übertragen
         PUSH    HL              ; Zeiger auf Ende Kennung retten
-        LD      HL,(S1044)      ; Zeiger auf aktuelle Geräte - Tabelle holen
+        LD      HL,(ZEQT)       ; Zeiger auf aktuelle Geräte - Tabelle holen
         LD      DE,S104A        ; Zeiger auf Speicher für Geräte - Tabelle vorgeben
         LD      BC,29           ; Länge Geräte - Tabelle vorgeben
         LDIR                    ; Geräte - Tabelle in Speicher übertragen
@@ -5298,13 +5325,13 @@ B1A3D:  DEFB    137             ; interne Geräte - Nummer  Gerät LPT:
 ;
 ;   Text (DE) auf Geräte - Namen auswerten und als aktuelles Gerät bereitstellen
 ;
-;   (Software command code:  44)
+;   (SVC code:  44)
 ;
-A1A45:  LD      HL,S11A4        ; Zeiger auf Zwischenspeicher für Text vorgeben
+DEV:    LD      HL,S11A4        ; Zeiger auf Zwischenspeicher für Text vorgeben
         PUSH    HL              ; Zeiger auf Anfang Speicher retten
         LD      A,B             ; Textlänge holen
         OR      A               ; gleich Null  ?
-        CALL    NZ,A014A        ; nein -->  Speicherbereicè voî (DE© nacè (HL© verschieben
+        CALL    NZ,LDHLDE       ; nein -->  Speicherbereicè voî (DE© nacè (HL© verschieben
         LD      (HL),NUL        ; Textende hinter bereitgestelltem Text eintragen
         LD      HL,W0DDD        ; Zeiger auf erstes Gerät in Tabellenkette
         JR      A1A58           ; richtige Geräte - Tabelle suchen
@@ -5314,7 +5341,7 @@ A1A58:  LD      A,L             ;! Zeiger gleich Null  (Ende Kette)  ?
         OR      H               ;!
         JR      Z,A1A91         ; ja -->  DEFAULT - Gerät vorgeben
         LD      (D1A8B + 1),HL  ; Zeiger auf aktuelle Tabelle in Routine eintragen
-        CALL    A012D           ; Adresse aus Tabelle (HL) nach DE holen
+        CALL    LDDEMI          ; Adresse aus Tabelle (HL) nach DE holen
         LD      (A1A55 + 1),DE  ; Zeiger auf nächste Tabelle in Routine eintragen
         LD      DE,S11A4        ; Zeiger auf Speicher mit Geräte - Namen
         EX      DE,HL           ; Zeiger vertauschen
@@ -5353,16 +5380,16 @@ A1A93:  LD      A,(HL)          ; ein Zeichen holen
         JP      Z,A1FA9         ; ja -->  Fehler 58  Dev. name error
         OR      A               ; Textendezeichen  (NUL)  ?
         JR      NZ,A1A93        ; nein -->  Rest Name auf Doppelpunkt überprüfen
-        LD      HL,(S106A)      ; Zeiger auf Geräte - Tabelle  (DEFAULT) holen
-        LD      A,(S1069)       ; Geräte - Nummer  (DEFAULT)  holen
-A1AA3:  LD      (S1044),HL      ; Zeiger auf aktuelle Geräte - Tabelle merken
+        LD      HL,(DDEV)       ; Zeiger auf Geräte - Tabelle  (DEFAULT) holen
+        LD      A,(DCHAN)       ; Geräte - Nummer  (DEFAULT)  holen
+A1AA3:  LD      (ZEQT),HL       ; Zeiger auf aktuelle Geräte - Tabelle merken
         PUSH    HL              ; Zeiger merken
-        LD      (S1046),A       ; aktuelle Geräte - Nummer merken
+        LD      (ZCH),A         ; aktuelle Geräte - Nummer merken
         LD      DE,S104A        ; Zeiger auf Speicherbereich für Geräte - Tabelle
         LD      BC,29           ; Länge Geräte - Tabelle
         LDIR                    ; Geräte - Tabelle in Speicher übertragen
         LD      B,A             ; Geräte - Nummer merken
-        LD      A,(S1051)       ; Geräte - Nummern - Flag holen
+        LD      A,(ZFLAG2)      ; Geräte - Nummern - Flag holen
         AND     00000111B       ; maximale Geräte - Nummer maskieren
         CP      B               ; mit angegebener Geräte-Nummer vergleichen
         JP      C,A1FA9         ; Nummer zu groß -->  Fehler 58  Dev. name error
@@ -5376,13 +5403,13 @@ A1AA3:  LD      (S1044),HL      ; Zeiger auf aktuelle Geräte - Tabelle merken
 ;
 ;   (Software- Kommando  45)
 ;
-A1AC0:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+DEV_FN: CALL    PUSHR           ; Save registers IX, HL, BC and DE
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    44              ; Code 44   Text (DE) auf Geräte - Namen auswerten
         EX      DE,HL           ; Zeiger auf Datei - Namen nach DE
         LD      HL,S1001        ; Zeiger auf Speicher für Dateinamen in Kennung
         LD      B,31            ; Restlänge Dateikennung
-        CALL    A0137           ; Speicherbereich (HL) löschen
+        CALL    CLRHL           ; Speicherbereich (HL) löschen
         LD      HL,S1000        ; Zeiger auf Speicherbereich für Dateikennung
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    23              ; Code 23  Länge des Textes (DE) auszählen
@@ -5403,7 +5430,7 @@ A1AC0:  CALL    A00C7           ; Register IX, HL, BC und DE retten
 ;
 ;   (Software- Kommando  51)
 ;
-A1AE9:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+RWOPEN: CALL    PUSHR           ; Save registers IX, HL, BC and DE
         CALL    A1AF7           ; Speicherplatz für Verwaltung reservieren / Datei eröffnen
         LD      B,00000000B     ; Code for 'Vom Basic verarbeitbare Datei'
         CALL    A1BA9           ; Datei - Kennung überprüfen
@@ -5464,7 +5491,7 @@ A1B1B:  EX      DE,HL           ; Speicherlänge für Datei - Datensatz nach DE
         JR      Z,A1B73         ; nein
         LD      IX,(S1055)      ; Adresse  'Datei zum Lesen eröffnen'  holen
 A1B6D:  LD      HL,S1000        ; Zeiger auf aufbereitete Datei - Kennung
-        JP      A0247           ; Routine (IX) mit Fehlerbehandlung aufrufen
+        JP      IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
 ;
 A1B73:  LD      B,(IY+0)        ; Datei - Typ - Flag aus Datensatz holen
         CALL    A1C4B           ; Datei zum Lesen eröffnen
@@ -5474,9 +5501,9 @@ A1B73:  LD      B,(IY+0)        ; Datei - Typ - Flag aus Datensatz holen
         JP      A19C3           ; ersten Sektor der Datei lesen
 ;
 ;
-;   Datei zum Lesen eröffnen     (Software command code:  47)
+;   Datei zum Lesen eröffnen     (SVC code:  47)
 ;
-A1B83:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+LOPEN:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      IY,256 * 1 + 0  ; Code for 'Datei zum Lesen eröffnen'
         LD      (S1042),IY      ; als interne aktelle Geräte-Nummer/Zugriffscode merken
         LD      IY,S1000        ; Zeiger auf Speicher für Dateikennung vorgeben
@@ -5505,9 +5532,9 @@ A1BA9:  LD      A,(S1000)       ; Datei - Typ - Kennung holen
 ;
 ;   Datei schliessen oder Dateidaten im Rechner löschen
 ;
-;   (Software command code:  56)
+;   (SVC code:  56)
 ;
-A1BB9:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+CLKL:   CALL    PUSHR           ; Save registers IX, HL, BC and DE
         OR      A               ; Datei - Nummer angegeben  ?
         JR      Z,A1BFF         ; nein -->  alle Dateien behandeln
         CALL    A1BC5           ; Datei mit Nummer im Accu schliessen oder Dateidaten löschen
@@ -5530,7 +5557,7 @@ A1BC5:  RST     _DOCMD          ; Software - Kommando ausführen
         LD      IX,(S105B)      ; Anfangsadresse der KILL - Routine holen
         JR      Z,A1BE1         ; Datei - Daten löschen
         LD      IX,(S1059)      ; Anfangsadresse der CLOSE - Routine holen
-A1BE1:  CALL    A0247           ; Routine (IX) mit Fehlerbehandlung aufrufen
+A1BE1:  CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         JR      A1BF6           ; dynamisches Segment löschen
 ;
 A1BE6:  OR      A               ; Datei schliessen oder Dateidaten löschen
@@ -5550,9 +5577,9 @@ A1BF6:  POP     AF              ; Interne Datei - Nummer holen
         RET
 ;
 ;
-;   alle Dateidaten im Rechner löschen     (Software command code:  40)
+;   alle Dateidaten im Rechner löschen     (SVC code:  40)
 ;
-A1BFA:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+CLRIO:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      B,0             ; Code for 'Dateidaten löschen'
 ;
 ;
@@ -5567,12 +5594,12 @@ A1C01:  LD      A,C             ; Datei - Nummer holen
         POP     BC              ; Flag und Datei - Nummer holen
         DEC     C               ; Datei - Nummer minus eins
         JR      NZ,A1C01        ; weitere Dateien schliessen oder Datei - Daten löschen
-        JP      A1FC0           ; Datei-Daten der Ausgabe-Datei  (wenn vorhanden)  löschen
+        JP      ERRCVR          ; Datei-Daten der Ausgabe-Datei  (wenn vorhanden)  löschen
 ;
 ;
 ;   testen, ob  Datei - Name schon auf Gerät / Datenträger vorhanden ist
 ;
-A1C0F:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+A1C0F:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      A,(S1050)       ; Geräte - Typ - Byte holen
         BIT     6,A             ; mehrere Dateinamen zulässig  ?
         JP      Z,A1FAC         ; nein -->  Fehler 59'  Can't execute error
@@ -5582,7 +5609,7 @@ A1C0F:  CALL    A00C7           ; Register IX, HL, BC und DE retten
 A1C21:  LD      HL,S11A4        ; Zeiger auf Zwischenspeicher vorgeben
         PUSH    BC              ; Zähler retten
         LD      IX,(S1055)      ; Adresse  'Datei zum Lesen eröffnen'  aus Geräte - Tabelle holen
-        CALL    A0247           ; Routine (IX) mit Fehlerbehandlung aufrufen
+        CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         POP     BC              ; geretteten Zähler holen
         SET     0,A             ; Code for 'Fehler'  setzen
         RET     C               ; Fehler aufgetreten -->  Abbruch
@@ -5612,7 +5639,7 @@ A1C3D:  CALL    A1C6D           ; testen, ob auf Gerät nicht schon Datei eröffne
 A1C4B:  CALL    A1C6D           ; testen, ob auf Gerät nicht schon Datei eröffnet ist
         CALL    A1C0F           ; testen, ob Dateiname schon auf Gerät vorhanden ist
         JP      C,A1F88         ; nein -->  Fehler 40'  File not found error
-        CALL    A00C7           ; Register IX, HL, BC und DE retten
+        CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      HL,S11A4        ; Zeiger auf Speicher mit Dateikennung vorgeben
         PUSH    IY              ;! Zeiger auf Stelle für Dateikennung nach DE
         POP     DE              ;!
@@ -5640,10 +5667,10 @@ A1C6D:  LD      IX,T1CAF        ; Adresse  'testen, ob Datei noch eröffnet werde
 ;   wenn aktuelles Gerät gefunden -->  Routine in IX aufrufen
 ;
 A1C71:  LD      (D1CAA + 1),IX  ; Anfangsadresse der Routine eintragen
-        CALL    A00C7           ; Register IX, HL, BC und DE retten
+        CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      A,(S1042)       ; interne aktuelle Geräte-/Dateinummer holen
         LD      C,A             ; und merken
-        LD      HL,(S1072)      ; Zeiger auf Datei-Arbeitsbereiche (I/O-Work-Area) holen
+        LD      HL,(POOL)       ; Zeiger auf Datei-Arbeitsbereiche (I/O-Work-Area) holen
         PUSH    HL              ; und merken
 A1C80:  POP     HL              ; Zeiger auf Datei-Arbeitsbereich holen
         LD      A,(HL)          ; Dateisatz - Nummer holen
@@ -5651,7 +5678,7 @@ A1C80:  POP     HL              ; Zeiger auf Datei-Arbeitsbereich holen
         RET     Z               ; ja -->  alle Dateisätze abgearbeitet
         LD      B,A             ; Datensatznummer merken
         INC     HL              ; Zeiger auf Länge Speicherbereich
-        CALL    A012D           ; Länge Speicherbereich nach DE holen
+        CALL    LDDEMI          ; Länge Speicherbereich nach DE holen
         PUSH    HL              ; Zeiger auf aktuellen Datensatz retten
         ADD     HL,DE           ; Zeiger auf nächsten Datensatz errechnen
         EX      (SP),HL         ; Zeiger nächster Datensatz retten/akt. Zeiger holen
@@ -5663,8 +5690,8 @@ A1C80:  POP     HL              ; Zeiger auf Datei-Arbeitsbereich holen
         LD      A,(HL)          ; Zugriffscode holen
         EX      AF,AF           ; und retten
         INC     HL              ; Zugriffscode überspringen
-        LD      DE,S1044        ; Zeiger auf aktuelle Geräte - Tabelle
-        PUSH    BC              ; Register - Wert retten
+        LD      DE,ZEQT         ; Zeiger auf aktuelle Geräte - Tabelle
+        PUSH    BC              ; Keep register value
         LD      BC,256 * 3 + 0  ; drei Byte überprüfen / 0 = Vorgabe für Ergebnis
 A1C9E:  LD      A,(DE)          ;! ein Byte vergleichen
         SUB     (HL)            ;!
@@ -5682,7 +5709,7 @@ D1CAA:  CALL    0               ; Routine aufrufen  (Adresse wird eingetragen)
 ;
 ;   testen, ob Datei noch eröffnet werden darf
 ;
-T1CAF:  LD      A,(S1051)       ; Geräte - Nummern - Flag holen
+T1CAF:  LD      A,(ZFLAG2)      ; Geräte - Nummern - Flag holen
         BIT     6,A             ; nur eine Datei auf Gerät erlaubt  ?
         JP      NZ,A1F91        ; ja -->  Fehler 43'  Already open error
         BIT     5,A             ; nur eine Datei zum Schreiben eröffnen  ?
@@ -5696,22 +5723,22 @@ T1CAF:  LD      A,(S1051)       ; Geräte - Nummern - Flag holen
         JP      A1F91           ; Fehler 43'  Already open error
 ;
 ;
-;   Programm nach aufbereiteter Kennung laden   (Software command code:  48)
+;   Programm nach aufbereiteter Kennung laden   (SVC code:  48)
 ;
-A1CC6:  CALL    A1D27           ; aktuelles Gerät gleich Diskette  ?
+LOADFL: CALL    A1D27           ; aktuelles Gerät gleich Diskette  ?
         JP      NZ,A32A2        ; nicht mehr benötigte Diskettendaten löschen
         LD      BC,(S1014)      ; Datei - Länge holen
         PUSH    BC              ; und merken
         XOR     A
         LD      IX,(S105D)      ; Adresse  'Daten vom Gerät bereitstellen' holen
-        CALL    A0247           ; Routine (IX) mit Fehlerbehandlung aufrufen
+        CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         POP     BC              ; gerettete Programmlänge holen
         RET
 ;
 ;
-;   (Programm-)  Daten vergleichen     (Software command code:  50)
+;   (Programm-)  Daten vergleichen     (SVC code:  50)
 ;
-A1CDB:  LD      A,(S1051)       ; Geräte - Nummern - Flag holen
+VRFYFL: LD      A,(ZFLAG2)      ; Geräte - Nummern - Flag holen
         BIT     7,A             ; Block - orientiertes Gerät  ?
         JP      Z,A1FAC         ; nein -->  Fehler 59'  Can't execute error
         LD      BC,(S1014)      ; Datei - Länge holen
@@ -5722,7 +5749,7 @@ A1CDB:  LD      A,(S1051)       ; Geräte - Nummern - Flag holen
 ;
 ;   Programm abspeichern     (Sofware - Kommando  49)
 ;
-A1CEA:  LD      A,(S1000)       ; Datei - Typ - Kennung holen
+SAVEFL: LD      A,(S1000)       ; Datei - Typ - Kennung holen
         CP      _BRD + 1        ; bekannter Datei - Typ  ?
         JR      C,A1CF6         ; ja
         LD      A,10000000B     ; Code for 'vom Basic abgespeicherte Datei'
@@ -5739,12 +5766,12 @@ A1CF6:  CALL    A1D27           ; aktuelles Gerät gleich Diskette  ?
         PUSH    HL              ;! nach IY übertragen
         POP     IY              ;!
         LD      IX,(S1057)      ; Adresse  'Datei zum Schreiben eröffnen'
-        CALL    A0247           ; Routine (IX) mit Fehlerbehandlung aufrufen
+        CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         LD      BC,(S1014)      ; Datei - Länge holen
         POP     HL              ; Zeiger auf Programm holen
         LD      A,0100B
         LD      IX,(S105F)      ; Adresse  'Daten ausgeben'  holen
-        CALL    A0247           ; Routine (IX) mit Fehlerbehandlung aufrufen
+        CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         RET
 ;
 ;
@@ -5755,9 +5782,9 @@ A1D27:  LD      A,(S1050)       ; Geräte - Typ - Byte holen
         RET
 ;
 ;
-;   Inhaltsverzeichnis einlesen oder ausgeben     (Software command code:  57)
+;   Inhaltsverzeichnis einlesen oder ausgeben     (SVC code:  57)
 ;
-A1D2D:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+FDIR:   CALL    PUSHR           ; Save registers IX, HL, BC and DE
         OR      A               ; Datei- oder Gerätenummer angegeben  ?
         JR      NZ,A1D80        ; ja -->  gelesenes Inhaltsverzeichnis ausgeben
 ;
@@ -5778,7 +5805,7 @@ A1D2D:  CALL    A00C7           ; Register IX, HL, BC und DE retten
         CALL    A44A3           ; warten, bis alte Melodien vollständig gespielt sind
         LD      HL,S27D0        ; Zeiger auf Speicher für Inhaltsverzeichnis
         LD      BC,8            ; 8 * 256 Bytes = 2 K - Byte
-A1D58:  CALL    A0137           ; Speicherbereich (HL) löschen
+A1D58:  CALL    CLRHL           ; Speicherbereich (HL) löschen
         DEC     C               ; Restanzahl Blöcke minus eins
         JR      NZ,A1D58        ; weitere Blöcke löschen
         CALL    A18C7           ; Datei auf Gerät nach Tabellenadresse schliessen
@@ -5787,7 +5814,7 @@ A1D58:  CALL    A0137           ; Speicherbereich (HL) löschen
         LD      HL,S27D0        ; Zeiger auf Speicher für Inhaltsverzeichnis
 A1D68:  PUSH    BC              ; Zähler retten
         LD      IX,(S1055)      ; Adresse  'Datei zum Lesen eröffnen' aus Gerätetabelle holen
-        CALL    A0247           ; Routine (IX) mit Fehlerbehandlung aufrufen
+        CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         PUSH    AF              ; Ergebnisflag retten
         LD      BC,32           ; Länge Kennungsdatensatz
         ADD     HL,BC           ; Zeiger auf Ende Datensatz errechnen
@@ -5803,13 +5830,13 @@ A1D7D:  JP      B18C6           ; Gerät in 'Stand by'  schalten
 ;
 A1D80:  LD      (A1E27 + 1),A   ; Ausgabe - Datei - Nummer in Routine eintragen
         XOR     A               ; Accu auf Null
-        LD      (S1090),A       ; Code for 'Steuerzeichen ausführen'  merken
+        LD      (DISPX),A       ; Code for 'Steuerzeichen ausführen'  merken
         LD      HL,S11A4        ; Zeiger auf Speicher zur Textaufbereitung
         PUSH    HL              ; Zeiger auf Anfang Speicher merken
         LD      DE,M1E32        ; Text  'DIRECTORY OF'
         LD      B,14            ; Textlänge vorgeben
-        CALL    A014A           ; Speicherbereich von (DE) nach (HL) verschieben
-        CALL    A0397           ; Geräte - Namen nach (HL) bereitstellen
+        CALL    LDHLDE          ; Speicherbereich von (DE) nach (HL) verschieben
+        CALL    SETDNM          ; Geräte - Namen nach (HL) bereitstellen
         LD      (HL),' '        ; Leerzeichen  (Space)  eintragen
         INC     HL              ; Leerzeichen überspringen
         LD      (HL),' '        ; Leerzeichen  (Space)  eintragen
@@ -5819,7 +5846,7 @@ A1D80:  LD      (A1E27 + 1),A   ; Ausgabe - Datei - Nummer in Routine eintragen
         LD      IX,(S1065)      ; Adresse  'freie Kilobyte bereitstellen'  aus Geräte-Tabelle holen
         JR      Z,A1DAA         ; nicht Diskette
         LD      IX,T3716        ; Adresse  'freie Kilobyte bereitstellen (Diskette)'
-A1DAA:  CALL    A0247           ; Routine (IX) mit Fehlerbehandlung aufrufen
+A1DAA:  CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         JR      C,A1DBD         ; Gerät kann keine freie Speicherkapazität bereitstellen
         LD      H,B             ;! Anzahl freie Kilobyte nach HL
         LD      L,C             ;!
@@ -5828,7 +5855,7 @@ A1DAA:  CALL    A0247           ; Routine (IX) mit Fehlerbehandlung aufrufen
         DEFB    22              ; Code 22   Hex-Wert in HL umsetzen in Dezimal-ASCII (DE)
         LD      HL,M1E40        ; Text  'KB FREE'
         LD      B,9             ; Textlänge vorgeben
-        CALL    A0143           ; Text von (HL) nach (DE) verschieben
+        CALL    LDDEHL          ; Text von (HL) nach (DE) verschieben
 A1DBD:  EX      DE,HL           ; Zeiger auf Ende Text nach HL
         LD      (HL),CR         ; Carriage Return  (Wagenrücklauf)  eintragen
         INC     HL              ; Zeichen überspringen
@@ -5846,7 +5873,7 @@ A1DCC:  CALL    A1DD8           ; eine Zeile Inhaltsverzeichnis aufbereiten und 
 ;
 ;   eine Zeile Inhaltsverzeichnis aufbereiten und ausgeben
 ;
-A1DD8:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+A1DD8:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      A,(HL)          ; Datei - Typ - Kennung holen
         OR      A               ; gleich Null  ?
         RET     Z               ; ja -->  Datei - Eintrag nicht belegt
@@ -5855,7 +5882,7 @@ A1DD8:  CALL    A00C7           ; Register IX, HL, BC und DE retten
         PUSH    DE              ; Zeiger auf Anfang Speicher merken
         LD      A,' '           ; Leerzeichen  (Space)  vorgeben
         LD      B,38            ; 38 Zeichen
-        CALL    A013E           ; Speicherbereich (DE) mit Konstante in A laden  (B = Anzahl)
+        CALL    SETDE           ; Speicherbereich (DE) mit Konstante in A laden  (B = Anzahl)
         LD      A,(HL)          ; Datei - Typ - Flag holen
         CP      12              ; bekannter Datei - Typ  ?
         JR      C,A1DF1         ; ja -->  ausgeben
@@ -5933,9 +5960,9 @@ M1E49:  DEFM    "OBJ"           ; Datei - Typ  1
         DEFM    " ? "           ; Datei - Typ 12          ! (Datei - Typ  13 = PIC)
 ;
 ;
-;   Gerät initialisieren     (Software command code:  60)
+;   Gerät initialisieren     (SVC code:  60)
 ;
-A1E6D:  PUSH    HL              ; Zeiger auf Übergabetext retten
+FINIT:  PUSH    HL              ; Zeiger auf Übergabetext retten
 A1E6E:  XOR     A               ; Accu auf Null
         LD      (S1042),A       ; interne aktuelle Geräte-/Dateinummer löschen
         LD      IX,D1E86        ; Adresse  'Dateidaten im Rechner löschen'
@@ -5943,7 +5970,7 @@ A1E6E:  XOR     A               ; Accu auf Null
         CALL    A1C71           ; wenn Datei auf Gerät eröffnet -->  Routine (IX) aufrufen
         POP     HL              ; geretteten Zeiger auf Übergabetext holen
         LD      IX,(S1053)      ; Adresse  'Gerät initialisieren'  aus Geräte-Tabelle holen
-        CALL    A0247           ; Routine (IX) mit Fehlerbehandlung aufrufen
+        CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         RET
 ;
 ;
@@ -5958,7 +5985,7 @@ D1E86:  LD      SP,0            ; Stackpointer neu setzen   (Wert wird eingetrag
 ;
 ;   Abfrage, ob wirklich initialisiert werden soll
 ;
-A1E8F:  CALL    A0164           ; Vergleich auf Byte hinter CALL - Aufruf
+A1E8F:  CALL    TEST1           ; Vergleich auf Byte hinter CALL - Aufruf
         DEFM    "Y"             ; Y  (Yes)  ?
         RET     Z               ; Y angegeben -->  initialisieren
         LD      DE,M1EA3        ; Text  'OK ?  (Y/N)'
@@ -5969,7 +5996,7 @@ A1E8F:  CALL    A0164           ; Vergleich auf Byte hinter CALL - Aufruf
         DEFB    13              ; Code 13  Tastaturabfrage nach Status im Accu
         CP      'Y'             ; Y  (Yes)  ?
         RET     Z               ; ja -->  initialisieren
-        JP      A00E8           ; Programm abbrechen  (BREAK)
+        JP      BREAKZ          ; Programm abbrechen  (BREAK)
 ;
 ;
 ;   Text to ask whether you really want to initialize
@@ -5987,7 +6014,7 @@ A1EAF:
 ;
 ;   Compare file name in (HL) with file name in (DE).
 ;
-A1EB2:  CALL    A00C7           ; Save registers IX, HL, BC and DE
+A1EB2:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         INC     HL              ; File - Skip type in comparison name
         INC     DE              ; File - skip type in given name
         LD      A,(DE)          ; Get first character of given file name
@@ -6039,9 +6066,9 @@ A1EE7:  LD      A,C             ; Get counter 'Remaining number of allowed chara
 ;
 ;   Zeiger auf dynamisches Segment nach Satz-Nummer im Accu nach HL bereitstellen
 ;
-;   (Software command code:  41)
+;   (SVC code:  41)
 ;
-A1EF0:  LD      HL,(S1072)      ; Zeiger auf Datei-Arbeitsbereiche (I/O-Work-Area) holen
+SEGADR: LD      HL,(POOL)       ; Zeiger auf Datei-Arbeitsbereiche (I/O-Work-Area) holen
 A1EF3:  INC     (HL)            ;! Ende Tabelle  ?
         DEC     (HL)            ;!
         SCF                     ; Code for 'Speicher nicht gefunden'  setzen
@@ -6049,8 +6076,8 @@ A1EF3:  INC     (HL)            ;! Ende Tabelle  ?
         CP      (HL)            ; Satz - Nummer stimmt  ?
         INC     HL              ; Satz - Nummer überspringen
         JR      Z,A1F03         ; Datensatz gefunden -->  Zeiger auf Bytes stellen
-        PUSH    DE              ; Register - Wert retten
-        CALL    A012D           ; Länge Bereich aus Datensatz holen
+        PUSH    DE              ; Keep register value
+        CALL    LDDEMI          ; Länge Bereich aus Datensatz holen
         ADD     HL,DE           ; Zeiger auf nächsten Datensatz errechnen
         POP     DE              ; geretteten Register - Wert holen
         JR      A1EF3           ; nächsten Datensatz testen
@@ -6060,9 +6087,9 @@ A1F03:  INC     HL              ;! Bereichslänge überspringen
         RET
 ;
 ;
-;   dynamischen Zwischenspeicher löschen     (Software command code:  43)
+;   dynamischen Zwischenspeicher löschen     (SVC code:  43)
 ;
-A1F06:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+DELSEG: CALL    PUSHR           ; Save registers IX, HL, BC and DE
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    41              ; Code 41  Zeiger auf Datensatz nach Datensatznr bereitstellen
         RET     C               ; Speicher nicht eröffnet -->  fertig
@@ -6081,7 +6108,7 @@ A1F06:  CALL    A00C7           ; Register IX, HL, BC und DE retten
         PUSH    HL              ; und merken
         LD      B,H             ;! Zeiger auf Ende des dynamischen Speicherbereichs
         LD      C,L             ;! nach BC
-        LD      HL,(S107A)      ; Zeiger auf Ende Stringarbeitsbereich holen
+        LD      HL,(TMPEND)     ; Zeiger auf Ende Stringarbeitsbereich holen
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,BC           ; Anzahl zu verschiebende Bytes errechnen
         LD      B,H             ;! Anzahl zu verschiebende Bytes nach BC
@@ -6099,17 +6126,17 @@ A1F06:  CALL    A00C7           ; Register IX, HL, BC und DE retten
         RET
 ;
 ;
-;   dynamischen Zwischenspeicher eröffnen     (Software command code:  42)
+;   dynamischen Zwischenspeicher eröffnen     (SVC code:  42)
 ;
-A1F32:  PUSH    AF              ; Nummer des Zwischenspeichers retten
-        PUSH    BC              ; Register - Wert retten
+OPSEG:  PUSH    AF              ; Nummer des Zwischenspeichers retten
+        PUSH    BC              ; Keep register value
         PUSH    DE              ;! Länge des zu eröffnenden Zwischenspeichers
         PUSH    DE              ;!
         INC     DE              ;! Länge für Speichernummer und Länge corrigieren
         INC     DE              ;!
         INC     DE              ;!
-        LD      HL,(S107A)      ; Zeiger auf Ende Stringarbeitsbereich holen
-        EX      DE,HL           ; HL - Register - Wert retten
+        LD      HL,(TMPEND)     ; Zeiger auf Ende Stringarbeitsbereich holen
+        EX      DE,HL           ; HL - Keep register value
         ADD     HL,DE           ; neues Ende Stringarbeitsbereich errechnen
         EX      DE,HL           ; gerettetes altes Ende wieder nach HL
         JP      C,A1F82         ; Überlauf -->  Fehler 6  Memory capacity error
@@ -6118,14 +6145,14 @@ A1F32:  PUSH    AF              ; Nummer des Zwischenspeichers retten
         ADD     HL,SP           ;!
         SBC     HL,DE           ; testen, ob sich Adressen überschneiden
         JR      C,A1F82         ; Überlauf -->  Fehler 6  Memory capacity error
-        LD      HL,(S107E)      ; LIMIT - Adresse holen
+        LD      HL,(MEMLMT)     ; LIMIT - Adresse holen
         DEC     H               ;! Vorgabe für freien Arbeitsspeicher  (512 Bytes)
         DEC     H               ;!
         SBC     HL,DE           ; Adressen überprüfen
         JR      C,A1F82         ; Fehler 6  Memory capacity error
         POP     HL              ; altes Ende Stringarbeitsbereich holen
         PUSH    HL              ; und wieder merken
-        LD      BC,(S1074)      ; Zeiger auf Anfang Basic-Variable holen
+        LD      BC,(VARST)      ; Zeiger auf Anfang Basic-Variable holen
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,BC           ; Anzahl zu verschiebende Bytes errechnen
         LD      B,H             ;! und nach BC übertragen
@@ -6226,18 +6253,18 @@ A1FB5:  LD      A,63 + 128      ; Fehler 63   Out of file error
         DEFB    LD_HL
 ;
 A1FBB:  LD      A,68 + 128      ; Fehler 68   Dev. mode error
-        JP      A00ED           ; Fehler mit Nummer im Accu behandeln
+        JP      ERRORJ          ; Fehler mit Nummer im Accu behandeln
 ;
 ;
 ;   Datei - Daten der Ausgabe - Datei  (wenn vorhanden)  löschen
 ;   Diskettenroutinen initialisieren und Motor abschalten
 ;
-;   (Software command code:  67)
+;   (SVC code:  67)
 ;
-A1FC0:  LD      A,(S1FD9)       ; Ausgabe - Geräte-/Dateinummer holen
+ERRCVR: LD      A,(S1FD9)       ; Ausgabe - Geräte-/Dateinummer holen
         OR      A               ; gleich Null  (kein Gerät angewählt)  ?
         LD      B,0             ; Code for 'Dateidaten löschen'
-        CALL    NZ,A1BB9        ; Dateinummer -->  Dateidaten im Rechner löschen
+        CALL    NZ,CLKL         ; Dateinummer -->  Dateidaten im Rechner löschen
         CALL    A38C2           ; Gerät 'FD:' initialisieren
         CALL    A3ADF           ; Motor der Quick - Disk - Station abschalten
         XOR     A               ; Accu auf Null
@@ -6249,24 +6276,23 @@ A1FC0:  LD      A,(S1FD9)       ; Ausgabe - Geräte-/Dateinummer holen
 S1FD9:  DEFS    1               ; Ausgabe - Geräte-/Datei - Nummer
 ;
         DEFS    38,0
+
 ;
 ;
 ;
-;   Speicher zur Simulation des Bildschirm - Text - Speichers
+; Memory to simulate screen - text - memory
 ;
+; Since the original image memory only contains point patterns, the
+; following memory area provides an image of the text screen.
+; The 'screen editing' is possible only in this way.
 ;
-;   Da im Original - Bildspeicher nur noch Punktmuster stehen, wird im
-;   folgenden Speicherbereich noch einmal der komplette Textbildschirm
-;   verwaltet.  Erst dadurch ist überhaupt noch das 'Screen - Editing'
-;   möglich.
+; A hardcopy of the displayed text can be easily done PEEKing here
+; and sending the output of the read characters to the printer.
+; 
 ;
-;
-;   Eine Bildschirmkopie des angezeigten Textes kann ganz einfach durch
-;   das Auslesen mittels PEEK und die Ausgabe der gelesenen Zeichen auf
-;   dem Drucker erzeugt werden.
-;
-;
-S2000:  DEFS    2000            ; Pseudo - Bildspeicher
+TEXTBF: DEFS    2000            ; Pseudo - video text memory
+
+
 ;
 ;
 ;
@@ -6279,9 +6305,9 @@ S2ED0:  DEFS    256             ; hier werden Werte der noch zu spielenden
 ;
 S2FD0:  DEFS    256             ; Speicher für Sektorverzeichnis  (Diskette)
 ;
-;    RANDOM - Datensatz merken     (Software command code: 64)
+;    RANDOM - Datensatz merken     (SVC code: 64)
 ;
-A30D0:  LD      (S30D5),DE      ; RANDOM - Satznummer merken
+RECST:  LD      (S30D5),DE      ; RANDOM - Satznummer merken
         RET
 ;
 ;
@@ -6307,18 +6333,18 @@ A30D7:  LD      BC,0            ; Code 'letzter Sektor'
         JP      B379A           ; Sektor auf Diskette wegschreiben
 ;
 ;
-;    Datensatz in RANDOM - Datei wegschreiben     (Software command code:  66)
+;    Datensatz in RANDOM - Datei wegschreiben     (SVC code:  66)
 ;
-A30F5:  CALL    A00C7           ; Register IX, HL, BC, DE retten
+PRREC:  CALL    PUSHR           ; Register IX, HL, BC, DE retten
         CALL    A181A           ; interne Geräte-Nummer als Ausgabe-Geräte-Nr. vorgeben
         LD      HL,S11A4        ; Zeiger auf Zwischenspeicher
         PUSH    HL              ; Zeiger auf Anfang Speicher merken
         LD      A,B             ; Anzahl Zeichen holen
         OR      A               ; gleich Null  ?
-        CALL    NZ,A014A        ; nein --> Speicherbereich von (DE) nach (HL) verschieben
+        CALL    NZ,LDHLDE       ; nein --> Speicherbereich von (DE) nach (HL) verschieben
         LD      B,32            ; 32 Speicherzellen
         LD      A,' '           ; Vorgabe für Löschzeichen
-        CALL    A0138           ; Speicherbereich (HL) mit Zeichen im Accu initiieren
+        CALL    SETHL           ; Speicherbereich (HL) mit Zeichen im Accu initiieren
         LD      A,(IY+18)       ; Schreib-Schutz-Flag holen
         OR      A               ; gesetzt  ?
         JP      NZ,A1F94        ; ja --> Fehler 46  Write protect error
@@ -6416,7 +6442,7 @@ A3192:  XOR     A               ; Accu auf Null
 ;
 ;    Sektor der RANDOM - Datei lesen oder schreiben
 ;
-A319C:  CALL    A00C7           ; Register IX, HL, BC, DE retten
+A319C:  CALL    PUSHR           ; Register IX, HL, BC, DE retten
         LD      C,(IY+64)       ;! absolute Sektornummer holen
         LD      B,(IY+65)       ;!
         LD      DE,256          ; 256 Bytes je Sektor
@@ -6439,7 +6465,7 @@ A31AF:  LD      L,(IY+20)       ;! bisher größte geschriebene RANDOM - Satz -
 ;
 A31C1:  CALL    A3794           ; HL - und DE - Register vergleichen
         RET     NC              ; neue Satznummer ist kleiner als bisher größte
-        CALL    A00C7           ; Register IX, HL, BC, DE retten
+        CALL    PUSHR           ; Register IX, HL, BC, DE retten
         DEC     HL              ;! Satznummern corrigieren
         DEC     DE              ;!
         LD      A,L             ;! Blocknummern - Anteil der bisher größten
@@ -6456,7 +6482,7 @@ A31C1:  CALL    A3794           ; HL - und DE - Register vergleichen
 ;
 ;    überprüfen, ob Sektoren für RANDOM-Satznummer schon reserviert
 ;
-A31D8:  CALL    A00C7           ; Register IX, HL, BC, DE retten
+A31D8:  CALL    PUSHR           ; Register IX, HL, BC, DE retten
         LD      HL,(S30D5)      ; RANDOM - Satznummer
         DEC     HL              ; corrigieren
         ADD     HL,HL           ; mal zwei
@@ -6475,7 +6501,7 @@ A31E5:  LD      A,(HL)          ;! Sektorblocknummer gleich Null  ?
 ;
 ;    Sektorblock für RANDOM - Datei bereitstellen und initialisieren
 ;
-A31F3:  CALL    A00C7           ; Register IX, HL, BC, DE retten
+A31F3:  CALL    PUSHR           ; Register IX, HL, BC, DE retten
         PUSH    HL              ; Zeiger auf Stelle für Block-Nummer
         LD      DE,16           ; 16 freie Sektoren bereitstellen
         CALL    A3696           ; Sektoren bereitstellen und reservieren
@@ -6555,9 +6581,9 @@ A3258:  LD      C,(IY+30)       ;! Sektornummer des nächsten (ersten) Sektors
 ;
 ;    Datensatz aus RANDOM - Datei lesen   (Software Kommando  65)
 ;
-A326D:  XOR     A               ; Code 'Textende'
+INREC:  XOR     A               ; Code 'Textende'
         LD      (DE),A          ; erst einmal vorgeben
-        PUSH    HL              ; Register - Wert retten
+        PUSH    HL              ; Keep register value
         PUSH    DE              ;! Zeiger auf Stelle für RANDOM - Satz
         PUSH    DE              ;! retten
         CALL    A31AF           ; überprüfen, ob Satznummer kleiner als bisher größte
@@ -6620,9 +6646,9 @@ A32BA:  PUSH    DE              ; Zeiger auf Speicherbereich merken
         JP      B379A           ; Sektor(en) auf Diskette wegschreiben
 ;
 ;
-;    SWAP - Hauptprogramm wegschreiben oder lesen    (Software command code:  68)
+;    SWAP - Hauptprogramm wegschreiben oder lesen    (SVC code:  68)
 ;
-A32CC:  OR      A               ; Flag 'Lesen/Schreiben'
+FSWAP:  OR      A               ; Flag 'Lesen/Schreiben'
         JR      NZ,A3304        ; SWAP - Hauptprogramm lesen
 ;
 ;
@@ -6653,7 +6679,7 @@ A32CC:  OR      A               ; Flag 'Lesen/Schreiben'
 ;
 ;    SWAP - Hauptprogramm von Diskette lesen
 ;
-A3304:  PUSH    HL              ; Register - Wert retten
+A3304:  PUSH    HL              ; Keep register value
         CALL    A333A           ; untersuchen, ob SWAP - Hauptprogramm vorhanden
         JP      NZ,A1F9D        ; nein -->  Fehler 52  Disk mismatch error
         DEC     (HL)            ; Datei-Typ-Code wieder auf 'kein SWAP-Programm
@@ -6670,11 +6696,11 @@ A3304:  PUSH    HL              ; Register - Wert retten
 ;
 ;    Sektoren der Datei mit Inhaltsverzeichnis-Eintrag (HL) sperren oder freigeben
 ;
-A3321:  CALL    A00C7           ; Register IX, HL, BC, DE retten
+A3321:  CALL    PUSHR           ; Register IX, HL, BC, DE retten
         PUSH    AF              ; Flag 'Sektoren sperren/freigeben' retten
         LD      DE,20           ; Offset auf Dateilänge
         ADD     HL,DE           ; Zeiger auf Dateilänge errechnen
-        CALL    A012D           ; Dateilänge aus Inhaltsverzeichnis holen
+        CALL    LDDEMI          ; Dateilänge aus Inhaltsverzeichnis holen
         LD      BC,8            ; Offset auf erste Sektornummer
         ADD     HL,BC           ; Zeiger auf erste Sektornummer
         LD      C,(HL)          ;! Sektornummer des ersten Sektors aus
@@ -6736,7 +6762,7 @@ A3378:  RET     M               ; SWAP - Eintrag
         PUSH    HL              ; Zeiger auf Datei-Eintrag retten
         CALL    A35EA           ; 32 Byte von (HL) nach (DE) übertragen
         LD      B,32            ; Länge Inhaltsverzeichniseintrag
-        CALL    A013D           ; Speicherbereich (DE) löschen
+        CALL    CLRDE           ; Speicherbereich (DE) löschen
         POP     HL              ; Zeiger auf Datei-Eintrag holen
         LD      A,(HL)          ; Datei-Typ-Modus holen
         PUSH    IY              ;! Zeiger auf Datei-Kennung
@@ -6822,9 +6848,9 @@ A3407:  RET     M               ; SWAP - Eintrag
         JR      A33E4           ; Daten ins Inhaltsverzeichnis der Diskette eintragen
 ;
 ;
-;    Datei schützen oder freigeben    (Software command code:  63)
+;    Datei schützen oder freigeben    (SVC code:  63)
 ;
-A341B:  CALL    A00C7           ; Register IX, HL, BC, DE retten
+FLOCK:  CALL    PUSHR           ; Register IX, HL, BC, DE retten
         LD      (D3434+1),A     ; Flag 'Sperren/Freigeben' eintragen
         CALL    A3739           ; alle Inhaltsverzeichnis-Einträge bereitstellen
         DEFW    A3429           ; Adresse für 'Eintrag vorhanden'
@@ -6843,9 +6869,9 @@ A3436:  CALL    A3702           ; Inhaltsverzeichnis auf Diskette schreiben
         JP      A34CE           ; nicht mehr benötigte Diskettendaten im Rechner löschen
 ;
 ;
-;    Datei löschen     (Software command code: 61)
+;    Datei löschen     (SVC code: 61)
 ;
-A343C:  CALL    A00C7           ; Register IX, HL, BC, DE retten
+FDELET: CALL    PUSHR           ; Register IX, HL, BC, DE retten
         CALL    A1D27           ; aktuelles Gerät gleich Diskette  ?
         JR      NZ,A3458        ; ja -->  Datei auf Diskette löschen
         LD      HL,(S1061)      ; Anfangsadresse  'Datei löschen'  holen
@@ -6884,9 +6910,9 @@ T3471:  INC     HL              ;! Zeiger auf Datei-Datensatz auf Dateinamen
         RET
 ;
 ;
-;   Datei umbenennen     (Software command code:  62)
+;   Datei umbenennen     (SVC code:  62)
 ;
-A347B:  CALL    A00C7           ; Register IX, HL, BC, DE retten
+FRENAM: CALL    PUSHR           ; Register IX, HL, BC, DE retten
         CALL    A1D27           ; aktuelles Gerät gleich Diskette  ?
         JR      NZ,A34A2        ; ja -->  Datei auf Diskette umbenennen
         LD      HL,(S1063)      ; Anfangsadresse  'Datei umbenennen'  holen
@@ -6902,7 +6928,7 @@ A3488:  JP      Z,A1FAC         ; nein -->  Fehler 58'  Can't execute error
         LD      (S1042),HL      ; als Datei - Zugriffscode merken
         CALL    A1C3D           ; prüfen, daß nur eine Datei eröffnet/Name noch nicht vorhanden
 A349D:  POP     IX              ; Anfangsadresse der Routine nach IX
-        JP      A0247           ; Routine (IX) mit Fehlerbehandlung aufrufen
+        JP      IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
 ;
 ;
 ;   Datei auf Diskette umbenennen
@@ -6918,13 +6944,13 @@ A34A2:  RST     DO_CMD          ; Software - Kommando ausführen
         LD      DE,S1001        ; Zeiger auf neuen Dateinamen
         INC     HL              ; Datei - Typ - Flag im Inhaltsverzeichnis überspringen
         LD      B,17            ; maximale Länge Dateiname
-        CALL    A014A           ; Speicherbereich von (DE) nach (HL) übertragen
+        CALL    LDHLDE          ; Speicherbereich von (DE) nach (HL) übertragen
         JP      A3436           ; Inhaltsverzeichnis auf Diskette schreiben
 ;
 ;
 ;    Abfrage, ob Datei schreibgeschützt ist
 ;
-A34C1:  CALL    A00C7           ; Register IX, HL, BC, DE retten
+A34C1:  CALL    PUSHR           ; Register IX, HL, BC, DE retten
         LD      DE,18           ; Abstand zum Schreib-Schutz-Flag
         ADD     HL,DE           ; Zeiger auf Schreib-Schutz-Flag errechnen
         LD      A,(HL)          ; Schreib-Schutz-Flag holen
@@ -6935,7 +6961,7 @@ A34C1:  CALL    A00C7           ; Register IX, HL, BC, DE retten
 ;
 ;    nicht mehr benötigte Diskettendaten im Rechner löschen
 ;
-A34CE:  CALL    A00BA           ; Register IX, HL, BC, DE retten
+A34CE:  CALL    PUSHRA          ; Register IX, HL, BC, DE retten
         XOR     A               ; Accu auf Null
         LD      (S1FD9),A       ; Ausgabe - Dateinummer löschen
         LD      A,224           ; interne Dateinummer für verschiedene Speicher vorgeben
@@ -6945,11 +6971,11 @@ A34D7:  PUSH    AF              ; Dateinummer retten
         POP     AF              ; gerettete Dateinummer holen
         INC     A               ; plus eins
         JR      NZ,A34D7        ; weitere dynamischen Speicherbereich löschen
-        LD      HL,(S1044)      ; Zeiger auf aktuelle Geräte - Tabelle
+        LD      HL,(ZEQT)       ; Zeiger auf aktuelle Geräte - Tabelle
         LD      DE,W37C2        ; Zeiger auf Geräte - Treiber FDx:
         CALL    A3794           ; HL -  und DE - Register vergleichen
         RET     NZ              ; nicht Diskettenstation
-        LD      A,(S1046)       ; Geräte - Nummer holen
+        LD      A,(ZCH)         ; Geräte - Nummer holen
         EXX
         LD      H,A             ; Geräte - Nummer merken
         LD      D,0             ; Code 'Keine Diskettenstation mehr im Zugriff'
@@ -6959,7 +6985,7 @@ A34D7:  PUSH    AF              ; Dateinummer retten
         LD      (S1042),A       ; als interne Geräte - Nummer merken
 A34F6:  EXX
         LD      A,B             ; Geräte - Nummer holen
-        LD      (S1046),A       ; Geräte - Nummer eintragen
+        LD      (ZCH),A         ; Geräte - Nummer eintragen
         ADD     A,144           ; umrechnen in Datensatznummer für Sektorverzeichnis
         LD      L,A             ; Datensatznummer für Sektorverzeichnis merken
         LD      E,0             ; Code 'keine Datei mehr auf Laufwerk eröffnet'
@@ -6970,14 +6996,14 @@ A34F6:  EXX
         BIT     7,E             ; Datei auf Laufwerk offen
         LD      A,L             ; Speichernummer des Sektorverzeichnisses holen
         EXX
-        CALL    Z,A1F06         ; Laufwerk nicht mehr im Zugriff --> Dynamischen Spei-
+        CALL    Z,DELSEG        ; Laufwerk nicht mehr im Zugriff --> Dynamischen Spei-
         EXX                     ;        cher löschen
         DEC     B               ; Laufwerk - Nummer minus eins
         EXX
         JP      P,A34F6         ; weitere Laufwerke überprüfen
         EXX
         LD      A,H             ; gemerkte Geräte - Nummer holen
-        LD      (S1046),A       ; und als Geräte - Nummer eintragen
+        LD      (ZCH),A         ; und als Geräte - Nummer eintragen
         BIT     7,D             ; überhaupt noch Datei auf Diskette offen  ?
         EXX
         CALL    Z,A38C2         ; nein --> Disketten - Routinen initialisieren und Motoren
@@ -6992,7 +7018,7 @@ T3522:  EXX
 ;    Zeiger auf Speicher für Sektorverzeichnis des aktuellen
 ;    Laufwerks bereitstellen
 ;
-A3528:  LD      A,(S1046)       ; Geräte - Nummer holen
+A3528:  LD      A,(ZCH)         ; Geräte - Nummer holen
         ADD     A,144           ; umrechnen in Datensatz für Sektorverzeichnis
         RST     DO_CMD          ; Software - Kommando ausführen
         DEFB    41              ; Code 41  Zeiger auf Datensatz nach Nummer im Accu
@@ -7205,7 +7231,7 @@ A363D:  LD      HL,S2FD0        ; Zeiger auf Speicher für Sektorverzeichnis
 ;
 ;    Sektoren im Sektorverzeichnis (HL) sperren oder freigeben
 ;
-A364A:  CALL    A00BA           ; Register IX, HL, BC, DE, AF retten
+A364A:  CALL    PUSHRA          ; Register IX, HL, BC, DE, AF retten
         OR      A               ; Flag 'Sperren / Freigeben'
         PUSH    HL              ; Zeiger auf Sektorverzeichnis retten
         LD      HL,0B600H       ; OR (HL)  NOP    (Z-80 - Befehle)
@@ -7225,7 +7251,7 @@ A3662:  CALL    A366A           ; einen Sektor sperren oder freigeben
 ;
 ;    einen Sektor sperren oder freigeben
 ;
-A366A:  CALL    A00C7           ; Register IX, HL, BC, DE retten
+A366A:  CALL    PUSHR           ; Register IX, HL, BC, DE retten
         INC     HL              ; Volume - Nummer überspringen
         LD      A,C             ;! absolute Sektornummer umrechnen in
         SUB     (HL)            ;! Sektoroffset
@@ -7340,7 +7366,7 @@ A36EA:  EXX
 ;
 ;    Bitmaske aus Bit - Nummer errechnen
 ;
-A36F1:  PUSH    BC              ; Register - Wert retten
+A36F1:  PUSH    BC              ; Keep register value
         AND     00000111B       ; Bits für Bit-Nummer errechnen
         INC     A               ; Zähler corrigieren
         LD      B,A             ; Zähler merken
@@ -7380,7 +7406,7 @@ T3716:  PUSH    HL              ;! Register retten
         CALL    A35FC           ; Sektorverzeichnis lesen/mit Rechnerverzeichnis vergleichen
         INC     HL              ; Volume - Nummer überspringen
         INC     HL              ; Offset überspringen
-        CALL    A012D           ; Anzahl belegte Sektoren holen
+        CALL    LDDEMI          ; Anzahl belegte Sektoren holen
         CALL    INDRCT          ; Gesamtzahl Sektoren holen
         XOR     A               ; Carry - Flag zurücksetzen
         SBC     HL,DE           ; Anzahl freie Sektoren errechnen
@@ -7402,7 +7428,7 @@ T3716:  PUSH    HL              ;! Register retten
 A3739:  CALL    A1D27           ; löschbares Inhaltsverzeichnis auf Gerät  ?
         JP      Z,A1FAC         ; nein -->  Fehler 57  Can't execute error
         POP     HL              ; Rücksprungadresse vom Stack holen
-        CALL    A012D           ; Adresse bei 'Eintrag vorhanden' holen
+        CALL    LDDEMI          ; Adresse bei 'Eintrag vorhanden' holen
         LD      (D377B + 1),HL  ; Rücksprung für 'kein Eintrag' eintragen
         LD      (D3761 + 1),DE  ; Rücksprung für 'Eintrag vorhanden' eintragen
         XOR     A               ; Code 'keinen freien Eintrag gefunden'
@@ -7450,7 +7476,7 @@ S3792:  DEFS    2               ; Zeiger auf aktuellen Eintrag
 ;
 ;    HL - und DE - Register vergleichen
 ;
-A3794:  PUSH    HL              ; Register - Wert retten
+A3794:  PUSH    HL              ; Keep register value
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,DE           ; Register vergleichen
         POP     HL              ; geretteten Register - Wert holen
@@ -7466,18 +7492,18 @@ B379A:  DEFB    OR_N            ; Code for 'Sektor wegschreiben'
 ;
 A379B:  XOR     A               ; Code 'Sektor lesen'
 A379C:  CALL    A37B3           ; überprüfen, ob Diskette gewechselt werden
-A379F:  CALL    A00C7           ; Register IX, HL, BC, DE retten
+A379F:  CALL    PUSHR           ; Register IX, HL, BC, DE retten
         OR      A               ; Lesen oder Schreiben  ?
         LD      IX,(S105D)      ; Anfangsadresse 'Sektor lesen' holen
         JR      Z,A37AD         ; Sektor(en) von Diskette lesen
         LD      IX,(S105F)      ; Anfangsadresse 'Sektor schreiben' holen
-A37AD:  LD      A,(S1046)       ; Geräte - Nummer holen
-        JP      A0247           ; Routine (IX) mit Fehlerbehandlung aufrufen
+A37AD:  LD      A,(ZCH)         ; Geräte - Nummer holen
+        JP      IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
 ;
 ;
 ;    überprüfen, ob Diskette gewechselt wurde
 ;
-A37B3:  CALL    A00BA           ; Register IX, HL, BC, DE, AF retten
+A37B3:  CALL    PUSHRA          ; Register IX, HL, BC, DE, AF retten
         LD      A,(S37EA)       ; Controller - Status - Flag holen
         OR      A               ; Motor an  ?
         RET     M               ; ja --> braucht nicht überprüft zu werden
@@ -7559,7 +7585,7 @@ A3805:  LD      A,H             ; Correct sector number
 ;
 ;    Switch on the motors of the drives and select density/side
 ;
-A3810:  CALL    A00C7           ; Save registers IX, HL, BC, DE
+A3810:  CALL    PUSHR           ; Save registers IX, HL, BC, DE
         LD      HL,S37EA        ; Pointer to controller - status - flag
         BIT     7,(HL)          ; engine on ?
         JR      NZ,A3820        ; Yes
@@ -7608,7 +7634,7 @@ A3851:  OUT     (MO_REG),A      ; Output engine on/off
 ;
 ;    Output track and sector number to controller
 ;
-A385D:  CALL    A00C7           ; Save registers IX, HL, BC, DE
+A385D:  CALL    PUSHR           ; Save registers IX, HL, BC, DE
         LD      D,0             ; Default code 'no value changed'
         LD      A,(S37E8)       ; Get marker
         SRL     A               ; divided by two
@@ -7669,7 +7695,7 @@ A38B1:  LD      HL,S37EA        ; Pointer to controller - status - flag
         CALL    A3851           ; Output motor flag, side and density
         LD      HL,S37EC        ; Pointers to Drive - Flags
         LD      B,4             ; delete four bytes
-        JP      A0137           ; Delete memory area (HL) (B=length)
+        JP      CLRHL           ; Delete memory area (HL) (B=length)
 ;
 ;
 ;    Initialize "FDx" device.
@@ -7682,7 +7708,7 @@ A38C2:  XOR     A               ; Code for 'Motor off'
 ;
 ;    Issue 'Restore' to controller
 ;
-A38CA:  CALL    A00C7           ; Save registers IX, HL, BC, DE
+A38CA:  CALL    PUSHR           ; Save registers IX, HL, BC, DE
         LD      HL,S37F0        ; Pointer to memory for track numbers
         CALL    A3849           ; Pointer to track numbers of current drive
         LD      (HL),-1         ; Note code 'zero track'
@@ -7711,14 +7737,14 @@ A38ED:  POP     HL              ; discard saved register
 ;
 ;    Issue command and wait for 'Not Busy'
 ;
-A38F0:  CALL    A00C7           ; Save registers IX, HL, BC, DE
+A38F0:  CALL    PUSHR           ; Save registers IX, HL, BC, DE
         LD      D,0             ; code 'wait for Not Busy'
         JR      A3911           ; Issue command and wait for correct status
 ;
 ;
 ;    Set Steprate and wait for 'Not Busy'
 ;
-A38F7:  CALL    A00C7           ; Save registers IX, HL, BC, DE
+A38F7:  CALL    PUSHR           ; Save registers IX, HL, BC, DE
         LD      B,A             ; rescue command
         LD      A,(S37DF)       ; Get step rate
         CPL
@@ -7730,7 +7756,7 @@ A38F7:  CALL    A00C7           ; Save registers IX, HL, BC, DE
 ;
 ;    Issue command to controller and wait for 'Busy'
 ;
-A3906:  CALL    A00C7           ; Save registers IX, HL, BC, DE
+A3906:  CALL    PUSHR           ; Save registers IX, HL, BC, DE
         LD      D,1             ; code 'wait for busy'
 A390B:  CALL    A38E3           ; Issue 'force interrupt' to floppy controller
         LD      (S37EB),A       ; remember last command
@@ -7904,7 +7930,7 @@ A3A16:  CALL    A3A40           ; examine whether not too many errors
 ;
 ;    Bytes complement (not)
 ;
-A3A1C:  CALL    A00BA           ; Save registers IX, HL, BC, DE, AF
+A3A1C:  CALL    PUSHRA          ; Save registers IX, HL, BC, DE, AF
         LD      A,(S37EA)       ; Get Controller - Status - Flag
         BIT     5,A             ; MZ-80K - Mode ?
         RET     Z               ; Do not complement bytes
@@ -7933,7 +7959,7 @@ A3A2F:  LD      HL,(S37E2)      ; Get track/sector number of first sector
 ;
 ;    Check whether too many errors have already occurred
 ;
-A3A40:  CALL    A00C7           ; Save registers IX, HL, BC, DE
+A3A40:  CALL    PUSHR           ; Save registers IX, HL, BC, DE
         LD      HL,S37F4        ; Pointer to remaining number of errors
         DEC     (HL)            ; Remaining number of errors minus one
         JP      Z,A3A8F         ; too many errors --> specify error number
@@ -8075,9 +8101,9 @@ A3ADF:  RET
 ;   RAM - write card contents to Quick - Disk or read from Quick - Disk
 ;   (Software  - Kommando  59)
 ;
-A3AE0:  LD      A,1             ; Error 1 Syntax error
+LSALL:  LD      A,1             ; Error 1 Syntax error
         SCF                     ; Set code for 'Error Occurred'
-        JP      A00ED           ; Handle errors by number in Accu
+        JP      ERRORJ          ; Handle errors by number in Accu
 ;
 D3AE6:
 ;        DEFS    282             ; so you can get 64 Kbytes
@@ -8086,9 +8112,9 @@ D3AE6:
 ;
 ;   Convert ASCII characters in Accu to display code
 ;
-;   (Software command code:  29)
+;   (SVC code:  29)
 ;
-A3C00:  CP      010H            ; known sign?
+ADCN:   CP      010H            ; known sign?
         JR      C,A3C16         ; no --> specify code for 'character not known'
         CP      080H            ; curly bracket to ?
         JR      Z,A3C19         ; yes --> convert to display code
@@ -8110,9 +8136,9 @@ A3C19:  SUB     040H            ; Convert curly bracket to display code
 ;
 ;   Anzeigecodezeichen im Accu in ASCII - Code umsetzen
 ;
-;   (Software command code:  28)
+;   (SVC code:  28)
 ;
-A3C1C:  CP      0F0H            ; Pixel - Graphic - Wert  ?
+DACN:   CP      0F0H            ; Pixel - Graphic - Wert  ?
         JR      NC,A3C38        ; ja -->  Leerzeichen  (Space)  vorgeben
         CP      073H
         JR      Z,A3C16         ; ja -->  Code for 'Zeichen nicht bekannt'  vorgeben
@@ -8137,7 +8163,7 @@ A3C3B:  ADD     A,040H          ; geschweifte Klammer umrechnen in ASCII
 ;   Code der Taste nach Tastennummer in HL und Zeiger auf
 ;   Tastatur - Decodiertabelle im Monitor - ROM in BC bereitstellen
 ;
-A3C3E:  PUSH    AF              ; Register - Wert retten
+A3C3E:  PUSH    AF              ; Keep register value
         LD      A,L             ; Tastennummer holen
         SUB     8               ; Taste in Spalte 1  ?
         JR      C,A3C48         ; ja -->  nach RAM - Tabelle decodieren
@@ -8166,7 +8192,7 @@ A3C4F:  LD      A,(BC)          ; Low - Byte Anfangsadresse aus Tabelle holen
         LD      A,(HL)          ; Zeichen aus ROM - Tabelle holen
         OUT     (_00RAM),A      ; Umschalten auf RAM von 00000H - 00FFFH
         EI                      ; Interrupt wieder freigeben
-        CALL    A3C1C           ; Anzeigecodezeichen im Accu umsetzen in ASCII - Code
+        CALL    DACN            ; Anzeigecodezeichen im Accu umsetzen in ASCII - Code
         LD      C,A             ; ASCII - Wert der gedrückte Taste merken
         POP     AF              ; geretteten Register - Wert holen
         RET
@@ -8193,7 +8219,7 @@ W3C64:  DEFW    W3EC6           ; Pointer to next devices - table (RAM:)
 ;   Gerät  'RSx'  initialisieren
 ;
 A3C7D:  RET     C
-        PUSH    IY              ; Register - Wert retten
+        PUSH    IY              ; Keep register value
         CALL    A3D25           ; Zeiger in IY auf richtigen Geräte-Datensatz stellen
         CALL    A3C8B           ; Werte zur Initialisierung bereitstellen
         CALL    A3D6E           ; serielle Schnittstelle initialisieren
@@ -8205,16 +8231,16 @@ A3C7D:  RET     C
 A3C8B:  RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    19              ; Code 19   ASCII-Wert (HL) umsetzen in Hex-Wert nach DE
         LD      (IY+-3),E       ; Überwachungssignale merken
-        CALL    A0164           ; Vergleich auf Byte hinter CALL - Aufruf
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL - Aufruf
         DEFM    ","             ; Komma  ?
         JP      NZ,A1F7F        ; nein -->  Fehler 3  Illegal data error
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    19              ; Code 19   ASCII-Wert (HL) umsetzen in Hex-Wert nach DE
         LD      (IY+-2),E       ; Datenformat merken
-        CALL    A0164           ; Vergleich auf Byte hinter CALL - Aufruf
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL - Aufruf
         DEFB    NUL             ; Textendezeichen  ?
         RET     Z               ; ja -->  fertig
-        CALL    A0164           ; Vergleich auf Byte hinter CALL - Aufruf
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL - Aufruf
         DEFM    ","             ; Komma  ?
         JP      NZ,A1F7F        ; nein -->  Fehler 3  Illegal data error
         RST     _DOCMD          ; Software - Kommando ausführen
@@ -8225,7 +8251,7 @@ A3C8B:  RST     _DOCMD          ; Software - Kommando ausführen
 ;
 ;   Datei auf Gerät  'RSx'  zum Lesen oder Schreiben eröffnen
 ;
-A3CAE:  PUSH    IY              ; Register - Wert retten
+A3CAE:  PUSH    IY              ; Keep register value
         CALL    A3D25           ; Zeiger in IY auf richtigen Geräte-Datensatz stellen
         LD      A,(IY+-1)       ; Schnittstellenstatus holen
         INC     (IY+-1)
@@ -8236,7 +8262,7 @@ A3CAE:  PUSH    IY              ; Register - Wert retten
 ;
 ;
 ;
-A3CBF:  PUSH    IY              ; Register - Wert retten
+A3CBF:  PUSH    IY              ; Keep register value
         CALL    A3D25           ; Zeiger in IY auf richtigen Geräte-Datensatz stellen
         DEC     (IY+-1)
         LD      A,(IY+-1)
@@ -8247,10 +8273,10 @@ A3CBF:  PUSH    IY              ; Register - Wert retten
 ;
 ;   ein Zeichen von Gerät  'RSx'  lesen
 ;
-A3CD0:  PUSH    IY              ; Register - Wert retten
+A3CD0:  PUSH    IY              ; Keep register value
         CALL    A3D25           ; Zeiger in IY auf richtigen Geräte-Datensatz stellen
         CALL    A3CE6           ; ein Zeichen von Schnittstelle holen
-        JP      C,A00EB         ; Fehler -->  Fehlernummer und Gerätenamen ausgeben
+        JP      C,IOERR         ; Fehler -->  Fehlernummer und Gerätenamen ausgeben
         CP      (IY+-8)         ; mit Textendezeichen vergleichen
         JR      NZ,A3CE2        ; nicht Textende -->  Zeichen durchgeben
         LD      A,CR            ; Textendezeichen vorgeben
@@ -8273,7 +8299,7 @@ A3CE6:  BIT     6,(IY+-2)       ; Sharp - ASCII - Modus  ?
 ;
 ;   Zeichen im Accu an Gerät  'RSx'  ausgeben
 ;
-A3CFB:  PUSH    IY              ; Register - Wert retten
+A3CFB:  PUSH    IY              ; Keep register value
         CALL    A3D25           ; Zeiger in IY auf richtigen Geräte-Datensatz stellen
         CP      CR              ; Textendezeichen  ?
         JR      NZ,A3D07        ; nein -->  Zeichen ausgeben
@@ -8291,7 +8317,7 @@ A3D0C:  BIT     6,(IY+-2)       ; Sharp - ASCII - Modus  ?
         POP     HL              ;!
         LD      DE,-7           ; Offset auf Spaltenzähler  'Ausgabe'
         ADD     HL,DE           ; Zeiger auf Spaltenzähler  'Ausgabe'
-        LD      DE,(S1090)      ; Flag  'Steuerzeichen ausführen'  holen
+        LD      DE,(DISPX)      ; Flag  'Steuerzeichen ausführen'  holen
         JP      A142B           ; Zeichen umsetzen in Standard - ASCII und ausgeben
 ;
 ;
@@ -8299,7 +8325,7 @@ A3D0C:  BIT     6,(IY+-2)       ; Sharp - ASCII - Modus  ?
 ;
 A3D25:  PUSH    AF              ;! Register - Werte retten
         PUSH    DE              ;!
-        LD      A,(S1046)       ; Geräte - Nummer holen
+        LD      A,(ZCH)         ; Geräte - Nummer holen
         INC     A               ; für Schleife corrigieren
         LD      IY,B3D45 + -21  ; Zeiger auf Geräte - Datensatz mit Vorgabe
         LD      DE,21           ; Länge  Geräte - Datensatz
@@ -8366,7 +8392,7 @@ B3D45:  DEFB    SERA_S          ; Status- / Steuerport  RS1
 ;
 A3D67:  CALL    BRKCHK          ; Abfrage, ob Shift - BREAK gedrückt ist
         RET     NZ              ; Shift - BREAK nicht gedrückt
-        JP      A00E8           ; Programm mit 'BREAK' abbrechen
+        JP      BREAKZ          ; Programm mit 'BREAK' abbrechen
 ;
 ;
 ;   serielle Schnittstelle initialisieren
@@ -8483,7 +8509,7 @@ A3E14:  LD      A,00000101B     ; Code for 'Write - Register 5'
 ;
 ;   ein Zeichen von serieller Schnittstelle holen
 ;
-A3E1F:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+A3E1F:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      C,(IY+0)        ; Port - Nummer der Schnittstelle holen
 A3E25:  CALL    A3D67           ; bei Shift - BREAK -->  Abbruch Programm
         CALL    A3E9D           ; Abfrage, ob DCD - Sognal vorhanden ist
@@ -8529,7 +8555,7 @@ A3E4F:  LD      B,A             ; Fehlerstatus merken
 ;
 ;   Wert im Accu an serielle Schnittstelle ausgeben
 ;
-A3E64:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+A3E64:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      C,(IY+0)        ; Portadresse der Schnittstelle holen
         LD      D,A             ; auszugebendes Zeichen merken
         CALL    A3E04           ; 'RTS' - Signal  setzen
@@ -8669,16 +8695,16 @@ A3F14:  RET     C               ; Error occurred --> termination
         OR      A               ; RAM card present ?
         JP      Z,A1F97         ; not available --> error 50' not ready error
         CALL    A1E8F           ; Query whether you really want to initialize
-        CALL    A0164           ; Comparison on byte after CALL call
+        CALL    TEST1           ; Comparison on byte after CALL call
         DEFM    ","             ; comma ?
         PUSH    HL              ; Save program pointer
         CALL    A3F04           ; delete all files in additional RAM card
         POP     HL              ; get saved program pointer
-        CALL    A0164           ; Comparison on byte after CALL call
+        CALL    TEST1           ; Comparison on byte after CALL call
         DEFB    NUL             ; end of text character ?
         RET     Z               ; yes --> done
         RST     _DOCMD          ; Software - Execute command
-        DEFB    19              ; Command 19 convert ASCII value (HL) into hex value after DE
+        DEFB    19              ; Command 19 convert ASCII value (HL) into hex value in DE
 A3F2F:  LD      HL,0            ;
         DI                      ; Disable interrupts
         LD      B,1             ; code 'no spooler'
@@ -8918,7 +8944,7 @@ A4083:  LD      HL,(S101E)      ; Get pointer to data block location
 ;
 ;   Zeichen im Accu in Zusatz-RAM nach Adresse (HL) eintragen
 ;
-A4094:  PUSH    BC              ; Register - Wert retten
+A4094:  PUSH    BC              ; Keep register value
         LD      C,ERAM_A        ; RAM - Karte  Adressen - Port
         LD      B,H             ; High - Byte Adresse in RAM - Karte
         OUT     (C),L           ; Adresse an RAM - Karte ausgeben
@@ -8930,7 +8956,7 @@ A4094:  PUSH    BC              ; Register - Wert retten
 ;
 ;   ein Byte aus Zusatz - RAM - Karte aus Adresse (HL) bereitstellen
 ;
-A409F:  PUSH    BC              ; Register - Wert retten
+A409F:  PUSH    BC              ; Keep register value
         LD      C,ERAM_A        ; RAM - Karte  Adressen - Port
         LD      B,H             ; High - Byte Adresse in RAM - Karte
         OUT     (C),L           ; Adresse an RAM - Karte ausgeben
@@ -9259,7 +9285,7 @@ S4218:  DEFS    2               ; Tone length (with SOUND)
 ;
 ;   Music - process interrupt by counter 8253 and PIO channel A
 ;
-A421A:  PUSH    IY              ; Register - save value
+PSGINT: PUSH    IY              ; Register - save value
         CALL    A4224           ; Process interrupt for MUSIC
         POP     IY              ; rescued register - fetch value
         EI                      ; Enable interrupt
@@ -9268,8 +9294,8 @@ A421A:  PUSH    IY              ; Register - save value
 ;
 ;   Process music interrupt
 ;
-A4224:  CALL    A00BA           ; Save registers IX, HL, BC, DE and AF
-        CALL    A44CC           ; Initialize blocks for 'MUSIC - Interrupt'
+A4224:  CALL    PUSHRA          ; Save registers IX, HL, BC, DE and AF
+        CALL    MSTART          ; Initialize blocks for 'MUSIC - Interrupt'
         LD      A,(B40FA)       ; MUSIC - get status
         OR      A               ; Sound output active?
         JP      Z,A447E         ; no --> turn off the sound
@@ -9488,9 +9514,9 @@ A4362:  ADD     A,A             ; Note number times two (two bytes per frequency
 ;
 ;   Tone by generator - play number and frequency or note number and length
 ;
-;   (Software command code:  34)
+;   (SVC code:  34)
 ;
-A437A:  OR      A               ; Frequency or note number?
+MSOUND: OR      A               ; Frequency or note number?
         JP      P,A43C6         ; Note number and length given
         AND     00001111B       ; Mask tone generator number
         LD      C,PSGOUT        ; Specify the port address of the tone generator
@@ -9570,7 +9596,7 @@ A43DB:  LD      (IX+2),A        ; Enter volume value in output table
         LD      HL,B4215        ; Pointer to edited output table for tone generator
         LD      BC,256*3+PSGOUT ; Output 3 values ??/ address tone generator
         OTIR                    ; Output provided values ??to tone generator
-        CALL    A44CC           ; Initialize blocks for 'MUSIC - Interrupt'
+        CALL    MSTART          ; Initialize blocks for 'MUSIC - Interrupt'
         EI                      ; Release interrupt again
         RET
 ;
@@ -9610,9 +9636,9 @@ A4403:  LD      HL,B40FD        ; Pointer to start of output table for generator
 ;   Note the value table (DE) for the tone generator in the Accu
 ;   (if Accu equals -1 --> remember for all tone generators)
 ;
-;   (Software command code:  33)
+;   (SVC code:  33)
 ;
-A4422:  CP      -1              ; Table for all tone generators ?
+PLAY:   CP      -1              ; Table for all tone generators ?
         JR      NZ,A4435        ; no --> remember new value table
         LD      A,3             ; Default tone generator number
 A4428:  PUSH    AF              ; Tone generator - remember number
@@ -9651,7 +9677,7 @@ A4447:  LD      (HL),A          ; Remember volume value for next tone
 A445A:  DI                      ; Disable interrupts
         LD      A,(B40FA)       ; MUSIC - get status
         OR      A               ; Sound output active?
-        CALL    NZ,A44CC        ; yes --> Initialize blocks for 'MUSIC - Interrupt'
+        CALL    NZ,MSTART       ; yes --> Initialize blocks for 'MUSIC - Interrupt'
         EI                      ; Release interrupt again
         RET
 ;
@@ -9679,7 +9705,7 @@ D4478:  RLC     B               ; Execute command (Set x,(HL) / Res x,(HL))
 ;
 ;   stop all sound output (MUSIC STOP)
 ;
-MLDSP:  CALL    A00C7           ; Save registers IX, HL, BC and DE
+MLDSP:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
 A447E:  XOR     A               ; Accu to zero
         LD      (B40FA),A       ; as MUSIC - save status
         LD      (B40FB),A       ; Reset active tone generator register bits
@@ -9710,7 +9736,7 @@ A44A3:  LD      A,(B40FA)       ; MUSIC - get status
         RST     _DOCMD          ; Software - Execute command
         DEFB    14              ; Code 14 Query whether (Shift) - BREAK is pressed
         JR      NZ,A44A3        ; not pressed --> continue to wait
-        JP      A00E8           ; Abort the program with 'BREAK`
+        JP      BREAKZ          ; Abort the program with 'BREAK`
 ;
 ;
 ;   Deal with music. Status in B
@@ -9719,9 +9745,9 @@ A44A3:  LD      A,(B40FA)       ; MUSIC - get status
 ;       (B = 3 -->  wait until all melodies are played)
 ;       (B = 4 -->  MUSIC - initialize routines)
 ;
-;   (Software command code:  35)
+;   (SVC code:  35)
 ;
-A44AF:  DEC     B               ; Play MUSIC according to table (DE) ?
+MCTRL:  DEC     B               ; Play MUSIC according to table (DE) ?
         JP      Z,A445A         ; yes --> process table (DE).
         DEC     B               ; MUSIC STOP?
         JR      Z,MLDSP         ; yes --> cancel all audio output
@@ -9733,26 +9759,26 @@ A44AF:  DEC     B               ; Play MUSIC according to table (DE) ?
 ;
 A44B9:  CALL    MLDSP           ; cancel all audio output
         LD      BC,256*5+PIOA_C ; 5 values / control word register Z-80 PIO channel A
-        LD      HL,B44DC        ; Pointer to table of values for initializing the Z-80 PIO
+        LD      HL,PIOTBL       ; Pointer to table of values for initializing the Z-80 PIO
         OTIR                    ; Output table of values to Z-80 PIO
         LD      DE,B44ED        ; Pointer to table for initializing sound routines
         LD      A,-1            ; Code for 'all tone generators'
-        JP      A4422           ; Assign table (DE) to the tone generators
+        JP      PLAY            ; Assign table (DE) to the tone generators
 ;
 ;
 ;   Initialize blocks for 'MUSIC - Interrupt'
 ;
-A44CC:  LD      HL,B44DC        ; Pointer to table of values for initializing the Z-80 PIO
+MSTART: LD      HL,PIOTBL       ; Pointer to table of values for initializing the Z-80 PIO
         LD      BC,256*5+PIOA_C ; 5 values / control word register Z-80 PIO channel A
         OTIR                    ; Output table of values to Z-80 PIO
-        LD      HL,B44E1        ; Pointer to table for initialization
+        LD      HL,CTCTBL       ; Pointer to table for initialization
         LD      B,6             ; output six values
-        JP      A0104           ; Output table of values (HL) to ports
+        JP      IOOUT           ; Output table of values (HL) to ports
 ;
 ;
 ;   Values for initializing control word register Z - 80 - PIO channel A
 ;
-B44DC:  DEFB    (A0FFC)%256     ; Low-Byte Interrupt-Vector
+PIOTBL: DEFB    (IV_PSG)%256    ; Low-Byte Interrupt-Vector
         DEFB    11111111B       ; Mode 3
         DEFB    00111111B       ; Bit 0 - 5 = INPUT / Bit 6 - 7 = OUTPUT
         DEFB    00010111B       ; Interrupt Control-Word (mask follows)
@@ -9761,7 +9787,7 @@ B44DC:  DEFB    (A0FFC)%256     ; Low-Byte Interrupt-Vector
 ;
 ;   Table of values for initializing the control modules for MUSIC - Interrupt
 ;
-B44E1:  DEFB    00110000B       ; Counter 0/Read'Load 2 bytes/Mode 0/Binary
+CTCTBL: DEFB    00110000B       ; Counter 0/Read'Load 2 bytes/Mode 0/Binary
         DEFB    CTC_53          ; Port - address control port counter module 8253
 ;
         DEFB    10110000B       ; Low - byte division ratio for interrupt every 10 ms
@@ -9790,14 +9816,14 @@ B44ED:  DEFB    065H            ; Code for 'tone length 5'
         DEFB    -1              ; 'End of table'
 ;
 ;
-;   Output reference tone      (Software command code:  32)
+;   Output reference tone      (SVC code:  32)
 ;
-CTRLG:  CALL    A00C7           ;  Save registers IX, HL, BC and DE
+CTRLG:  CALL    PUSHR           ;  Save registers IX, HL, BC and DE
         RST     _DOCMD          ;  Software - Execute command
         DEFB    16              ;  Command 16 disable interrupt
         LD      HL,B4514        ;  Pointer to table for initializing reference tone
         LD      B,4             ;  four values in table
-        CALL    A0104           ;  Output table of values (HL) to ports
+        CALL    IOOUT           ;  Output table of values (HL) to ports
         LD      BC,24           ;! Time loop approx. 55 msec
 A4503:  EX      (SP),HL         ;! 19 clock cycles
         DJNZ    A4503           ;! 13"
@@ -9805,7 +9831,7 @@ A4503:  EX      (SP),HL         ;! 19 clock cycles
         JR      NZ,A4503        ;! 12"
         LD      HL,B451C        ;  Pointer to table for switching off reference tone
         LD      B,2             ;  two values in table
-        CALL    A0104           ;  Output table of values (HL) to ports
+        CALL    IOOUT           ;  Output table of values (HL) to ports
         RST     _DOCMD          ;  Software - Execute command
         DEFB    17              ;  Code 17 enable interrupt
         RET
@@ -9837,7 +9863,7 @@ B451C:  DEFB    00110110B       ; Counter 0/Read'Load 2 Bytes/Mode 3/Binary
 ;
 ;   Set tempo according to value in Accu
 ;
-_TEMP:  CALL    A00BA           ; Save registers IX, HL, BC, DE and AF
+_TEMP:  CALL    PUSHRA          ; Save registers IX, HL, BC, DE and AF
         LD      DE,T4538        ; Pointer to space for tempo code
         AND     00001111B       ; Mask tempo value
         ADD     A,069H          ; convert to tempo code
@@ -9858,11 +9884,11 @@ T4538:  DEFS    1               ; Space for speed code
 
 ;   Initialize device screen ("CRT:")
 ;
-A453A:  CALL    A0164           ; Comparison on byte after CALL call
+A453A:  CALL    TEST1           ; Comparison on byte after CALL call
         DEFM    "M"             ; M (MODE) ?
         JR      Z,A4561         ; yes --> Set screen mode
         OR      A               ; end of table ?
-        JR      Z,A458E         ; yes --> no values specified --> initialize with old values
+        JR      Z,ICRT          ; yes --> no values specified --> initialize with old values
         CP      'B'             ; B (BLOCK) ?
         JP      NZ,A1F7F        ; no --> Error 3 Illegal data error
         XOR     A               ; Accu to zero
@@ -9872,7 +9898,7 @@ A453A:  CALL    A0164           ; Comparison on byte after CALL call
         JP      NZ,A1FBB        ; no --> Error 68 Dev. mode error
         INC     HL              ; Skip command letters
         LD      B,3 + 1         ; Specify maximum pallet block number
-        CALL    A010D           ; Convert ASCII value (HL) to hex/compare with upper limit in B
+        CALL    DEVASC          ; Convert ASCII value (HL) to hex/compare with upper limit in B
         LD      (S137E),A       ; Remember palette block number
         RST     _DOCMD          ; Software - Execute command
         DEFB    81              ; Code 81 Remember pallet block number/output to controller
@@ -9882,7 +9908,7 @@ A453A:  CALL    A0164           ; Comparison on byte after CALL call
 ;   neuen Bildschirm - Modus bestimmen
 ;
 A4561:  LD      B,4 + 1         ; maximale Bildschirm - Modus - Nummer vorgeben
-        CALL    A010D           ; ASCII-Wert (HL) umsetzen in Hex/mit Obergrenze in B vergleichen
+        CALL    DEVASC          ; ASCII-Wert (HL) umsetzen in Hex/mit Obergrenze in B vergleichen
         OR      A               ; gleich Null  ?
         JR      Z,A458B         ; ja -->  Fehler 3  Illegal data error
         LD      B,A             ; Modus - Nummer merken
@@ -9892,13 +9918,13 @@ A4561:  LD      B,4 + 1         ; maximale Bildschirm - Modus - Nummer vorgeben
         LD      A,B             ; Modus - Nummer holen
         LD      (S137A),A       ; Bildschirm - Modus - Nummer merken
         XOR     A               ; Accu auf Null
-        LD      (S108F),A       ; Parallelausgabeflag Drucker zurücksetzen
+        LD      (INPFLG),A      ; Parallelausgabeflag Drucker zurücksetzen
         SCF                     ;! Bit nach Bildschirm - Modus - Nummer
 A4578:  ADC     A,A             ;! setzen
         DJNZ    A4578           ;!
         LD      (S1379),A       ; Bildschirm - Modus - Bit merken
         CALL    A4593           ; maximalen Palettenwert/aktuelle Farbebenen merken
-A4581:  CALL    A0164           ; Vergleich auf Byte hinter CALL - Aufruf
+A4581:  CALL    TEST1           ; Vergleich auf Byte hinter CALL - Aufruf
         DEFB    NUL             ; Textendezeichen  ?
         RET     Z               ; ja -->  fertig
         CP      ','             ; Komma als Trennzeichen  ?
@@ -9907,9 +9933,9 @@ A4581:  CALL    A0164           ; Vergleich auf Byte hinter CALL - Aufruf
 A458B:  JP      A1F7F           ; Fehler 3  Illegal data error
 ;
 ;
-;   Bildschirm initialisieren     (Software command code:  86)
+;   Bildschirm initialisieren     (SVC code:  86)
 ;
-A458E:  LD      A,(S137A)       ; Bildschirm - Modus - Nummer holen
+ICRT:   LD      A,(S137A)       ; Bildschirm - Modus - Nummer holen
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    80              ; Code 80   Bildschirm - Betriebsart setzen
 ;
@@ -9991,8 +10017,8 @@ A45D0:  LD      BC,256 * 7 + 3  ; 7 zwei - Byte - Werte  /  3 ein - Byte - Werte
 ;   Ausgabe mit 320 x 200 oder 640 x 200  Bildpunkten
 ;
 W45D9:  DEFW    A4EC7 + 1       ; Adresse
-        DEFW    SCREEN + 16000  ; Wert für 80 Zeichen je Zeile
-        DEFW    SCREEN +  8000  ; Wert für 40 Zeichen je Zeile
+        DEFW    BITBUF + 16000  ; Wert für 80 Zeichen je Zeile
+        DEFW    BITBUF +  8000  ; Wert für 40 Zeichen je Zeile
 ;
         DEFW    A46C4 + 1       ; Adresse
         DEFW    -640            ; Wert für 80 Zeichen je Zeile
@@ -10018,7 +10044,7 @@ W45D9:  DEFW    A4EC7 + 1       ; Adresse
         DEFW    640 - 1         ; Wert für 80 Zeichen je Zeile
         DEFW    320 - 1         ; Wert für 40 Zeichen je Zeile
 ;
-        DEFW    A460F           ; Adresse
+        DEFW    ADCH            ; Adresse
         DEFB    ADD_HL          ; Wert für 80 Zeichen je Zeile
         DEFB    _NOP            ; Wert für 40 Zeichen je Zeile
 ;
@@ -10034,7 +10060,7 @@ W45D9:  DEFW    A4EC7 + 1       ; Adresse
 ;   absolute Graphic - Speicheradresse und Bitnummer des Bildpunktes aus
 ;   X- und Y - Koordinaten in DE,HL errechnen
 ;
-A460F:  ADD     HL,HL           ; Y-Koordinate mal 2, wenn im 640 x 200 Modus (oder NOP)
+ADCH:   ADD     HL,HL           ; Y-Koordinate mal 2, wenn im 640 x 200 Modus (oder NOP)
         LD      A,E             ; Low - Byte  X - Koordinate
         AND     00000111B       ; Bits für Bitnummer  (0 - 7)  maskieren
         LD      B,A             ; Bitnummer merken
@@ -10046,7 +10072,7 @@ A460F:  ADD     HL,HL           ; Y-Koordinate mal 2, wenn im 640 x 200 Modus (o
         RRCA                    ;!
         LD      C,A             ; Offset aus X - Koordinate merken
         LD      A,B             ; Bitnummer holen
-        LD      B,SCREEN/256    ; High - Byte Anfangsadresse Graphic - Speicher vorgeben
+        LD      B,BITBUF/256    ; High - Byte Anfangsadresse Graphic - Speicher vorgeben
         LD      D,H             ;! Y - Koordinate duplizieren
         LD      E,L             ;!
         ADD     HL,HL           ; mal  2
@@ -10062,18 +10088,18 @@ A460F:  ADD     HL,HL           ; Y-Koordinate mal 2, wenn im 640 x 200 Modus (o
 ;   Abfrage, ob Punkt in einer der Farbebenen gesetzt ist
 ;   (Koordinaten des Punktes in DE,HL)
 ;
-;   (Software command code:  78)
+;   (SVC code:  78)
 ;
-A4629:  CALL    A46B2           ; überprüfen, ob Koordinaten in DE,HL im angezeigten Bereich
+WPOINT: CALL    RNGCK           ; überprüfen, ob Koordinaten in DE,HL im angezeigten Bereich
         JP      C,A479B         ; nein -->  Code 'Fehler aufgetreten' vorgeben und Abbruch
-        CALL    A460F           ; absolute Graphic-Adresse und Bitnr. aus Koordinaten errechnen
+        CALL    ADCH            ; absolute Graphic-Adresse und Bitnr. aus Koordinaten errechnen
         RLCA                    ;! Bit - Nummer auf richtige Wertigkeit
         RLCA                    ;! für Bit - Nummer schieben
         RLCA                    ;!
         OR      046H            ; plus Code for 'Bit x,(HL)'
         LD      (D464B + 1),A   ; Rest  Z-80 - Befehl in Routine eintragen
         LD      C,CRTCRF        ; Port-Nummer des 'Read-Format-Registers' des Bildschirm-Controllers
-        LD      A,(S109D)       ; maximalen Palettenwert holen
+        LD      A,(MAXCF)       ; maximalen Palettenwert holen
         LD      B,A             ; als Zähler für zu testende Ebenen merken
         DI                      ; Interrupt sperren
         IN      A,(_CGVIN)      ; ZeichensatzROM und Video-RAM einschalten
@@ -10091,10 +10117,10 @@ A4650:  RLA                     ; Ergebnis einer Farbebene merken
 A4653:  LD      B,A             ; Ergebnis merken
         IN      A,(_CGVOT)      ; ZeichensatzROM und Video-RAM ausschalten
         EI                      ; Interrupt wieder freigeben
-        LD      A,(S109C)       ; Vorgabe für benutzte Farbebenen holen
+        LD      A,(CPLANE)      ; Vorgabe für benutzte Farbebenen holen
         AND     B               ; gesetzte Punkte in aktuellen Farbebenen maskieren
         LD      B,A             ; Punktwert merken
-        LD      A,(S1098)       ; Wert für 'Display-Mode-Register' des Bildschirm-Controllers
+        LD      A,(DMD)         ; Wert für 'Display-Mode-Register' des Bildschirm-Controllers
         CP      00000110B       ; 640 x 200 Bildpunkte / einfarbig  ?
         LD      A,B             ; Punktwert holen
         RET     NZ              ; anderer Modus
@@ -10111,11 +10137,11 @@ A4669:  LD      A,-1            ; Code for 'Punkt setzen'
 ;
 ;   Write - Format - Register nach Status im Accu setzen
 ;
-A466B:  PUSH    BC              ; Register - Wert retten
+A466B:  PUSH    BC              ; Keep register value
         OR      A               ; Punkt setzen oder zurücksetzen  ?
-        LD      A,(S109F)       ; aktuellen Graphic - Palettenwert holen
+        LD      A,(GMODE)       ; aktuellen Graphic - Palettenwert holen
         LD      C,A             ; aktuellen Graphic - Plettenwert merken
-        LD      A,(S109A)       ; aktuellen Überschreib - Modus holen
+        LD      A,(PWMODE)      ; aktuellen Überschreib - Modus holen
         JR      Z,A4682         ; Punkt zurücksetzen
         OR      A               ; Überschreiben oder Farben verknüpfen  ?
         LD      A,11000000B     ; Code for 'PSET'   (Punkt in Farbe setzen)
@@ -10132,7 +10158,7 @@ A467D:  OR      C               ; Kommandowert plus Farbwert
 A4682:  OR      A               ; Überschreiben oder Farben verknüpfen  ?
         LD      A,01100000B     ; Code for 'RESET'   (Punkt zurücksetzen)
         JR      NZ,A467D        ; Überschreibmodus  'Oder'
-        LD      A,(S109C)       ; Vorgabe für benutzte Farbebenen holen
+        LD      A,(CPLANE)      ; Vorgabe für benutzte Farbebenen holen
         LD      B,A             ; Farbebenen merken
         LD      A,C             ; aktuellen Graphic - Farbwert holen
         CPL                     ; Bits umkehren
@@ -10145,12 +10171,12 @@ A4682:  OR      A               ; Überschreiben oder Farben verknüpfen  ?
 ;
 ;   Punkt mit Koordinaten in DE,HL setzen oder zurücksetzen
 ;
-;   (Software command code:  72)
+;   (SVC code:  72)
 ;
-A4694:  CALL    A466B           ; Write - Format - Register nach Status im Accu setzen
-A4697:  CALL    A46B2           ; überprüfen, ob Koordinaten in DE,HL im angezeigten Bereich
+PSET:   CALL    A466B           ; Write - Format - Register nach Status im Accu setzen
+A4697:  CALL    RNGCK           ; überprüfen, ob Koordinaten in DE,HL im angezeigten Bereich
         JP      C,A479B         ; nein -->  Code 'Fehler aufgetreten' vorgeben und Abbruch
-        CALL    A460F           ; absolute Graphic-Adresse und Bitnr. aus Koordinaten errechnen
+        CALL    ADCH            ; absolute Graphic-Adresse und Bitnr. aus Koordinaten errechnen
         EX      DE,HL           ; Graphic - Speicher - Adresse nach DE
         LD      HL,B45C8        ; Zeiger auf Tabelle mit Vorgabe für Bit nach Bit-Nummer
         LD      B,0             ; High - Byte Offset auf Null
@@ -10168,7 +10194,7 @@ A4697:  CALL    A46B2           ; überprüfen, ob Koordinaten in DE,HL im angezei
 ;   überprüfen, ob Koordinaten in DE,HL im angezeigten Graphic - Bereich liegen
 ;   (Carry - Flag ist gesetzt, wenn die Koordinaten nicht im angezeigten Bereich)
 ;
-A46B2:  PUSH    BC              ; Register - Wert retten
+RNGCK:  PUSH    BC              ; Keep register value
         PUSH    DE              ; X - Koordinate des Punktes
         PUSH    HL              ; Y - Koordinate des Punktes
         LD      A,H             ; High - Byte Y - Koordinate holen
@@ -10198,9 +10224,9 @@ A46CC:  LD      A,-1            ; Code for 'Linie ziehen'
 ;   (DE' = X - Koordinate Anfang / HL' = Y - Koordinate Anfang)
 ;   (DE  = X - Koordinate Ende   / HL  = Y - Koordinate Ende  )
 ;
-;     (Software command code:  73)
+;     (SVC code:  73)
 ;
-A46CE:  CALL    A466B           ; Write - Format - Register nach Status im Accu setzen
+WLINE:  CALL    A466B           ; Write - Format - Register nach Status im Accu setzen
         PUSH    DE              ; X - Koordinate Endpunkt
         PUSH    HL              ; Y - Koordinate Endpunkt
         EXX
@@ -10344,7 +10370,7 @@ A479F:  OR      A               ; Carry - Flag zurücksetzen
 ;   oder der Ellipse zeichnen
 ;
 A47A9:  CALL    A47BA           ; absolute Kreis- (Ellipsen-)koordinaten aus Kreisoffset
-        LD      HL,(S1088)      ; X - Koordinate Graphic - Cursor holen
+        LD      HL,(POINTX)     ; X - Koordinate Graphic - Cursor holen
         PUSH    HL              ; X - Koordinate Mittelpunkt ablegen
         PUSH    BC              ; Y - Koordinate Mittelpunkt ablegen
         EXX
@@ -10359,13 +10385,13 @@ A47BA:  POP     IX              ; Rücksprungadresse vom Stack holen
         EX      DE,HL           ; X - Offset nach HL
         CP      2               ; Radius gleich Y - Radius  ?
         CALL    Z,A47D6         ; ja -->  Offset für Ellipse corrigieren
-        LD      BC,(S1088)      ; X - Koordinate Graphic - Cursor holen
+        LD      BC,(POINTX)     ; X - Koordinate Graphic - Cursor holen
         ADD     HL,BC           ; absolute Koordinate errechnen
         PUSH    HL              ; und auf Stack merken
         EX      DE,HL           ; Y - Offset nach HL
         CP      1               ; Radius gleich X - Radius  ?
         CALL    Z,A47D6         ; ja -->  Offset für ellipse corrigieren
-        LD      BC,(S108A)      ; Y - Koordinate Graphic - Cursor holen
+        LD      BC,(POINTY)     ; Y - Koordinate Graphic - Cursor holen
         ADD     HL,BC           ; absolute Koordinate errechnen
         PUSH    HL              ; und auf Stack ablegen
         JP      (IX)            ; Rücksprung auf aufrufendes Programmstück
@@ -10377,7 +10403,7 @@ A47D6:  BIT     7,H             ; Wert positiv  ?
         JP      Z,A4BA7         ; ja -->  Offset für Ellipse corrigieren
         CALL    A47E1           ; Vorzeichen des Integer - Wertes in HL umkehren
         CALL    A4BA7           ; Offset für Ellipse corrigieren
-A47E1:  EX      AF,AF           ; Register - Wert retten
+A47E1:  EX      AF,AF           ; Keep register value
         CALL    A4B80           ; Vorzeichen des Integer - Wertes in HL umkehren
         EX      AF,AF           ; geretteten Register - Wert holen
         RET
@@ -10388,9 +10414,9 @@ A47E1:  EX      AF,AF           ; Register - Wert retten
 ;    (B'  = Radius - Verhältnis   / C'  = Aspekt - Flag)
 ;    (IX = Radius / A = Winkelflag)
 ;
-;   (Software command code:   77)
+;   (SVC code:   77)
 ;
-A47E7:  PUSH    AF              ; Winkelflag merken
+WCIRCL: PUSH    AF              ; Winkelflag merken
         CALL    A4669           ; Write-Format-Register für 'Punkt setzen' setzen
         POP     AF              ; Winkelflag holen
         PUSH    AF              ; und wieder merken
@@ -10413,7 +10439,7 @@ A47E7:  PUSH    AF              ; Winkelflag merken
         LD      (S11AF),A       ; Octantenflag des Endpunktes merken
         LD      HL,S11BA        ; Zeiger auf Octantentabelle vorgeben
         LD      B,8             ; acht 45 Grad - Winkelteile im Vollkreis
-        CALL    A0137           ; Speicherbereich (HL) löschen
+        CALL    CLRHL           ; Speicherbereich (HL) löschen
         LD      HL,S11AE        ; Zeiger auf Octantenflag des Anfangspunktes
         POP     AF              ; Winkelflag holen
         LD      B,A             ; und merken
@@ -10440,7 +10466,7 @@ A4843:  LD      A,9             ; Code for 'Vollkreis'
 A4848:  LD      B,8             ; acht 45 Grad - Stücke
         LD      HL,S11BA        ; Zeiger auf Octantentabelle
         INC     A
-        CALL    A0138           ; Speicherbereich (HL) mit Konstante im Acc belegen
+        CALL    SETHL           ; Speicherbereich (HL) mit Konstante im Acc belegen
         LD      A,OR_B          ; Wert für 'Punkt auf jeden Fall setzen'
         CALL    A4BD0           ; Routine umstellen
         JR      A4873           ; alle Punkte ausrechnen und setzen
@@ -10881,7 +10907,7 @@ A4B80:  LD      A,H             ;! 2er Complement des Wertes in HL bilden
 ;
 ;   Punkt nach Y-Offset in HL und eingetragenem X-Offset setzen
 ;
-A4B88:  LD      DE,(S108A)      ; Y - Koordinate Graphic - Cursor holen
+A4B88:  LD      DE,(POINTY)     ; Y - Koordinate Graphic - Cursor holen
         ADD     HL,DE           ; absolute Y - Koordinate errechnen
         LD      DE,-200         ; maximale Y - Koordinate vorgeben
         LD      B,H             ;! Y - Koordinate nach BC merken
@@ -10889,7 +10915,7 @@ A4B88:  LD      DE,(S108A)      ; Y - Koordinate Graphic - Cursor holen
         ADD     HL,DE           ; testen, ob Y - Koordinate im angezeigten Bereich
         RET     C               ; nicht im angezeigten Bereich -->  fertig
 D4B94:  LD      HL,0            ; X - Offset holen   (wird eingetragen)
-        LD      DE,(S1088)      ; X - Koordinate Graphic - Cursor holen
+        LD      DE,(POINTX)     ; X - Koordinate Graphic - Cursor holen
         ADD     HL,DE           ; absolute X - Koordinate errechnen
         EX      DE,HL           ; X - Koordinate nach DE
         LD      HL,-640         ; maximale X - Koordinate vorgeben
@@ -10952,9 +10978,9 @@ A4BD0:  LD      (A492E),A       ;! richtigen Z-80 Befehl in Routine eintragen
 ;                         ( Carry - Flag gesetzt -->  Rechteck ausfüllen )
 ;                         ( Accu = Füllpalettencode)
 ;
-;   (Software command code:  75)
+;   (SVC code:  75)
 ;
-A4BE9:  LD      (S11A8),SP      ; Stackpointer retten
+WBOX:   LD      (S11A8),SP      ; Stackpointer retten
         EX      AF,AF           ; Flag  'Rechteck ausfüllen'  retten
         CALL    A4C16           ; X mit Y-Koord. in DE,HL , DE',HL' tauschen/Y-Max nach HL
         CALL    A4C16           ; X mit Y-Koord. in DE,HL , DE',HL' tauschen/Y-Max nach HL
@@ -11018,11 +11044,11 @@ A4C26:  PUSH    HL              ; Y - Koordinate ablegen
 ;
 A4C2C:  CALL    A049C           ; Palettenwert für maximale Auflösung corrigieren
         LD      B,A             ; Palettenwert zum Ausfüllen merken
-        LD      A,(S109F)       ; aktuellen Graphic - Palettenwert holen
+        LD      A,(GMODE)       ; aktuellen Graphic - Palettenwert holen
         CP      B               ; gleich Ausfüllpalettenwert  ?
         JR      NZ,A4C3A        ; nein -->  Rand muß noch gezeichnet werten
         LD      SP,(S11A8)      ; Stackpointer bei Anfang Routine holen  (Rand nicht zeichnen)
-A4C3A:  LD      A,(S109A)       ; aktuellen Überschreib - Modus holen
+A4C3A:  LD      A,(PWMODE)      ; aktuellen Überschreib - Modus holen
         OR      A               ; Überschreiben  ?
         LD      A,11000000B     ; Code for 'PSET'   (Punkt in Farbe setzen)
         JR      Z,A4C44         ; Fläche in Farbe ausmalen
@@ -11055,13 +11081,13 @@ A4C5D:  EX      AF,AF           ; Low - Byte Y - Koordinate retten
         RET     Z               ; nichts zeichnen
         EX      AF,AF           ; Anzahl Graphic - Zeilen merken
         PUSH    HL              ; Y - Koordinate merken
-        CALL    A460F           ; absolute Graphic-Adresse und Bitnr. aus Koordinaten errechnen
+        CALL    ADCH            ; absolute Graphic-Adresse und Bitnr. aus Koordinaten errechnen
         LD      (S11A4),HL      ; Graphic - Adresse der linken Ecke merken
         EXX
         POP     HL              ; Y - Koordinate wieder holen
         LD      B,A             ; Bit - Nummer der linken Ecke
         PUSH    BC              ; Bit - Nummer der linken Ecke merken
-        CALL    A460F           ; absolute Graphic-Adresse und Bitnr. aus Koordinaten errechnen
+        CALL    ADCH            ; absolute Graphic-Adresse und Bitnr. aus Koordinaten errechnen
         POP     BC              ; Bit - Nummer der linken Ecke holen
         LD      (S11A6),HL      ; Graphic - Adresse der rechten Ecke merken
         LD      C,A             ; Bit - Nummer der rechten Ecke
@@ -11128,7 +11154,7 @@ A4CC5:  LD      (HL),C          ; neues Muster in Graphic - Speicher eintragen
 ;   Punkte in vollständigen 8ter Zeilen setzen
 ;   (Komplette Bytes im Graphic - Speicher)
 ;
-A4CCD:  PUSH    BC              ; Register - Wert retten
+A4CCD:  PUSH    BC              ; Keep register value
         EX      DE,HL           ; Zeiger auf Graphic - Speicher nach HL
         LD      B,A             ; Anzahl vollständige 8ter Spalten merken
         EX      AF,AF           ; Anzahl Graphic - Zeilen holen
@@ -11180,23 +11206,23 @@ A4D06:  RLA                     ; eventuellen Fehler aus Y - Koordinate wieder v
 ;
 ;   Überprüfen, ob Graphic-Koordinate in DE',HL' im angezeigten Graphic-Bereich liegt
 ;
-;   (Software command code:  70)
+;   (SVC code:  70)
 ;
-A4D08:  EXX                     ; Graphic - Koordinaten in Erstregistersatz holen
-        CALL    A46B2           ; überprüfen, ob Koordinaten in DE,HL im angezeigten Bereich
+POSCK:  EXX                     ; Graphic - Koordinaten in Erstregistersatz holen
+        CALL    RNGCK           ; überprüfen, ob Koordinaten in DE,HL im angezeigten Bereich
         EXX                     ; Graphic - Koordinaten wieder in Zweitregistersatz stecken
         RET     NC              ; Koordinaten sind OK
         LD      A,3             ; Fehler 3   Illegal data error
-        JP      A00ED           ; Fehler mit Nummer im Accu behandeln
+        JP      ERRORJ          ; Fehler mit Nummer im Accu behandeln
 ;
 ;
 ;   aktuelle Graphic - Cursor - Koordinaten im Zweitregistersatz merken
 ;
-;   (Software command code:  71)
+;   (SVC code:  71)
 ;
-A4D13:  EXX                     ; Graphic - Koordinaten in Erstregistersatz holen
-        LD      (S1088),DE      ; X - Koordinate Graphic - Cursor merken
-        LD      (S108A),HL      ; Y - Koordinate Graphic - Cursor merken
+POSSV:  EXX                     ; Graphic - Koordinaten in Erstregistersatz holen
+        LD      (POINTX),DE     ; X - Koordinate Graphic - Cursor merken
+        LD      (POINTY),HL     ; Y - Koordinate Graphic - Cursor merken
         EXX                     ; Graphic - Koordinaten wieder in Zweitregistersatz stecken
         RET
 ;
@@ -11217,9 +11243,9 @@ W4D25:  DEFW    A4EE1           ; Standardlage  (0 Grad)
 ;     (A  = direction)
 ;     (B  = number of characters)
 ;
-;   (Software command code:  87)
+;   (SVC code:  87)
 ;
-A4D2D:  PUSH    BC              ; Save number of characters
+SYMBOL: PUSH    BC              ; Save number of characters
         PUSH    DE              ; Save pointer to text
         LD      BC,S1218        ; Specify pointer to memory for current X reference position
         LD      D,L             ; Horizontal magnification
@@ -11252,7 +11278,7 @@ A4D3B:  LD      (D4DB3 + 1),BC  ; Enter pointer in routine
 A4D64:  OR      A               ; drawing direction flag
         JP      PO,A4D6B        ; Characters in the direction of the Y - axis
         LD      HL,0            ; Default zero as offset for X - axis
-A4D6B:  LD      DE,(S108A)      ; Y - Coordinate Graphic - Cursor
+A4D6B:  LD      DE,(POINTY)     ; Y - Coordinate Graphic - Cursor
         ADD     HL,DE           ; Calculate reference coordinates
         LD      (S121A),HL      ; current Y - reference position for SYMBOL
         LD      DE,(S1214)      ; Number of points per character in the X character direction
@@ -11266,7 +11292,7 @@ A4D6B:  LD      DE,(S108A)      ; Y - Coordinate Graphic - Cursor
         JR      Z,A4D8C         ; Yes
         LD      (S1221),HL      ; Offset from end character to start next character
 A4D8C:  EX      DE,HL
-        LD      HL,(S1088)      ; X - Coordinate Graphic - Get cursor
+        LD      HL,(POINTX)     ; X - Coordinate Graphic - Get cursor
         BIT     1,A             ; Drawing direction along positive axis ?
         JR      Z,A4D95         ; Yes
         ADD     HL,DE
@@ -11374,11 +11400,11 @@ A4E42:  LD      (D4E61 + 1),A   ; Enter offset to character in routine
 D4E45:  LD      DE,0            ; current X - coordinate (is entered)
         PUSH    HL              ; Y - save coordinate
         PUSH    DE              ; X - save coordinate
-        CALL    A46B2           ; check whether coordinates in DE,HL are in the displayed range
+        CALL    RNGCK           ; check whether coordinates in DE,HL are in the displayed range
         POP     DE              ; Retrieve saved X coordinate
         POP     HL              ; retrieve saved Y coordinate
         RET     C               ; Error occurred --> termination
-        CALL    A460F           ; absolute graphic address and bit no. calculate from coordinates
+        CALL    ADCH            ; absolute graphic address and bit no. calculate from coordinates
         LD      (S121C),HL      ; Pointer to graphic memory at SYMBOL
         LD      HL,B45C8        ; Table with specifications for bit by bit number
         LD      D,0             ; High - byte offset to zero
@@ -11439,7 +11465,7 @@ A4EBD:  LD      DE,80           ; Number of bytes per graphic line (is entered)
         LD      HL,(S121C)      ; Pointer to graphic memory at SYMBOL
         ADD     HL,DE           ; Calculate pointer to next graphic line
         LD      (S121C),HL      ; and remember
-A4EC7:  LD      DE,SCREEN+16000 ; Specify end of used color memory (is entered)
+A4EC7:  LD      DE,BITBUF+16000 ; Specify end of used color memory (is entered)
         OR      A               ; Reset carry flag
         SBC     HL,DE           ; Graphic - check memory address
         RET     NC              ; from the graphic memory --> stop
@@ -11549,7 +11575,7 @@ A4F4A:  LD      (IY+23),L       ; Koordinate merken
 ;                    (H  = 0 -->  Lagen psoitiv)
 ;   (Software - Kommanod  74)
 ;
-A4F52:  OR      A               ; Anzahl Lagen gleich Null  ?
+CHARW:  OR      A               ; Anzahl Lagen gleich Null  ?
         RET     Z               ; ja -->  alles vergessen
         LD      (S11A6),DE      ; Zeiger auf Graphic - Text merken
         LD      E,A             ;! Anzahl Lagen merken
@@ -11564,7 +11590,7 @@ A4F62:  LD      (D4FF5),A       ;! richtigen Befehl in Routine eintragen
         LD      A,B             ; Anzahl Bytes Graphic-Text holen
         OR      A               ; gleich Null  ?
         RET     Z               ; ja -->  fertig
-        LD      HL,(S1088)      ; X - Koordinate Graphic - Cursor holen
+        LD      HL,(POINTX)     ; X - Koordinate Graphic - Cursor holen
         LD      A,00000111B     ; acht Punkte je Byte = 3 Bit in Koordinate
         AND     L               ; Bit - Nummer im Graphic - Byte maskieren
         LD      D,A             ; Anfangsbitnummer in Koordinate merken
@@ -11575,7 +11601,7 @@ A4F62:  LD      (D4FF5),A       ;! richtigen Befehl in Routine eintragen
         ADD     HL,DE           ; Zeiger auf richtigen Maskenwert errechnen
         LD      A,(HL)          ; Maskenwert aus Tabelle holen
         LD      (D4F84 + 1),A   ; und in Routine eintragen
-A4F7E:  LD      HL,(S108A)      ; Y - Koordinate Graphic - Cursor
+A4F7E:  LD      HL,(POINTY)     ; Y - Koordinate Graphic - Cursor
 A4F81:  LD      (S11A4),HL      ; aktuelle Y - Koordinate Graphic bei PATTERN
 D4F84:  LD      C,11111111B     ; Vorgabe für zu setzendes Punktmuster in Byte   (wird eingetragen)
         LD      HL,(S11A6)      ; Zeiger auf Graphic - Text holen
@@ -11615,7 +11641,7 @@ A4F9D:  SRL     D               ;! Graphic - Textmuster umkehren
         AND     B               ; Bits für zweites Byte maskieren
         INC     HL              ; Zeiger auf Speicher für Muster auf nächste Stelle
         LD      (HL),A          ; Pattern for  zweites Byte Betriebsart 0 merken
-        LD      DE,(S1088)      ; X - Koordinate Graphic - Cursor holen
+        LD      DE,(POINTX)     ; X - Koordinate Graphic - Cursor holen
         LD      HL,(S11A4)      ; aktuelle Y - Koordinate Graphic bei PATTERN
         PUSH    DE              ; X - Koordinate Graphic merken
         PUSH    HL              ; Y - Koordinate Graphic merken
@@ -11639,7 +11665,7 @@ A4F9D:  SRL     D               ;! Graphic - Textmuster umkehren
         JP      Z,A4FF8         ; X - Koordinate Graphic für eine Lage corrigieren
         LD      HL,(S11A4)      ; aktuelle Y - Koordinate Graphic bei PATTERN
 D4FE1:  INC     HL              ; für nächste LAge corrigieren  (Befehl wird eingetragen)
-        LD      (S108A),HL      ; Y - Koordinate Graphic - Cursor merken
+        LD      (POINTY),HL     ; Y - Koordinate Graphic - Cursor merken
         XOR     A
         RET
 ;
@@ -11658,19 +11684,19 @@ D4FF5:  INC     HL              ; für nächste Lage corrigieren
 ;
 ;   X - Koordinate Graphic für eine Lage corrigieren
 ;
-A4FF8:  LD      HL,(S1088)      ; X - Koordinate Graphic - Cursor holen
+A4FF8:  LD      HL,(POINTX)     ; X - Koordinate Graphic - Cursor holen
         LD      BC,8            ; acht Punkte je Lage
         ADD     HL,BC           ; X - Koordinate corrigieren
-        LD      (S1088),HL      ; X - Koordinate Graphic - Cursor merken
+        LD      (POINTX),HL     ; X - Koordinate Graphic - Cursor merken
         RET
 ;
 ;
 ;   ein Byte aufbereitetes Bit pattern for  PATTERN in Graphic-Speicher übertragen
 ;
 A5003:  EX      AF,AF           ; Flag 'erstes/zweites Byte' merken
-        CALL    A46B2           ; überprüfen, ob Koordinaten in DE,HL im angezeigten Bereich liegen
+        CALL    RNGCK           ; überprüfen, ob Koordinaten in DE,HL im angezeigten Bereich liegen
         RET     C               ; Fehler aufgetreten -->  Abbruch
-        CALL    A460F           ; absolute Graphic-Adresse und Bitnr. aus Koordinaten errechnen
+        CALL    ADCH            ; absolute Graphic-Adresse und Bitnr. aus Koordinaten errechnen
         LD      B,A             ; Bit - Nummer merken
         LD      DE,S129E        ; Zeiger auf Speicher für aufbereitetes Punktmuster
         EX      AF,AF           ; Flag 'erstes/zweites Byte' holen
@@ -11687,10 +11713,10 @@ A5018:  CALL    A4669           ; Write - Format Register für 'Punkt setzen' set
         OUT     (_00RAM),A      ; Umschalten auf RAM von 00000H - 00FFFH
         LD      A,(DE)          ; ein Byte des Bitmusters holen
         LD      (HL),A          ; und in Graphic - Speicher eintragen
-        LD      A,(S109A)       ; aktuellen Überschreibmodus holen
+        LD      A,(PWMODE)      ; aktuellen Überschreibmodus holen
         OR      A               ; Farbwerte addieren  ?
         JR      NZ,A5032        ; ja
-        LD      A,(S109C)       ; Vorgabe für benutzte Farbebenen holen
+        LD      A,(CPLANE)      ; Vorgabe für benutzte Farbebenen holen
         OR      01100000B       ; Code for 'RESET
         OUT     (CRTCWF),A      ; Steuerwort an Graphic-Controller ausgeben
         INC     DE              ; Zeiger auf richtiges Bitmuster
@@ -11704,9 +11730,9 @@ A5032:  IN      A,(_CGVOT)      ; Zeichensatzrom und Video-Ram ausschalten
 ;   Fläche ausfüllen      (HL = Zeiger auf Palettencodes für Rand)
 ;                         (B  = Anzahl Palettencodes)
 ;
-;   (Software command code:  76)
+;   (SVC code:  76)
 ;
-A5036:  LD      A,(S109F)       ; aktuellen Graphic - Palettenwert holen
+WPAINT: LD      A,(GMODE)       ; aktuellen Graphic - Palettenwert holen
         OR      11000000B       ; plus Code for 'PSET
         OUT     (CRTCWF),A      ; an 'Write-Format-Register' des Bildschirm-Controllers ausgeben
         EXX
@@ -11729,14 +11755,14 @@ A504A:  LD      A,(HL)          ; einen Palettencodewert für Rand holen
         EXX
         LD      BC,7            ; Länge Routinenstück zum Wegschalten der Graphic-Speicher
         LDIR                    ; Routinenstück hinter Rest Routine eintragen
-        LD      HL,(S107A)      ; Ende Stringarbeitsbereich  (Anfang freier Speicher)  holen
+        LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich  (Anfang freier Speicher)  holen
         LD      (S11A6),HL      ; als aktuellen Zeiger für PAINT - Werte merken
         LD      (A51CD + 2),HL  ; und als Zeiger auf Anfang PAINT-Werte in Routine eintragen
         LD      HL,(S137C)      ; Ende Arbeitsbereich für PAINT - Routine holen
         LD      DE,-6           ;! noch ein bischen Sicherheit dazupacken
         ADD     HL,DE           ;!
         LD      (D54D9 + 1),HL  ; und als maximale nutzbare Adresse in Routine eintragen
-        LD      HL,(S1088)      ; X - Koordinate Graphic - Cursor holen
+        LD      HL,(POINTX)     ; X - Koordinate Graphic - Cursor holen
         DEC     HL              ; minus eins
         LD      (S11B1),HL      ; als linke X - Koordinate merken
         INC     HL              ; Wert wieder auf Originalkoordinate
@@ -11746,14 +11772,14 @@ A504A:  LD      A,(HL)          ; einen Palettencodewert für Rand holen
         EX      DE,HL           ; X - Koordinate nach DE
         LD      HL,0            ; HL auf Null
         LD      (S11A4),HL      ; als Anzahl noch zu testende Koordinaten merken
-        LD      HL,(S108A)      ; Y - Koordinate Graphic - Cursor holen
+        LD      HL,(POINTY)     ; Y - Koordinate Graphic - Cursor holen
         LD      (S11AF),HL      ; als Y - Koordinate für PAINT - Routine merken
-        CALL    A46B2           ; überprüfen, ob Koordinaten in DE,HL im angezeigten Bereich liegen
+        CALL    RNGCK           ; überprüfen, ob Koordinaten in DE,HL im angezeigten Bereich liegen
         CCF                     ; Ergebnis umkehren
         RET     NC              ; Graphic - Koordinaten liegen nicht im angezeigten Bereich
         LD      (A54E1 + 1),SP  ; Stackpointer für Fehlerabbruch merken
         LD      SP,S2ED0        ; neuen Stackpointer vorgeben
-        CALL    A460F           ; absolute Graphic-Adresse und Bitnr. aus Koordinaten errechnen
+        CALL    ADCH            ; absolute Graphic-Adresse und Bitnr. aus Koordinaten errechnen
         LD      DE,B45C8        ; Tabelle mit Vorgabe für Bit nach Bit - Nummer
         PUSH    HL              ; Graphic - Speicheradresse errechnen
         LD      H,0             ; High - Byte Offset auf Null
@@ -12194,7 +12220,7 @@ A53F5:  LD      DE,(S11B3)      ; rechte X - Koordinate aus PAINT - Datensatz ho
 A5425:  LD      DE,(S11B3)      ; rechte X - Koordinate aus PAINT - Datensatz holen
 A5429:  LD      HL,(S11B1)      ; linke X - Koordinate aus PAINT - Datensatz holen
         LD      (D547C + 1),HL  ; linke Koordinate in Routine eintragen
-A542F:  LD      HL,SCREEN+2
+A542F:  LD      HL,BITBUF+2
         LD      (D54A8 + 1),HL
         LD      A,INC_HL        ; Z-80 - Befehl  INC HL
         LD      (D546E + 1),A   ; in Routine eintragen
@@ -12210,7 +12236,7 @@ A542F:  LD      HL,SCREEN+2
 A5450:  LD      HL,(S11AF)      ; Y - Koordinate Graphic (PAINT) holen
         PUSH    DE              ;! aktuelle X - Koordinate als Ergebniskoordinate vorgeben
         POP     IX              ;!
-        CALL    A460F           ; absolute Graphic-Adresse und Bit-Nr. aus Koordinaten errechnen
+        CALL    ADCH            ; absolute Graphic-Adresse und Bit-Nr. aus Koordinaten errechnen
         LD      DE,B45C8        ; Tabelle für Bit - Maske nach Bit - Nummer
         PUSH    HL              ; Graphic - Koordinate merken
 A545B:  ;=??
@@ -12320,7 +12346,7 @@ A54E6:  LD      HL,S11AF        ; Zeiger auf Speicher mit PAINT - Datensatz
 A54FA:  LD      HL,(S11AF)      ; Y - Koordinate Graphic (PAINT) holen
         LD      DE,(S11B3)      ; rechte X - Koordinate aus PAINT - Datensatz holen
         DEC     DE              ; X - Koordinate minus eins
-        CALL    A460F           ; absolute Graphic-Adresse und Bit-Nr. aus Koordinaten errechnen
+        CALL    ADCH            ; absolute Graphic-Adresse und Bit-Nr. aus Koordinaten errechnen
         LD      DE,B45C0        ; Tabelle zum Setzen der rechten Bits nach Bit-Nummer
         PUSH    HL              ; Zeiger auf Graphic - Speicher merken
         LD      H,0             ; High - Byte Offset auf Null
@@ -12424,8 +12450,8 @@ A5583:  SBC     HL,DE           ; Koordinaten vergleichen
 _START: PUSH    BC              ; Auto - Run - Flag retten
         CALL    A585D           ; Bildschirm auf Standardwerte initialisieren
         POP     BC              ; Auto - Run - Flag holen
-        LD      HL,SA473        ; Zeiger auf Ende Basic - Interpreter
-        LD      (S1070),HL      ; als Anfangsadresse für BASIC - Programm merken
+        LD      HL,BASIC_PGM    ; Zeiger auf Ende Basic - Interpreter
+        LD      (TEXTST),HL     ; als Anfangsadresse für BASIC - Programm merken
         LD      HL,T586F        ; Warmstartadresse  BASIC
         LD      (SYSSTA),HL     ; als Start - Adresse für Basic - Interpreter merken
         LD      A,B             ; Auto - Run - Flag holen
@@ -12437,7 +12463,7 @@ D5813:  JP      Z,A5825         ; nein -->  kein Auto - Run
         LD      DE,S1353        ; Zeiger auf Speicher für Funktionstastentext
         LD      BC,16           ; Länge Text
         LDIR                    ; Text übertragen
-A5825:  LD      DE,M9EB5        ; Zeiger auf Copyright - Meldung
+A5825:  LD      DE,IMDBUF       ; Zeiger auf Copyright - Meldung
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    5               ; Code 5  Text (DE) mit Groß-/Kleinschreibung ausgeben
         RST     _DOCMD          ; Software - Kommando ausführen
@@ -12446,7 +12472,7 @@ A5825:  LD      DE,M9EB5        ; Zeiger auf Copyright - Meldung
         LD      (D5813),A       ; in Routine eintragen
         LD      HL,T5837        ; Adresse für Start ohne Auto - Run
         LD      (D5813 + 1),HL  ; in Routine eintragen
-T5837:  LD      HL,SA473        ; Zeiger auf Anfang Speicher für Basic - Programm
+T5837:  LD      HL,BASIC_PGM    ; Zeiger auf Anfang Speicher für Basic - Programm
 A583A:  LD      (HL),0          ; ein Byte Speicher löschen
         INC     HL              ; Zeiger auf Speicher auf nächstes Byte
         LD      A,H             ; High - Byte Speicheradresse holen
@@ -12473,7 +12499,7 @@ A585D:  LD      A,1             ; Bildschirm-Modus 1   (320 x 200 Punkte/4 Farbe
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    80              ; Code 80  Bildschirmbetriebsart setzen
         XOR     A               ; Code for 'Punkte in angegebener Farbe setzen'
-        LD      (S109A),A       ; als aktuellen Überschreibmodus merken
+        LD      (PWMODE),A      ; als aktuellen Überschreibmodus merken
         INC     A               ; Accu auf eins
         LD      (S137A),A       ; Bildschirm - Modus - Nummer setzen
         LD      (S1379),A       ; Bildschirm - Modus - Bit setzen
@@ -12505,22 +12531,22 @@ A5878:  RST     _DOCMD          ; Software - Kommando ausführen
 A5881:  LD      A,(M63F6)       ; CONT - Flag holen
         OR      A               ; CONT möglich  ?
         JR      NZ,A5893        ; ja -->  Stack nicht verändern
-        LD      SP,(S107C)      ; höchste nutzbare Basic - Adresse holen
+        LD      SP,(INTFAC)     ; höchste nutzbare Basic - Adresse holen
         LD      HL,-1           ; Code for 'keine Werte auf Stack'
         PUSH    HL              ; auf Stack ablegen
         LD      (S9E64),SP      ; Stackpointer bei Anfang Befehl merken
 A5893:  LD      HL,0            ; Code for 'in direkter Programmierung'
         LD      (S9E51),HL      ; als aktuelle Zeilennummer merken
         XOR     A               ; Accu auf Null
-        LD      (S108E),A       ; Textausgabeflag für Cassette zurücksetzen
+        LD      (CMTMSG),A      ; Textausgabeflag für Cassette zurücksetzen
         CALL    A611D           ; wenn im AUTO-Modus -->  Zeilennummer (und Zeile) ausgeben
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    67              ; Code 67  Datei-Daten der Ausgabe-Datei bei Fehler löschen
         LD      DE,S11A4        ; Zeiger auf Speicher für Zeile vorgeben
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    12              ; Code 12  Zeile von Tastatur nach Speicher (DE) holen
-        JR      NC,A58B4        ; Eingabe nicht geBREAKt -->  Zeile abarbeiten
-A58A9:  LD      HL,S611C        ; Zeiger auf AUTO - Flag
+        JR      NC,NORINP       ; Eingabe nicht geBREAKt -->  Zeile abarbeiten
+AUTOFF: LD      HL,S611C        ; Zeiger auf AUTO - Flag
         LD      A,(HL)          ; AUTO - Flag holen
         OR      A               ; im AUTO - Modus  ?
         LD      (HL),0          ; AUTO - Flag zurücksetzen
@@ -12530,34 +12556,34 @@ A58A9:  LD      HL,S611C        ; Zeiger auf AUTO - Flag
 ;
 ;   eingegebenen Text auswerten und abarbeiten
 ;
-A58B4:  CALL    A79BC           ; Zeiger in DE auf nächstes relevantes Zeichen
+NORINP: CALL    A79BC           ; Zeiger in DE auf nächstes relevantes Zeichen
         OR      A               ; Zeilenendezeichen  ?
         JR      Z,A5881         ; ja -->  nächste Zeilen von Tastatur holen
         CALL    A79F6           ; testen, ob Zeichen im Accu gleich Ziffer ist
         JP      NC,A5FAD        ; Ziffer -->  Zeile umsetzen in Zwischencode und merken
-        LD      HL,M9EB5        ; Zeiger auf Speicher für Zeile im Zwischencode
+        LD      HL,IMDBUF       ; Pointer to temporary storage for tokenized line
         PUSH    HL              ; Zeiger auf Anfang Speicher merken
-        CALL    A8216           ; ASCII - Text - Zeile (DE) umsetzen in Zwischencode
+        CALL    CVIMTX          ; ASCII - Text - Zeile (DE) umsetzen in Zwischencode
         INC     HL              ; Zeilenendezeichen überspringen
         LD      (S9E4B),HL      ; Zeiger auf nächste Programmzeile merken
         CALL    A61C5           ; (HL)  Bereichsende  (00 00)  eintragen
-        POP     HL              ; Zeiger auf Zwischencodezeile holen
+        POP     HL              ; Get pointer to tokenized line
         JR      A58D4           ; Zeile abarbeiten
 ;
 T58D1:  CALL    A797A           ; auf Syntax 'Befehlsende' überprüfen
 ;
 ;
-;   Process intermediate code line (HL).
+;   Process token code line (HL).
 ;
 A58D4:  LD      (S9E64),SP      ; Remember stack pointer at start of command
 A58D8:  LD      DE,T58D1        ; Return address for end of command
         PUSH    DE              ; put on stack
 A58DC:  LD      (S9E66),HL      ; Remember program pointer at start of command
         CALL    BRKCHK          ; Query whether Shift - BREAK is pressed
-        JP      Z,A00E8         ; yes --> interrupt program
+        JP      Z,BREAKZ        ; yes --> interrupt program
 A58E5:  LD      A,(HL)          ; fetch next program byte
         INC     HL              ; Skip program byte
-        CP      080H            ; intermediate code ?
+        CP      080H            ; token code ?
         JR      NC,A593F        ; yes --> Call command routine
         CP      '\''             ; comment ?
         JP      Z,A67FE         ; yes --> search for the end of the comment
@@ -12583,14 +12609,14 @@ A5909:  LD      E,(HL)          ;! Get offset to next line
         LD      A,D             ;! Offset to next line equal to zero ?
         OR      E               ;!
         JR      Z,A5928         ; yes --> output any pending errors
-        LD      (S108E),A       ; Set text output flag cassette to output
+        LD      (CMTMSG),A      ; Set text output flag cassette to output
         EX      DE,HL           ; Pointer to current line after DE
         ADD     HL,DE           ;! Calculate pointer to next program line
         DEC     HL              ;!
         LD      (S9E4B),HL      ; Remember pointer to next program line
         EX      DE,HL           ; Pointer to current line after HL
         INC     HL              ; Skip remainder offset
-        CALL    A012D           ; Get line number of line from program text
+        CALL    LDDEMI          ; Get line number of line from program text
         LD      (S9E51),DE      ; remember as the current line number
         CALL    A61E4           ; if TRON --> output line number
         POP     DE              ; Discard return address
@@ -12618,14 +12644,14 @@ A593F:  CP      0FFH            ; prebyte table three ?
         LD      DE,W5D1B        ; Pointer to address table commands table two
         CP      0FEH            ; prebyte table two ?
         JR      NZ,A594F        ; no --> process command from table one
-        LD      A,(HL)          ; get actual intermediate code
-        INC     HL              ; Skip intermediate code
+        LD      A,(HL)          ; get actual token code
+        INC     HL              ; Skip token code
         JR      A5957           ; Get the start address of the command from the table
 ;
 A594F:  CP      0E0H            ; largest command in table one
         JP      NC,A6364        ; Function --> Error 1 Syntax error
         LD      DE,W5C5B        ; Pointer to address table commands table one
-A5957:  ADD     A,A             ; intermediate code times two
+A5957:  ADD     A,A             ; token code times two
         PUSH    HL              ; Save program pointer
         EX      DE,HL           ; Pointer to address table according to HL
         LD      E,A             ;! Load DE with offset on table
@@ -12640,7 +12666,7 @@ A5957:  ADD     A,A             ; intermediate code times two
 ;
 ;   testen, ob nächstes Byte Befehlsendezeichen ist   (wenn ja -->  Zero gesetzt)
 ;
-A5963:  CALL    A015E           ; Leerzeichen  (Spaces)  (HL) überspringen
+A5963:  CALL    HLFTCH          ; Leerzeichen  (Spaces)  (HL) überspringen
 A5966:  OR      A               ; Zeilenendezeichen  ?
         RET     Z               ; ja
         CP      ':'             ; Befehlsendezeichen  ?
@@ -12649,7 +12675,7 @@ A5966:  OR      A               ; Zeilenendezeichen  ?
 ;
 ;   Query whether in direct programming (if yes --> zero flag set)
 ;
-A596B:  PUSH    HL              ; Register - Wert retten
+A596B:  PUSH    HL              ; Keep register value
         LD      HL,(S9E51)      ; aktuelle Zeilennummer holen
         LD      A,L             ;! Zeilennummer gleich Null  (in direkter
         OR      H               ;!                            Programmierung)  ?
@@ -12657,7 +12683,7 @@ A596B:  PUSH    HL              ; Register - Wert retten
         RET
 ;
 ;
-;	Tables for converting the BASIC command words into the intermediate code (TOKEN)
+;	Tables for converting the BASIC command words into the token code (TOKEN)
 ;
 M5973:  DEFM    "GOT"           ; 128  GOTO
         DEFB    'O'+0x80
@@ -13181,11 +13207,11 @@ W5C5B:  DEFW    A69AF           ; 128  GOTO
         DEFW    A6699           ; 142  NEXT
         DEFW    A6C9F           ; 143  PRINT
         DEFW    A6364           ; 144
-        DEFW    A6DD4           ; 145  INPUT
+        DEFW    INPUT           ; 145  INPUT
         DEFW    A6364           ; 146
         DEFW    A69C2           ; 147  IF
         DEFW    A67FE           ; 148  DATA
-        DEFW    A6DCD           ; 149  READ
+        DEFW    READ            ; 149  READ
         DEFW    A8DCC           ; 150  DIM
         DEFW    A67FE           ; 151  REM
         DEFW    A60B9           ; 152  END
@@ -13399,10 +13425,10 @@ W5D79:  DEFW    A95C2           ; 255 128  INT
 ;
 ;   Zeiger auf Zeile nach Programmtext (HL) nach DE bereitstellen
 ;
-A5E19:  CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+A5E19:  CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFB    _LIN_P          ; Code for 'Zeiger auf Zeile'  ?
         JR      NZ,A5E25        ; nicht Zeiger auf Zeile
-        CALL    A012D           ; Zeiger auf Zeile aus Programmtext nach DE holen
+        CALL    LDDEMI          ; Zeiger auf Zeile aus Programmtext nach DE holen
         OR      0FFH            ; Carry- und Zero - Flag zurücksetzen
         RET
 ;
@@ -13460,19 +13486,19 @@ A5E5F:  LD      A,B             ; Länge Labelname holen
 ;
 ;   Zeiger auf Zeile nach bereitgestelltem Labelnamen bereitstellen
 ;
-A5E72:  PUSH    BC              ; Register - Wert retten
+A5E72:  PUSH    BC              ; Keep register value
         LD      BC,T5EAB        ; Adresse  'auf LABEL - Namen vergleichen'
         JR      A5E7C           ; richtige Zeile suchen
 ;
 ;
 ;   Zeiger auf Zeile nach Zeilennummer in HL bereitstellen
 ;
-A5E78:  PUSH    BC              ; Register - Wert retten
+A5E78:  PUSH    BC              ; Keep register value
         LD      BC,T5E9F        ; Adresse  'auf Zeilennummer vergleichen'
 A5E7C:  LD      (D5E91 + 1),BC  ; Adresse in Routine eintragen
-        PUSH    DE              ; Register - Wert retten
+        PUSH    DE              ; Keep register value
         EX      DE,HL           ; zu suchende Zeilennummer nach DE
-        LD      HL,(S1070)      ; Anfangsadresse für BASIC - Programm holen
+        LD      HL,(TEXTST)     ; Anfangsadresse für BASIC - Programm holen
 A5E85:  LD      C,(HL)          ;! Offset auf nächste Zeile aus Basic - Programm
         INC     HL              ;! holen
         LD      B,(HL)          ;!
@@ -13519,10 +13545,10 @@ T5EAB:  PUSH    HL              ; Zeiger auf Anfang Zeile retten
         INC     HL              ;!
         INC     HL              ;! Zeilennummer überspringen
         INC     HL              ;!
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+        CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFB    _LABEL          ; LABEL   (Zwischencode)  ?
         JR      NZ,A5ECF        ; nicht LABEL -->  geretteten Register - Wert holen
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+        CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFB    '\"'            ; Anfang Labelname  ?
         JR      NZ,A5ECF        ; kein Label - Namen - Anfangszeichen
 D5EBC:  LD      B,0             ; Länge Labelname   (wird eingetragen)
@@ -13552,9 +13578,9 @@ A5ED3:  LD      DE,0            ; Vorgabe für Anfangszeilennummer
         CP      '-'             ; -   (bis)
         JR      Z,A5EFD         ; ja -->  keine Anfangszeilennummer angegeben
         CP      '.'             ; .   (letzte Zeilennummer)  ?
-        LD      DE,(S9E4D)      ; Editor Zeilennummer holen
+        LD      DE,(S9E4D)      ; Get editor line number 
         JR      Z,A5EF0         ; ja -->  noch auf Endzeilennummer untersuchen
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFB    _LINNO          ; Code for 'Integer - Zeilennummer'
         LD      E,(HL)          ;! Anfangszeilennummer aus Programmtext holen
         INC     HL              ;!
@@ -13573,11 +13599,11 @@ A5EFD:  INC     HL              ; ausgewertetes Programmbyte überspringen
         RET     Z               ; ja -->  fertig
         CP      '.'             ; .   (letzte Zeilennummer)  ?
         JR      NZ,A5F0C        ; nein
-        LD      BC,(S9E4D)      ; Editor Zeilennummer holen
+        LD      BC,(S9E4D)      ; Get editor line number 
         INC     HL              ; Punkt überspringen
         RET
 ;
-A5F0C:  CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+A5F0C:  CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFB    _LINNO          ; Code for 'Integer - Zeilennummer'  ?
         LD      C,(HL)          ;! Endzeilennummer aus Programmtext holen
         INC     HL              ;!
@@ -13596,7 +13622,7 @@ A5F15:  CALL    A5963           ; testen, ob Zeichen (HL) gleich Befehlsendezeic
 ;
 ;   Zeilennummern im Programm in Zeiger auf Zeile umsetzen
 ;
-A5F1C:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+A5F1C:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      A,-1            ; Code for 'Zeiger auf Zeile im Text'
         LD      (S5FAC),A       ; im Zeilen - Nummer - Flag merken
         LD      HL,T5F72        ; Adresse  'Zeilennummer umsetzen in Zeiger auf Zeile'
@@ -13605,7 +13631,7 @@ A5F1C:  CALL    A00C7           ; Register IX, HL, BC und DE retten
 ;
 ;   Zeiger auf Zeilen im Programm in Zeilennummern umsetzen
 ;
-A5F29:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+A5F29:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         CALL    A60A2           ; alle Statusflags zurücksetzen
 A5F2F:  LD      A,(S5FAC)       ; Zeilen - Nummern - Flag holen
         OR      A               ; nur Zeilennummern  ?
@@ -13614,7 +13640,7 @@ A5F2F:  LD      A,(S5FAC)       ; Zeilen - Nummern - Flag holen
         LD      (S5FAC),A       ; im Zeilen - Nummern - Flag merken
         LD      HL,T5F58        ; Adresse  'Zeiger umsetzen in Zeilennummer'
 A5F3B:  LD      (D5F55 + 1),HL  ; Adresse in Routine eintragen
-        LD      HL,(S1070)      ; Anfangsadresse des BASIC - Programms holen
+        LD      HL,(TEXTST)     ; Anfangsadresse des BASIC - Programms holen
         DEC     HL
 A5F42:  INC     HL
         LD      A,(HL)          ;! Offset auf nächste Zeile vorhanden  ?
@@ -13712,7 +13738,7 @@ S5FAC:  DEFS    1               ; Zeilen - Nummern - Flag   (=0 -->  nur Zeilenn
 A5FAD:  RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    40              ; Code 40   alle Datei - Daten im Rechner löschen
         CALL    A5F29           ; Zeiger auf Zeilen im Programm in Zeilennummern umsetzen
-        CALL    A8532           ; ASCII-Wert (DE) umsetzen in Hex-Wert nach BC
+        CALL    CVBCAS          ; ASCII-Wert (DE) umsetzen in Hex-Wert nach BC
         LD      A,B             ;! Zeilennummer gleich Null  ?   (direkte
         OR      C               ;!                                Programmierung)
         JP      Z,A5881         ; ja -->  Zeile ausführen
@@ -13722,54 +13748,54 @@ A5FAD:  RST     _DOCMD          ; Software - Kommando ausführen
         JR      NZ,A5FC4        ; nein -->  relevantes Zeichen
         INC     DE              ; Leerzeichen überspringen
 A5FC4:  PUSH    AF              ; Zeichen merken
-        LD      HL,M9EB5        ; Zeiger auf Speicher für Zeile im Zwischencode
-        CALL    A8216           ; ASCII - Text - Zeile (DE) umsetzen in Zwischencode
-        PUSH    HL              ; Zeiger auf Ende Zwischencodezeile merken
-        LD      HL,(S9E4D)      ; Editor Zeilennummer holen
+        LD      HL,IMDBUF       ; Pointer to temporary storage for tokenized line
+        CALL    CVIMTX          ; ASCII - Text - Zeile (DE) umsetzen in Zwischencode
+        PUSH    HL              ; Keep pointer to end of tokenized line 
+        LD      HL,(S9E4D)      ; Get editor line number 
         LD      E,L             ;! auch als Endzeilennummer vorgeben
         LD      D,H             ;!
         CALL    A622C           ; eventuell vorhanden alte Zeile(n) löschen
-        POP     HL              ; Zeiger auf Ende Zwischencodezeile holen
+        POP     HL              ; Get pointer to end of tokenized line
         POP     AF              ; erstes Textzeichen holen
         OR      A               ; gleich Zeilenendezeichen  ?
         JR      Z,A5FEB         ; ja -->  Zeile nur löschen
-        LD      DE,M9EB5        ; Zeiger auf Speicher mit Zeile im Zwischencode
+        LD      DE,IMDBUF       ; Pointer to memory holding the tokenized line
         OR      A               ; Carry - Flag zurücksetzen
-        SBC     HL,DE           ; Länge der Zwischencodezeile errechnen
+        SBC     HL,DE           ; Compute the length of the tokenized line
         LD      DE,5            ; 5 Byte für Zeilenverwaltung
         ADD     HL,DE           ; Speicherlänge für Zeile errechnen
         LD      B,H             ;! Länge der Zeile nach BC übertragen
         LD      C,L             ;!
-        LD      HL,M9EB5        ; Zeiger auf Speicher mit Zeile im Zwischencode
+        LD      HL,IMDBUF       ; Pointer to memory holding the tokenized line
         CALL    A6003           ; Zeile in Programmspeicher eintragen
 A5FEB:  LD      A,(S611C)       ; AUTO - Flag holen
         OR      A               ; im AUTO - Modus  ?
         JP      Z,A5881         ; nein -->  nächste Zeile von Tastatur holen
         LD      DE,(S9E4F)      ; Offset für AUTO holen
-        LD      HL,(S9E4D)      ; Editor Zeilennummer holen
+        LD      HL,(S9E4D)      ; Get editor line number 
         ADD     HL,DE           ; nächste Zeilennummer errechnen
         LD      (S9E4D),HL      ; neue Editor Zeilennummer merken
         JP      NC,A5881        ; kein Übertrag -->  nächste Zeile von Tastatur holen
-        JP      A58A9           ; AUTO - Modus aufheben
+        JP      AUTOFF          ; AUTO - Modus aufheben
 ;
 ;
 ;   Zwischencodezeile (HL) mit Länge in BC in Programmspeicher eintragen
 ;
 A6003:  LD      (D6064 + 1),HL  ; Zeiger auf Zwischencodezeile eintragen
         PUSH    BC              ; Länge der Zeile retten
-        LD      BC,(S9E4D)      ; Editor Zeilennummer holen
-        LD      HL,(S1070)      ; BASIC - Programmanfang holen
+        LD      BC,(S9E4D)      ; Get editor line number 
+        LD      HL,(TEXTST)     ; BASIC - Programmanfang holen
         JR      A6014           ; Stelle für Zeile suchen und Zeile eintragen
 ;
-A6010:  CALL    A0132           ; Offset auf nächste Zeile holen
+A6010:  CALL    LDDEMD          ; Offset auf nächste Zeile holen
         ADD     HL,DE           ; Zeiger auf nächste Zeile errechnen
-A6014:  CALL    A0132           ; Offset auf nächste Zeile holen
+A6014:  CALL    LDDEMD          ; Offset auf nächste Zeile holen
         LD      A,D             ;! Offset gleich Null  ?
         OR      E               ;!
         JR      Z,A6028         ; ja -->  letzte Programmzeile
         INC     HL              ;! Zeiger auf Zeilennummer der Zeile
         INC     HL              ;! setzen
-        CALL    A0132           ; Zeilennummer der Zeile holen
+        CALL    LDDEMD          ; Zeilennummer der Zeile holen
         EX      DE,HL           ; Zeilennummer nach HL
         SBC     HL,BC           ; testen, ob Zeilennummern gleich
         DEC     DE              ;! Zeiger wieder auf Anfang Zeile
@@ -13781,8 +13807,8 @@ A6028:  POP     DE              ; Länge der neuen Zeile holen
         PUSH    DE              ; Länge der neuen Zeile merken
         LD      HL,40           ;! Vorgabe für freien Bereich
         ADD     HL,DE           ;!
-        LD      BC,(S1078)      ; Anfang Stringarbeitsbereich holen
-        LD      (S107A),BC      ; als Ende Stringarbeitsbereich merken
+        LD      BC,(VARED)      ; Anfang Stringarbeitsbereich holen
+        LD      (TMPEND),BC     ; als Ende Stringarbeitsbereich merken
         ADD     HL,BC           ; Ende benutzter Speicher errechnen
         JP      C,A63A7         ; Übertrag -->  Fehler 6  Memory error
         EX      DE,HL           ; Adresse nach DE
@@ -13801,7 +13827,7 @@ A6028:  POP     DE              ; Länge der neuen Zeile holen
         LD      B,H             ;! Anzahl nach BC
         LD      C,L             ;!
         POP     HL              ; alten Stringarbeitsbereichanfang holen
-        LD      DE,(S1078)      ; Anfang Stringarbeitsbereich holen
+        LD      DE,(VARED)      ; Anfang Stringarbeitsbereich holen
         INC     BC              ; Länge corrigieren
         LDDR                    ; Platz für neue Zeile schaffen
         INC     HL
@@ -13810,13 +13836,13 @@ A6028:  POP     DE              ; Länge der neuen Zeile holen
         INC     HL              ;! Zeile eintragen
         LD      (HL),B          ;!
         INC     HL
-        LD      DE,(S9E4D)      ; Editor Zeilennummer holen  (Zeilennummer neue Zeile)
+        LD      DE,(S9E4D)      ; Get editor line number   (line number for new line)
         LD      (HL),E          ;! Zeilennummer der neuen Zeile in
         INC     HL              ;! Programmspeicher eintragen
         LD      (HL),D          ;!
         INC     HL
         EX      DE,HL           ; Zeiger auf Stelle für Zeile nach DE
-D6064:  LD      HL,M9EB5        ; Zeiger auf Speicher mit Zwischencodezeile
+D6064:  LD      HL,IMDBUF       ; Zeiger auf Speicher mit Zwischencodezeile
         DEC     BC              ;! Zeilenlänge für Offset auf Zeile und
         DEC     BC              ;! Zeilennummer corrigieren
         DEC     BC              ;!
@@ -13825,7 +13851,7 @@ D6064:  LD      HL,M9EB5        ; Zeiger auf Speicher mit Zwischencodezeile
         RET
 ;
 ;
-;   Basic - Befehl   RUN     (Zwischencode  131 / 083H)
+;   Basic - Befehl   RUN     (Token code  131 / 083H)
 ;
 A606E:  JR      Z,A6079         ; Ende Befehl -->  Programm starten
         CALL    A69DE           ; Accu gleich Kennung für Zeilennummer   ?
@@ -13837,8 +13863,8 @@ A606E:  JR      Z,A6079         ; Ende Befehl -->  Programm starten
 ;
 A6079:  CALL    A619B           ; Variable löschen   (CLR - Routine)
 A607C:  CALL    A6090           ; alle Flags auf Anfangsbedingungen setzen
-        LD      DE,(S1070)      ; Basic - Programmanfang holen
-        LD      SP,(S107C)      ; höchste nutzbare Basic - Adresse holen
+        LD      DE,(TEXTST)     ; Basic - Programmanfang holen
+        LD      SP,(INTFAC)     ; höchste nutzbare Basic - Adresse holen
         LD      HL,-1           ; Code for 'keine Werte auf Stack'
         PUSH    HL              ; auf Stack ablegen
         PUSH    HL
@@ -13848,7 +13874,7 @@ A607C:  CALL    A6090           ; alle Flags auf Anfangsbedingungen setzen
 ;
 ;   alle Flags auf Anfangsbedingungen setzen
 ;
-A6090:  PUSH    HL              ; Register - Wert retten
+A6090:  PUSH    HL              ; Keep register value
         CALL    A60A2           ; alle Statusflags zurücksetzen
         LD      (S611C),A       ; AUTO - Flag zurücksetzen
         LD      HL,10           ; Vorgabe für Anfangszeilennummer und Offset
@@ -13871,7 +13897,7 @@ A60A2:  LD      HL,0            ; Null
         RET
 ;
 ;
-;   Basic - Befehl   END     (Zwischencode  152 / 098H)
+;   Basic - Befehl   END     (Token code  152 / 098H)
 ;
 A60B9:  LD      A,(S9E68)       ; SWAP - Flag holen
         OR      A               ; im SWAP - Programm  ?
@@ -13885,7 +13911,7 @@ A60B9:  LD      A,(S9E68)       ; SWAP - Flag holen
         JP      A5878           ; nächste Zeile von Tastatur holen und abarbeiten
 ;
 ;
-;   Basic - Befehl   AUTO     (Zwischencode  139 / 08BH)
+;   Basic - Befehl   AUTO     (Token code  139 / 08BH)
 ;
 A60CA:  CALL    A7340           ; wenn im Programm-Modus -->  Fehler 19  Instruction error
         LD      DE,10           ; Vorgabe für Anfangszeilennummer
@@ -13894,7 +13920,7 @@ A60CA:  CALL    A7340           ; wenn im Programm-Modus -->  Fehler 19  Instruc
         CP      ','             ; Komma  ?
         JR      NZ,A60E4        ; nein -->  Anfangszeilennummer auswerten
         INC     HL              ; Komma überspringen
-        CALL    A8551           ; zwei - Byte - Wert nach DE bereitstellen
+        CALL    IDEEXP          ; zwei - Byte - Wert nach DE bereitstellen
         LD      B,D             ;! angegebenen Offset nach BC übertragen
         LD      C,E             ;!
         LD      DE,10           ; Anfangszeilennummer 10 vorgeben
@@ -13910,11 +13936,11 @@ A60E4:  CP      '.'             ; .   (letzte Zeilennummer)  ?
         INC     HL              ;!
         LD      D,(HL)          ;!
 A60F5:  INC     HL
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+        CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFM    ","             ; Komma  ?
         JR      NZ,A6103        ; nein -->  kein Offset angegeben
         PUSH    DE              ; Anfangszeilennummer merken
-        CALL    A8551           ; zwei - Byte - Wert nach DE bereitstellen
+        CALL    IDEEXP          ; zwei - Byte - Wert nach DE bereitstellen
         LD      C,E             ;! Offset für AUTO nach BC übertragen
         LD      B,D             ;!
         POP     DE              ; Anfangszeilennummer für AUTO holen
@@ -13942,7 +13968,7 @@ A611D:  LD      A,(S611C)       ; AUTO - FLag holen
         JR      A612B           ; Zeile aufbereiten, ausgeben, Cursor auf Anfang
 ;
 ;
-;   Basic - Befehl   EDIT     (Zwischencode  140 / 08CH)
+;   Basic - Befehl   EDIT     (Token code  140 / 08CH)
 ;
 A6125:  CALL    A612B           ; Zeile aufbereiten, ausgeben, Cursor auf Anfang
         JP      A5881           ; Zeile von Tastatur holen
@@ -13972,10 +13998,10 @@ A6141:  EX      DE,HL           ; Zeiger auf Zeile nach DE
         LD      A,' '           ; Leerzeichen  (Space)
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    3               ; Code 3   Accu auf Bildschirm ausgeben  (Ausführung Steuerzeichen)
-        POP     HL              ; Zeiger auf Zwischencodezeile holen
+        POP     HL              ; Get pointer to tokenized line
         LD      DE,S11A4        ; Zeiger auf Speicher für ASCII-Text vorgeben
         PUSH    DE              ; Zeiger auf Anfang Speicher merken
-		CALL    A8401           ; Zwischencodezeile (HL) umsetzen in ASCII nach (DE)
+		CALL    CVTXIM          ; Zwischencodezeile (HL) umsetzen in ASCII nach (DE)
         POP     DE              ; Zeiger auf Anfang ASCII-Zeile holen
         LD      B,0             ; Vorgabe für Länge der Zeile
 A615A:  LD      A,(DE)          ; ein Zeichen Text der aufbereiteten Zeile
@@ -14002,13 +14028,13 @@ A6167:  LD      A,C_LEFT        ; Steuerzeichen  'Cursor links'
 ;
 ;   Zeiger auf Rechenspeicher merken
 ;
-A616E:  PUSH    DE              ; Register - Wert retten
+A616E:  PUSH    DE              ; Keep register value
         LD      DE,-16          ; Vorgabe für Sicherheitsbereich
         ADD     HL,DE           ; Ende Rechenspeicher errechnen
         POP     DE              ; geretteten Register - Wert holen
-        LD      (S107E),HL      ; Ende Rechenspeicherbereich merken
+        LD      (MEMLMT),HL     ; Ende Rechenspeicherbereich merken
         DEC     H               ; 256 Bytes für Rechenspeicher reservieren
-        LD      (S107C),HL      ; höchste nutzbare Basic - Adresse merken
+        LD      (INTFAC),HL     ; höchste nutzbare Basic - Adresse merken
         XOR     A               ; Code for 'nicht SWAP'
         LD      (S9E68),A       ; im SWAP - Flag merken
         RET
@@ -14016,16 +14042,16 @@ A616E:  PUSH    DE              ; Register - Wert retten
 ;
 ;   alle BASIC - Werte löschen
 ;
-A6180:  LD      HL,(S1070)      ; Basic - Programmanfang holen
+A6180:  LD      HL,(TEXTST)     ; Basic - Programmanfang holen
         CALL    A61C5           ; (HL)  Bereichsende  (00 00)  eintragen
-        LD      (S1072),HL      ; Zeiger auf Ein- Ausgabe - Arbeitsbereich merken (I/O-Work-Area)
+        LD      (POOL),HL       ; Zeiger auf Ein- Ausgabe - Arbeitsbereich merken (I/O-Work-Area)
         CALL    A6090           ; alle Flags auf Anfangsbedingungen setzen
         JR      A619B           ; Variable löschen   (CLR - Routine)
 ;
 ;
-;   Basic - Befehl   NEW     (Zwischencode  159 / 09FH)
+;   Basic - Befehl   NEW     (Token code  159 / 09FH)
 ;
-A618E:  CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+A618E:  CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFB    ____ON          ; ON   (Zwischencode)  ?
         ;CALL    Z,A9FCF         ; NEW ON -->  Plotter - Routinen löschen
 		CALL    Z,A9FD1         ; NEW ON -->  Plotter - Routinen löschen
@@ -14033,7 +14059,7 @@ A618E:  CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-
         JP      A5872           ; Warmstart  BASIC - Interpreter
 ;
 ;
-;   Basic - Befehl   CLR     (Zwischencode  254 166 / 0FEH 0A6H)
+;   Basic - Befehl   CLR     (Token code  254 166 / 0FEH 0A6H)
 ;
 A619B:  PUSH    HL              ; Programmzeiger retten
         CALL    A61AC           ; I/O-Work-Area und BASIC-Variable/Funktionen löschen
@@ -14046,23 +14072,23 @@ A619B:  PUSH    HL              ; Programmzeiger retten
 ;   Basic - Programm, Ein- Ausgabe - Arbeitsbereich  (I/O - Work - Area) und
 ;   Basic - Variable / Funktionen löschen
 ;
-A61A3:  LD      HL,(S1070)      ; Basic - Programmanfang holen
+A61A3:  LD      HL,(TEXTST)     ; Basic - Programmanfang holen
         CALL    A61C5           ; (HL)  Bereichsende  (00 00)  eintragen
-        LD      (S1072),HL      ; Zeiger auf Ein- Ausgabe - Arbeitsbereich merken (I/O-Work-Area)
+        LD      (POOL),HL       ; Zeiger auf Ein- Ausgabe - Arbeitsbereich merken (I/O-Work-Area)
 ;
 ;
 ;   Ein- Ausgabe - Arbeitsbereich und BASIC - Variable/-Funktionen löschen
 ;
-A61AC:  LD      HL,(S1072)      ; Zeiger auf Ein- Ausgabe - Arbeitsbereich holen (I/O-Work-Area)
+A61AC:  LD      HL,(POOL)       ; Zeiger auf Ein- Ausgabe - Arbeitsbereich holen (I/O-Work-Area)
         LD      (HL),0          ; Code for 'Bereichsende eintragen'
         INC     HL              ; Code überspringen
-        LD      (S1074),HL      ; Anfang BASIC - Variable merken
+        LD      (VARST),HL      ; Anfang BASIC - Variable merken
         LD      (HL),0          ; Code for 'Bereichsende'  eintragen
         INC     HL              ; Code überspringen
-        LD      (S1076),HL      ; Anfang Stringtextbereich merken
+        LD      (STRST),HL      ; Anfang Stringtextbereich merken
         CALL    A61C5           ; (HL)  Bereichsende  (00 00)  eintragen
-        LD      (S1078),HL      ; Anfang Stringarbeitsbereich merken
-        LD      (S107A),HL      ; als Ende Stringarbeitsbereich merken
+        LD      (VARED),HL      ; Anfang Stringarbeitsbereich merken
+        LD      (TMPEND),HL     ; als Ende Stringarbeitsbereich merken
         RET
 ;
 ;
@@ -14075,20 +14101,20 @@ A61C5:  LD      (HL),0          ;! Bereichsende eintragen
         RET
 ;
 ;
-;   Basic - Befehl   TRON     (Zwischencode  169 / 0A9H)
+;   Basic - Befehl   TRON     (Token code  169 / 0A9H)
 ;
 A61CC:  CALL    A5963           ; testen, ob Zeichen (HL) gleich Befehlsendezeichen ist
         LD      A,1             ; Code for 'Trace auf Bildschirm'
         JR      Z,A61E0         ; Befehlsende -->  Trace - Flag merken
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFB    ___DIV          ; /   (Zwischencode)  ?
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFM    "P"             ; P   (Printer)  ?
         LD      A,2             ; Code for 'Trace auf Drucker'
         JR      A61E0           ; Trace - Flag merken
 ;
 ;
-;   Basic - Befehl   TROFF     (Zwischencode  170 / 0AAH)
+;   Basic - Befehl   TROFF     (Token code  170 / 0AAH)
 ;
 A61DF:  XOR     A               ; Code for 'kein Trace'
 A61E0:  LD      (A61E4 + 1),A   ; Code im Trace - Flag merken
@@ -14101,9 +14127,9 @@ A61E4:  LD      A,0             ; Trace - Flag   (0=TROFF / 1=CRT / 2=LPT)
         OR      A               ; Trace  ?
         RET     Z               ; nein -->  fertig
         DEC     A               ; Flag für Bildschirm oder Drucker corrigieren
-        LD      (S1091),A       ; Ausgabeflag  CRT/LPT  setzen
+        LD      (FILOUT),A      ; Ausgabeflag  CRT/LPT  setzen
         JR      Z,A61F5         ; Zeilennummer auf Bildschirm ausgeben
-        LD      A,(S1097)       ; Drucker - Modus - Flag holen
+        LD      A,(PNMODE)      ; Drucker - Modus - Flag holen
         CP      2               ; im Graphic - Modus  ?
         JR      Z,A6207         ; ja -->  Zeilennummer nicht ausgeben
 A61F5:  PUSH    HL              ; Programmzeiger retten
@@ -14119,11 +14145,11 @@ A61F5:  PUSH    HL              ; Programmzeiger retten
         DEFB    9               ; Code 9  Accu auf Bildschirm oder Drucker  (Ausführung Steuerzeichen)
         POP     HL              ; geretteten Programmzeiger holen
 A6207:  XOR     A               ; Code for 'Ausgabe auf Bildschirm'
-        LD      (S1091),A       ; Ausgabeflag  CRT/LPT  zurücksetzen
+        LD      (FILOUT),A      ; Ausgabeflag  CRT/LPT  zurücksetzen
         RET
 ;
 ;
-;   Basic - command DELETE (intermediate code 137 / 089H)
+;   Basic - command DELETE (token code 137 / 089H)
 ;
 A620C:  CALL    A5F15           ; test whether character (HL) equals end-of-command character
         JP      Z,A6364         ; yes --> Error 1 Syntax error
@@ -14151,8 +14177,8 @@ A622C:  PUSH    AF              ;! Register - Werte retten
         CALL    A5F29           ; Zeiger auf Zeilen im Programm in Zeilennummern umsetzen
         LD      C,L             ;! Anfangszeilennummer nach BC
         LD      B,H             ;!
-        LD      HL,(S1070)      ; Basic - Programmanfang holen
-A6238:  CALL    A012D           ; Offset auf nächste Zeile holen
+        LD      HL,(TEXTST)     ; Basic - Programmanfang holen
+A6238:  CALL    LDDEMI          ; Offset auf nächste Zeile holen
         LD      A,E             ;! Offset gleich Null  ?
         OR      D               ;!
         JR      NZ,A6247        ; nein -->  noch Programm vorhanden
@@ -14191,7 +14217,7 @@ D6260:  LD      HL,0            ; Zeilennummer der aktuellen Zeile  (wird einget
         POP     HL              ; Zeiger auf Ende Zeile holen
         JR      Z,A6286         ; Ende des zu löschenden Bereichs gefunden -->  löschen
         JR      NC,A6244        ; Endzeilennummer kleiner als aktuelle Zeilennummer
-A626A:  CALL    A012D           ; Offset auf nächste Zeile holen
+A626A:  CALL    LDDEMI          ; Offset auf nächste Zeile holen
         LD      A,D             ;! Offset gleich Null  ?
         OR      E               ;!
         JR      Z,A6284         ; ja -->  Programm zu Ende
@@ -14220,7 +14246,7 @@ A6286:  POP     DE              ; Zeiger auf Anfang des zu löschenden Bereichs h
         EX      DE,HL
         SBC     HL,DE           ; zu löschende Anzahl Bytes errechnen
         EX      DE,HL
-        LD      BC,(S1078)      ; Anfang Stringarbeitsbereich holen
+        LD      BC,(VARED)      ; Anfang Stringarbeitsbereich holen
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    24              ; Code 24  Zeiger auf I/O-Work-Area,Basic-Var.,Strings corrigieren
         POP     DE              ; Zeiger auf Ende des zu löschenden Bereichs
@@ -14238,14 +14264,14 @@ A6286:  POP     DE              ; Zeiger auf Anfang des zu löschenden Bereichs h
 ;
 ;   zwei - Byte - Wert ungleich Null bereitstellen
 ;
-A62A2:  CALL    A8551           ; zwei - Byte - Wert nach DE bereitstellen
+A62A2:  CALL    IDEEXP          ; zwei - Byte - Wert nach DE bereitstellen
         LD      A,D             ;! Wert gleich Null  ?
         OR      E               ;!
         RET     NZ              ; nein -->  OK
         JP      A636A           ; Fehler 3  Illegal data error
 ;
 ;
-;   Basic - Befehl   RENUM     (Zwischencode  138 / 08AH)
+;   Basic - Befehl   RENUM     (Token code  138 / 08AH)
 ;
 A62AB:  CALL    A7340           ; wenn im Programm-Modus -->  Fehler 19  Instruction error
         LD      DE,10           ; Vorgabe 10
@@ -14262,7 +14288,7 @@ A62AB:  CALL    A7340           ; wenn im Programm-Modus -->  Fehler 19  Instruc
         JR      Z,A62F4         ; keine weiteren Werte angegeben
         CALL    A79B1           ; auf Syntax  'Komma'  untersuchen
         DEC     HL              ; Programmzeiger corrigieren
-A62D5:  CALL    A015D           ; HL + 1, Leerzeichen  (Spaces)  (HL) überspringen
+A62D5:  CALL    INCHLF          ; HL + 1, Leerzeichen  (Spaces)  (HL) überspringen
         CP      ','             ; Komma  ?
         JR      Z,A62EC         ; ja -->  keine alte Zeilennummer angegeben
         CALL    A62A2           ; zwei - Byte - Wert ungleich Null bereitstellen
@@ -14282,7 +14308,7 @@ A62F4:  PUSH    HL              ; Programmzeiger retten
         SBC     HL,DE           ; neue Anfangszeilennummer größer alte Anfangszeilennr.  ?
         JP      C,A636A         ; nein -->  Fehler 3  Illegal data error
         CALL    A5F1C           ; Zeilennummern im Programm in Zeiger auf Zeilen umsetzen
-        LD      HL,(S1070)      ; Basic - Programmanfang holen
+        LD      HL,(TEXTST)     ; Basic - Programmanfang holen
 A6308:  LD      E,(HL)          ;! Offset auf nächste Zeile holen
         INC     HL              ;!
         LD      D,(HL)          ;!
@@ -14402,7 +14428,7 @@ A63A3:  LD      A,64            ; Fehler 64  Logical number error
         JR      A63B5           ; Fehler behandeln
 ;
 A63A7:  LD      A,6             ; Fehler  6  Memory capacity error
-A63A9:  LD      SP,(S107C)      ; höchste nutzbare Basic - Adresse holen
+A63A9:  LD      SP,(INTFAC)     ; höchste nutzbare Basic - Adresse holen
         LD      HL,-1           ; Code for 'keine Werte auf Stack'
         PUSH    HL              ; auf Stack ablegen
         LD      (S9E64),SP      ; Stackpointer bei Anfang Befehl merken
@@ -14411,11 +14437,11 @@ A63B5:  JR      A63D3           ; Fehler behandeln
 ;
 ;   Standard  - Geräte vorgeben und Programm abbrechen
 ;
-A63B7:  LD      HL,(W106E)      ; Adresse  'Geräte - Tabelle  Drucker'  holen
-        LD      IX,(W106C)      ; Adresse  'Geräte - Tabelle  Bildschirm'  holen
-        LD      (S1044),HL      ; Zeiger auf aktuelle Geräte - Tabelle merken
+A63B7:  LD      HL,(__LPT)      ; Adresse  'Geräte - Tabelle  Drucker'  holen
+        LD      IX,(__CRT)      ; Adresse  'Geräte - Tabelle  Bildschirm'  holen
+        LD      (ZEQT),HL       ; Zeiger auf aktuelle Geräte - Tabelle merken
         XOR     A               ; Accu auf Null
-        LD      (S1051),A       ; Geräte - Nummern - Flag zurücksetzen
+        LD      (ZFLAG2),A      ; Geräte - Nummern - Flag zurücksetzen
         LD      A,68 + 128      ; Fehler 68  Dev. mode error
         DEFB    LD_HL
         LD      A,59 + 128      ; Fehler 59  Can't execute error
@@ -14425,7 +14451,7 @@ T63CB:  LD      A,59            ; Fehler 59  Can't execute error
 A63CE:  LD      A,60 + 128      ; Fehler 60  Illegal filename error
         DEFB    LD_HL
 A63D1:  LD      A,61 + 128      ; Fehler 61  Illegal filemode error
-A63D3:  JP      A00ED           ; Fehler behandeln
+A63D3:  JP      ERRORJ          ; Fehler behandeln
 ;
 ;
 ;   wenn Zeilennummer in HL ungleich Null -->  Text 'in' und Zeilennummer ausgeben
@@ -14458,9 +14484,9 @@ M63F6:  DEFB    NUL             ; CONT - Flag   (NUL oder .)
         DEFB    NUL             ; Textendezeichen
 ;
 ;
-;   Basic - Befehl   ERROR     (Zwischencode 193 / 0C1H)
+;   Basic - Befehl   ERROR     (Token code 193 / 0C1H)
 ;
-A63F8:  CALL    A853D           ; ein - Byte - Wert nach DE / Accu bereitstellen
+A63F8:  CALL    IBYTE           ; ein - Byte - Wert nach DE / Accu bereitstellen
         DEC     A               ;! bekannte Fehlernummer  ?
         CP      70              ;!
         JR      C,A6402         ; ja -->  Fehlernummer wieder corrigieren
@@ -14522,7 +14548,7 @@ A6463:  LD      HL,(S9E66)      ; Programmzeiger bei Anfang Befehl holen
         JR      A646B           ; aktuelle Programmdaten für CONT merken
 ;
 ;
-;   Basic - Befehl   STOP     (Zwischencode  153 / 099H)
+;   Basic - Befehl   STOP     (Token code  153 / 099H)
 ;
 A6468:  LD      A,'.'           ; Code for 'CONT möglich'
         POP     DE              ; Rücksprungadresse vergessen
@@ -14552,7 +14578,7 @@ A6495:  POP     AF              ; CONT - Status holen
         JP      A5878           ; Ready ausgeben und nächste Zeile von Tastatur
 ;
 ;
-;   Basic - Befehl   CONT     (Zwischencode  154 / 09AH)
+;   Basic - Befehl   CONT     (Token code  154 / 09AH)
 ;
 A6499:  POP     DE              ; Rücksprungadresse holen
         LD      HL,M63F6        ; Zeiger auf CONT - FLag
@@ -14568,7 +14594,7 @@ D64B0:  LD      HL,0            ; Programmzeiger für CONT holen   (wird eingetra
         JP      A58D4           ; Rest der Zeile bearbeiten
 ;
 ;
-;   Basic - Befehl   RESUME     (Zwischencode  134 / 086H)
+;   Basic - Befehl   RESUME     (Token code  134 / 086H)
 ;
 A64B6:  LD      A,(S9E54)       ; ON - ERROR - GOTO - Status holen
         CP      2               ; Code for 'Fehler aufgetreten'  ?
@@ -14594,7 +14620,7 @@ A64DB:  CP      __NEXT          ; RESUME NEXT  ?
 ;
 ;   Basic - Befehl   ON ERROR GOTO
 ;
-A64E4:  CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+A64E4:  CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFB    __GOTO          ; GOTO  (Zwischencode)  ?
         CALL    A5E19           ; Zeiger auf Zeile nach Programmtext (HL) bereitstellen
         JR      Z,A64F7         ; Zeilennummer gleich Null -->  ON ERROR GOTO zurücksetzen
@@ -14614,18 +14640,18 @@ A64F7:  LD      A,(S9E54)       ; ON - ERROR - GOTO - Status holen
         JP      A6403           ; Fehler mit Nummer im Accu behandeln
 ;
 ;
-;   Basic - Befehl   LET     (Zwischencode  158 / 09EH)
+;   Basic - Befehl   LET     (Token code  158 / 09EH)
 ;
-A650D:  CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+A650D:  CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFB    0FFH            ; Vorbyte Tabelle drei  ?
         JP      Z,A653F         ; ja -->  auf TI$ untersuchen
         CALL    A8B56           ; Zeiger auf Variable nach Namen (HL) bereitstellen
         PUSH    BC              ;! Zeiger auf Variable merken
         PUSH    BC              ;!
         PUSH    AF              ; Variablenartcode merken
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFB    ____EQ          ; =   (Zwischencode)  ?
-        CALL    A857C           ; Ausdruck (HL) auswerten und Zeiger auf Ergebnis bereitstellen
+        CALL    EXPR            ; Ausdruck (HL) auswerten und Zeiger auf Ergebnis bereitstellen
         POP     BC              ; Variablenartcode holen
         LD      A,(S9E9C)       ; Wertartflag holen
         CP      B               ; gleich Variablenartcode  ?
@@ -14649,9 +14675,9 @@ A6537:  LD      C,A             ; Wertlänge merken
         RET
 ;
 ;
-;   Basic - Befehl aus Tabelle drei abarbeiten
+;   Basic - Process command from table three 
 ;
-A653F:  CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+A653F:  CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFB    ____TI          ; TI$   (Zwischencode)  ?
         JP      A8AE2           ; Uhrzeit bereitstellen und zuweisen
 ;
@@ -14673,7 +14699,7 @@ A654E:  LD      HL,S11A3        ; Zeiger auf Zwischenspeicher vorgeben
         LD      B,A             ;! Zeichenkettenlänge
         LD      C,A             ;!
         INC     HL              ; Zeichenkettenlänge überspringen
-        CALL    A014A           ; Speicherbereich von (DE) nach (HL) verschieben
+        CALL    LDHLDE          ; Speicherbereich von (DE) nach (HL) verschieben
         POP     HL              ; Zeiger auf Variablendescriptor holen
         LD      A,(HL)          ; Länge Variablentext holen
         CP      C               ; gleich neuer Länge  ?
@@ -14686,17 +14712,17 @@ A654E:  LD      HL,S11A3        ; Zeiger auf Zwischenspeicher vorgeben
         OR      A               ; gleich Null  ?
         JR      Z,A659C         ; ja -->  Länge in Descriptor eintragen
         PUSH    HL              ; Zeiger auf Variablendescriptor merken
-        LD      BC,(S1074)      ; Anfang BASIC - Variable holen
+        LD      BC,(VARST)      ; Anfang BASIC - Variable holen
         SBC     HL,BC           ; Offset auf Descriptor errechnen
         EX      DE,HL           ; Offset nach DE
-        LD      HL,(S1078)      ; Anfang Stringarbeitsbereich holen
+        LD      HL,(VARED)      ; Anfang Stringarbeitsbereich holen
         DEC     HL              ;! corrigieren auf Ende Stringtextbereich
         DEC     HL              ;!
         LD      (HL),E          ;! Offset auf Variable eintragen
         INC     HL              ;!
         LD      (HL),D          ;!
         INC     HL
-        LD      BC,(S1076)      ; Anfang Stringtextbereich holen
+        LD      BC,(STRST)      ; Anfang Stringtextbereich holen
         OR      A               ; Carry - Flag zurücksetzen
         POP     DE              ; Zeiger auf Variablendescriptor holen
         PUSH    HL              ; Zeiger für Stringtext retten
@@ -14713,8 +14739,8 @@ A654E:  LD      HL,S11A3        ; Zeiger auf Zwischenspeicher vorgeben
         INC     DE              ; Länge überspringen
         CALL    A8BFC           ; Zeichenkette mit Länge in B von (DE) nach (HL) übertragen
         CALL    A61C5           ; (HL)  Bereichsende  (00 00)  eintragen
-        LD      (S107A),HL      ; als Ende Stringarbeitsbereich merken
-        LD      (S1078),HL      ; Anfang Stringarbeitsbereich merken
+        LD      (TMPEND),HL     ; als Ende Stringarbeitsbereich merken
+        LD      (VARED),HL      ; Anfang Stringarbeitsbereich merken
         RET
 ;
 A659C:  LD      (HL),0          ; Länge Null in Variablendescriptor eintragen
@@ -14727,7 +14753,7 @@ A659F:  INC     HL              ; Stringlänge überspringen
         LD      E,(HL)          ;! Offset auf String aus Variablendescriptor holen
         INC     HL              ;!
         LD      D,(HL)          ;!
-        LD      HL,(S1076)      ; Anfang Stringtextbereich holen
+        LD      HL,(STRST)      ; Anfang Stringtextbereich holen
         ADD     HL,DE           ; Zeiger auf Stringtext errechnen
         LD      DE,S11A3        ; Zeiger auf Zwischenspeicher mit neuem String
         LD      B,C             ; Textlänge des neuen Strings
@@ -14745,7 +14771,7 @@ A65AF:  LD      C,(HL)          ; Stringlänge aus Descriptor holen
         LD      E,(HL)          ;! Offset auf Stringtextanfang holen
         INC     HL              ;!
         LD      D,(HL)          ;!
-        LD      HL,(S1076)      ; Anfang Stringtextbereich holen
+        LD      HL,(STRST)      ; Anfang Stringtextbereich holen
         ADD     HL,DE           ; Zeiger auf Stringtext errechnen
         DEC     HL              ;! auf Offset auf Variablendescriptor
         DEC     HL              ;! corrigieren
@@ -14755,7 +14781,7 @@ A65AF:  LD      C,(HL)          ; Stringlänge aus Descriptor holen
         PUSH    BC              ; Anzahl zu löschende Bytes merken
         PUSH    DE              ; Zeiger auf Offset auf Variablendescriptor merken
         EX      DE,HL           ; Zeiger auf Ende zu löschender String nach DE
-        LD      HL,(S1078)      ; Anfang Stringarbeitsbereich holen
+        LD      HL,(VARED)      ; Anfang Stringarbeitsbereich holen
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,DE           ; Restlänge Stringtextbereich errechnen
         LD      C,L             ;! Restlänge Stringtextbereich nach BC
@@ -14767,10 +14793,10 @@ A65AF:  LD      C,(HL)          ; Stringlänge aus Descriptor holen
         LDIR                    ; Rest Stringtextbereich verschieben
 A65D3:  POP     DE              ; Zeiger auf Offset holen
         POP     BC              ; gelöschte Länge holen
-        LD      HL,(S1078)      ; Anfang Stringarbeitsbereich holen
+        LD      HL,(VARED)      ; Anfang Stringarbeitsbereich holen
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,BC           ; neues Ende Stringtextbereich errechnen
-        LD      (S1078),HL      ; Anfang Stringarbeitsbereich merken
+        LD      (VARED),HL      ; Anfang Stringarbeitsbereich merken
         EX      DE,HL           ; Zeiger auf Offset nach HL
 A65DF:  LD      E,(HL)          ;! Offset auf Variablendescriptor holen
         INC     HL              ;!
@@ -14778,7 +14804,7 @@ A65DF:  LD      E,(HL)          ;! Offset auf Variablendescriptor holen
         LD      A,D             ;! gleich Null  ?
         OR      E               ;!
         RET     Z               ; ja -->  fertig
-        LD      HL,(S1074)      ; Anfang BASIC - Variable holen
+        LD      HL,(VARST)      ; Anfang BASIC - Variable holen
         ADD     HL,DE           ; Zeiger auf Variablendescriptor errechnen
         LD      A,(HL)          ; Länge Stringtext holen
         INC     HL              ; Länge in Descriptor überspringen
@@ -14795,14 +14821,14 @@ A65DF:  LD      E,(HL)          ;! Offset auf Variablendescriptor holen
         PUSH    BC              ; gelöschte Länge retten
         LD      C,A             ; Stringlänge
         LD      B,0             ; High - Byte Länge auf Null
-        LD      HL,(S1076)      ; Anfang Stringtextbereich holen
+        LD      HL,(STRST)      ; Anfang Stringtextbereich holen
         ADD     HL,DE           ; Zeiger auf Anfang String errechnen
         ADD     HL,BC           ; Zeiger auf nächsten String errechnen
         POP     BC              ; gelöschte Länge holen
         JR      A65DF           ; untersuchen, ob weitere Descriptoren corrigiert werden müssen
 ;
 ;
-;   Basic - Befehl   FOR     (Zwischencode  141 / 08DH)
+;   Basic - Befehl   FOR     (Token code  141 / 08DH)
 ;
 A6602:  POP     BC              ; Rücksprungadresse holen
         LD      (D6696 + 1),BC  ; und in Routine eintragen
@@ -14832,9 +14858,9 @@ A663B:  LD      DE,18           ; Länge FOR - Datensatz
         ADD     IX,DE           ; Zeiger auf Ende Datensatz errechnen
         LD      SP,IX           ; alle Datensätze davor vergesen
 A6642:  LD      HL,(D6678 + 1)  ; Programmzeiger holen
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFB    ____TO          ; TO   (Zwischencode)  ?
-        CALL    A857C           ; Ausdruck (HL) auswerten und Zeiger auf Ergebnis bereitstellen
+        CALL    EXPR            ; Ausdruck (HL) auswerten und Zeiger auf Ergebnis bereitstellen
         PUSH    AF              ; nächstes Programmbyte retten
         PUSH    HL              ; Programmzeiger merken
         EX      DE,HL           ; Zeiger auf Ergebnis nach HL
@@ -14846,7 +14872,7 @@ A6642:  LD      HL,(D6678 + 1)  ; Programmzeiger holen
         LD      DE,B7C45        ; Zeiger auf +1   (Real - Format)
         JR      NZ,A6662        ; kein STEP angegeben
         INC     HL              ; Zwischencode STEP überspringen
-        CALL    A857C           ; Ausdruck (HL) auswerten und Zeiger auf Ergebnis bereitstellen
+        CALL    EXPR            ; Ausdruck (HL) auswerten und Zeiger auf Ergebnis bereitstellen
 A6662:  LD      (D6678 + 1),HL  ; Programmzeiger merken
         LD      HL,-10          ; Offset für Schleifenende
         ADD     HL,SP           ; Zeiger auf Stelle für Schleifenende errechnen
@@ -14865,7 +14891,7 @@ D6678:  LD      HL,0            ; Programmzeiger auf Anfang Schleife  (wird eing
         PUSH    HL              ; auf Stack ablegen
         LD      HL,-512         ; Vorgabe für freien Arbeitsbereich
         ADD     HL,SP           ; kleinste Stackadresse errechnen
-        LD      DE,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      DE,(TMPEND)     ; Ende Stringarbeitsbereich holen
         SBC     HL,DE           ; Adressen vergleichen
         LD      A,11            ; Fehler 11  FOR nesting error
         JP      C,A63A9         ; Adressen überschneiden sich -->  Fehler behandeln
@@ -14873,7 +14899,7 @@ D6678:  LD      HL,0            ; Programmzeiger auf Anfang Schleife  (wird eing
 D6696:  JP      0               ; nächsten Befehl abarbeiten   (Adresse wird eingetragen)
 ;
 ;
-;   Basic - Befehl   NEXT     (Zwischencode  142 / 08EH)
+;   Basic - Befehl   NEXT     (Token code  142 / 08EH)
 ;
 A6699:  LD      A,5             ; Code for 'Real - Wert'
         LD      (S9E9C),A       ; im Wertartflag merken
@@ -14900,7 +14926,7 @@ A66A3:  PUSH    AF              ;! Befehlsendeflag merken
         LD      (D670A + 1),HL  ; und in Routine eintragen
         LD      E,(IX+6)        ;! Offset auf Laufvariable der Schleife holen
         LD      D,(IX+7)        ;!
-        LD      HL,(S1074)      ; Anfang BASIC - Variable holen
+        LD      HL,(VARST)      ; Anfang BASIC - Variable holen
         ADD     HL,DE           ; Zeiger auf Variablenwert errechnen
         LD      BC,8            ; Offset zur Schrittweite
         ADD     IX,BC           ; Zeiger auf Schrittweite errechnen
@@ -14938,7 +14964,7 @@ A6710:  LD      DE,18           ; Anzahl Bytes FOR - Datensatz
         ADD     HL,DE           ; neuen Zeiger errechnen
         LD      SP,HL           ; Stackpointer neu setzen
         LD      HL,(D6678 + 1)  ; Programmzeiger holen
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+        CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFM    ","             ; Komma  ?
         JR      NZ,A670D        ; keine weiteren Schleifen -->  nächsten Befehl
         LD      (D6678 + 1),HL  ; Programmzeiger wieder merken
@@ -14946,7 +14972,7 @@ A6724:  LD      IX,0            ;! Zeiger auf Datensätze holen
         ADD     IX,SP           ;!
         LD      (D66FC + 1),IX  ; und in Routine eintragen
         LD      HL,(D6678 + 1)  ; Programmzeiger holen
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+        CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFM    ","             ; Komma  ?
         JP      Z,A66A3         ; nächste Schleife überprüfen
         CALL    A8B56           ; Zeiger auf Variable nach Namen (HL) bereitstellen
@@ -14976,7 +15002,7 @@ A6745:  LD      E,(IX+0)        ;! Steuerwort vom Stack holen
 ;
 A6772:  LD      H,B             ;! Zeiger auf Schleifenvariable nach HL
         LD      L,C             ;!
-        LD      BC,(S1074)      ; Anfang BASIC - Variable holen
+        LD      BC,(VARST)      ; Anfang BASIC - Variable holen
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,BC           ; Offset auf Basic - Variable errechnen
         LD      B,H             ;! und nach BC übertragen
@@ -14998,7 +15024,7 @@ A6787:  CALL    A6A0A           ; Zeiger in HL auf nächstes relevantes Programmb
         OR      A               ; Zeilenende  ?
         RET     NZ              ; nein
         INC     HL              ; Zeiger auf Anfang nächste Zeile
-        PUSH    DE              ; Register - Wert retten
+        PUSH    DE              ; Keep register value
         LD      E,(HL)          ;! Offset auf nächste Zeile holen
         INC     HL              ;!
         LD      D,(HL)          ;!
@@ -15017,18 +15043,18 @@ A6787:  CALL    A6A0A           ; Zeiger in HL auf nächstes relevantes Programmb
         JR      A6787           ; nächstes relevante Byte suchen
 ;
 ;
-;   Basic - Befehl   USR     (Zwischencode  195 / 0C3H)
+;   Basic - Befehl   USR     (Token code  195 / 0C3H)
 ;
 A67A4:  CALL    A79A6           ; Syntax 'Klammer auf'
-        CALL    A8551           ; zwei - Byte - Wert nach DE bereitstellen
+        CALL    IDEEXP          ; zwei - Byte - Wert nach DE bereitstellen
         LD      (D67DC + 1),DE  ; USR - Adresse in Routine eintragen
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+        CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFM    ","             ; Komma  ?
         JR      NZ,A67CF        ; nein -->  keine Variable angegeben
-        CALL    A857C           ; Ausdruck (HL) auswerten und Zeiger auf Ergebnis bereitstellen
+        CALL    EXPR            ; Ausdruck (HL) auswerten und Zeiger auf Ergebnis bereitstellen
         CALL    A9036           ; Syntaxuntersuchung auf Zeichenkettenergebnis
         LD      (D67D1 + 1),DE  ; Zeiger auf Eingangswert merken
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+        CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFM    ","             ; Komma  ?
         JR      NZ,A67CF        ; nein -->  keine Ausgangsvariable angegeben
         CALL    A8B56           ; Zeiger auf Variable nach Namen (HL) bereitstellen
@@ -15039,7 +15065,7 @@ A67CF:  PUSH    HL              ; Programmzeiger retten
         PUSH    AF              ; Code für Ausgangsvariable retten
 D67D1:  LD      HL,0            ; Zeiger auf Eingangswert - Descriptor  (wird eingetragen)
         CALL    A8570           ; Zeiger auf Zeichenkette nach Descriptor (HL) bereitstellen
-        LD      IX,A00ED        ; Rücksprungadresse für Fehler vorgeben
+        LD      IX,ERRORJ       ; Rücksprungadresse für Fehler vorgeben
         XOR     A               ; Code for 'kein Fehler'  vorgeben
 D67DC:  CALL    0               ; Maschinenprogramm aufrufen   (Adresse wird eingetragen)
         POP     AF              ; Code der Ausgangsvariable holen
@@ -15052,9 +15078,9 @@ A67EA:  POP     HL              ; geretteten Programmzeiger holen
         JP      A79AA           ; auf Syntax 'Klammer zu' überprüfen
 ;
 ;
-;   Basic - Befehl   WAIT     (Zwischencode  190 / 0BEH)
+;   Basic - Befehl   WAIT     (Token code  190 / 0BEH)
 ;
-A67EE:  CALL    A8551           ; zwei - Byte - Wert nach DE bereitstellen
+A67EE:  CALL    IDEEXP          ; zwei - Byte - Wert nach DE bereitstellen
 A67F1:  LD      A,D             ;! Wartezähler gleich Null  ?
         OR      E               ;!
         RET     Z               ; ja -->  fertig
@@ -15067,9 +15093,9 @@ A67F6:  DJNZ    A67F6           ;!
         JR      A67F1           ; untersuchen, ob fertig
 ;
 ;
-;   Basic - Befehl   DATA      (Zwischencode  148 / 094H)
-;   Basic - Befehl   REM       (Zwischencode  151 / 097H)
-;   Basic - Befehl   LABEL     (Zwischencode  202 / 0CAH)
+;   Basic - Befehl   DATA      (Token code  148 / 094H)
+;   Basic - Befehl   REM       (Token code  151 / 097H)
+;   Basic - Befehl   LABEL     (Token code  202 / 0CAH)
 ;
 A67FE:  DEC     HL              ; Programmzeiger corrigieren
 A67FF:  CALL    A6A0A           ; Zeiger in HL auf nächstes relevantes Programmbyte
@@ -15081,23 +15107,23 @@ A67FF:  CALL    A6A0A           ; Zeiger in HL auf nächstes relevantes Programmb
         JR      A67FF           ; Ende des Befehls suchen
 ;
 ;
-;   Basic - Befehl   OUT@     (Zwischencode  186 / 0BAH)
+;   Basic - Befehl   OUT@     (Token code  186 / 0BAH)
 ;
-A680A:  CALL    A853D           ; ein - Byte - Wert nach DE / Accu bereitstellen
+A680A:  CALL    IBYTE           ; ein - Byte - Wert nach DE / Accu bereitstellen
         SUB     0E0H            ; Anfang Umschaltports
         CP      7               ; Anzahl Umschaltports
         JP      C,A636A         ; Umschaltport -->  Fehler 3  Illegal data error
         CALL    A79B1           ; auf Syntax  'Komma'  untersuchen
         PUSH    DE              ; Port - Nummer retten
-        CALL    A853D           ; ein - Byte - Wert nach DE / Accu bereitstellen
+        CALL    IBYTE           ; ein - Byte - Wert nach DE / Accu bereitstellen
         POP     BC              ; Port - Nummer holen
         OUT     (C),A           ; ein Byte an Port ausgeben
         RET
 ;
 ;
-;   Basic - Befehl   INP@     (Zwischencode  171 / 0BBH)
+;   Basic - Befehl   INP@     (Token code  171 / 0BBH)
 ;
-A681F:  CALL    A853D           ; ein - Byte - Wert nach DE / Accu bereitstellen
+A681F:  CALL    IBYTE           ; ein - Byte - Wert nach DE / Accu bereitstellen
         CALL    A79B1           ; auf Syntax  'Komma'  untersuchen
         PUSH    DE              ; Port - Nummer retten
         CALL    A8B56           ; Zeiger auf Variable nach Namen (HL) bereitstellen
@@ -15114,7 +15140,7 @@ A681F:  CALL    A853D           ; ein - Byte - Wert nach DE / Accu bereitstellen
         RET
 ;
 ;
-;   Basic - Befehl   CURSOR     (Zwischencode  254 164 / 0FEH 0A4H)
+;   Basic - Befehl   CURSOR     (Token code  254 164 / 0FEH 0A4H)
 ;
 A683B:  CALL    A6843           ; angegebene Cursor - Koordinaten bereitstellen
         EX      DE,HL           ; Cursor-Koordinaten nach HL / Programmzeiger nach DE
@@ -15140,10 +15166,10 @@ A6850:  CALL    A6857           ; zwei Werte bereitstellen und auf Grenzen unter
 ;   zwei Werte aus Ausdruck (HL) bereitstellen und auf Grenzen überprüfen
 ;
 A6857:  PUSH    BC              ; Wertgrenzen retten
-        CALL    A853D           ; ein - Byte - Wert nach DE / Accu bereitstellen
+        CALL    IBYTE           ; ein - Byte - Wert nach DE / Accu bereitstellen
         PUSH    AF              ; ersten Wert retten
         CALL    A79B1           ; auf Syntax  'Komma'  untersuchen
-        CALL    A853D           ; ein - Byte - Wert nach DE / Accu bereitstellen
+        CALL    IBYTE           ; ein - Byte - Wert nach DE / Accu bereitstellen
         LD      D,E             ; zweiten Wert merken
         POP     AF              ; ersten Wert holen
         LD      E,A             ; und merken
@@ -15156,7 +15182,7 @@ A6857:  PUSH    BC              ; Wertgrenzen retten
         RET
 ;
 ;
-;   Basic - Befehl   GET     (Zwischencode  173 / 0ADH)
+;   Basic - Befehl   GET     (Token code  173 / 0ADH)
 ;
 A686C:  CALL    A8B56           ; Zeiger auf Variable nach Namen (HL) bereitstellen
         LD      (S9E9C),A       ; Variablenartcode im Wertartflag merken
@@ -15170,7 +15196,7 @@ A686C:  CALL    A8B56           ; Zeiger auf Variable nach Namen (HL) bereitstel
         DEFB    13              ; Code 13  Tastaturabfrage nach Status im Accu
         OR      A               ; Taste gedrückt  ?
         JR      Z,A6885         ; nein
-        LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         LD      (HL),A          ; gedrückte Taste eintragen
         LD      A,1             ; Stringlänge  'ein Zeichen'  vorgeben
 A6885:  POP     DE              ; Zeiger auf Variable holen
@@ -15198,48 +15224,48 @@ A6898:  LD      E,A             ; Wert der Taste merken
         RET
 ;
 ;
-;   Basic - Befehl   POKE     (Zwischencode  160 / 0A0H)
+;   Basic - Befehl   POKE     (Token code  160 / 0A0H)
 ;
-A68A1:  CALL    A8551           ; zwei - Byte - Wert nach DE bereitstellen
+A68A1:  CALL    IDEEXP          ; zwei - Byte - Wert nach DE bereitstellen
         CALL    A79B4           ; auf Syntax 'Komma' untersuchen
 A68A7:  PUSH    DE              ; POKE - Adresse merken
-        CALL    A853D           ; ein - Byte - Wert nach DE / Accu bereitstellen
+        CALL    IBYTE           ; ein - Byte - Wert nach DE / Accu bereitstellen
         POP     DE              ; POKE - Adresse holen
         LD      (DE),A          ; Wert im Speicher eintragen
         INC     DE              ; Zeiger auf Speicher auf nächstes Byte
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+        CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFM    ","             ; Komma  ?
         RET     NZ              ; keine weiteren Werte
         JR      A68A7           ; nächsten Wert bereitstellen und in Speicher eintragen
 ;
 ;
-;   Basic - Befehl   LIMIT     (Zwischencode  254 167 / 0FEH 0A7H)
+;   Basic - Befehl   LIMIT     (Token code  254 167 / 0FEH 0A7H)
 ;
 A68B5:  PUSH    HL              ; Programmzeiger bei Anfang Befehl retten
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+        CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFM    "M"             ; M  (Max)  ?
         JR      NZ,A68CE        ; nicht MAX -->  Wert bereitstellen
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+        CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFM    "A"             ; A  (mAx)  ?
         JR      NZ,A68CE        ; nicht MAX -->  Wert bereitstellen
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+        CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFM    "X"             ; X  (maX)  ?
         JR      NZ,A68CE        ; nicht MAX -->  Wert bereitstellen
         EX      (SP),HL         ; Programmzeiger retten / alten Zeiger verwerfen
-        LD      HL,(W1080)      ; maximal erlaubte RAM - Adresse holen
+        LD      HL,(MEMMAX)     ; maximal erlaubte RAM - Adresse holen
         JR      A68EA           ; LIMIT - Wert setzen
 ;
 ;
 ;   LIMIT mit Angabe der Speicheradresse
 ;
 A68CE:  POP     HL              ; alten Programmzeiger holen
-        CALL    A8551           ; zwei - Byte - Wert nach DE bereitstellen
+        CALL    IDEEXP          ; zwei - Byte - Wert nach DE bereitstellen
         PUSH    HL              ; Programmzeiger retten
-        LD      HL,(W1080)      ; maximal erlaubte RAM - Adresse holen
+        LD      HL,(MEMMAX)     ; maximal erlaubte RAM - Adresse holen
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,DE           ; Adressen vergleichen
         JP      C,A63A7         ; LIMIT - Adresse zu groß -->  Fehler 6  Memory capacity error
-        LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         INC     H               ;! ein KByte als Arbeitsspeicher reservieren
         INC     H               ;!
         INC     H               ;!
@@ -15251,14 +15277,14 @@ A68CE:  POP     HL              ; alten Programmzeiger holen
 A68EA:  CALL    A616E           ; Zeiger auf Rechenspeicher merken
         POP     HL              ; Programmzeiger holen
         POP     DE              ; Rücksprungadresse holen
-        LD      SP,(S107C)      ; höchste nutzbare Basic - Adresse holen
+        LD      SP,(INTFAC)     ; höchste nutzbare Basic - Adresse holen
         LD      BC,-1           ; Code for 'keine Werte auf Stack'
         PUSH    BC              ; Steuerwort auf Stack ablegen
         PUSH    DE              ; Rücksprungadresse wieder auf Stack ablegen
         RET
 ;
 ;
-;   Basic - Befehl   RETURN     (Zwischencode  132 / 084H)
+;   Basic - Befehl   RETURN     (Token code  132 / 084H)
 ;
 A68F9:  POP     IX              ; Rücksprungadresse vom Stack holen
 A68FB:  POP     BC              ; Steuerwort vom Stack holen
@@ -15292,7 +15318,7 @@ A6921:  EX      DE,HL           ; Programmzeiger nach DE retten
         JR      A68FB           ; nächsten Datensatz überprüfen
 ;
 ;
-;   Basic - Befehl   GOSUB     (Zwischencode  129 / 081H)
+;   Basic - Befehl   GOSUB     (Token code  129 / 081H)
 ;
 A692A:  PUSH    HL              ; Programmzeiger retten
         CALL    A67FE           ; Zeiger in HL auf Ende Befehl stellen
@@ -15309,7 +15335,7 @@ A692A:  PUSH    HL              ; Programmzeiger retten
         PUSH    HL              ; auf Stack ablegen
         LD      HL,-512         ; Vorgabe für Arbeitsspeicherlänge
         ADD     HL,SP           ; minimale Stackadresse errechnen
-        LD      DE,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      DE,(TMPEND)     ; Ende Stringarbeitsbereich holen
         SBC     HL,DE           ; Adresse überprüfen
         LD      A,10            ; Fehler 10  GOSUB nesting error
         JP      C,A63A9         ; Adressen überschneiden sich -->  Fehler ausgeben
@@ -15318,19 +15344,19 @@ A692A:  PUSH    HL              ; Programmzeiger retten
         JR      A69AF           ; GOTO - Routine
 ;
 ;
-;   Basic - Befehl   ON     (Zwischencode  157 / 09DH)
+;   Basic - Befehl   ON     (Token code  157 / 09DH)
 ;
-A6952:  CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+A6952:  CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFB    _ERROR          ; ERROR  (Zwischencode)  ?
         JP      Z,A64E4         ; ja -->  ON ERROR GOTO
-        CALL    A8551           ; zwei - Byte - Wert nach DE bereitstellen
+        CALL    IDEEXP          ; zwei - Byte - Wert nach DE bereitstellen
         LD      C,E             ;! Zähler nach BC übertragen
         LD      B,D             ;!
         CP      087H            ; mit maximalem Befehl für ON ___  vergleichen
         JP      NC,A6364        ; Fehler 1  Syntax error
         CP      ____GO          ; Zwischencode  GO  ?
         JR      NZ,A6977        ; nein
-        CALL    A015D           ; HL + 1, Leerzeichen  (Spaces)  (HL) überspringen
+        CALL    INCHLF          ; HL + 1, Leerzeichen  (Spaces)  (HL) überspringen
         LD      E,_GOSUB        ; ZwischenCode for 'GOSUB'  vorgeben
         CP      ____PI          ; Zwischencode PI   (hier sollte wohl SUB stehen)
         JR      Z,A6976         ; ja -->  GOSUB
@@ -15357,14 +15383,14 @@ A6977:  PUSH    HL              ; Programmzeiger retten
         LD      B,A             ; Zähler merken
 A6990:  DEC     B               ; Zähler minus eins
         RET     Z               ; Zeiger steht auf richtiger Zeilennummer
-        CALL    A015E           ; Leerzeichen  (Spaces)  (HL) überspringen
+        CALL    HLFTCH          ; Leerzeichen  (Spaces)  (HL) überspringen
         CALL    A69DB           ; Zeichen im Accu gleich Kennung Sprungadresse  ?
         JP      NZ,A6364        ; nein -->  Fehler 1  Syntax error
         CALL    A6A10           ; Sprungadresse (HL) überspringen
         OR      A               ; Zeilenendezeichen  ?
         RET     Z               ; ja
         INC     HL              ; Trennzeichen überspringen
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+        CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFM    ","             ; Komma  ?
         JR      Z,A6990         ; ja -->  auf richtige Adresse überprüfen
         POP     DE              ; Anfangsadresse der Routine verwerfen
@@ -15374,21 +15400,21 @@ A69AB:  POP     DE              ; Anfangsadresse der Routine verwerfen
         JP      A67FE           ; Zeiger in HL auf Ende Befehl stellen
 ;
 ;
-;   Basic - Befehl   GOTO    (Zwischencode  128 / 080H)
+;   Basic - Befehl   GOTO    (Token code  128 / 080H)
 ;
 A69AF:  CALL    A5E19           ; Zeiger auf Zeile nach Programmtext (HL) bereitstellen
         EX      DE,HL           ; Programmzeiger nach DE / Zeiger auf Zeile nach HL
         JR      NZ,A69B8        ; Zeilennummer war nicht Null
-        LD      HL,(S1070)      ; Basic - Programmanfang holen
+        LD      HL,(TEXTST)     ; Basic - Programmanfang holen
 A69B8:  LD      (S9E4B),HL      ; als Zeiger auf nächste Programmzeile merken
         XOR     A               ; Code for 'kein CONT möglich'
         LD      (M63F6),A       ; CONT - Flag zurücksetzen
         JP      A5909           ; Programm ab Zeile (HL) abarbeiten
 ;
 ;
-;   Basic - Befehl   IF     (Zwischencode  147 / 093H)
+;   Basic - Befehl   IF     (Token code  147 / 093H)
 ;
-A69C2:  CALL    A857C           ; Ausdruck (HL) auswerten und Zeiger auf Ergebnis bereitstellen
+A69C2:  CALL    EXPR            ; Ausdruck (HL) auswerten und Zeiger auf Ergebnis bereitstellen
         EX      AF,AF           ; nächstes Programmbyte retten
         LD      A,(DE)          ; Exponent Ergebnis holen
         OR      A               ; gleich Null  ?
@@ -15396,7 +15422,7 @@ A69C2:  CALL    A857C           ; Ausdruck (HL) auswerten und Zeiger auf Ergebni
         EX      AF,AF           ; nächstes Programmbyte holen
         CP      __THEN          ; Zwischencode  THEN  ?
         JR      NZ,A69D7        ; nein -->  nächsten Befehl abarbeiten
-A69CF:  CALL    A015D           ; HL + 1, Leerzeichen  (Spaces)  (HL) überspringen
+A69CF:  CALL    INCHLF          ; HL + 1, Leerzeichen  (Spaces)  (HL) überspringen
         CALL    A69DB           ; Zeichen im Accu gleich Kennung Sprungadresse  ?
         JR      Z,A69AF         ; ja -->  GOTO ausführen
 A69D7:  POP     AF              ; Rücksprungadresse vom Stack holen
@@ -15417,7 +15443,7 @@ A69DE:  CP      _LINNO          ; Code for 'Integer - Zeilennummer'  ?
         RET
 ;
 ;
-;   Basic - Befehl   ELSE     (Zwischencode  194 / 0C2H)
+;   Basic - Befehl   ELSE     (Token code  194 / 0C2H)
 ;
 A69E4:  CALL    A69F3           ; zum IF gehöriges ELSE suchen
         JR      NC,A69E4        ; nicht Zeilenende -->  Zeilenende suchen
@@ -15462,7 +15488,7 @@ A6A10:  OR      A               ; Zeilenendecode  ?
         CP      '\"'            ; Textkonstante  ?
         JR      Z,A6A4D         ; ja -->  Ende der Textkonstanten suchen
         CP      0FEH            ; Vorbyte für Tabellen zwei und drei  ?
-        JR      NC,A6A2D        ; Befehl aus Tabelle zwei oder drei
+        JR      NC,A6A2D        ; Process command from table two or three 
         CP      ___REM          ; Zwischencode  REM  ?
         JR      Z,A6A2F         ; ja -->  Kommentar überspringen
         CP      '\''            ; Code for 'Kommentar'  ?
@@ -15510,14 +15536,14 @@ A6A4D:  INC     HL              ; Programmzeiger auf nächstes Byte stellen
         JR      A6A4D           ; Ende der Textkonstanten suchen
 ;
 ;
-;   Basic - Befehl   BEEP     (Zwischencode  254 141 / 0FEH 08DH)
+;   Basic - Befehl   BEEP     (Token code  254 141 / 0FEH 08DH)
 ;
 A6A56:  RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    32              ; Code 32  Referenzton ausgeben
         RET
 ;
 ;
-;   Basic - Befehl   BYE     (Zwischencode  196 / 0C4H)
+;   Basic - Befehl   BYE     (Token code  196 / 0C4H)
 ;
 A6A59:  CALL    A797A           ; auf Syntax 'Befehlsende' überprüfen
         RST     _DOCMD          ; Software - Kommando ausführen
@@ -15527,20 +15553,20 @@ A6A59:  CALL    A797A           ; auf Syntax 'Befehlsende' überprüfen
         RET
 ;
 ;
-;   Basic - Befehl   CONSOLE     (Zwischencode  184 / 0B8H)
+;   Basic - Befehl   CONSOLE     (Token code  184 / 0B8H)
 ;
 A6A61:  JR      Z,A6A8D         ; keine Parameter -->  Ausschnitt aufheben
         LD      A,(S136F)       ; aktuelle minimale Y - Koordinate holen
         LD      D,0             ; High - Byte auf Null
         LD      E,A             ; minimale Y - Koordinate merken
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+        CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFM    ","             ; Komma  ?
         JR      Z,A6A75         ; keine minimale Y - Koordinate angegeben
-        CALL    A853D           ; ein - Byte - Wert nach DE / Accu bereitstellen
+        CALL    IBYTE           ; ein - Byte - Wert nach DE / Accu bereitstellen
         CALL    A79B1           ; auf Syntax  'Komma'  untersuchen
 A6A75:  LD      C,E             ; minimale Y - Koordinate
         PUSH    BC              ; merken
-        CALL    A853D           ; ein - Byte - Wert nach DE / Accu bereitstellen
+        CALL    IBYTE           ; ein - Byte - Wert nach DE / Accu bereitstellen
         POP     BC              ; minimale Y - Koordinate holen
         DEC     A               ; Anzahl Zeilen gleich Null  ?
         JP      M,A636A         ; ja -->  Fehler 3  Illegal data error
@@ -15567,41 +15593,41 @@ A6A8D:  PUSH    HL              ; Programmzeiger retten
         RET
 ;
 ;
-;   Basic - Befehl   BOOT     (Zwischencode  254 174 / 0FEH 0AEH)
+;   Basic - Befehl   BOOT     (Token code  254 174 / 0FEH 0AEH)
 ;
 A6A95:  DI                      ; Interrupt sperren
         OUT     (_KMODE),A      ; Umschalten auf MZ-80 - K - Modus
         JP      0               ; Kaltstart Monitor
 ;
 ;
-;   Basic - Befehl   SEARCH     (Zwischencode  185 / 0B9H)
+;   Basic - Befehl   SEARCH     (Token code  185 / 0B9H)
 ;
 A6A9B:  XOR     A               ; Code for 'SEARCH'
         DEFB    LD_BC
 ;
 ;
-;   Basic - Befehl   LIST     (Zwischencode  135 / 087H)
+;   Basic - LIST command  (token code 135 / 087H) 
 ;
 A6A9D:  LD      A,1             ; Code for 'LIST'
-        LD      (S6B83),A       ; im Flag  SEARCH/LIST/SAVE  merken
-        PUSH    AF              ; Flag  'SEARCH/LIST'  merken
-        CALL    A6EF9           ; Datei- oder Gerätenummer bereitstellen
-        RST     _DOCMD          ; Software - Kommando ausführen
-        DEFB    46              ; Code 46  Datei-Verwaltungssatz nach Nr. bereitstellen
-        JP      C,A63A3         ; nicht gefunden -->  Fehler 64  Logical number error
-        BIT     1,A             ; Datei/Gerät zum Schreiben geöffnet  ?
-        JP      Z,A63A3         ; nein -->  Fehler 64  Logical number error
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
-        DEFM    ","             ; Komma  ?
-        POP     AF              ; Flag  'SEARCH/LIST'  holen
-        OR      A               ; SEARCH oder LIST - Befehl
-        JR      NZ,A6ACD        ; LIST - Befehl
-        CALL    A8561           ; Stringausdruck (HL) auswerten/Zeiger auf String nach DE
-        LD      A,B             ; Stringlänge holen
-        LD      (S6B7E),A       ; und für Vergleich merken
-        LD      (S6B7F),DE      ; Zeiger auf Suchstring merken
-        CALL    A797A           ; auf Syntax 'Befehlsende' überprüfen
-        JR      A6ACD           ; Anfangs- und Endzeilennummer bereitstellen
+        LD      (S6B83),A       ; in the SEARCH/LIST/SAVE flag
+        PUSH    AF              ; Remember flag 'SEARCH/LIST'
+        CALL    GETLU           ; Provide file or device number
+        RST     _DOCMD          ; Software - Execute command
+        DEFB    46              ; Code 46 Deploy file management record by no
+        JP      C,A63A3         ; not found --> Error 64 Logical number error
+        BIT     1,A             ; File/device open for writing ?
+        JP      Z,A63A3         ; no --> Error 64 Logical number error
+        CALL    TEST1           ; next program byte same byte after CALL call ?
+        DEFM    ","             ; comma ?
+        POP     AF              ; Get flag 'SEARCH/LIST'
+        OR      A               ; SEARCH or LIST command
+        JR      NZ,A6ACD        ; LIST command
+        CALL    A8561           ; Evaluate string expression (HL)/pointer to string after DE
+        LD      A,B             ; get string length
+        LD      (S6B7E),A       ; and note for comparison
+        LD      (S6B7F),DE      ; Remember pointer to search string
+        CALL    A797A           ; check for 'end of command' syntax
+        JR      A6ACD           ; Provide starting and ending line number
 ;
 ;
 ;   Programmzeilen aufbereiten in ASCII und an Datei ausgeben
@@ -15612,10 +15638,10 @@ A6ACD:  CALL    A5ED3           ; Zeilennummern aus Eingabe bereitstellen
         LD      (D6AF3 + 1),DE  ; Anfangszeilennummer in Routine eintragen
         LD      (A6B01 + 1),BC  ; Endzeilennummer in Routine eintragen
         LD      A,-1            ; Code for 'Steuerzeichen anzeigen'
-        LD      (S1090),A       ; im Flag  'Steuerzeichen anzeigen'  eintragen
-        CALL    A00C7           ; Register IX, HL, BC und DE retten
-        LD      HL,(S1070)      ; Basic - Programmanfang holen
-A6AE3:  CALL    A012D           ; Offset auf nächste Zeile nach DE holen
+        LD      (DISPX),A       ; im Flag  'Steuerzeichen anzeigen'  eintragen
+        CALL    PUSHR           ; Save registers IX, HL, BC and DE
+        LD      HL,(TEXTST)     ; Basic - Programmanfang holen
+A6AE3:  CALL    LDDEMI          ; Offset auf nächste Zeile nach DE holen
         LD      A,D             ;! Offset gleich Null  ?
         OR      E               ;!
         RET     Z               ; ja -->  fertig
@@ -15625,7 +15651,7 @@ A6AE3:  CALL    A012D           ; Offset auf nächste Zeile nach DE holen
         DEC     HL              ;!
         EX      DE,HL           ; Zeiger auf nächste Zeile nach DE
         PUSH    DE              ; Zeiger auf nächste Zeile merken
-        CALL    A012D           ; Zeilennummer der Zeile nach DE holen
+        CALL    LDDEMI          ; Zeilennummer der Zeile nach DE holen
         PUSH    HL              ; Zeiger auf Zeile retten
 D6AF3:  LD      HL,0            ; Anfangszeilennummer holen   (wird eingetragen)
         OR      A               ; Carry - Flag zurücksetzen
@@ -15649,12 +15675,12 @@ A6B0C:  EX      DE,HL           ; Zeilennummer nach HL
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    23              ; Code 23  Länge des Textes (DE) auszählen
         LD      HL,S11A4        ; Zeiger auf Zwischenspeicher vorgeben
-        CALL    A014A           ; Speicherbereich von (DE) nach (HL) verschieben
+        CALL    LDHLDE          ; Speicherbereich von (DE) nach (HL) verschieben
         LD      (HL),' '        ; Leerzeichen nach Zeilennummer eintragen
         INC     HL              ; Leerzeichen überspringen
         EX      DE,HL           ; Zeiger auf Speicher nach DE
-        POP     HL              ; Zeiger auf Zwischencodezeile holen
-		CALL    A8401           ; Zwischencodezeile (HL) umsetzen in ASCII nach (DE)
+        POP     HL              ; Get pointer to tokenized line
+		CALL    CVTXIM          ; Convert tokenized line in (HL) to ASCII in (DE)
         LD      A,(S6B83)       ; Flag  SEARCH/LIST/SAVE  holen
         OR      A               ; SEARCH  ?
         JR      NZ,A6B2B        ; nein -->  Zeile ausgeben
@@ -15665,7 +15691,7 @@ A6B2B:  LD      DE,S11A4        ; Zeiger auf Text der aufbereiteten Zeile
         DEFB    23              ; Code 23  Länge des Textes (DE) auszählen
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    55              ; Code 55  Text (DE) auf angewähltem Gerät/Datei ausgeben
-        CALL    A6DB1           ; Zeilenvorschub auf angewähltem Gerät/Datei ausgeben
+        CALL    PRTCR           ; Zeilenvorschub auf angewähltem Gerät/Datei ausgeben
 A6B35:  POP     HL              ; Zeiger auf nächste Zeile holen
         LD      A,(S6B83)       ; Flag  SEARCH/LIST/SAVE  holen
         CP      2               ; SAVE  ?
@@ -15735,9 +15761,9 @@ S6B7F:  DEFS    2               ; Zeiger auf Suchstring
 S6B83:  DEFS    1               ; Flag  SEARCH/LIST/SAVE
 ;
 ;
-;   Basic - Befehl   KEY     (Zwischencode  178 / 092H)
+;   Basic - Befehl   KEY     (Token code  178 / 092H)
 ;
-A6B84:  CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+A6B84:  CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFB    __LIST          ; LIST   (Zwischencode)   ?
         CALL    A7981           ; auf /P untersuchen und Ausgabegerät vorgeben
         PUSH    HL              ; Programmzeiger retten
@@ -15856,26 +15882,26 @@ M6C29:  DEFM    "\"+CHR$("      ; Text  '"+CHR$('
         DEFB    NUL
 ;
 ;
-;   Basic - Befehl   DEF     (Zwischencode  199 / 0C7H)
+;   Basic - Befehl   DEF     (Token code  199 / 0C7H)
 ;
-A6C31:  CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+A6C31:  CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFB    ___KEY          ; KEY  (Zwischencode)  ?
         JR      Z,A6C42         ; ja -->  DEF KEY
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFB    0FFH            ; Vorbyte  Tabelle drei  ?
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFB    ____FN          ; FN   (Zwischencode)  ?
         JP      A8F44           ; Basic - Befehl   DEF FN
 ;
 ;
-;   Basic - Befehl   DEF KEY     (Zwischencode 199 178 / 0C7H 0B2H)
+;   Basic - Befehl   DEF KEY     (Token code 199 178 / 0C7H 0B2H)
 ;
-A6C42:  CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+A6C42:  CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFM    "("             ; Klammer auf  ?
-        CALL    A853D           ; ein - Byte - Wert nach DE / Accu bereitstellen
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+        CALL    IBYTE           ; ein - Byte - Wert nach DE / Accu bereitstellen
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFM    ")"             ; Klammer zu  ?
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFB    ____EQ          ; =   (Zwischencode)  ?
         LD      A,E             ; Tastennummer holen
         DEC     A               ; für Tastenoffset corrigieren
@@ -15924,7 +15950,7 @@ A6C81:  LD      A,(S1042)       ; interne aktuelle Geräte - Nummer holen
 ;
 ;   Ausdruck (HL) auswerten und Ergebnis als Zeichenketten bereitstellen
 ;
-A6C87:  CALL    A857C           ; Ausdruck (HL) auswerten und Zeiger auf Ergebnis bereitstellen
+A6C87:  CALL    EXPR            ; Ausdruck (HL) auswerten und Zeiger auf Ergebnis bereitstellen
         LD      A,(S9E9C)       ; Wertartflag holen
         CP      3               ; Zeichenkettenwert  ?
         PUSH    HL              ; Programmzeiger retten
@@ -15941,11 +15967,11 @@ A6C9A:  CALL    A8570           ; Zeiger auf Zeichenkette nach Descriptor (HL) b
         RET
 ;
 ;
-;   Basic - Befehl   PRINT     (Zwischencode  143 / 08FH)
+;   Basic - Befehl   PRINT     (Token code  143 / 08FH)
 ;
 A6C9F:  XOR     A               ; Code for 'Steuerzeichen ausführen'
-        LD      (S1090),A       ; im Flag  'Steuerzeichen anzeigen'  merken
-        CALL    A6EF9           ; Datei- oder Gerätenummer bereitstellen
+        LD      (DISPX),A       ; im Flag  'Steuerzeichen anzeigen'  merken
+        CALL    GETLU           ; Datei- oder Gerätenummer bereitstellen
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    46              ; Code 46  Datei-Verwaltungssatz nach Nr. bereitstellen
         JP      C,A6E2D         ; Datei nicht gefunden -->  Fehler 44  Not open error
@@ -15958,18 +15984,18 @@ A6C9F:  XOR     A               ; Code for 'Steuerzeichen ausführen'
         JR      NZ,A6CD3        ; nicht Bildschirm -->  nicht auf Farbe untersuchen
         LD      A,(S137B)       ; maximaler Palettenwert / aktuelle Zeichenfarbe holen
         LD      (B7591),A       ; als Vorgabe für Palettenwert der Zeichen merken
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+        CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFM    "["             ; Eckige Klammer auf  ?
         JR      NZ,A6CD3        ; nein -->  kein Farbwert angegeben
 		CALL    A76D9           ; Ausdruck (HL) auswerten und auf max. Palettenwert untersuchen
         LD      (B7591),A       ; Palettenwert für Zeichen merken
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFM    "]"             ; eckige Klammer zu  ?
 A6CD3:  CALL    A5963           ; testen, ob Zeichen (HL) gleich Befehlsendezeichen ist
-        JP      Z,A6DB1         ; Zeilenvorschub auf angewähltem Gerät/Datei ausgeben
+        JP      Z,PRTCR         ; Zeilenvorschub auf angewähltem Gerät/Datei ausgeben
 A6CD9:  LD      A,(HL)          ; nächstes Programmbyte holen
         CP      _USING          ; Zwischencode  USING  ?
-        JR      Z,A6D58         ; ja -->  PRINT USING - Routine
+        JR      Z,PRUSNG        ; ja -->  PRINT USING - Routine
         LD      BC,T6CF2        ; Rücksprungadresse
         PUSH    BC              ; auf Stack ablegen
         CP      ';'             ; Trennzeichen Strichpunkt ?
@@ -15982,7 +16008,7 @@ A6CD9:  LD      A,(HL)          ; nächstes Programmbyte holen
         JP      A6DB6           ; bereitgestellten Wert auf Gerät/Datei ausgeben
 ;
 T6CF2:  CALL    A5963           ; testen, ob Zeichen (HL) gleich Befehlsendezeichen ist
-        JP      Z,A6DB1         ; Zeilenvorschub auf angewähltem Gerät/Datei ausgeben
+        JP      Z,PRTCR         ; Zeilenvorschub auf angewähltem Gerät/Datei ausgeben
         CP      ','             ; Trennzeichen Komma  ?
         JR      NZ,A6D18        ; nein -->  auf anderes Trennzeichen untersuchen
 ;
@@ -15992,7 +16018,7 @@ T6CF2:  CALL    A5963           ; testen, ob Zeichen (HL) gleich Befehlsendezeic
         CALL    A6C81           ; Abfrage, ob aktuelles Gerät gleich Bildschirm ist
         JR      C,A6D15         ; Tabulation auf Gerät nicht möglich -->  Zeilenvorschub
         LD      IX,(S1061)      ; Adresse 'aktuelle Spaltennummer bereitstellen' holen
-        CALL    A0247           ; Routine (IX) mit Fehlerbehandlung aufrufen
+        CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         LD      B,A             ; aktuelle Spaltennummer merken
 A6D09:  SUB     10              ; 10 abziehen
         JR      NC,A6D09        ; weiter abziehen
@@ -16001,7 +16027,7 @@ A6D09:  SUB     10              ; 10 abziehen
         CALL    A6D4A           ; Zeichenkette mit Spaces aufbauen und ausgeben
         JR      A6D18           ; auf Syntax Trennzeichen untersuchen
 ;
-A6D15:  CALL    A6DB1           ; Zeilenvorschub auf angewähltem Gerät/Datei ausgeben
+A6D15:  CALL    PRTCR           ; Zeilenvorschub auf angewähltem Gerät/Datei ausgeben
 A6D18:  LD      A,(HL)          ; nächstes Programmbyte holen
         CP      ','             ; Trennzeichen Komma  ?
         JR      Z,A6D1F         ; ja -->  Syntax ist OK
@@ -16018,10 +16044,10 @@ A6D22:  CALL    A5963           ; testen, ob Zeichen (HL) gleich Befehlsendezeic
 A6D28:  CALL    A6C81           ; Abfrage, ob aktuelles Gerät gleich Bildschirm ist
         JP      C,A6E30         ; kein tabellierbares Gerät -->  Fehler 59'  Can't execute error
 		CALL    A79A2           ; auf Syntax 'Klammer auf' überprüfen
-        CALL    A853D           ; ein - Byte - Wert nach DE / Accu bereitstellen
+        CALL    IBYTE           ; ein - Byte - Wert nach DE / Accu bereitstellen
         CALL    A79AA           ; auf Syntax 'Klammer zu' überprüfen
         LD      IX,(S1061)      ; Adresse  'aktuelle Spaltennummer bereitstellen'  holen
-        CALL    A0247           ; Routine (IX) mit Fehlerbehandlung aufrufen
+        CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         SUB     E               ; mit Tabulationsspalten vergleichen
         RET     NC              ; schon über Tabulationsspalte hinaus -->  Befehl vergessen
         NEG                     ; fehlende Spalten errechnen
@@ -16037,7 +16063,7 @@ A6D4A:  LD      A,' '           ; Leerzeichen (Space)  für anderes Gerät
 A6D4C:  LD      DE,S11A4+1      ; Zeiger auf Zwischenspeicher vorgeben
         PUSH    BC              ; Anzahl Zeichen retten
         PUSH    DE              ; Zeiger auf Anfang Speicher retten
-        CALL    A013E           ; Speicher (DE) mit Zeichen im Accu initiieren
+        CALL    SETDE           ; Speicher (DE) mit Zeichen im Accu initiieren
         POP     DE              ; Zeiger auf Anfang Speicher holen
         POP     BC              ; Anzahl Zeichen holen
         JR      A6DB6           ; bereitgestellte Zeichenkette auf Gerät/Datei ausgeben
@@ -16045,7 +16071,7 @@ A6D4C:  LD      DE,S11A4+1      ; Zeiger auf Zwischenspeicher vorgeben
 ;
 ;   USING - Format bereitstellen und Werte entsprechend USING - Format ausgeben
 ;
-A6D58:  INC     HL              ; Zwischencode USING überspringen
+PRUSNG: INC     HL              ; Zwischencode USING überspringen
         CALL    A8561           ; Stringausdruck (HL) auswerten/Zeiger auf String nach DE
         LD      A,B             ; Länge Format - Text holen
         OR      A               ; gleich Null  ?
@@ -16054,7 +16080,7 @@ A6D58:  INC     HL              ; Zwischencode USING überspringen
         LD      HL,S11A4+1      ; Zeiger auf Zwischenspeicher vorgeben
         PUSH    HL              ; Zeiger auf Anfang Speicher retten
         PUSH    BC              ; Textlänge retten
-        CALL    A014A           ; Speicherbereich von (DE) nach (HL) verschieben
+        CALL    LDHLDE          ; Speicherbereich von (DE) nach (HL) verschieben
         POP     BC              ; Textlänge holen
         LD      A,240           ; Speichernummer für USING - Format
         LD      E,B             ; Textlänge
@@ -16065,7 +16091,7 @@ A6D58:  INC     HL              ; Zwischencode USING überspringen
         LD      (S7E39),HL      ;! Zeiger auf Speicher in Routine eintragen
         LD      (S7E3B),HL      ;!
         POP     DE              ; Zeiger auf Speicher mit Format holen
-        CALL    A014A           ; Speicherbereich von (DE) nach (HL) verschieben
+        CALL    LDHLDE          ; Speicherbereich von (DE) nach (HL) verschieben
         LD      (HL),NUL        ; Textendezeichen eintragen
         POP     HL              ; geretteten Programmzeiger holen
 A6D80:  CALL    A5963           ; testen, ob Zeichen (HL) gleich Befehlsendezeichen ist
@@ -16079,15 +16105,15 @@ A6D8F:  CALL    A5963           ; testen, ob Zeichen (HL) gleich Befehlsendezeic
         JR      Z,A6DAA         ; ja -->  Speicher für USING - Format löschen
         CALL    A8584           ; Ausdruck (HL) auswerten und Zeiger auf Ergebnis bereitstellen
         PUSH    HL              ; Programmzeiger retten
-        LD      BC,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      BC,(TMPEND)     ; Ende Stringarbeitsbereich holen
         PUSH    BC              ; und merken
         CALL    A7E3D           ; bereitgestellten Wert entsprechend USING-Format aufbereiten
         POP     DE              ; Zeiger auf aufbereiteten Text holen
-        CALL    A6DB4           ; Text auf angewähltem Gerät / Datei ausgeben
+        CALL    PRTMSG          ; Text auf angewähltem Gerät / Datei ausgeben
         POP     HL              ; geretteten Programmzeiger holen
         JR      A6D80           ; testen, ob fertig
 ;
-A6DA7:  CALL    A6DB1           ; Zeilenvorschub auf angewähltem Gerät/Datei ausgeben
+A6DA7:  CALL    PRTCR           ; Zeilenvorschub auf angewähltem Gerät/Datei ausgeben
 ;
 ;
 ;   Speicher für USING - Format löschen
@@ -16097,20 +16123,20 @@ A6DAA:  LD      A,240           ; Speichernummer für USING - Format
         DEFB    43              ; Code 43   dynamischen Zwischenspeicher löschen
         RET
 ;
-M6DAF:  DEFB    CR,NUL          ; Text für Zeilenvorschub
+CR_TXT:  DEFB    CR,NUL         ; Text für Zeilenvorschub
 ;
 ;
 ;   Zeilenvorschub auf angewähltem Gerät/Datei ausgeben
 ;
-A6DB1:  LD      DE,M6DAF        ; Text  'Zeilenvorschub'
+PRTCR:  LD      DE,CR_TXT       ; Text  'Zeilenvorschub'
 ;
 ;
 ;   Text auf angewähltem Gerät / Datei ausgeben
 ;
-A6DB4:  RST     _DOCMD          ; Software - Kommando ausführen
+PRTMSG: RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    23              ; Code 23  Länge des Textes (DE) auszählen
 A6DB6:  CALL    A6C81           ; Abfrage, ob aktuelles Gerät gleich Bildschirm ist
-        JR      Z,A6DBE         ; Text (DE) auf Bildschirm ausgeben
+        JR      Z,PRTMC         ; Text (DE) auf Bildschirm ausgeben
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    55              ; Code 55  Text (DE) auf angewähltem Gerät/Datei ausgeben
         RET
@@ -16118,7 +16144,7 @@ A6DB6:  CALL    A6C81           ; Abfrage, ob aktuelles Gerät gleich Bildschirm 
 ;
 ;   Text (DE) auf Bildschirm ausgeben
 ;
-A6DBE:  PUSH    AF              ; Register - Wert retten
+PRTMC:  PUSH    AF              ; Keep register value
         LD      A,(B7591)       ; Vorgabe für Palettenwert des Zeichens holen
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    84              ; Code 84  aktuell benutzte Farbebenen setzen
@@ -16131,16 +16157,16 @@ A6DBE:  PUSH    AF              ; Register - Wert retten
         RET
 ;
 ;
-;   Basic - Befehl   READ     (Zwischencode  149 / 095H)
+;   Basic - Befehl   READ     (Token code  149 / 095H)
 ;
-A6DCD:  LD      A,138           ; interne aktuelle Geräte - Nummer für READ
+READ:   LD      A,138           ; interne aktuelle Geräte - Nummer für READ
         LD      (S1042),A       ; als interne aktuelle Geräte - Nummer merken
         JR      A6E0B           ; Werte bereitstellen und Variablen zuweisen
 ;
 ;
-;   Basic - Befehl   INPUT     (Zwischencode 145 / 091H)
+;   Basic - Befehl   INPUT     (Token code 145 / 091H)
 ;
-A6DD4:  CALL    A6EF9           ; Datei- oder Gerätenummer bereitstellen
+INPUT:  CALL    GETLU           ; Datei- oder Gerätenummer bereitstellen
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    46              ; Code 46  Datei-Verwaltungssatz nach Nr. bereitstellen
         JP      C,A6E2D         ; Datei nicht gefunden -->  Fehler 44  Not open error
@@ -16151,13 +16177,13 @@ A6DD4:  CALL    A6EF9           ; Datei- oder Gerätenummer bereitstellen
         CALL    A6F39           ; bei Datei auf 'Syntax Komma' überprüfen
         CALL    A6C81           ; Abfrage, ob aktuelles Gerät gleich Bildschirm ist
         JR      NZ,A6E0B        ; nein -->  INPUT aus Datei
-        CALL    A015E           ; Leerzeichen  (Spaces)  (HL) überspringen
+        CALL    HLFTCH          ; Leerzeichen  (Spaces)  (HL) überspringen
         CP      '\"'            ; Anführungszeichen  ?
         LD      DE,M6E35        ; Text  ?
         LD      B,2             ; Länge zwei Zeichen
         JR      NZ,A6E01        ; kein Text angegeben -->  Fragezeichen ausgeben
         CALL    A8561           ; Stringausdruck (HL) auswerten/Zeiger auf String nach DE
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFM    ";"             ; Strichpunkt  ?
 A6E01:  LD      A,B             ; Textlänge holen
         OR      A               ; gleich Null  ?
@@ -16168,9 +16194,9 @@ A6E05:  LD      A,(DE)          ; ein Zeichen Text holen
         DEFB    3               ; Code 3   Accu auf Bildschirm ausgeben  (Ausführung Steuerzeichen)
         DJNZ    A6E05           ; weitere Zeichen Text ausgeben
 A6E0B:  LD      (D6E63 + 1),SP  ; Stackpointer merken
-        LD      DE,(S1078)      ; Anfang Stringarbeitsbereich holen
-        LD      (S107A),DE      ; als Ende Stringarbeitsbereich merken
-A6E17:  LD      DE,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      DE,(VARED)      ; Anfang Stringarbeitsbereich holen
+        LD      (TMPEND),DE     ; als Ende Stringarbeitsbereich merken
+A6E17:  LD      DE,(TMPEND)     ; Ende Stringarbeitsbereich holen
         CALL    A8C08           ; Überprüfen, ob Adresse in DE mit Stack collidiert
         CALL    A8B56           ; Zeiger auf Variable nach Namen (HL) bereitstellen
         PUSH    AF              ; Variablentypcode auf Stack merken
@@ -16183,7 +16209,7 @@ A6E17:  LD      DE,(S107A)      ; Ende Stringarbeitsbereich holen
 A6E2D:  LD      A,44            ; Fehler 44  Not open error
         DEFB    LD_HL
 A6E30:  LD      A,187           ; Fehler 59  Can't execute error
-        JP      A00ED           ; Fehler mit Nummer im Accu behandeln
+        JP      ERRORJ          ; Fehler mit Nummer im Accu behandeln
 ;
 M6E35:  DEFM    "? "            ; Textvorgabe für Abfrage ohne Textangabe
 ;
@@ -16209,7 +16235,7 @@ A6E40:  LD      A,(HL)          ; Wertcode vom Stack holen
         PUSH    HL              ; Zeiger auf nächsten Datensatz retten
         PUSH    AF              ; Wertcode der Variablen retten
         PUSH    BC              ; Zeiger auf Variable retten
-        LD      DE,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      DE,(TMPEND)     ; Ende Stringarbeitsbereich holen
         CALL    A6E67           ; nächste Konstante für Zuweisung bereitstellen
         LD      H,0             ; High - Byte Länge auf Null
         LD      L,B             ; Textlänge als Low - Byte vorgeben
@@ -16240,21 +16266,21 @@ A6E67:  LD      A,(S1042)       ; interne aktuelle Geräte - Nummer holen
 ;
 A6E71:  CP      3               ; Zeichenkettenvariable  ?
         JR      NZ,A6E7C        ; nein
-        LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         LD      A,B             ; Zeichenkettenlänge holen
         JP      A6546           ; Zeichenkette der Variablen zuweisen
 ;
 A6E7C:  PUSH    DE              ; Zeiger auf Variable retten
-        LD      HL,(S107C)      ; höchste nutzbare Basic - Adresse holen
-        LD      DE,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      HL,(INTFAC)     ; höchste nutzbare Basic - Adresse holen
+        LD      DE,(TMPEND)     ; Ende Stringarbeitsbereich holen
         EX      DE,HL           ; Zeiger auf Text nach HL
-        CALL    A015E           ; Leerzeichen  (Spaces)  (HL) überspringen
+        CALL    HLFTCH          ; Leerzeichen  (Spaces)  (HL) überspringen
         CP      'E'             ; E  (Exponent)  ?
         JP      Z,A636A         ; ja -->  Fehler 3  Illegal data error
         EX      DE,HL           ; Zeiger auf Text wieder nach DE
         CALL    A7A0E           ; ASCII - Text (DE) umsetzen in Real-Wert nach (HL)
         EX      DE,HL           ; Zeiger auf Resttext nach HL
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+        CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFB    NUL             ; Textendezeichen  ?
         JP      NZ,A636A        ; nicht Textende -->  Fehler 3  Illegal data error
         EX      DE,HL           ; Zeiger auf bereitgestellten Wert nach HL
@@ -16262,7 +16288,7 @@ A6E7C:  PUSH    DE              ; Zeiger auf Variable retten
         JP      A79C5           ; Zahlwert von (HL) nach (DE) übertragen
 ;
 ;
-;   Basic - Befehl   RESTORE     (Zwischencode  133 / 085H)
+;   Basic - Befehl   RESTORE     (Token code  133 / 085H)
 ;
 A6E9E:  XOR     A               ; Accu auf Null
         LD      (S9E5D),A       ; DATA - Status zurücksetzen
@@ -16277,7 +16303,7 @@ A6E9E:  XOR     A               ; Accu auf Null
 ;   erstes DATA - Statement ab Zeiger auf Zeile in HL suchen
 ;
 A6EB0:  PUSH    HL              ; Zeiger auf Zeile retten
-        PUSH    DE              ; Register - Wert retten
+        PUSH    DE              ; Keep register value
         CALL    A6EBE           ; nächstes DATA - Statement ab Zeiger in HL suchen
         POP     DE              ; geretteten Register - Wert holen
         POP     HL              ; geretteten Zeiger auf Zeile holen
@@ -16286,7 +16312,7 @@ A6EB0:  PUSH    HL              ; Zeiger auf Zeile retten
 ;
 ;   nächste DATA - Konstante bereitstellen
 ;
-A6EB8:  LD      HL,(S1070)      ; Basic - Programmanfang holen
+A6EB8:  LD      HL,(TEXTST)     ; Basic - Programmanfang holen
         CALL    A6EE0           ; nächstes DATA - Statement ab (HL) suchen
 A6EBE:  LD      A,(S9E5D)       ; DATA - Flag holen
         CP      1               ; Code for 'Programmende'  ?
@@ -16326,10 +16352,10 @@ A6EF5:  LD      (S9E5D),A       ; DATA - Status merken
 ;
 ;   Text (HL) auswerten und Datei- oder Gerätenummer bereitstellen
 ;
-A6EF9:  CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+GETLU:  CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFM    "#"             ; Kennung Dateinummer  ?
         JR      NZ,A6F24        ; auf Bildschirm, /P, /T untersuchen und Geräte-Nr. bereitstellen
-        CALL    A015E           ; Leerzeichen  (Spaces)  (HL) überspringen
+        CALL    HLFTCH          ; Leerzeichen  (Spaces)  (HL) überspringen
         CP      ' '             ; Wertcode  ?
         JP      NC,A6364        ; Fehler 1  Syntax error
         PUSH    DE              ;! Register - Werte retten
@@ -16338,8 +16364,7 @@ A6EF9:  CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-
         PUSH    DE              ; Zeiger auf Anfang Speicher merken
         CALL    A874C           ; Wert der Konstanten bereitstellen
         EX      (SP),HL         ; Programmzeiger retten / Zeiger auf Wert holen
-        ;CALL    A7B73           ; Real-Wert (HL) umsetzen in Integer-Wert nach HL
-		CALL    A7BEA           ; Real-Wert (HL) umsetzen in Integer-Wert nach HL
+		CALL    HLFLT           ; Real-Wert (HL) umsetzen in Integer-Wert nach HL
         LD      A,H             ; High - Byte Datei - Nummer holen
         OR      A               ; gleich Null  ?
         JP      NZ,A63A3        ; nein -->  Fehler 64  Logical number error
@@ -16354,15 +16379,15 @@ A6EF9:  CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-
 ;
 ;   auf Gerät Bildschirm, Drucker oder Cassette überprüfen und Gerätenummer bereitstellen
 ;
-A6F24:  CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+A6F24:  CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFB    ___DIV          ; /  (Zwischencode)  ?
         LD      A,136           ; Vorgabe Geräte - Nummer  'CRT:'
         RET     NZ              ; kein Gerät angegeben -->  Bildschirm
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+        CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFM    "P"             ; P  (Printer)  ?
         LD      A,137           ; Vorgabe Geräte - Nummer  'LPT:'
         RET     Z               ; ist /P
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFM    "T"             ; T  (TAPE)  ?
         LD      A,128           ; Vorgabe Geräte - Nummer  'CMT:'
         RET
@@ -16376,7 +16401,7 @@ A6F39:  LD      A,(S1042)       ; interne aktuelle Geräte - Nummer holen
         JP      A79B1           ; auf Syntax  'Komma'  untersuchen
 ;
 ;
-;   Basic - Befehl   DEFAULT     (Zwischencode  172 / 0ACH)
+;   Basic - Befehl   DEFAULT     (Token code  172 / 0ACH)
 ;
 A6F41:  CALL    A6FB1           ; Geräte - Namen bereitstellen und Gerät anmelden
         RST     _DOCMD          ; Software - Kommando ausführen
@@ -16384,7 +16409,7 @@ A6F41:  CALL    A6FB1           ; Geräte - Namen bereitstellen und Gerät anmelde
         RET
 ;
 ;
-;   Basic - Befehl   INIT    (Zwischencode  220 / 0DCH)
+;   Basic - Befehl   INIT    (Token code  220 / 0DCH)
 ;
 A6F47:  CALL    A5963           ; testen, ob Zeichen (HL) gleich Befehlsendezeichen ist
         LD      B,0             ; Vorgabe  Länge Null
@@ -16398,24 +16423,24 @@ A6F4F:  PUSH    HL              ; Programmzeiger retten
         RET
 ;
 ;
-;   Basic - Befehl   ROPEN     (Zwischencode  208 / 0D0H)
+;   Basic - Befehl   ROPEN     (Token code  208 / 0D0H)
 ;
 A6F56:  LD      A,1             ; Code for 'Datei zum Lesen eröffnen'
         DEFB    LD_BC
 ;
 ;
-;   Basic - Befehl   WOPEN     (Zwischencode  206 / 0CEH)
+;   Basic - Befehl   WOPEN     (Token code  206 / 0CEH)
 ;
 A6F59:  LD      A,2             ; Code for 'Datei zum Schreiben eröffnen'
         DEFB    LD_BC
 ;
 ;
-;   Basic - Befehl   XOPEN     (Zwischencode  209 / 0D1H)
+;   Basic - Befehl   XOPEN     (Token code  209 / 0D1H)
 ;
 A6F5C:  LD      A,4             ; Code for 'Datei zum wahlfreien Zugriff eröffnen'
         PUSH    AF              ; Code merken
         LD      (S1043),A       ; Zugriffscode eintragen
-        CALL    A6EF9           ; Datei- oder Gerätenummer bereitstellen
+        CALL    GETLU           ; Datei- oder Gerätenummer bereitstellen
         CP      136             ; Geräte - Nummer 136  (Bildschirm)  ?
         JR      NZ,A6F6B        ; nein
         LD      A,128           ; für Datei -->  Cassette vorgeben
@@ -16437,23 +16462,23 @@ A6F7B:  LD      (S1000),A       ; Datei - Typ - Code eintragen
         RET
 ;
 ;
-;   Basic - Befehl   CLOSE     (Zwischencode  207 / 0CFH)
+;   Basic - Befehl   CLOSE     (Token code  207 / 0CFH)
 ;
 B6F8A:  DEFB    OR_N            ; Code for 'CLOSE'
 ;
 ;
-;   Basic - Befehl   KILL     (Zwischencode  217 / 0D9H)
+;   Basic - Befehl   KILL     (Token code  217 / 0D9H)
 ;
 A6F8B:  XOR     A               ; Code for 'KILL'
         LD      B,A             ; Flag 'CLOSE/KILL'  merken
         CALL    A5963           ; testen, ob Zeichen (HL) gleich Befehlsendezeichen ist
         JR      Z,A6FA0         ; ja -->  alle Dateien CLOSEn oder KILLen
-A6F92:  CALL    A6EF9           ; Datei- oder Gerätenummer bereitstellen
+A6F92:  CALL    GETLU           ; Datei- oder Gerätenummer bereitstellen
         CP      135 + 1         ; CRT oder höher  ?
         RET     NC              ; ja -->  fertig
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    56              ; Code 56  Dateien CLOSEn oder KILLen
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+        CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFM    ","             ; Komma  ?
         JR      A6F92           ; nächste Dateinummer auswerten
 ;
@@ -16478,7 +16503,7 @@ A6FA4:  CALL    A5F15           ; testen, ob Zeichen (HL) gleich Befehlsendezeic
 ;   Geräte - Namen bereitstellen und Gerät anmelden
 ;
 A6FB1:  PUSH    HL              ; Programmzeiger retten
-        CALL    A015E           ; Leerzeichen  (Spaces)  (HL) überspringen
+        CALL    HLFTCH          ; Leerzeichen  (Spaces)  (HL) überspringen
         LD      DE,S6FF9        ; Zeiger auf Speicher für Geräte - Namen
         LD      B,1             ; Länge  ein Zeichen
         CALL    A6FEC           ; wenn Accu gleich Buchstabe -->  merken
@@ -16526,9 +16551,9 @@ A6FF2:  RET     C               ; kein Buchstabe
 S6FF9:  DEFS    4               ; Speicher für Geräte - Namen
 ;
 ;
-;   Basic - Befehl   LOAD     (Zwischencode  180 / 0B4H)
+;   Basic - Befehl   LOAD     (Token code  180 / 0B4H)
 ;
-A6FFD:  CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+A6FFD:  CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFB    ___ALL          ; ALL  (Zwischencode)  ?
         JR      NZ,A7007        ; nicht 'LOAD ALL'
         XOR     A               ; Code for 'LOAD ALL'
@@ -16540,7 +16565,7 @@ A7004:  RST     _DOCMD          ; Software - Kommando ausführen
 ;   normaler LOAD - Befehl
 ;
 A7007:  CALL    A6FA4           ; Text (HL) auf Geräte-Namen und Dateinamen auswerten
-        CALL    A0164           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
+        CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-Aufruf  ?
         DEFM    ","             ; Komma  ?
         JP      Z,A70C5         ; ja -->  auf Sonderformat untersuchen
         PUSH    HL              ; Programmzeiger retten
@@ -16559,10 +16584,10 @@ A7007:  CALL    A6FA4           ; Text (HL) auf Geräte-Namen und Dateinamen ausw
 ;
 A7027:  LD      HL,(S1016)      ; Ladeadresse holen
         PUSH    HL              ; und merken
-        LD      DE,(S107E)      ; Ende Rechenspeicherbereich holen
+        LD      DE,(MEMLMT)     ; Ende Rechenspeicherbereich holen
         CALL    A704D           ; Adressen in HL und DE vergleichen
         LD      DE,(S1014)      ; Programmlänge holen
-        LD      BC,(W1080)      ; maximal erlaubte RAM - Adresse holen
+        LD      BC,(MEMMAX)     ; maximal erlaubte RAM - Adresse holen
         CALL    NC,A7048        ; noch kein Fehler -->  Adressen vergleichen
         JP      C,A638B         ; Fehler 18  Memory protection error
         POP     HL              ; Ladeadresse holen
@@ -16583,14 +16608,14 @@ A7048:  ADD     HL,DE
 
 ;   Adressen in DE und HL vergleichen
 ;
-A704D:  PUSH    HL              ; Register - Wert retten
+A704D:  PUSH    HL              ; Keep register value
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,DE           ; Adressen vergleichen
         POP     HL              ; gerettete Register - Werte wieder holen
         RET
 ;
 ;
-;   Basic - Befehl   CHAIN     (Zwischencode  183 / 0B7H)
+;   Basic - Befehl   CHAIN     (Token code  183 / 0B7H)
 ;
 A7053:  CALL    A6FA4           ; Text (HL) auf Geräte-Namen und Datei-Nummer auswerten
         CALL    A7314           ; BASIC - Arbeitsbereich retten und Datei eröffnen
@@ -16602,11 +16627,11 @@ A7053:  CALL    A6FA4           ; Text (HL) auf Geräte-Namen und Datei-Nummer au
         JP      A74F3           ; SWAP - Daten retten und Programm nachladen
 ;
 ;
-;   Basic - Befehl   MERGE     (Zwischencode 182 / 0B6H)
+;   Basic - Befehl   MERGE     (Token code 182 / 0B6H)
 ;
 A7068:  CALL    A7340           ; wenn im Programm-Modus -->  Fehler 19  Instruction error
         CALL    A6FA4           ; Text (HL) auf Geräte-Namen und Datei-Nummer auswerten
-        CALL    A0164           ; Vergleich auf Byte hinter CALL
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    ","             ; Komma ?
         JR      Z,A70CB         ; MERGE mit Sonderformatangabe
         RST     _DOCMD          ; Software - Kommando ausführen
@@ -16614,8 +16639,8 @@ A7068:  CALL    A7340           ; wenn im Programm-Modus -->  Fehler 19  Instruc
         CP      _BTX            ; Datei - Typ  BTX  ?
         JP      NZ,A63D1        ; nein -->  Fehler 61  Illegal filemode error
         PUSH    HL              ; Programmzeiger retten
-        LD      HL,(S1078)      ; Anfang Stringarbeitsbereich holen
-        LD      (S107A),HL      ; als Ende Stringarbeitsbereich merken
+        LD      HL,(VARED)      ; Anfang Stringarbeitsbereich holen
+        LD      (TMPEND),HL     ; als Ende Stringarbeitsbereich merken
         LD      BC,1000         ; Vorgabe für Puffer
         ADD     HL,BC           ; Anfang freier Speicher errechnen
         JP      C,A63A7         ; Überlauf -->  Fehler 6  Memory error
@@ -16638,12 +16663,12 @@ A7068:  CALL    A7340           ; wenn im Programm-Modus -->  Fehler 19  Instruc
 ;
 ;   geladenes Programm in vorhandenes Programm einmischen
 ;
-A70A2:  CALL    A012D           ; Wert (HL) nach DE holen
+A70A2:  CALL    LDDEMI          ; Wert (HL) nach DE holen
         LD      A,D             ;! Offset gleich Null  ?
         OR      E               ;!
         RET     Z               ; ja -->  Programm zugemischt
         PUSH    DE              ; Offset auf nächste Zeile retten
-        CALL    A012D           ; Zeilennummer der Zeile holen
+        CALL    LDDEMI          ; Zeilennummer der Zeile holen
         PUSH    HL              ; Zeiger auf Zeile retten
         LD      H,D             ;! Zeilennummer nach HL
         LD      L,E             ;!
@@ -16681,7 +16706,7 @@ A70CB:  LD      A,0             ; Code for 'MERGE'
 ;
 A70CE:  LD      A,2             ; Code for 'RUN'
         PUSH    AF              ; Flag  'MERGE/LOAD/RUN'  retten
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL
         DEFM    "A"             ; A   (ASCII)  ?
         CALL    A797A           ; auf Syntax Befehlsende überprüfen
         LD      A,1             ; Code for 'Datei zum Lesen eröffnen'
@@ -16699,8 +16724,8 @@ A70CE:  LD      A,2             ; Code for 'RUN'
         LD      A,129           ; Datei - Nummer für Programm
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    46              ; Code 46   Datei-Verwaltungssatz nach Nr. bereitstellen
-        LD      HL,(S1078)      ; Anfang Stringarbeitsbereich holen
-        LD      (S107A),HL      ; als Ende Stringarbeitsbereich merken
+        LD      HL,(VARED)      ; Anfang Stringarbeitsbereich holen
+        LD      (TMPEND),HL     ; als Ende Stringarbeitsbereich merken
         LD      BC,1000         ; Vorgabe für Puffer
         ADD     HL,BC           ; Zeiger auf Anfang Puffer errechnen
         JP      C,A6373         ; Überlauf -->  Fehler 6   Memory capacity error
@@ -16711,13 +16736,13 @@ A7107:  LD      HL,-512         ; Vorgabe für Stackarbeitsbereich
         LD      DE,(S7169)      ; Zeiger auf Anfang Puffer holen
         SBC     HL,DE           ; Adressen vergleichen
         JP      C,A6373         ; Fehler 6   Memory error
-        LD      DE,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      DE,(TMPEND)     ; Ende Stringarbeitsbereich holen
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    53              ; Code 53   einen Datensatz von Datei oder Gerät lesen
         LD      A,B             ; Datensatzlänge holen
         OR      A               ; gleich Null  ?
         JR      Z,A7154         ; ja -->  bereitgestelltes Programm einsortieren
-        CALL    A8532           ; ASCII - Wert (DE) umsetzen in Hex-Wert nach BC
+        CALL    CVBCAS          ; ASCII - Wert (DE) umsetzen in Hex-Wert nach BC
         LD      A,B             ;! Zeilennummer gleich Null  ?
         OR      C               ;!
         JP      Z,A636A         ; ja -->  Fehler 3   Illegal data error
@@ -16732,7 +16757,7 @@ A7107:  LD      HL,-512         ; Vorgabe für Stackarbeitsbereich
         PUSH    HL              ; Zeiger auf Stelle für Zwischencodetext merken
         LD      H,D             ;! Zeiger auf ASCII-Text-Zeile nach HL
         LD      L,E             ;!
-        CALL    A0164           ; Vergleich auf Byte hinter CALL
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFB    NUL             ; Zeilenendezeichen  ?
         JP      Z,A636A         ; ja -->  Fehler 3   Illegal data error
         POP     HL              ; Zeiger auf Stelle für Zwischencode holen
@@ -16740,7 +16765,7 @@ A7107:  LD      HL,-512         ; Vorgabe für Stackarbeitsbereich
         CP      ' '             ; Space  (Leerzeichen)  ?
         JR      NZ,A7141        ; nein -->  Zeichen auswerten
         INC     DE              ; Leerzeichen überspringen
-A7141:  CALL    A8216           ; ASCII-Text (DE) umsetzen in Zwischencode nach (HL)
+A7141:  CALL    CVIMTX          ; ASCII-Text (DE) umsetzen in Zwischencode nach (HL)
         LD      (HL),NUL        ; Zeilenendezeichen eintragen
         INC     HL              ; Zeilenendezeichen überspringen
         LD      (S7169),HL      ; neuen Zeiger auf Puffer merken
@@ -16772,10 +16797,10 @@ S7169:  DEFS    2               ; Zeiger für Pufferspeicher
 ;
 A716B:  CALL    A6FA4           ; Text (HL) auf Geräte-Namen und Datei-Nummer auswerten
         PUSH    HL              ; Programmzeiger retten
-        CALL    A0164           ; Vergleich auf Byte hinter CALL
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    ","             ; Komma  ?
         JR      NZ,A717D        ; nicht Komma -->  kein Sonderformat
-        CALL    A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+        CALL    HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
         CP      'A'             ; A  (ASCII)  ?
         JP      Z,A70CE         ; ja -->  ASCII-Datei laden und starten
 A717D:  CALL    A7314           ; BASIC - Arbeitsbereich retten und Datei eröffnen
@@ -16798,10 +16823,10 @@ A718B:  CALL    A7349           ; Speicher auf Platz überprüfen und Programm lad
 ;
 A7194:  LD      D,0             ; Code 'MZ-700 - Programm'
         LD      BC,0FF00H       ; maximale Speichergrenze  im MZ-800 - Modus
-        CALL    A0164           ; Vergleich auf Byte hinter CALL
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    ","             ; Komma  ?
         JR      NZ,A71A8        ; nein -->  MZ-800  Maschinenprogramm laden
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL
         DEFM    "R"             ; R   (Code for 'MZ-80 K - Programm laden)
         LD      D,1             ; Code for 'MZ-80 K - Programm'
         LD      BC,0CFF0H       ; maximale Speicheradresse im MZ-80 K - Modus
@@ -16825,18 +16850,18 @@ A71A8:  LD      A,D             ; Code 'MZ-800 / MZ-80 K'
         LD      A,00000001B     ; Code 'Set Bit 0'
         OUT     (KEYP_F),A      ; Zähler 0 im 8253 sperren
         LD      HL,(S1016)      ; Ladeadresse aus Dateikennung holen
-        LD      DE,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      DE,(TMPEND)     ; Ende Stringarbeitsbereich holen
         CALL    A704D           ; Adressen in DE und HL vergleichen
         JR      NC,A71F3        ; Ladeadresse liegt hinter Ende Stringarbeitsbereich
         PUSH    HL              ; Datei - Ladeadresse retten
         LD      HL,_START       ; minimal mögliche Ladeadresse vorgeben
-        LD      (S1070),HL      ; als Anfang Basic - Programm merken
+        LD      (TEXTST),HL     ; als Anfang Basic - Programm merken
         CALL    A61A3           ; I/O-WORK-Area und BASIC-Variable/Funktionen löschen
         LD      HL,S122C        ; Anfangsadresse der neuen Fehlerbehandlungsroutine
 		;LD      HL,0           ; Anfangsadresse der neuen Fehlerbehandlungsroutine
         LD      (ERRORP),HL     ; Adresse der Fehlerbehandlungsroutine merken
         POP     HL              ; Original - Ladeadresse holen
-A71F3:  LD      DE,(S107A)      ; Ende Stringarbeitsbereich holen
+A71F3:  LD      DE,(TMPEND)     ; Ende Stringarbeitsbereich holen
         CALL    A704D           ; Adressen in DE und HL vergleichen
         JR      NC,A71FD        ; Programm wird an Originaladresse geladen
         EX      DE,HL           ; Zeiger vertauschen
@@ -16873,7 +16898,7 @@ T720C:  POP     HL              ; Get loading address
         LD      A,H             ;!  Start address given?
         OR      L               ;!
         EXX
-        LD      HL,(S107A)      ; Get end of string workspace
+        LD      HL,(TMPEND)     ; Get end of string workspace
         LD      DE,(S1016)      ; Get load address from file identifier
         LD      BC,(S1014)      ; Get program length from file identifier
         OR      D               ;!  Load address also zero?
@@ -17028,9 +17053,9 @@ A729C:  LD      A,071H          ; Vordergrund- Hintergrundfarbe  (weiß/blau)
 ;
 ;   BASIC - Arbeitsbereiche am Speicherende retten
 ;
-A72DC:  LD      HL,(S1078)      ; Anfang Stringarbeitsbereich holen
-        LD      (S107A),HL      ; als Ende Stringarbeitsbereich merken
-        LD      DE,(S1072)      ; Zeiger auf I/O - Work Area holen
+A72DC:  LD      HL,(VARED)      ; Anfang Stringarbeitsbereich holen
+        LD      (TMPEND),HL     ; als Ende Stringarbeitsbereich merken
+        LD      DE,(POOL)       ; Zeiger auf I/O - Work Area holen
         LD      (S7339),DE      ; und merken
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,DE           ; Länge I/O - Work-Area und Basic-Variable errechnen
@@ -17038,7 +17063,7 @@ A72DC:  LD      HL,(S1078)      ; Anfang Stringarbeitsbereich holen
         LD      HL,-256         ; Vorgabe für Stackbereich
         ADD     HL,SP           ; minimale Stackadresse errechnen
         LD      (S733D),HL      ; und als Ende geretteter Bereich merken
-        LD      DE,(S1078)      ; Anfang Stringarbeitsbereich holen
+        LD      DE,(VARED)      ; Anfang Stringarbeitsbereich holen
         PUSH    HL              ; Zeiger auf Ende Bereich merken
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,DE           ; Adressen vergleichen
@@ -17067,19 +17092,19 @@ A7314:  CALL    A72DC           ; BASIC-Arbeitsbereiche am Speicherende retten
 ;
 ;   Pseudo - Bereiche für die verschiedenen Arbeitsbereiche vorgeben
 ;
-A731D:  LD      HL,(S1078)      ; Anfang Stringarbeitsbereich holen
+A731D:  LD      HL,(VARED)      ; Anfang Stringarbeitsbereich holen
         XOR     A               ; Accu auf Null
         DEC     HL
         LD      (HL),A          ;! Ende Stringtextbereich eintragen
         DEC     HL              ;!
         LD      (HL),A          ;!
-        LD      (S1076),HL      ; Anfang Stringtextbereich merken
+        LD      (STRST),HL      ; Anfang Stringtextbereich merken
         DEC     HL
         LD      (HL),A          ; Ende  Basic - Variable  eintragen
-        LD      (S1074),HL      ; Anfang Basic - Variable merken
+        LD      (VARST),HL      ; Anfang Basic - Variable merken
         DEC     HL
         LD      (HL),A          ; Ende I/O - Work - Area eintragen
-        LD      (S1072),HL      ; Zeiger auf I/O - Work Area merken
+        LD      (POOL),HL       ; Zeiger auf I/O - Work Area merken
         LD      HL,4            ; Länge der Pseudo - Bereiche vorgeben
         LD      (S733B),HL      ; Länge I/O-Work-Area / Basic-Variable merken
         RET
@@ -17095,7 +17120,7 @@ S733F:  DEFS    1               ; Flag  'Variable gerettet'
 ;
 ;   wenn im Programm-Modus -->  Fehler 19  Instruction error
 ;
-A7340:  PUSH    AF              ; Register - Wert retten
+A7340:  PUSH    AF              ; Keep register value
         CALL    A596B           ; Abfrage, ob in direkter Programmierung
         JP      NZ,A638E        ; nein -->  Fehler 19  Instruction error
         POP     AF              ; geretteten Register - Wert holen
@@ -17106,8 +17131,8 @@ A7340:  PUSH    AF              ; Register - Wert retten
 ;
 A7349:  LD      BC,(S1014)      ; Programmlänge aus Dateikennung holen
         PUSH    BC              ; und merken
-        LD      HL,(S1072)      ; Zeiger auf I/O - Work Area holen
-        LD      DE,(S1070)      ; Anfang Basic - Programm holen
+        LD      HL,(POOL)       ; Zeiger auf I/O - Work Area holen
+        LD      DE,(TEXTST)     ; Anfang Basic - Programm holen
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,DE           ; Länge freier Arbeitsspeicher errechnen
         LD      L,0
@@ -17118,11 +17143,11 @@ A7349:  LD      BC,(S1014)      ; Programmlänge aus Dateikennung holen
         CALL    A6090           ; alle Flags auf Anfangsbedingungen setzen
         LD      HL,0            ; HL auf Null
         LD      (S9E51),HL      ; als Zeilennummer der aktuellen Programmzeile merken
-        LD      HL,(S1070)      ; Anfang Basic - Programm holen
+        LD      HL,(TEXTST)     ; Anfang Basic - Programm holen
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    48              ; Code 48   Programm nach vorgegebener Kennung nach (HL) laden
         POP     BC              ; gerettete Programmlänge holen
-        LD      HL,(S1070)      ; Anfang Basic - Programm holen
+        LD      HL,(TEXTST)     ; Anfang Basic - Programm holen
         ADD     HL,BC           ; Zeiger auf Ende Programm errechnen
         LD      (S7339),HL      ; als Zeiger auf I/O - Work - Area merken
         RET
@@ -17144,10 +17169,10 @@ A737C:  LD      A,129           ; Datei - Nummer für Programm
         LD      A,H             ;! Zeiger vorhanden  ?
         OR      L               ;!
         JR      NZ,A7397        ; ja
-        LD      HL,(S1070)      ; Anfang Basic - Programm holen
+        LD      HL,(TEXTST)     ; Anfang Basic - Programm holen
         CALL    A61C5           ; (HL) Bereichsende  (00 00)  eintragen
 A7397:  EX      DE,HL           ; Zeiger auf Stelle für I/O - Work-Area nach DE
-        LD      HL,(S1072)      ; Zeiger auf I/O - Work Area holen
+        LD      HL,(POOL)       ; Zeiger auf I/O - Work Area holen
         LD      BC,(S733B)      ; Länge I/O-Work-Area / Basic-Variable holen
         LDIR
         EX      DE,HL
@@ -17159,7 +17184,7 @@ A7397:  EX      DE,HL           ; Zeiger auf Stelle für I/O - Work-Area nach DE
         RET
 ;
 ;
-;   Basic - Befehl   VERIFY     (Zwischencode  254 165 / 0FEH 0A5H)
+;   Basic - Befehl   VERIFY     (Token code  254 165 / 0FEH 0A5H)
 ;
 A73A9:  PUSH    HL              ; Programmzeiger retten
         CALL    A5F2F           ; Zeiger auf Zeilen im Programm in Zeilennummern umsetzen
@@ -17170,16 +17195,16 @@ A73A9:  PUSH    HL              ; Programmzeiger retten
         DEFB    47              ; Code 47   (Programm-) Datei eröffnen
         CP      _BTX            ; Datei - Typ  BTX  ?
         JP      NZ,A63D1        ; nein -->  Fehler 61  Illegal filemode error
-        LD      HL,(S1070)      ; Anfang Basic - Programm holen
+        LD      HL,(TEXTST)     ; Anfang Basic - Programm holen
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    50              ; Code 50   (Programm-) Datei vergleichen
         POP     HL              ; geretteten Programmzeiger holen
         RET
 ;
 ;
-;   Basic - Befehl   SAVE     (Zwischencode  181 / 0B5H)
+;   Basic - Befehl   SAVE     (Token code  181 / 0B5H)
 ;
-A73C0:  CALL    A0164           ; Vergleich auf Byte hinter CALL
+A73C0:  CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFB    ___ALL          ; ALL  (Zwischencode)  ?
         LD      A,1             ; Code for 'SAVE ALL'
         JP      Z,A7004         ; ja -->  RAM - Karteninhalt auf Quick - Disk schreiben
@@ -17187,14 +17212,14 @@ A73C0:  CALL    A0164           ; Vergleich auf Byte hinter CALL
         CALL    A5F2F           ; Zeiger auf Zeilen im Programm in Zeilennummern umsetzen
         POP     HL              ; geretteten Programmzeiger holen
         CALL    A6FA4           ; Text (HL) auf Geräte-Namen und Datei-Nummer auswerten
-        CALL    A0164           ; Vergleich auf Byte hinter CALL
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    ","             ; Komma  ?
         JR      Z,A73F6         ; ja -->  auf Sonderformat untersuchen
         PUSH    HL              ; Programmzeiger retten
         LD      A,_BTX          ; Code for 'Basic - Programm - Datei'
         LD      (S1000),A       ; als Datei - Typ - Kennung eintragen
-        LD      HL,(S1072)      ; Zeiger auf I/O - Work Area holen
-        LD      DE,(S1070)      ; Anfang Basic - Programm holen
+        LD      HL,(POOL)       ; Zeiger auf I/O - Work Area holen
+        LD      DE,(TEXTST)     ; Anfang Basic - Programm holen
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,DE           ; Länge des Basic - Programms errechnen
         LD      (S1014),HL      ; Programmlänge in Dateikennung eintragen
@@ -17209,7 +17234,7 @@ A73C0:  CALL    A0164           ; Vergleich auf Byte hinter CALL
 ;
 ;   Basic - Programm in ASCII abspeichern
 ;
-A73F6:  CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL
+A73F6:  CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL
         DEFM    "A"             ; A   (ASCII)  ?
         PUSH    HL              ; Programmzeiger retten
         LD      A,2             ; Code for 'Datei zum Schreiben eröffnen'
@@ -17219,7 +17244,7 @@ A73F6:  CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL
         CALL    A6F79           ; sequentielle Datei eröffnen
         POP     HL              ; geretteten Programmzeiger holen
         CALL    A6AC8           ; Zeilen aufbereiten in ASCII und an Datei ausgeben
-        CALL    A6DB1           ; Zeilenvorschub ausgeben
+        CALL    PRTCR           ; Zeilenvorschub ausgeben
         LD      B,1             ; Code for 'CLOSE'
         LD      A,129           ; Datei - Nummer für Programm
         RST     _DOCMD          ; Software - Kommando ausführen
@@ -17227,13 +17252,13 @@ A73F6:  CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL
         RET
 ;
 ;
-;   Basic - Befehl   UNLOCK     (Zwischencode  219 / 0DBH)
+;   Basic - Befehl   UNLOCK     (Token code  219 / 0DBH)
 ;
 A7416:  XOR     A               ; Code for 'UNLOCK'
         DEFB    LD_BC
 ;
 ;
-;   Basic - Befehl   LOCK     (Zwischencode 218 / 0DAH)
+;   Basic - Befehl   LOCK     (Token code 218 / 0DAH)
 ;
 A7418:  LD      A,1             ; Code for 'LOCK'
         PUSH    AF              ; Flag  'UNLOCK/LOCK'  merken
@@ -17246,9 +17271,9 @@ A7418:  LD      A,1             ; Code for 'LOCK'
         RET
 ;
 ;
-;   Basic - Befehl   DIR     (Zwischencode 213 / 0D5H)
+;   Basic - Befehl   DIR     (Token code 213 / 0D5H)
 ;
-A7424:  CALL    A6EF9           ; Datei- oder Gerätenummer bereitstellen
+A7424:  CALL    GETLU           ; Datei- oder Gerätenummer bereitstellen
         PUSH    AF              ; Ausgabe - Datei (Geräte) - Nummer retten
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    46              ; Code 46   Datei-Verwaltungssatz nach Nr. bereitstellen
@@ -17280,7 +17305,7 @@ A7443:  CALL    A8561           ; Stringausdruck (HL) auswerten/Zeiger auf Strin
         RET
 ;
 ;
-;   Basic - Befehl   RENAME     (Zwischencode  216 / 0D8H)
+;   Basic - Befehl   RENAME     (Token code  216 / 0D8H)
 ;
 A744B:  CALL    A8561           ; Stringausdruck (HL) auswerten/Zeiger auf String nach DE
         RST     _DOCMD          ; Software - Kommando ausführen
@@ -17307,13 +17332,13 @@ A745C:  CALL    A6C87           ; Ausdruck (HL) auswerten/Ergebnis als Zeichenke
 ;   INPUT  aus  RANDOM - Datei
 ;
 A746A:  CALL    A748F           ; RANDOM - Satz - Nummer auswerten und vorgeben
-        LD      DE,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      DE,(TMPEND)     ; Ende Stringarbeitsbereich holen
         CALL    A8C08           ; überprüfen, ob Adresse in DE mit Stack kollidiert
 A7474:  CALL    A8B56           ; Zeiger auf Variable nach Namen (HL) bereitstellen
         PUSH    HL              ; Programmzeiger retten
         PUSH    AF              ; Variablentypcode retten
         PUSH    BC              ; Zeiger auf Variable retten
-        LD      DE,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      DE,(TMPEND)     ; Ende Stringarbeitsbereich holen
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    65              ; Code 65   Datensatz aus RANDOM - Datei lesen
         POP     DE              ; Zeiger auf Variable holen
@@ -17329,22 +17354,22 @@ A748B:
 ;
 ;   RANDOM - Satz - Nummer auswerten und vorgeben
 ;
-A748F:  CALL    A0164           ; Vergleich auf Byte hinter CALL
+A748F:  CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    "("             ; Klammer auf
         RET     NZ              ; nein -->  keine RANDOM - Satznummer angegeben
-        CALL    A8551           ; zwei - Byte - Wert nach DE bereitstellen
+        CALL    IDEEXP          ; zwei - Byte - Wert nach DE bereitstellen
         LD      A,D             ;! Satznummer gleich Null  ?
         OR      E               ;!
         JP      Z,A636A         ; ja -->  Fehler 3   Illegal data error
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    64              ; Code 64   RANDOM - Satznummer setzen
         CALL    A79AA           ; auf Syntax 'Klammer zu' überprüfen
-        CALL    A0164           ; Vergleich auf Byte hinter CALL
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    ","             ; Komma
         RET
 ;
 ;
-;   Basic - command SWAP (intermediate code 191 / 0BFH)
+;   Basic - command SWAP (token code 191 / 0BFH)
 ;
 A74A6:  LD      A,(S9E68)       ; SWAP - get flag
         OR      A               ; set  ?
@@ -17355,8 +17380,8 @@ A74A6:  LD      A,(S9E68)       ; SWAP - get flag
         DEFB    44              ; Code 44 text (DE) on devices - evaluate names
         LD      (S755B),DE      ; Remember pointer to device table for SWAP main program
         LD      (S755D),A       ; Device - number SWAP - remember main program
-        LD      HL,(S1072)      ; Get pointer to I/O - Work Area
-        LD      DE,(S1070)      ; Start Basic - Get program
+        LD      HL,(POOL)       ; Get pointer to I/O - Work Area
+        LD      DE,(TEXTST)     ; Start Basic - Get program
         XOR     A               ; reset carry flag (code 'write away')
         SBC     HL,DE           ; Length Basic - Calculate program
         LD      (S1014),HL      ; Enter the program length in the file identifier
@@ -17392,7 +17417,7 @@ A74F3:  LD      SP,0            ; Set stack pointer
         PUSH    HL
         LD      A,1             ; Code 'in the SWAP program'
         LD      (S9E68),A       ; note in the SWAP flag
-        LD      HL,(S1070)      ; Start Basic - Get program
+        LD      HL,(TEXTST)     ; Start Basic - Get program
         JP      A5909           ; Process program from line (HL).
 ;
 ;
@@ -17481,12 +17506,12 @@ M7590:  DEFB    0               ; Vorgabe für Übschreibmodus
 B7591:  DEFB    3               ; Vorgabe für Palettencode der Punkte
 ;
 ;
-;   Basic - Befehl   SET     (Zwischencode 254 146 / 0FEH 092H)
+;   Basic - Befehl   SET     (Token code 254 146 / 0FEH 092H)
 ;
 B7592:  DEFB    OR_N            ; Code for 'SET'
 ;
 ;
-;   Basic - Befehl   RESET     (Zwischencode 254 147 / 0FEH 093H)
+;   Basic - Befehl   RESET     (Token code 254 147 / 0FEH 093H)
 ;
 A7593:  XOR     A               ; Code for 'RESET'
         PUSH    AF              ; Flag  'RESET/SET' retten
@@ -17502,12 +17527,12 @@ A7593:  XOR     A               ; Code for 'RESET'
         RET
 ;
 ;
-;   Basic - Befehl   LINE     (Zwischencode 254 148 / 0FEH 094H)
+;   Basic - Befehl   LINE     (Token code 254 148 / 0FEH 094H)
 ;
 B75A1:  DEFB    OR_N            ; Code for 'LINE'
 ;
 ;
-;   Basic - Befehl   BLINE     (Zwischencode 254 149 / 0FEH 095H)
+;   Basic - Befehl   BLINE     (Token code 254 149 / 0FEH 095H)
 ;
 A75A2:  XOR     A               ; Code for 'BLINE'
         LD      (D75B6 + 1),A   ; Flag  'BLINE/LINE'  in Routine eintragen
@@ -17525,7 +17550,7 @@ D75B6:  LD      A,0             ; Flag  'BLINE/LINE'  holen
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    73              ; Code 73   Linie zeichnen von DE',HL' nach DE,HL
         POP     HL              ; geretteten Programmzeiger holen
-        CALL    A0164           ; Vergleich auf Byte hinter CALL
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    ","             ; Komma  ?
         JR      Z,A75AC         ; ja -->  Koordinate bereitstellen und Linie zeichnen
         RST     _DOCMD          ; Software - Kommando ausführen
@@ -17533,10 +17558,10 @@ D75B6:  LD      A,0             ; Flag  'BLINE/LINE'  holen
         RET
 ;
 ;
-;   Basic - Befehl   PATTERN     (Zwischencode 254 155 09BH)
+;   Basic - Befehl   PATTERN     (Token code 254 155 09BH)
 ;
 A75C4:  CALL    A768A           ; auf Farbangabe untersuchen und auswerten
-        CALL    A8551           ; zwei - Byte - Wert nach DE bereitstellen
+        CALL    IDEEXP          ; zwei - Byte - Wert nach DE bereitstellen
         XOR     A               ; Accu auf Null  (Code for 'Lagen positiv')
         BIT     7,D             ; Anzahl Lagen positiv  ?
         JR      Z,A75D8         ; ja
@@ -17570,7 +17595,7 @@ A75D8:  EX      AF,AF           ; Flag  'Lagen positiv/negativ'  merken
         RET
 ;
 ;
-;   Basic - Befehl   POSITION     (Zwischencode 254 154 / 0FEH 09AH)
+;   Basic - Befehl   POSITION     (Token code 254 154 / 0FEH 09AH)
 ;
 A75F5:  CALL    A75FE           ; Ausdruck (HL) auswerten und X,Y - Graphic - Koordinate bereitstellen
         RST     _DOCMD          ; Software - Kommando ausführen
@@ -17587,7 +17612,7 @@ A75FB:  CALL    A768A           ; auf Farbangabe untersuchen und auswerten
 ;
 A75FE:  CALL    A760F           ; Ausdruck (HL) auswerten und Ergebnis auf Graphic-Koordinate testen
         PUSH    DE              ; X - Koordinate Graphic retten
-        CALL    A0164           ; Vergleich auf Byte hinter CALL
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    ","             ; Komma  ?
         CALL    A760F           ; Ausdruck (HL) auswerten und Ergebnis auf Graphic-Koordinate testen
         PUSH    DE              ; Y - Koordinate auf Stack
@@ -17600,14 +17625,14 @@ A75FE:  CALL    A760F           ; Ausdruck (HL) auswerten und Ergebnis auf Graph
 ;
 ;   Ausdruck (HL) auswerten und Ergebnis auf Graphic-Koordinate testen
 ;
-A760F:  CALL    A8551           ; zwei - Byte - Wert nach DE bereitstellen
+A760F:  CALL    IDEEXP          ; zwei - Byte - Wert nach DE bereitstellen
         LD      A,D             ; High - Byte Graphic - Koordinate holen
         ADD     A,040H          ; Koordinate im Bereich  -16384 / + 16384  ?
         RET     P               ; ja
 A7616:  JP      A636A           ; Fehler 3   Illegal data error
 ;
 ;
-;   Basic - Befehl   PAL     (Zwischencode 254 150 / 0FEH 096H)
+;   Basic - Befehl   PAL     (Token code 254 150 / 0FEH 096H)
 ;
 A7619:  CALL    A5963           ; überprüfen, ob Zeichen (HL) gleich Befehlsendezeichen
         JP      Z,A6364         ; ja -->  Fehler 1  Syntax error
@@ -17621,7 +17646,7 @@ A7619:  CALL    A5963           ; überprüfen, ob Zeichen (HL) gleich Befehlsende
         SRL     D               ;!
         CP      D               ; Palettenblockcode mit aktueller Blocknummer  vergleichen
         JP      NZ,A6397        ; nicht gleich -->  Fehler  22   PAL error
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL
         DEFM    ","             ; Komma  ?
         CALL    A7640           ; ein Byte - Wert zwischen 0 und 15 bereitstellen
         LD      B,A             ; Farbwert merken
@@ -17633,13 +17658,13 @@ A7619:  CALL    A5963           ; überprüfen, ob Zeichen (HL) gleich Befehlsende
 ;
 ;   ein Byte - Wert zwischen 0 und 15 bereitstellen
 ;
-A7640:  CALL    A853D           ; ein - Byte - Wert nach DE/Accu bereitstellen
+A7640:  CALL    IBYTE           ; ein - Byte - Wert nach DE/Accu bereitstellen
         CP      15 + 1          ; größer 15  ?
         JR      NC,A7616        ; ja -->  Fehler 3  Illegal data error
         RET
 ;
 ;
-;   Basic - Befehl   BOX     (Zwischencode 254 152 / 0FEH 098H)
+;   Basic - Befehl   BOX     (Token code 254 152 / 0FEH 098H)
 ;
 A7648:  CALL    A75FB           ; auf Farbangabe untersuchen und X,Y-Graphic-Koord. bereitst.
         EXX
@@ -17671,14 +17696,14 @@ A766B:  EXX
         RET
 ;
 ;
-;   Basic - Befehl   COLOR     (Zwischencode 254 144 / 0FEH 090H)
+;   Basic - Befehl   COLOR     (Token code 254 144 / 0FEH 090H)
 ;
 A7675:  CALL    A76B4           ; Palettencodewert und Überschreibmodus bereitstellen
         LD      A,(B7591)       ; Vorgabe für Palettencode der Punkte holen
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    84              ; Code 84  aktuell benutzte Farbebenen merken
         LD      (S137B),A       ; maximaler Palettenwert / aktuelle Zeichenfarbe merken
-        LD      A,(S109A)       ; aktuellen Überschreibmodus holen
+        LD      A,(PWMODE)      ; aktuellen Überschreibmodus holen
         LD      (M7590),A       ; Vorgabe für Übschreibmodus merken
         CALL    A797A           ; auf Syntax Befehlsende überprüfen
         RET
@@ -17686,18 +17711,18 @@ A7675:  CALL    A76B4           ; Palettencodewert und Überschreibmodus bereitst
 ;
 ;   auf Farbangabe untersuchen und auswerten
 ;
-A768A:  CALL    A0164           ; Vergleich auf Byte hinter CALL
+A768A:  CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    ","             ; Komma  ?
-        CALL    A0164           ; Vergleich auf Byte hinter CALL
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    "["             ; Eckige Klammer auf  ?
         JR      NZ,A76A5        ; nein -->  kein Farbwert angegeben
         CALL    A76B4           ; Palettencodewert und Überschreibmodus bereitstellen
         LD      A,(B7591)       ; Vorgabe für Palettencode der Punkte holen
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    85              ; Code 85   Graphic - Palettenwert merken
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL
         DEFM    "]"             ; Eckige Klammer zu   ?
-        CALL    A0164           ; Vergleich auf Byte hinter CALL
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    ","             ; Komma  ?
         RET
 ;
@@ -17709,24 +17734,24 @@ A76A5:  LD      A,(S137B)       ; maximaler Palettenwert / aktuelle Zeichenfarbe
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    85              ; Code 85   Graphic - Palettenwert merken
 A76AD:  LD      A,(M7590)       ; Vorgabe für Übschreibmodus holen
-        LD      (S109A),A       ; als aktuelle Überschreibmodus merken
+        LD      (PWMODE),A      ; als aktuelle Überschreibmodus merken
         RET
 ;
 ;
 ;   Palettencodewert und Überschreibmodus bereitstellen
 ;
-A76B4:  CALL    A0164           ; Vergleich auf Byte hinter CALL
+A76B4:  CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    ","             ; Komma  ?
         JR      Z,A76D1         ; ja -->  nur auf Überschreibmodus untersuchen
         CALL    A76D9           ; Ausdruck (HL) auswerten und auf maximalen Palettencode unters.
         LD      (B7591),A       ; als Vorgabe für Palettencode der Punkte merken
-        CALL    A0164           ; Vergleich auf Byte hinter CALL
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    ","             ; Komma  ?
         JR      NZ,A76AD        ; nein -->  Überschreibmodus vorgeben
-A76C6:  CALL    A853D           ; ein - Byte - Wert nach DE/Accu bereitstellen
+A76C6:  CALL    IBYTE           ; ein - Byte - Wert nach DE/Accu bereitstellen
         CP      1 + 1           ; Null oder Eins  ?
         JR      NC,A76FA        ; nein -->  Fehler 3  Illegal data error
-        LD      (S109A),A       ; aktuellen Überschreibmodus merken
+        LD      (PWMODE),A      ; aktuellen Überschreibmodus merken
         RET
 ;
 A76D1:  LD      A,(S137B)       ; maximaler Palettenwert / aktuelle Zeichenfarbe holen
@@ -17736,8 +17761,8 @@ A76D1:  LD      A,(S137B)       ; maximaler Palettenwert / aktuelle Zeichenfarbe
 ;
 ;   Ausdruck (HL) auswerten und Ergebnis auf maximal zulässigen Palettencodewert untersuchen
 ;
-A76D9:  PUSH    BC              ; Register - Wert retten
-        CALL    A853D           ; ein - Byte - Wert nach DE/Accu bereitstellen
+A76D9:  PUSH    BC              ; Keep register value
+        CALL    IBYTE           ; ein - Byte - Wert nach DE/Accu bereitstellen
         POP     BC              ; geretteten Register - Wert holen
 A76DE:  LD      A,(S1379)       ; Bildschirm - Modus - Bit holen
         RRA                     ; um eine Stelle nach rechts schieben
@@ -17762,7 +17787,7 @@ A76F6:  LD      A,E             ; Palettencodewert holen
 A76FA:  JP      A636A           ; Fehler 3   Illegal data error
 ;
 ;
-;   Basic - Befehl   PAINT     (Zwischencode 254 153 / 0FEH 099H)
+;   Basic - Befehl   PAINT     (Token code 254 153 / 0FEH 099H)
 ;
 A76FD:  CALL    A768A           ; auf Farbangabe untersuchen und auswerten
         CALL    A75F5           ; X,Y-Koordinate bereitstellen und Graphic-Cursor setzen
@@ -17803,7 +17828,7 @@ A7735:  LD      A,(B7591)       ; Vorgabe für Palettencode der Punkte holen
 S773C:  DEFS    16              ; Speicher für Palettencodewerte bei PAINT
 ;
 ;
-;   Basic - Befehl   CIRCLE     (Zwischencode 254 151 / 0FEH 097H)
+;   Basic - Befehl   CIRCLE     (Token code 254 151 / 0FEH 097H)
 ;
 A774C:  PUSH    HL              ; Programmzeiger retten
         LD      HL,0
@@ -17822,7 +17847,7 @@ A774C:  PUSH    HL              ; Programmzeiger retten
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    71              ; Code 71   Graphic-Cursor auf Koordinate in DE',HL' setzen
         CALL    A79B1           ; auf Syntax  'Komma'  untersuchen
-        CALL    A8551           ; zwei - Byte - Wert nach DE bereitstellen
+        CALL    IDEEXP          ; zwei - Byte - Wert nach DE bereitstellen
         PUSH    HL              ; Programmzeiger retten
         LD      A,D             ; High - Byte Wert holen
         AND     11000000B       ; Wert größer 16384  ?
@@ -17831,21 +17856,21 @@ A774C:  PUSH    HL              ; Programmzeiger retten
         LD      (D7838 + 2),HL  ; Radius in Routine eintragen
         LD      (D7828 + 1),HL  ; Radius als X - Offset auf Startpunkt eintragen
         LD      (D7832 + 1),HL  ; Radius als X - Offset auf Endpunkt eintragen
-        LD      HL,(S107C)      ; Zeiger auf Anfang Rechenspeicher holen
+        LD      HL,(INTFAC)     ; Zeiger auf Anfang Rechenspeicher holen
         LD      DE,S78F1        ; Zeiger auf Speicher für Real-Radius
         CALL    A79C5           ; Real - Zahlwert von (HL) nach (DE) übertragen
         POP     HL              ; geretteten Programmzeiger holen
         CALL    A5963           ; überprüfen, ob Zeichen (HL) gleich Befehlsendezeichen
         JP      Z,A77EB         ; keine weiteren Parameter angegeben
         CALL    A79B4           ; auf Syntax 'Komma' überprüfen
-        CALL    A0164           ; Vergleich auf Byte hinter CALL
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    ","             ; Komma  ?
         JR      Z,A77B0         ; kein Aspekt angegeben
         CALL    A7841           ; Aspekt - Wert für Circle auswerten
         CALL    A5963           ; überprüfen, ob Zeichen (HL) gleich Befehlsendezeichen
         JP      Z,A77EB         ; keine weiteren Parameter angegeben
         CALL    A79B4           ; auf Syntax 'Komma' überprüfen
-A77B0:  CALL    A0164           ; Vergleich auf Byte hinter CALL
+A77B0:  CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    ","             ; Komma  ?
         JR      Z,A77CA         ; kein Startwinkel angegeben
         LD      IX,D7828 + 1    ; Zeiger auf Speicher für Offsets des Startpunktes
@@ -17854,7 +17879,7 @@ A77B0:  CALL    A0164           ; Vergleich auf Byte hinter CALL
         CALL    A5963           ; überprüfen, ob Zeichen (HL) gleich Befehlsendezeichen
         JP      Z,A77EB         ; keine weiteren Parameter
         CALL    A79B4           ; auf Syntax 'Komma' überprüfen
-A77CA:  CALL    A0164           ; Vergleich auf Byte hinter CALL
+A77CA:  CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    ","             ; Komma  ?
         JR      Z,A77E4         ; kein Endwinkel angegeben
         LD      IX,D7832 + 1    ; Zeiger auf Speicher für Offsets des Endpunktes
@@ -17863,7 +17888,7 @@ A77CA:  CALL    A0164           ; Vergleich auf Byte hinter CALL
         CALL    A5963           ; überprüfen, ob Zeichen (HL) gleich Befehlsendezeichen
         JP      Z,A77EB         ; ja -->  Tortenflag nicht angegeben
         CALL    A79B4           ; auf Syntax 'Komma' überprüfen
-A77E4:  CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL
+A77E4:  CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL
         DEFM    "O"             ; Code for 'Anfangspunkt über Mittelpunkt mit Endpunkt verbinden'
         SCF                     ; Code 'Verbindungslinie Zeichen'
         JR      A77EC           ; Parameter laden und Zeichenroutine aufrufen
@@ -17914,9 +17939,9 @@ D7838:  LD      IX,0            ; Integer - Radius           (wird eingetragen)
 ;
 ;   Aspekt - Wert für CIRCLE bereitstellen und auswerten
 ;
-A7841:  CALL    A8551           ; zwei - Byte - Wert nach DE bereitstellen
-        CALL    A00C7           ; Register IX, HL, BC und DE retten
-        LD      HL,(S107C)      ; Zeiger auf Anfang Rechenspeicher holen
+A7841:  CALL    IDEEXP          ; zwei - Byte - Wert nach DE bereitstellen
+        CALL    PUSHR           ; Save registers IX, HL, BC and DE
+        LD      HL,(INTFAC)     ; Zeiger auf Anfang Rechenspeicher holen
         INC     HL              ; Zeiger auf Mantisse des Aspekts
         BIT     7,(HL)          ; Aspekt negativ  ?
         JP      NZ,A636A        ; ja -->  Fehler 3   Illegal data error
@@ -17931,7 +17956,7 @@ A7841:  CALL    A8551           ; zwei - Byte - Wert nach DE bereitstellen
         PUSH    DE              ; Zeiger auf Anfang Speicher merken
         CALL    A79C5           ; Real - Zahlwert von (HL) nach (DE) übertragen
         POP     HL              ; Zeiger auf +1 im Speicher
-        LD      DE,(S107C)      ; Zeiger auf Anfang Rechenspeicher holen
+        LD      DE,(INTFAC)     ; Zeiger auf Anfang Rechenspeicher holen
         CALL    A93D5           ; /  - Routine   ( (HL) = (HL) / (DE) )
         LD      A,2             ; Code for 'Aspekt > 1' (Y-Achse als Hauptachse)
 A7870:  LD      (D782E + 1),A   ; Verhältnisflag eintragen
@@ -17939,7 +17964,7 @@ A7870:  LD      (D782E + 1),A   ; Verhältnisflag eintragen
         CALL    A92EA           ; *  - Routine   ( (HL) = (HL) * (DE) )
         LD      DE,B7900        ; Zeiger auf  0.50001   (Real - Konstante)
         CALL    A90BC           ; +  - Routine   ( (HL) = (HL) + (DE) )
-        CALL    A7BEA           ; Real - Zahlwert (HL) umsetzen in Integer - Wert nach HL
+        CALL    HLFLT           ; Real - Zahlwert (HL) umsetzen in Integer - Wert nach HL
         LD      A,L             ; Low - Byte Aspekt - Wert holen
         LD      (D782E + 2),A   ; und in Parameterroutine eintragen
         BIT     0,H             ; High - Byte Aspekt - Wert gleich Null  ?
@@ -17953,14 +17978,14 @@ A7870:  LD      (D782E + 1),A   ; Verhältnisflag eintragen
 ;
 A788E:  PUSH    IX              ; Zeiger auf Speicher für Offsets auf Punkt merken
         PUSH    IY              ; Zeiger auf Speicher für Winkel merken
-        CALL    A8551           ; zwei - Byte - Wert nach DE bereitstellen
+        CALL    IDEEXP          ; zwei - Byte - Wert nach DE bereitstellen
         POP     DE              ; Zeiger auf Speicher für Winkel holen
         POP     IX              ; Zeiger auf Speicher für Offsets auf Punkt holen
         PUSH    HL              ; Programmzeiger retten
         PUSH    IX              ; Zeiger auf Speicher für Offset auf Punkt wieder merken
-        LD      HL,(S107C)      ; Zeiger auf Anfang Rechenspeicher holen
+        LD      HL,(INTFAC)     ; Zeiger auf Anfang Rechenspeicher holen
         CALL    A79C5           ; Real - Zahlwert von (HL) nach (DE) übertragen
-        LD      HL,(S107C)      ; Zeiger auf Anfang Rechenspeicher holen
+        LD      HL,(INTFAC)     ; Zeiger auf Anfang Rechenspeicher holen
         LD      D,H             ;! nach DE übertragen
         LD      E,L             ;!
         INC     DE              ;! Zeiger auf nächsten Rechenspeicher
@@ -17973,7 +17998,7 @@ A788E:  PUSH    IX              ; Zeiger auf Speicher für Offsets auf Punkt merk
         LD      DE,S78F1        ; Zeiger auf Speicher mit Real-Radius
         CALL    A92EA           ; *  - Routine   ( (HL) = (HL) * (DE) )
         CALL    A78D0           ; Ergebnis umsetzen in Integer und in Parameterroutine eintr.
-        LD      HL,(S107C)      ; Zeiger auf Anfang Rechenspeicher holen
+        LD      HL,(INTFAC)     ; Zeiger auf Anfang Rechenspeicher holen
         CALL    A9709           ; SIN - Funktion aufrufen   ( SIN( (HL) ) )
         LD      DE,S78F1        ; Zeiger auf Speicher für Real-Radius
         CALL    A92EA           ; *  - Routine   ( (HL) = (HL) * (DE) )
@@ -17998,7 +18023,7 @@ A78D0:  INC     HL              ; Zeiger auf MSByte Mantisse stellen
         JR      Z,A78E3         ; alter Wert war positiv
         SET     7,(HL)          ; Vorzeichen auf Minus
 A78E3:  DEC     HL              ; Zeiger wieder auf Exponenten
-        CALL    A7BEA           ; Real - Zahlwert (HL) umsetzen in Integer - Wert nach HL
+        CALL    HLFLT           ; Real - Zahlwert (HL) umsetzen in Integer - Wert nach HL
         EX      DE,HL           ; bereitgestellten Zahlwert nach DE
         POP     HL              ; Rücksprungadresse holen
         EX      (SP),HL         ; mit Zeiger auf Stelle für Offsett vertauschen
@@ -18030,7 +18055,7 @@ S790A:  DEFS    1                       ; Exponent Endwinkel
 S790B:  DEFS    4                       ; Mantisse Endwinkel
 ;
 ;
-;   Basic - Befehl   SYMBOL     (Zwischencode 254 160 / 0FEH 0A0H)
+;   Basic - Befehl   SYMBOL     (Token code 254 160 / 0FEH 0A0H)
 ;
 A790F:  CALL    A75FB           ; auf Farbangabe untersuchen und X,Y-Graphic-Koord. bereitst.
         RST     _DOCMD          ; Software - Kommando ausführen
@@ -18050,13 +18075,13 @@ A790F:  CALL    A75FB           ; auf Farbangabe untersuchen und X,Y-Graphic-Koo
 A7929:  POP     HL              ; geretteten Programmzeiger holen
 A792A:
         CALL    A79B1           ; auf Syntax  'Komma'  untersuchen
-        CALL    A853D           ; ein - Byte - Wert nach DE/Accu bereitstellen
+        CALL    IBYTE           ; ein - Byte - Wert nach DE/Accu bereitstellen
         LD      A,D             ;! Vergrößerung in X - Achse gleich Null  ?
         OR      E               ;!
         JR      Z,A793D         ; ja -->  Fehler 3   Illegal data error
         PUSH    DE              ; Vergrößerung in X - Achse retten  (horizontale Vergrößerung)
         CALL    A79B1           ; auf Syntax  'Komma'  untersuchen
-        CALL    A853D           ; ein - Byte - Wert nach DE/Accu bereitstellen
+        CALL    IBYTE           ; ein - Byte - Wert nach DE/Accu bereitstellen
         LD      A,D             ;! Vergrößerung in Y - Achse gleich Null  ?
         OR      E               ;!
 A793D:  JP      Z,A636A         ; ja -->  Fehler 3   Illegal data error
@@ -18067,7 +18092,7 @@ A793D:  JP      Z,A636A         ; ja -->  Fehler 3   Illegal data error
         PUSH    DE              ; Vergrößerungen retten
         JR      Z,A7957         ; keine Richtung angegeben
         CALL    A79B1           ; auf Syntax  'Komma'  untersuchen
-        CALL    A853D           ; ein - Byte - Wert nach DE/Accu bereitstellen
+        CALL    IBYTE           ; ein - Byte - Wert nach DE/Accu bereitstellen
         LD      A,3             ; maximalen Richtungswert vorgeben
         CP      E               ; mit angegebenem Richtungswert vergleichen
         JP      C,A636A         ; zu groß -->  Fehler 3   Illegal data error
@@ -18090,7 +18115,7 @@ A7957:  XOR     A               ; Richtung in X-Achse vorgeben
         RET
 ;
 ;
-;   Basic - Befehl   HCOPY     (Zwischencode 254 156 / 0FEH 09CH)
+;   Basic - Befehl   HCOPY     (Token code 254 156 / 0FEH 09CH)
 ;
 A7968:  CALL    A797A           ; auf Syntax Befehlsende überprüfen
         PUSH    HL              ; Programmzeiger retten
@@ -18101,7 +18126,7 @@ A7968:  CALL    A797A           ; auf Syntax Befehlsende überprüfen
         RET
 ;
 ;
-;   Basic - Befehl   CLS     (Zwischencode 155 / 09BH
+;   Basic - Befehl   CLS     (Token code 155 / 09BH
 ;
 A7972:  CALL    A797A           ; auf Syntax Befehlsende überprüfen
         PUSH    HL              ; Programmzeiger retten
@@ -18121,16 +18146,16 @@ A797A:  CALL    A5963           ; überprüfen, ob Zeichen (HL) gleich Befehlsende
 ;   auf /P untersuchen und Ausgaberoutinen entsprechend umstellen
 ;
 A7981:  XOR     A               ; Code for 'Ausgabe auf Bildschirm'
-        LD      (S1091),A       ; Ausgabeflag  CRT/LPT  setzen
-        CALL    A0164           ; Vergleich auf Byte hinter CALL
+        LD      (FILOUT),A      ; Ausgabeflag  CRT/LPT  setzen
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFB    ___DIV          ; /   (Zwischencode)  ?
         RET     NZ              ; nein
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL
         DEFM    "P"             ; P   (Printer)  ?
         ;CALL    AA007           ; Drucker auf Textmodus überprüfen
 		CALL    AA009           ; Drucker auf Textmodus überprüfen
         LD      A,'P'           ; Code for 'Ausgabe auf Drucker'
-        LD      (S1091),A       ; Ausgabeflag  CRT/LPT  setzen
+        LD      (FILOUT),A      ; Ausgabeflag  CRT/LPT  setzen
         CP      A               ; Zero - Flag setzen
         RET
 ;
@@ -18149,21 +18174,21 @@ A7998:  LD      DE,S9E6A        ; Zeiger auf Zwischenspeicher vorgeben
 ;   auf Syntax  'Klammer auf'  überprüfen
 ;
 A79A2:  INC     HL              ; ausgewertetes Zeichen überspringen
-A79A3:  CALL    A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+A79A3:  CALL    HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
 A79A6:  CP      '('             ; nächstes Zeichen gleich 'Klammer auf'  ?
         JR      A79B6           ; Syntaxüberprüfung auswerten
 ;
 ;
 ;   auf Syntax 'Klammer zu' überprüfen
 ;
-A79AA:  CALL    A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+A79AA:  CALL    HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
 A79AD:  CP      ')'             ; nächstes Zeichen gleich 'Klammer zu'  ?
         JR      A79B6           ; Syntaxüberprüfung auswerten
 ;
 ;
 ;   auf Syntax  'Komma'  untersuchen
 ;
-A79B1:  CALL    A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+A79B1:  CALL    HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
 A79B4:  CP      ','             ; nächstes Zeichen gleich Komma  ?
 A79B6:  INC     HL              ; Syntax - Zeichen überspringen
         RET     Z               ; Syntax ist OK
@@ -18402,7 +18427,7 @@ A7B0D:  LD      A,H             ; High - Byte Exponent holen
         LD      A,L             ; Low - Byte Exponent holen
         POP     HL              ; Zeiger auf bereitgestellte Mantisse holen
         PUSH    DE              ; Zeiger auf Resttext retten
-        PUSH    BC              ; Register - Wert retten
+        PUSH    BC              ; Keep register value
         PUSH    HL              ; Zeiger auf bereitgestellte Mantisse retten
         LD      DE,S9E9D        ; Zeiger auf Zwischenspeicher für Berechnung
         PUSH    DE              ; Zeiger auf Anfang Speicher merken
@@ -18451,7 +18476,7 @@ A7B44:  JP      A6367           ; zu groß -->  Fehler 2  Overflow error
 ;
 ;   Wert der neuen Stelle addieren   (Wert im Accu)
 ;
-A7B47:  PUSH    DE              ; Register - Wert retten
+A7B47:  PUSH    DE              ; Keep register value
         PUSH    HL              ; Zeiger auf Real - Zahlwert merken
         LD      HL,S9E9D        ; Zeiger auf Zwischenspeicher für Berechnung
         LD      E,A             ; Dezimal - Ziffer
@@ -18459,7 +18484,7 @@ A7B47:  PUSH    DE              ; Register - Wert retten
         CALL    A79CB           ; Integer-Wert in DE umsetzen in Real-Wert nach (HL)
         EX      DE,HL           ; Zeiger auf umgesetzten Real-Wert nach DE
         POP     HL              ; Zeiger auf Zahl holen
-        PUSH    BC              ; Register - Wert retten
+        PUSH    BC              ; Keep register value
         CALL    A90BC           ; +  - Routine   ( (HL) = (HL) + (DE) )
         POP     BC              ;! gerettete Register - Werte wieder holen
         POP     DE              ;!
@@ -18490,9 +18515,9 @@ A7B71:  PUSH    AF              ; Vorzeichen retten
         RET
 ;
 ;
-;   Real - Zahlen (HL) und (DE) vergleichen    (BC - Register - Wert retten)
+;   Real - Zahlen (HL) und (DE) vergleichen    (BC - Keep register value)
 ;
-A7B7C:  PUSH    BC              ; Register - Wert retten
+A7B7C:  PUSH    BC              ; Keep register value
         CALL    A9153           ; Real - Zahlwerte (HL) und (DE) vergleichen
         POP     BC              ; geretteten Register - Wert holen
         RET
@@ -18500,7 +18525,7 @@ A7B7C:  PUSH    BC              ; Register - Wert retten
 ;
 ;   Nachkommastellen des Real - Zahlwertes (HL) vergessen
 ;
-A7B82:  CALL    A00C7           ; Register IX, HL, BC und DE retten
+A7B82:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         LD      A,(HL)          ; Exponenten der Zahl holen
         CP      081H            ; Zahl mit Vorkommastellen
         JP      C,A909E         ; nein -->  Null im Real - Format nach (HL) eintragen
@@ -18548,13 +18573,13 @@ A7BB9:  LD      E,(HL)          ;! Bytes aus Speicher nach Register laden
         RET
 ;
 ;
-;   Basic - Funktion   FRAC     (Zwischencode  255 141 / 0FFH 08DH)
+;   Basic - Funktion   FRAC     (Token code  255 141 / 0FFH 08DH)
 ;   (Nachkommastellen des Real - Zahlwertes (HL) errechnen)
 ;
 A7BC0:  LD      A,(HL)          ; Exponenten der Zahl holen
         CP      081H            ; Betrag der Zahl größer eins  ?
         RET     C               ; nein -->  Zahl hat keine Vorkommastellen -->  fertig
-        PUSH    DE              ; Register - Wert retten
+        PUSH    DE              ; Keep register value
         PUSH    HL              ; Zeiger auf Zahlwert retten
         LD      DE,S7BD8        ; Zeiger auf Zwischenspeicher für Routine
         PUSH    DE              ; Zeiger auf Anfang Speicher merken
@@ -18585,7 +18610,7 @@ A7BDD:  PUSH    AF              ;! Register - Werte retten
 ;
 ;   vorzeichenbehafteten Real - Zahlwert (HL) umsetzen in Integer - Wert nach HL
 ;
-A7BEA:  INC     HL              ; Zeiger auf umzusetzende Zahl auf Mantisse stellen
+HLFLT:  INC     HL              ; Zeiger auf umzusetzende Zahl auf Mantisse stellen
         BIT     7,(HL)          ; Zahl positiv  ?
         JR      Z,A7BFA         ; ja -->  Zahl umsetzen in Integer - Wert
         CALL    A7BFA           ; Betrag der Zahl (HL) umsetzen in Integer nach HL
@@ -18726,7 +18751,7 @@ A7CA9:  ADD     A,'9' + 1       ; 1er Stelle Exponent umsetzen in ASCII
 ;   Real - Zahlwert im Integer - Zahlbereich aufbereiten in ASCII
 ;
 A7CB2:  PUSH    HL              ; Zeiger auf Real - Zahlwert retten
-        CALL    A7BEA           ; Real - Zahlwert (HL) umsetzen in Integer - Wert nach HL
+        CALL    HLFLT           ; Real - Zahlwert (HL) umsetzen in Integer - Wert nach HL
         LD      DE,S9E75        ; Zeiger auf Speicher für ASCII - Zahl vorgeben
         PUSH    DE              ; Zeiger auf Anfang Speicher merken
         LD      B,1             ; Code for 'auch Vornullen aufbereiten'
@@ -18779,7 +18804,7 @@ A7CF4:  INC     HL              ;! Speicher mit Null initialisieren
         LD      DE,B7C4F        ; Zeiger auf .1E-07 im Real - Format
         CALL    A9153           ; Real - Zahlwerte (HL) und (DE) vergleichen
         RET     C               ; Zahl zu klein für Ausgabe ohne Exponent
-        LD      DE,S9EA5        ; Zeiger auf Speicher für Real - Zahl
+        LD      DE,ZFAC1        ; Zeiger auf Speicher für Real - Zahl
         PUSH    DE              ; Zeiger auf Anfang Speicher merken
         CALL    A79C5           ; Real - Zahlwert von (HL) nach (DE) übertragen
         POP     HL              ; Zeiger auf Speicher mit Real-Zahlwert holen
@@ -18799,7 +18824,7 @@ A7CF4:  INC     HL              ;! Speicher mit Null initialisieren
 ;
 A7D30:  LD      IX,S9E7B        ; Zeiger auf Speicher für Nachkommastellen
 A7D34:  LD      DE,B7C1D        ; Zeiger auf .1E+09 im Real - Format
-        PUSH    BC              ; Register - Wert retten
+        PUSH    BC              ; Keep register value
         PUSH    IX              ; Zeiger für Nachkommastellen retten
         CALL    A92EA           ; *  - Routine   ( (HL) = (HL) * (DE) )
         POP     IX              ; Zeiger für Nachkommastellen holen
@@ -18912,7 +18937,7 @@ A7DD9:  OR      A               ; Textendezeichen  ?
 ;
 A7DE0:  LD      HL,S9E6A        ; Zeiger auf Speicher für ASCII-Zahl
         LD      DE,M7DF1        ; Text  '1E+08'
-        PUSH    BC              ; Register - Wert retten
+        PUSH    BC              ; Keep register value
         LD      BC,6            ; Textlänge
         LDIR                    ; Text nach Speicher für ASCII-Zahl übertragen
         POP     BC              ; geretteten Register - Wert holen
@@ -18932,7 +18957,7 @@ A7DFB:  CALL    A9153           ; Real - Zahlwerte (HL) und (DE) vergleichen
         JR      C,A7E13         ; Zahl ist kleiner als Stellenwertigkeit in Tabelle
         INC     (IX+0)          ; ASCII - Stelle plus eins
         PUSH    IX              ; Zeiger auf ASCII - Stelle merken
-        PUSH    BC              ; Register - Wert retten
+        PUSH    BC              ; Keep register value
         CALL    A90B3           ; -  - Routine   ( (HL) = (HL) - (DE) )
         POP     BC              ; geretteten Register - Wert holen
         POP     IX              ; Zeiger auf ASCII - Stelle holen
@@ -18989,7 +19014,7 @@ A7E3D:  LD      HL,(S7E3B)      ; Zeiger auf aktuelle Stelle USING - Format hole
 A7E41:  LD      A,(HL)          ; nächstes Textzeichen aus USING - Format holen
         OR      A               ; Textendezeichen  ?
         JP      Z,A636A         ; ja -->  Fehler 3   Illegal data error
-        CALL    A7EDF           ; überprüfen, ob Zeichen im Accu USING-Format-Zeichen ist
+        CALL    USGCD           ; überprüfen, ob Zeichen im Accu USING-Format-Zeichen ist
         JR      Z,A7E50         ; Formatzeichen -->  Format auswerten und Wert aufbereiten
         LD      (BC),A          ; Textzeichen aus USING-Format für Ausgabe merken
         INC     BC              ; Textzeichen überspringen
@@ -19002,15 +19027,15 @@ A7E50:  EX      AF,AF           ; USING - Formatzeichen retten
         JP      NZ,A7F08        ; nein -->  Zahlwert nach USING - Format aufbereiten
         EX      AF,AF           ; gerettetes USING - Formatzeichen wieder holen
         CP      '!'             ; Code for 'ein Zeichen Text'  ?
-        JP      Z,A7E67         ; ja -->  ein Zeichen Text der Zeichenkette aufbereiten
+        JP      Z,CHOUT1        ; ja -->  ein Zeichen Text der Zeichenkette aufbereiten
         CP      '&'             ; Code for 'mehrere Zeichen Text'  ?
-        JP      Z,A7E8E         ; ja -->  Länge auszählen und Text aufbereiten
+        JP      Z,CHOUT2        ; ja -->  Länge auszählen und Text aufbereiten
         JP      A636D           ; Fehler 4   Type mismatch error
 ;
 ;
 ;   ein Zeichen Text nach USING - Format aufbereiten
 ;
-A7E67:  EX      (SP),HL         ; Zeiger auf USING-Format merken / Wertdescriptor holen
+CHOUT1: EX      (SP),HL         ; Zeiger auf USING-Format merken / Wertdescriptor holen
         PUSH    BC              ; Zeiger für aufbereitete Zeichen retten
         CALL    A8570           ; Zeiger auf Zeichenkette nach Descriptor (HL) bereitstellen
         OR      A               ; Länge auszugebender Text gleich Null ?
@@ -19029,7 +19054,7 @@ A7E75:  POP     HL              ; Zeiger auf USING - Format holen
 A7E77:  LD      A,(HL)          ; nächstes Zeichen USING - Format holen
         OR      A               ; gleich Textendezeichen  ?
         JR      Z,A7E85         ; ja -->  wieder Anfang USING - Format vorgeben
-        CALL    A7EDF           ; überprüfen, ob Zeichen im Accu USING-Format-Zeichen ist
+        CALL    USGCD           ; überprüfen, ob Zeichen im Accu USING-Format-Zeichen ist
         JR      Z,A7E88         ; Formatzeichen -->  Zeiger auf Rest USING-Format merken
         LD      (BC),A          ; Textzeichen zur Ausgabe merken
         INC     BC              ; Textzeichen überspringen
@@ -19045,7 +19070,7 @@ A7E88:  LD      (S7E3B),HL      ; Zeiger auf aktuelle Stelle USING - Format merk
 ;
 ;   Formatlänge für Zeichenkette auszählen und Text nach USING - Format aufbereiten
 ;
-A7E8E:  LD      D,2             ; Vorgabe zwei Zeichen
+CHOUT2: LD      D,2             ; Vorgabe zwei Zeichen
 A7E90:  INC     HL              ; Textanfangszeichen in USING - Format überspringen
         LD      A,(HL)          ; nächstes Zeichen im USING - Format holen
         CP      '&'             ; Code for 'Formatende'  ?
@@ -19062,7 +19087,7 @@ A7E9E:  EX      (SP),HL         ; Zeiger auf USING-Format merken / Wertdescripto
         INC     HL              ; Zeiger auf 'Offset auf Zeichenkette'  stellen
         CALL    INDRCT          ; Offset aus Descriptor (HL) nach HL holen
         PUSH    BC              ; Zeiger für aufbereitete Zeichen retten
-        LD      BC,(S1076)      ; Anfang Stringtextbereich holen
+        LD      BC,(STRST)      ; Anfang Stringtextbereich holen
         ADD     HL,BC           ; Zeiger auf Stringtext errechnen
         POP     BC              ; Zeiger für aufbereitete Zeichen wieder holen
 A7EAE:  LD      A,(HL)          ; ein Zeichen der Zeichenkette holen
@@ -19083,7 +19108,7 @@ A7EB8:  LD      E,(HL)          ; Länge der auszugebenden Zeichenkette holen
         OR      A               ; Länge gleich Null  ?
         JR      Z,A7ED5         ; ja -->  nur Leerzeichen ausgeben
         PUSH    BC              ; Zeiger für aufbereitete Zeichen retten
-        LD      BC,(S1076)      ; Anfang Stringtextbereich holen
+        LD      BC,(STRST)      ; Anfang Stringtextbereich holen
         ADD     HL,BC           ; Zeiger auf Stringtext errechnen
         POP     BC              ; Zeiger für aufbereitete Zeichen wieder holen
 A7EC8:  LD      A,(HL)          ; ein Zeichen der Zeichenkette holen
@@ -19109,14 +19134,14 @@ A7ED9:  DEC     D               ; Zähler 'Restanzahl Zeichen' minus eins
 ;
 ;   überprüfen, ob Zeichen im Accu USING - Format - Zeichen ist
 ;
-A7EDF:  CALL    A011B           ; Vergleich Accu mit hinter CALL angegebenen Bytes
+USGCD:  CALL    CHKACC          ; Vergleich Accu mit hinter CALL angegebenen Bytes
         DEFB    4               ; vier Zeichen angegeben
         DEFM    "!&#+"          ; USING - Formatzeichen
         RET     Z               ; Zeichen im Accu ist Formatzeichen
         LD      E,A             ; Zeichen merken
         CP      '*'             ; Sternchen als Schecksperrzeichen  ?
         JR      Z,A7F02         ; ja -->  überprüfen, ob zwei Zeichen hintereinander
-        CALL    A80DF           ; Überprüfen, ob Accu gleich Währungszeichen ist
+        CALL    POND            ; Überprüfen, ob Accu gleich Währungszeichen ist
         JR      Z,A7F02         ; ja -->  testen, ob zwei Zeichen hintereinander
         CP      '.'             ; Dezimalpunktkennzeichen  ?
         LD      E,'#'           ; Nummernfeld für nächstes Zeichen vorgeben
@@ -19156,7 +19181,7 @@ A7F08:  XOR     A               ; Accu auf Null
         JP      Z,A7F64         ; ja -->  Anzahl Vorkommastellen auszählen
         CP      '*'             ; Schecksperrzeichen  ?
         JP      Z,A7F45         ; ja -->  merken und Format auszählen
-        CALL    A80DF           ; überprüfen, ob Accu gleich Währungszeichen ist
+        CALL    POND            ; überprüfen, ob Accu gleich Währungszeichen ist
         JP      Z,A7F56         ; ja -->  merken und Format auszählen
         CP      '.'             ; Dezimalpunktzeichen  ?
         JP      Z,A7F66         ; ja -->  Nachkommastellen auszählen
@@ -19171,7 +19196,7 @@ A7F45:  LD      A,1             ; Code for 'Schecksperre angegeben'
         INC     HL              ; zweites Schecksperrzeichen überspringen
         INC     D               ; Anzahl Vorkommastellen plus eins
         LD      A,(HL)          ; nächstes Formatzeichen holen
-        CALL    A80DF           ; überprüfen, ob Accu gleich Währungszeichen ist
+        CALL    POND            ; überprüfen, ob Accu gleich Währungszeichen ist
         JR      NZ,A7F66        ; nein -->  Vorkommastellen auszählen
         JR      A7F58           ; Code for 'Währungszeichen angegeben'  merken
 ;
@@ -19289,7 +19314,7 @@ D7FF4:  LD      A,0             ; Anzahl Nachkommastellen holen   (wird eingetra
         LD      E,A             ; und merken
 D7FF7:  LD      A,0             ; Exponent - Flag holen   (wird eingetragen)
         PUSH    BC              ; Zeiger auf Speicher für aufbereiteten Zahlwert retten
-        CALL    A80E5           ; Zahlwert nach USING - Format aufbereiten
+        CALL    USNGCV          ; Zahlwert nach USING - Format aufbereiten
         POP     BC              ; Zeiger auf Speicher für aufbereiteten Zahlwert holen
 D7FFE:  LD      A,0             ; Komma - Flag holen   (wird eingetragen)
         OR      A               ; gesetzt  ?
@@ -19447,7 +19472,7 @@ A80DB:  POP     HL              ; Zeiger auf Rest USING - Format holen
 ;
 ;   testen, ob Zeichen im Accu gleich Währungszeichen ist
 ;
-A80DF:  CP      0FBH            ; Pfund - Zeichen  ?
+POND:   CP      0FBH            ; Pfund - Zeichen  ?
         RET     Z               ; ja
         CP      '$'             ; Dollar - Zeichen  ?
         RET
@@ -19456,54 +19481,55 @@ A80DF:  CP      0FBH            ; Pfund - Zeichen  ?
 ;   Zahlwert (HL) nach USING - Format aufbereiten
 ;   (D = Vorkommastellen / E = Nachkommastellen / A = Exponentenflag)
 ;
-A80E5:  OR      A               ; mit Exponent aufbereiten  ?
-        JP      Z,A8170         ; nein
+USNGCV: OR      A               ; mit Exponent aufbereiten  ?
+        JP      Z,USGCV2        ; nein
         PUSH    DE              ; Vorkommastellen / Nachkommastellen retten
         LD      A,(HL)          ; Exponenten der Zahl holen
         OR      A               ; Zahlwert gleich Null  ?
-        JR      Z,A812D         ; Zahl gleich Null -->  Text vorgeben
+        JR      Z,USCMOK        ; Zahl gleich Null -->  Text vorgeben
         PUSH    HL              ; Zeiger auf Zahlwert im Real - Format retten
         LD      A,D             ; Anzahl Vorkommastellen holen
-        LD      DE,S9EA5        ; Zeiger auf Speicher für Real - Zahlwert
+        LD      DE,ZFAC1        ; Zeiger auf Speicher für Real - Zahlwert
         PUSH    AF              ; Anzahl Vorkommastellen merken
         CALL    A79C2           ; +1 im Real - Format nach (DE) übertragen
         POP     AF              ; Anzahl Vorkommastellen holen
         OR      A               ; gleich Null  ?
-        JR      Z,A8106         ; ja -->  Faktor stimmt
+        JR      Z,BMULED        ; ja -->  Faktor stimmt
         LD      B,A             ; Anzahl Vorkommastellen für Schleife merken
-        LD      HL,S9EA5        ; Zeiger auf Speicher für Real - Zahlwert
+        LD      HL,ZFAC1        ; Zeiger auf Speicher für Real - Zahlwert
         JR      A8104           ; Faktor errechnen
 ;
 A8101:  CALL    A7BDD           ; Zahlwert (HL) mal 10
 A8104:  DJNZ    A8101           ; richtigen Faktor errechnen
-A8106:  POP     HL              ; Zeiger auf aufzubereitenden Zahlwert holen
+
+BMULED: POP     HL              ; Zeiger auf aufzubereitenden Zahlwert holen
         LD      B,0             ; Vorgabe für Exponentenzähler
-A8109:  LD      DE,S9EA5        ; Zeiger auf Speicher für Real - Zahlwert
+USTNCM: LD      DE,ZFAC1        ; Zeiger auf Speicher für Real - Zahlwert
         CALL    A7B7C           ; Real-Zahlen (HL) und (DE) vergleichen (BC-Register retten)
-        JR      C,A8117         ; Real - Zahlwert ist kleiner als Normierungsfaktor
+        JR      C,USTOCM        ; Real - Zahlwert ist kleiner als Normierungsfaktor
         CALL    A7B31           ; Real - Zahlwert (HL) durch zehn
         INC     B               ; Exponentenzähler plus eins
-        JR      A8109           ; weiter untersuchen
+        JR      USTNCM          ; weiter untersuchen
 ;
-A8117:  PUSH    HL              ; Zeiger normierter Wert merken
-        LD      HL,S9EA5        ; Zeiger auf Speicher für Real - Zahlwert
+USTOCM: PUSH    HL              ; Zeiger normierter Wert merken
+        LD      HL,ZFAC1        ; Zeiger auf Speicher für Real - Zahlwert
         CALL    A7B31           ; Real - Zahlwert (HL) durch zehn
         POP     HL              ; Zeiger auf normierten Wert holen
-A811F:  LD      DE,S9EA5        ; Zeiger auf Speicher für Real - Zahlwert
+USONCM: LD      DE,ZFAC1        ; Zeiger auf Speicher für Real - Zahlwert
         CALL    A7B7C           ; Real-Zahlen (HL) und (DE) vergleichen (BC-Register retten)
-        JR      NC,A812D        ; Real - Zahl ist größer als Normierungsfaktor
+        JR      NC,USCMOK       ; Real - Zahl ist größer als Normierungsfaktor
         CALL    A7BDD           ; altes Teilergebnis mal 10
         DEC     B               ; Exponentenzähler minus eins
-        JR      A811F           ; weiter untersuchen
+        JR      USONCM          ; weiter untersuchen
 ;
-A812D:  POP     DE              ; Vorkommastellen / Nachkommastellen holen
+USCMOK: POP     DE              ; Vorkommastellen / Nachkommastellen holen
         PUSH    BC              ; Exponentenzähler retten
-        CALL    A818A           ; Zahlwert aufbereiten in ASCII
+        CALL    USGCV1          ; Zahlwert aufbereiten in ASCII
         POP     BC              ; Exponentenzähler holen
         PUSH    DE              ; Zeiger auf ASCII - Zahlwert retten
         LD      A,(DE)          ; erstes Zeichen ASCII - Zahlwert holen
         CP      '.'             ; Dezimalpunkt  ?
-        JR      NZ,A814B        ; nein
+        JR      NZ,FLADSR       ; nein
         LD      DE,S9E7A        ; Zeiger auf Stelle für Dezimalpunkt
         DEC     DE              ; Zeiger auf Vorkommastelle
         LD      A,(DE)          ; erste Vorkommastelle holen
@@ -19517,7 +19543,7 @@ A812D:  POP     DE              ; Vorkommastellen / Nachkommastellen holen
         DEC     HL
         JR      A8165
 ;
-A814B:  LD      A,(DE)          ; ASCII - Stelle holen
+FLADSR: LD      A,(DE)          ; ASCII - Stelle holen
         CP      '1'             ; eins  ?
         JR      NZ,A8167        ; nein -->  Stelle für Exponenten suchen
         EX      DE,HL           ; Zeiger auf ASCII - Zahl nach HL
@@ -19546,8 +19572,8 @@ A8167:  LD      A,(DE)          ; eine ASCII - Stelle holen
 ;
 ;   Zahl im Real - Format ohne Exponenten aufbereiten
 ;
-A8170:  PUSH    DE              ; Vorkommastellen / Nachkommastellen retten
-        CALL    A818A           ; Zahlwert aufbereiten in ASCII
+USGCV2: PUSH    DE              ; Vorkommastellen / Nachkommastellen retten
+        CALL    USGCV1          ; Zahlwert aufbereiten in ASCII
         POP     AF              ; Vorkommastellen holen
         OR      A               ; Zahlwert mit Vorkommastellen  ?
         RET     NZ              ; ja -->  fertig
@@ -19567,7 +19593,7 @@ A817F:  JP      NZ,A6367        ; nicht Null -->  Fehler 2  Overflow error
 ;
 ;   Zahlwert aufbereiten in ASCII
 ;
-A818A:  PUSH    DE              ; Vorkommastellen / Nachkommastellen retten
+USGCV1: PUSH    DE              ; Vorkommastellen / Nachkommastellen retten
         CALL    A7CE0           ; Zahl aufbereiten in ASCII, wenn ohne Exponent möglich
         JP      C,A6367         ; nicht ohne Exponent möglich -->  Fehler 2  Overflow error
         POP     HL              ; Vorkommastellen / Nachkommastellen holen
@@ -19640,26 +19666,26 @@ A81E8:  DEC     HL              ; Zeiger für Vorkommastelle
 A81FC:  POP     HL              ; Zeiger auf Dezimalpunkt holen
         POP     DE              ; Vorkommastellen / Nachkommastellen holen
         INC     E               ; Anzahl Nachkommastellen
-        JR      Z,A8210         ; keine Nachkommastellen aufbereiten
+        JR      Z,EDSTRT        ; keine Nachkommastellen aufbereiten
         LD      B,E             ; Anzahl aufzubereitende Nachkommastellen
         LD      DE,S9E7B        ; Zeiger auf Speicher für Nachkommastellen
         LD      (HL),'.'        ; Dezimalpunkt eintragen
 A8207:  INC     HL              ; Dezimalpunkt überspringen
         DEC     B               ; Restanzahl Nachkommastellen minus eins
-        JR      Z,A8210         ; fertig -->  Textendezeichen eintragen
+        JR      Z,EDSTRT        ; fertig -->  Textendezeichen eintragen
         LD      A,(DE)          ;! eine Nachkommastelle übertragen
         INC     DE              ;!
         LD      (HL),A          ;!
         JR      A8207           ; untersuchen, ob weitere Nachkommastellen
 ;
-A8210:  LD      (HL),NUL        ; Textendezeichen hinter Zahlwert eintragen
+EDSTRT: LD      (HL),NUL        ; Textendezeichen hinter Zahlwert eintragen
         LD      DE,S11A4        ; Zeiger auf Anfang aufbereiteten ASCII-Zahlwert
         RET
 ;
 ;
 ;   ASCII - Text - Zeile (DE) umsetzen in Zwischencodezeile nach (HL)
 ;
-A8216:  PUSH    DE              ;! Register - Werte retten
+CVIMTX: PUSH    DE              ;! Register - Werte retten
         PUSH    BC              ;!
         LD      C,0             ; Vorgabe für Längenzähler der Zwischencodezeile
         DEC     DE              ; Zeiger auf ASCII-Text für Schleife corrigieren
@@ -19676,18 +19702,18 @@ A821C:  CALL    A839C           ; Leerzeichen (DE) nach (HL) übertragen
         LD      IX,A821C        ; Rücksprungadresse für Umsetzung des nächsten Zeichens
         PUSH    IX              ; auf Stack ablegen
         CP      '\"'            ; Textanfangzeichen  ?
-        JR      Z,A8272         ; ja -->  Text bis Ende der Textkonstanten übertragen
+        JR      Z,IMSTR         ; ja -->  Text bis Ende der Textkonstanten übertragen
         CP      '\''            ; Kommentarkennzeichen  ?
-        JR      Z,A8265         ; ja -->  Text bis Ende Kommentar übertragen
+        JR      Z,IMREM         ; ja -->  Text bis Ende Kommentar übertragen
         CP      '?'             ; Fragezeichen als Abkürzung für PRINT  ?
-        JR      Z,A825E         ; ja -->  Zwischencode für PRINT eintragen
+        JR      Z,IMPRT         ; ja -->  Zwischencode für PRINT eintragen
         CP      '.'             ; Dezimalpunkt  ?
-        JP      Z,A83BF         ; ja -->  Zahlwert umsetzen in internes Format
+        JP      Z,IMFLT         ; ja -->  Zahlwert umsetzen in internes Format
         CP      '$'             ; Kennung Hex - Wert  ?
-        JP      Z,A83D9         ; ja -->  Zahlwert umsetzen
+        JP      Z,IMHEX         ; ja -->  Zahlwert umsetzen
         CALL    A79F6           ; Zeichen im Accu gleich Ziffer  ?
         JR      C,A829A         ; nein -->  untersuchen, ob BASIC - Befehl
-        JP      A83A6           ; auf Zahlwert untersuchen; wenn ja -->  Zahl umsetzen
+        JP      IMNUM           ; auf Zahlwert untersuchen; wenn ja -->  Zahl umsetzen
 ;
 A8253:  LD      (HL),A          ; Textendezeichen eintragen
         POP     BC              ;! gerettete Register - Werte holen
@@ -19704,14 +19730,14 @@ A8257:  LD      (HL),____PI     ; Zwischencode (Token) für Pi eintragen
 ;
 ;   Zwischencode für PRINT statt Fragezeichen merken
 ;
-A825E:  LD      A,_PRINT        ; Zwischencode (Token)  PRINT
+IMPRT:  LD      A,_PRINT        ; Zwischencode (Token)  PRINT
         CALL    A827D           ; Zwischencode merken und Zeiger corrigieren
         JR      A82D5           ; auf Befehle mit Sonderbehandlung untersuchen
 ;
 ;
 ;   Kommentartext bis Ende Kommentar übertragen
 ;
-A8265:  LD      (HL),':'        ; Doppelpunkt im Zwischencodetext eintragen
+IMREM:  LD      (HL),':'        ; Doppelpunkt im Zwischencodetext eintragen
         CALL    A827E           ; Zeiger für Zwischencode und Längenzähler corrigieren
         LD      (HL),'\''       ; Code for 'Kommentar'  in Zwischencodetext eintragen
         CALL    A827F           ; Zwischencodezeiger und Längenzähler corrigieren
@@ -19720,13 +19746,13 @@ A8265:  LD      (HL),':'        ; Doppelpunkt im Zwischencodetext eintragen
 ;
 ;   Text bis Ende der Textkonstanten übertragen
 ;
-A8272:  LD      (HL),A          ; ein Textzeichen merken
+IMSTR:  LD      (HL),A          ; ein Textzeichen merken
         CALL    A827E           ; Zeiger für Zwischencode und Längenzähler corrigieren
 A8276:  LD      A,(DE)          ; ein Textzeichen holen
         OR      A               ; Zeilenendezeichen  ?
         RET     Z               ; ja -->  fertig
         CP      '\"'            ; Textendezeichen  ?
-        JR      NZ,A8272        ; nein -->  Zeichen merken
+        JR      NZ,IMSTR        ; nein -->  Zeichen merken
 A827D:  LD      (HL),A          ; Zeichen für Zwischencodetext merken
 A827E:  INC     DE              ; Zeiger auf ASCII-Text auf nächstes Zeichen
 A827F:  INC     HL              ; Zeiger für Zwischencodetext auf nächstes Zeichen
@@ -19748,64 +19774,64 @@ A828C:  CALL    A827D           ; Zwischencode merken und Zeiger corrigieren
 ;
 ;
 ;   Examine text (DE) for BASIC command word
-;   if so --> convert to correct intermediate code
+;   if so --> convert to correct token code
 ;
 A829A:  PUSH    BC              ; Save line length
         LD      BC,M5973        ; Pointers to BASIC command words specify table one
         CALL    A834B           ; Find text (DE) in BASIC command word table (BC).
-        JR      NC,A82D1        ; Command found --> remember intermediate code
+        JR      NC,A82D1        ; Command found --> remember token code
         LD      BC,M5B16        ; Pointers to BASIC command words provide table two
         CALL    A834B           ; Find text (DE) in BASIC command word table (BC).
         LD      C,0FEH          ; Prebyte for table two
-        JR      NC,A82B7        ; Command found --> note prebyte and intermediate code
+        JR      NC,A82B7        ; Command found --> note prebyte and token code
         LD      BC,M5BAD        ; Pointers to BASIC Command Words Table Three
         CALL    A834B           ; Find text (DE) in BASIC command word table (BC).
         LD      C,0FFH          ; Prebyte for table three
         JR      C,A8285         ; Command not found --> remember text characters
-A82B7:  LD      (HL),C          ; Remember prebyte of table in intermediate code text
+A82B7:  LD      (HL),C          ; Remember prebyte of table in tokenized text
         INC     HL              ; Skip prebyte
-        LD      (HL),A          ; Note the intermediate code of the command
+        LD      (HL),A          ; Note the token code of the command
         POP     BC              ; Get saved counter 'Number of converted characters'
-        CALL    A8280           ; Correct pointer for intermediate code and counter
-        CALL    A827F           ; Correct intermediate code pointer and length counter
-        CP      ___ERL          ; Function ERL (intermediate code) ?
+        CALL    A8280           ; Correct pointer for token code and counter
+        CALL    A827F           ; Correct token code pointer and length counter
+        CP      ___ERL          ; Function ERL (token code) ?
         RET     NZ              ; no
         CALL    A839C           ; Transfer spaces (DE) to (HL).
         CP      '='             ; Equal  ?
         RET     NZ              ; no
-        LD      (HL),____EQ     ; Enter intermediate code for =
-        CALL    A827E           ; Correct pointer for intermediate code and length counter
+        LD      (HL),____EQ     ; Enter token code for =
+        CALL    A827E           ; Correct pointer for token code and length counter
         JR      A8311           ; examine for label name or line number
 ;
 A82D1:  POP     BC              ; Repeat saved counter 'Number of converted characters'
-        CALL    A827F           ; Correct intermediate code pointer and length counter
+        CALL    A827F           ; Correct token code pointer and length counter
 A82D5:  CP      ___REM          ; Basic command REM ?
-        JR      Z,A833C         ; Yes --> Text (DE) to end of command in intermediate code text.
+        JR      Z,A833C         ; Yes --> Text (DE) to end of command in tokenized text.
         CP      __DATA          ; Basic command DATA ?
-        JR      Z,A833C         ; Yes --> Text (DE) to end of command in intermediate code text.
+        JR      Z,A833C         ; Yes --> Text (DE) to end of command in tokenized text.
         CP      __ELSE          ; Basic command ELSE ?
         JR      Z,A8332         ; yes --> enter a colon in front of ELSE
         CP      __THEN          ; Basic command THEN ?
         JR      Z,A8311         ; examine for label name or line number
         CP      0E0H
         RET     NC              ; only arithmetic functions
-        PUSH    AF              ; Note the intermediate code of the command
+        PUSH    AF              ; Note the token code of the command
         CALL    A839C           ; Transfer spaces (DE) to (HL).
         CP      '/'             ; dash (slash) ?
         JR      NZ,A82FD        ; no --> check for number cross
-        LD      (HL),___DIV     ; Remember intermediate code for /
-        CALL    A827E           ; Correct pointer for intermediate code and length counter
+        LD      (HL),___DIV     ; Remember token code for /
+        CALL    A827E           ; Correct pointer for token code and length counter
         CALL    A79BC           ; Pointer in DE to next relevant character
-        CALL    A827D           ; Memorize intermediate code and correct pointer
+        CALL    A827D           ; Memorize token code and correct pointer
         JR      A830D           ; check for command with jump address
 ;
 A82FD:  CP      '#'             ; number cross ?
         JR      NZ,A830D        ; no --> check for command with jump address
-        CALL    A827D           ; Memorize intermediate code and correct pointer
+        CALL    A827D           ; Memorize token code and correct pointer
         CALL    A79BC           ; Pointer in DE to next relevant character
         CALL    A79F6           ; character in accu same digit ?
-        CALL    NC,A83A6        ; yes --> convert numerical value
-A830D:  POP     AF              ; Get intermediate code of command
+        CALL    NC,IMNUM        ; yes --> convert numerical value
+A830D:  POP     AF              ; Get token code of command
         CP      08DH            ; Command with line number or label ?
         RET     NC              ; no
 ;
@@ -19815,7 +19841,7 @@ A830D:  POP     AF              ; Get intermediate code of command
 A8311:  CALL    A839C           ; Transfer spaces (DE) to (HL).
         CP      '\"'            ; identifier label name ?
         JR      NZ,A831D        ; no --> investigate further
-        CALL    A8272           ; Transfer text to the end of the text constant
+        CALL    IMSTR           ; Transfer text to the end of the text constant
         JR      A8311           ; examine whether additional jump addresses
 ;
 A831D:  CP      ','
@@ -19841,7 +19867,7 @@ A8332:  DEC     HL              ; Zeiger auf Stelle mit Zwischencode ELSE
         JR      A8311           ; auf Labelnamen oder Zeilennummer untersuchen
 ;
 ;
-;   Text (DE) to end of command in intermediate code text
+;   Text (DE) to end of command in tokenized text
 ;
 A833C:  LD      A,(DE)          ; ein Zeichen ASCII - Text holen
         CALL    A5966           ; testen, ob Accu gleich Befehlsendezeichen
@@ -19854,19 +19880,19 @@ A833C:  LD      A,(DE)          ; ein Zeichen ASCII - Text holen
 ;
 ;   Find text (DE) in BASIC - command word table (BC).
 ;
-A834B:  PUSH    HL              ; Save pointer to memory for intermediate code text
+A834B:  PUSH    HL              ; Save pointer to memory for tokenized text
         PUSH    DE              ; Pointer to start ASCII - save text
         LD      H,B             ;! Pointer to command word table after HL
         LD      L,C             ;!
-        LD      B,07FH          ; Default for intermediate code
+        LD      B,07FH          ; Default for token code
 A8351:  POP     DE              ; Pointer to beginning of ASCII - get text
         PUSH    DE              ; and remember again
-        INC     B               ; Intermediate code counter plus one
+        INC     B               ; token code counter plus one
         LD      A,(HL)          ; Get a character from the table
         CP      -1              ; end-of-table character ?
         JR      NZ,A835D        ; no --> compare text
         POP     DE              ; Pointer to beginning of ASCII - get text
-        POP     HL              ; Get pointer to memory for intermediate code text
+        POP     HL              ; Get pointer to memory for tokenized text
         SCF                     ; Set command word not found code
         RET
 ;
@@ -19925,24 +19951,24 @@ A839C:  LD      A,(DE)          ; ein ASCII - Textzeichen holen
 ;
 ;   auf Zahlwert untersuchen; wenn ja -->  Zahl umsetzen
 ;
-A83A6:  EX      AF,AF           ; ASCII - Textzeichen retten
+IMNUM:  EX      AF,AF           ; ASCII - Textzeichen retten
         PUSH    DE              ; Zeiger auf ASCII - Text retten
         CALL    A79BB           ; Leerzeichen im Text (DE) überspringen
         POP     DE              ; Zeiger auf ASCII - Text retten
         CALL    A79F6           ; Zeichen im Accu gleich Ziffer  ?
-        JR      NC,A83BF        ; ja -->  Zahlwert umsetzen in internes Format
+        JR      NC,IMFLT        ; ja -->  Zahlwert umsetzen in internes Format
         CP      '.'             ; Dezimalpunkt  ?
-        JR      Z,A83BF         ; ja -->  Zahlwert umsetzen in internes Format
+        JR      Z,IMFLT         ; ja -->  Zahlwert umsetzen in internes Format
         CP      'E'             ; Exponentenkennung  ?
-        JR      Z,A83BF         ; ja -->  Zahlwert umsetzen in internes Format
+        JR      Z,IMFLT         ; ja -->  Zahlwert umsetzen in internes Format
         EX      AF,AF           ; gerettetes Textzeichen holen
         SUB     '0'-1           ; einzelne Ziffer umsetzen in Zwischencode
-        JP      A83BF           ; Zahlwert umsetzen in internes Format
+        JP      IMFLT           ; Zahlwert umsetzen in internes Format
 ;
 ;
 ;   Zahlwert umsetzen in internes Format und im Zwischencodetext merken
 ;
-A83BF:  PUSH    BC              ; Zähler 'Anzahl umgesetzte Zeichen' retten
+IMFLT:  PUSH    BC              ; Zähler 'Anzahl umgesetzte Zeichen' retten
         LD      (HL),__REAL     ; Code for 'Real - Zahlwert'  eintragen
         INC     HL              ; Zwischencode überspringen
         PUSH    HL              ; Zeiger auf Stelle für Real - Zahlwert merken
@@ -19957,7 +19983,7 @@ A83BF:  PUSH    BC              ; Zähler 'Anzahl umgesetzte Zeichen' retten
 ;   ASCII - Zeilennummer umsetzen und mit Kennung merken
 ;
 A83D0:  PUSH    BC              ; Zähler  'Anzahl umgesetzte Zeichen'  retten
-        CALL    A8532           ; ASCII - Wert (DE) umsetzen in Hex-Wert nach BC
+        CALL    CVBCAS          ; ASCII - Wert (DE) umsetzen in Hex-Wert nach BC
         LD      (HL),_LINNO     ; Code for 'Zeilennummer'  eintragen
         INC     HL              ; Code überspringen
         JR      A83ED           ; Zähler  'Anzahl umgesetzte Zeichen'  corrigieren
@@ -19965,7 +19991,7 @@ A83D0:  PUSH    BC              ; Zähler  'Anzahl umgesetzte Zeichen'  retten
 ;
 ;   Sedezimalwert (DE) umsetzen in internes Format nach (HL)
 ;
-A83D9:  LD      (HL),A          ; $ - Zeichen erst einmal merken
+IMHEX:  LD      (HL),A          ; $ - Zeichen erst einmal merken
         INC     DE              ; Zeiger auf ASCII-Text auf nächstes Zeichen
         LD      A,(DE)          ; nächstes ASCII - Textzeichen holen
         RST     _DOCMD          ; Software - Kommando ausführen
@@ -19991,98 +20017,98 @@ A83F3:  POP     BC              ; Zähler  'Anzahl umgesetzte Zeichen'  holen
         ADD     A,C             ; neue Anzahl Zeichen addieren
         JP      C,A6379         ; Überlauf -->  Fehler 8  Line lenght error
         LD      C,A             ; neue Anzahl umgesetzter Zeichen merken
-A83F9:  DEC     DE              ; Zeiger auf ASCII-Text auf letztes Zeichen
+BCKSKP: DEC     DE              ; Zeiger auf ASCII-Text auf letztes Zeichen
         LD      A,(DE)          ; ASCII - Zeichen holen
         CP      ' '             ; Leerzeichen  (Space)  ?
-        JR      Z,A83F9         ; ja -->  letztes relevantes Zeichen suchen
+        JR      Z,BCKSKP        ; ja -->  letztes relevantes Zeichen suchen
         INC     DE              ; Zeiger auf nächstes abzuarbeitendes Zeichen
         RET
 ;
 ;
-;   Zwischencodezeile (HL) umsetzen in ASCII-Text nach (DE)
+;   Convert tokenized line in (HL) to ASCII in (DE)
 ;
-A8401:  PUSH    HL              ; Zeiger auf Zwischencodezeile retten
-        PUSH    DE              ; Zeiger auf Speicher für ASCII retten
-        PUSH    BC              ; Register - Wert retten
+CVTXIM: PUSH    HL              ; Save tokenized line pointer
+        PUSH    DE              ; Save pointer to memory for ASCII
+        PUSH    BC              ; Keep register value
         EXX
         LD      B,0             ; Vorgabe für Zähler  'umgesetzte Zeichen'
         EXX
         LD      C,0             ; Vorgabe für Längezähler
 T840A:  LD      A,(HL)          ; ein Zeichen Zwischencodetext holen
         OR      A               ; Zeilenendezeichen  ?
-        JR      Z,A843E         ; ja -->  merken und gerettete Register holen
+        JR      Z,TXEND         ; ja -->  merken und gerettete Register holen
         LD      BC,T840A        ; Rücksprungadresse für nächstes Zeichen
         PUSH    BC              ; auf Stack ablegen
         CP      '\''            ; Anfang Kommentar  ?
-        JR      Z,A8458         ; ja -->  Text (HL) bis Befehlsende nach (DE) übertragen
+        JR      Z,TXDATA        ; ja -->  Text (HL) bis Befehlsende nach (DE) übertragen
         INC     HL              ; Zwischencodezeichen überspringen
         LD      BC,M5973        ; Zeiger auf BASIC-Befehlswörter Tabelle eins vorgeben
         CP      ' '             ; Steuerzeichen  ?
-        JR      C,A8480         ; ja -->  in entsprechenden Zahlwert umsetzen
+        JR      C,TXNUM         ; ja -->  in entsprechenden Zahlwert umsetzen
         CP      '\"'            ; Textanfangszeichen  ?
-        JR      Z,A8469         ; ja -->  Text (HL) nach (DE) übertragen
+        JR      Z,TXSTR         ; ja -->  Text (HL) nach (DE) übertragen
         CP      ':'             ; Doppelpunkt  ?
-        JR      Z,A8476         ; ja -->  bei Kommentar und ELSE vergessen
+        JR      Z,TX3AH         ; ja -->  bei Kommentar und ELSE vergessen
         CP      ___REM          ; Zwischencode  REM  ?
         JR      Z,A8454         ; ja -->  Text (HL) bis Ende Befehl nach (DE) übertragen
         CP      __DATA          ; Zwischencode  DATA  ?
         JR      Z,A8454         ; ja -->  Text (HL) bis Ende Befehl nach (DE) übertragen
         CP      ____PI          ; Zwischencode  Pi  ?
-        JR      Z,A8443         ; ja -->  Zeichen für Pi nach (DE) eintragen
+        JR      Z,TXPAI         ; ja -->  Zeichen für Pi nach (DE) eintragen
         CP      0FEH            ; Vorbyte für Befehlsworttabellen  ?
         JR      NC,A8448        ; ja -->  Basic - Befehlswort aufbereiten
         CP      080H            ; Zwischencode  ?
-        JP      NC,A84C4        ; ja -->  Zwischencode umsetzen in ASCII - Text
-        JP      A84E1           ; ASCII-Zeichen im Accu merken, Zähler corrigieren
+        JP      NC,TXRSV        ; ja -->  Zwischencode umsetzen in ASCII - Text
+        JP      STRDE           ; ASCII-Zeichen im Accu merken, Zähler corrigieren
 ;
-A843E:  LD      (DE),A          ; Zeilenendezeichen merken
+TXEND:  LD      (DE),A          ; Zeilenendezeichen merken
         POP     BC              ; geretteten Register - Wert holen
         POP     DE              ; Zeiger auf Anfang ASCII-Text holen
         POP     HL              ; Zeiger auf Zwischencodetext holen
         RET
 ;
-A8443:  LD      A,0FFH          ; Pi   (Sharp - ASCII - Code)
-        JP      A84E1           ; ASCII-Zeichen im Accu merken, Zähler corrigieren
+TXPAI:  LD      A,0FFH          ; Pi   (Sharp - ASCII - Code)
+        JP      STRDE           ; ASCII-Zeichen im Accu merken, Zähler corrigieren
 ;
 A8448:  LD      BC,M5BAD        ; Zeiger auf BASIC-Befehlswörter Tabelle drei vorgeben
         JR      NZ,A8450        ; nicht Befehlsworttabelle zwei -->  Wort umsetzen
         LD      BC,M5B16        ; Zeiger auf BASIC-Befehlswörter Tabelle zwei vorgeben
 A8450:  LD      A,(HL)          ; eigentlichen Zwischencode holen
         INC     HL              ; Zwischencode überspringen
-        JR      A84C4           ; Zwischencode umsetzen in ASCII - Text
+        JR      TXRSV           ; Zwischencode umsetzen in ASCII - Text
 ;
 ;
 ;    Text (HL) bis Ende Befehl nach (DE) übertragen
 ;
-A8454:  CALL    A84C4           ; Zwischencode umsetzen in ASCII - Text
+A8454:  CALL    TXRSV           ; Zwischencode umsetzen in ASCII - Text
         RET     Z               ; Befehlsende
 ;
-A8458:  LD      A,(HL)          ; nächstes Zwischencodezeichen holen
+TXDATA: LD      A,(HL)          ; nächstes Zwischencodezeichen holen
         CALL    A5966           ; testen, ob Accu gleich Befehlsendezeichen
         RET     Z               ; ja -->  fertig
-        CALL    A84E1           ; ASCII-Zeichen im Accu merken, Zähler corrigieren
+        CALL    STRDE           ; ASCII-Zeichen im Accu merken, Zähler corrigieren
         LD      A,(HL)          ; Zwischencodezeichen noch einmal holen
         INC     HL              ; und überspringen
         CP      '\"'            ; Textanfangzeichen  ?
         CALL    Z,A846C         ; ja -->  Text (HL) nach (DE) übertragen
-        JR      A8458           ; ja -->  Text (HL) bis Befehlsende nach (DE) übertragen
+        JR      TXDATA          ; ja -->  Text (HL) bis Befehlsende nach (DE) übertragen
 ;
 ;
 ;   Textkonstante (HL) nach (DE) übertragen
 ;
-A8469:  CALL    A84E1           ; ASCII-Zeichen im Accu merken, Zähler corrigieren
+TXSTR:  CALL    STRDE           ; ASCII-Zeichen im Accu merken, Zähler corrigieren
 A846C:  LD      A,(HL)          ; nächstes Zwischencodezeichen holen
         OR      A               ; Zeilenendezeichen  ?
         RET     Z               ; ja -->  fertig
         INC     HL              ; Zwischencodezeichen überspringen
         CP      '\"'            ; Textendezeichen  ?
-        JR      NZ,A8469        ; nein -->  weitere Zeicehn übertragen
-        JR      A84E1           ; ASCII-Zeichen im Accu merken, Zähler corrigieren
+        JR      NZ,TXSTR        ; nein -->  weitere Zeicehn übertragen
+        JR      STRDE           ; ASCII-Zeichen im Accu merken, Zähler corrigieren
 ;
 ;
 ;   bei Doppelpunkt auf ELSE oder Kommentar untersuchen
 ;
-A8476:  LD      (DE),A          ; Doppelpunkt für ASCII - Text merken
+TX3AH:  LD      (DE),A          ; Doppelpunkt für ASCII - Text merken
         LD      A,(HL)          ; nächstes Zwischencodezeichen holen
         CP      __ELSE          ; Zwischencode  ELSE  ?
         RET     Z               ; ja -->  Doppelpunkt vergessen
@@ -20093,15 +20119,15 @@ A8476:  LD      (DE),A          ; Doppelpunkt für ASCII - Text merken
 ;
 ;   Zwischencodekennung in entsprechenden Zahlwert umsetzen
 ;
-A8480:  CP      __REAL          ; Kennung Real - Zahlwert  ?
-        JR      Z,A84B4         ; ja -->  Real - Wert aufberieten in ASCII
+TXNUM:  CP      __REAL          ; Kennung Real - Zahlwert  ?
+        JR      Z,TXFLT         ; ja -->  Real - Wert aufberieten in ASCII
         CP      _LINNO          ; Kennung  Zeilennummer / Hex - Wert etc  ?
-        JR      NC,A848D        ; ja -->  umsetzen in ASCII - Zeichen
+        JR      NC,TXINT        ; ja -->  umsetzen in ASCII - Zeichen
         DEC     A               ; Steuerzeichen auf Dezimalwert corrigieren
         OR      '0'             ; und umsetzen in ASCII - Zeichen
-        JR      A84E1           ; ASCII-Zeichen im Accu merken, Zähler corrigieren
+        JR      STRDE           ; ASCII-Zeichen im Accu merken, Zähler corrigieren
 ;
-A848D:  PUSH    DE              ; Zeiger auf Speicher für ASCII - Wert retten
+TXINT:  PUSH    DE              ; Zeiger auf Speicher für ASCII - Wert retten
         LD      E,(HL)          ;! Wert aus Zwischencodetext holen
         INC     HL              ;!
         LD      D,(HL)          ;!
@@ -20111,7 +20137,7 @@ A848D:  PUSH    DE              ; Zeiger auf Speicher für ASCII - Wert retten
         JR      Z,A84A3         ; ja -->  Integer - Wert umsetzen in ASCII
         CP      _LIN_P          ; Zeiger auf Zeile  ?
         JR      C,A84A3         ; nein -->  Zeilennummer umsetzen in ASCII
-        JR      NZ,A84F0        ; nein -->  Hex - Wert umsetzen in ASCII
+        JR      NZ,TXHEX        ; nein -->  Hex - Wert umsetzen in ASCII
         EX      DE,HL           ; Zeiger auf Zeile nach HL
         INC     HL              ;! Offset auf nächste Zeile überspringen
         INC     HL              ;!
@@ -20127,14 +20153,14 @@ A84A3:  EX      DE,HL           ; aufzubereitenden Wert nach HL
 A84AB:  LD      A,(BC)          ; auf aufbereitetes Textzeichen holen
         OR      A               ; Textendezeichen  ?
         RET     Z               ; ja -->  fertig
-        CALL    A84E1           ; ASCII-Zeichen im Accu merken, Zähler corrigieren
+        CALL    STRDE           ; ASCII-Zeichen im Accu merken, Zähler corrigieren
         INC     BC              ; Zeiger auf aufbereiteten Text auf nächstes Zeichen
         JR      A84AB           ; weitere Zeichen Zahltext übertragen
 ;
 ;
 ;   Real - Zahlwert (HL) aufbereiten in ASCII - Text nach (DE)
 ;
-A84B4:  PUSH    HL              ; Zeiger auf Zwischencodetext retten
+TXFLT:  PUSH    HL              ; Zeiger auf Zwischencodetext retten
         PUSH    DE              ; Zeiger für ASCII - Text retten
         CALL    A7D4E           ; Real - Zahlwert (HL) aufbereiten in ASCII - Text
         LD      B,D             ;! Zeiger auf aufbereiteten Zahlwert nach
@@ -20151,7 +20177,7 @@ A84B4:  PUSH    HL              ; Zeiger auf Zwischencodetext retten
 ;
 ;   Zwischencode im Accu nach Tabelle (BC) umsetzen in ASCII - Text
 ;
-A84C4:  CP      080H            ; Zwischencode
+TXRSV:  CP      080H            ; Zwischencode
         JR      Z,A84D2         ; Zeiger steht auf richtigem Text
         EX      AF,AF           ; Rest Zwischencodezähler retten
 A84C9:  LD      A,(BC)          ; ein Zeichen aus Tabelle holen
@@ -20160,21 +20186,21 @@ A84C9:  LD      A,(BC)          ; ein Zeichen aus Tabelle holen
         JR      NC,A84C9        ; nicht Textende -->  Ende des Wortes suchen
         EX      AF,AF           ; geretteten Zwischencodezähler wieder holen
         DEC     A               ; minus eins
-        JR      A84C4           ; und testen, ob Zeiger auf richtigem Wort steht
+        JR      TXRSV           ; und testen, ob Zeiger auf richtigem Wort steht
 ;
 A84D2:  LD      A,(BC)          ; ein Textzeichen aus Tabelle holen
         BIT     7,A             ; Wortendebit gesetzt  ?
-        JR      NZ,A84DF        ; ja -->  letztes Zeichen des Wortes eintragen
+        JR      NZ,STRDES       ; ja -->  letztes Zeichen des Wortes eintragen
         CP      '.'             ; Punkt  ?
-        CALL    NZ,A84E1        ; nein -->  ASCII-Zeichen im Accu merken, Zähler corrigieren
+        CALL    NZ,STRDE        ; nein -->  ASCII-Zeichen im Accu merken, Zähler corrigieren
         INC     BC              ; Zeiger auf Texttabelle auf nächstes Zeichen
         JR      A84D2           ; nächstes Tabellenzeichen aufbereiten
 ;
 ;
 ;   ASCII-Zeichen im Accu merken und Zähler für Länge der ASCII - Text - Zeile corrigieren
 ;
-A84DF:  AND     01111111B       ; eigentliches ASCII - Zeichen maskieren
-A84E1:  LD      (DE),A          ; ASCII - Text - Zeichen merken
+STRDES: AND     01111111B       ; eigentliches ASCII - Zeichen maskieren
+STRDE:  LD      (DE),A          ; ASCII - Text - Zeichen merken
         OR      A               ; Zeilenendezeichen  ?
         RET     Z               ; ja -->  fertig
 A84E4:  INC     DE              ; eingetragenes Zeichen überspringen
@@ -20193,27 +20219,27 @@ A84E4:  INC     DE              ; eingetragenes Zeichen überspringen
 ;
 ;   Hex - Wert in DE  umsetzen in ASCII - Text
 ;
-A84F0:  LD      A,'$'           ; Kennung Hex - Wert
+TXHEX:  LD      A,'$'           ; Kennung Hex - Wert
         EX      AF,AF           ; Kennung merken
         EX      DE,HL           ; Hex - Wert nach HL
-        CALL    A8501           ; Hex - Wert in HL aufbereiten in ASCII nach Speicher
+        CALL    HEXHL           ; Hex - Wert in HL aufbereiten in ASCII nach Speicher
         LD      B,D             ;! Zeiger auf aufbereiteten Text nach BC
         LD      C,E             ;!
         POP     HL              ; Zeiger auf Zwischencodetext holen
         POP     DE              ; Zeiger auf Speicher für ASCII - Text holen
         EX      AF,AF           ; gerettete Zahlkennung wieder holen
-        CALL    A84E1           ; ASCII - Zeichen im Accu merken, Zähler corrigieren
+        CALL    STRDE           ; ASCII - Zeichen im Accu merken, Zähler corrigieren
         JR      A84AB           ; aufbereiteten Zahlwert nach ASCII-Text-Speicher übertragen
 ;
 ;
 ;   Hex - Wert in HL aufbereiten in Hex - ASCII - Wert nach Zwischenspeicher
 ;
-A8501:  LD      DE,S9E76        ; Zeiger auf Speicher für Aufbereitung  Hex - Wert
+HEXHL:  LD      DE,S9E76        ; Zeiger auf Speicher für Aufbereitung  Hex - Wert
         PUSH    DE              ; Zeiger auf Anfang Speicher merken
         LD      A,H             ; High - Byte Wert holen
-        CALL    A851A           ; Byte im Accu umsetzen in zwei ASCII-Hex-Zeichen
+        CALL    HEXACC          ; Byte im Accu umsetzen in zwei ASCII-Hex-Zeichen
         LD      A,L             ; Low - Byte Wert holen
-        CALL    A851A           ; Byte im Accu umsetzen in zwei ASCII-Hex-Zeichen
+        CALL    HEXACC          ; Byte im Accu umsetzen in zwei ASCII-Hex-Zeichen
         XOR     A               ; Code for 'Textende'
         LD      (DE),A          ; hinter aufbereiteten Zahlwert eintragen
         POP     DE              ; Zeiger auf Anfang Speicher holen
@@ -20228,7 +20254,7 @@ A8512:  LD      A,(DE)          ; eine Stelle holen
 ;
 ;   Byte im Accu umsetzen in zwei ASCII - Hex - Zeichen nach (DE)
 ;
-A851A:  PUSH    AF              ; auszugebendes Byte retten
+HEXACC: PUSH    AF              ; auszugebendes Byte retten
         RRCA                    ;! High - Nibble auf Low - Nibble schieben
         RRCA                    ;!
         RRCA                    ;!
@@ -20248,7 +20274,7 @@ A852F:  LD      (DE),A          ; Hex - ASCII - Zeichen merken
 ;
 ;   ASCII - Wert (DE) umsetzen in Hex - Wert nach BC
 ;
-A8532:  PUSH    HL              ; Zeiger für Zwischencodetext retten
+CVBCAS: PUSH    HL              ; Zeiger für Zwischencodetext retten
         EX      DE,HL           ; Zeiger auf Dezimal - ASCII - Wert nach HL
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    19              ; Code 19   ASCII - Wert (HL) umsetzen in Hex-Wert nach DE
@@ -20256,17 +20282,17 @@ A8532:  PUSH    HL              ; Zeiger für Zwischencodetext retten
         LD      C,E             ;!
         EX      DE,HL           ; Zeiger auf Rest ASCII - Text wieder nach HL
         POP     HL              ; geretteten Zeiger für Zwischencodetext holen
-        JP      A83F9           ; Zeiger auf letztes relevantes Zeichen stellen
+        JP      BCKSKP          ; Zeiger auf letztes relevantes Zeichen stellen
 ;
 ;
 ;   Ausdruck (HL) auswerten und ein - Byte - Wert nach E/Accu bereitstellen
 ;
-A853D:  CALL    A8551           ; zwei - Byte - Wert nach DE bereitstellen
+IBYTE:  CALL    IDEEXP          ; zwei - Byte - Wert nach DE bereitstellen
 ;
 ;
 ;   untersuchen, ob bereitgestellter Wert zwischen 0 und 255 liegt
 ;
-A8540:  LD      A,D             ; High - Byte Wert holen
+DCHECK: LD      A,D             ; High - Byte Wert holen
         OR      A               ; gleich Null  ?
         JP      NZ,A636A        ; nein -->  Fehler 3   Illegal data error
         LD      A,E             ; Lwo -Byte Wert holen
@@ -20276,23 +20302,23 @@ A8540:  LD      A,D             ; High - Byte Wert holen
 ;   Ausdruck (HL) auswerten und 2 - Byte - Wert nach DE
 ;   ohne vorherige Zwischenergebnisse zu vergessen
 ;
-A8547:  CALL    A858E           ; Ausdruck (HL) auswerten
+DEEXP:  CALL    EXPR8           ; Ausdruck (HL) auswerten
         DEC     DE              ;! Zeiger auf bereitgestellten Wert stellen
         DEC     DE              ;!
         DEC     DE              ;!
         DEC     DE              ;!
         DEC     DE              ;!
-        JR      A8554           ; Real - Wert (DE) umsetzen in zwei - Byte - Wert
+        JR      STDEFC          ; Real - Wert (DE) umsetzen in zwei - Byte - Wert
 ;
 ;
 ;   Ausdruck (HL) auswerten und zwei - Byte - Wert nach DE bereitstellen
 ;
-A8551:  CALL    A857C           ; Ausdruck (HL) auswerten und Zeiger auf Ergebnis bereitst.
-A8554:  PUSH    AF              ; nächstes Programmbyte retten
+IDEEXP: CALL    EXPR            ; Ausdruck (HL) auswerten und Zeiger auf Ergebnis bereitst.
+STDEFC: PUSH    AF              ; nächstes Programmbyte retten
         PUSH    HL              ; Programmzeiger retten
         EX      DE,HL           ; Zeiger auf Wert nach HL
-        CALL    A903F           ; Syntaxuntersuchung auf Real - Wert - Ergebnis
-        CALL    A7BEA           ; Real - Zahlwert (HL) umsetzen in Integer - Wert nach HL
+        CALL    STROMT          ; Syntaxuntersuchung auf Real - Wert - Ergebnis
+        CALL    HLFLT           ; Real - Zahlwert (HL) umsetzen in Integer - Wert nach HL
         EX      DE,HL           ; Ergebnis nach DE
         POP     HL              ; geretteten Programmzeiger holen
         POP     AF              ; nächstes Programmbyte holen
@@ -20301,7 +20327,7 @@ A8554:  PUSH    AF              ; nächstes Programmbyte retten
 ;
 ;   Stringausdrucë (HL© auswerteî unä Zeigeò auæ Strinç nacè DE bereitstellen
 ;
-A8561:  CALL    A857C           ; Ausdruck (HL) auswerten und Zeiger auf Ergebnis bereitst.
+A8561:  CALL    EXPR            ; Ausdruck (HL) auswerten und Zeiger auf Ergebnis bereitst.
         PUSH    AF              ; nächstes Programmbyte retten
         CALL    A9036           ; Syntaxuntersuchung auf Zeichenkettenergebnis
         PUSH    HL              ; Programmzeiger retten
@@ -20319,7 +20345,7 @@ A8570:  LD      B,(HL)          ; Länge der Zeichenkette holen
         LD      E,(HL)          ;! Offset auf String auf Descriptor holen
         INC     HL              ;!
         LD      D,(HL)          ;!
-        LD      HL,(S1076)      ; Anfang Stringtextbereich holen
+        LD      HL,(STRST)      ; Anfang Stringtextbereich holen
         ADD     HL,DE           ; Zeiger auf String errechnen
         EX      DE,HL           ; Zeiger auf String nach DE
         LD      A,B             ; Länge der Zeichenkette holen
@@ -20328,19 +20354,19 @@ A8570:  LD      B,(HL)          ; Länge der Zeichenkette holen
 ;
 ;   Ausdruck (HL) auswerten und Zeiger auf Ergebnis bereitstellen
 ;
-A857C:  LD      DE,(S1078)      ; Anfang Stringarbeitsbereich holen
-        LD      (S107A),DE      ; als Ende Stringarbeitsbereich merken
-A8584:  LD      DE,(S107C)      ; Zeiger auf Anfang Rechenspeicher holen
+EXPR:   LD      DE,(VARED)      ; Anfang Stringarbeitsbereich holen
+        LD      (TMPEND),DE     ; als Ende Stringarbeitsbereich merken
+A8584:  LD      DE,(INTFAC)     ; Zeiger auf Anfang Rechenspeicher holen
         PUSH    DE              ; Zeiger für Ergebnis merken
-        CALL    A858E           ; Ausdruck (HL) auswerten und Ergebnis bereitstellen
+        CALL    EXPR8           ; Ausdruck (HL) auswerten und Ergebnis bereitstellen
         POP     DE              ; Zeiger auf Ergebnis holen
         RET
 ;
 ;
 ;   Ausdruck (HL) mit allen Prioritäten auswerten
 ;
-A858E:  PUSH    DE              ; Zeiger für Ergebnis retten
-        LD      DE,(S107A)      ; Ende Stringarbeitsbereich holen
+EXPR8:  PUSH    DE              ; Zeiger für Ergebnis retten
+        LD      DE,(TMPEND)     ; Ende Stringarbeitsbereich holen
         CALL    A8C08           ; überprüfen, ob Adresse in DE mit Stack kollidiert
         POP     DE              ; Zeiger für Ergebnis holen
         CALL    A85B2           ; Ausdruck mit Priorität acht und höher auswerten
@@ -20400,7 +20426,7 @@ A85D0:  CP      ___AND          ; Zwischencode  AND  ?
 ;
 ;   Ausdruck mit Priorität sechs und höher auswerten
 ;
-A85E8:  CALL    A0164           ; Vergleich auf Byte hinter CALL
+A85E8:  CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFB    ___NOT          ; Zwischencode  NOT  ?
         JR      NZ,A85FD        ; nein -->  Ausdruck mit Priorität fünf und höher auswerten
         CALL    A85FD           ; Ausdruck mit Priorität fünf und höher auswerten
@@ -20624,7 +20650,7 @@ A86DA:  CALL    A86E8           ; Ausdruck mit Priorität eins oder höher auswert
 ;
 ;   Ausdruck mit Priorität eins oder höher auswerten
 ;
-A86E8:  CALL    A0164           ; Vergleich auf Byte hinter CALL
+A86E8:  CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFB    __PLUS          ; Zwischencode  PLUS  ?
         JR      Z,A86E8         ; ja -->  Vorzeichen vergessen
         CP      _MINUS          ; Zwischencode minus  ?
@@ -20655,7 +20681,7 @@ A86FB:  CP      ___POT          ; Zwischencode  ^  ?
 ;
 ;   Konstante, Variable oder Funktion (HL) mit Vorzeichen auswerten
 ;
-A8713:  CALL    A0164           ; Vergleich auf Byte hinter CALL
+A8713:  CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFB    __PLUS          ; Zwischencode PLUS  ?
         JR      Z,A8713         ; ja -->  positives Vorzeichen vergessen
         CP      _MINUS          ; Zwischencode MINUS  ?
@@ -20681,13 +20707,13 @@ A8721:  PUSH    AF              ; nächstes Programmbyte retten
 A872D:  CALL    A5963           ; überprüfen, ob Zeichen (HL) gleich Befehlsendezeichen
         JP      Z,A6364         ; Fehler 1  Syntax error
         CALL    A8739           ; Wert Funktion, Konstante, Variable bereitstellen
-        JP      A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+        JP      HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
 ;
 ;
 ;   Wert der eingebauten Funktion, Konstanten oder Variablen bereitstellen
 ;
 A8739:  PUSH    HL              ; Programmzeiger retten
-        LD      HL,(S107E)      ; LIMIT - Adresse holen
+        LD      HL,(MEMLMT)     ; LIMIT - Adresse holen
         SCF                     ;! Adresse des Rechenspeichers überprüfen
         SBC     HL,DE           ;!
         JP      C,A6373         ; zu hoch -->  Fehler 6  Memory error
@@ -20775,9 +20801,9 @@ A8796:  CP      '\"'            ; Anführungszeichen  ?
         CALL    A8BF0           ; Länge der Zeichenkettenkonstante (HL) auszählen
         EX      (SP),HL         ; Zeiger auf Anfang holen / Zeiger auf Ende retten
         PUSH    HL              ; Zeiger auf Anfang String merken
-        LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         PUSH    BC              ; Stringlänge retten
-        LD      BC,(S1076)      ; Anfang Stringtextbereich holen
+        LD      BC,(STRST)      ; Anfang Stringtextbereich holen
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,BC           ; Offset auf String errechnen
         POP     BC              ; Stringlänge holen
@@ -20792,9 +20818,9 @@ A8796:  CP      '\"'            ; Anführungszeichen  ?
         INC     HL
         POP     DE              ; Zeiger auf Anfang String holen
         PUSH    HL              ; Zeiger für nächstes Ergebnis retten
-        LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         CALL    A8BFC           ; Stringkonstante in Arbeitsbereich übertragen
-        LD      (S107A),HL      ; Ende Stringarbeitsbereich merken
+        LD      (TMPEND),HL     ; Ende Stringarbeitsbereich merken
         POP     DE              ; Zeiger auf Speicher für Ergebnis holen
         POP     HL              ; geretteten Programmzeiger holen
         LD      A,3             ; Code for 'Zeichenkettenwert'
@@ -20808,7 +20834,7 @@ A87C9:  CP      '('             ; Klammer auf  ?
 ;   Vorrangzeichen  'Klammer auf'  abarbeiten
 ;
         INC     HL              ; 'Klammer auf'überspringen
-        CALL    A858E           ; Ausdruck (HL) auswerten
+        CALL    EXPR8           ; Ausdruck (HL) auswerten
         JP      A79AD           ; auf Syntax  'Klammer zu'  überprüfen
 ;
 A87D4:  OR      A               ; Zwischencode  ?
@@ -20846,7 +20872,7 @@ A87E4:  CP      0FFH            ; Vorbyte  Tabelle drei  ?
         JR      Z,A882E         ; ja -->  Funktion braucht nicht unbedingt Argument
 A8813:  CALL    A79A3           ; auf Syntax  'Klammer auf'  überprüfen
 A8816:  PUSH    BC              ; Code der Ergebnisvorgabe retten
-        CALL    A858E           ; Ausdruck (HL) auswerten
+        CALL    EXPR8           ; Ausdruck (HL) auswerten
         CALL    A79AD           ; auf Syntax  'Klammer zu'  überprüfen
         POP     AF              ; Code der Ergebnisvorgabe holen
         CALL    A9032           ; auf Syntax 'zwei gleiche Ergebnistypen'  untersuchen
@@ -20863,7 +20889,7 @@ A8821:  POP     AF              ; Zwischencode der Funktion holen
 ;
 ;   Funktionsdecodierung  RND
 ;
-A882E:  CALL    A0164           ; Vergleich auf Byte hinter CALL
+A882E:  CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    "("             ; Klammer auf  ?
         JR      Z,A8816         ; ja -->  Parameter angegeben -->  Funktion aufrufen
 A8834:  LD      A,5             ; Code for 'Real - Wert'
@@ -20891,12 +20917,12 @@ A8843:  PUSH    HL              ; Zeiger auf Parameter retten
         RET
 ;
 ;
-;   Basic - Funktion   SIZE   (Zwischencode  255 181 / 0FFH 0B5H)
+;   Basic - Funktion   SIZE   (Token code  255 181 / 0FFH 0B5H)
 ;
 A8852:  EX      DE,HL           ; Programmzeiger nach DE retten
         LD      HL,-527         ; Vorgabe für freien Arbeitsbereich
         ADD     HL,SP           ; Stackpointer holen
-        LD      BC,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      BC,(TMPEND)     ; Ende Stringarbeitsbereich holen
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,BC           ; freien Arbeitsspeicher errechnen
         EX      DE,HL           ; Wert nach DE / Programmzeiger nach HL
@@ -20905,31 +20931,31 @@ A8852:  EX      DE,HL           ; Programmzeiger nach DE retten
         JR      A887D           ; Null als Ergebnis aufbereiten
 ;
 ;
-;   Basic - Funktion   CSRH     (Zwischencode 255 182 / 0FFH 0B6H)
+;   Basic - Funktion   CSRH     (Token code 255 182 / 0FFH 0B6H)
 ;
-A8864:  LD      A,(S1082)       ; aktuelle X - Koordinate Cursor holen
+A8864:  LD      A,(CURX)        ; aktuelle X - Koordinate Cursor holen
         JR      A887D           ; Wert im Accu umsetzen in Real - Wert
 ;
 ;
-;   Basic - Funktion   CSRV     (Zwischencode 255 183 / 0FFH 0B7H)
+;   Basic - Funktion   CSRV     (Token code 255 183 / 0FFH 0B7H)
 ;
-A8869:  LD      A,(S1083)       ; aktuelle Y - Koordinate Cursor holen
+A8869:  LD      A,(CURY)        ; aktuelle Y - Koordinate Cursor holen
         JR      A887D           ; Wert im Accu umsetzen in Real - Wert
 ;
 ;
-;   Basic - Funktion   POSH     (Zwischencode 255 184 / 0FFH 0B8H)
+;   Basic - Funktion   POSH     (Token code 255 184 / 0FFH 0B8H)
 ;
-A886E:  LD      DE,(S1088)      ; X - Koordinate Graphic - Cursor holen
+A886E:  LD      DE,(POINTX)     ; X - Koordinate Graphic - Cursor holen
         JR      A8880           ; Wert in DE umsetzen in Real - Wert
 ;
 ;
-;   Basic - Funktion   POSV     (Zwischencode 255 185 / 0FEH 0B9H)
+;   Basic - Funktion   POSV     (Token code 255 185 / 0FEH 0B9H)
 ;
-A8874:  LD      DE,(S108A)      ; Y - Koordinate Graphic - Cursor holen
+A8874:  LD      DE,(POINTY)     ; Y - Koordinate Graphic - Cursor holen
         JR      A8880           ; Wert in DE umsetzen in Real - Wert
 ;
 ;
-;   Basic - Funktion   ERN     (Zwischencode 255 179 / 0FFH 0B3H)
+;   Basic - Funktion   ERN     (Token code 255 179 / 0FFH 0B3H)
 ;
 A887A:  LD      A,(S9E53)       ; Fehlernummer holen
 ;
@@ -20947,7 +20973,7 @@ A8880:  LD      A,5             ; Code for 'Real - Wert'
         JP      A79CB           ; Integer-Wert in DE umsetzen in Real-Wert nach (HL)
 ;
 ;
-;   Basic - Funktion  ERL     (Zwischencode 255 180 / 0FFH 0B4H)
+;   Basic - Funktion  ERL     (Token code 255 180 / 0FFH 0B4H)
 ;
 A8888:  LD      DE,(S9E55)      ; Fehler - Zeilennummer holen
         CALL    A79CB           ; Integer-Wert in DE umsetzen in Real-Wert nach (HL)
@@ -20962,26 +20988,26 @@ B889A:  DEFB    091H                    ; Exponent  65536
         DEFB    000H,000H,000H,000H     ; Mantisse  65536
 ;
 ;
-;   Basic - Funktion  CHR$     (Zwischencode 255 160 / 0FFH 0A0H)
+;   Basic - Funktion  CHR$     (Token code 255 160 / 0FFH 0A0H)
 ;
 A889F:  CALL    A79A3           ; auf Syntax  'Klammer auf'  überprüfen
         LD      B,0             ; Vorgabe für Anzahl Zeichen
 A88A4:  PUSH    BC              ; Zähler  'Anzahl Zeichen' retten
         PUSH    DE              ; Zeiger für Ergebnis retten
-        CALL    A8547           ; Ausdruck auswerten und 2-Byte - Wert bereitstellen
-        CALL    A8540           ; untersuchen, ob Wert in DE zwischen 0 und 255 liegt
+        CALL    DEEXP           ; Ausdruck auswerten und 2-Byte - Wert bereitstellen
+        CALL    DCHECK          ; untersuchen, ob Wert in DE zwischen 0 und 255 liegt
         POP     DE              ; Zeiger für Ergebnis holen
         POP     BC              ; Zähler  'Anzahl Zeichen'  holen
         PUSH    AF              ; bereitgestellten Wert retten
         INC     B               ; Zähler  'Anzahl Zeichen'  plus eins
-        CALL    A0164           ; Vergleich auf Byte hinter CALL
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    ","             ; Komma  ?
         JR      Z,A88A4         ; ja -->  weitere Werte angegeben
         CALL    A79AD           ; auf Syntax  'Klammer zu'  überprüfen
         LD      A,B             ; Zähler  'Anzahl Zeichen'  holen
         EXX
         LD      B,A             ; Zähler  'Anzahl Zeichen'  merken
-        LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         CALL    ADDHLA          ; Wert im Accu zum HL-Register addieren
         LD      D,H             ;! Zeiger auf neues Ende benutzter String-
         LD      E,L             ;! arbeitsbereich nach DE
@@ -20994,8 +21020,8 @@ A88C7:  DEC     HL              ; Zeiger auf Stelle für String
         LD      A,B             ; Zähler  'Anzahl Zeichen'  holen
         EXX
         LD      B,A             ; und merken
-A88D0:  LD      (S107A),DE      ; Ende Stringarbeitsbereich merken
-        LD      DE,(S1076)      ; Anfang Stringtextbereich holen
+A88D0:  LD      (TMPEND),DE     ; Ende Stringarbeitsbereich merken
+        LD      DE,(STRST)      ; Anfang Stringtextbereich holen
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,DE           ; Offset auf String errechnen
         PUSH    HL              ; und merken
@@ -21016,11 +21042,11 @@ A88E9:  EX      DE,HL           ; Programmzeiger nach HL / Ergebniszeiger nach D
         RET
 ;
 ;
-;   Basic - Funktion   HEX$     (Zwischencode 255 162 / 0FFH 0A2H)
+;   Basic - Funktion   HEX$     (Token code 255 162 / 0FFH 0A2H)
 ;
 A88F0:  PUSH    HL              ; Zeiger auf Argumnet retten
-        CALL    A7BEA           ; Real - Zahlwert (HL) umsetzen in Integer - Wert nach HL
-        CALL    A8501           ; Hex-Wert in HL aufbereiten in Hex-ASCII nach Z-Speicher
+        CALL    HLFLT           ; Real - Zahlwert (HL) umsetzen in Integer - Wert nach HL
+        CALL    HEXHL           ; Hex-Wert in HL aufbereiten in Hex-ASCII nach Z-Speicher
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    23              ; Code 23   Länge des Textes (DE) auszählen
 ;
@@ -21030,7 +21056,7 @@ A88F0:  PUSH    HL              ; Zeiger auf Argumnet retten
 A88F9:  LD      A,B             ; Textlänge holen
         OR      A               ; gleich Null  ?
         JR      Z,A890D         ; ja -->  Leerstring vorgebe
-        LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         PUSH    HL              ; Zeiger merken
         PUSH    BC              ; Stringlänge retten
         CALL    A8BFC           ; Stringkonstante in Arbeitsbereich übertragen
@@ -21047,7 +21073,7 @@ A890D:  POP     HL              ; Zeiger auf Stelle für Ergebnis holen
         JR      A88E9           ; Code for 'Ergebnis ist Zeichenkette'  setzen
 ;
 ;
-;   Basic - Funktion   SPACE$     (Zwischencode 255 168 / 0FFH 0A8H)
+;   Basic - Funktion   SPACE$     (Token code 255 168 / 0FFH 0A8H)
 ;
 A8913:  PUSH    HL              ; Zeiger für Ergebnis retten
         CALL    A8924           ; Real-Wert (HL) umsetzen in Integer mit Test auf < 256
@@ -21056,7 +21082,7 @@ A8913:  PUSH    HL              ; Zeiger für Ergebnis retten
         OR      A               ; Textlänge gleich Null ?
         LD      A,' '           ; Leerzeichen  (Space)  vorgeben
         PUSH    DE              ; Zeiger auf Speicher für String merken
-        CALL    NZ,A013E        ; Stringbereich (DE) mit Konstanten auffüllen
+        CALL    NZ,SETDE        ; Stringbereich (DE) mit Konstanten auffüllen
         POP     DE              ; Zeiger auf Speicher mit Zeichenkette holen
         LD      B,C             ; Textlänge vorgeben
         JR      A88F9           ; Stringdescriptor aufbauen und String merken
@@ -21064,7 +21090,7 @@ A8913:  PUSH    HL              ; Zeiger für Ergebnis retten
 ;
 ;   Real-Wert (HL) umsetzen in Integer mit Untersuchung, ob Wert kleiner 256 ist
 ;
-A8924:  CALL    A7BEA           ; Real - Zahlwert (HL) umsetzen in Integer - Wert nach HL
+A8924:  CALL    HLFLT           ; Real - Zahlwert (HL) umsetzen in Integer - Wert nach HL
         LD      DE,S11A4        ; Zeiger auf Speicher für String vorgeben
         LD      A,H             ; High - Byte Länge holen
         OR      A               ; gleich Null  ?
@@ -21073,7 +21099,7 @@ A8924:  CALL    A7BEA           ; Real - Zahlwert (HL) umsetzen in Integer - Wer
         RET
 ;
 ;
-;   Basic - Funktion   STR$     (Zwischencode 255 161 / 0FFH 0A1H)
+;   Basic - Funktion   STR$     (Token code 255 161 / 0FFH 0A1H)
 ;
 A8931:  PUSH    HL              ; Programmzeiger retten
         CALL    A7B5B           ; Real-Wert (HL) umsetzen in ASCII nach Z-Speicher
@@ -21086,10 +21112,10 @@ A893B:  RST     _DOCMD          ; Software - Kommando ausführen
         JR      A88F9           ; Stringdescriptor aufbauen und String merken
 ;
 ;
-;   Basic - Funktion   EOF     (Zwischencode 255 198 / 0FFH 0C8H)
+;   Basic - Funktion   EOF     (Token code 255 198 / 0FFH 0C8H)
 ;
 A893F:  CALL    A79A3           ; auf Syntax  'Klammer auf'  überprüfen
-        CALL    A6EF9           ; Datei- oder Gerätenummer bereitstellen
+        CALL    GETLU           ; Datei- oder Gerätenummer bereitstellen
         LD      B,A             ; Datei - Nummer retten
         CALL    A79AA           ; auf Syntax 'Klammer zu' überprüfen
         LD      A,B             ; gerettete Datei - Nummer holen
@@ -21117,18 +21143,18 @@ A8964:  INC     HL              ;! bereitgestellten Wert retten
         RET
 ;
 ;
-;   Basic - Funktion   POINT     (Zwischencode 255 197 / 0FFH 0C5H)
+;   Basic - Funktion   POINT     (Token code 255 197 / 0FFH 0C5H)
 ;
 A896C:  CALL    A79A3           ; auf Syntax  'Klammer auf'  überprüfen
         PUSH    DE              ; Zeiger für Ergebnis retten
-        CALL    A8547           ; Ausdruck auswerten und 2-Byte - Wert bereitstellen
+        CALL    DEEXP           ; Ausdruck auswerten und 2-Byte - Wert bereitstellen
         LD      B,D             ;! X - Koordinate Graphic retten
         LD      C,E             ;!
         POP     DE              ; Zeiger auf Stelle für Ergebnis holen
         PUSH    DE              ; und wieder merken
         PUSH    BC              ; X - Koordinate Graphic - retten
         CALL    A79B4           ; auf Syntax 'Komma' überprüfen
-        CALL    A8547           ; Ausdruck auswerten und 2-Byte - Wert bereitstellen
+        CALL    DEEXP           ; Ausdruck auswerten und 2-Byte - Wert bereitstellen
         CALL    A79AD           ; auf Syntax  'Klammer zu'  überprüfen
         EX      (SP),HL         ; Programmzeiger retten / X - Koordinate Graphic holen
         EX      DE,HL           ; X- und Y- Koordinate Graphic vertauschen
@@ -21144,7 +21170,7 @@ A896C:  CALL    A79A3           ; auf Syntax  'Klammer auf'  überprüfen
         JR      A8964           ; bereitgestellten Wert retten und Programmzeiger holen
 ;
 ;
-;   Basic - Funktion   ASC     (Zwischencode 255 171 / 0FFH 0ABH)
+;   Basic - Funktion   ASC     (Token code 255 171 / 0FFH 0ABH)
 ;
 A8992:  PUSH    HL              ; Zeiger für Ergebnis retten
         CALL    A8570           ; Zeiger auf Zeichenkette nach Descriptor (HL) bereitstellen
@@ -21154,7 +21180,7 @@ A8992:  PUSH    HL              ; Zeiger für Ergebnis retten
 A899A:  JR      A89A0           ; Zeiger für Ergebnis holen und Wert aufbereiten
 ;
 ;
-;   Basic - Funktion   LEN     (Zwischencode 255 172 / 0FFH 0ACH)
+;   Basic - Funktion   LEN     (Token code 255 172 / 0FFH 0ACH)
 ;
 A899C:  PUSH    HL              ; Zeiger für Ergebnis retten
         CALL    A8570           ; Zeiger auf Zeichenkette nach Descriptor (HL) bereitstellen
@@ -21162,11 +21188,11 @@ A89A0:  POP     HL              ; Zeiger für Ergebnis holen
         JP      A887D           ; Wert im Accu umsetzen in Real - Wert
 ;
 ;
-;   Basic - Funktion   VAL     (Zwischencode 255 173 / 0FFH 0ADH)
+;   Basic - Funktion   VAL     (Token code 255 173 / 0FFH 0ADH)
 ;
 A89A4:  PUSH    HL              ; Zeiger für Ergebnis retten
         CALL    A8570           ; Zeiger auf Zeichenkette nach Descriptor (HL) bereitstellen
-        LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         PUSH    HL              ; und merken
         CALL    A8BFC           ; Stringkonstante in Arbeitsbereich übertragen
         LD      (HL),NUL        ; Code for 'Textende'  hinter String eintragen
@@ -21175,7 +21201,7 @@ A89A4:  PUSH    HL              ; Zeiger für Ergebnis retten
         JP      A7A0E           ; ASCII-Text (DE) umsetzen in Real - Wert nach (HL)
 ;
 ;
-;   Basic - Funktion  LEFT$     (Zwischencode 255 186 / 0FFH 0BAH)
+;   Basic - Funktion  LEFT$     (Token code 255 186 / 0FFH 0BAH)
 ;
 A89B6:  CALL    A8A32           ; String und 2-Byte-Wert bereitstellen
         CALL    A79AD           ; auf Syntax  'Klammer zu'  überprüfen
@@ -21191,10 +21217,10 @@ A89C9:  LD      A,3             ; Code for 'Zeichenkettenwert'
         ADD     HL,BC           ; Springdescriptor retten
         EX      DE,HL           ; Zeiger für Wert nach DE / Programmzeiger nach HL
         LD      (S9E9C),A       ; Werttyp im Wertart - Flag merken
-        JP      A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+        JP      HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
 ;
 ;
-;   Basic - Funktion   RIGHT$     (Zwischencode 255 187 / 0FFH 0BBH)
+;   Basic - Funktion   RIGHT$     (Token code 255 187 / 0FFH 0BBH)
 ;
 A89D3:  CALL    A8A32           ; String und 2-Byte-Wert bereitstellen
         CALL    A79AD           ; auf Syntax  'Klammer zu'  überprüfen
@@ -21216,14 +21242,14 @@ A89EB:  LD      BC,3            ; Restlänge für Rettung Stringdescriptor
         JR      A89C9           ; Stringdescriptor retten und Wertcode vorgeben
 ;
 ;
-;   Basic - Funktion   MID$     (Zwischencode 255 188 / 0FFH 0BCH)
+;   Basic - Funktion   MID$     (Token code 255 188 / 0FFH 0BCH)
 ;
 A89F0:  CALL    A8A32           ; String und 2-Byte-Wert bereitstellen
         CALL    A8A2B           ; überprüfen, ob Wert in BC kleiner 256 ist
         OR      A               ; Anfangsstelle gleich Null  ?
         JP      Z,A636A         ; ja -->  Fehler 3   Illegal data error
         PUSH    AF              ; Anfangsstelle retten
-        CALL    A0164           ; Vergleich auf Byte hinter CALL
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    ")"             ; Klammer zu  ?
         LD      A,255           ; Vorgabe für  'Anzahl Zeichen'
         JR      Z,A8A17         ; keine Anzahl angegeben -->  alle Zeichen ab Anfangsposition
@@ -21233,9 +21259,9 @@ A89F0:  CALL    A8A32           ; String und 2-Byte-Wert bereitstellen
         LD      BC,5            ; Vorgabe für Länge zu rettender Wert
         ADD     HL,BC           ; Stringdescriptor retten
         EX      DE,HL           ; Programmzeiger wieder nach HL
-        CALL    A8547           ; Ausdruck auswerten und 2-Byte - Wert bereitstellen
+        CALL    DEEXP           ; Ausdruck auswerten und 2-Byte - Wert bereitstellen
         CALL    A79AD           ; auf Syntax  'Klammer zu'  überprüfen
-        CALL    A8540           ; untersuchen, ob Wert in DE zwischen 0 und 255 liegt
+        CALL    DCHECK          ; untersuchen, ob Wert in DE zwischen 0 und 255 liegt
         POP     DE              ; Zeiger auf Stringdescriptor holen
 A8A17:  POP     BC              ; Anfangsstelle holen
         LD      C,A             ; Anzahl Zeichen merken
@@ -21269,25 +21295,25 @@ A8A2B:  LD      A,B             ; High - Byte Wert holen
 ;
 A8A32:  CALL    A79A3           ; auf Syntax  'Klammer auf'  überprüfen
         PUSH    DE              ; Zeiger auf Stelle für Ergebnismerken
-        CALL    A858E           ; Ausdruck (HL) auswerten
+        CALL    EXPR8           ; Ausdruck (HL) auswerten
         CALL    A79B4           ; auf Syntax 'Komma' überprüfen
         CALL    A9036           ; Syntaxuntersuchung auf Zeichenkettenergebnis
-        CALL    A8547           ; Ausdruck auswerten und 2-Byte - Wert bereitstellen
+        CALL    DEEXP           ; Ausdruck auswerten und 2-Byte - Wert bereitstellen
         LD      C,E             ;! Wert nach DE kopieren
         LD      B,D             ;!
         POP     DE              ; Zeiger auf Stringdescriptor holen
         RET
 ;
 ;
-;   Basic - Funktion   TI$     (Zwischencode 255 196 / 0FFH 0C4H)
+;   Basic - Funktion   TI$     (Token code 255 196 / 0FFH 0C4H)
 ;
 A8A46:  PUSH    HL              ; Programmzeiger retten
         PUSH    DE              ; Zeiger auf Stelle für Ergebnis merken
-        LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         PUSH    HL              ; und merken
         LD      A,'0'           ; Null
         LD      B,6             ; sechs Zeichen für Uhrzeit
-        CALL    A0138           ; Speicherbereich (HL) mit Konstante belegen
+        CALL    SETHL           ; Speicherbereich (HL) mit Konstante belegen
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    37              ; Code 37   Uhrzeit lesen
         POP     HL              ; Zeiger auf Textvorgabe holen
@@ -21328,10 +21354,10 @@ A8A79:  DEC     DE              ; Zeiger auf 1er - Stundenstelle
         LD      A,C             ; 1er - Stundenstelle holen
         CP      '4'             ; gleich 4  (24)  ?
         JR      NZ,A8A97        ; nein -->  Rest Uhrzeit aufbereiten
-        LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         LD      A,'0'           ; Null
         LD      B,6             ; 6 Stellen Stringlänge TI$
-        CALL    A0138           ; Speicherbereich (HL) mit Konstante belegen
+        CALL    SETHL           ; Speicherbereich (HL) mit Konstante belegen
         JR      A8AAD           ; Stringdescriptor aufbereiten
 ;
 A8A97:  LD      BC,600          ; 600 Sekunden  (Wert 10er - Minutenstelle)
@@ -21343,13 +21369,13 @@ A8A97:  LD      BC,600          ; 600 Sekunden  (Wert 10er - Minutenstelle)
         LD      A,'0'           ; Vorgabe für ASCII - Wert
         ADD     A,L             ; ASCII - Ziffer errechnen
         LD      (DE),A          ; Wert 1er - Sekundenstelle eintragen
-A8AAD:  LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+A8AAD:  LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         LD      DE,6            ; Länge aufbereiteter String vorgeben
         EX      DE,HL
         ADD     HL,DE           ; neuen String retten
-        LD      (S107A),HL      ; neues Ende Stringarbeitsbereich merken
+        LD      (TMPEND),HL     ; neues Ende Stringarbeitsbereich merken
         EX      DE,HL
-        LD      DE,(S1076)      ; Anfang Stringtextbereich holen
+        LD      DE,(STRST)      ; Anfang Stringtextbereich holen
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,DE           ; Offset auf String errechnen
         EX      DE,HL           ; Offset nach DE
@@ -21366,7 +21392,7 @@ A8AAD:  LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
         POP     HL              ; geretteten Programmzeiger holen
         LD      A,3             ; Code for 'Zeichenkettenwert'
         LD      (S9E9C),A       ; im Wertart - Flag merken
-        JP      A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+        JP      HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
 ;
 ;
 ;   eine Stelle der Uhrzeit aufbereiten
@@ -21386,7 +21412,7 @@ A8ADF:  ADD     HL,BC           ; Restwert wieder corrigieren
 ;
 ;   Uhrzeit zuweisen   (TI$=___)
 ;
-A8AE2:  CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL
+A8AE2:  CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL
         DEFB    ____EQ          ; Zwischencode  =
         CALL    A8561           ; Stringausdruck (HL) auswerten/Zeiger auf String nach DE
         LD      A,B             ; Stringlänge holen
@@ -21469,9 +21495,9 @@ A8B23:  PUSH    DE              ; Zeiger auf Text retten
 ;   Variablennamen (HL) auswerten und Zeiger auf Variable nach BC,
 ;   Variablenartcode nach Accu bereitstellen
 ;
-A8B56:  LD      DE,(S1078)      ; Anfang Stringarbeitsbereich holen
-        LD      (S107A),DE      ; als Ende Stringarbeitsbereich merken
-        LD      DE,(S107C)      ; Zeiger auf Anfang Rechenspeicher holen
+A8B56:  LD      DE,(VARED)      ; Anfang Stringarbeitsbereich holen
+        LD      (TMPEND),DE     ; als Ende Stringarbeitsbereich merken
+        LD      DE,(INTFAC)     ; Zeiger auf Anfang Rechenspeicher holen
 A8B62:  PUSH    DE              ; Zeiger für Ergebnis merken
         CALL    A8BB5           ; Variablennamen (HL) im Zwischenspeicher bereitstellen
 A8B66:  LD      A,(HL)          ; nächstes Programmbyte holen
@@ -21495,7 +21521,7 @@ A8B78:  LD      A,(DE)          ; Länge des Variablennamens holen
         ADD     A,2             ; plus Stellen für Verwaltungsflags
         PUSH    BC              ; Typlänge merken
         EX      DE,HL           ; Zeiger für Variable nach DE
-        LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         PUSH    HL              ; und merken
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,DE           ;! zu verschiebende Anzahl Bytes errechnen
@@ -21530,7 +21556,7 @@ A8BA4:  LD      A,(DE)          ;! Länge Variablenname udn Variablennamen
         DJNZ    A8BA4           ;!   weitere Zeichen übertragen
         PUSH    HL              ; Zeiger auf Variable merken
         LD      B,C             ; Variablentypflag holen
-        CALL    A0137           ; Speicherbereich (HL) löschen
+        CALL    CLRHL           ; Speicherbereich (HL) löschen
         LD      (HL),A          ; Code for 'Ende Bereich'  eintragen
         LD      A,C             ; Variablentypflag holen
         POP     BC              ; Zeiger auf Variable holen
@@ -21541,7 +21567,7 @@ A8BA4:  LD      A,(DE)          ;! Länge Variablenname udn Variablennamen
 ;
 ;   Variablennamen (HL) im Zwischenspeicher bereitstellen
 ;
-A8BB5:  CALL    A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+A8BB5:  CALL    HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
         SUB     'A'             ;! Accu gleich Buchstabe  ?
         CP      26              ;!
         JP      NC,A6364        ; nein -->  Fehler 1  Syntax error
@@ -21602,7 +21628,7 @@ A8BF2:  INC     B               ; Länge plus eins
 A8BFC:  LD      A,B             ; Länge holen
         OR      A               ; gleich Null ?
         RET     Z               ; ja -->  fertig
-        CALL    A014A           ; Speicherbereich von (DE) nach (HL) verschieben
+        CALL    LDHLDE          ; Speicherbereich von (DE) nach (HL) verschieben
         EX      DE,HL           ; Zeiger auf Arbeitsbereich nach DE
         CALL    A8C08           ; überprüfen, ob Adresse in DE mit Stack kollidiert
         EX      DE,HL           ; Zeiger auf Arbeitsbereich nach HL
@@ -21611,7 +21637,7 @@ A8BFC:  LD      A,B             ; Länge holen
 ;
 ;   überprüfen, ob Adresse in DE mit Stackbereich collidiert
 ;
-A8C08:  PUSH    HL              ; Register - Wert retten
+A8C08:  PUSH    HL              ; Keep register value
         LD      HL,-512         ; Vorgabe für Arbeitsbereich
         ADD     HL,SP           ; Stackpointer holen
         SBC     HL,DE           ; Adresse in DE prüfen
@@ -21622,7 +21648,7 @@ A8C08:  PUSH    HL              ; Register - Wert retten
 ;
 ;   Dimensionierung bereitstellen und Variable dimensionieren
 ;
-A8C14:  LD      DE,(S107C)      ; Zeiger auf Anfang Rechenspeicher holen
+A8C14:  LD      DE,(INTFAC)     ; Zeiger auf Anfang Rechenspeicher holen
         PUSH    DE              ; Zeiger auf Rechenspeicher merken
         JR      A8C23           ; Einsprung in Routine
 ;
@@ -21638,7 +21664,7 @@ A8C23:  LD      B,0             ; Zähler  'Anzahl Dimensionen'  auf Null
         POP     HL              ; Zeiger auf Rechenspeicher holen
         PUSH    HL              ;! und wieder merken
         PUSH    HL              ;!
-        LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         LD      DE,S11A4        ; Zeiger auf Speicher für Variablennamen
         PUSH    HL              ; Zeiger für Variablennamen merken
         LD      A,(DE)          ;! Länge Variablennamen nach String-
@@ -21648,8 +21674,8 @@ A8C23:  LD      B,0             ; Zähler  'Anzahl Dimensionen'  auf Null
         LD      B,A             ; Länge Variablenname
         CALL    A8BFC           ; Stringkonstante in Arbeitsbereich übertragen
         POP     DE              ; Zeiger auf Variablennamen holen
-        LD      (S107A),HL      ; neues Ende Stringarbeitsbereich merken
-        LD      HL,(S1076)      ; Anfang Stringtextbereich holen
+        LD      (TMPEND),HL     ; neues Ende Stringarbeitsbereich merken
+        LD      HL,(STRST)      ; Anfang Stringtextbereich holen
         EX      DE,HL           ; Zeiger vertauschen
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,DE           ; Offset auf Variablennamen errechnen
@@ -21665,7 +21691,7 @@ A8C46:  POP     DE              ; Zeiger auf Rechenspeicher holen
         PUSH    AF              ; Flag  'DIM - Aufruf'  merken
         LD      BC,(S9E6A)      ; Programmzeiger aus Zwischenspeicher holen
         PUSH    BC              ; und merken
-        CALL    A8547           ; Ausdruck auswerten und 2-Byte - Wert bereitstellen
+        CALL    DEEXP           ; Ausdruck auswerten und 2-Byte - Wert bereitstellen
         BIT     7,D             ; Wert größer 32767  ?
         JP      NZ,A636A        ; ja -->  Fehler 3   Illegal data error
         EX      AF,AF           ; nächstes Programmbyte retten
@@ -21706,12 +21732,12 @@ A8C8C:  POP     BC              ; Zähler  'Anzahl Dimensionen'  holen
         PUSH    DE              ; Index / Dimension merken
         PUSH    HL              ; Programmzeiger merken
         EXX
-        LD      HL,(S1076)      ; Anfang Stringtextbereich holen
+        LD      HL,(STRST)      ; Anfang Stringtextbereich holen
         ADD     HL,DE           ; Zeiger auf Variablennamen errechnen
         LD      B,(HL)          ; Länge Name holen
         INC     B               ; für Länge corrigieren
         LD      DE,S11A4        ; Zeiger auf Speicher für Variablennamen
-        CALL    A0143           ; Speicherbereich von (HL) nach (DE) verschieben
+        CALL    LDDEHL          ; Speicherbereich von (HL) nach (DE) verschieben
         EXX
         SET     7,C             ; Code for 'indizierte Variable'
         CALL    A8ED6           ; Variable nach bereitgestelltem Namen suchen
@@ -21794,7 +21820,7 @@ A8D01:  EXX
         POP     HL              ; Programmzeiger holen
         LD      (S9E6A),HL      ; und merken
         EXX
-        LD      DE,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      DE,(TMPEND)     ; Ende Stringarbeitsbereich holen
         LD      L,B             ; Anzahl Dimensionen
         LD      H,0             ; High - Byte Anzahl auf Null
         ADD     HL,HL           ; Anzahl mal zwei
@@ -21841,7 +21867,7 @@ A8D36:  INC     DE              ; für Index Null corrigieren
         POP     BC              ; Gesamtfeldlänge holen
         PUSH    BC              ; und wieder merken
         EX      DE,HL
-        LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         LD      L,(HL)          ; Anzahl Dimensionen holen
         LD      H,0             ; High - Byte Anzahl auf Null
         ADD     HL,HL           ; mal zwei
@@ -21863,7 +21889,7 @@ A8D6C:  JP      C,A63A7         ; Überlauf -->  Fehler 6  Memory error
         PUSH    HL              ; Zeiger auf Anfang Feld
         EXX
         POP     HL              ; Zeiger auf Anfang Feld
-        LD      BC,(S1076)      ; Anfang Stringtextbereich holen
+        LD      BC,(STRST)      ; Anfang Stringtextbereich holen
         DEC     BC              ; corrigieren
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,BC           ; Länge der gespeicherten Strings errechnen
@@ -21894,15 +21920,15 @@ A8D6C:  JP      C,A63A7         ; Überlauf -->  Fehler 6  Memory error
         LD      A,(DE)          ; Länge Variablenname holen
         INC     A               ; für Länge Variablenname corrigieren
         LD      B,A             ; Anzahl Zeichen merken
-        CALL    A014A           ; Speicherbereich von (DE) nach (HL) verschieben
-        LD      DE,(S107A)      ; Ende Stringarbeitsbereich holen
+        CALL    LDHLDE          ; Speicherbereich von (DE) nach (HL) verschieben
+        LD      DE,(TMPEND)     ; Ende Stringarbeitsbereich holen
         LD      A,(DE)          ;! Anzahl Dimensionen übertragen
         LD      (HL),A          ;!
         INC     HL              ; Zeiger für Dimensionen
         INC     DE              ; Zeiger auf Dimensionen
         ADD     A,A             ; mal zwei   (zwei Byte je Dimension)
         LD      B,A             ; Anzahl zu übertragende Zeichen merken
-        CALL    A014A           ; Speicherbereich von (DE) nach (HL) verschieben
+        CALL    LDHLDE          ; Speicherbereich von (DE) nach (HL) verschieben
         PUSH    HL              ; Zeiger auf Felddatenbereich merken
         EXX
         POP     HL              ; Zeiger auf Felddatenbereich holen
@@ -21927,7 +21953,7 @@ A8DC5:  LD      HL,(S8E12)      ; Programmzeiger bei Anfang Dimensionierung hole
         JP      A8C23           ; Index auswerten und Wert Variable bereitstellen
 ;
 ;
-;   Basic - Befehl   DIM     (Zwischencode 150 / 096H)
+;   Basic - Befehl   DIM     (Token code 150 / 096H)
 ;
 A8DCC:  LD      A,-1            ; Code for 'DIM'
         LD      (S8E14),A       ; im Flag  'DIM - Aufruf' merken
@@ -21935,7 +21961,7 @@ A8DD1:  CALL    A8BB5           ; Variablennamen (HL) im Zwischenspeicher bereit
         LD      A,(HL)          ; nächstes Programmbyte holen
         CALL    A79A6           ; Accu auf Syntax 'Klammer auf' überprüfen
         CALL    A8C14           ; angegebene Dimensionen auswerten und dimensionieren
-        CALL    A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+        CALL    HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
         CP      ','             ; Komma  ?
         RET     NZ              ; nein -->  fertig
         INC     HL              ; Komma überspringen
@@ -21951,7 +21977,7 @@ A8DE4:  ADD     HL,DE           ; Werte addieren
 ;
 ;   HL = HL * DE   mit Untersuchung auf Übertrag
 ;
-A8DE8:  PUSH    BC              ; Register - Wert retten
+A8DE8:  PUSH    BC              ; Keep register value
         EX      DE,HL           ; Faktoren vertauschen
         LD      C,L             ; Low - Byte Faktor
         LD      A,H             ; High - Byte Faktor
@@ -22004,7 +22030,7 @@ A8E27:  PUSH    DE              ; Zeiger für Ergebnis merken
         LD      H,B             ;!
         LD      B,A             ; Variablentypflag merken
         LD      C,A             ; Variablentypflag
-        CALL    A0143           ; Speicherbereich von (HL) nach (DE) verschieben
+        CALL    LDDEHL          ; Speicherbereich von (HL) nach (DE) verschieben
         POP     HL              ; geretteten Programmzeiger holen
         LD      A,C             ; Variablentypflag holen
         POP     DE              ; Zeiger auf Ergebnis holen
@@ -22018,11 +22044,11 @@ A8E36:  PUSH    DE              ; Zeiger für Ergebnis retten
         PUSH    HL              ; Programmzeiger retten
         INC     B               ; Länge Variablenname für Länge corrigieren
         LD      DE,S11A4        ; Zeiger auf bereitgestellten Variablennamen
-        LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         CALL    A8BFC           ; Stringkonstante in Arbeitsbereich übertragen
         LD      B,0             ; Zähler  'Anzahl Parameter'  auf Null
         LD      HL,(S9048)      ; Zeiger auf Parameter aktuelle FN  holen
-        CALL    A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+        CALL    HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
         CP      ____EQ          ; Zwischencode  =  ?
         JR      Z,A8E80         ; ja -->  Funktion hat keine Parameter
         CP      '('             ; Klammer auf  ?
@@ -22040,13 +22066,13 @@ A8E55:  INC     HL              ; Programmzeiger auf nächstes Byte
         LD      C,B             ; Länge Variablenname
         INC     C               ; für Länge corrigieren
         PUSH    HL              ; Zeiger auf Parameter retten
-        LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         LD      DE,S11A4        ; Zeiger auf Variablennamen bei FN - Aufruf
         CALL    A904C           ; Namen vergleichen
         POP     HL              ; Zeiger auf FN - Parameter holen
         POP     BC              ; FN - Parameter - Typ / Zähler  'Anzahl Parameter'
         JR      Z,A8E96         ; Variable ist FN - Parameter
-A8E72:  CALL    A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+A8E72:  CALL    HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
         CP      ')'             ; Klammer zu  ?
         JR      Z,A8E80         ; ja -->  Ende Parameterangabe
         CP      ','             ; Komma  ?
@@ -22056,7 +22082,7 @@ A8E7D:  JP      A6364           ; Fehler 1  Syntax error
 ;
 ;   Variablenname ist nicht FN - Parameter
 ;
-A8E80:  LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+A8E80:  LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         LD      DE,S11A4        ; Zeiger auf Speicher für Variablennamen
         LD      A,(HL)          ;! Länge Variablenname übertragen
         LD      (DE),A          ;!
@@ -22098,11 +22124,11 @@ A8EB7:  EX      DE,HL           ; Zeiger nach DE
         PUSH    BC              ; und retten
         LD      BC,0            ; Code for 'nicht in FN'
         LD      (S9048),BC      ; als Zeiger auf Parameter aktuelle FN  merken
-        CALL    A858E           ; Ausdruck (HL) auswerten
+        CALL    EXPR8           ; Ausdruck (HL) auswerten
         POP     HL              ; geretteten Zeiger auf Parameter aktuelle FN holen
         LD      (S9048),HL      ; als Zeiger auf Parameter aktuelle FN  merken
         POP     HL              ; Programmzeiger holen
-        JP      A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+        JP      HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
 ;
 A8ED2:  PUSH    DE              ; Zeiger für Ergebnis retten
         JP      A8B66           ; Zeiger auf Wert Variable nach Namen (HL) bereitstellen
@@ -22110,7 +22136,7 @@ A8ED2:  PUSH    DE              ; Zeiger für Ergebnis retten
 ;
 ;   Variable nach bereitgestelltem Namen in vorhandenen Datensätzen suchen
 ;
-A8ED6:  LD      HL,(S1074)      ; Anfang Basic - Variable holen
+A8ED6:  LD      HL,(VARST)      ; Anfang Basic - Variable holen
 A8ED9:  LD      DE,S11A4        ; Zeiger auf bereitgestellten Namen
         LD      A,(HL)          ; Typflag der gespeicherten Variablen holen
         OR      A               ; Bereichsendezeichen  ?
@@ -22255,7 +22281,7 @@ A8F5E:  POP     DE              ; Zeiger auf Anfang Funktionstext holen
         PUSH    BC              ;!
         LD      HL,0            ;! Stackpointer holen
         ADD     HL,SP           ;!
-        LD      DE,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      DE,(TMPEND)     ; Ende Stringarbeitsbereich holen
         DEC     H               ; mindestens 256 Byte Arbeitsbereich
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,DE           ; freien Speicherplatz errechnen
@@ -22264,12 +22290,12 @@ A8F5E:  POP     DE              ; Zeiger auf Anfang Funktionstext holen
         POP     BC              ;! gerettete Register - Werte wieder holen
         POP     DE              ;!
         POP     HL              ;!
-        LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         PUSH    HL              ; und merken
         ADD     HL,BC           ; neues Ende errechnen
         EX      (SP),HL         ; neues Ende merken / altes Ende holen
         PUSH    HL              ; und merken
-        LD      DE,(S1076)      ; Anfang Stringtextbereich holen
+        LD      DE,(STRST)      ; Anfang Stringtextbereich holen
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,DE           ; zu verschiebende Anzahl Bytes errechnen
         LD      C,L             ;! Anzahl zu verschiebende Bytes nach BC
@@ -22301,13 +22327,13 @@ A8FAE:  INC     DE              ; Zeiger auf Funktionsnamen
         PUSH    HL              ; Zeiger auf Speicher für Funktion
         EXX
         POP     HL              ; Zeiger auf Speicher für Funktion
-        CALL    A014A           ; Speicherbereich von (DE) nach (HL) verschieben
+        CALL    LDHLDE          ; Speicherbereich von (DE) nach (HL) verschieben
         LD      (HL),0          ; Code for 'Bereichsende'  eintragen
         POP     HL              ; Programmzeiger holen
         RET
 ;
 ;
-;   Basic - Funktion   FN     (Zwischencode 255 199 / 0FFH 0C7H)
+;   Basic - Funktion   FN     (Token code 255 199 / 0FFH 0C7H)
 ;
 A8FBF:  PUSH    DE              ; Zeiger für Ergebnis merken
         CALL    A8BB5           ; Variablennamen (HL) im Zwischenspeicher bereitstellen
@@ -22332,7 +22358,7 @@ A8FE1:  CALL    A6A0A           ; Zeiger in HL auf nächstes Befehlsbyte stellen
         INC     HL              ; Zwischencode = überspringen
         POP     DE              ; Zeiger für Ergebnis holen
         PUSH    DE              ; und wieder merken
-        CALL    A858E           ; Ausdruck (HL) mit allen Prioritäten auswerten
+        CALL    EXPR8           ; Ausdruck (HL) mit allen Prioritäten auswerten
         POP     DE              ; Zeiger auf Ergebnis holen
         LD      HL,(S904A)      ; Programmzeiger bei FN - Aufruf holen
         POP     BC              ; alten Zeiger auf Funktionsparameter holen
@@ -22346,7 +22372,7 @@ A8FE1:  CALL    A6A0A           ; Zeiger in HL auf nächstes Befehlsbyte stellen
         LD      BC,5            ; Länge bereitgestellter Wert
         ADD     HL,BC           ; bereitgestellten Wert retten
         EX      DE,HL           ; Zeiger für Wert nach DE / Programmzeiger nach HL
-        CALL    A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+        CALL    HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
         CP      '('             ; Klammer auf  ?
         RET     NZ              ; nein -->  Funktion hat keine Parameter
         PUSH    DE              ; Zeiger für Ergebnis merken
@@ -22363,7 +22389,7 @@ A9026:  CP      ')'             ; Klammer zu  ?
         JR      NZ,A9016        ; nein -->  Ende Parameter suchen
         DJNZ    A9016           ; richtige Anzahl  'Klammer zu'  suchen
         INC     HL              ; Klammer zu überspringen
-        CALL    A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+        CALL    HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
         POP     DE              ; Zeiger für Ergebnis holen
         RET
 ;
@@ -22371,7 +22397,7 @@ A9026:  CP      ')'             ; Klammer zu  ?
 ;   auf Syntax 'zwei gleiche Ergebnistypen'  untersuchen
 ;
 A9032:  CP      3               ; erster Wert vom Typ String  ?
-        JR      NZ,A903F        ; nein -->  Syntaxuntersuchung auf Real - Wert - Ergebnis
+        JR      NZ,STROMT       ; nein -->  Syntaxuntersuchung auf Real - Wert - Ergebnis
 ;
 ;
 ;   Syntaxuntersuchung auf Zeichenkettenergebnis
@@ -22384,7 +22410,7 @@ A9036:  LD      A,(S9E9C)       ; Wertart - Flag des bereitgestellten Wertes hol
 ;
 ;   Syntaxuntersuchung auf Real - Wert - Ergebnis
 ;
-A903F:  LD      A,(S9E9C)       ; Wertart des bereitgestellten Wertes holen
+STROMT: LD      A,(S9E9C)       ; Wertart des bereitgestellten Wertes holen
         CP      3               ; Stringwert  ?
         RET     NZ              ; nein -->  OK
         JP      A636D           ; Fehler 4   Type mismatch error
@@ -22415,12 +22441,12 @@ A905C:  POP     HL              ;! gerettete Register - Werte holen
         RET
 ;
 ;
-;   Basic - Funktion   STICK     (Zwischencode 255 156 / 0FFH 09CH)
+;   Basic - Funktion   STICK     (Token code 255 156 / 0FFH 09CH)
 ;
 A9060:  CALL    A79A3           ; auf Syntax 'Klammer auf' untersuchen
         PUSH    DE              ; Zeiger für Ergebnis retten
-        CALL    A8547           ; Ausdruck (HL) auswerten und 2-Byte Wert nach DE
-        CALL    A8540           ; untersuchen, ob Wert in DE zwischen 0 und 255 liegt
+        CALL    DEEXP           ; Ausdruck (HL) auswerten und 2-Byte Wert nach DE
+        CALL    DCHECK          ; untersuchen, ob Wert in DE zwischen 0 und 255 liegt
         CP      2 + 1           ; bekannte Joy - Stick - Nummer  ?
         JP      NC,A636A        ; nein -->  Fehler 3  Illegal data error
         POP     DE              ; Zeiger auf Stelle für Ergebnis holen
@@ -22435,12 +22461,12 @@ A9060:  CALL    A79A3           ; auf Syntax 'Klammer auf' untersuchen
         JP      A8964           ; bereitgestellten Wert retten und Programmzeiger holen
 ;
 ;
-;   Basic - Funktion   STRIG     (ZWischencode 255 157 / 0FFH 09DH)
+;   Basic - Funktion   STRIG     (Token code 255 157 / 0FFH 09DH)
 ;
 A907F:  CALL    A79A3           ; auf Syntax 'Klammer auf' untersuchen
         PUSH    DE              ; Zeiger für Ergebnis retten
-        CALL    A8547           ; Ausdruck (HL) auswerten und 2-Byte Wert nach DE
-        CALL    A8540           ; untersuchen, ob Wert in DE zwischen 0 und 255 liegt
+        CALL    DEEXP           ; Ausdruck (HL) auswerten und 2-Byte Wert nach DE
+        CALL    DCHECK          ; untersuchen, ob Wert in DE zwischen 0 und 255 liegt
         CP      4 + 1           ; mit maximaler Feuerknopf - Nummer vergleichen
         JP      NC,A636A        ; zu groß -->  Fehler 3  Illegal data error
         POP     DE              ; Zeiger für Ergebnis holen
@@ -22459,14 +22485,14 @@ A907F:  CALL    A79A3           ; auf Syntax 'Klammer auf' untersuchen
 ;
 A909E:  PUSH    HL              ; Zeiger auf Speicher für Zahl retten
         LD      B,5             ; Länge Real - Zahlwert
-        CALL    A0137           ; Speicherbereich (HL) löschen
+        CALL    CLRHL           ; Speicherbereich (HL) löschen
         POP     HL              ; Zeiger auf Speicher für Zahl holen
         RET
 ;
 ;
 ;   Vorzeichen des Wertes (HL) umkehren
 ;
-A90A6:  CALL    A903F           ; Syntaxuntersuchung auf Zahl - Wert - Ergebnis
+A90A6:  CALL    STROMT          ; Syntaxuntersuchung auf Zahl - Wert - Ergebnis
 A90A9:  LD      A,(HL)          ; Exponenten des Zahlwertes holen
         OR      A               ; gleich Null  ?
         RET     Z               ; Wert gleich Null -->  fertig
@@ -22480,7 +22506,7 @@ A90A9:  LD      A,(HL)          ; Exponenten des Zahlwertes holen
 ;
 ;   Basic - Funktion   -
 ;
-A90B3:  CALL    A903F           ; Syntaxuntersuchung auf Zahl - Wert - Ergebnis
+A90B3:  CALL    STROMT          ; Syntaxuntersuchung auf Zahl - Wert - Ergebnis
         LD      C,A             ; Länge Real - Wert merken
         LD      A,10000000B     ; Code for 'Minus'
         JP      A90C6           ; Einsprung in Routine
@@ -22563,10 +22589,10 @@ A9110:  LD      B,(HL)          ; Länge erste Zeichenkette holen
         LD      E,(HL)          ;! Offset auf Zeichenkette aus Descriptor holen
         INC     HL              ;!
         LD      D,(HL)          ;!
-        LD      HL,(S1076)      ; Anfang Stringtextbereich holen
+        LD      HL,(STRST)      ; Anfang Stringtextbereich holen
         ADD     HL,DE           ; Zeiger auf Zeichenkette errechnen
         EX      DE,HL           ; und in DE merken
-        LD      HL,(S107A)      ; Ende Stringarbeitsbereich holen
+        LD      HL,(TMPEND)     ; Ende Stringarbeitsbereich holen
         CALL    A8BFC           ; Stringkonstante in Arbeitsbereich übertragen
         EX      (SP),HL         ; Zeiger auf zweiten Descriptor holen
         LD      B,(HL)          ; Länge zweite Zeichenkette holen
@@ -22574,19 +22600,19 @@ A9110:  LD      B,(HL)          ; Länge erste Zeichenkette holen
         LD      E,(HL)          ;! Offset auf Zeichenkette aus Descriptor holen
         INC     HL              ;!
         LD      D,(HL)          ;!
-        LD      HL,(S1076)      ; Anfang Stringtextbereich holen
+        LD      HL,(STRST)      ; Anfang Stringtextbereich holen
         ADD     HL,DE           ; Zeiger auf String errechnen
         EX      DE,HL           ; und nach DE
         POP     HL              ; Zeiger auf Ende des ersten Strings holen
         CALL    A8BFC           ; Stringkonstante in Arbeitsbereich übertragen
         LD      A,C             ; Länge neuer String holen
-        LD      DE,(S107A)      ; Ende Stringarbeitsbereich holen
-        LD      BC,(S1076)      ; Anfang Stringtextbereich holen
+        LD      DE,(TMPEND)     ; Ende Stringarbeitsbereich holen
+        LD      BC,(STRST)      ; Anfang Stringtextbereich holen
         EX      DE,HL
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,BC           ; Offset auf neuen String errechnen
         EX      DE,HL           ; Zeiger auf Ende String nach HL
-        LD      (S107A),HL      ; Ende Stringarbeitsbereich merken
+        LD      (TMPEND),HL     ; Ende Stringarbeitsbereich merken
         POP     HL              ; Zeiger für Ergebnis holen
         LD      (HL),A          ; Länge des neuen Strings eintragen
         INC     HL
@@ -22628,7 +22654,7 @@ A9165:  OR      A               ; gleich Null  ?
         LD      E,(HL)          ;! Offset auf zweiten String aus Descriptor
         INC     HL              ;! holen
         LD      D,(HL)          ;!
-        LD      HL,(S1076)      ; Anfang Stringtextbereich holen
+        LD      HL,(STRST)      ; Anfang Stringtextbereich holen
         EX      DE,HL
         ADD     HL,DE           ; Zeiger auf zweiten String errechnen
         EX      DE,HL
@@ -22932,7 +22958,7 @@ A92DF:  LD      C,A             ; Länge Zahl merken
 ;
 ;   Basic - Funktion   *
 ;
-A92EA:  CALL    A903F           ; Syntaxuntersuchung auf Zahl - Wert - Ergebnis
+A92EA:  CALL    STROMT          ; Syntaxuntersuchung auf Zahl - Wert - Ergebnis
         CALL    A92DF           ; Vorzeichen Ergebnis errechnen
         PUSH    DE              ;! Zeiger auf Argumente retten
         PUSH    HL              ;!
@@ -23069,7 +23095,7 @@ A93CE:  LD      SP,(S94C3)      ; Stackpointer holen
 ;
 ;   Basic - Funktion  /
 ;
-A93D5:  CALL    A903F           ; Syntaxuntersuchung auf Zahl - Wert - Ergebnis
+A93D5:  CALL    STROMT          ; Syntaxuntersuchung auf Zahl - Wert - Ergebnis
         CALL    A92DF           ; Vorzeichen Ergebnis errechnen
         PUSH    DE              ;! Zeiger auf Argumente retten
         PUSH    HL              ;!
@@ -23291,7 +23317,7 @@ A94DD:  PUSH    HL              ; Zeiger auf Rechenspeicher retten
         INC     HL              ;!
         INC     HL              ;!
         EX      DE,HL           ; Adresse nach DE
-        LD      HL,(W1080)      ; maximal erlaubte RAM - Adresse holen
+        LD      HL,(MEMMAX)     ; maximal erlaubte RAM - Adresse holen
         DEC     HL
         SBC     HL,DE           ; Rechenspeicheradresse überprüfen
         JP      C,A6373         ; zu hoch -->  Fehler 6  Memory error
@@ -23317,7 +23343,7 @@ A94EF:  PUSH    HL              ; Zeiger auf Rechenspeicher merken
 ;
 ;   Basic - Funktion   ^
 ;
-A950A:  CALL    A903F           ; Syntaxuntersuchung auf Zahl - Wert - Ergebnis
+A950A:  CALL    STROMT          ; Syntaxuntersuchung auf Zahl - Wert - Ergebnis
         EX      DE,HL           ; Zeiger auf 2tes Argument nach HL
         LD      A,(HL)          ; Exponent der Hochzahl holen
         OR      A               ; gleich Null  ?
@@ -23336,16 +23362,16 @@ A950A:  CALL    A903F           ; Syntaxuntersuchung auf Zahl - Wert - Ergebnis
         EX      DE,HL
         PUSH    DE              ; Zeiger auf Basis
         PUSH    HL              ; Zeiger auf Hochzahl
-        LD      DE,S9EA5        ; Zeiger auf Speicher für Real - Zahlwert
+        LD      DE,ZFAC1        ; Zeiger auf Speicher für Real - Zahlwert
         CALL    A79C5           ; Real-Zahlwert von (HL) nach (DE) übertragen
-        LD      HL,S9EA5        ; Zeiger auf Speicher für Real - Zahlwert
+        LD      HL,ZFAC1        ; Zeiger auf Speicher für Real - Zahlwert
         CALL    A7BC0           ; Nachkommastellen des Real-Zahlwertes (HL) errechnen
         LD      A,(HL)          ; Exponent Ergebnis holen
         OR      A               ; gleich Null ?
         JP      NZ,A636A        ; nein -->  Fehler 3  Illegal data error
         POP     HL              ; Zeiger auf Hochzahl holen
         PUSH    HL              ; und wieder merken
-        CALL    A7BEA           ; Real - Wert (HL) umsetzen in Integer - Wert nach HL
+        CALL    HLFLT           ; Real - Wert (HL) umsetzen in Integer - Wert nach HL
         BIT     0,L             ; Wert gerade  ?
         POP     DE              ; Zeiger auf Hochzahl holen
         POP     HL              ; Zeiger auf Basis holen
@@ -23365,11 +23391,11 @@ A9546:  EX      DE,HL
 ;
         CALL    A90A9           ; Vorzeichen des Wertes (HL) umkehren
         CALL    A9572           ; EXP( LN(DE) * (HL) ) errechnen
-        PUSH    DE              ; Register - Wert retten
+        PUSH    DE              ; Keep register value
         PUSH    HL              ; Zeiger auf Zwischenergebnis retten
-        LD      DE,S9EA5        ; Zeiger auf Speicher für Real - Zahlwert
+        LD      DE,ZFAC1        ; Zeiger auf Speicher für Real - Zahlwert
         CALL    A79C2           ; +1 im Real - Format nach (DE) übertragen
-        LD      HL,S9EA5        ; Zeiger auf Speicher für Real - Zahlwert
+        LD      HL,ZFAC1        ; Zeiger auf Speicher für Real - Zahlwert
         POP     DE              ; Zeiger auf Zwischenergebnis holen
         CALL    A93D5           ; /  - Routine  ( (HL) = (HL) / (DE) )
         PUSH    DE              ; Zeiger auf Ergebnis merken
@@ -23390,21 +23416,21 @@ A956C:  PUSH    DE              ; Zeiger für Ergebnis retten
 ;   Basis hoch Hochzahl über Logarithmus errechnen
 ;
 A9572:  PUSH    DE              ; Zeiger auf Basis retten
-        LD      DE,S9EA5        ; Zeiger auf Speicher für Real - Zahlwert
+        LD      DE,ZFAC1        ; Zeiger auf Speicher für Real - Zahlwert
         CALL    A79C5           ; Real-Zahlwert von (HL) nach (DE) übertragen
         POP     HL              ; Zeiger auf Basis holen
         CALL    A9A4F           ; LN - Routine   ( LN(HL) )
-        LD      DE,S9EA5        ; Zeiger auf Speicher für Real - Zahlwert
+        LD      DE,ZFAC1        ; Zeiger auf Speicher für Real - Zahlwert
         CALL    A92EA           ; *  - Routine   ( (HL) = (HL) * (DE) )
         JP      A992B           ; EXP - Routine   ( EXP(HL) )
 ;
 ;
-;   Basic - Funktion   NOT     (Zwischencode 237 / 0EDH)
+;   Basic - Funktion   NOT     (Token code 237 / 0EDH)
 ;
-A9586:  CALL    A903F           ; Syntaxuntersuchung auf Zahl - Wert - Ergebnis
-        PUSH    DE              ; Register - Wert retten
+A9586:  CALL    STROMT          ; Syntaxuntersuchung auf Zahl - Wert - Ergebnis
+        PUSH    DE              ; Keep register value
         PUSH    HL              ; Zeiger für Ergebnis retten
-        CALL    A7BEA           ; Real - Wert (HL) umsetzen in Integer - Wert nach HL
+        CALL    HLFLT           ; Real - Wert (HL) umsetzen in Integer - Wert nach HL
         LD      A,L             ;! Wert complementieren
         CPL                     ;!
         LD      E,A             ;!
@@ -23414,30 +23440,30 @@ A9586:  CALL    A903F           ; Syntaxuntersuchung auf Zahl - Wert - Ergebnis
         JR      A95B7           ; Integer - Wert für Ergebnis umsetzen in Real - Wert
 ;
 ;
-;   Basic - Funktion   AND     (Zwischencode  236 / 0ECH)
+;   Basic - Funktion   AND     (Token code  236 / 0ECH)
 ;
 A9596:  LD      A,AND_D         ; Vorgabe für Z-80 - Befehl
         DEFB    LD_BC
 ;
 ;
-;   Basic - Funktion   OR     (Zwischencode 235 / 0EBH)
+;   Basic - Funktion   OR     (Token code 235 / 0EBH)
 ;
 A9599:  LD      A,OR_D          ; Vorgabe für Z-80 - Befehl
         DEFB    LD_BC
 ;
 ;
-;   Basic - Funktion   XOR     (Zwischencode 234 / 0EAH)
+;   Basic - Funktion   XOR     (Token code 234 / 0EAH)
 ;
 A959C:  LD      A,XOR_D         ; Vorgabe für Z-80 - Befehl
         LD      (D95B2),A       ; richtigen Befehl in Routine eintragen
         INC     A               ; auf Befehl mit E - Register corrigieren
         LD      (D95B5),A       ; richtigen Befehl in Routine eintragen
-        CALL    A903F           ; Syntaxuntersuchung auf Zahl - Wert - Ergebnis
+        CALL    STROMT          ; Syntaxuntersuchung auf Zahl - Wert - Ergebnis
         PUSH    DE              ;! Zeiger auf Werte retten
         PUSH    HL              ;!
-        CALL    A7BEA           ; Real - Wert (HL) umsetzen in Integer - Wert nach HL
+        CALL    HLFLT           ; Real - Wert (HL) umsetzen in Integer - Wert nach HL
         EX      DE,HL           ; Zeiger 2ter Wert nach HL / 1ter Wert nach DE
-        CALL    A7BEA           ; Real - Wert (HL) umsetzen in Integer - Wert nach HL
+        CALL    HLFLT           ; Real - Wert (HL) umsetzen in Integer - Wert nach HL
         LD      A,H             ; High - Byte 2ter Wert holen
 D95B2:  AND     D               ; mit 1tem Wert verknüpfen   (Befehl wird eingetragen)
         LD      D,A             ; Ergebnis merken
@@ -23450,7 +23476,7 @@ A95B7:  POP     HL              ; Zeiger für Ergebnis holen
         RET
 ;
 ;
-;   Basic - Funktion   ABS     (Zwischencode 255 129 / 0FFH 081H)
+;   Basic - Funktion   ABS     (Token code 255 129 / 0FFH 081H)
 ;
 A95BD:  INC     HL              ; Zeiger auf MSByte Mantisse
         RES     7,(HL)          ; Vorzeichen auf plus
@@ -23458,13 +23484,13 @@ A95BD:  INC     HL              ; Zeiger auf MSByte Mantisse
         RET
 ;
 ;
-;   Basic - Funktion   INT     (Zwischencode 255 128 / 0FFH 080H)
+;   Basic - Funktion   INT     (Token code 255 128 / 0FFH 080H)
 ;
 A95C2:  CALL    A94CB           ; Vorzeichen der Zahl (HL) abfragen
         JP      Z,A7B82         ; Zahl positiv -->  Nachkommastellen der Zahl (HL) vergessen
         CALL    A95E7           ; Zahl (HL) im Zwischenspeicher merken
         CALL    A7B82           ; Nachkommastellen der Zahl (HL) vergessen
-        LD      DE,S9EA5        ; Zeiger auf Speicher für Real - Zahlwert
+        LD      DE,ZFAC1        ; Zeiger auf Speicher für Real - Zahlwert
         CALL    A9153           ; Real - Zahlwerte (HL) und (DE) vergleichen
         RET     Z               ; Argument hatte keine Nachkommastellen
 A95D5:  LD      DE,B7C45        ; Zeiger auf  +1   (Real - Format)
@@ -23487,14 +23513,14 @@ A95E1:  LD      DE,B7C45        ; Zeiger auf  +1   (Real - Format)
 ;
 A95E7:  PUSH    HL              ;! Register - Werte retten
         PUSH    DE              ;!
-        LD      DE,S9EA5        ; Zeiger auf Speicher für Real - Zahlwert
+        LD      DE,ZFAC1        ; Zeiger auf Speicher für Real - Zahlwert
         CALL    A79C5           ; Real-Zahlwert von (HL) nach (DE) übertragen
         POP     DE              ;! gerettete Register - Werte wieder holen
         POP     HL              ;!
         RET
 ;
 ;
-;   Basic - Funktion   MOD     (Zwischencode 250 / 0FAH)
+;   Basic - Funktion   MOD     (Token code 250 / 0FAH)
 ;
 A95F2:  CALL    A7B82           ; Nachkommastellen der Zahl (HL) vergessen
         EX      DE,HL           ; Zeiger auf Argumente vertauschen
@@ -23504,14 +23530,14 @@ A95F2:  CALL    A7B82           ; Nachkommastellen der Zahl (HL) vergessen
         CALL    A93D5           ; /  - Routine  ( (HL) = (HL) / (DE) )
         CALL    A7B82           ; Nachkommastellen der Zahl (HL) vergessen
         CALL    A92EA           ; *  - Routine   ( (HL) = (HL) * (DE) )
-        PUSH    DE              ; Register - Wert retten
-        LD      DE,S9EA5        ; Zeiger auf Speicher für Real - Zahlwert
+        PUSH    DE              ; Keep register value
+        LD      DE,ZFAC1        ; Zeiger auf Speicher für Real - Zahlwert
         CALL    A90B3           ; -  - Routine   ( (HL) = (HL) - (DE) )
         POP     DE              ; geretteten Register - Wert wieder holen
         JP      A90A9           ; Vorzeichen des Wertes (HL) umkehren
 ;
 ;
-;   Basic - Funktion   Integer-Division   (Backslash)     (Zwischencode 249 / 0F9H)
+;   Basic - Funktion   Integer-Division   (Backslash)     (Token code 249 / 0F9H)
 ;
 A9611:  CALL    A7B82           ; Nachkommastellen der Zahl (HL) vergessen
         EX      DE,HL           ; Zeiger auf Argumente vertauschen
@@ -23521,7 +23547,7 @@ A9611:  CALL    A7B82           ; Nachkommastellen der Zahl (HL) vergessen
         JP      A7B82           ; Nachkommastellen der Zahl (HL) vergessen
 ;
 ;
-;   Basic - Funktion   SQR     (Zwischencode 255 135 / 0FFH 087H)
+;   Basic - Funktion   SQR     (Token code 255 135 / 0FFH 087H)
 ;
 A961F:  LD      A,(HL)          ; Exponent Argument holen
         OR      A               ; gleich Null  ?
@@ -23549,9 +23575,9 @@ B963B:  DEFB    080H            ; Exponent  0.67097684
         DEFB    02BH            ; Mantisse  0.67097684
 ;
 ;
-;   Basic - Funktion   ATN     (Zwischencode 255 138 / 0FFH 08AH)
+;   Basic - Funktion   ATN     (Token code 255 138 / 0FFH 08AH)
 ;
-A963D:  PUSH    BC              ; Register - Wert retten
+A963D:  PUSH    BC              ; Keep register value
         INC     HL              ; Zeiger auf Mantisse
         LD      A,(HL)          ; MSByte Mantisse holen
         RES     7,(HL)          ; Vorzeichen auf plus
@@ -23632,7 +23658,7 @@ B96C8:  DEFB    07FH                    ; Exponent  0.41421356   ( SQR(2)-1 )
 ;
 ;
 ;
-A96CD:  PUSH    BC              ; Register - Wert retten
+A96CD:  PUSH    BC              ; Keep register value
         PUSH    HL              ; Zeiger auf Argument retten
         CALL    A94EF           ; 4 Rechenspeicher für Routine bereitstellen
         POP     HL              ; Zeiger auf Argument holen
@@ -23657,9 +23683,9 @@ A96CD:  PUSH    BC              ; Register - Wert retten
         JP      A9774           ; Iteration ausführen
 ;
 ;
-;   Basic - Funktion   COS     (Zwischencode  255 131 / 0FFH 083H)
+;   Basic - Funktion   COS     (Token code  255 131 / 0FFH 083H)
 ;
-A96F9:  PUSH    BC              ; Register - Wert retten
+A96F9:  PUSH    BC              ; Keep register value
         LD      A,(HL)          ; Exponent Argument holen
         OR      A               ; gleich Null  ?
         JP      Z,A9631         ; ja -->  Ergebnis gleich Null
@@ -23669,9 +23695,9 @@ A96F9:  PUSH    BC              ; Register - Wert retten
         POP     BC              ; geretteten Register - Wert holen
 ;
 ;
-;   Basic - Funktion   SIN     (Zwischencode 255 130 / 0FFH 082H)
+;   Basic - Funktion   SIN     (Token code 255 130 / 0FFH 082H)
 ;
-A9709:  PUSH    BC              ; Register - Wert retten
+A9709:  PUSH    BC              ; Keep register value
         INC     HL              ; Zeiger auf Mantisse Argument
         LD      A,(HL)          ; MSByte Mantisse holen
         RES     7,(HL)          ; Vorzeichen auf plus
@@ -23791,9 +23817,9 @@ A97BD:  LD      DE,B98CB        ; Zeiger auf Pi/2  (Real - Konstante)
 S97E7:  DEFS    1               ; Flag  'Vorzeichen Ergebnis Iteration'
 ;
 ;
-;   Basic - Funktion   TAN     (Zwischencode 255 132 / 0FFH 084H)
+;   Basic - Funktion   TAN     (Token code 255 132 / 0FFH 084H)
 ;
-A97E8:  PUSH    BC              ; Register - Wert retten
+A97E8:  PUSH    BC              ; Keep register value
         PUSH    HL              ; Zeiger auf Argument retten
         CALL    A94DD           ; einen Rechenspeicher reservieren
         EX      DE,HL           ; Zeiger auf Rechenspeicher nach HL
@@ -23909,7 +23935,7 @@ B986E:  DEFB    07FH                    ; Exponent  -0.33333333      (-1/3)
         DEFB    043H,00CH,030H,0C3H     ; Mantisse   0.047619047     (1/21)
 ;
 ;
-;   Basic - Funktion   SGN     (Zwischencode 255 139 / 0FFH 08BH)
+;   Basic - Funktion   SGN     (Token code 255 139 / 0FFH 08BH)
 ;
 A98A0:  LD      DE,0            ; Vorgabe  'Null'
         LD      A,(HL)          ; Exponent Argument holen
@@ -23924,16 +23950,16 @@ A98AF:  CALL    A79CB           ; Integer-Wert in DE umsetzen in Real-Wert nach 
         RET
 ;
 ;
-;   Basic - Funktion   RAD     (Zwischencode 255 143 / 0FFH 08FH)
+;   Basic - Funktion   RAD     (Token code 255 143 / 0FFH 08FH)
 ;
 A98B3:  LD      DE,B98D5        ; Zeiger auf Pi/180
         JR      A98BB           ; Konstante mit Argument multiplizieren
 ;
 ;
-;   Basic - Funktion   PAI     (Zwischencode 255 142 / 0FFH 08EH)
+;   Basic - Funktion   PAI     (Token code 255 142 / 0FFH 08EH)
 ;
 A98B8:  LD      DE,B98C6        ; Zeiger auf Pi im Real - Format
-A98BB:  PUSH    BC              ; Register - Wert retten
+A98BB:  PUSH    BC              ; Keep register value
         CALL    A92EA           ; *  - Routine   ( (HL) = (HL) * (DE) )
         POP     BC              ; geretteten Register - Wert holen
         RET
@@ -23957,10 +23983,10 @@ B98D5:  DEFB    07BH                    ; Exponent  Pi/180
         DEFB    00EH,0FAH,035H,013H     ; Mantisse  Pi/180
 ;
 ;
-;   Basic - Funktion   PEEK     (Zwischencode 255 137 / 0FFH 089H)
+;   Basic - Funktion   PEEK     (Token code 255 137 / 0FFH 089H)
 ;
 A98DA:  PUSH    HL              ; Zeiger für Ergebnis retten
-        CALL    A7BEA           ; Real - Wert (HL) umsetzen in Integer - Wert nach HL
+        CALL    HLFLT           ; Real - Wert (HL) umsetzen in Integer - Wert nach HL
         LD      E,(HL)          ; Wert aus Speicher holen
         LD      D,0             ; High - Byte Wert auf Null
         POP     HL              ; Zeiger für Ergebnis holen
@@ -23968,7 +23994,7 @@ A98DA:  PUSH    HL              ; Zeiger für Ergebnis retten
         RET
 ;
 ;
-;   Basic - Funktion   RND     (Zwischencode 255 136 / 0FFH 088H)
+;   Basic - Funktion   RND     (Token code 255 136 / 0FFH 088H)
 ;
 A98E6:  LD      A,(HL)          ; Exponent Argument holen
         OR      A               ; gleich Null  ?
@@ -24014,9 +24040,9 @@ A98FA:  PUSH    BC              ; Register - Wert  RND  holen
 W9929:  DEFW    04193H          ; Zwischenwert RND
 ;
 ;
-;   Basic - Funktion   EXP     (Zwischencode 255 134 / 0FFH 086H)
+;   Basic - Funktion   EXP     (Token code 255 134 / 0FFH 086H)
 ;
-A992B:  PUSH    BC              ; Register - Wert retten
+A992B:  PUSH    BC              ; Keep register value
         LD      A,(HL)          ; Exponent Argument holen
         OR      A               ; gleich Null  ?
         JP      Z,A9631         ; ja -->  Ergebnis gleich '+1'
@@ -24034,7 +24060,7 @@ A992B:  PUSH    BC              ; Register - Wert retten
         POP     HL              ; Zeiger auf Rechenspeicher holen
         CALL    A7B82           ; Nachkommastellen der Zahl (HL) vergessen
         PUSH    HL              ; Zeiger auf INT(Argument/LN(2))
-        CALL    A7BEA           ; Real - Wert (HL) umsetzen in Integer - Wert nach HL
+        CALL    HLFLT           ; Real - Wert (HL) umsetzen in Integer - Wert nach HL
         XOR     A               ; Accu auf Null
         CP      H               ; High - Byte gleich Null  ?
         JP      NZ,A6367        ; nein -->  Fehler 2   Overflow error
@@ -24170,9 +24196,9 @@ S9A41:  DEFS    1               ; Vorzeichen Argument EXP
 S9A42:  DEFS    1
 ;
 ;
-;   Basic - Funktion   LOG     (Zwischencode 255 140 / 0FFH 08CH)
+;   Basic - Funktion   LOG     (Token code 255 140 / 0FFH 08CH)
 ;
-A9A43:  PUSH    BC              ; Register - Wert retten
+A9A43:  PUSH    BC              ; Keep register value
         CALL    A9A4F           ; LN - Routine   ( LN(HL) )
         LD      DE,B9B28        ; Zeiger auf  LOG(e)   (Real - Konstante)
         CALL    A92EA           ; *  - Routine   ( (HL) = (HL) * (DE) )
@@ -24180,9 +24206,9 @@ A9A43:  PUSH    BC              ; Register - Wert retten
         RET
 ;
 ;
-;   Basic - Funktion   LN     (Zwischencode 255 133 / 0FFH 085H)
+;   Basic - Funktion   LN     (Token code 255 133 / 0FFH 085H)
 ;
-A9A4F:  PUSH    BC              ; Register - Wert retten
+A9A4F:  PUSH    BC              ; Keep register value
         CALL    A94CB           ; Vorzeichen der Zahl (HL) abfragen
         JP      NZ,A636A        ; negativ -->  Fehler 3  Illegal data error
         LD      A,(HL)          ; Exponent Argument holen
@@ -24388,23 +24414,23 @@ S9BA8:  DEFS    2       ; Zeiger auf Speicher für COS(Argument)
 S9BAA:  DEFS    2       ; Zeiger auf Speicher für SIN(Argument)
 ;
 ;
-;   Basic - Befehl   SOUND     (Zwischencode 254 138 / 0FEH 08AH)
+;   Basic - Befehl   SOUND     (Token code 254 138 / 0FEH 08AH)
 ;
-A9BAC:  CALL    A0164           ; Vergleich auf Byte hinter CALL
+A9BAC:  CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFB    ____EQ          ; Zwischencode  =  ?
         JR      NZ,A9BBE        ; nicht SOUND =
         CALL    A79A3           ; auf Syntax 'Klammer auf' überprüfen
-        CALL    A853D           ; 1-Byte - Wert nach E/Accu bereitstellen
+        CALL    IBYTE           ; 1-Byte - Wert nach E/Accu bereitstellen
         CP      15 + 1          ; größer als maximale Generatornummer  ?
         SET     7,A             ; Code for 'SOUND =' für Syntaxüberprüfung
         JR      A9BC3           ; überprüfen und Frequenz bereitstellen
 ;
-A9BBE:  CALL    A853D           ; 1-Byte - Wert nach E/Accu bereitstellen
+A9BBE:  CALL    IBYTE           ; 1-Byte - Wert nach E/Accu bereitstellen
         CP      83 + 1          ; größer als maximale Notennummer  ?
 A9BC3:  JP      NC,A636A        ; ja -->  Fehler 3  Illegal data error
         PUSH    AF              ; Generatornummer / Note retten
         CALL    A79B1           ; auf Syntax  'Komma'  untersuchen
-        CALL    A8551           ; Ausdruck (HL) auswerten und 2-Byte-Wert nach DE bereitst.
+        CALL    IDEEXP          ; Ausdruck (HL) auswerten und 2-Byte-Wert nach DE bereitst.
         POP     AF              ; Generatornummer / Note holen
         PUSH    AF              ; und wieder retten
         OR      A               ; SOUND =  ?
@@ -24417,26 +24443,26 @@ A9BC3:  JP      NC,A636A        ; ja -->  Fehler 3  Illegal data error
         RET
 ;
 ;
-;   Basic - Befehl   TEMPO     (Zwischencode 254 163 / 0FE 0A3H)
+;   Basic - Befehl   TEMPO     (Token code 254 163 / 0FE 0A3H)
 ;
-A9BD9:  CALL    A853D           ; 1-Byte - Wert nach E/Accu bereitstellen
+A9BD9:  CALL    IBYTE           ; 1-Byte - Wert nach E/Accu bereitstellen
         DEC     A               ;! auf Tempo von 1 bis 7 untersuchen
         CP      7               ;! (hier fehlt aber irgendwie der Sprung
         INC     A               ;!  bei fehlerhaften Wert)
         JP      _TEMPO          ; Tempo setzen
 ;
 ;
-;   Basic - Befehl   NOISE     (Zwischencode 254 140 / 0FEH 08CH)
+;   Basic - Befehl   NOISE     (Token code 254 140 / 0FEH 08CH)
 ;
 A9BE3:  LD      A,00001000B     ; Code for 'Tongenerator 4'
         DEFB    LD_BC
 ;
 ;
-;   Basic - Befehl   MUSIC     (Zwischencode 254 163 / 0FEH 0A0H)
+;   Basic - Befehl   MUSIC     (Token code 254 163 / 0FEH 0A0H)
 ;
 A9BE6:  LD      A,00000111B     ; Code for 'Tongenerator 1 - 3'
         LD      (S9CEB),A       ; Flag  'NOISE/MUSIC'
-        CALL    A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+        CALL    HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
         LD      B,3             ; Code for 'MUSIC WAIT'
         CP      __WAIT          ; Zwischencode  WAIT  ?
         JR      Z,A9C07         ; ja -->  MUSIC WAIT
@@ -24448,7 +24474,7 @@ A9BE6:  LD      A,00000111B     ; Code for 'Tongenerator 1 - 3'
         LD      DE,B9CDF        ; Zeiger auf Speicher für aktuelle Oktave
         LD      B,4             ; Vier Generatorwerte
         LD      A,2             ; Oktave vorgeben
-        CALL    A013E           ; Speicherbereich (DE) mit Konstante im Accu füllen
+        CALL    SETDE           ; Speicherbereich (DE) mit Konstante im Accu füllen
 A9C07:  PUSH    HL              ; Programmzeiger retten
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    35              ; Code 35   MUSIC nach Status in B behandeln
@@ -24469,7 +24495,7 @@ A9C0D:  CALL    A5963           ; Zeichen im Accu auf Befehlsendezeichen untersu
         LD      DE,S27D0        ; Zeiger auf Anfang Speicher für MUSIC - Text
         LD      (S9CE9),DE      ; Zeiger auf aktuelle Speicherstelle für MUSIC - Text
         LD      (DE),A          ; Textendezeichen eintragen
-        CALL    A013E           ; Speicherbereich (DE) mit Konstante im Accu füllen
+        CALL    SETDE           ; Speicherbereich (DE) mit Konstante im Accu füllen
         LD      A,(S9CEB)       ; Flag  'NOISE/MUSIC'
         LD      (S9CEC),A       ; als Flag 'welcher Tongenerator'  merken
 A9C2C:  LD      DE,S9CEC        ; Zeiger auf Flag 'welcher Tongenerator'
@@ -24479,7 +24505,7 @@ A9C2C:  LD      DE,S9CEC        ; Zeiger auf Flag 'welcher Tongenerator'
         PUSH    AF              ; Tongenerator-Status merken
         LD      B,0             ; Vorgabe für Zeichenkettenlänge
         JR      NC,A9C42        ; Bit nicht gesetzt -->  Tongegerator wird nicht angesprochen
-        CALL    A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+        CALL    HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
         CP      ';'             ; Strichpunkt  ?
         JR      Z,A9C42         ; ja -->  keine Zeichenkette für Tongenerator angegeben
         CALL    A8561           ; Stringausdruck (HL) auswerten / Zeiger auf String nach DE
@@ -24496,7 +24522,7 @@ A9C42:  PUSH    HL              ; Programmzeiger retten
         JP      C,A6370         ; zu groß -->  Fehler 5   String lenght error
         LD      (S9CE7),A       ; Zähler 'bereitgestellte Zeichenkettenlänge' merken
         LD      HL,(S9CE9)      ; Zeiger auf aktuelle Speicherstelle für MUSIC - Text holen
-        CALL    A014A           ; Speicherbereich von (DE) nach (HL) verschieben
+        CALL    LDHLDE          ; Speicherbereich von (DE) nach (HL) verschieben
         LD      (S9CE9),HL      ; Zeiger auf aktuelle Speicherstelle für MUSIC - Text
         DEC     HL              ; Zeiger auf Stelle für Textendezeichen
         LD      (HL),CR         ; Textende eintragen
@@ -24505,10 +24531,10 @@ A9C42:  PUSH    HL              ; Programmzeiger retten
         JR      NC,A9C2C        ; Tongenerator nicht angesprochen -->  weiter untersuchen
         CALL    A5963           ; Zeichen im Accu auf Befehlsendezeichen untersuchen
         JR      Z,A9C7E         ; ja -->  bereitgestellte Texte auswerten
-        CALL    A0164           ; Vergleich auf Byte hinter CALL
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    ","             ; Komma  ?
         JR      Z,A9C7E         ; wieder von vorne -->  bereitgestellte Texte auswerten
-        CALL    A0164           ; Vergleich auf Byte hinter CALL
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    ";"             ; Strichpunkt als Trennzeichen überspringen
         JR      A9C2C           ; weitere MUSIC - Teile auswerten
 ;
@@ -24586,7 +24612,7 @@ S9CEC:  DEFS    1               ; Flag 'welcher Tongenerator'
 ;   Music - String (HL) auswerten und Werte für Tongenerator nach (IX) bereitstellen
 ;
 A9CED:  CALL    A9E36           ; Speicher für Steuerparameter löschen
-A9CF0:  CALL    A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+A9CF0:  CALL    HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
         CALL    A9E0C           ; testen, ob Zeichen im Accu gleich Notenbuchstabe ist
         JR      C,A9CFF         ; kein Notenbuchstabe -->  auf Sonderzeichen untersuchen
         LD      C,0             ; Vorgabe für Offset auf Notennummer
@@ -24657,7 +24683,7 @@ A9D4A:  LD      C,-12           ; Offset für Notennummer in unterer Oktave
 ;   Note in oberer Oktave auswerten
 ;
 A9D4D:  LD      C,12            ; Offset für Notennummer in oberer Oktave
-        CALL    A0164           ; Vergleich auf Byte hinter CALL
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL
         DEFM    "#"             ; erhöhte Note  ?
         JR      NZ,B9D56        ; nein
         INC     C               ; Offset für Notennummer plus eins
@@ -24667,7 +24693,7 @@ B9D56:  DEFB    LD_DE
 ;   erhöhte Note auswerten
 ;
 A9D57:  LD      C,1             ; Offset für erhöhte Note vorgeben
-        CALL    A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+        CALL    HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
         CALL    A9E0C           ; testen, ob Zeichen im Accu gleich Notenbuchstabe ist
         RET     C               ; kein Notenbuchstabe -->  Abbruch
 A9D60:  LD      B,A             ; Notenbuchstaben merken
@@ -24791,14 +24817,14 @@ A9DEC:  CALL    A9DFC           ; testen, ob (HL) Zahlwert, wenn ja -->  bereits
 ;
 ;   testen, ob (HL) Zahlwert, wenn ja -->  Zahlwert nach E/Accu bereitstellen
 ;
-A9DFC:  CALL    A015E           ; Leerzeichen (Spaces)   (HL) überspringen
+A9DFC:  CALL    HLFTCH          ; Leerzeichen (Spaces)   (HL) überspringen
         CALL    A9E16           ; testen, ob Accu gleich Melodieendezeichen ist
         SCF                     ; Code for 'kein Zahlwert'
         CALL    NZ,A79F6        ; nicht Ende -->  testen, ob Accu gleich Ziffer ist
         RET     C               ; kein Zahlwert angegeben
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    19              ; Code 19   ASCII - Wert (HL) umsetzen in Hex-Wert nach DE
-        JP      A8540           ; untersuchen, ob Wert in DE zwischen 0 und 255 liegt
+        JP      DCHECK          ; untersuchen, ob Wert in DE zwischen 0 und 255 liegt
 ;
 ;
 ;   testen, ob Zeichen im Accu gleich Notenbuchstabe ist
@@ -24846,7 +24872,7 @@ A9E2E:  LD      A,(DE)          ; ein Wert aus Speicher holen
 ;
 A9E36:  LD      DE,S9E45        ; Zeiger auf Speicher für Steuerparameter
         LD      B,6             ; Anzahl Zeichen
-        JP      A013D           ; Speicherbereich (DE) löschen
+        JP      CLRDE           ; Speicherbereich (DE) löschen
 ;
 ;
 ;   Tabelle mit Offsets der Noten innerhalb der Oktave
@@ -24905,14 +24931,15 @@ S9E83:  DEFS    25              ; maximales Ende Mantisse ohne Exponent
 S9E9C:  DEFB    8               ; Wertart des bereitgestellten Wertes
 ;
 S9E9D:  DEFS    8               ; Zwischenspeicher für Berechnung
-S9EA5:  DEFS    8               ; Speicher für Real - Zahlwert
+ZFAC1:  DEFS    8               ; Speicher für Real - Zahlwert
 S9EAD:  DEFS    8               ; Speicher für Real - Zahl   (ASCII-Aufber.)
 
-;   Text für Copyright  -  Meldung
+
+;   Text for copyright message
 ;
-;   Speicher wird nach Ausgabe für Zwischencodezeile genutzt
+;   This space is also used for tokenized line after output 
 ;
-M9EB5:  DEFB    C_CLR,CR
+IMDBUF: DEFB    C_CLR,CR
         DEFB    0D7H,0D7H,0D7H,0D7H     ; Balken oben
         DEFB    0D7H,0D7H,0D7H,0D7H
         DEFB    0D7H,0D7H,0D7H,0D7H
@@ -24976,12 +25003,12 @@ A9FD7:  LD      A,(DE)          ; Zwischencode aus Tabelle holen
         JR      A9FD7           ; weitere Befehle abnippeln
 ;
 A9FE7:  XOR     A               ; Accu auf Null
-        LD      (S108F),A       ; Parallelausgabeflag Drucker zurücksetzen
-        LD      A,(S1097)       ; Drucker - Modus - Flag holen
+        LD      (INPFLG),A      ; Parallelausgabeflag Drucker zurücksetzen
+        LD      A,(PNMODE)      ; Drucker - Modus - Flag holen
         DEC     A               ; im Textmodus  ?
         CALL    NZ,AA04D        ; nein -->  umschalten auf Textmodus
         LD      HL,AA017        ; neuer Anfang freier Speicher vorgeben
-        LD      (S1070),HL      ; Zeiger auf Basic - Programmanfang merken
+        LD      (TEXTST),HL     ; Zeiger auf Basic - Programmanfang merken
         RET
 ;
 ;
@@ -25014,7 +25041,7 @@ AA009:  LD      B,1             ; Code for 'Textmodus'
 ;   Drucker auf Graphic - Modus überprüfen
 ;
 AA00D:  LD      B,2             ; Code for 'Graphic - Modus'
-AA00F:  LD      A,(S1097)       ; Drucker - Modus - Flag holen
+AA00F:  LD      A,(PNMODE)      ; Drucker - Modus - Flag holen
         CP      B               ; mit Vorgabe vergleichen
         RET     Z               ; Drucker - Modus ist OK
         JP      A63B7           ; Fehler 68   Dev. mode error
@@ -25024,38 +25051,38 @@ AA00F:  LD      A,(S1097)       ; Drucker - Modus - Flag holen
 ;   Ab hier kann dann das BASIC - Anwender - Programm gespeichert werden.
 ;
 ;
-;   Basic - Befehl   MODE     (Zwischencode 162 / 0A2H)
+;   Basic - Befehl   MODE     (Token code 162 / 0A2H)
 ;
 AA017:  CALL    AA01F           ; Drucker - Modus auswerten und Drucker umstellen
         XOR     A               ; Accu auf Null
-        LD      (S1095),A       ; als Spaltennummer Drucker merken
+        LD      (LPOSB),A       ; als Spaltennummer Drucker merken
         RET
 ;
 ;
 ;   angegebenen Drucker - Modus auswerten und Drucker umstellen
 ;
-AA01F:  LD      A,(S108F)       ; Parallelausgabeflag Drucker holen
+AA01F:  LD      A,(INPFLG)      ; Parallelausgabeflag Drucker holen
         OR      A               ; Parallelausgabe gesetzt  ?
         JP      NZ,A63B7        ; ja -->  Fehler 68   Dev. mode error
         CALL    AA46A           ; Abfrage, ob angewählter Drucker der MZ-800 - Plotter ist
-        CALL    A0164           ; Vergleich auf Byte hinter CALL - Aufruf
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL - Aufruf
         DEFM    "G"             ; MODE  G   ?
         JP      Z,AA071         ; ja -->  auf Graphic - Modus umschalten
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFM    "T"             ; MODE  T   ?
-        CALL    A0164           ; Vergleich auf Byte hinter CALL - Aufruf
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL - Aufruf
         DEFM    "N"             ; MODE  TN   ?
         JR      Z,AA044         ; ja -->  Textgrößenflag merken und Drucker umschalten
-        CALL    A0164           ; Vergleich auf Byte hinter CALL - Aufruf
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL - Aufruf
         DEFM    "L"             ; MODE  TL   ?
         JR      Z,AA044         ; ja -->  Textgrößenflag merken und Drucker umschalten
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFM    "S"             ; MODE  TS   ?
 AA044:  LD      (M9FD0),A       ; Textgrößenflag Drucker merken
         CALL    A797A           ; auf  'Syntax Befehlsende'  untersuchen
         CALL    AA069           ; Zeilenvorschub / Zeilenrückzug  ausgeben
 AA04D:  LD      A,1             ; Code for 'Umschalten auf Textmodus'
-        LD      (S1097),A       ; als Drucker - Modus - Flag merken
+        LD      (PNMODE),A      ; als Drucker - Modus - Flag merken
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    6               ; Code 6   Zeichen im Accu auf Drucker ausgeben
         LD      A,(M9FD0)       ; Textgrößenflag Drucker holen
@@ -25092,15 +25119,15 @@ AA069:  LD      A,LF            ; Code for 'Zeilenvorschub'
 AA071:  INC     HL              ; ausgewertetes Zeichen überspringen
         CALL    A797A           ; auf  'Syntax Befehlsende'  untersuchen
         LD      A,2             ; Code for 'Umschalten auf Graphic - Modus'
-        LD      (S1097),A       ; als Drucker - Modus - Flag merken
+        LD      (PNMODE),A      ; als Drucker - Modus - Flag merken
         JR      AA066           ; Zeichen im Accu an Drucker ausgeben
 ;
 ;
-;   Basic - Befehl   SKIP     (Zwischencode 163 / 0A3H)
+;   Basic - Befehl   SKIP     (Token code 163 / 0A3H)
 ;
 AA07C:  CALL    AA46A           ; Abfrage, ob angewählter Drucker der MZ-800 - Plotter ist
         CALL    AA009           ; Drucker auf Text - Modus überprüfen
-        CALL    A8551           ; Ausdruck (HL) auswerten und 2-Byte-Wert nach DE bereitstellen
+        CALL    IDEEXP          ; Ausdruck (HL) auswerten und 2-Byte-Wert nach DE bereitstellen
         LD      A,E             ; Low - Byte Wert holen
         OR      A               ; gleich Null  ?
         RET     Z               ; ja -->  fertig
@@ -25128,14 +25155,14 @@ AA0A0:  LD      A,ETX           ; Code for 'Zeilenrückzug'
 ;
 ;   Wert in DE auf Y - Koordinate Graphic - Modus überprüfen
 ;
-AA0A8:  PUSH    HL              ; Register - Wert retten
+AA0A8:  PUSH    HL              ; Keep register value
         LD      HL,999          ; maximale Y - Koordinate vorgeben
         JR      AA0B2           ; Koordinate in DE überprüfen
 ;
 ;
 ;   Wert in DE auf X - Koordinate Graphic - Modus überprüfen
 ;
-AA0AE:  PUSH    HL              ; Register - Wert retten
+AA0AE:  PUSH    HL              ; Keep register value
         LD      HL,480          ; maximale X - Koordinate vorgeben
 AA0B2:  PUSH    HL              ; maximale Koordinate retten
         ADD     HL,DE           ; Koordinate in DE auf minus Maximum überprüfen
@@ -25147,25 +25174,25 @@ AA0BC:  POP     HL              ; gerettete Register - Wert holen
         RET
 ;
 ;
-;   Basic - Befehl   PLINE     (Zwischencode  165 / 0A5H)
+;   Basic - Befehl   PLINE     (Token code  165 / 0A5H)
 ;
 AA0BE:  LD      C,'D'           ; D   (Draw)     (absolute Linie)
         DEFB    LD_DE
 ;
 ;
-;   Basic - Befehl   RLINE     (Zwischencode  166 / 0A6H)
+;   Basic - Befehl   RLINE     (Token code  166 / 0A6H)
 ;
 AA0C1:  LD      C,'J'           ; J              (relative Linie)
         DEFB    LD_DE
 ;
 ;
-;   Basic - Befehl   PMOVE     (Zwischencode  167 / 0A7H)
+;   Basic - Befehl   PMOVE     (Token code  167 / 0A7H)
 ;
 AA0C4:  LD      C,'M'           ; M   (Move)     (absolute Kopfbewegung)
         DEFB    LD_DE
 ;
 ;
-;   Basic - Befehl   RMOVE     (Zwischencode  168 / 0A8H)
+;   Basic - Befehl   RMOVE     (Token code  168 / 0A8H)
 ;
 AA0C7:  LD      C,'R'           ; R   (relativ)  (relative Kopfbewegung)
         CALL    AA46A           ; Abfrage, ob angewählter Drucker der MZ-800 - Plotter ist
@@ -25174,10 +25201,10 @@ AA0C7:  LD      C,'R'           ; R   (relativ)  (relative Kopfbewegung)
         LD      (DA112 + 1),A   ; und in Routine eintragen
         CP      'M'             ; Kopfbewegung  ?
         JR      NC,AA0F9        ; ja -->  nicht auf Linientyp untersuchen
-        CALL    A0164           ; Vergleich auf Byte hinter CALL - Aufruf
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL - Aufruf
         DEFM    "%"             ; Code for 'Linientyp'  ?
         JR      NZ,AA0F9        ; kein Linientyp angegeben
-        CALL    A853D           ; 1-Byte - Wert nach E/Accu bereitstellen
+        CALL    IBYTE           ; 1-Byte - Wert nach E/Accu bereitstellen
         LD      A,E             ; Linientypwert holen
         DEC     A               ; intern von 0 - 15
         CP      15 + 1          ; mit maximalem Wert vergleichen
@@ -25191,11 +25218,11 @@ AA0C7:  LD      C,'R'           ; R   (relativ)  (relative Kopfbewegung)
         CALL    A5963           ; Zeichen im Accu auf Befehlsendezeichen untersuchen
         RET     Z               ; nur Linie spezifiziert -->  fertig
         CALL    A79B4           ; auf  'Syntax Komma'  untersuchen
-AA0F9:  CALL    A8551           ; Ausdruck (HL) auswerten und 2-Byte-Wert nach DE bereitstellen
+AA0F9:  CALL    IDEEXP          ; Ausdruck (HL) auswerten und 2-Byte-Wert nach DE bereitstellen
         CALL    A79B4           ; auf  'Syntax Komma'  untersuchen
         CALL    AA0AE           ; Wert in DE auf X-Koordinate Graphic-Modus überprüfen
         PUSH    DE              ; X - Koordinate Graphic merken
-        CALL    A8551           ; Ausdruck (HL) auswerten und 2-Byte-Wert nach DE bereitstellen
+        CALL    IDEEXP          ; Ausdruck (HL) auswerten und 2-Byte-Wert nach DE bereitstellen
         CP      ','             ; nächstes Zeichen gleich Komma  ?
         JR      Z,AA10D         ; ja -->  weitere Koordinaten angegeben
         CALL    A797A           ; auf  'Syntax Befehlsende'  untersuchen
@@ -25218,15 +25245,15 @@ DA112:  LD      A,0             ; Befehlsbuchstaben für Bewegung   (wird eingetr
         JR      AA0F9           ; nächstes Koordinatenpaar bereitstellen und ausgeben
 ;
 ;
-;   Basic - Befehl   PCOLOR     (Zwischencode  174 / 0EAH)
+;   Basic - Befehl   PCOLOR     (Token code  174 / 0EAH)
 ;
 AA12C:  CALL    AA46A           ; Abfrage, ob angewählter Drucker der MZ-800 - Plotter ist
-        CALL    A853D           ; 1-Byte - Wert nach E/Accu bereitstellen
+        CALL    IBYTE           ; 1-Byte - Wert nach E/Accu bereitstellen
         LD      A,E             ; bereitgestellte Zeichenfarbe holen
         CP      3 + 1           ; Farbe gleich 0 - 3  ?
         JP      NC,A636A        ; nein -->  Fehler 3   Illegal data error
         CALL    A797A           ; auf  'Syntax Befehlsende'  untersuchen
-        LD      A,(S1097)       ; Drucker - Modus - Flag holen
+        LD      A,(PNMODE)      ; Drucker - Modus - Flag holen
         CP      2               ; im Graphic - Modus  ?
         JR      Z,AA14F         ; ja -->  Farbwert ausgeben
         CALL    AA069           ; Zeilenvorschub/Zeilenrückzug ausgeben
@@ -25259,13 +25286,13 @@ AA15E:  RST     _DOCMD          ; Software - Kommando ausführen
         RET
 ;
 ;
-;   Basic - Befehl   PHOME     (Zwischencode  175 / 0AFH)
+;   Basic - Befehl   PHOME     (Token code  175 / 0AFH)
 ;
 AA161:  LD      C,'H'           ; Code   'HOME'
         DEFB    LD_DE
 ;
 ;
-;   Basic - Befehl   HSET     (Zwischencode  176 / 0B0H)
+;   Basic - Befehl   HSET     (Token code  176 / 0B0H)
 ;
 AA164:  LD      C,'I'           ; Code   'Initialize'
         CALL    AA00D           ; Drucker auf Graphic - Modus überprüfen
@@ -25274,23 +25301,23 @@ AA164:  LD      C,'I'           ; Code   'Initialize'
         JR      AA15E           ; Zeichen im Accu an Drucker ausgeben
 ;
 ;
-;   Basic - Befehl   GPRINT     (Zwischencode  177 / 0B1H)
+;   Basic - Befehl   GPRINT     (Token code  177 / 0B1H)
 ;
 AA16F:  CALL    AA46A           ; Abfrage, ob angewählter Drucker der MZ-800 - Plotter ist
         CALL    AA00D           ; Drucker auf Graphic - Modus überprüfen
-        CALL    A0164           ; Vergleich auf Byte hinter CALL - Aufruf
+        CALL    TEST1           ; Vergleich auf Byte hinter CALL - Aufruf
         DEFM    "["             ; Eckige Klammer auf  ?
         JR      NZ,AA1B3        ; nein -->  keine Zeichengröße/-lage angegeben
-        CALL    A853D           ; 1-Byte - Wert nach E/Accu bereitstellen
+        CALL    IBYTE           ; 1-Byte - Wert nach E/Accu bereitstellen
         CP      63 + 1          ; mit maximaler Zeichengröße vergleichen
         JP      NC,A636A        ; zu groß -->  Fehler 3   Illegal data error
         PUSH    DE              ; Zeichengröße retten
         CALL    A79B1           ; auf Syntax  'Komma'  untersuchen
-        CALL    A853D           ; 1-Byte - Wert nach E/Accu bereitstellen
+        CALL    IBYTE           ; 1-Byte - Wert nach E/Accu bereitstellen
         CP      3 + 1           ; Schriftrichtung  0  -  3  ?
         JP      NC,A636A        ; zu groß -->  Fehler 3   Illegal data error
         PUSH    DE              ; Schriftrichtung merken
-        CALL    A016E           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
+        CALL    TESTX           ; Syntaxuntersuchung auf Byte hinter CALL - Aufruf
         DEFM    "]"             ; Eckige Klammer zu  ?
         POP     BC              ; Schriftrichtung holen
         POP     DE              ; Zeichengröße holen
@@ -25332,18 +25359,18 @@ AA1D0:  CALL    A5963           ; Zeichen im Accu auf Befehlsendezeichen untersu
         JR      AA1B3           ; nächste Zeichenkette bereitstellen und ausgeben
 ;
 ;
-;   Basic - Befehl   AXIS     (Zwischencode  179 / 0B3H)
+;   Basic - Befehl   AXIS     (Token code  179 / 0B3H)
 ;
 AA1D7:  CALL    AA00D           ; Drucker auf Graphic - Modus überprüfen
-        CALL    A853D           ; 1-Byte - Wert nach E/Accu bereitstellen
+        CALL    IBYTE           ; 1-Byte - Wert nach E/Accu bereitstellen
         CP      1 + 1           ; Achse null oder eins  ?
         JP      NC,A636A        ; zu groß -->  Fehler 3   Illegal data error
         PUSH    AF              ; Achsennummer merken
         CALL    A79B1           ; auf Syntax  'Komma'  untersuchen
-        CALL    A8551           ; Ausdruck (HL) auswerten und 2-Byte-Wert nach DE bereitstellen
+        CALL    IDEEXP          ; Ausdruck (HL) auswerten und 2-Byte-Wert nach DE bereitstellen
         PUSH    DE              ; Skalenfaktor holen
         CALL    A79B4           ; auf  'Syntax Komma'  untersuchen
-        CALL    A853D           ; 1-Byte - Wert nach E/Accu bereitstellen
+        CALL    IBYTE           ; 1-Byte - Wert nach E/Accu bereitstellen
         OR      A               ; gleich Null  ?
         JP      Z,A636A         ; ja -->  Fehler 3   Illegal data error
         CALL    A797A           ; auf  'Syntax Befehlsende'  untersuchen
@@ -25367,7 +25394,7 @@ AA1D7:  CALL    AA00D           ; Drucker auf Graphic - Modus überprüfen
         JP      AA158           ; Zeilenvorschub an Drucker ausgeben
 ;
 ;
-;   Basic - Befehl   PCIRCLE     (Zwischencode  187 / 0BBH)
+;   Basic - Befehl   PCIRCLE     (Token code  187 / 0BBH)
 ;
 AA217:  CALL    AA00D           ; Drucker auf Graphic - Modus überprüfen
         PUSH    HL              ; Programmzeiger retten
@@ -25385,7 +25412,7 @@ AA217:  CALL    AA00D           ; Drucker auf Graphic - Modus überprüfen
 ;
 ;   X - Koordinate des Mittelpunktes für PCIRCLE bereitstellen
 ;
-        CALL    A857C           ; Ausdruck (HL) auswerten/Zeiger auf Ergebnis bereitstellen
+        CALL    EXPR            ; Ausdruck (HL) auswerten/Zeiger auf Ergebnis bereitstellen
         CALL    A79B4           ; auf  'Syntax Komma'  untersuchen
         PUSH    HL              ; Programmzeiger retten
         LD      HL,SA3A2        ; Zeiger auf Speicher für X-Koordinate Mittelpunkt
@@ -25396,7 +25423,7 @@ AA217:  CALL    AA00D           ; Drucker auf Graphic - Modus überprüfen
 ;
 ;   Y - Koordinate des Mittelpunktes für PCIRCLE bereitstellen
 ;
-        CALL    A857C           ; Ausdruck (HL) auswerten/Zeiger auf Ergebnis bereitstellen
+        CALL    EXPR            ; Ausdruck (HL) auswerten/Zeiger auf Ergebnis bereitstellen
         CALL    A79B4           ; auf  'Syntax Komma'  untersuchen
         PUSH    HL              ; Programmzeiger retten
         LD      HL,SA3A7        ; Zeiger auf Speicher für Y - Koordinate Mittelpunkt
@@ -25407,7 +25434,7 @@ AA217:  CALL    AA00D           ; Drucker auf Graphic - Modus überprüfen
 ;
 ;   Radius für PCIRCLE bereitstellen
 ;
-        CALL    A857C           ; Ausdruck (HL) auswerten/Zeiger auf Ergebnis bereitstellen
+        CALL    EXPR            ; Ausdruck (HL) auswerten/Zeiger auf Ergebnis bereitstellen
         PUSH    HL              ; Programmzeiger retten
         PUSH    AF              ; nächstes Programmbyte retten
         LD      HL,SA3AC        ; Zeiger auf Speicher für Radius
@@ -25425,7 +25452,7 @@ AA217:  CALL    AA00D           ; Drucker auf Graphic - Modus überprüfen
 ;
 ;   Anfangswinkel für PCIRCLE bereitstellen
 ;
-        CALL    A857C           ; Ausdruck (HL) auswerten/Zeiger auf Ergebnis bereitstellen
+        CALL    EXPR            ; Ausdruck (HL) auswerten/Zeiger auf Ergebnis bereitstellen
         PUSH    HL              ; Programmzeiger retten
         PUSH    AF              ; nächstes Programmbyte retten
         LD      HL,SA3B1        ; Zeiger auf Speicher für Anfangswinkel
@@ -25440,7 +25467,7 @@ AA217:  CALL    AA00D           ; Drucker auf Graphic - Modus überprüfen
 ;
 ;   Endwinkel für PCIRCLE bereitstellen
 ;
-        CALL    A857C           ; Ausdruck (HL) auswerten/Zeiger auf Ergebnis bereitstellen
+        CALL    EXPR            ; Ausdruck (HL) auswerten/Zeiger auf Ergebnis bereitstellen
         PUSH    HL              ; Programmzeiger retten
         PUSH    AF              ; nächstes Programmbyte retten
         LD      HL,SA3B6        ; Zeiger auf Speicher für Endwinkel
@@ -25455,7 +25482,7 @@ AA217:  CALL    AA00D           ; Drucker auf Graphic - Modus überprüfen
 ;
 ;   Provide step angle for PCIRCLE
 ;
-        CALL    A857C           ; Evaluate expression (HL)/provide pointer to result
+        CALL    EXPR            ; Evaluate expression (HL)/provide pointer to result
         PUSH    HL              ; Save program pointer
         LD      HL,SA3BB        ; Pointer to step angle memory
         EX      DE,HL           ; Pointer to result after HL
@@ -25542,12 +25569,12 @@ AA329:  LD      A,'D'           ; Code 'Draw line' (Draw)
 AA32C:  LD      A,'M'           ; Code 'position head' (Move)
         PUSH    AF              ; Remember command letters for printers
 DA32F:  LD      HL,SA3A2        ; Pointer to memory for X coordinate center point
-        CALL    A7BEA           ; Real - convert value (HL) into integer - value after HL
+        CALL    HLFLT           ; Real - convert value (HL) into integer - value after HL
         PUSH    HL              ; Note X coordinate
         EX      DE,HL           ; X - coordinate to DE
         CALL    AA0A8           ; Check value in DE on Y coordinate graphic mode
 DA33A:  LD      HL,SA3A7        ; Pointer to memory for Y - coordinate center
-        CALL    A7BEA           ; Real - convert value (HL) into integer - value after HL
+        CALL    HLFLT           ; Real - convert value (HL) into integer - value after HL
         PUSH    HL              ; Y - remember coordinate
         EX      DE,HL           ; Y - coordinate to DE
         CALL    AA0A8           ; Check value in DE on Y coordinate graphic mode
@@ -25566,10 +25593,10 @@ DA33A:  LD      HL,SA3A7        ; Pointer to memory for Y - coordinate center
 ;
 ;   Calculate X/Y coordinates from center/radius/angle
 ;
-AA358:  LD      DE,(S107C)      ; Get pointer to start of arithmetic memory
+AA358:  LD      DE,(INTFAC)     ; Get pointer to start of arithmetic memory
         LD      HL,SA3B1        ; Pointer to storage for initial angles
         CALL    A79C5           ; Real - number value transferred from (HL) to (DE).
-        LD      HL,(S107C)      ; Get pointer to start of arithmetic memory
+        LD      HL,(INTFAC)     ; Get pointer to start of arithmetic memory
         CALL    A98B3           ; RAD - call function (angle in radians)
         CALL    A96F9           ; Call COS routine ( COS( (HL) ) )
         LD      DE,SA3AC        ; Pointer to memory for radius
@@ -25578,10 +25605,10 @@ AA358:  LD      DE,(S107C)      ; Get pointer to start of arithmetic memory
         CALL    A90BC           ; + - Routine ( (HL) = (HL) + (DE) )
         LD      DE,SA3C0        ; Pointer to current X coordinate
         CALL    A79C5           ; Real - number value transferred from (HL) to (DE).
-        LD      DE,(S107C)      ; Get pointer to start of arithmetic memory
+        LD      DE,(INTFAC)     ; Get pointer to start of arithmetic memory
         LD      HL,SA3B1        ; Pointer to storage for initial angles
         CALL    A79C5           ; Real - number value transferred from (HL) to (DE).
-        LD      HL,(S107C)      ; Get pointer to start of arithmetic memory
+        LD      HL,(INTFAC)     ; Get pointer to start of arithmetic memory
         CALL    A98B3           ; RAD - call function (angle in radians)
         CALL    A9709           ; Call SIN routine ( SIN( (HL) ) )
         LD      DE,SA3AC        ; Pointer to memory for radius
@@ -25610,7 +25637,7 @@ SA3C5:  DEFS    5               ; current Y coordinate
 ;
 AA3CF:  PUSH    AF              ;!Register - save values
         PUSH    HL              ;!
-        LD      HL,(S107C)      ; Get pointer to start of arithmetic memory
+        LD      HL,(INTFAC)     ; Get pointer to start of arithmetic memory
         CALL    A79CB           ; Integer - convert value in DE into real value according to (HL)
         CALL    A7B5B           ; Convert real value (HL) to ASCII to buffer
         RST     _DOCMD          ; Software - Execute command
@@ -25625,7 +25652,7 @@ AA3DC:  LD      A,(DE)          ; get a character text
         RET
 ;
 ;
-;   Basic - Befehl   PTEST     (Zwischencode  188 / 0BCH)
+;   Basic - Befehl   PTEST     (Token code  188 / 0BCH)
 ;
 AA3E5:  CALL    AA46A           ; Abfrage, ob angewählter Drucker der MZ-800 - Plotter ist
         CALL    AA009           ; Drucker auf Text - Modus überprüfen
@@ -25636,10 +25663,10 @@ AA3E5:  CALL    AA46A           ; Abfrage, ob angewählter Drucker der MZ-800 - P
         RET
 ;
 ;
-;   Basic - Befehl   PAGE     (Zwischencode  189 / 0BDH)
+;   Basic - Befehl   PAGE     (Token code  189 / 0BDH)
 ;
 AA3F3:  CALL    AA009           ; Drucker auf Text - Modus überprüfen
-        CALL    A8551           ; Ausdruck (HL) auswerten und 2-Byte-Wert nach DE bereitstellen
+        CALL    IDEEXP          ; Ausdruck (HL) auswerten und 2-Byte-Wert nach DE bereitstellen
         LD      A,E             ; Anzahl Zeilen je Seite holen
         OR      A               ; gleich Null  ?
         JP      Z,A636A         ; ja -->  Fehler 3   Illegal data error
@@ -25651,7 +25678,7 @@ AA3F3:  CALL    AA009           ; Drucker auf Text - Modus überprüfen
         DEFB    6               ; Code 6   Zeichen im Accu auf Drucker ausgeben
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    6               ; Code 6   Zeichen im Accu auf Drucker ausgeben
-        LD      A,(S1092)       ; Drucker - Typ - Nummer holen
+        LD      A,(PSEL)        ; Drucker - Typ - Nummer holen
         BIT     0,A             ; MZ - 800 - Plotter  ?
         JR      Z,AA419         ; nein
         CALL    AA3CF           ; Wert in DE aufbereiten in ASCII / an Drucker ausgeben
@@ -25659,7 +25686,7 @@ AA3F3:  CALL    AA009           ; Drucker auf Text - Modus überprüfen
 ;
 AA419:  LD      A,E             ; Anzahl Zeile je Seite holen
         LD      DE,S11A4        ; Zeiger auf Zwischenspeicher vorgeben
-        CALL    A851A           ; Byte im Accu umsetzen on 2 ASCII-Hex-Zeichen nach (DE)
+        CALL    HEXACC          ; Byte im Accu umsetzen on 2 ASCII-Hex-Zeichen nach (DE)
         DEC     DE              ;! Zeiger auf erstes aufbereitetes Zeichen
         DEC     DE              ;!
         LD      A,(DE)          ; ein Zeichen Text holen
@@ -25672,7 +25699,7 @@ AA419:  LD      A,E             ; Anzahl Zeile je Seite holen
         RET
 ;
 ;
-;   Basic - Befehl   PLOT   (Zwischencode  164 / 0A4H)
+;   Basic - Befehl   PLOT   (Token code  164 / 0A4H)
 ;
 AA42A:  LD      A,(HL)          ; nächstes Programmbyte holen
         CP      ____ON          ; Zwischencode  ON  ?
@@ -25680,7 +25707,7 @@ AA42A:  LD      A,(HL)          ; nächstes Programmbyte holen
         CP      ___OFF          ; Zwischencode  OFF  ?
         JP      NZ,A6364        ; nein -->  Fehler 1  Syntax error
         XOR     A               ; Code for 'keine Parallelausgabe'
-AA435:  LD      (S108F),A       ; Parallelausgabeflag Drucker merken
+AA435:  LD      (INPFLG),A      ; Parallelausgabeflag Drucker merken
         INC     HL              ; Code for 'ON/OFF'  überspringen
         RET
 ;
@@ -25693,7 +25720,7 @@ AA43A:  CALL    AA009           ; Drucker auf Text - Modus überprüfen
         CP      'L'             ; L   (Large)  ?
         JP      Z,A63B7         ; ja -->  Fehler 68   Dev. mode error
         CALL    AA45C           ; Drucker auf Textmodus und richtige Anzahl Zeichen/Zeile
-        LD      A,(S108F)       ; Parallelausgabeflag Drucker holen
+        LD      A,(INPFLG)      ; Parallelausgabeflag Drucker holen
         OR      A               ; gesetzt  ?
         JR      NZ,AA435        ; ja -->  Programmzeiger corrigieren
         CALL    A6A8D           ; Standardwerte für CONSOLE vorgeben
@@ -25717,13 +25744,13 @@ AA45C:  LD      A,1             ; Code for 'Umschalten auf Textmodus'
 ;
 ;   Abfrage, ob angewählter Drucker der MZ-800 - Plotter ist
 ;
-AA46A:  LD      A,(S1092)       ; Drucker - Typ - Nummer  holen
+AA46A:  LD      A,(PSEL)        ; Drucker - Typ - Nummer  holen
         BIT     0,A             ; MZ - 800 - Plotter  (Drucker 1)  ?
         JP      Z,A63B7         ; nein -->  Fehler 68   Dev. mode error
         RET
 ;
 
-SA473:                          ; from here free memory for basic - program
+BASIC_PGM:                          ; from here free memory for basic - program
 
 
 ; ..the original tape dump here contains useless program code and data, including an old disclaimer:
@@ -25735,5 +25762,5 @@ SA473:                          ; from here free memory for basic - program
 
 
 ; Data block filler
-defs $b000-SA473
+defs $b000-BASIC_PGM
 
