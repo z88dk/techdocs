@@ -4,17 +4,17 @@
 ;    ------------------------------
 ;
 
-; MZ-1500 mode build: 
+; Default mode build (also MZ-1500):
 ; z88dk-z80asm -b -m mz-5z009.asm
 
-; PLE mode build: 
+; PLE mode build:
 ; z88dk-z80asm -b -m -DSYS mz-5z009.asm
 
 
 ; V1.0B+ MODIFIED versions
 ; 64 KB
 ; z88dk-z80asm -b -m -DRAMDISK mz-5z009.asm
-; 
+;
 ; PILSOFT MOD, 20.02.89:  64 KB, IO EC~EF
 ; z88dk-z80asm -b -m -DRAMDISK -DALTFN -DMOD_B mz-5z009.asm
 
@@ -53,7 +53,7 @@
 ; WORKQ                   9E4B
 ; PLT                     9FCE
 ; -------------------------------------
-; 
+;
 
 
 
@@ -79,8 +79,8 @@
 ;defc DCOLOR  =  048AH
 ;defc PONTB   =  097AH
 ;defc ERRORJ  =  00EDH
-;defc _CLRHL  =  0137H
-;defc _SETDE  =  013EH
+;defc CLRHL   =  0137H
+;defc SETDE   =  013EH
 ;defc INDRCT  =  0151H
 ;defc INCHLF  =  015DH
 ;defc IOCALL  =  0247H
@@ -104,7 +104,7 @@
 ;defc EQTBL   =  0DDDH
 ;defc _TEMPO  =  0041H
 ;defc __RET   =  00B2H
-;defc _CLRDE  =  013DH
+;defc CLRDE   =  013DH
 ;defc HLFTCH  =  015EH
 ;defc HALT    =  02F8H
 ;defc ADDP0   =  031CH
@@ -137,7 +137,7 @@
 ;defc _USR    =  0F7FH
 ;defc BREAKZ  =  00E8H
 ;defc LDDEMI  =  012DH
-;defc _SETHL  =  0138H
+;defc SETHL   =  0138H
 ;defc HCURON  =  092BH
 
 ;defc _IOSVC  =  0003H
@@ -149,10 +149,10 @@
 ;defc _CRTMS  =  0005H
 ;defc _LPTOT  =  0006H
 ;defc _LPT1C  =  0007H
-;defc __CR    =  0008H
-;defc __1C    =  0009H
-;defc __1CX   =  000AH
-;defc __MSG   =  000BH
+;defc _CR     =  0008H
+;defc _1C     =  0009H
+;defc _1CX    =  000AH
+;defc _MSG    =  000BH
 ;defc _GETL   =  000CH
 ;defc _INKEY  =  000DH
 ;defc _BREAK  =  000EH
@@ -169,8 +169,8 @@
 ;defc _ADDP1  =  0019H
 ;defc _ADDP2  =  001AH
 ;defc _ERRX   =  001BH
-;defc __DACN  =  001CH
-;defc __ADCN  =  001DH
+;defc _DACN   =  001CH
+;defc _ADCN   =  001DH
 ;defc _STICK  =  001EH
 ;defc _STRIG  =  001FH
 ;defc _BELL   =  0020H
@@ -351,7 +351,7 @@
 ;defc ZDIRMX  =  1052H
 ;defc ZINIT   =  1053H
 ;defc DCHAN   =  1069H
-;defc TEXTED  =  1072H
+;;;defc TEXTED  =  1072H
 ;defc MEMOP   =  1099H
 ;defc CSIZE   =  136DH
 ;defc YE      =  1370H
@@ -435,7 +435,7 @@ defc ERRTXT  = 0FDA0H
 ;
         JP      CRTMSG          ; Output text (DE) on screen (execution of control characters)
 ;
-_DOCMD:                           
+_DOCMD:
         JP      IOSVC           ; Software - execute command (RST _DOCMD: RST3 supervisor call entry)
 ;
         JP      INKEY0          ; Query whether key is pressed
@@ -513,7 +513,7 @@ CONTTB: DEFW   __RET           ;@ 00
         DEFW   HCLSW           ;V 16 clr
         DEFW   CTR_W           ;W 17 graph
         DEFW   INST            ;X 18 inst
-        DEFW   CTR_Y           ;Y 19 alpha
+        DEFW   CTR_F           ;Y 19 alpha
         DEFW   __RET           ;Z 1A
         DEFW   CTR_M           ;[ 1B esc
         DEFW   __RET           ;\ 1C
@@ -537,7 +537,7 @@ _HL:
         JP     (HL)
 ;
 ;
-DI_:     
+SVC_DI:
         EI
         PUSH   AF
         CALL   MWAIT
@@ -548,7 +548,7 @@ __RET:
         RET
 ;
 ;
-EI_:     
+SVC_EI:
         PUSH   AF
         CALL   SPLON
         POP    AF
@@ -740,12 +740,12 @@ LDDEMD:
 ;---------------------------------
 ; Clear (HL) B bytes
 ;---------------------------------
-_CLRHL:
+CLRHL:
         XOR    A
 ;---------------------------------
 ; Set  (HL) B bytes
 ;---------------------------------
-_SETHL:
+SETHL:
         LD     (HL),A
         INC    HL
         DJNZ   $-2
@@ -755,12 +755,12 @@ _SETHL:
 ;---------------------------------
 ; Clear (DE) B bytes
 ;---------------------------------
-_CLRDE:
+CLRDE:
         XOR    A
 ;---------------------------------
 ;  Set (DE) B bytes
 ;---------------------------------
-_SETDE:
+SETDE:
         LD     (DE),A
         INC    DE
         DJNZ   $-2
@@ -871,14 +871,14 @@ defc _LPTOT  =    06H
         DEFW   LPTOUT
 defc _LPT1C  =    07H
         DEFW   LPT1C
-defc __CR    =    08H
-        DEFW   _CR
-defc __1C    =    09H
-        DEFW   _1C
-defc __1CX   =    0AH
-        DEFW   _1CX
-defc __MSG   =    0BH
-        DEFW   _MSG
+defc _CR     =    08H
+        DEFW   PR_CR
+defc _1C     =    09H
+        DEFW   PR_1C
+defc _1CX    =    0AH
+        DEFW   PR_1CX
+defc _MSG    =    0BH
+        DEFW   PR_MSG
 defc _GETL   =    0CH
         DEFW   GETL
 defc _INKEY  =    0DH
@@ -888,9 +888,9 @@ defc _BREAK  =    0EH
 defc _HALT   =    0FH
         DEFW   HALT
 defc _DI     =    10H
-        DEFW   DI_
+        DEFW   SVC_DI
 defc _EI     =    11H
-        DEFW   EI_
+        DEFW   SVC_EI
 defc _CURMV  =    12H
         DEFW   CURMOV
 defc _DEASC  =    13H
@@ -911,10 +911,10 @@ defc _ADDP2  =    1AH
         DEFW   ADDP2
 defc _ERRX   =    1BH
         DEFW   ERRX
-defc __DACN  =    1CH
-        DEFW   _DACN
-defc __ADCN  =    1DH
-        DEFW   _ADCN
+defc _DACN   =    1CH
+        DEFW   DACN
+defc _ADCN   =    1DH
+        DEFW   ADCN
 defc _STICK  =    1EH
         DEFW   STICK
 defc _STRIG  =    1FH
@@ -1410,7 +1410,7 @@ DSM00:  LD     (CPLANE),BC     ;c cplane
         RET
 ;
 ;
-CERR:   
+CERR:
         SCF
         RET
 
@@ -1701,43 +1701,53 @@ PTB1:   NOP                    ;inc hl
 ;
 ;--------------------------------
 ;
-CHTBL:  
+CHTBL:
 ;
 ;  word patch
 ;
         DEFW   XPD1+1          ;ld de,xxxxh
         DEFW   80
         DEFW   40
+
         DEFW   XPC1            ;sla c
-        DEFW   21CBH
-        DEFW   0               ;nop
+        DEFW   21CBH           ;(SLA C)
+        DEFW   0               ;(NOP NOP)
+
         DEFW   XPC2+1          ;ld bc,xxxxh
-        DEFW   400
-        DEFW   200
+        DEFW   400             ; Value for 80 characters per line
+        DEFW   200             ; Value for 40 characters per line
+
         DEFW   XPC3+1          ;ld hl,xxxxh
         DEFW   BITBUF+16000
         DEFW   BITBUF+8000
+
         DEFW   XPDE3+1         ;ld de,xxxxh
         DEFW   80
         DEFW   40
+
         DEFW   XPDE4+1         ;ld bc,xxxxh
-        DEFW   560
-        DEFW   280
+        DEFW    7 * 80         ; Value for 80 characters per line
+        DEFW    7 * 40         ; Value for 40 characters per line
+
         DEFW   XPIN2+1         ;ld de,xxxxh
         DEFW   80
         DEFW   40
+
         DEFW   XPIN3+1         ;ld de,xxxxh
-        DEFW   0FFB0H
-        DEFW   0FFD8H
+        DEFW    -80            ; Value for 80 characters per line
+        DEFW    -40            ; Value for 40 characters per line
+
         DEFW   XPIN4+1         ;ld bc,xxxxh
-        DEFW   0FDD0H
-        DEFW   0FEE8H
+        DEFW    - (7 * 80)     ; Value for 80 characters per line
+        DEFW    - (7 * 40)     ; Value for 40 characters per line
+
         DEFW   XPLI2+1         ;ld de,xxxxh
         DEFW   80
         DEFW   40
+
         DEFW   XPSC2+1         ;ld bc,xxxxh
-        DEFW   639
-        DEFW   319
+        DEFW   8 * 80 - 1      ; Value for 80 characters per line
+        DEFW   8 * 40 - 1      ; Value for 40 characters per line
 ;
 ;
 ;
@@ -1747,23 +1757,29 @@ CHTBL:
         DEFW   XPDE1+1         ;ld l,xxh
         DEFB   79
         DEFB   39
+
         DEFW   XPDE2+1         ;ld c,xxh
         DEFB   79
         DEFB   39
+
         DEFW   XPIN1+1         ;ld c,xxh
         DEFB   79
         DEFB   39
+
         DEFW   XPLI1+1         ;ld a,xxh
         DEFB   79
         DEFB   39
+
         DEFW   XPSC1+1         ;ld c,xxh
         DEFB   80
         DEFB   40
-        DEFW   XPCU1           ;add hl,hl
-        DEFB   29H
+
+        DEFW   XPCU1
+        DEFB   29H             ;add hl,hl
         DEFB   0               ;nop
-        DEFW   XPCU2           ;add hl,hl
-        DEFB   29H
+
+        DEFW   XPCU2
+        DEFB   29H             ;add hl,hl
         DEFB   0               ;nop
 ;
 ;
@@ -1810,7 +1826,7 @@ ACCDI0: LD     (HL),A
 BITMAP:
 ;
         RST    3
-        DEFB   __ADCN          ;ascii->display
+        DEFB   _ADCN          ;ascii->display
         DI
         EXX
         PUSH   HL
@@ -1899,7 +1915,7 @@ HCLSW:
         LD     B,A             ;lines
         LD     E,A             ;store YW
 ;
-        CALL   _CLRHL          ;mangement buf clr
+        CALL   CLRHL          ;mangement buf clr
 ;
 CLSWT:  LD     C,E             ;restore YW
         LD     A,(YE)
@@ -1915,14 +1931,14 @@ CLSWT:  LD     C,E             ;restore YW
 ;
 ;-----------------------------------
 ;
-CLSLT:  
+CLSLT:
         INC    A
         LD     L,0
         LD     H,A
         PUSH   HL              ;start pos x,y
         CALL   PONT
         LD     B,0
-XPC1:   NOP                    ;40  SLA C<--80
+XPC1:   NOP                    ;SMC  (40: NOP,  80: SLA C)
         NOP
         PUSH   BC
         CALL   PUSHW
@@ -1952,8 +1968,8 @@ CLST:   LD     HL,TEXTBF+2000
         CALL   PUSHW
         LD     B,25
         LD     HL,SCRNT0
-        CALL   _CLRHL          ;manegement buf clr
-CLSB:   
+        CALL   CLRHL          ;manegement buf clr
+CLSB:
 ;
 ;  color mode
 ;
@@ -2020,7 +2036,7 @@ PUSHW1: LD     SP,0            ;xxx
 ;
 ;----------------------------------
 ;
-CLRSCR: 
+CLRSCR:
         LD     HL,0
         LD     (SOF),HL
         LD     B,2
@@ -2041,7 +2057,7 @@ CLRSCR:
 ;----------------------------------
 ;
 ;
-DEL:    
+DEL:
         EXX
         PUSH   HL
         PUSH   DE
@@ -2055,7 +2071,7 @@ DEL:
         EXX
         RET
 ;
-DEL0:   
+DEL0:
         LD     HL,(CURXY)
         DEC    L
         JP     P,DEL1
@@ -2071,7 +2087,7 @@ DEL0:
         JR     Z,DEL1
         DEC    H
 XPDE1:  LD     L,39            ;XE 39 or 79
-DEL1:   
+DEL1:
         LD     (CURXY),HL
         CALL   LINCAL
 ;BC lines HL' counts HL last curxy
@@ -2106,7 +2122,7 @@ DELB11: EXX
 ;  BC  lines
 ;  HL  start address
 ;----------------------------------
-DELB:   
+DELB:
 ;
 XPDE2:  LD     C,39            ;79 xe
         DEC    B               ;last line ?
@@ -2160,7 +2176,7 @@ DELB3:  IN     A,(LSE1)        ;bank off
         JP     DELB2
 ;
 ;
-DELB0:  
+DELB0:
         EX     DE,HL
         INC    C
         LD     E,C
@@ -2193,7 +2209,7 @@ DELB01: XOR    A
 ;----------------------------------
 ;
 ;
-INST:   
+INST:
 ;
         EXX
         PUSH   HL
@@ -2209,7 +2225,7 @@ INST:
         RET
 ;
 ;
-INST0:  
+INST0:
         LD     HL,(CURXY)
         CALL   LINCAL
 ;BC lines HL' counts HL last curxy
@@ -2259,10 +2275,10 @@ INSTE:  POP    HL
 ;
 ;----------------------------------
 ;
-INSB:   
+INSB:
         DEC    B               ;last line ?
         JR     Z,INSEND        ;skip if end of func.
-INSB1:  
+INSB1:
 XPIN1:  LD     C,39            ;79 xe
         CALL   INSLIN
         JR     INSB
@@ -2275,7 +2291,7 @@ XPIN1:  LD     C,39            ;79 xe
 ;             <<bitmap end >>
 ;
 ;---------------------------------
-INSEND: 
+INSEND:
 LASTC:  LD     C,0             ;patch
 INSEF:  CALL   INSLIN
         CALL   PONTCB
@@ -2308,7 +2324,7 @@ INSB01: XOR    A
 ;         C =bytes
 ;
 ;----------------------------------
-INSLIN: 
+INSLIN:
         EXX
         LD     D,9             ;laster counter set
 INSL1:  LD     HL,(MAXCF)      ;
@@ -2381,7 +2397,7 @@ INSLA1: IN     A,(LSE1)        ;bank off
 ;
 ;-------------------------------
 ;
-LINCAL: 
+LINCAL:
         LD     B,1
 XPLI1:  LD     A,39            ;xe 39 or 79
         SUB    L
@@ -2451,7 +2467,7 @@ SCR1:   ADD    HL,BC
         LDIR
         POP    BC
 SCR0:   LD     B,C
-        CALL   _CLRDE          ;last line clr
+        CALL   CLRDE          ;last line clr
 ;-----------------------------------
 ;
 ;   maneger buf scrool & clr
@@ -2486,7 +2502,7 @@ SCRCAL: LD     A,(YE)
 ;    scrool offset calc
 ;
 ;----------------------------------
-SCXFER: 
+SCXFER:
         LD     DE,40
         LD     HL,(SOF)        ;lsi scrool offset
         ADD    HL,DE
@@ -2541,7 +2557,7 @@ XPSC2:  LD     BC,319          ;xfer bytes
 ;        cursor window end pos
 ;
 ;----------------------------------
-BOS:    
+BOS:
         LD     A,(YE)
         LD     H,A
         LD     L,0
@@ -2557,7 +2573,7 @@ BOS:
 ;
 ;-------------------------------
 ;
-CURSOR: 
+CURSOR:
         CALL   PUSHRA
 ;
 ;cursor data pattern
@@ -2768,7 +2784,7 @@ CRIGHT: LD     HL,(CURXY)
         LD     A,(XE)
         CP     L
         JR     NC,CSET
-CTR_M2: 
+CTR_M2:
         LD     L,0
 CDOWN2: INC    H
         JR     CDOWN3          ;patch
@@ -2776,7 +2792,7 @@ CDOWN2: INC    H
         CALL   TBCALC
         LD     (HL),1
         POP    HL
-CDOWN3: 
+CDOWN3:
         LD     A,(YE)
         CP     H
         JR     NC,CSET
@@ -2808,8 +2824,9 @@ CSET3:  DEC    H
         JR     CSET
 ;
 ;
-CTR_F:  
-CTR_Y:  XOR    A               ;ALPHA
+CTR_F:
+;CTR_Y:
+        XOR    A               ;ALPHA
         DEFB   21H
 CTR_E:  LD     A,1             ;Shift lock
         DEFB   21H
@@ -2941,7 +2958,7 @@ LINP11:
         JR     LINP02
 ;
 LINP_B: SCF                    ;break key on
-LINP80: 
+LINP80:
         RST    3
         DEFB   _CR1
         POP    DE
@@ -2966,7 +2983,7 @@ GCRT:   LD     HL,(CURXY)
         LD     HL,(LINLIM)     ;L:line inp limit
         EXX
 ;
-GCRT10: 
+GCRT10:
         LD     A,(HL)          ;A<--ascii code
 GCRT36: INC    HL
         LD     (BC),A          ;(BC)<--ascii code
@@ -3085,7 +3102,7 @@ _KEY28: CALL   FLASH
         LD     A,C
         RET
 ;
-_KEY29: 
+_KEY29:
         PUSH   HL
         PUSH   BC
         LD     B,10
@@ -3425,7 +3442,7 @@ CRTSIF: XOR    A
 CRTSIE: LD     (CRTSFG+1),A
         JR     CRTSI2
 ;
-SMLTBL: 
+SMLTBL:
         DEFB   0A1H            ;a
         DEFB   09AH            ;b
         DEFB   09FH            ;c
@@ -3524,16 +3541,16 @@ CRTPOS: LD     A,(CURX)
 ;
 ; CRT(LPT) routine
 ;
-;     CRT1C  _1C
-;     CRT1CX _1CX
-;     CRTMSG _MSG
-;            _CR
+;     CRT1C  PR_1C
+;     CRT1CX PR_1CX
+;     CRTMSG PR_MSG
+;            PR_CR
 ;
 ;---------------------------------
 ;
-_CR:    LD     A,0DH
+PR_CR:    LD     A,0DH
 ;
-_1C:    PUSH   AF
+PR_1C:    PUSH   AF
         LD     A,(FILOUT)      ;0=crt/1=lpt
         OR     A
         JR     NZ,_1CL
@@ -3542,7 +3559,7 @@ _1C:    PUSH   AF
 _1CL:   POP    AF
         JP     LPT1C
 ;
-_1CX:   PUSH   AF
+PR_1CX:   PUSH   AF
         LD     A,(FILOUT)      ;0=crt/1=lpt
         OR     A
         JR     NZ,_1CXL
@@ -3551,8 +3568,8 @@ _1CX:   PUSH   AF
 _1CXL:  POP    AF
         JP     LPT1CX
 ;
-_MSG:   CALL   PUSHR
-        LD     HL,_1C
+PR_MSG:   CALL   PUSHR
+        LD     HL,PR_1C
         JR     CRTMS2
 ;
 CRTMSG: CALL   PUSHR
@@ -3569,7 +3586,7 @@ CRTMS2: LD     A,(DE)
 CRT1S:  LD     A,' '
 CRT1C:
         CALL   PUSHRA
-CRT1C0: 
+CRT1C0:
         LD     C,A
         LD     A,(INPFLG)      ;plot on/off
         OR     A
@@ -3588,7 +3605,7 @@ CRT1C0:
 CRT1C1: LD     A,L
         CP     E
         JP     NC,_BEEP        ;error range
-CRT1C2: 
+CRT1C2:
         LD     HL,PLTCOD       ;plotter code  trans.
         LD     B,0
         ADD    HL,BC
@@ -3678,7 +3695,7 @@ PLTCOD: DEFB   0               ;00
 ;
 ;
 ;--------------------------------
-STARTP: 
+STARTP:
         DI
         XOR    A
         OUT    (LSDMD),A       ;mz-800 320*200 4col
@@ -3704,6 +3721,7 @@ STARTP:
         POP    BC
 STRTP2: DEFB   21H             ;dummy byte
         JR     STRTP9
+
         XOR    A
         LD     (STRTP2),A
         LD     D,A
@@ -3728,7 +3746,7 @@ STRTP9: JP     COLDST
 ;
 ;
 ;
-CRTPWR: 
+CRTPWR:
 ;  check vram option ?
 ;
         DI
@@ -3788,7 +3806,7 @@ _USR:
         DEFW   USROUT          ;OUT
         DEFW   __RET           ;POS
 ;
-USRRO:  
+USRRO:
 USRWO:  LD     HL,ELMD1
         RST    3
         DEFB   _DEASC
@@ -3807,7 +3825,7 @@ ELSE
 
         LD     (ZWRK1),DE
         RET
-USRIN:  
+USRIN:
 USROUT: LD     HL,(ZWRK1)
 
 ENDIF
@@ -3939,30 +3957,27 @@ __LPT:
 
 
 ;
-;  Work area pointers
 ;
-TEXTST:                    ;Text starat
-        DEFS   2
-TEXTED:
-POOL:                    ;I/O work
-        DEFS   2
+;   Work area pointers
+;
+TEXTST: DEFS    2               ; Basic - beginning of program ("Text start")
+;
+POOL:   DEFS    2               ; File work areas (I/O work area)
+;
+VARST:  DEFS    2               ; Start of Basic variables area
+;
+STRST:  DEFS    2               ; Start of string text area
+;
+VARED:  DEFS    2               ; Var & string end
+;
+TMPEND: DEFS    2               ; End of string work area
+;
+INTFAC: DEFS    2               ; Start of arithmetic memory (FAC)
+;
+MEMLMT: DEFS    2               ; LIMIT - address
+;
+MEMMAX: DEFW    0FF00H          ; Maximum allowed RAM address  (last available memory)
 
-
-POOLED:
-VARST:                    ;Variable start
-        DEFS   2
-STRST:                    ;String start
-        DEFS   2
-VARED:                    ;Var & string end
-        DEFS   2
-TMPEND:                    ;Temporaly end
-        DEFS   2
-INTFAC:                    ;Initial FAC
-        DEFS   2
-MEMLMT:                    ;LIMIT command
-        DEFS   2
-MEMMAX:                    ;Last avairable memory
-        DEFW   0FF00H
 ;
 ;
 ;    cursor / position work
@@ -3975,7 +3990,7 @@ CURX:
 CURY:
         DEFB   0
 POSADR:                    ;text buf addr
-        DEFW   2000H
+        DEFW   TEXTBF
 BITADR:                    ;bitmap mem addr
         DEFW   8000H
 ;
@@ -3987,8 +4002,7 @@ POINTY:                    ;Graphic y-coordinate
 CURFLG:                    ;0:off 1:on
         DEFB   0
 CURMAK:                    ;cursor mark 0=normal
-        DEFB   0               ;            1=sftlock
-;            2=graph
+        DEFB   0               ;            1=sftlock,   2=graph
 
 
 ;
@@ -3998,19 +4012,19 @@ CMTMSG:                    ;if =0 disp cmt-msg
         DEFS   1
 INPFLG:                    ;0=plot off 1=plot on
         DEFB   0
-DISPX:                    ;0=MSG 1=MSGX
+DISPX:                     ;0=MSG 1=MSGX
         DEFS   1
 FILOUT:                    ;0=CRT 1=LPT
         DEFB   0
-PSEL:                    ;Printer select
+PSEL:                      ;Printer select
         DEFB   1
-PCRLF:                    ;LPT CRLF CODE
+PCRLF:                     ;LPT CRLF CODE
         DEFB   0DH
 LPT_TM:                    ;LPT wait time
         DEFB   14
-LPOSB:                    ;LPT position
+LPOSB:                     ;LPT position
         DEFB   0
-PSMAL:                    ;LPT small/capital
+PSMAL:                     ;LPT small/capital
         DEFB   0
 PNMODE:                    ;LPT mode
         DEFB   1               ; 1..text, 2..graph
@@ -4025,11 +4039,11 @@ DMD:                    ;disp mode  0 320 4  col
 ;                  6 640 4  col
 MEMOP:                    ;option mem exit
         DEFB   0               ;0= off 1= on
-PWMODE:                    ;graphic operation mode
+PWMODE:                   ;graphic operation mode
         DEFB   0
 CMODE:                    ;color mode
         DEFB   3
-CPLANE:                    ;curent active plane
+CPLANE:                   ;curent active plane
         DEFB   3
 MAXCF:                    ;maximum plane data
         DEFB   4
@@ -4042,7 +4056,7 @@ GMODE:                    ;graphic color mode
 ;
 ;
 ;
-IBUFE:                    ;CMT work
+IBUFE:                    ;CMT workspace
 IFDEF RAMDISK
         DEFB   0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e
         DEFB   0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e, 0x2e
@@ -4059,6 +4073,7 @@ ELSE
 ENDIF
 ;
         DEFS   34
+;FLSDT:
         DEFB   0EFH            ;FLSDT
         DEFS   2               ;STRFG, DPRNT
 TMCNT:
@@ -4732,7 +4747,7 @@ HLJP:   LD     H,0F4H          ;HL=F4??H
         JP     (HL)
 ;
 ;
-ROMERR: 
+ROMERR:
         LD     B,A              ;B=0
         EX     AF,AF
         DEC    B               ;B=1
@@ -5024,7 +5039,7 @@ ACSETS: LD     A,(DE)
 ACSET:  CALL   SPCTAC          ;separeter search
         CP     ';'
         JR     Z,SEMIOK        ;skip if ascii input
-ACSETH: 
+ACSETH:
         PUSH   BC
         PUSH   DE
         CALL   ACSETS          ;1 ascii to binary(nible)
@@ -5106,25 +5121,25 @@ MONDP4: LD     A,(HL)             ;data read
         INC    HL
         LD     A,20H           ;space disp
         RST    3
-        DEFB   __1C
+        DEFB   _1C
         DJNZ   MONDP4
         POP    HL
 ;
         LD     A,'/'           ;separater disp
         RST    3
-        DEFB   __1C
+        DEFB   _1C
         LD     B,C
 MONDP5: LD     A,(HL)             ;data read
         CP     20H             ;contol code
         JR     NC,$+4
         LD     A,'.'           ;yes, control code
         RST    3
-        DEFB   __1C
+        DEFB   _1C
         INC    HL              ;next pointer
         DJNZ   MONDP5
 ;
         RST    3
-        DEFB   __CR
+        DEFB   _CR
         RST    3
         DEFB   _HALT           ;break & stop
         OR     A
@@ -5139,14 +5154,14 @@ MONDP5: LD     A,(HL)             ;data read
 ;--------------------------------
 HLHXPR: LD     A,':'
         RST    3
-        DEFB   __1C
+        DEFB   _1C
         LD     A,H
         CALL   ACHXPR          ;acc disp
         LD     A,L
         CALL   ACHXPR          ;acc disp
         LD     A,'='
         RST    3
-        DEFB   __1C
+        DEFB   _1C
         RET
 ;--------------------------------
 ;
@@ -5168,7 +5183,7 @@ AC1HXP: AND    0FH             ;ascii trans
         JR     C,$+4
         ADD    A,7
         RST    3
-        DEFB   __1C            ;disp acc(nibble)
+        DEFB   _1C            ;disp acc(nibble)
         RET
 ;---------------------------------
 ;
@@ -5890,7 +5905,7 @@ DEV_FN:
         EX     DE,HL
         LD     HL,ELMD1
         LD     B,31
-        CALL   _CLRHL
+        CALL   CLRHL
         LD     HL,ELMD
         RST    3
         DEFB   _COUNT
@@ -5943,15 +5958,15 @@ OPEN00: LD     A,(ZLOG)
         EX     DE,HL
         LD     HL,ZLOG
         LD     BC,8
-		
+
         LDIR                   ;xfer ZLOG to seg
         LD     (ZMODE),DE
-        
+
 		defb   $d5, $fd, $e1    ;LD IY,DE  (Z80ASM uses 4 bytes, LD HY,D / LD LY,E)
 		; ** the z80asm output would currently be:
 		;defb   $fd $62         ; LD HY,D
 		;defb   $fd $6b         ; LD LY,E
-		
+
         LD     HL,ELMD
         CALL   LDIR64          ;xfer ELMD to seg
         LD     HL,16
@@ -6282,7 +6297,7 @@ FDIR:
         CALL   MWAIT           ;MUSIC WAIT
         LD     HL,DIRARE
         LD     BC,8            ;clear 0800H bytes
-        CALL   _CLRHL
+        CALL   CLRHL
         DEC    C
         JR     NZ,$-4
         CALL   _ZSTRT
@@ -6353,7 +6368,7 @@ FDIRS:  CALL   PUSHR
         PUSH   DE
         LD     A,' '
         LD     B,38
-        CALL   _SETDE
+        CALL   SETDE
         LD     A,(HL)
         CP     MAXMOD+1
         JR     C,$+4
@@ -6790,7 +6805,7 @@ MODB_SUB:
 		POP     AF
 		LD      B,L
 		RET
-	   
+
 ELSE
         DEFS    6
 ENDIF
@@ -6815,8 +6830,8 @@ SEEK_LOOP:
 		OR      A
 		JR      NZ,SEEK_LOOP
 		JP      (HL)
-		
-		
+
+
 
 ENDIF
 ;=========================
@@ -6830,8 +6845,21 @@ DEFS $2000-XWORK_END
 
 
 ;        ORG    2000H
-TEXTBF: 
-        DEFS   2000
+;
+;
+;
+; Memory to simulate screen - text - memory
+;
+; Since the original image memory only contains point patterns, the
+; following memory area provides an image of the text screen.
+; The 'screen editing' is possible only in this way.
+;
+; A hardcopy of the displayed text can be easily done PEEKing here
+; and sending the output of the read characters to the printer.
+; 
+;
+TEXTBF: DEFS    2000            ; Pseudo - video text memory
+
 
 
 ;
@@ -8212,12 +8240,12 @@ SVALU:  CALL   MTOF
         RET
 ;
 ;
-QDER:   
+QDER:
 RMER:   LD     A,54
         SCF
         RET
 ;
-QDHER:  
+QDHER:
         LD     A,41
         SCF
         RET
@@ -8284,7 +8312,7 @@ CTWF2:  LD     A,C
         LD     BC,6
         LDIR
         LD     B,128-24
-        CALL   _CLRDE
+        CALL   CLRDE
         LD     HL,IBUFE
         LD     BC,128
         CALL   SAVE1
@@ -8332,11 +8360,11 @@ CTRI2:  LD     A,C
         LDIR
         XOR    A
         LD     B,2
-        CALL   _CLRDE
+        CALL   CLRDE
         LD     BC,6
         LDIR
         LD     B,32-18-2-6
-        JP     _CLRDE
+        JP     CLRDE
 ;----------------------------------
 ;
 ;  read data
@@ -9177,12 +9205,16 @@ DEFS $3C00-FD_END
 
 ;        ORG    3C00H
 
+defc  _ADCN    =      00BB9H          ; Convert ASCII code to display code
+defc  _DACN    =      00BCEH          ; Convert display code to ASCII code
+
+
 ;----------------------------------
 ;
 ; ascii display code trans
 ;
 ;----------------------------------
-_ADCN:
+ADCN:
         CP     10H             ;EX only
         JR     C,_AD3          ; <10H ==> F0H
         CP     80H
@@ -9191,7 +9223,7 @@ _ADCN:
         JR     Z,_AD7          ; C0H ==> 80H
         DI
         OUT    (LSE2),A
-        CALL   0BB9H
+        CALL   _ADCN 
         OUT    (LSE0),A
         EI
         RET
@@ -9200,7 +9232,7 @@ _AD3:   LD     A,0F0H
 _AD7:   SUB    40H
         RET
 ;
-_DACN:
+DACN:
         CP     0F0H
         JR     NC,_DA3
         CP     73H
@@ -9211,7 +9243,7 @@ _DACN:
         JR     Z,_DA7          ; 80H ==> C0H
         DI
         OUT    (LSE2),A
-        CALL   0BCEH
+        CALL   _DACN
         OUT    (LSE0),A
         EI
         CP     0F0H
@@ -9249,7 +9281,7 @@ _KY1:   LD     A,(BC)
         LD     A,(HL)
         OUT    (LSE0),A
         EI
-        CALL   _DACN
+        CALL   DACN
         LD     C,A
         POP    AF
         RET
@@ -9317,7 +9349,7 @@ RSINT0:
 
 
 ;
-RSRO:   
+RSRO:
 RSWO:   PUSH   IY
         CALL   SETIY
         LD     A,(IY+_STAT)
@@ -9327,7 +9359,7 @@ RSWO:   PUSH   IY
         JR     RETIY
 ;
 ;
-RSCL:   
+RSCL:
 RSKL:   PUSH   IY
         CALL   SETIY
         DEC    (IY+_STAT)
@@ -9395,7 +9427,7 @@ SETIY2: ADD    IY,DE
 ;
 ; Serial interface port (also valid on the MZ80K, e.g. MZ-8BIO3 board)
 defc CHADT  =    0B0H	; Data port
-defc CHACT  =    0B1H	; 
+defc CHACT  =    0B1H	;
 defc CHBDT  =    0B2H
 defc CHBCT  =    0B3H
 ;
@@ -9485,7 +9517,7 @@ BRK:    CALL   BRKCHK
 ;
 ;
 ;
-RSPARM: 
+RSPARM:
         LD     A,18H           ;channel reset
         OUT    (C),A
         LD     A,30H           ;err reset
@@ -9511,7 +9543,7 @@ RSP0:   LD     A,(IY+_INIT)    ;initial bit
         OR     7FH
         LD     (IY+2),A        ;bit mask
         CALL   RSSUB
-RSTBUF: 
+RSTBUF:
         IN     A,(C)
         RRCA
         RET    NC
@@ -9906,7 +9938,7 @@ ENDIF
         EX     DE,HL
         LD     (HL),E             ;Save data area adrs
         INC    HL
-		
+
 IF RAMDISK
         JP     EMRINF_EI
 ELSE
@@ -11134,7 +11166,7 @@ MSTART: OUT    (0E3H),A
 
         ELSE
 
-MSTART: 
+MSTART:
         LD     HL,PIOTBL
         LD     BC,5FCH
         OTIR
@@ -11220,13 +11252,13 @@ CTRLG:
         RET
 ;
 ;
-BEEP0:  
+BEEP0:
         DEFW   0D736H
         DEFW   0D301H
         DEFW   0D4F9H
         DEFW   0D403H
 ;
-BEEP1:  
+BEEP1:
         DEFW   0D736H
         DEFW   0D300H
 
@@ -11256,7 +11288,7 @@ TEMPOW: DEFS   1
         DEFB   0FFH
 ;
         ENDIF
-		
+
 ;       END (453A)
 
 
@@ -11420,7 +11452,7 @@ CHGRPH:
         JP     PATCH
 ;
 ;
-CHGTBL: 
+CHGTBL:
 ;    word patch table
 ;
         DEFW   SYMS42+1
@@ -11911,7 +11943,7 @@ WCIRCL:
 ;
         LD     HL,CIR_BK
         LD     B,8
-        CALL   _CLRHL
+        CALL   CLRHL
         LD     HL,KBL
         POP    AF
         LD     B,A
@@ -11935,7 +11967,7 @@ CIR15:  LD     A,9
 CIR14:  LD     B,8
         LD     HL,CIR_BK
         INC    A
-        CALL   _SETHL
+        CALL   SETHL
         LD     A,0B0H           ;OR B
         CALL   CHENGE
         JR     CIR3
@@ -12533,7 +12565,7 @@ WBOXS4: PUSH   HL
 ;        A:fill color
 ;
 ;--------------------------
-BOXF:   
+BOXF:
         CALL   COLS            ;Fill Color Set
         LD     B,A
         LD     A,(GMODE)
@@ -12631,7 +12663,7 @@ BOXI:   LD     HL,TDOTR
         AND    (HL)
 ;
 ;
-BOXW:   
+BOXW:
         LD     C,A
         EX     AF,AF
         LD     B,A
@@ -12900,7 +12932,7 @@ SYMB18: LD     HL,PX           ;py
 SYMS:   LD     IY,SCNT
         LD     A,(HL)          ;mz ascii -> display
         RST    3
-        DEFB   __ADCN          ;PSGON
+        DEFB   _ADCN          ;PSGON
         LD     H,0
         LD     L,A
         ADD    HL,HL
@@ -14258,13 +14290,13 @@ BORDER:
 
 ; !!!
 SCROLL:
-        CALL   $8551
-        LD     BC,1CFH
+        CALL   IDEEXP
+        LD     BC,1CFH         ; scroll register
         OUT    (C),E
         INC    B
         OUT    (C),D
         RET
-		
+
 SYNC:
         IN     A,(LSDMD)       ;check dipsw
         AND    40H
@@ -14357,7 +14389,7 @@ ELSE
 ENDIF
         INC    HL
 IF MOD_B
-        LD     (HL),0D6H       ; 
+        LD     (HL),0D6H       ;
 ELSE
         LD     (HL),0EBH       ; ".. EM_P1"
 ENDIF
@@ -14371,7 +14403,7 @@ ELSE
 ENDIF
         INC    HL
 IF MOD_B
-        LD     (HL),0D6H       ; 
+        LD     (HL),0D6H       ;
 ELSE
         LD     (HL),0EBH       ; ".. EM_P1"
 ENDIF
@@ -14433,7 +14465,7 @@ FAST_1:
         LD     (DLY4+1),A
         POP    HL
         RET
-        
+
 
 SLOW_TBL:
         DEFB   76, 24, 105
@@ -14474,7 +14506,7 @@ RD_SUB3_2:
         POP    DE
         POP    HL
         RET
-		
+
 
 ; map 'write mode' values to be sent to LSWF port
 ;
@@ -14501,7 +14533,7 @@ SPECG_1:
         RET    Z
         INC    HL
         RET
-		
+
 		defs  8
 
 ; --- $5728 ---
@@ -14537,7 +14569,7 @@ _BASIC:
         PUSH   BC
         CALL   CLSHET
         POP    BC
-        LD     HL,NEWAD0
+        LD     HL,BASIC_PGM
         LD     (TEXTST),HL
         LD     HL,CLSST
         LD     (SYSSTA),HL
@@ -14560,7 +14592,7 @@ _BAS2:  LD     DE,IMDBUF
         LD     HL,_BAS3
         LD     (COLDRT+1),HL
 ;
-_BAS3:  LD     HL,NEWAD0
+_BAS3:  LD     HL,BASIC_PGM
 MEMCLI: LD     (HL),0
         INC    HL
         LD     A,H
@@ -14885,7 +14917,7 @@ CTBL1:
 
 
 IF RAMDISK
-        DEFB   80H             
+        DEFB   80H
 
         DEFM   "VRA"          ; C0
         DEFB   'M'+80H
@@ -15153,7 +15185,7 @@ CTBL2:
         DEFB   'P'+80H
         DEFM   "SQ"
         DEFB   'R'+80H
-		
+
         DEFM   "RN"
         DEFB   'D'+80H            ; FF 88
         DEFM   "PEE"
@@ -16156,14 +16188,14 @@ TRDISP: LD     A,0             ;0,1,2
 TRDSP2: PUSH   HL
         LD     A,'['
         RST    3
-        DEFB   __1C
+        DEFB   _1C
         LD     HL,(LNOBUF)
         CALL   ASCFIV
         RST    3
-        DEFB   __MSG
+        DEFB   _MSG
         LD     A,']'
         RST    3
-        DEFB   __1C
+        DEFB   _1C
         POP    HL
 TRDSP9: XOR    A
         LD     (FILOUT),A
@@ -17761,7 +17793,7 @@ KLIST:                    ;KEY LIST
         LD     C,0
 KLSTLP:
         RST    3
-        DEFB   __CR
+        DEFB   _CR
         LD     A,C
         ADD    A,'1'
         LD     D,A
@@ -17772,7 +17804,7 @@ KLSTLP:
         LD     (KEYME2),DE
         LD     DE,KEYME1       ;'DEF KEY('
         RST    3
-        DEFB   __MSG
+        DEFB   _MSG
         LD     A,C
         CALL   KEYBCL
         LD     B,(HL)
@@ -17785,7 +17817,7 @@ KLSTLP:
         CP     10
         JR     NZ,KLSTLP
         RST    3
-        DEFB   __CR
+        DEFB   _CR
         POP    HL
         RET
 ;
@@ -17795,9 +17827,9 @@ STKYMS: LD     A,B
         JR     NZ,STKYM1
         LD     A,'"'
         RST    3
-        DEFB   __1CX
+        DEFB   _1CX
         RST    3
-        DEFB   __1CX
+        DEFB   _1CX
         RET
 STKYM1: LD     A,(HL)
         CP     20H
@@ -17813,17 +17845,17 @@ STKYM1: LD     A,(HL)
         INC    DE
         INC    DE
         RST    3
-        DEFB   __MSG
+        DEFB   _MSG
 CHRM22: LD     A,(HL)
         RST    3
-        DEFB   __1CX
+        DEFB   _1CX
         INC    HL
         LD     C,1
         DJNZ   STKYM1
 STKYE2: LD     A,'"'
 ___1CX:
         RST    3
-        DEFB   __1CX
+        DEFB   _1CX
         RET
 ;
 CHRME1: LD     A,C
@@ -17835,14 +17867,14 @@ CHRME1: LD     A,C
         INC    DE
         INC    DE
         RST    3
-        DEFB   __MSG
+        DEFB   _MSG
 CHRM16: PUSH   BC
         PUSH   HL
         LD     L,(HL)
         LD     H,0
         CALL   ASCFIV
         RST    3
-        DEFB   __MSG
+        DEFB   _MSG
         POP    HL
         POP    BC
         INC    HL
@@ -17853,7 +17885,7 @@ CHRM16: PUSH   BC
 ;
 CHRM12: LD     A,','
         RST    3
-        DEFB   __1CX
+        DEFB   _1CX
         JR     CHRM16
 ;
 KEYME1: DEFM   "DEF KEY("
@@ -18050,7 +18082,7 @@ PRTAB2: LD     A,' '
         LD     DE,BKEYBF
         PUSH   BC
         PUSH   DE
-        CALL   _SETDE
+        CALL   SETDE
         POP    DE
         POP    BC
         JR     PRTMS2
@@ -18102,13 +18134,13 @@ PRUSG9: LD     A,0F0H
         RST    3
         DEFB   _DLSEG
         RET
-		
+
 ;
 CR_TXT:
 		defb $0d, 0
 ;
 PRTCR:
-		ld de,CR_TXT           ;FMP		
+		ld de,CR_TXT           ;FMP
 
 ;print message
 ;
@@ -18887,7 +18919,7 @@ RUNOB4: EX     AF,AF
 ;
         LD     HL,PRO700-PROFF+0FF00H
         LD     BC,PRO70E-PRO700
-MODSET_: 
+MODSET_:
         LD     DE,0CFF0H
         LDIR
         POP    HL
@@ -18905,7 +18937,7 @@ RUNOBE:
         HALT
 
 ;    ORG CFF0H
-PRO700: 
+PRO700:
         OUT    (LSE4),A
 PRO701: LD     A,71H           ;blue and white
         LD     (DE),A          ;vram2 clr
@@ -18915,18 +18947,18 @@ PRO701: LD     A,71H           ;blue and white
         JR     NZ,PRO701
 PRO70P: OUT    (LSE0),A        ;jp (hl)
         JP     (HL)
-PRO70E: 
+PRO70E:
 ;
 ;    ORG CFF0H
-PRO800: 
+PRO800:
         OUT    (LSE0),A        ;700mon rom bank off
         OUT    (LSE3),A        ;800mon rom bank on
         JP     (HL)
-PRO80E: 
+PRO80E:
 ;
 ;
 ;
-INITIO: 
+INITIO:
         PUSH   AF
         DI                     ;run "file name",r
         IM     1
@@ -18939,7 +18971,7 @@ INITIO:
 ;
 ;
 ;
-RUNTBL: 
+RUNTBL:
 ;   pio channel a
         DEFW   0FC00H           ; int vecter
         DEFW   0FCCFH           ; mode 3 (bit mode)
@@ -18960,7 +18992,7 @@ RUNTBL:
         DEFW   0D305H           ;8253 int ok
         DEFW   0CD01H           ;RF mode 700
         DEFW   0CC01H           ;WF mode 700
-RUNTBE: 
+RUNTBE:
 ;
 
 ;
@@ -19114,7 +19146,7 @@ SAVE:
         PUSH   HL
         LD     A,2
         LD     (ELMD),A
-        LD     HL,(TEXTED)
+        LD     HL,(POOL)		; I/O work area, just after the BASIC program space (=TEXTST)
         LD     DE,(TEXTST)
         OR     A
         SBC    HL,DE
@@ -19270,7 +19302,7 @@ SWAP:
         DEFB   _DEVNM
         LD     (SWAPDV),DE
         LD     (SWAPCH),A
-        LD     HL,(TEXTED)
+        LD     HL,(POOL)		; I/O work area, just after the BASIC program space (=TEXTST)
         LD     DE,(TEXTST)
         XOR    A
         SBC    HL,DE
@@ -19377,7 +19409,7 @@ INITD1: DEFM   "RS?:0,$8C,13"
 
 INITD3: DEFM   "CMT:T"
 
-INITD4: 
+INITD4:
 ;
 
 ;       END  (7590H)
@@ -20835,7 +20867,7 @@ USNGSB:
 USNGS2: LD     A,(HL)
         OR     A
         JP     Z,ER03__
-        CALL   USGCD_
+        CALL   USGCD
         JR     Z,USNGS4
         LD     (BC),A
         INC    BC
@@ -20867,7 +20899,7 @@ AFTPR_: POP    HL
 AFTPRT: LD     A,(HL)
         OR     A
         JR     Z,BRTUSG
-        CALL   USGCD_
+        CALL   USGCD
         JR     Z,RETUSG
         LD     (BC),A
         INC    BC
@@ -20936,7 +20968,7 @@ __SPC_: DEC    D
 ;
 ; Check using code
 ;
-USGCD_: CALL   CHKACC
+USGCD:  CALL   CHKACC
         DEFB   4
         DEFM   "!&#+"
         RET    Z
@@ -21303,6 +21335,7 @@ USONCM: LD     DE,ZFAC1
         CALL   MULTEN
         DEC    B
         JR     USONCM
+
 USCMOK: POP    DE
         PUSH   BC
         CALL   USGCV1
@@ -22653,7 +22686,7 @@ SPACE_S:
         OR     A
         LD     A,' '
         PUSH   DE
-        CALL   NZ,_SETDE
+        CALL   NZ,SETDE
         POP    DE
         LD     B,C
         JR     PUTSTR
@@ -22862,7 +22895,7 @@ TI_S:
         PUSH   HL
         LD     A,'0'
         LD     B,6
-        CALL   _SETHL
+        CALL   SETHL
         RST    3
         DEFB   _TIMRD          ;A,DE
         POP    HL
@@ -22906,7 +22939,7 @@ TI_S4:   DEC    DE
         LD     HL,(TMPEND)
         LD     A,'0'
         LD     B,6
-        CALL   _SETHL
+        CALL   SETHL
         JR     TI_S8
 TI_S6:   LD     BC,258H         ;10M
         CALL   CLDGIT
@@ -23089,7 +23122,7 @@ VARSL1: LD     A,(DE)          ;VAR.LEN.&NAME
         DJNZ   VARSL1
         PUSH   HL
         LD     B,C
-        CALL   _CLRHL          ;VAR.CLR
+        CALL   CLRHL          ;VAR.CLR
         LD     (HL),A             ;VAR.END MARK
         LD     A,C
         POP    BC
@@ -23967,7 +24000,7 @@ STIG:
 CLRFAC:
         PUSH   HL
         LD     B,5
-        CALL   _CLRHL
+        CALL   CLRHL
         POP    HL
         RET
 ;
@@ -25725,7 +25758,7 @@ MUSIC:
         LD     DE,MUSCHO
         LD     B,4
         LD     A,2
-        CALL   _SETDE
+        CALL   SETDE
 __MCTRL:  PUSH   HL
         RST    3
         DEFB   _MCTRL
@@ -25743,7 +25776,7 @@ MUSIC1: CALL   ENDCHK
         LD     DE,DIRARE
         LD     (MMBU1A),DE
         LD     (DE),A
-        CALL   _SETDE
+        CALL   SETDE
         LD     A,(MUNOF)
         LD     (MUNOF2),A
 MUSI1:  LD     DE,MUNOF2
@@ -26067,7 +26100,7 @@ MML_WO: LD     DE,MML_W
 ;
 MML_WC: LD     DE,MML_W
         LD     B,6
-        JP     _CLRDE
+        JP     CLRDE
 ;
 ;
 ONCTT:  DEFB   9               ;A
@@ -26208,7 +26241,7 @@ ENDIF
 		DEFM   "22340 BYTES FREE"
         DEFW   0D0DH
         DEFB   0
-		
+
         DEFS   5CH
 ;
 ;
@@ -26661,7 +26694,7 @@ PCIRCLE:
         LD     A,(CRTEN+1)
         RLCA
         JP     C,ER03__
-CIREND: 
+CIREND:
         POP    HL
         CALL   ENDZ
         PUSH   HL
@@ -26893,8 +26926,8 @@ PPCHCK: LD     A,(PSEL)
 ;        END  (A471)
 
 
-NEWAD0:
+BASIC_PGM:
 
 ; Block filler present in the MOD_A tape dump
-;defb $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a 
+;defb $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a, $1a
 
