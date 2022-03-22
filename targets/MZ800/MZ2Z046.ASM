@@ -2,21 +2,22 @@
 ;  MZ-800  Disk Basic  MZ-2Z046
 
 ;
-;  It is basically a Hu-Basic interpreter engine together with a Sharp Monitor.
+;  This is basically a Hu-Basic interpreter engine together with a Sharp Monitor.
 ;  The comments are useful to decode other eastern computer products (Sharp, Samsung, etc..)
-;  Other than being a valid reference for developers.
+;  and are a helpful reference for developers.
+;
+;  The comments were on a hand-edited disassembly
+;  published in 1985 by Rainer Schäfer (Kirchwald, Germany)
+;  Few bugs prevented a valid build, they're now fixed.
 ;
 
 ; It can be built with the z88dk's z80asm tool:
+;===============================================
 ;   z80asm -b -m MZ2Z046.asm
 ;   (z88dk-appmake +mz --org 0 -b MZ2Z046.bin)
 
-; (use: "z88dk-appmake +mz" to look at all the options)
 ; Add -DCLASSIC_FNK to z80asm for for a different way to map the FN function keys.
 
-
-; The comments are based on a (not fully correct) hand-edited disassembly
-; published in 1985 by Rainer Schäfer (Kirchwald, Germany)
 
 
 ; The sharp MZ 800 was the successor of the MZ 700.
@@ -205,8 +206,8 @@ defc  _SHORT   =      00A01H          ; write a short impulse on tape
 defc  LONG     =      00A1AH          ; write a long pulse to tape
 defc  DLY3     =      00A4AH          ; Time loop about 330 usec
 
-defc  _ADCN    =      00BB9H          ; Convert ASCII code to display code
-defc  _DACN    =      00BCEH          ; Convert display code to ASCII code
+defc  __ADCN   =      00BB9H          ; Convert ASCII code to display code
+defc  __DACN   =      00BCEH          ; Convert display code to ASCII code
 
 defc  KTBL     =      00BEAH          ; Keyboard decode table for Normal mode
 defc  KTBLS    =      00C2AH          ; Keyboard decode table for Shift mode
@@ -356,9 +357,9 @@ defc  ZFDA0    =      0FDA0H
 _DOCMD:
         JP      IOSVC           ; Software - execute command (RST _DOCMD)
 ;
-        JP      INKEY0          ; Query whether key is pressed
+        JP      INKEY0          ; Check whether key is pressed
 ;
-BRKCHK: JP      BRKEY           ; Query whether (Shift) - BREAK is pressed
+BRKCHK: JP      BRKEY           ; Check whether (Shift) - BREAK is pressed
 ;
         JP      CMTERR          ; (N/A) File - write identifier on tape (cassette)
 ;
@@ -1093,7 +1094,7 @@ A0362:  DEC     C               ; Counter minus one
         JR      Z,A036F         ; Pointer is on correct error text --> output
 A0365:  LD      A,(DE)          ; Get a character from the error text table
         INC     DE              ; Table pointer to next text character
-        OR      A               ; end of text character ?
+        OR      A               ; end of text ?
         JP      P,A0365         ; no --> find end of text
         JR      Z,ERRXU         ; End of table --> Specify error 69 Unprintable error
         JR      A0362           ; test whether pointer is on correct error text
@@ -1104,7 +1105,7 @@ A036F:  LD      A,(DE)          ; get first text character
         EX      DE,HL           ; Pointer to error text after HL
         LD      DE,S11A4        ; Specify pointer to cache
 A0378:  LD      A,(HL)          ; one character Get error text from table
-        OR      A               ; end of text character ?
+        OR      A               ; end of text ?
         JP      M,A0381         ; yes --> output provided text
         LDI                     ; transfer a text character from table to memory
         JR      A0378           ; transfer more text characters
@@ -3296,7 +3297,7 @@ STARTP:  DI                      ; Disable interrupts
         LD      A,00001111B     ; Code for 'Mode 0 - Select'
         OUT     (PIOB_C),A      ; output to Z-80 PIO channel B
         PUSH    BC              ; Load - save code
-        CALL    CRTPWR          ; Query whether graphic extension is installed
+        CALL    CRTPWR          ; Check whether graphic extension is installed
         CALL    A44B9           ; Muisc - initialize routines
         CALL    A3F58           ; Determine if RAM card is initialized
         POP     BC              ; retrieve the saved loading code
@@ -3412,9 +3413,9 @@ S1000:  DEFS    1               ; File type - Identifier
 S1001:  DEFS    17              ; File name
 S1012:  DEFS    1               ; Write protect - flag
         DEFS    1
-S1014:  DEFS    2               ; File length
-S1016:  DEFS    2               ; Starting address
-S1018:  DEFS    2               ; Start address
+ELMD20: DEFS    2               ; File length
+ELMD22: DEFS    2               ; Starting address
+ELMD24: DEFS    2               ; Start address
         DEFS    4
 S101E:  DEFS    2               ; Sector number of first logical sector
 ;                               ; End of memory for directory entry
@@ -3444,58 +3445,59 @@ ZCH:    DEFS    2               ; Current device number
 S1048:  DEFS    2               ; Start address of the USR routine
 ;
 ;
-;   Speicher für aktuelle Geräte - Tabelle
+;   Storage for current device table
 ;
-S104A:  DEFS    2               ; Zeiger auf nächste Geräte - Tabelle
+S104A:  DEFS    2               ; Pointer to next device - table
 ;
-        DEFS    4               ; Geräte - Name
+        DEFS    4               ; Device Name
 ;
-S1050:  DEFB    1               ; Geräte - Typ - Byte
-                                ; Bit 2  =  Gerät stellt einzelne Zeichen zur Verfügung
-                                ; Bit 3  =  Zeichenorientierte Ausgabe (nicht Zeilenorientiert)
-                                ; Bit 4  =  auf Dateinamen untersuchen
-                                ; Bit 5  =  SWAP möglich   (Gerät gleich Diskette)
-                                ; Bit 6  =  mehrere Dateinamen auf Gerät zulässig
-                                ; Bit 7  =  nicht im Block - Modus
+S1050:  DEFB    1               ; Device type byte
+                                ; Bit 2  =  Device provides individual characters
+                                ; Bit 3  =  Character-oriented output (not line-oriented)
+                                ; Bit 4  =  check for filenames
+                                ; Bit 5  =  SWAP possible (device equal to diskette)
+                                ; Bit 6  =  multiple filenames allowed on device
+                                ; Bit 7  =  not in block mode 
 ;
-ZFLAG2:  DEFS    1              ; Geräte - Nummern - Byte
-                                ; Bit 0-3  =  Geräte - Nummer maximal
-                                ; Bit 4    =  End - of - File nicht erlaubt
-                                ; Bit 5    =  nur eine Datei zum Schreiben eröffnen
-                                ; Bit 6    =  nur eine Datei auf Gerät erlaubt
-                                ; Bit 7    =  Dateiname muß nicht angegeben sein
+ZFLAG2:  DEFS    1              ; Device number byte
+                                ; Bit 0-3  =  Device - number maximum
+                                ; Bit 4    =  End - of - File not allowed
+                                ; Bit 5    =  just open a file for writing
+                                ; Bit 6    =  only one file allowed on device
+                                ; Bit 7    =  File name does not have to be specified 
 ;
-S1052:  DEFS    1               ; maximale Anzahl Dateien auf Gerät / Datenträger
+S1052:  DEFS    1               ; Maximum number of files on device / data medium
 ;
-S1053:  DEFS    2               ; Anfangsadresse  'Gerät initialisieren'
+S1053:  DEFS    2               ; Start address of 'Initialize device'
 ;
-S1055:  DEFS    2               ; Anfangsadresse  'für Lesen eröffnen'
-                                ; Sektornummer für Sektorverzeichnis
+S1055:  DEFS    2               ; Start address of 'open for reading'
+                                ; Sector number for sector directory
 ;
-S1057:  DEFS    2               ; Anfangsadresse  'für Schreiben eröffnen'
-                                ; Physikalische Sektorlänge
+S1057:  DEFS    2               ; Start address of 'open for writing'
+                                ; Physical sector length
 ;
-S1059:  DEFS    2               ; Anfangsadresse  'Datei schliessen'
-                                ; Anzahl reservierter Sektoren
+S1059:  DEFS    2               ; Start address of 'Close file'
+                                ; Number of reserved sectors
 ;
-S105B:  DEFS    2               ; Anfangsadresse  'Dateidaten im Rechner löschen'
-                                ; maximale Anzahl Zeichen im Sektor
+S105B:  DEFS    2               ; Start address of 'Delete file data in the computer'
+                                ; maximum number of characters in the sector
 ;
-S105D:  DEFS    2               ; Anfangsadresse  'Daten bereitstellen'
+ZINP:   DEFS    2               ; Start address of 'Get data'
 ;
-S105F:  DEFS    2               ; Anfangsadresse  'Daten ausgeben'
+ZOUT:   DEFS    2               ; Start address of 'Output data'
 ;
-S1061:  DEFS    2               ; Anfangsadresse  'aktuelle Spaltennummer bereitstellen'
-                                ; Anfangsadresse  'Datei löschen'
+;ZPOS:
+ZDELT:  DEFS    2               ; Start address of 'provide current column number'
+                                ; Start address of 'Delete file'
 ;
-S1063:  DEFS    2               ; Anfangsadresse  'Datei umbenennen'
+S1063:  DEFS    2               ; Start address of 'Rename file'
 ;
-S1065:  DEFS    2               ; Anfangsadresse  'freie Kilobyte bereitstellen'
+S1065:  DEFS    2               ; Start address of 'provide free kilobytes'
 ;
         DEFS    2
 ;
 ;
-;   Memory for default device data
+;   Storage for default device data
 ;
 DCHAN:  DEFS    1               ; Default device number 
 ;
@@ -3934,9 +3936,9 @@ S13A9:  DEFS    26              ; Speicher mit Verkettungsflags der Textzeilen
 ;
 ;   Speicherbereich für RAM - Karten - Routine
 ;
-S13C3:  DEFS    1               ; Flag  'RAM - Karte vorhanden'
+EMFLG:  DEFS    1               ; Flag  'RAM - Karte vorhanden'
                                 ; (0=nein / 1=Kein Spooler / 2=Spooling / 3=Spller möglich)
-S13C4:  DEFS    2
+EMPTR:  DEFS    2
 ;
 S13C6:  DEFS    2               ; Anfangsadresse der neuen RAM - Datei
 ;
@@ -4482,9 +4484,9 @@ A1607:  CALL    A1795           ; Anfangs-, End- und Startadresse bereitstellen
         EXX
         CALL    A17C3           ; Geräte- und Dateinamen auswerten und aufbereiten
         EXX
-        LD      (S1014),BC      ; Datei - Länge merken
-        LD      (S1016),DE      ; Anfangsadresse merken
-        LD      (S1018),HL      ; Startadresse merken
+        LD      (ELMD20),BC     ; Datei - Länge merken
+        LD      (ELMD22),DE     ; Anfangsadresse merken
+        LD      (ELMD24),HL     ; Startadresse merken
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    49              ; Code 49  Programm abspeichern
         RET
@@ -4499,7 +4501,7 @@ A161E:  CALL    A1672           ; 4 ASCII-Hex-Zeichen (DE) umsetzen in Hex-Wert 
         POP     AF              ; Fehlerflag holen
         POP     HL              ; Ladeadresse holen
         JR      NC,A162D        ; kein Fehler -->  Ladeadresse angegeben
-        LD      HL,(S1016)      ; Anfangsadresse aus Datei - Daten holen
+        LD      HL,(ELMD22)     ; Anfangsadresse aus Datei - Daten holen
 A162D:  RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    48              ; Code 48  Programm nach Kennungsdaten laden
         RET
@@ -4518,7 +4520,7 @@ A1630:  CALL    A17C3           ; Geräte- und Dateinamen auswerten und aufbereit
 ;   Monitor - Befehl  V   (Programm vergleichen)
 ;
 A163B:  CALL    A1630           ; Dateinamen auswerten und Kennung lesen
-        LD      HL,(S1016)      ; Anfangsadresse holen
+        LD      HL,(ELMD22)     ; Anfangsadresse holen
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    50              ; Code 50  Programm vergleichen
         RET
@@ -4897,9 +4899,9 @@ A17E6:  POP     HL              ; Zeiger auf Speicher holen
         DEFS    22,0
 ;
 ;
-;   Weiterleitung Sprung auf Kaltstart  BASIC - Interpreter
+;   Jump forward to BASIC interpreter cold boot
 ;
-        JP      _START          ; Kaltstart BASIC - Programm
+        JP      _START          ; BASIC interpreter cold boot
 ;
 ;
 ;   Abfrage, ob aktuelles Gerät gleich Bildschirm ist
@@ -4950,7 +4952,7 @@ A1821:  CALL    PUSHR           ; Save registers IX, HL, BC and DE
         BIT     3,A             ; Zeilenorientertes Gerät  ?
         LD      HL,T1835        ; Adresse  'Text über Ausgaberoutine ausgeben'
         JR      NZ,A183D        ; Text (DE) mit Länge in B über Routine (HL) ausgeben
-T1835:  LD      IX,(S105F)      ; Adresse  'Daten ausgeben'  aus Geräte - Tabelle holen
+T1835:  LD      IX,(ZOUT)       ; Adresse  'Daten ausgeben'  aus Geräte - Tabelle holen
         CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         RET
 ;
@@ -5121,7 +5123,7 @@ A1913:  CALL    A1803           ; Abfrage, ob aktuelles Gerät gleich Bildschirm 
         BIT     2,A             ; 'Gerät stellt nur einzelne Zeichen zur Verfügung'  ?
         LD      HL,A1929        ; Adresse  'Daten bereitstellen aufrufen'  vorgeben
         JR      NZ,A1975        ; ja -->  Datensatz über einzelne Zeichen einlesen
-A1929:  LD      IX,(S105D)      ; Anfangsadresse  'Daten bereistellen' aus Geräte-Tabelle holen
+A1929:  LD      IX,(ZINP)       ; Anfangsadresse  'Daten bereistellen' aus Geräte-Tabelle holen
         CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         RET
 ;
@@ -5727,10 +5729,10 @@ T1CAF:  LD      A,(ZFLAG2)      ; Geräte - Nummern - Flag holen
 ;
 LOADFL: CALL    A1D27           ; aktuelles Gerät gleich Diskette  ?
         JP      NZ,A32A2        ; nicht mehr benötigte Diskettendaten löschen
-        LD      BC,(S1014)      ; Datei - Länge holen
+        LD      BC,(ELMD20)     ; Datei - Länge holen
         PUSH    BC              ; und merken
         XOR     A
-        LD      IX,(S105D)      ; Adresse  'Daten vom Gerät bereitstellen' holen
+        LD      IX,(ZINP)       ; Adresse  'Daten vom Gerät bereitstellen' holen
         CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         POP     BC              ; gerettete Programmlänge holen
         RET
@@ -5741,8 +5743,8 @@ LOADFL: CALL    A1D27           ; aktuelles Gerät gleich Diskette  ?
 VRFYFL: LD      A,(ZFLAG2)      ; Geräte - Nummern - Flag holen
         BIT     7,A             ; Block - orientiertes Gerät  ?
         JP      Z,A1FAC         ; nein -->  Fehler 59'  Can't execute error
-        LD      BC,(S1014)      ; Datei - Länge holen
-        ;JP      A388D           ; Dateidaten vergleichen
+        LD      BC,(ELMD20)     ; Datei - Länge holen
+        ;JP      A388D          ; Dateidaten vergleichen
         JP      A3ADF			; RET (Motor der Quick - Disk - Station abschalten)
 
 ;
@@ -5767,10 +5769,10 @@ A1CF6:  CALL    A1D27           ; aktuelles Gerät gleich Diskette  ?
         POP     IY              ;!
         LD      IX,(S1057)      ; Adresse  'Datei zum Schreiben eröffnen'
         CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
-        LD      BC,(S1014)      ; Datei - Länge holen
+        LD      BC,(ELMD20)     ; Datei - Länge holen
         POP     HL              ; Zeiger auf Programm holen
         LD      A,0100B
-        LD      IX,(S105F)      ; Adresse  'Daten ausgeben'  holen
+        LD      IX,(ZOUT)       ; Adresse  'Daten ausgeben'  holen
         CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         RET
 ;
@@ -6043,7 +6045,7 @@ A1ECC:  LD      A,B             ; Get remaining length of file name specificatio
         LD      A,(DE)          ; get a character filename
         INC     DE              ; skip characters
         DEC     B               ; Remaining number of characters default minus one
-        OR      A               ; end of text character ?
+        OR      A               ; end of text ?
         JR      Z,A1EE4         ; yes --> enter the end of name character
         CP      '\"'            ; quotation marks ?
         JR      Z,A1ECC         ; yes --> forgotten characters
@@ -6621,7 +6623,7 @@ A329F:  POP     DE              ; Zeiger auf bereitgestellten Datensatz
 ;
 ;    Programmblock von Diskette lesen
 ;
-A32A2:  LD      DE,(S1014)      ; Datei-Länge holen
+A32A2:  LD      DE,(ELMD20)     ; Datei-Länge holen
         LD      BC,(S101E)      ; Sektornummer erster Sektor holen
         CALL    A379B           ; Sektor(en) von Diskette lesen
         JP      A34CE           ; nicht mehr benötigte Diskettendaten im Rechner löschen
@@ -6668,7 +6670,7 @@ FSWAP:  OR      A               ; Flag 'Lesen/Schreiben'
         LD      (HL),081H       ; Code 'SWAP - Hauptprogramm'
         PUSH    HL              ;! Zeiger auf Stelle für Sektorenverzeichnis
         POP     IY              ;! nach IY
-        LD      HL,(S1014)      ; Datei-Länge holen
+        LD      HL,(ELMD20)     ; Datei-Länge holen
         LD      (IY+20),L       ;! und als Datei-Länge in Inhaltsverzeichnis-
         LD      (IY+21),H       ;! Eintrag eintragen
         LD      HL,(S101E)      ; Sektornummer erster Sektor holen
@@ -6874,7 +6876,7 @@ A3436:  CALL    A3702           ; Inhaltsverzeichnis auf Diskette schreiben
 FDELET: CALL    PUSHR           ; Register IX, HL, BC, DE retten
         CALL    A1D27           ; aktuelles Gerät gleich Diskette  ?
         JR      NZ,A3458        ; ja -->  Datei auf Diskette löschen
-        LD      HL,(S1061)      ; Anfangsadresse  'Datei löschen'  holen
+        LD      HL,(ZDELT)      ; Anfangsadresse  'Datei löschen'  holen
         LD      A,L             ;! Adresse vorhanden  ?
         OR      H               ;!
         JR      Z,A3488         ; nein -->  Fehler 58'  Can't execute error
@@ -7097,7 +7099,7 @@ S3595:  DEFS    1               ; Flag 'Sektor sperren / freigeben' holen
 ;
 ;    Anzahl der Sektoren der Datei errechnen
 ;
-A3596:  LD      DE,(S1014)      ; Datei - Länge holen
+A3596:  LD      DE,(ELMD20)     ; Datei - Länge holen
         LD      BC,(S101E)      ; Sektornummer erster Sektor holen
 A359E:  LD      A,E             ;! Dateilänge gleich null  ?
         OR      D               ;!
@@ -7494,9 +7496,9 @@ A379B:  XOR     A               ; Code 'Sektor lesen'
 A379C:  CALL    A37B3           ; überprüfen, ob Diskette gewechselt werden
 A379F:  CALL    PUSHR           ; Register IX, HL, BC, DE retten
         OR      A               ; Lesen oder Schreiben  ?
-        LD      IX,(S105D)      ; Anfangsadresse 'Sektor lesen' holen
+        LD      IX,(ZINP)       ; Anfangsadresse 'Sektor lesen' holen
         JR      Z,A37AD         ; Sektor(en) von Diskette lesen
-        LD      IX,(S105F)      ; Anfangsadresse 'Sektor schreiben' holen
+        LD      IX,(ZOUT)       ; Anfangsadresse 'Sektor schreiben' holen
 A37AD:  LD      A,(ZCH)         ; Geräte - Nummer holen
         JP      IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
 ;
@@ -7784,7 +7786,7 @@ A392E:  DEC     E               ; Number of runs minus one
         LD      A,(S37EB)       ; get last command
         CPL                     ; complement to the output
         OUT     (CD_REG),A      ; and output to controller again
-        JR      A3919           ; Query whether correct feedback value
+        JR      A3919           ; Check whether correct feedback value
 
 ;
 ;
@@ -8122,7 +8124,7 @@ ADCN:   CP      010H            ; known sign?
         JR      Z,A3C19         ; yes --> convert to display code
         DI                      ; Disable interrupts
         OUT     (_00ROM),A      ; Switch to monitor ROM from 00000H-00FFFH
-        CALL    _ADCN           ; Convert ASCII code to display code
+        CALL    __ADCN          ; Convert ASCII code to display code
         OUT     (_00RAM),A      ; Switch to RAM from 00000 - 00FFFH
         EI                      ; Release interrupt again
         RET
@@ -8148,7 +8150,7 @@ DACN:   CP      0F0H            ; Pixel - Graphic - Wert  ?
         JR      Z,A3C3B         ; ja -->  umrechnen in ASCII - Code
         DI                      ; Interrupt sperren
         OUT     (_00ROM),A      ; Umschalten auf ROM - Monitor vom 00000H - 00FFFH
-        CALL    _DACN           ; Anzeigecode umsetzen in ASCII - Code
+        CALL    __DACN          ; Anzeigecode umsetzen in ASCII - Code
         OUT     (_00RAM),A      ; Umschalten auf RAM von 00000H - 00FFFH
         EI                      ; Interrupt wieder freigeben
         CP      0F0H            ; Code for 'Zeichen nicht bekannt'  ?
@@ -8206,29 +8208,29 @@ W3C64:  DEFW    W3EC6           ; Pointer to next devices - table (RAM:)
         DEFB    10001111B       ; Geräte - Typ - Byte
         DEFB    00000001B       ; Geräte - Nummern - Flag
         DEFB    0
-        DEFW    A3C7D           ; Initialize device
-        DEFW    A3CAE           ; Open file for reading
-        DEFW    A3CAE           ; Open file for writing
-        DEFW    A3CBF
-        DEFW    A3CBF
-        DEFW    A3CD0           ; ein Zeichen bereitstellen
-        DEFW    A3CFB           ; Output characters in Accu
+        DEFW    RSINI           ; Initialize device
+        DEFW    RSOPN           ; Open file for reading
+        DEFW    RSOPN           ; Open file for writing
+        DEFW    RSCLS           ; CLOSE
+        DEFW    RSCLS           ; KILL
+        DEFW    RSINP           ; ein Zeichen bereitstellen
+        DEFW    RSOUT           ; Output characters in Accu
         DEFW    __RET           ; RET
 ;
 ;
 ;   Gerät  'RSx'  initialisieren
 ;
-A3C7D:  RET     C
+RSINI:  RET     C
         PUSH    IY              ; Keep register value
-        CALL    A3D25           ; Zeiger in IY auf richtigen Geräte-Datensatz stellen
-        CALL    A3C8B           ; Werte zur Initialisierung bereitstellen
+        CALL    SETIY           ; Zeiger in IY auf richtigen Geräte-Datensatz stellen
+        CALL    RSINT0          ; Werte zur Initialisierung bereitstellen
         CALL    A3D6E           ; serielle Schnittstelle initialisieren
         JR      A3CE3           ; gerettetes IY - Register wieder holen
 ;
 ;
 ;   Werte zur Initialisierung bereitstellen
 ;
-A3C8B:  RST     _DOCMD          ; Software - Kommando ausführen
+RSINT0: RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    19              ; Code 19   ASCII-Wert (HL) umsetzen in Hex-Wert nach DE
         LD      (IY+-3),E       ; Überwachungssignale merken
         CALL    TEST1           ; Vergleich auf Byte hinter CALL - Aufruf
@@ -8251,8 +8253,8 @@ A3C8B:  RST     _DOCMD          ; Software - Kommando ausführen
 ;
 ;   Datei auf Gerät  'RSx'  zum Lesen oder Schreiben eröffnen
 ;
-A3CAE:  PUSH    IY              ; Keep register value
-        CALL    A3D25           ; Zeiger in IY auf richtigen Geräte-Datensatz stellen
+RSOPN:  PUSH    IY              ; Keep register value
+        CALL    SETIY           ; Zeiger in IY auf richtigen Geräte-Datensatz stellen
         LD      A,(IY+-1)       ; Schnittstellenstatus holen
         INC     (IY+-1)
         OR      A
@@ -8262,8 +8264,8 @@ A3CAE:  PUSH    IY              ; Keep register value
 ;
 ;
 ;
-A3CBF:  PUSH    IY              ; Keep register value
-        CALL    A3D25           ; Zeiger in IY auf richtigen Geräte-Datensatz stellen
+RSCLS:  PUSH    IY              ; Keep register value
+        CALL    SETIY           ; Zeiger in IY auf richtigen Geräte-Datensatz stellen
         DEC     (IY+-1)
         LD      A,(IY+-1)
         OR      A
@@ -8273,8 +8275,8 @@ A3CBF:  PUSH    IY              ; Keep register value
 ;
 ;   ein Zeichen von Gerät  'RSx'  lesen
 ;
-A3CD0:  PUSH    IY              ; Keep register value
-        CALL    A3D25           ; Zeiger in IY auf richtigen Geräte-Datensatz stellen
+RSINP:  PUSH    IY              ; Keep register value
+        CALL    SETIY           ; Zeiger in IY auf richtigen Geräte-Datensatz stellen
         CALL    A3CE6           ; ein Zeichen von Schnittstelle holen
         JP      C,IOERR         ; Fehler -->  Fehlernummer und Gerätenamen ausgeben
         CP      (IY+-8)         ; mit Textendezeichen vergleichen
@@ -8299,8 +8301,8 @@ A3CE6:  BIT     6,(IY+-2)       ; Sharp - ASCII - Modus  ?
 ;
 ;   Zeichen im Accu an Gerät  'RSx'  ausgeben
 ;
-A3CFB:  PUSH    IY              ; Keep register value
-        CALL    A3D25           ; Zeiger in IY auf richtigen Geräte-Datensatz stellen
+RSOUT:  PUSH    IY              ; Keep register value
+        CALL    SETIY           ; Zeiger in IY auf richtigen Geräte-Datensatz stellen
         CP      CR              ; Textendezeichen  ?
         JR      NZ,A3D07        ; nein -->  Zeichen ausgeben
         LD      A,(IY+-8)       ; vorgegebenes Textendezeichen holen
@@ -8323,7 +8325,7 @@ A3D0C:  BIT     6,(IY+-2)       ; Sharp - ASCII - Modus  ?
 ;
 ;   Zeiger in IY auf richtigen Geräte-Datensatz stellen
 ;
-A3D25:  PUSH    AF              ;! Register - Werte retten
+SETIY:  PUSH    AF              ;! Register - Werte retten
         PUSH    DE              ;!
         LD      A,(ZCH)         ; Geräte - Nummer holen
         INC     A               ; für Schleife corrigieren
@@ -8626,10 +8628,10 @@ W3EC6:  DEFW    W37C2           ; Pointer to Next Devices Table (FDx)
         DEFB    01011111B       ; Device - Type - Byte
         DEFB    00100000B       ; Devices - numbers - bytes
         DEFB    32              ; maximum number of files on device
-        DEFW    A3F14           ; Initialize device
-        DEFW    A3FA9           ; Open file for reading
-        DEFW    A3FEA           ; Open file for writing
-        DEFW    A3F9B           ; Test device readiness
+        DEFW    EMINI           ; Initialize device
+        DEFW    EMRINF          ; Open file for reading
+        DEFW    EMWINF          ; Open file for writing
+        DEFW    EMON            ; Test device readiness
         DEFW    1024            ; maximum number of characters in the sector
         DEFW    A3FD5           ; provide data
         DEFW    A4011           ; output data
@@ -8690,22 +8692,22 @@ A3F07:  LD      HL,2            ; Address of 'next free pointer'
 ;
 ;   Initialize device 'RAM:'
 ;
-A3F14:  RET     C               ; Error occurred --> termination
-        LD      A,(S13C3)       ; Get flag 'RAM - card present'
+EMINI:  RET     C               ; Error occurred --> termination
+        LD      A,(EMFLG)       ; Get flag 'RAM - card present'
         OR      A               ; RAM card present ?
         JP      Z,A1F97         ; not available --> error 50' not ready error
-        CALL    A1E8F           ; Query whether you really want to initialize
+        CALL    A1E8F           ; Check whether you really want to initialize
         CALL    TEST1           ; Comparison on byte after CALL call
         DEFM    ","             ; comma ?
         PUSH    HL              ; Save program pointer
         CALL    A3F04           ; delete all files in additional RAM card
         POP     HL              ; get saved program pointer
         CALL    TEST1           ; Comparison on byte after CALL call
-        DEFB    NUL             ; end of text character ?
+        DEFB    NUL             ; end of text ?
         RET     Z               ; yes --> done
         RST     _DOCMD          ; Software - Execute command
         DEFB    19              ; Command 19 convert ASCII value (HL) into hex value in DE
-A3F2F:  LD      HL,0            ;
+EMINI2: LD      HL,0            ;
         DI                      ; Disable interrupts
         LD      B,1             ; code 'no spooler'
         LD      A,D             ; High - Byte Get number of bytes
@@ -8720,7 +8722,7 @@ A3F2F:  LD      HL,0            ;
         JR      NZ,A3F49        ; not zero --> set original value
 A3F48:  EX      DE,HL           ; Number of bytes after DE
 A3F49:  LD      A,B             ; Spooler - get flag
-        LD      (S13C3),A       ; Remember flag 'RAM - card available'
+        LD      (EMFLG),A       ; Remember flag 'RAM - card available'
         LD      HL,0            ; Address of the highest usable RAM address
         CALL    A40AA           ; Output address in DE after additional RAM after address in HL
         CALL    A14F4           ; Set spooler data by spooler start address
@@ -8750,7 +8752,7 @@ A3F5E:  CALL    A409F           ; Provide a byte from add-on RAM card from addre
         INC     D               ; High byte address equal to 0FFH?
         JR      Z,A3F7B         ; yes --> no spooler
         INC     A               ; Flag on spooler possible
-A3F7B:  LD      (S13C3),A       ; Remember flag 'RAM - card available'
+A3F7B:  LD      (EMFLG),A       ; Remember flag 'RAM - card available'
         JP      A14F4           ; Set spooler data by spooler start address
 ;
 ;
@@ -8763,27 +8765,27 @@ A3F81:  CALL    A3F04           ; delete all files in additional RAM card
         CALL    A409F           ; Provide a byte from add-on RAM card from address (HL).
         SUB     01011010B       ; same test bit pattern ?
         LD      DE,0C000H       ; Specification of the highest additional RAM address that can be used for BASIC
-        JR      Z,A3F2F         ; RAM card available --> remember the start address of the spooler
+        JR      Z,EMINI2        ; RAM card available --> remember the start address of the spooler
         XOR     A               ; Code 'RAM - card not present'
-        LD      (S13C3),A       ; Remember flag 'RAM - card available'
+        LD      (EMFLG),A       ; Remember flag 'RAM - card available'
         RET
 ;
 ;
 ;   Test device readiness and initialize routines
 ;
-A3F9B:  LD      A,(S13C3)       ; Get flag 'RAM - card available'
+EMON:   LD      A,(EMFLG)       ; Get flag 'RAM - card available'
         OR      A               ; RAM card present ?
         JP      Z,A1F97         ; no --> Error 50' Not ready error
         LD      HL,16           ; Address of the first offset in RAM - card
-        LD      (S13C4),HL      ; remember as the address of the next offset
+        LD      (EMPTR),HL      ; remember as the address of the next offset
         RET
 ;
 ;
 ;   Open file on device 'RAM' for reading
 ;
-A3FA9:  LD      B,H             ;!Pointer to location for file - identifier after BC
+EMRINF: LD      B,H             ;!Pointer to location for file - identifier after BC
         LD      C,L             ;!  transfer
-        LD      HL,(S13C4)      ; Get address of next offset
+        LD      HL,(EMPTR)      ; Get address of next offset
         CALL    A40B5           ; two bytes from additional RAM card from address in HL to DE
         LD      A,D             ;!  offset equal to zero ?
         OR      E               ;!
@@ -8794,7 +8796,7 @@ A3FA9:  LD      B,H             ;!Pointer to location for file - identifier afte
         PUSH    HL              ; Pointer to start of file - save entry
         ADD     HL,DE           ; Pointer to next file - calculate entry
         JP      C,A1F8B         ; Carry occurred --> Error 41 Hardware error
-        LD      (S13C4),HL      ; Note the address of the next offset
+        LD      (EMPTR),HL      ; Note the address of the next offset
         POP     HL              ; saved pointer to file - get entry
         INC     HL              ; Block - skip identifier
         INC     HL              ;!  Block - skip length
@@ -8830,7 +8832,7 @@ A3FD5:  EX      DE,HL           ; Pointer to place for data
 ;
 ;   File on device RAM: open for writing
 ;
-A3FEA:  PUSH    AF              ; Save data block identifier
+EMWINF: PUSH    AF              ; Save data block identifier
         CALL    A1C3D           ; check if only one file is opened/name doesn't already exist
         PUSH    HL              ; Pointer to file - save identifier
 A3FEF:  LD      HL,2            ; address 'next free pointer'
@@ -12445,14 +12447,14 @@ A5583:  SBC     HL,DE           ; Koordinaten vergleichen
 ;
         DEFS    629             ; kann nur von einem miserablem Linker kommen  (ist nicht genutzt)
 
-;   Kaltstart  BASIC - Interpreter
+;   BASIC Interpreter cold boot
 ;
 _START: PUSH    BC              ; Auto - Run - Flag retten
-        CALL    A585D           ; Bildschirm auf Standardwerte initialisieren
+        CALL    CLSHET          ; Initialize screen to default values
         POP     BC              ; Auto - Run - Flag holen
         LD      HL,BASIC_PGM    ; Zeiger auf Ende Basic - Interpreter
         LD      (TEXTST),HL     ; als Anfangsadresse für BASIC - Programm merken
-        LD      HL,T586F        ; Warmstartadresse  BASIC
+        LD      HL,CLSST        ; BASIC warm start address
         LD      (SYSSTA),HL     ; als Start - Adresse für Basic - Interpreter merken
         LD      A,B             ; Auto - Run - Flag holen
         OR      A               ; gesetzt  ?
@@ -12481,7 +12483,7 @@ A583A:  LD      (HL),0          ; ein Byte Speicher löschen
         CALL    A616E           ; Zeiger auf Rechenspeicher merken
         CALL    A6180           ; alle BASIC - Werte löschen
         CALL    A755E           ; Cassettenroutinen und RS232 initialisieren
-        JR      A5872           ; Warmstart  BASIC - Interpreter
+        JR      HOTENT          ; BASIC Interpreter warm start
 ;
 ;
 ;   Funktionstastentextvorgabe für Auto - Start
@@ -12493,9 +12495,9 @@ B584D:  DEFB    15
 		DEFB    '"',CR
 ;
 ;
-;   Bildschirm auf Standardwerte initialisieren
+;   Initialize screen to default values
 ;
-A585D:  LD      A,1             ; Bildschirm-Modus 1   (320 x 200 Punkte/4 Farben)
+CLSHET: LD      A,1             ; Bildschirm-Modus 1   (320 x 200 Punkte/4 Farben)
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    80              ; Code 80  Bildschirmbetriebsart setzen
         XOR     A               ; Code for 'Punkte in angegebener Farbe setzen'
@@ -12508,69 +12510,69 @@ A585D:  LD      A,1             ; Bildschirm-Modus 1   (320 x 200 Punkte/4 Farbe
         RET
 ;
 ;
-;   Warmstart  BASIC - Interpreter
+;   BASIC Interpreter warm start  
 ;
-T586F:  CALL    A585D           ; Bildschirm auf Standardwerte initialisieren
-;
-;
-;   Interpreter  Eingabe - Schleife
-;
-A5872:  LD      HL,A6403        ;  Anfangsadresse  BASIC - Fehlerbehandlung
-        LD      (ERRORP),HL     ; als Fehlerbehandlungsadresse eintragen
-A5878:  RST     _DOCMD          ; Software - Kommando ausführen
-        DEFB    2               ; Code 2  Zeilenvorschub, wenn Cursor nicht auf Anfang Zeile
-        LD      DE,M63F0        ; Text  'Ready'
-        RST     _DOCMD          ; Software - Kommando ausführen
-        DEFB    5               ; Code 5  Text (DE) mit Groß-/Kleinschreibung ausgeben
-        RST     _DOCMD          ; Software - Kommando ausführen
-        DEFB    1               ; Code 1  Zeilenvorschub auf Bildschirm ausgeben
+CLSST:  CALL    CLSHET          ; Initialize screen to default values
 ;
 ;
-;   nächste Zeile von Tastatur holen und abarbeiten
+;   Interpreter input - loop
 ;
-A5881:  LD      A,(M63F6)       ; CONT - Flag holen
-        OR      A               ; CONT möglich  ?
-        JR      NZ,A5893        ; ja -->  Stack nicht verändern
-        LD      SP,(INTFAC)     ; höchste nutzbare Basic - Adresse holen
-        LD      HL,-1           ; Code for 'keine Werte auf Stack'
-        PUSH    HL              ; auf Stack ablegen
-        LD      (S9E64),SP      ; Stackpointer bei Anfang Befehl merken
-A5893:  LD      HL,0            ; Code for 'in direkter Programmierung'
-        LD      (S9E51),HL      ; als aktuelle Zeilennummer merken
-        XOR     A               ; Accu auf Null
-        LD      (CMTMSG),A      ; Textausgabeflag für Cassette zurücksetzen
-        CALL    A611D           ; wenn im AUTO-Modus -->  Zeilennummer (und Zeile) ausgeben
-        RST     _DOCMD          ; Software - Kommando ausführen
-        DEFB    67              ; Code 67  Datei-Daten der Ausgabe-Datei bei Fehler löschen
-        LD      DE,S11A4        ; Zeiger auf Speicher für Zeile vorgeben
-        RST     _DOCMD          ; Software - Kommando ausführen
-        DEFB    12              ; Code 12  Zeile von Tastatur nach Speicher (DE) holen
-        JR      NC,NORINP       ; Eingabe nicht geBREAKt -->  Zeile abarbeiten
-AUTOFF: LD      HL,S611C        ; Zeiger auf AUTO - Flag
-        LD      A,(HL)          ; AUTO - Flag holen
-        OR      A               ; im AUTO - Modus  ?
-        LD      (HL),0          ; AUTO - Flag zurücksetzen
-        JR      NZ,A5878        ; AUTO-Modus -->  Ready ausgeben und nächste Zeile abarbeiten
-        JR      A5881           ; nächste Zeilen von Tastatur holen
+HOTENT: LD      HL,ERRORA       ; Start address BASIC - error handling
+        LD      (ERRORP),HL     ; Enter as error handling address
+A5878:  RST     _DOCMD          ; Software - Execute command
+        DEFB    2               ; Code 2 line feed if cursor not at beginning of line
+        LD      DE,M63F0        ; Text 'ready'
+        RST     _DOCMD          ; Software - Execute command
+        DEFB    5               ; Code 5 Output text (DE) with upper/lower case
+        RST     _DOCMD          ; Software - Execute command
+        DEFB    1               ; Code 1 Output line feed to screen 
 ;
 ;
-;   eingegebenen Text auswerten und abarbeiten
+;   Fetch next line from keyboard and process
 ;
-NORINP: CALL    A79BC           ; Zeiger in DE auf nächstes relevantes Zeichen
-        OR      A               ; Zeilenendezeichen  ?
-        JR      Z,A5881         ; ja -->  nächste Zeilen von Tastatur holen
-        CALL    A79F6           ; testen, ob Zeichen im Accu gleich Ziffer ist
-        JP      NC,A5FAD        ; Ziffer -->  Zeile umsetzen in Zwischencode und merken
+A5881:  LD      A,(M63F6)       ; CONT - get flag
+        OR      A               ; CONT possible?
+        JR      NZ,A5893        ; yes --> do not change the stack
+        LD      SP,(INTFAC)     ; get the highest usable basic address
+        LD      HL,-1           ; Code for 'no values ??on stack'
+        PUSH    HL              ; put on stack
+        LD      (S9E64),SP      ; Remember stack pointer at start of command
+A5893:  LD      HL,0            ; Code for 'in direct programming'
+        LD      (S9E51),HL      ; remember as the current line number
+        XOR     A               ; Accu to zero
+        LD      (CMTMSG),A      ; Reset text output flag for cassette
+        CALL    A611D           ; if in AUTO mode --> output line number (and line).
+        RST     _DOCMD          ; Software - Execute command
+        DEFB    67              ; Code 67 Delete file data of output file on error
+        LD      DE,S11A4        ; Specify pointer to memory for row
+        RST     _DOCMD          ; Software - Execute command
+        DEFB    12              ; Get code 12 line from keyboard to memory (DE).
+        JR      NC,NORINP       ; Input not BREAKt --> process line
+AUTOFF: LD      HL,S611C        ; Pointer to AUTO - flag
+        LD      A,(HL)          ; AUTO - get flag
+        OR      A               ; in AUTO mode ?
+        LD      (HL),0          ; AUTO - reset flag
+        JR      NZ,A5878        ; AUTO mode --> Output Ready and process next line
+        JR      A5881           ; fetch next lines from keyboard
+;
+;
+;   Evaluate and process the entered text
+;
+NORINP: CALL    A79BC           ; Pointer in DE to next relevant character
+        OR      A               ; newline character ?
+        JR      Z,A5881         ; yes --> get next lines from keyboard
+        CALL    A79F6           ; test whether the character in the Accu is the same as a digit
+        JP      NC,A5FAD        ; Digit --> convert line into intermediate code and note
         LD      HL,IMDBUF       ; Pointer to temporary storage for tokenized line
-        PUSH    HL              ; Zeiger auf Anfang Speicher merken
-        CALL    CVIMTX          ; ASCII - Text - Zeile (DE) umsetzen in Zwischencode
-        INC     HL              ; Zeilenendezeichen überspringen
-        LD      (S9E4B),HL      ; Zeiger auf nächste Programmzeile merken
-        CALL    A61C5           ; (HL)  Bereichsende  (00 00)  eintragen
+        PUSH    HL              ; Remember pointer to beginning of memory
+        CALL    CVIMTX          ; Convert ASCII - text - line (DE) to intermediate code
+        INC     HL              ; Skip newline characters
+        LD      (S9E4B),HL      ; Remember pointer to next program line
+        CALL    A61C5           ; (HL) Enter range end (00 00).
         POP     HL              ; Get pointer to tokenized line
-        JR      A58D4           ; Zeile abarbeiten
+        JR      A58D4           ; process line
 ;
-T58D1:  CALL    A797A           ; auf Syntax 'Befehlsende' überprüfen
+T58D1:  CALL    A797A           ; check for 'end of command' syntax
 ;
 ;
 ;   Process token code line (HL).
@@ -12579,7 +12581,7 @@ A58D4:  LD      (S9E64),SP      ; Remember stack pointer at start of command
 A58D8:  LD      DE,T58D1        ; Return address for end of command
         PUSH    DE              ; put on stack
 A58DC:  LD      (S9E66),HL      ; Remember program pointer at start of command
-        CALL    BRKCHK          ; Query whether Shift - BREAK is pressed
+        CALL    BRKCHK          ; Check whether Shift - BREAK is pressed
         JP      Z,BREAKZ        ; yes --> interrupt program
 A58E5:  LD      A,(HL)          ; fetch next program byte
         INC     HL              ; Skip program byte
@@ -12600,7 +12602,7 @@ A58E5:  LD      A,(HL)          ; fetch next program byte
         JP      A6364           ; Error 1 Syntax error
 ;
 ;
-;   nächste BASIC - Programm - Zeile holen und abarbeiten
+;   Fetch and process the next BASIC program line
 ;
 A5906:  LD      HL,(S9E4B)      ; Get pointer to next program line
 A5909:  LD      E,(HL)          ;! Get offset to next line
@@ -12625,19 +12627,19 @@ A5909:  LD      E,(HL)          ;! Get offset to next line
 ;
 ;   Program ended --> check whether there are still errors
 ;
-A5928:  POP     HL              ; Rücksprungadresse vom Stack holen
-        CALL    A596B           ; Abfrage, ob in direkter Programmierung
-        JP      Z,A5878         ; ja -->  nächste Zeile von Tastatur holen
-        XOR     A               ; Code for 'kein CONT möglich'
-        LD      (M63F6),A       ; CONT - Flag zurücksetzen
-        LD      A,(S9E54)       ; ON - ERROR - GOTO - Status holen
-        CP      2               ; Code for 'Fehler aufgetreten'  ?
-        JP      Z,A6391         ; ja -->  Fehler 20  Can't RESUME error
-        PUSH    HL              ; Rücksprungadresse wieder ablegen
-        JP      A60B9           ; END - Routine aufrufen
+A5928:  POP     HL              ; Get return address from stack
+        CALL    A596B           ; Query whether in direct programming
+        JP      Z,A5878         ; yes --> get next line from keyboard
+        XOR     A               ; Code for 'no CONT possible'
+        LD      (M63F6),A       ; CONT - reset flag
+        LD      A,(S9E54)       ; ON - ERROR - GOTO - get status
+        CP      2               ; Code for 'Error Occurred' ?
+        JP      Z,A6391         ; yes --> Error 20 Can't RESUME error
+        PUSH    HL              ; Store the return address again
+        JP      A60B9           ; END - call routine 
 ;
 ;
-;   einen BASIC - Befehl abarbeiten
+;   Process a BASIC command
 ;
 A593F:  CP      0FFH            ; prebyte table three ?
         JP      Z,A653F         ; yes --> examine for command in table three
@@ -14056,7 +14058,7 @@ A618E:  CALL    TEST1           ; nächstes Programmbyte gleich Byte hinter CALL-
         ;CALL    Z,A9FCF         ; NEW ON -->  Plotter - Routinen löschen
 		CALL    Z,A9FD1         ; NEW ON -->  Plotter - Routinen löschen
         CALL    A6180           ; alle BASIC - Werte löschen
-        JP      A5872           ; Warmstart  BASIC - Interpreter
+        JP      HOTENT          ; BASIC Interpreter warm start
 ;
 ;
 ;   Basic - Befehl   CLR     (Token code  254 166 / 0FEH 0A6H)
@@ -14496,7 +14498,7 @@ A6402:  INC     A               ; Fehlernummer wieder corrigieren
 ;
 ;   Fehler mit Fehlernummer im Accu behandeln
 ;
-A6403:  LD      SP,(S9E64)      ; Stackpointer bei Anfang Befehl holen
+ERRORA: LD      SP,(S9E64)      ; Stackpointer bei Anfang Befehl holen
         PUSH    AF              ; Fehlernummer retten
         RST     _DOCMD          ; Software - Kommando ausführen
         DEFB    67              ; Code 67  Datei-Daten der Ausgabedatei bei Fehler löschen
@@ -14637,7 +14639,7 @@ A64F7:  LD      A,(S9E54)       ; ON - ERROR - GOTO - Status holen
         LD      HL,(S9E55)      ; Fehlerzeilennummer holen
         LD      (S9E51),HL      ; als aktuelle Zeilennummer merken
         LD      A,(S9E53)       ; Fehlernummer holen
-        JP      A6403           ; Fehler mit Nummer im Accu behandeln
+        JP      ERRORA          ; Fehler mit Nummer im Accu behandeln
 ;
 ;
 ;   Basic - Befehl   LET     (Token code  158 / 09EH)
@@ -16017,7 +16019,7 @@ T6CF2:  CALL    A5963           ; testen, ob Zeichen (HL) gleich Befehlsendezeic
 ;
         CALL    A6C81           ; Abfrage, ob aktuelles Gerät gleich Bildschirm ist
         JR      C,A6D15         ; Tabulation auf Gerät nicht möglich -->  Zeilenvorschub
-        LD      IX,(S1061)      ; Adresse 'aktuelle Spaltennummer bereitstellen' holen
+        LD      IX,(ZDELT)      ; (ZPOS) Adresse 'aktuelle Spaltennummer bereitstellen' holen
         CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         LD      B,A             ; aktuelle Spaltennummer merken
 A6D09:  SUB     10              ; 10 abziehen
@@ -16046,7 +16048,7 @@ A6D28:  CALL    A6C81           ; Abfrage, ob aktuelles Gerät gleich Bildschirm 
 		CALL    A79A2           ; auf Syntax 'Klammer auf' überprüfen
         CALL    IBYTE           ; ein - Byte - Wert nach DE / Accu bereitstellen
         CALL    A79AA           ; auf Syntax 'Klammer zu' überprüfen
-        LD      IX,(S1061)      ; Adresse  'aktuelle Spaltennummer bereitstellen'  holen
+        LD      IX,(ZDELT)      ; (ZPOS) Adresse  'aktuelle Spaltennummer bereitstellen'  holen
         CALL    IOCALL          ; Routine (IX) mit Fehlerbehandlung aufrufen
         SUB     E               ; mit Tabulationsspalten vergleichen
         RET     NC              ; schon über Tabulationsspalte hinaus -->  Befehl vergessen
@@ -16582,11 +16584,11 @@ A7007:  CALL    A6FA4           ; Text (HL) auf Geräte-Namen und Dateinamen ausw
 ;
 ;   Maschinenprogramm laden
 ;
-A7027:  LD      HL,(S1016)      ; Ladeadresse holen
+A7027:  LD      HL,(ELMD22)     ; Ladeadresse holen
         PUSH    HL              ; und merken
         LD      DE,(MEMLMT)     ; Ende Rechenspeicherbereich holen
         CALL    A704D           ; Adressen in HL und DE vergleichen
-        LD      DE,(S1014)      ; Programmlänge holen
+        LD      DE,(ELMD20)     ; Programmlänge holen
         LD      BC,(MEMMAX)     ; maximal erlaubte RAM - Adresse holen
         CALL    NC,A7048        ; noch kein Fehler -->  Adressen vergleichen
         JP      C,A638B         ; Fehler 18  Memory protection error
@@ -16645,7 +16647,7 @@ A7068:  CALL    A7340           ; wenn im Programm-Modus -->  Fehler 19  Instruc
         ADD     HL,BC           ; Anfang freier Speicher errechnen
         JP      C,A63A7         ; Überlauf -->  Fehler 6  Memory error
         PUSH    HL              ; Pufferadresse retten
-        LD      BC,(S1014)      ; Programmlänge holen
+        LD      BC,(ELMD20)     ; Programmlänge holen
         INC     B               ; noch ein bischen Sicherheit dazutun  (256 Bytes)
         ADD     HL,BC           ; Endadresse errechnen
         JP      C,A63A7         ; Überlauf -->  Fehler 6  Memory error
@@ -16832,8 +16834,8 @@ A7194:  LD      D,0             ; Code 'MZ-700 - Programm'
         LD      BC,0CFF0H       ; maximale Speicheradresse im MZ-80 K - Modus
 A71A8:  LD      A,D             ; Code 'MZ-800 / MZ-80 K'
         LD      (S11A4),A       ; merken
-        LD      HL,(S1014)      ; Programmlänge holen
-        LD      DE,(S1016)      ; Ladeadresse aus Dateikennung holen
+        LD      HL,(ELMD20)     ; Programmlänge holen
+        LD      DE,(ELMD22)     ; Ladeadresse aus Dateikennung holen
         PUSH    HL              ; Programmlänge merken
         CALL    A7048           ; Endadresse errechnen und auf Ende Speicher überprüfen
         POP     DE              ; Programmlänge holen
@@ -16849,7 +16851,7 @@ A71A8:  LD      A,D             ; Code 'MZ-800 / MZ-80 K'
         OUT     (CTC_53),A      ; an Kontrollwortregister 8253 ausgeben
         LD      A,00000001B     ; Code 'Set Bit 0'
         OUT     (KEYP_F),A      ; Zähler 0 im 8253 sperren
-        LD      HL,(S1016)      ; Ladeadresse aus Dateikennung holen
+        LD      HL,(ELMD22)     ; Ladeadresse aus Dateikennung holen
         LD      DE,(TMPEND)     ; Ende Stringarbeitsbereich holen
         CALL    A704D           ; Adressen in DE und HL vergleichen
         JR      NC,A71F3        ; Ladeadresse liegt hinter Ende Stringarbeitsbereich
@@ -16881,7 +16883,7 @@ T720C:  POP     HL              ; Get loading address
         RST     _DOCMD          ; Software - Execute command
         DEFB    48              ; Code 48 Load program according to specified identifier to (HL).
         LD      A,_JP           ; Z-80 - Command JP nn
-        LD      HL,TIMIN        ; Start address 'time - interrupt' in the ROM - monitor
+        LD      HL,TIMIN        ; Start address of 'time - interrupt' in the ROM - monitor
         LD      (INT_JP),A      ; JP - enter command
         LD      (INT_JP +1),HL  ; Enter interrupt address
         LD      A,1             ; Screen mode 1 (320x200 pixels/4 colors)
@@ -16894,19 +16896,19 @@ T720C:  POP     HL              ; Get loading address
         OR      A               ; MZ-800 - Program ?
         CALL    NZ,S1246        ; no --> Initiate peripheral modules for MZ-700 mode
         EX      AF,AF           ; rescued register - fetch value
-        LD      HL,(S1018)      ; Start address from file - get identifier
+        LD      HL,(ELMD24)     ; Start address from file - get identifier
         LD      A,H             ;!  Start address given?
         OR      L               ;!
         EXX
-        LD      HL,(TMPEND)     ; Get end of string workspace
-        LD      DE,(S1016)      ; Get load address from file identifier
-        LD      BC,(S1014)      ; Get program length from file identifier
+        LD      HL,(TMPEND)     ; Get end of string workspace (store addr)
+        LD      DE,(ELMD22)     ; Get load address from file identifier
+        LD      BC,(ELMD20)     ; Get program length from file identifier
         OR      D               ;!  Load address also zero?
         OR      E               ;!
-        JR      Z,A7243         ; neither load address nor start address specified
+        JR      Z,PROX0         ; neither load address nor start address specified
         LD      A,JP_HL         ; Z-80 - Befehl  JP (HL)
         LD      (S123E),A
-A7243:  EXX
+PROX0:  EXX
         POP     AF              ; Get program load flag
         PUSH    HL              ; Save the original start address
         LD      HL,S11EE        ; Pointer to part loading area
@@ -16919,6 +16921,7 @@ A7243:  EXX
 ;
 ;   zweiter Teil des Ladeprogramms
 ;
+PROFF:
         JR      NC,A7259        ; geladenes Programm steht an Originaladresse
         LDIR                    ; Programm an Originaladresse verschieben
 A7259:  EX      AF,AF           ; ",R" - Flag holen
@@ -17129,7 +17132,7 @@ A7340:  PUSH    AF              ; Keep register value
 ;
 ;   Speicher auf Platz überprüfen und Programm laden
 ;
-A7349:  LD      BC,(S1014)      ; Programmlänge aus Dateikennung holen
+A7349:  LD      BC,(ELMD20)     ; Programmlänge aus Dateikennung holen
         PUSH    BC              ; und merken
         LD      HL,(POOL)       ; Zeiger auf I/O - Work Area holen
         LD      DE,(TEXTST)     ; Anfang Basic - Programm holen
@@ -17222,7 +17225,7 @@ A73C0:  CALL    TEST1           ; Vergleich auf Byte hinter CALL
         LD      DE,(TEXTST)     ; Anfang Basic - Programm holen
         OR      A               ; Carry - Flag zurücksetzen
         SBC     HL,DE           ; Länge des Basic - Programms errechnen
-        LD      (S1014),HL      ; Programmlänge in Dateikennung eintragen
+        LD      (ELMD20),HL     ; Programmlänge in Dateikennung eintragen
         LD      A,(S1001)       ; erstes Zeichen Datei - Name holen
         CP      CR              ; Textendezeichen  ?
         JP      Z,A63CE         ; ja -->  Fehler 60  Illegal filename error
@@ -17384,7 +17387,7 @@ A74A6:  LD      A,(S9E68)       ; SWAP - get flag
         LD      DE,(TEXTST)     ; Start Basic - Get program
         XOR     A               ; reset carry flag (code 'write away')
         SBC     HL,DE           ; Length Basic - Calculate program
-        LD      (S1014),HL      ; Enter the program length in the file identifier
+        LD      (ELMD20),HL     ; Enter the program length in the file identifier
         RST     _DOCMD          ; Software - Execute command
         DEFB    68              ; Code 68 SWAP - Write or load main program
         POP     HL              ; get saved program pointer
