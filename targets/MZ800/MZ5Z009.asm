@@ -7,7 +7,11 @@
 ; Default mode build (also MZ-1500):
 ; z88dk-z80asm -b -m mz-5z009.asm
 
-; PLE mode build:
+; "It is a common misunderstanding that MZ-800 and MZ-1500 are almost identical. 
+; MZ-1500 is not just a Japanese version of MZ-800.  They are both based on MZ-700 architecture but differently extended.
+; MZ-1500 does not have 640x200/320x200 bitmap screen but has 8-color PCG screen (1024 PCGs consist 320x200 screen).
+; MZ-1500 has two SN76489 while MZ-800 has one. Etc. "
+; PLE mode build (6 channels sound):
 ; z88dk-z80asm -b -m -DSYS mz-5z009.asm
 
 
@@ -4091,6 +4095,8 @@ TEMPW:
 ;
 KEYBM1:
         DEFS   1
+
+; 270 bytes for Keyboard buffer
 KEYBUF:
         DEFS   262
 KEY262:
@@ -4100,6 +4106,7 @@ KEY264:
 KEY266:
         DEFS   4
 
+; FN key definition table
 FUNBUF:
         DEFB   7
         DEFM   "RUN   "
@@ -4729,7 +4736,7 @@ ROMJP2: EX     AF,AF
         LD     SP,HL           ;
         POP    HL              ;HL=call address
         OUT    (LSE3),A
-        LD     SP,KEY262
+        LD     SP,KEY262       ; Temporary stack (262 bytes)
         CALL   HLJP
         OUT    (LSE1),A
         LD     SP,(KEY264)
@@ -6799,7 +6806,7 @@ ENDIF
 IF RAMDISK
 
 IF MOD_B
-MODB_SUB:
+;..EMSV1_00 continues here
         ADD     A,0ECH     ; EM_P0   (0EFH: EM_P1)
 		LD      C,A
 		POP     AF
@@ -9205,8 +9212,8 @@ DEFS $3C00-FD_END
 
 ;        ORG    3C00H
 
-defc  _ADCN    =      00BB9H          ; Convert ASCII code to display code
-defc  _DACN    =      00BCEH          ; Convert display code to ASCII code
+defc  __ADCN    =      00BB9H          ; Convert ASCII code to display code
+defc  __DACN    =      00BCEH          ; Convert display code to ASCII code
 
 
 ;----------------------------------
@@ -9223,7 +9230,7 @@ ADCN:
         JR     Z,_AD7          ; C0H ==> 80H
         DI
         OUT    (LSE2),A
-        CALL   _ADCN 
+        CALL   __ADCN 
         OUT    (LSE0),A
         EI
         RET
@@ -9243,7 +9250,7 @@ DACN:
         JR     Z,_DA7          ; 80H ==> C0H
         DI
         OUT    (LSE2),A
-        CALL   _DACN
+        CALL   __DACN
         OUT    (LSE0),A
         EI
         CP     0F0H
@@ -10292,13 +10299,13 @@ STBL:   DEFB   80H             ;frequency (l)
         DEFB   00H             ;frequency (h)
         DEFB   9FH             ;attenation
 ;    tone 2a
-        DEFB   0A0H             ;frequency (l)
+        DEFB   0A0H            ;frequency (l)
         DEFB   00H             ;frequency (h)
-        DEFB   0BFH             ;attenation
+        DEFB   0BFH            ;attenation
 ;    tone 3a
-        DEFB   0C0H             ;frequency (l)
+        DEFB   0C0H            ;frequency (l)
         DEFB   00H             ;frequency (h)
-STN0:   DEFB   0DFH             ;attenation
+STN0:   DEFB   0DFH            ;attenation
 ;
         IF     SYS
 ;    tone 1b
@@ -10307,13 +10314,13 @@ STN0:   DEFB   0DFH             ;attenation
         DEFB   00H             ;frequency (h)
         DEFB   9FH             ;attenation
 ;    tone 2b
-        DEFB   0A0H             ;frequency (l)
+        DEFB   0A0H            ;frequency (l)
         DEFB   00H             ;frequency (h)
-        DEFB   0BFH             ;attenation
+        DEFB   0BFH            ;attenation
 ;    tone 3b
-        DEFB   0C0H             ;frequency (l)
+        DEFB   0C0H            ;frequency (l)
         DEFB   00H             ;frequency (h)
-STN1:   DEFB   0DFH             ;attenation
+STN1:   DEFB   0DFH            ;attenation
         ENDIF
 
 
@@ -11313,7 +11320,7 @@ defc KEYBF  =    11A4H           ;KEYBUF label
 ;-------------------------------
 CRTINI:
         CALL   TEST1
-        DEFB   'M'
+        DEFB   'M'         ; mandatory prefix, it stands for "MODE"
         JR     Z,CRMD
         OR     A
         JR     Z,ICRT
@@ -17969,8 +17976,10 @@ DEFS $6C81-STMNT_END
 
 ;
 ;
-defc RUNRFL  =    11A4H           ;KEYBUF   label
-defc BKEYBF  =    11A5H           ;KEYBUF+1 label
+;defc RUNRFL  =    11A4H           ;KEYBUF   label
+;defc BKEYBF  =    11A5H           ;KEYBUF+1 label
+defc RUNRFL  =    KEYBUF
+defc BKEYBF  =    KEYBUF+1
 
 ;
 ;
@@ -18042,6 +18051,7 @@ PRT20:  CALL   ENDCHK
         JP     Z,PRTCR
         CP     ','
         JR     NZ,PRT30
+
         CALL   CRTLU_
         JR     C,PRT25
         LD     IX,(ZPOS)
@@ -18863,10 +18873,10 @@ PRXFER: POP    HL
         LD     (1038H),A
         LD     (1039H),HL
         LD     A,01H           ;320*200 4 color
-        RST    3
-        DEFB   _DSMOD
-        RST    3
-        DEFB   _DI
+        RST    3               ; Software - Execute command
+        DEFB   _DSMOD          ; Code 80 screen - set operating mode
+        RST    3               ; Software - Execute command
+        DEFB   _DI             ; Code 16 disable interrupts
         EX     AF,AF
         LD     A,(RUNRFL)      ;run"  " ,r
         OR     A
@@ -18887,7 +18897,7 @@ PRXFER: POP    HL
 PROX0:  EXX
         POP    AF              ;ldir flg
         PUSH   HL              ;store exec addr
-        LD     HL,PROFF-PRXFER+BKEYBF
+        LD     HL,PROFF-PRXFER+BKEYBF		; Copy PROFF  at $FF00
         LD     DE,0FF00H
         LD     BC,PRO80E-PROFF
         LDIR
