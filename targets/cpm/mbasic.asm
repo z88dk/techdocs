@@ -22175,15 +22175,9 @@ BASIC_SIGNATURE:
 
 ; Foo data in user memory
 USER_MEMORY:
-  DEFB $C1
-  DEFB $C4
-  DEFB $82
-  DEFB $AF
-  DEFB $2E
-  DEFB $00
   
-  DEFS 88
+  DEFS 94
 
 TSTACK:
   defw $830
-;  defs 67
+  defb 0
