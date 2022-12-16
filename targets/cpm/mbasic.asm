@@ -16,7 +16,8 @@ ENDIF
 
 
 ; Proof of concept:  ZX Spectrum +3 graphics and Terminal
-; (PSET, PRESET, POINT, LINE, CLS, LOCATE)
+; (VPOKE, VPEEK, PSET, PRESET, POINT, CSRLIN, LINE, CLS, COLOR, LOCATE)
+; add -DTAPE for CSAVE in MSX mode (Kansas City Standard), at 1200 bps.
 ;
 ; z80asm -b -DHAVE_GFX -DZXPLUS3 -DVT52 mbasic.asm
 ; ren mbasic.bin P3BASIC.COM
@@ -78,7 +79,7 @@ defc KBFLEN   =  BUFLEN+(BUFLEN/4)	; MAKE KRUNCH BUFFER SOMEWHAT LARGER THAN SOU
 
 
 IF ZXPLUS3
-defc LINLN    =   50  ; Commented out, the 24x80 virtual screen can be useful
+defc LINLN    =   50
 ELSE
 defc LINLN    =   80   ; TERMINAL LINE LENGTH 
 ENDIF
@@ -201,8 +202,10 @@ defc TK_WAIT     =  $97
 defc TK_DEF      =  $98
 defc TK_POKE     =  $99
 defc TK_CONT     =  $9A
-;; defc TK_CSAVE    =  $9B
-;; defc TK_CLOAD    =  $9C
+IF TAPE
+defc TK_CSAVE    =  $9B
+defc TK_CLOAD    =  $9C
+ENDIF
 defc TK_OUT      =  $9D	; Token for 'OUT' (used also in 'OPEN' to check syntax)
 defc TK_LPRINT   =  $9E
 defc TK_LLIST    =  $9F
@@ -386,8 +389,13 @@ FNCTAB:
   DEFW __DEF
   DEFW __POKE
   DEFW __CONT
+IF TAPE
+  DEFW __CSAVE
+  DEFW __CLOAD
+ELSE
   DEFW SN_ERR
   DEFW SN_ERR
+ENDIF
   DEFW __OUT
   DEFW __LPRINT
   DEFW __LLIST
@@ -609,6 +617,16 @@ WORDS_C:
   DEFM "LEA"
   DEFB 'R'+$80
   DEFB TK_CLEAR
+
+IF TAPE
+  DEFM "LOA"
+  DEFB 'D'+$80
+  DEFB TK_CLOAD
+
+  DEFM "SAV"
+  DEFB 'E'+$80
+  DEFB TK_CSAVE
+ENDIF
 
   DEFM "IN"
   DEFB 'T'+$80
@@ -1884,7 +1902,7 @@ FN_CSRLIN:
   DEFW $00BF        ; TE ASK - where is the cursor, what screen size
   
   LD A,H
-  INC A             ; top-left corner is at 1:1 as for GW-BASIC, while MSX had 0:0
+  INC A             ; top-left corner is at 1:1 as for GW-BASIC, (while MSX had 0:0)
   CALL CONIA        ;CONVERT [A] TO AN INTEGER SIGNED
   POP HL
   RET
@@ -1901,7 +1919,251 @@ subuserf:
 	ret
 
 
+; -- -- -- -- --
+; Cassette handling must be away from the contended memory
+
+IF TAPE
+__CLOAD:
+  jp SN_ERR
+
+
+__CSAVE:
+  CALL FNAME_ARG
+  DEC HL
+  CALL CHRGTB		; Gets next character (or token) from BASIC text.
+  JR Z,__CSAVE_0
+  
+  JP SN_ERR
+  ;CALL SYNCHR 		;   Check syntax: next byte holds the byte to be found
+  ;DEFB ','
+  ;CALL SET_BAUDRATE
+__CSAVE_0:
+  PUSH HL
+  LD A,$D3			; BASIC program type header
+  CALL __CSAVE_HEADER
+  LD HL,(VARTAB)
+  LD (SAVEND),HL
+  LD HL,(TXTTAB)
+  CALL __CSAVE_BAS
+  POP HL
+  RET
+
+
+; ----------------------------------------------
+;  Cassette output (MSX style) on a ZX Spectrum
+; ----------------------------------------------
+
+
+SAVEND: defw 0
+__CSAVE_BAS:
+  PUSH HL
+  CALL LINE2PTR_00
+  XOR A
+  CALL CWRTON		; start tape for writing
+  POP DE
+  LD HL,(SAVEND)
+__CSAVE_BAS_0:
+  LD A,(DE)
+  INC DE
+  CALL CASOUT		; send byte to tape
+  CALL DCOMPR		; Compare HL with DE.
+  JR NZ,__CSAVE_BAS_0
+  LD L,$07
+__CSAVE_BAS_1:
+  CALL CASOUT		; send byte to tape
+  DEC L
+  JR NZ,__CSAVE_BAS_1
+  JP TAPOOF
+
+
+__CSAVE_HEADER:
+  CALL CWRTON		; start tape for writing
+  LD B,$0A
+__CSAVE_HEADER_0:
+  CALL CASOUT		; send byte to tape
+  DJNZ __CSAVE_HEADER_0
+  LD B,$06
+  LD HL,FILNAM
+__CSAVE_HEADER_1:
+  LD A,(HL)
+  INC HL
+  CALL CASOUT		; send byte to tape
+  DJNZ __CSAVE_HEADER_1
+  JP TAPOOF
+
+
+LINE2PTR_00:
+  LD A,(PTRFLG)
+  OR A
+  RET Z
+  JP SCCPTR
+
+
+__snd_tick:  DEFB 0
+
+TAPOON:
+	di
+	ld a,(BDRCLR)
+	ld  (__snd_tick),a
+	and 7
+	or	8
+	ret
+
+TAPOOF:
+	ei
+	ret
+
+
+CWRTON:
+  PUSH HL
+  PUSH DE
+  PUSH BC
+  PUSH AF
+  CALL TAPOON
+
+  OR A
+  PUSH AF
+
+  LD HL,$0000
+CWRTON_0:
+  DEC HL
+  LD A,H
+  OR L
+  JR NZ,CWRTON_0
+
+  POP AF
+  LD A,PLAY_MSXDATA_HDR
+  JR Z,CWRTON_1
+  ADD A,A
+  ADD A,A
+CWRTON_1:
+  LD B,A
+  LD C,$00
+  ;DI
+CWRTON_2:
+  CALL TAPSEND_HIGH
+  CALL TAPSEND_RET
+  DEC BC
+  LD A,B
+  OR C
+  JR NZ,CWRTON_2
+
+CWRTON_RET_0:
+  POP AF
+  POP BC
+  POP DE
+  POP HL
+TAPSEND_RET:
+  RET
+
+
+FNAME_ARG:
+  CALL EVAL
+  PUSH HL
+  CALL __ASC_0
+  DEC HL
+  DEC HL
+  LD  B,(HL)
+  LD  C,$06
+  LD  HL,FILNAM
+FNAME_ARG_0:
+  LD  A,(DE)
+  LD  (HL),A
+  INC HL
+  INC DE
+  DEC C
+  JR  Z,FNAME_ARG_2
+  DJNZ FNAME_ARG_0
+  LD  B,C
+FNAME_ARG_1:
+  LD (HL),' '
+  INC HL
+  DJNZ FNAME_ARG_1
+FNAME_ARG_2:
+  POP HL
+  RET
+
+CASOUT_HL:
+  LD A,L
+  CALL CASOUT
+  LD A,H
+  JP CASOUT
+
+CASOUT:
+  PUSH HL
+  PUSH DE
+  PUSH BC
+  PUSH AF
+
+  LD HL,PLAY_MSXDATA_LO
+  PUSH AF
+  LD A,L
+  SUB $0E
+  LD L,A
+  ; start bit (HL=LOW)
+  CALL TAPSEND_0
+  POP AF
+  LD B,$08		; 8 bits
+_TAPOUT_0:
+  RRCA
+  CALL C,TAPSEND_HIGH_X2    ; '1'
+  CALL NC,TAPSEND_LOW       ; '0'
+  DJNZ _TAPOUT_0
+  ; stop bits
+  CALL TAPSEND_HIGH_X2
+  CALL TAPSEND_HIGH_X2
+
+  JR CWRTON_RET_0
+
+
+
+TAPSEND_HIGH_X2:
+  CALL TAPSEND_HIGH
+  EX   (SP),HL
+  EX   (SP),HL
+  NOP
+  NOP
+  NOP
+  NOP
+  CALL TAPSEND_HIGH
+  RET
+
+defc PLAY_MSXDATA_HI     = 6457    ; 1200 baud, High tone period
+defc PLAY_MSXDATA_LO     = 13204   ; 1200 baud, Low tone period
+defc PLAY_MSXDATA_HDR    = 15      ; 1200 baud, leading tone cycle count
+
+TAPSEND_LOW:
+  LD HL,PLAY_MSXDATA_LO
+  CALL TAPSEND_0
+  RET
+
+
+TAPSEND_HIGH:
+  LD HL,PLAY_MSXDATA_HI
+
+TAPSEND_0:
+  PUSH AF
+
+TAPSEND_1:
+  DEC L
+  JP NZ,TAPSEND_1
+		ld	a,(__snd_tick)		; MIC on
+		xor  16					; MIC on<>off
+		out (254),a
+TAPSEND_2:
+  DEC H
+  JP NZ,TAPSEND_2
+		ld	a,(__snd_tick)		; MIC on
+		out (254),a
+  POP AF
+  RET
+
+ENDIF
+
 ; ---------------------------------------------------------------
+
+
+
 ENDIF
 
 
@@ -20034,8 +20296,6 @@ CMPFPS:
   CALL DCOMPR             ;See if were at end
   RET
 
-
-
 	; Protected files
 
 ; This entry point is used by the routine at __MERGE.
@@ -21668,6 +21928,13 @@ _READY:
   JP NZ,_RUN_FILE
   JP READY
 
+
+
+;----------------------------------------------------------------
+; WARNING:  All the code after this position will be destroyed
+;----------------------------------------------------------------
+
+
 ; Data block at 24012
 NULL_FILE:
   DEFW $0000
@@ -21890,6 +22157,7 @@ GET_RECSIZ:
   JP INIT_7
 
 
+
 IF ZXPLUS3
 
 ; ---------------------------------------------------------------
@@ -21957,7 +22225,6 @@ DONCMD:
   LD A,(PSP_BYTES)
   LD B,A
   
-
 PSP_LOOP:
   LD A,(CPMBOOT_ADDR)
   LD C,A
@@ -22161,9 +22428,11 @@ ENDIF
   DEFM "Copyright 1977-1982 (C) by Microsoft"
   DEFB $0D
   DEFB $0A
+IF ORIGINAL
   DEFM "Created: 19-Mar-82"
   DEFB $0D
   DEFB $0A
+ENDIF
   DEFB $00
 
 
