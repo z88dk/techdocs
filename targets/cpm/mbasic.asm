@@ -17,7 +17,7 @@ ENDIF
 
 ; Proof of concept:  ZX Spectrum +3 graphics and Terminal
 ; (VPOKE, VPEEK, PSET, PRESET, POINT, CSRLIN, LINE, CLS, COLOR, LOCATE)
-; add -DTAPE for CSAVE in MSX mode (Kansas City Standard), at 1200 bps.
+; add -DTAPE for CSAVE in MSX mode (Kansas City Standard), at 1200 bps (CLOAD does not work yet).
 ;
 ; z80asm -b -DHAVE_GFX -DZXPLUS3 -DVT52 mbasic.asm
 ; ren mbasic.bin P3BASIC.COM
@@ -1433,7 +1433,12 @@ DIV0_MSG:
   DEFB $00
   DEFM "Too many files"
   DEFB $00
-
+IF TAPE
+  DEFM "Tape I/O error"
+  DEFB $00
+  DEFM "Verify error"
+  DEFB $00
+ENDIF
 
 
 ;
@@ -1923,8 +1928,410 @@ subuserf:
 ; Cassette handling must be away from the contended memory
 
 IF TAPE
+
+
+
+; ----------------------------------------------
+;  Cassette output (MSX style) on a ZX Spectrum
+; ----------------------------------------------
+
+LOWLIM:  defb 0      ; Used by the Cassette system (minimal length of startbit)
+WINWID:  defb 0      ; Used by the Cassette system (store the difference between a low-and high-cycle)
+
 __CLOAD:
-  jp SN_ERR
+  SUB $91		 ; TK_PRINT  (Check if a "CLOAD?" command was issued, to just VERIFY the file )
+  JR Z,_VERIFY
+  XOR A
+  DEFB $01	; "LD BC,nn" to jump over the next word without executing it
+_VERIFY:
+  CPL
+  INC HL
+  
+  CP $01
+  PUSH AF
+  CALL CLOAD_FNAME_ARG
+  LD C,$D3					; BASIC PROGRAM header mode (TK_NAME)
+  CALL CLOAD_HEADER
+  
+  POP AF
+  LD (FACLOW),A
+  CALL C,CLRPTR
+  LD A,(FACLOW)
+  CP $01
+  ;LD (FRCNEW),A
+  PUSH AF
+  CALL DEPTR
+  POP AF
+  LD HL,(TXTTAB)
+  CALL CLOAD_SUB
+  JR NZ,__CLOAD_1
+  LD (VARTAB),HL
+__CLOAD_0:
+  LD HL,OK_MSG				; "Ok" Message
+  CALL PRS
+  LD HL,(TXTTAB)
+  PUSH HL
+  JP FINI
+
+__CLOAD_1:
+  INC HL
+  EX DE,HL
+  LD HL,(VARTAB)
+  CALL DCOMPR		; Compare HL with DE.
+  JP C,__CLOAD_0
+  LD E,$45				; "Verify error"
+  JP ERROR
+
+
+CLOAD_HEADER:
+  CALL CSROON                   ; start tape for reading
+  LD B,$0A
+
+CLOAD_HEADER_0:
+  CALL CASIN         ; get byte from tape
+  CP C
+  JR NZ,CLOAD_HEADER
+  DJNZ CLOAD_HEADER_0
+  
+  LD HL,FILNA2
+  PUSH HL
+  LD B,$06           ; 6 bytes
+CLOAD_HEADER_1:
+  CALL CASIN         ; get byte from tape
+  LD (HL),A
+  INC HL
+  DJNZ CLOAD_HEADER_1
+  POP HL
+
+  LD DE,FILNAM
+  LD B,$06           ; 6 bytes
+CLOAD_HEADER_2:
+  LD A,(DE)
+  INC DE
+  CP ' '
+  JR NZ,CMP_FNAME
+  DJNZ CLOAD_HEADER_2
+  JR FILE_FOUND
+  
+CMP_FNAME:
+  LD DE,FILNAM
+  LD B,$06           ; 6 bytes
+CMP_FNAME_LOOP:
+  LD A,(DE)
+  CP (HL)
+  JR NZ,SKIP_CAS_FILE
+  INC HL
+  INC DE
+  DJNZ CMP_FNAME_LOOP
+  
+FILE_FOUND:
+  LD HL,FOUND_MSG
+  JP PRINT_FNAME_MSG
+  
+SKIP_CAS_FILE:
+  PUSH BC
+  LD HL,SKIP_MSG
+  CALL PRINT_FNAME_MSG
+  POP BC
+  JR CLOAD_HEADER
+
+; Message at 28927
+FOUND_MSG:
+  DEFM "Found:"
+  DEFB $00
+  
+SKIP_MSG:
+  DEFM "Skip :"
+  DEFB $00
+
+PRINT_FNAME_MSG:
+  LD DE,(CURLIN)		 ; Line number the Basic interpreter is working on, in direct mode it will be filled with #FFFF
+  INC DE
+  LD A,D
+  OR E
+  RET NZ
+  CALL PRS
+  LD HL,FILNA2
+  LD B,$06
+PRNAME_LOOP:
+  LD A,(HL)
+  INC HL
+  CALL OUTDO  		; Output char to the current device
+  DJNZ PRNAME_LOOP
+  JP OUTDO_CRLF
+
+
+; Used by the routine at __CLOAD.
+CLOAD_SUB:
+  CALL CSROON                   ; start tape for reading
+  SBC A,A
+  CPL
+  LD D,A
+CLOAD_SUB_0:
+  LD B,$0A       ; 10 bytes
+CLOAD_SUB_1:
+  CALL CASIN     ; get byte from tape
+  LD E,A
+  CALL ENFMEM   ; $6267 = ENFMEM (reference not aligned to instruction)
+  LD A,E
+  SUB (HL)
+  AND D
+  JP NZ,TAPIOF
+  LD (HL),E
+  LD A,(HL)
+  OR A
+  INC HL
+  JR NZ,CLOAD_SUB_0
+  DJNZ CLOAD_SUB_1
+  
+  LD BC,$FFFA		; -6
+  ADD HL,BC
+  XOR A
+  JP TAPIOF
+
+CASIN:
+  PUSH HL
+  PUSH DE
+  PUSH BC
+  CALL TAPIN	; Get byte from cassette
+  JP NC,POPALL_0
+  JR DIOERR
+
+
+CSROON:
+  PUSH HL
+  PUSH DE
+  PUSH BC
+  PUSH AF
+  CALL TAPION
+  JP NC,POPALL
+; This entry point is used by the routines at _CASIN and CASOUT.
+DIOERR:
+  CALL TAPIOF
+  LD E,$44                ; "Tape I/O Error"
+  JP ERROR
+
+
+TAPION:
+  call TAPOON
+  out ($FE),a
+TAPION_0:
+  LD HL,$0457		; 1111
+TAPION_1:
+  LD D,C
+  CALL TAPIN_SYNC
+  RET C               ; Exit if BREAK was pressed
+  LD A,C              ; get measured tape sync speed
+  CP $DE              ; Timeout ?
+  JR NC,TAPION_0     ; Try again
+  CP $05              ; Too short ?
+  JR C,TAPION_0      ; Try again
+  SUB D
+  JR NC,TAPION_2
+  CPL
+  INC A
+TAPION_2:
+  CP $04
+  JR NC,TAPION_0     ; Try again
+  DEC HL
+  LD A,H
+  OR L
+  JR NZ,TAPION_1     ; Correct leading tone.  It must stay like this 1111 times.
+  LD HL,$0000
+  LD B,L
+  LD D,L
+TAPION_3:
+  CALL TAPIN_SYNC
+  RET C               ; Exit if BREAK was pressed
+  ADD HL,BC
+  DEC D
+  JP NZ,TAPION_3
+  LD BC,$06AE		; 1710
+  ADD HL,BC
+  LD A,H
+  RRA
+  AND $7F
+  LD D,A
+  ADD HL,HL
+  LD A,H
+  SUB D
+  LD D,A
+  SUB $06
+  LD (LOWLIM),A			; Keep the minimal length of startbit
+  LD A,D
+  ADD A,A
+  LD B,$00
+TAPION_4:
+  SUB $03
+  INC B
+  JR NC,TAPION_4
+  LD A,B
+  SUB $03
+  LD (WINWID),A			;  Store the difference between a low-and high-cycle
+  OR A
+  RET
+
+
+TAPIN:
+  LD A,(LOWLIM)			; Minimal length of startbit
+  LD D,A
+TAPIN_0:
+  CALL BREAKX			; Set CY if STOP is pressed
+  RET C
+;  IN A,(PSG_DATAIN)
+;  RLCA
+;  JR NC,TAPIN_0
+  AND $20
+  JR NZ,TAPIN_0
+TAPIN_1:
+  CALL BREAKX			; Set CY if STOP is pressed
+  RET C
+;  IN A,(PSG_DATAIN)
+;  RLCA
+;  JR C,TAPIN_1
+  AND $20
+  JR Z,TAPIN_1
+  LD E,$00
+  CALL TAPIN_PERIOD
+TAPIN_2:
+  LD B,C
+  CALL TAPIN_PERIOD
+  RET C
+  LD A,B
+  ADD A,C
+  JP C,TAPIN_2
+  CP D
+  JR C,TAPIN_2
+  LD L,$08
+TAPIN_BYTE:
+  CALL TAPIN_STARTBIT
+  CP $04
+  CCF
+  RET C
+  CP $02
+  CCF
+  RR D
+  LD A,C
+  RRCA
+  CALL NC,TAPIN_PERIOD_0
+  CALL TAPIN_PERIOD
+  DEC L
+  JP NZ,TAPIN_BYTE
+  CALL BREAKX		; Set CY if BREAK is pressed
+  LD A,D
+  RET
+
+
+
+TAPIN_STARTBIT:
+  LD A,(WINWID)		;  Get the difference between a low-and high-cycle
+  LD B,A
+  LD C,$00
+
+TAPIN_STARTBIT_0:
+
+;  IN A,(PSG_DATAIN)
+;  XOR E
+;  JP P,_TAPIN_STARTBIT_1
+;  LD A,E
+;  CPL
+;  LD E,A
+;  INC C
+;  DJNZ _TAPIN_STARTBIT_0
+;  LD A,C
+;  RET
+
+;  IN A,(PSG_DATAIN)
+  IN A,($FE)
+  RRA
+  XOR E
+  AND $20
+  JP Z,TAPIN_STARTBIT_1
+  LD A,E
+  CPL
+  LD E,A
+	AND     $07
+	OR      $0A
+	OUT     ($FE),A
+  INC C
+  DJNZ TAPIN_STARTBIT_0
+  LD A,C
+  RET
+
+TAPIN_STARTBIT_1:
+  DJNZ TAPIN_STARTBIT_0
+  LD A,C
+  RET
+
+
+; Set CY if BREAK is pressed
+BREAKX:
+  IN A,($FE)
+  RRA
+  CCF
+  RET
+
+
+TAPIN_SYNC:
+  CALL BREAKX		; Set CY if STOP is pressed
+  RET C
+;  IN A,(PSG_DATAIN)
+;  RLCA
+  AND $20
+  JR NZ,TAPIN_SYNC		; .. should it be JR Z, ?
+  LD E,$00
+  CALL TAPIN_PERIOD_0
+  JP TAPIN_PERIOD_1
+
+
+; Used by the routine at TAPIN.
+TAPIN_PERIOD:
+  CALL BREAKX		; Set CY if STOP is pressed
+  RET C
+TAPIN_PERIOD_0:
+  LD C,$00
+
+;TAPIN_PERIOD_1:
+;  INC C
+;  JR Z,TAPIN_PERIOD_OVERFLOW
+;  IN A,(PSG_DATAIN)
+;  XOR E
+;  JP P,TAPIN_PERIOD_1
+
+TAPIN_PERIOD_1:
+  INC C
+  JR Z,TAPIN_PERIOD_OVERFLOW
+  IN A,($FE)
+  RRA
+;  CCF
+;  RET C
+
+;  IN A,(PSG_DATAIN)
+  XOR E
+  AND $20
+  JP Z,TAPIN_PERIOD_1
+  LD A,E
+  CPL
+  LD E,A
+	AND     $07
+	OR      $09
+	OUT     ($FE),A
+  RET
+
+TAPIN_PERIOD_OVERFLOW:
+  DEC C
+  RET
+
+
+
+
+
+; ----------------------------------------------
+;  Cassette output (MSX style) on a ZX Spectrum
+; ----------------------------------------------
+
+
+SAVEND: defw 0
 
 
 __CSAVE:
@@ -1949,12 +2356,7 @@ __CSAVE_0:
   RET
 
 
-; ----------------------------------------------
-;  Cassette output (MSX style) on a ZX Spectrum
-; ----------------------------------------------
 
-
-SAVEND: defw 0
 __CSAVE_BAS:
   PUSH HL
   CALL LINE2PTR_00
@@ -2009,9 +2411,12 @@ TAPOON:
 	or	8
 	ret
 
+TAPIOF:
 TAPOOF:
-	ei
-	ret
+	LD	A,(BDRCLR)
+	out	($FE),a
+	EI
+	RET
 
 
 CWRTON:
@@ -2020,6 +2425,7 @@ CWRTON:
   PUSH BC
   PUSH AF
   CALL TAPOON
+  
 
   OR A
   PUSH AF
@@ -2048,14 +2454,24 @@ CWRTON_2:
   OR C
   JR NZ,CWRTON_2
 
-CWRTON_RET_0:
+POPALL:
   POP AF
+POPALL_0:
   POP BC
   POP DE
   POP HL
 TAPSEND_RET:
   RET
 
+
+CLOAD_FNAME_ARG:
+  DEC HL
+  CALL CHRGTB		; Gets next character (or token) from BASIC text.
+  JR  NZ,FNAME_ARG
+  PUSH HL
+  LD  HL,FILNAM
+  LD  B,$06
+  JR  FNAME_ARG_1
 
 FNAME_ARG:
   CALL EVAL
@@ -2113,7 +2529,7 @@ _TAPOUT_0:
   CALL TAPSEND_HIGH_X2
   CALL TAPSEND_HIGH_X2
 
-  JR CWRTON_RET_0
+  JR POPALL
 
 
 
@@ -2148,13 +2564,14 @@ TAPSEND_1:
   DEC L
   JP NZ,TAPSEND_1
 		ld	a,(__snd_tick)		; MIC on
-		xor  16					; MIC on<>off
-		out (254),a
+		;xor  16					; MIC on<>off
+		XOR     $1E
+		out ($FE),a
 TAPSEND_2:
   DEC H
   JP NZ,TAPSEND_2
 		ld	a,(__snd_tick)		; MIC on
-		out (254),a
+		out ($FE),a
   POP AF
   RET
 
@@ -2473,7 +2890,11 @@ ERROR_REPORT:
   CALL CONSOLE_CRLF         ;CRLF
   LD HL,ERROR_MESSAGES      ;GET START OF ERROR TABLE
   LD A,E                    ;GET ERROR CODE
+IF TAPE
+  CP $46                    ;(LSTERR) IS IT PAST LAST ERROR?
+ELSE
   CP $44                    ;(LSTERR) IS IT PAST LAST ERROR?
+ENDIF
   JP NC,UE_ERR              ;YES, TOO BIG TO PRINT
   CP $32                    ;(DSKERR+1) DISK ERROR?
   JP NC,NTDER2              ;JP if error code is between $32 and $43
@@ -2629,6 +3050,8 @@ AUTSTR:
   JP Z,PROMPT              ;YES, LEAVE LINE ALONE
   JP EDITRT                ;JUMP INTO EDIT CODE
 
+
+; a.k.a. _INLIN
 GETCMD:
   CALL PINLIN             ; GET A LINE FROM TTY
   JP C,PROMPT             ; IGNORE ^C S
@@ -4307,12 +4730,12 @@ __RESUME:
   LD A,(DE)               ;TRAP ROUTINE.
   OR A
   JP Z,RW_ERR             ;"RESUME WITHOUT ERROR"
-  INC A
-  LD (ERRFLG),A
+  INC A                   ;MAKE A=0
+  LD (ERRFLG),A           ;CLEAR ERROR FLAG SO ^C DOESN'T GIVE ERROR
   LD (DE),A
   LD A,(HL)
-  CP TK_NEXT
-  JP Z,RESNXT
+  CP TK_NEXT              ;RESUME NEXT?
+  JP Z,RESNXT             ;YUP.
                           ;No error, continue
 
 ;__RESUME_0:
@@ -16677,7 +17100,9 @@ OTKLN:
   CALL OUTDO              ; Output character in A
   CALL OUTDO_CRLF         ; Output CRLF
 
-; Routine at 19246
+
+; A.K.A. PINSTREAM
+; Accepts a line from a file or device
 ;
 ; Used by the routine at PINLIN.
 TTYLIN:
@@ -16708,7 +17133,7 @@ TTYLIN_1:
   SCF
   RET Z
   CP $0D
-  JP Z,PUTBUF_2
+  JP Z,NEXT_LINE
   CP $09                  ; Is it TAB ?
   JP Z,PUTCTL
   CP $0A
@@ -16800,7 +17225,7 @@ PUTBUF_1:
   JP INLNC1
   
 ; This entry point is used by the routine at TTYLIN.
-PUTBUF_2:
+NEXT_LINE:
   LD A,(INTFLG)
   OR A
   JP Z,FININL
@@ -21176,7 +21601,7 @@ backptr:
 
 	; BORDER
 	LD	A,(BDRCLR)
-	out	(254),a
+	out	($FE),a
 	
 	ret
 
