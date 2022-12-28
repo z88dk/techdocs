@@ -17,7 +17,7 @@ ENDIF
 
 ; Proof of concept:  ZX Spectrum +3 graphics and Terminal
 ; (VPOKE, VPEEK, PSET, PRESET, POINT, CSRLIN, LINE, CLS, COLOR, LOCATE)
-; add -DTAPE for CSAVE in MSX mode (Kansas City Standard), at 1200 bps (CLOAD does not work yet).
+; add -DTAPE for CLOAD and CSAVE (Kansas City Standard), at 1200 bps.
 ;
 ; z80asm -b -DHAVE_GFX -DZXPLUS3 -DVT52 mbasic.asm
 ; ren mbasic.bin P3BASIC.COM
@@ -1939,7 +1939,7 @@ LOWLIM:  defb 0      ; Used by the Cassette system (minimal length of startbit)
 WINWID:  defb 0      ; Used by the Cassette system (store the difference between a low-and high-cycle)
 
 __CLOAD:
-  SUB $91		 ; TK_PRINT  (Check if a "CLOAD?" command was issued, to just VERIFY the file )
+  SUB $91		 ; TK_PRINT (Check if a "CLOAD?" command was issued to VERIFY the file only)
   JR Z,_VERIFY
   XOR A
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
@@ -1952,7 +1952,6 @@ _VERIFY:
   CALL CLOAD_FNAME_ARG
   LD C,$D3					; BASIC PROGRAM header mode (TK_NAME)
   CALL CLOAD_HEADER
-  
   POP AF
   LD (FACLOW),A
   CALL C,CLRPTR
@@ -1986,13 +1985,14 @@ __CLOAD_1:
 CLOAD_HEADER:
   CALL CSROON                   ; start tape for reading
   LD B,$0A
+  
 
 CLOAD_HEADER_0:
   CALL CASIN         ; get byte from tape
   CP C
   JR NZ,CLOAD_HEADER
   DJNZ CLOAD_HEADER_0
-  
+
   LD HL,FILNA2
   PUSH HL
   LD B,$06           ; 6 bytes
@@ -2116,16 +2116,16 @@ TAPION:
   call TAPOON
   out ($FE),a
 TAPION_0:
-  LD HL,$0457		; 1111
+  LD HL,1111
 TAPION_1:
-  LD D,C
-  CALL TAPIN_SYNC
+  LD D,C              ; Get tape block mode
+  CALL TAPIN_BIT
   RET C               ; Exit if BREAK was pressed
   LD A,C              ; get measured tape sync speed
-  CP $DE              ; Timeout ?
-  JR NC,TAPION_0     ; Try again
-  CP $05              ; Too short ?
-  JR C,TAPION_0      ; Try again
+  CP 222              ; Timeout ?
+  JR NC,TAPION_0      ; Try again
+  CP 5                ; Too short ?
+  JR C,TAPION_0       ; Try again
   SUB D
   JR NC,TAPION_2
   CPL
@@ -2141,7 +2141,7 @@ TAPION_2:
   LD B,L
   LD D,L
 TAPION_3:
-  CALL TAPIN_SYNC
+  CALL TAPIN_BIT
   RET C               ; Exit if BREAK was pressed
   ADD HL,BC
   DEC D
@@ -2191,10 +2191,12 @@ TAPIN_1:
 ;  JR C,TAPIN_1
   AND $20
   JR Z,TAPIN_1
+
   LD E,$00
   CALL TAPIN_PERIOD
 TAPIN_2:
   LD B,C
+
   CALL TAPIN_PERIOD
   RET C
   LD A,B
@@ -2202,7 +2204,8 @@ TAPIN_2:
   JP C,TAPIN_2
   CP D
   JR C,TAPIN_2
-  LD L,$08
+;  LD L,8
+  LD L,9		; <-- something goes wrong during the first bit 'sync', so we trash one extra bit
 TAPIN_BYTE:
   CALL TAPIN_STARTBIT
   CP $04
@@ -2242,6 +2245,7 @@ TAPIN_STARTBIT_0:
 ;  RET
 
 ;  IN A,(PSG_DATAIN)
+  LD A,$7F
   IN A,($FE)
   RRA
   XOR E
@@ -2251,7 +2255,8 @@ TAPIN_STARTBIT_0:
   CPL
   LD E,A
 	AND     $07
-	OR      $0A
+	OR      $09
+	;OR      $0A		; Changing the output mask we may alter the color of the data being loaded
 	OUT     ($FE),A
   INC C
   DJNZ TAPIN_STARTBIT_0
@@ -2266,19 +2271,20 @@ TAPIN_STARTBIT_1:
 
 ; Set CY if BREAK is pressed
 BREAKX:
+  LD A,$7F
   IN A,($FE)
   RRA
   CCF
   RET
 
 
-TAPIN_SYNC:
+TAPIN_BIT:
   CALL BREAKX		; Set CY if STOP is pressed
   RET C
 ;  IN A,(PSG_DATAIN)
 ;  RLCA
   AND $20
-  JR NZ,TAPIN_SYNC		; .. should it be JR Z, ?
+  JR NZ,TAPIN_BIT		; .. should it be JR Z, ?
   LD E,$00
   CALL TAPIN_PERIOD_0
   JP TAPIN_PERIOD_1
@@ -2301,6 +2307,7 @@ TAPIN_PERIOD_0:
 TAPIN_PERIOD_1:
   INC C
   JR Z,TAPIN_PERIOD_OVERFLOW
+  LD A,$7F
   IN A,($FE)
   RRA
 ;  CCF
@@ -2321,8 +2328,6 @@ TAPIN_PERIOD_1:
 TAPIN_PERIOD_OVERFLOW:
   DEC C
   RET
-
-
 
 
 
