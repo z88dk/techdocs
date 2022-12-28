@@ -1354,7 +1354,7 @@ _KILBUF:
 
 ; Routine at 1135
 ;
-; Used by the routines at BREAKX, _LPTOUT, _TAPOON, _TAPOUT, _TAPIN, L1B1F and L1B34.
+; Used by the routines at BREAKX, _LPTOUT, _TAPOON, _TAPOUT, _TAPIN, TAPIN_PERIOD and TAPIN_SYNC.
 ; Return CY if STOP is pressed
 _BREAKX:
   IN A,(PPI_C)
@@ -5945,30 +5945,30 @@ _TAPION_0:
   LD HL,$0457		; 1111
 _TAPION_1:
   LD D,C
-  CALL L1B34
-  RET C
-  LD A,C
-  CP $DE		; TK_FN ?
-  JR NC,_TAPION_0
-  CP $05		; TK_INT ?
-  JR C,_TAPION_0
+  CALL TAPIN_SYNC
+  RET C               ; Exit if BREAK was pressed
+  LD A,C              ; get measured tape sync speed
+  CP $DE              ; Timeout ?
+  JR NC,_TAPION_0     ; Try again
+  CP $05              ; Too short ?
+  JR C,_TAPION_0      ; Try again
   SUB D
   JR NC,_TAPION_2
   CPL
   INC A
 _TAPION_2:
-  CP $04		; TK_SGN ?
-  JR NC,_TAPION_0
+  CP $04
+  JR NC,_TAPION_0     ; Try again
   DEC HL
   LD A,H
   OR L
-  JR NZ,_TAPION_1
+  JR NZ,_TAPION_1     ; Correct leading tone.  It must stay like this 1111 times.
   LD HL,$0000
   LD B,L
   LD D,L
 _TAPION_3:
-  CALL L1B34
-  RET C
+  CALL TAPIN_SYNC
+  RET C               ; Exit if BREAK was pressed
   ADD HL,BC
   DEC D
   JP NZ,_TAPION_3
@@ -5983,7 +5983,7 @@ _TAPION_3:
   SUB D
   LD D,A
   SUB $06
-  LD (LOWLIM),A
+  LD (LOWLIM),A			; Keep the minimal length of startbit
   LD A,D
   ADD A,A
   LD B,$00
@@ -5993,7 +5993,7 @@ _TAPION_4:
   JR NC,_TAPION_4
   LD A,B
   SUB $03
-  LD (WINWID),A
+  LD (WINWID),A			;  Store the difference between a low-and high-cycle
   OR A
   RET
 
@@ -6001,25 +6001,25 @@ _TAPION_4:
 ;
 ; Used by the routine at TAPIN.
 _TAPIN:
-  LD A,(LOWLIM)
+  LD A,(LOWLIM)			; Minimal length of startbit
   LD D,A
 _TAPIN_0:
-  CALL _BREAKX		; Set CY if STOP is pressed
+  CALL _BREAKX			; Set CY if STOP is pressed
   RET C
   IN A,(PSG_DATAIN)
   RLCA
   JR NC,_TAPIN_0
 _TAPIN_1:
-  CALL _BREAKX		; Set CY if STOP is pressed
+  CALL _BREAKX			; Set CY if STOP is pressed
   RET C
   IN A,(PSG_DATAIN)
   RLCA
   JR C,_TAPIN_1
   LD E,$00
-  CALL L1B1F
+  CALL TAPIN_PERIOD
 _TAPIN_2:
   LD B,C
-  CALL L1B1F
+  CALL TAPIN_PERIOD
   RET C
   LD A,B
   ADD A,C
@@ -6027,8 +6027,8 @@ _TAPIN_2:
   CP D
   JR C,_TAPIN_2
   LD L,$08
-_TAPIN_3:
-  CALL L1B03
+_TAPIN_BYTE:
+  CALL _TAPIN_STARTBIT
   CP $04
   CCF
   RET C
@@ -6037,10 +6037,10 @@ _TAPIN_3:
   RR D
   LD A,C
   RRCA
-  CALL NC,L1B1F_0
-  CALL L1B1F
+  CALL NC,TAPIN_PERIOD_0
+  CALL TAPIN_PERIOD
   DEC L
-  JP NZ,_TAPIN_3
+  JP NZ,_TAPIN_BYTE
   CALL _BREAKX		; Set CY if STOP is pressed
   LD A,D
   RET
@@ -6048,25 +6048,25 @@ _TAPIN_3:
 ; Routine at 6915
 ;
 ; Used by the routine at _TAPIN.
-L1B03:
-  LD A,(WINWID)
+_TAPIN_STARTBIT:
+  LD A,(WINWID)		;  Get the difference between a low-and high-cycle
   LD B,A
   LD C,$00
-; This entry point is used by the routine at L1B1B.
-L1B03_0:
+
+_TAPIN_STARTBIT_0:
   IN A,(PSG_DATAIN)
   XOR E
-  JP P,L1B17
+  JP P,_TAPIN_STARTBIT_1
   LD A,E
   CPL
   LD E,A
   INC C
-  DJNZ L1B03_0
+  DJNZ _TAPIN_STARTBIT_0
   LD A,C
   RET
 
 ; Unused
-L1B17:
+_TAPIN_STARTBIT_1:
 IF NOHOOK
  IF PRESERVE_LOCATIONS
    DEFS 4
@@ -6075,28 +6075,26 @@ ELSE
   DEFS 4
 ENDIF
 
-; Routine at 6939
-L1B1B:
-  DJNZ L1B03_0
+  DJNZ _TAPIN_STARTBIT_0
   LD A,C
   RET
 
 ; Routine at 6943
 ;
 ; Used by the routine at _TAPIN.
-L1B1F:
+TAPIN_PERIOD:
   CALL _BREAKX		; Set CY if STOP is pressed
   RET C
-; This entry point is used by the routines at _TAPIN and L1B34.
-L1B1F_0:
+; This entry point is used by the routines at _TAPIN and TAPIN_SYNC.
+TAPIN_PERIOD_0:
   LD C,$00
-; This entry point is used by the routine at L1B34.
-L1B1F_1:
+; This entry point is used by the routine at TAPIN_SYNC.
+TAPIN_PERIOD_1:
   INC C
-  JR Z,L1B32
+  JR Z,TAPIN_PERIOD_OVERFLOW
   IN A,(PSG_DATAIN)
   XOR E
-  JP P,L1B1F_1
+  JP P,TAPIN_PERIOD_1
   LD A,E
   CPL
   LD E,A
@@ -6104,23 +6102,23 @@ L1B1F_1:
 
 ; Routine at 6962
 ;
-; Used by the routine at L1B1F.
-L1B32:
+; Used by the routine at TAPIN_PERIOD.
+TAPIN_PERIOD_OVERFLOW:
   DEC C
   RET
 
 ; Routine at 6964
 ;
 ; Used by the routine at _TAPION.
-L1B34:
+TAPIN_SYNC:
   CALL _BREAKX		; Set CY if STOP is pressed
   RET C
   IN A,(PSG_DATAIN)
   RLCA
-  JR C,L1B34
+  JR C,TAPIN_SYNC
   LD E,$00
-  CALL L1B1F_0
-  JP L1B1F_1
+  CALL TAPIN_PERIOD_0
+  JP TAPIN_PERIOD_1
 
 ; Routine at 6981
 ;
@@ -6257,7 +6255,7 @@ ELSE
 ENDIF
   LD A,(AUTFLG)		; AUTO mode ?
   AND A
-  JR NZ,_INLIN
+  JR NZ,_INLIN      ;NO, REUGLAR MODE
   LD L,$00
   JR _INLIN_0
 
@@ -6420,7 +6418,7 @@ L245A:
   CALL L266C
   LD A,(AUTFLG)		; AUTO mode ?
   AND A
-  JR Z,TTY_CR_0
+  JR Z,TTY_CR_0     ;YES
   LD H,$01
 TTY_CR_0:
   PUSH HL
@@ -12685,7 +12683,7 @@ ENDIF
   LD (SAVTXT),HL
   LD A,(AUTFLG)		; AUTO mode ?
   OR A
-  JR Z,PROMPT_1
+  JR Z,PROMPT_1      ;YES
   LD HL,(AUTLIN)
   PUSH HL
   CALL LINPRT
@@ -12704,7 +12702,7 @@ PROMPT_1:
   CALL PINLIN
   JR NC,INI_LIN
   XOR A
-  LD (AUTFLG),A		; Disable AUTO mode
+  LD (AUTFLG),A		; Enable AUTO mode
   JP PROMPT
 
 ; Accepts a line from a stream
@@ -12718,7 +12716,7 @@ INI_LIN:
   JR Z,PROMPT        ; Nothing entered - Get another        IF SO, A BLANK LINE WAS INPUT
   PUSH AF            ; Save Carry status                    SAVE STATUS INDICATOR FOR 1ST CHARACTER
   CALL ATOH		     ; Get line number into DE              READ IN A LINE # specified line number
-  JR NC,BAKSP_0
+  JR NC,BAKSP_0      ; BACK UP THE POINTER
   CALL ISFLIO		; Tests if I/O to device is taking place
   JP Z,SN_ERR		; ?SN Err
 
@@ -12727,7 +12725,7 @@ BAKSP_0:
   CALL BAKSP
   LD A,(AUTFLG)		; AUTO mode ?
   OR A
-  JR Z,L4195
+  JR Z,L4195		; YES
   CP '*'
   JR NZ,L4195
   CP (HL)
@@ -12756,43 +12754,42 @@ ELSE
 ENDIF
   JR C,L41B4
   XOR A
-  LD (AUTFLG),A		; reset AUTO mode flag
+  LD (AUTFLG),A		; Enable AUTO mode
   JP EXEC_FILE
 
 L41B4:
   PUSH DE
   PUSH BC                  ;SAVE LINE # AND CHARACTER COUNT
   RST CHRGTB               ;REMEMBER IF THIS LINE IS
-                           
-L41B7:
   OR A                     ;SET THE ZERO FLAG ON ZERO      LINES THAT START WITH ":" SHOULD NOT BE IGNORED
   PUSH AF
-  LD A,(AUTFLG)		; AUTO mode ?
-  AND A
-  JR Z,L41C2
+  LD A,(AUTFLG)            ;IN AN AUTO COMMAND?
+  AND A                    ;SET CC'S
+  JR Z,AUTGOD              ;Yes
   POP AF
   SCF
   PUSH AF
   
-L41C2:
+AUTGOD:
   LD (DOT),DE		       ;SAVE THIS LINE # IN DOT (Current line for edit & list)
-  LD HL,(AUTINC)	       ; Increment for auto
-  ADD HL,DE
-  JR C,L41D7
-  PUSH DE
-  LD DE,$FFFA		; -6
-  RST DCOMPR		; Compare HL with DE.
-
-L41D1:
-  POP DE
+  LD HL,(AUTINC)	       ;GET INCREMENT
+  ADD HL,DE                ;ADD INCREMENT TO THIS LINE
+  JR C,AUTRES              ;CHECK FOR PATHETIC CASE
+  PUSH DE                  ;SAVE LINE NUMBER #
+  LD DE,$FFFA              ;CHECK FOR LINE # TOO BIG
+  RST DCOMPR
+  POP DE                   ;GET BACK LINE #
   ; --- START PROC L41D2 ---
 L41D2:
-  LD (AUTLIN),HL		; Current line number for auto
-  JR C,L41DB
-L41D7:
+  LD (AUTLIN),HL           ;SAVE IN NEXT LINE
+  JR C,AUTSTR              ;JP if not too big
+
+
+AUTRES:
   XOR A
-  LD (AUTFLG),A			; AUTO mode ?
-L41DB:
+  LD (AUTFLG),A			;Enable 'AUTO' mode
+
+AUTSTR:                 ;And enter line
   CALL SRCHLN			; Search for line number in DE: GET A POINTER TO THE LINE
   JR C,LINFND           ; Jump if line found: LINE EXISTS, DELETE IT
   POP AF                ;GET FLAG SAYS WHETHER LINE BLANK
@@ -14976,8 +14973,8 @@ ENDIF
 ; Used by the routine at __INPUT.
 FILSTI:		; deal with '#' argument
   CALL FILINP		; Get stream number (default #channel=1)
-  PUSH HL
-  LD HL,BUFMIN
+  PUSH HL               ;PUT THE TEXT POINTER ON THE STACK
+  LD HL,BUFMIN          ;POINT AT A COMMA
   JP INPUT_CHANNEL		; 'INPUT' from a stream
 
 ; Routine at 19308
@@ -23474,7 +23471,7 @@ ENDIF
 
 ; Routine at 28599
 __CSAVE:
-  CALL L7098
+  CALL FNAME_ARG
   DEC HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   JR Z,__CSAVE_0
@@ -23483,8 +23480,8 @@ __CSAVE:
   CALL SET_BAUDRATE
 __CSAVE_0:
   PUSH HL
-  LD A,TK_NAME			; Token for "NAME"
-  CALL SEND_CAS_FNAME
+  LD A,$D3			; BASIC PROGRAM header mode (TK_NAME)
+  CALL CSAVE_HEADER
   LD HL,(VARTAB)
   LD (SAVEND),HL
   LD HL,(TXTTAB)
@@ -23496,8 +23493,8 @@ __CSAVE_0:
 ;
 ; Used by the routine at __BSAVE.
 DO_BSAVE:
-  LD A,TK_BSAVE
-  CALL SEND_CAS_FNAME
+  LD A,$D0          ; MACHINE CODE header mode   (TK_BSAVE)
+  CALL CSAVE_HEADER
   XOR A
   CALL CWRTON		; start tape for writing
   POP HL
@@ -23548,8 +23545,8 @@ BLOAD_HL:
 ; Used by the routine at BLOAD_1.
 ; load data from tape (incl. header)
 TAPE_LOAD:
-  LD C,TK_BSAVE
-  CALL L70B8
+  LD C,$D0                        ; MACHINE CODE header mode   (TK_BSAVE)
+  CALL CLOAD_HEADER
   CALL _CSROON                    ; start tape for reading
   POP BC
   CALL BLOAD_HL                   ; get word from tape
@@ -23576,19 +23573,19 @@ TAPE_LOAD_1:
 
 ; Routine at 28735
 __CLOAD:
-  SUB $91		 ; TK_PRINT  (=CLOAD?)
-  JR Z,L7044+1
+  SUB $91		 ; TK_PRINT  (Check if a "CLOAD?" command was issued, to just VERIFY the file )
+  JR Z,_VERIFY
   XOR A
-L7044:
   DEFB $01	; "LD BC,nn" to jump over the next word without executing it
+_VERIFY:
   CPL
   INC HL
   
   CP $01
   PUSH AF
-  CALL L708C
-  LD C,TK_NAME
-  CALL L70B8
+  CALL CLOAD_FNAME_ARG
+  LD C,$D3					; BASIC PROGRAM header mode (TK_NAME)
+  CALL CLOAD_HEADER
   
   POP AF
   LD (FACLOW),A
@@ -23600,7 +23597,7 @@ L7044:
   CALL DEPTR
   POP AF
   LD HL,(TXTTAB)
-  CALL L715D
+  CALL CLOAD_SUB
   JR NZ,__CLOAD_1
   LD (VARTAB),HL
 __CLOAD_0:
@@ -23620,20 +23617,18 @@ __CLOAD_1:
   JP ERROR
 
 ; Data block at 28812
-  ; --- START PROC L708C ---
-L708C:
+  ; --- START PROC CLOAD_FNAME_ARG ---
+CLOAD_FNAME_ARG:
   DEC HL
   RST CHRGTB		; Gets next character (or token) from BASIC text.
-
-L708E:
-  JR  NZ,L7098
+  JR  NZ,FNAME_ARG
   PUSH HL
-  LD  HL,RUNFLG
+  LD  HL,FILNAM
   LD  B,$06
-  JR  L70B1
+  JR  FNAME_ARG_1
 
-  ; --- START PROC L7098 ---
-L7098:
+  ; --- START PROC FNAME_ARG ---
+FNAME_ARG:
   CALL EVAL
   PUSH HL
   CALL __ASC_0
@@ -23641,55 +23636,55 @@ L7098:
   DEC HL
   LD  B,(HL)
   LD  C,$06
-  LD  HL,RUNFLG
-L70A7:
+  LD  HL,FILNAM
+FNAME_ARG_0:
   LD  A,(DE)
   LD  (HL),A
   INC HL
   INC DE
   DEC C
-  JR  Z,L70B6
-  DJNZ L70A7
+  JR  Z,FNAME_ARG_2
+  DJNZ FNAME_ARG_0
   LD  B,C
-L70B1:
+FNAME_ARG_1:
   LD (HL),' '
   INC HL
-  DJNZ L70B1
-L70B6:
+  DJNZ FNAME_ARG_1
+FNAME_ARG_2:
   POP HL
   RET
 
 ; Routine at 28856
 ;
 ; Used by the routines at TAPE_LOAD, __CLOAD and L71D9.
-L70B8:
+CLOAD_HEADER:
   CALL _CSROON                   ; start tape for reading
   LD B,$0A
 
-L70B8_0:
+CLOAD_HEADER_0:
   CALL _CASIN         ; get byte from tape
   CP C
-  JR NZ,L70B8
-  DJNZ L70B8_0
+  JR NZ,CLOAD_HEADER
+  DJNZ CLOAD_HEADER_0
   
   LD HL,FILNM2
   PUSH HL
   LD B,$06           ; 6 bytes
-L70B8_1:
+CLOAD_HEADER_1:
   CALL _CASIN         ; get byte from tape
   LD (HL),A
   INC HL
-  DJNZ L70B8_1
+  DJNZ CLOAD_HEADER_1
   POP HL
 
   LD DE,FILNAM
   LD B,$06           ; 6 bytes
-L70B8_2:
+CLOAD_HEADER_2:
   LD A,(DE)
   INC DE
   CP ' '
   JR NZ,CMP_FNAME
-  DJNZ L70B8_2
+  DJNZ CLOAD_HEADER_2
   JR FILE_FOUND
   
 CMP_FNAME:
@@ -23712,7 +23707,7 @@ SKIP_CAS_FILE:
   LD HL,SKIP_MSG
   CALL PRINT_FNAME_MSG
   POP BC
-  JR L70B8
+  JR CLOAD_HEADER
 
 ; Message at 28927
 FOUND_MSG:
@@ -23728,7 +23723,7 @@ PRINT_FNAME_MSG:
   INC DE
   LD A,D
   OR E
-  RET NZ
+  RET NZ				; Avoid printing messages if CLOAD was issued from within a running program
   CALL PRS
   LD HL,FILNM2
   LD B,$06
@@ -23742,19 +23737,19 @@ PRNAME_LOOP:
 ; Routine at 28965
 ;
 ; Used by the routines at __CSAVE, DO_BSAVE and L71D9.
-SEND_CAS_FNAME:
+CSAVE_HEADER:
   CALL CWRTON		; start tape for writing
   LD B,$0A
-SEND_CAS_FNAME_0:
+CSAVE_HEADER_0:
   CALL CASOUT		; send byte to tape
-  DJNZ SEND_CAS_FNAME_0
+  DJNZ CSAVE_HEADER_0
   LD B,$06
   LD HL,FILNAM
-SEND_CAS_FNAME_1:
+CSAVE_HEADER_1:
   LD A,(HL)
   INC HL
   CALL CASOUT		; send byte to tape
-  DJNZ SEND_CAS_FNAME_1
+  DJNZ CSAVE_HEADER_1
   JP TAPOOF
 
 ; Routine at 28990
@@ -23783,14 +23778,14 @@ __CSAVE_1_1:
 ; Routine at 29021
 ;
 ; Used by the routine at __CLOAD.
-L715D:
+CLOAD_SUB:
   CALL _CSROON                   ; start tape for reading
   SBC A,A
   CPL
   LD D,A
-L715D_0:
+CLOAD_SUB_0:
   LD B,$0A       ; 10 bytes
-L715D_1:
+CLOAD_SUB_1:
   CALL _CASIN     ; get byte from tape
   LD E,A
   CALL ENFMEM   ; $6267 = ENFMEM (reference not aligned to instruction)
@@ -23802,8 +23797,8 @@ L715D_1:
   LD A,(HL)
   OR A
   INC HL
-  JR NZ,L715D_0
-  DJNZ L715D_1
+  JR NZ,CLOAD_SUB_0
+  DJNZ CLOAD_SUB_1
   
   LD BC,$FFFA		; -6
   ADD HL,BC
@@ -23886,6 +23881,7 @@ CAS_CTL:
   DEFW FC_ERR
   DEFW CAS_UNGETC
 
+
 CAS_OPEN:
   PUSH HL
   PUSH DE
@@ -23899,20 +23895,22 @@ CAS_OPEN:
   JP Z,NM_ERR				; Err $38 -  'Bad file name'
 
   CP $01
-  JR Z,L71D9_1
+  JR Z,CAS_OPEN_RD
 
-  LD A,$EA			; TK_DSKI ?
-  CALL SEND_CAS_FNAME
-L71D9_0:
+  LD A,$EA					; ASCII FILE header mode (TK_DSKI$)
+  CALL CSAVE_HEADER
+
+CAS_OPEN_END:
   POP DE
   POP HL
   JR REDIRECT_IO
-  
-L71D9_1:
-  LD C,$EA			; TK_DSKI ?
-  CALL L70B8
+
+CAS_OPEN_RD:
+  LD C,$EA					; ASCII FILE header mode (TK_DSKI$)
+  CALL CLOAD_HEADER
   CALL TAPIOF
-  JR L71D9_0
+  JR CAS_OPEN_END
+
   
 ; Routine at 29189
 CAS_CLOSE:
@@ -24105,7 +24103,7 @@ GET_DEVNO:
 
 ; Routine at 29396
 ;
-; Used by the routines at BLOAD_HL, TAPE_LOAD, L70B8, L715D and CAS_INPUT.
+; Used by the routines at BLOAD_HL, TAPE_LOAD, CLOAD_HEADER, CLOAD_SUB and CAS_INPUT.
 ; get byte from tape
 _CASIN:
   PUSH HL
@@ -24117,7 +24115,7 @@ _CASIN:
 
 ; Routine at 29406
 ;
-; Used by the routines at DO_BSAVE, BSAVE_HL, SEND_CAS_FNAME, __CSAVE_1 and CAS_OUTPUT.
+; Used by the routines at DO_BSAVE, BSAVE_HL, CSAVE_HEADER, __CSAVE_1 and CAS_OUTPUT.
 ; send byte to tape
 CASOUT:
   PUSH HL
@@ -24130,7 +24128,7 @@ CASOUT:
 
 ; Routine at 29417
 ;
-; Used by the routines at TAPE_LOAD, L70B8, L715D and CAS_INPUT.
+; Used by the routines at TAPE_LOAD, CLOAD_HEADER, CLOAD_SUB and CAS_INPUT.
 ; start tape for reading  (Cassette motor on and wait for Sync and Header)
 _CSROON:
   PUSH HL
@@ -24146,7 +24144,7 @@ DIOERR:
 
 ; Routine at 29432
 ;
-; Used by the routines at DO_BSAVE, SEND_CAS_FNAME, __CSAVE_1 and CAS_OUTPUT.
+; Used by the routines at DO_BSAVE, CSAVE_HEADER, __CSAVE_1 and CAS_OUTPUT.
 ; start tape for writing
 CWRTON:
   PUSH HL
@@ -24272,9 +24270,9 @@ OUTCH1:
   RET
 
 
+; A.K.A. TTYLIN
 ; Accepts a line from a file or device
-
-; Data block at 29556
+;
 PINSTREAM:
 IF NOHOOK
  IF PRESERVE_LOCATIONS
