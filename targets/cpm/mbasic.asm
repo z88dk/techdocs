@@ -16,7 +16,7 @@ ENDIF
 
 
 ; Proof of concept:  ZX Spectrum +3 graphics and Terminal
-; (VPOKE, VPEEK, PSET, PRESET, POINT, CSRLIN, LINE, CLS, COLOR, LOCATE)
+; (VPOKE, VPEEK, PSET, PRESET, POINT, CSRLIN, LINE, CLS, COLOR, LOCATE, LINE@ [replacing DRAW])
 ; add -DTAPE for CLOAD and CSAVE (Kansas City Standard), at 1200 bps.
 ;
 ; z80asm -b -DHAVE_GFX -DZXPLUS3 -DVT52 mbasic.asm
