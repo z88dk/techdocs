@@ -1354,7 +1354,7 @@ _KILBUF:
 
 ; Routine at 1135
 ;
-; Used by the routines at BREAKX, _LPTOUT, _TAPOON, _TAPOUT, _TAPIN, TAPIN_PERIOD and TAPIN_SYNC.
+; Used by the routines at BREAKX, _LPTOUT, _TAPOON, _TAPOUT, _TAPIN, TAPIN_PERIOD and TAPIN_BIT.
 ; Return CY if STOP is pressed
 _BREAKX:
   IN A,(PPI_C)
@@ -5945,7 +5945,7 @@ _TAPION_0:
   LD HL,$0457		; 1111
 _TAPION_1:
   LD D,C
-  CALL TAPIN_SYNC
+  CALL TAPIN_BIT
   RET C               ; Exit if BREAK was pressed
   LD A,C              ; get measured tape sync speed
   CP $DE              ; Timeout ?
@@ -5967,7 +5967,7 @@ _TAPION_2:
   LD B,L
   LD D,L
 _TAPION_3:
-  CALL TAPIN_SYNC
+  CALL TAPIN_BIT
   RET C               ; Exit if BREAK was pressed
   ADD HL,BC
   DEC D
@@ -6085,10 +6085,10 @@ ENDIF
 TAPIN_PERIOD:
   CALL _BREAKX		; Set CY if STOP is pressed
   RET C
-; This entry point is used by the routines at _TAPIN and TAPIN_SYNC.
+; This entry point is used by the routines at _TAPIN and TAPIN_BIT.
 TAPIN_PERIOD_0:
   LD C,$00
-; This entry point is used by the routine at TAPIN_SYNC.
+; This entry point is used by the routine at TAPIN_BIT.
 TAPIN_PERIOD_1:
   INC C
   JR Z,TAPIN_PERIOD_OVERFLOW
@@ -6110,12 +6110,12 @@ TAPIN_PERIOD_OVERFLOW:
 ; Routine at 6964
 ;
 ; Used by the routine at _TAPION.
-TAPIN_SYNC:
+TAPIN_BIT:
   CALL _BREAKX		; Set CY if STOP is pressed
   RET C
   IN A,(PSG_DATAIN)
   RLCA
-  JR C,TAPIN_SYNC
+  JR C,TAPIN_BIT
   LD E,$00
   CALL TAPIN_PERIOD_0
   JP TAPIN_PERIOD_1
@@ -14066,7 +14066,7 @@ INTIDX_0:
 ; Used by the routines at __LOG, __ERROR, __AUTO, OPRND, __WIDTH, FNDNUM,
 ; __DELETE, __RENUM_0, __RENUM_NXT, SCNVAR, ATRSCN, IN_GFX_MODE, __PAINT, __CIRCLE, CGTCNT,
 ; __DRAW, DMOVE, DSCALE, DCOLR, CHKRNG, REUSST, __SWAP, __CLEAR, __ASC, __MID_S,
-; FN_INSTR, LHSMID, __LFILES, FN_INPUT, __SOUND, L748E, SNDFCE, L77D4, ON_OPTIONS, __STRIG,
+; FN_INSTR, LHSMID, __LFILES, FN_INPUT, __SOUND, MCLPLAY, SNDFCE, L77D4, ON_OPTIONS, __STRIG,
 ; __SCREEN, SET_BAUDRATE, __SPRITE, PUT_SPRITE, __BASE, __CVD and __MAX.
 ;  $475A
 FC_ERR:
@@ -17555,10 +17555,10 @@ MCLOOP:
   LD A,H            ;SEE IF LAST ENTRY
   OR L
   JR NZ,MACLNG_0
-  LD A,(MCLFLG)
+  LD A,(MCLFLG)		;Are we using PLAY macros ?
   OR A
   JP Z,MC_POPTRT    ;ALL FINISHED IF ZERO
-  JP L748E_0
+  JP MCLPLAY_0      ;Yes, go for the extras
 
 
 MACLNG_0:
@@ -20186,7 +20186,7 @@ PLS_PRNT:
 ; Used by the routine at SMKVAR.
 MOVUP:
   CALL ENFMEM   ; $6267 = ENFMEM (reference not aligned to instruction)
-; This entry point is used by the routines at GNXARY, __PLAY_2 and L748E.
+; This entry point is used by the routines at GNXARY, __PLAY_2 and MCLPLAY.
 MOVUP_0:
   PUSH BC
   EX (SP),HL
@@ -24459,21 +24459,21 @@ __PLAY_3:
   RST CHRGTB		; Gets next character (or token) from BASIC text.
   JP NZ,SN_ERR
   PUSH HL
-; This entry point is used by the routine at L748E.
+; This entry point is used by the routine at MCLPLAY.
 __PLAY_4:
   XOR A
-; This entry point is used by the routine at L748E.
+; This entry point is used by the routine at MCLPLAY.
 __PLAY_5:
   PUSH AF
   LD (VOICEN),A
   LD B,A
   CALL L7521
-  JP C,L748E_3
+  JP C,MCLPLAY_3
   LD A,B
   CALL GETVCP	; Returns pointer to play queue
   LD A,(HL)
   OR A
-  JP Z,L748E_3
+  JP Z,MCLPLAY_3
   LD (MCLLEN),A
   INC HL
   LD E,(HL)
@@ -24506,14 +24506,14 @@ __PLAY_5:
 ; Routine at 29838
 ;
 ; Used by the routine at DOSND.
-L748E:
+MCLPLAY:
   LD A,(MCLLEN)     ;POINT TO STRING LENGTH
   OR A
-  JR NZ,L748E_1
+  JR NZ,MCLPLAY_1
 ; This entry point is used by the routine at L5683.
-L748E_0:
+MCLPLAY_0:
   CALL DOSND_SUB
-L748E_1:
+MCLPLAY_1:
   LD A,(VOICEN)
   CALL GETVCP
   LD A,(MCLLEN)     ;Get str len
@@ -24535,7 +24535,7 @@ L748E_1:
   PUSH HL
   OR A
   SBC HL,DE
-  JR Z,L748E_2
+  JR Z,MCLPLAY_2
   LD A,$F0
   AND L
   OR H
@@ -24550,12 +24550,12 @@ L748E_1:
   LD (HL),B
   DEC HL
   LD (HL),C
-  JR L748E_3
-L748E_2:
+  JR MCLPLAY_3
+MCLPLAY_2:
   POP BC
   POP BC
 ; This entry point is used by the routine at __PLAY_2.
-L748E_3:
+MCLPLAY_3:
   EI
   POP AF
   INC A
@@ -24564,14 +24564,14 @@ L748E_3:
   DI
   LD A,(INTFLG)
   CP $03
-  JR Z,L748E_6
+  JR Z,MCLPLAY_6
   LD A,(PRSCNT)
   RLCA
-  JR C,L748E_4
+  JR C,MCLPLAY_4
   LD HL,PLYCNT
   INC (HL)
   CALL STRTMS
-L748E_4:
+MCLPLAY_4:
   EI
   LD HL,PRSCNT
   LD A,(HL)
@@ -24579,17 +24579,17 @@ L748E_4:
   LD (HL),A
   CP $83		; TK_NEXT ?
   JP NZ,__PLAY_4
-L748E_5:
+MCLPLAY_5:
   POP HL
   RET
 
-L748E_6:
+MCLPLAY_6:
   CALL GICINI
-  JR L748E_5
+  JR MCLPLAY_5
 
 ; Routine at 29959
 ;
-; Used by the routines at __PLAY_2 and L748E.
+; Used by the routines at __PLAY_2 and MCLPLAY.
 DOSND_SUB:
   LD A,(PRSCNT)
   INC A
@@ -25112,7 +25112,7 @@ DOSND_5:
   CALL DOSND_SUB_0
   DJNZ DOSND_5
   CALL L7521
-  JP C,L748E
+  JP C,MCLPLAY
   JP MCLSCN
 
 ; Pointed by routine at DOSND
