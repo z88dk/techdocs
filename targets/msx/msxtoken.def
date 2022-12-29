@@ -175,28 +175,23 @@ defc TK_OFF      =  $EB	; Token for 'OFF'
 defc TK_INKEY_S  =  $EC	; Token for 'INKEY$'
 defc TK_POINT    =  $ED	; Token for 'POINT'
 
-
 ; RELATIONAL OPERATORS
-
 defc TK_GREATER  =  $EE ; Token for '>'
 defc TK_EQUAL    =  $EF ; Token for '='
 defc TK_MINOR    =  $F0	; Token for '<'
 
 ; OPERATORS
-
 defc TK_PLUS     =  $F1	; Token for '+'
 defc TK_MINUS    =  $F2	; Token for '-'
 defc TK_STAR     =  $F3	; Token for '*'
 defc TK_SLASH    =  $F4	; Token for '/'
 
-; 8K OPERATORS
-
+; 8K BASIC OPERATORS
 defc TK_EXPONENT =  $F5	; Token for '^'
 defc TK_AND      =  $F6	; Token for 'AND'
 defc TK_OR       =  $F7	; Token for 'OR'
 
-; EXTENDED OPERATORS
-
+; EXTENDED BASIC OPERATORS
 defc TK_XOR      =  $F8	; Token for 'XOR'
 defc TK_EQV      =  $F9	; Token for 'EQV'
 defc TK_IMP      =  $FA	; Token for 'IMP'
@@ -204,5 +199,4 @@ defc TK_MOD      =  $FB	; Token for 'MOD'
 defc TK_BKSLASH  =  $FC	; Token for '\'
 
 defc LSTOPK      =  TK_BKSLASH+1-TK_PLUS
-
 
