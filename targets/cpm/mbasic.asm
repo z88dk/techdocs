@@ -150,13 +150,9 @@ defc TK_CDBL     =  $1E
 defc TK_FIX      =  $1F
 
 
-
-
 IF ZXPLUS3
 defc TK_VPEEK    =  $20
 ENDIF
-
-
 
 
 defc TK_CVI      =  $2B
@@ -164,7 +160,6 @@ defc TK_CVS      =  $2C
 defc TK_CVD      =  $2D
 ;
 defc TK_EOF      =  $2F
-
 
 
 defc TK_LOC      =  $30
@@ -318,13 +313,13 @@ defc TK_MINUS    =  $F3	; Token for '-'
 defc TK_STAR     =  $F4	; Token for '*'
 defc TK_SLASH    =  $F5	; Token for '/'
 
-; 8K OPERATORS
+; 8K BASIC OPERATORS
 
 defc TK_EXPONENT =  $F6	; Token for '^'
 defc TK_AND      =  $F7	; Token for 'AND'
 defc TK_OR       =  $F8	; Token for 'OR'
 
-; EXTENDED OPERATORS
+; EXTENDED BASIC OPERATORS
 
 defc TK_XOR      =  $F9	; Token for 'XOR'
 defc TK_EQV      =  $FA	; Token for 'EQV'
@@ -2255,8 +2250,8 @@ TAPIN_STARTBIT_0:
   CPL
   LD E,A
 	AND     $07
-	OR      $09
-	;OR      $0A		; Changing the output mask we may alter the color of the data being loaded
+	;OR      $09
+	OR      $0A		; Changing the output mask we may alter the color of the data being loaded
 	OUT     ($FE),A
   INC C
   DJNZ TAPIN_STARTBIT_0
@@ -4902,6 +4897,13 @@ __PRINT:
   LD C,$02                ;SETUP OUTPUT FILE
   CALL FILGET             ; Look for '#' channel specifier and put the associated file buffer in BC
 
+
+; This Syntax variant was enabled on the Tandy Radio Shack models.
+; It required a single parameter to position the cursor on the screen
+; wrapping up the display rows into a single virtual vector.
+; Working on it to adjust programs coming from computers with a different 
+; text resolution would probably be more difficult than fiddling with LOCATE.
+
 ;IF VT52
 ;  CP '@'
 ;  CALL Z,PRINT_AT
@@ -5138,6 +5140,9 @@ FINPRT:
 __LINE:
 
 IF HAVE_GFX
+  CP '@'		; New Syntax.  LINE@ replaces DRAW, we ran out of space for TOKEN codes !
+  JP Z,__DRAW		; No, this is a real graphics command !
+
   CP TK_INPUT		; ? Token for INPUT to support the "LINE INPUT" statement ?
   JP NZ,LINE		; No, this is a real graphics command !
 ENDIF
@@ -21804,9 +21809,9 @@ XDELT_0:
   RET NC             ;IF NO CARRY, NO NEED TO NEGATE COUNT
 
 NEGHL:
-  XOR A
-  SUB L		; Negate exponent
-  LD L,A	; Re-save exponent
+  XOR A              ;STANDARD [H,L] NEGATE
+  SUB L              ; Negate exponent
+  LD L,A             ; Re-save exponent
   SBC A,H
   SUB L
   LD H,A
@@ -22343,8 +22348,566 @@ ENDIF
 
 
 
+IF HAVE_GFX
 
-; Routine at 23992
+
+DRWFLG: defb 0
+DRWSCL: defb 0
+DRWANG: defb 0
+
+
+
+__DRAW:
+
+  CALL SYNCHR
+  DEFB '@'
+
+  LD DE,DRAW_TAB        ;DISPATCH TABLE FOR GML
+  XOR A
+  LD (DRWFLG),A
+;  LD (MCLFLG),A
+  JP MACLNG
+
+; JP table for the Graphics Macro Language (GML)
+DRAW_TAB:
+
+  DEFB 'U'+$80  ;UP
+  DEFW DRUP     ; Draw a line of <DE> pixels in a straight upward direction
+
+  DEFB 'D'+$80  ;DOWN
+  DEFW DRDOWN	; Draw a line of <DE> pixels in a straight downward direction
+
+  DEFB 'L'+$80  ;LEFT
+  DEFW DRLEFT	; Draw a line of <DE> pixels to the left
+
+  DEFB 'R'+$80  ;RIGHT
+  DEFW DRIGHT	; Draw a line of <DE> pixels to the right
+
+  DEFB 'M'		;MOVE
+  DEFW DMOVE	; Draw a line to a specific location (x,y) or a location relative to the current position (M+20,-20)
+
+  DEFB 'E'+$80	; -,-
+  DEFW DRWEEE	; Draw a diagonal line of <DE> pixels (line goes upward and to the right)
+
+  DEFB 'F'+$80	; +,-
+  DEFW DRWFFF	; Draw a diagonal line of <DE> pixels (line goes downward and to the right)
+
+  DEFB 'G'+$80	; +,+
+  DEFW DRWGGG	; Draw a diagonal line of <DE> pixels (line goes downward and to the left)
+
+  DEFB 'H'+$80	; -,+
+  DEFW DRWHHH	; Draw a diagonal line of <DE> pixels (line goes upward and to the left)
+
+  DEFB 'A'+$80  ;ANGLE COMMAND
+  DEFW DANGLE	; Change the orientation of the drawing to 0 (normal), 1 (90 degrees clockwise), 2 (180 degrees clockwise) or 3 (270 degrees clockwise)
+
+  DEFB 'B'      ;MOVE WITHOUT PLOTTING
+  DEFW DNOPLT	; Move to the location specified by the command, but don't draw a line 
+
+  DEFB 'N'      ;DON'T CHANGE CURRENT COORDS
+  DEFW DNOMOV	; Return to the starting position after performing the command 
+
+  DEFB 'X'      ;EXECUTE STRING
+  DEFW MCLXEQ	; X<string> Execute a sub-string of instructions 
+
+  DEFB 'C'+$80      ;COLOR
+  DEFW DCOLR	; Change the foreground (drawing) color to <color>
+  
+  DEFB 'S'+$80   ;SCALE
+  DEFW DSCALE	; S<scale> Scale every length specified after this command by <scale/4> pixels.
+ 
+  DEFB $00		;END OF TABLE   (Table termination)
+
+
+; -- -- -- -- -- --
+
+  
+NEGDE:
+  EX DE,HL
+  CALL NEGHL
+  EX DE,HL
+  RET
+
+
+CLINE2:
+  LD HL,(GRPACX)        ;DRAW LINE FROM [BC],[DE]
+  LD (GXPOS),HL         ;TO GRPACX,Y
+  LD HL,(GRPACY)
+  LD (GYPOS),HL
+  JP DOGRPH             ;GO DRAW THE LINE
+
+
+;
+; GTABSC - GET ABSOLUTE COORDS
+; ([BC],[DE])=(GRPACX+[HL],GRPACY+[DE])
+;
+; Used by the routines at CPLOT8 and DMOVE.
+GTABSC:
+  PUSH DE               ;SAVE Y OFFSET FROM CENTER
+  LD DE,(GRPACX)        ;GET CENTER POS
+  ADD HL,DE             ;ADD TO DX
+  LD B,H                ;[BC]=X CENTER + [HL]
+  LD C,L
+  POP DE
+  LD HL,(GRPACY)        ;GET CENTER Y
+  ADD HL,DE
+  EX DE,HL              ;[DE]=Y CENTER + [DE]
+  RET
+
+; -- -- -- -- -- --
+  
+;MOVE +0,-Y
+; Draw a line of <DE> pixels in a straight upward direction
+DRUP:
+  CALL NEGDE
+
+;MOVE +0,+Y
+; Draw a line of <DE> pixels in a straight downward direction
+DRDOWN:
+  LD BC,$0000     ;DX=0
+  JR DOMOVR       ;TREAT AS RELATIVE MOVE
+
+
+;MOVE -X,+0
+; Draw a line of <DE> pixels to the left
+DRLEFT:
+  CALL NEGDE
+
+;MOVE +X,+0
+; Draw a line of <DE> pixels to the right
+DRIGHT:
+  LD B,D          ;[BC]=VALUE
+  LD C,E
+  LD DE,$0000     ;DY=0
+  JR DOMOVR       ;TREAT AS RELATIVE MOVE
+
+;MOVE -X,-Y
+; Draw a diagonal line of <DE> pixels (line goes upward and to the left)
+DRWHHH:
+  CALL NEGDE
+
+;MOVE +X,+Y
+; Draw a diagonal line of <DE> pixels (line goes downward and to the right)
+DRWFFF:
+  LD B,D
+  LD C,E
+  JR DOMOVR
+
+;MOVE +X,-Y
+; Draw a diagonal line of <DE> pixels (line goes upward and to the right)
+DRWEEE:
+  LD B,D
+  LD C,E
+; This entry point is used by the routine at DRWGGG.
+DRWHHC:
+  CALL NEGDE
+  JR DOMOVR
+
+;MOVE -X,+Y
+; Draw a diagonal line of <DE> pixels (line goes downward and to the left)
+DRWGGG:
+  CALL NEGDE
+  LD B,D
+  LD C,E
+  JR DRWHHC       ;MAKE DY POSITIVE & GO
+
+; Draw a line to a specific location (x,y) or a location relative to the current position (M+20,-20)
+DMOVE:
+  CALL FETCHZ     ;GET NEXT CHAR AFTER COMMA
+  LD B,$00        ;ASSUME RELATIVE
+  CP '+'          ;IF "+" OR "-" THEN RELATIVE
+  JR Z,MOVREL
+  CP '-'
+  JR Z,MOVREL
+  INC B           ;NON-Z TO FLAG ABSOLUTE
+  
+MOVREL:
+  LD A,B
+  PUSH AF         ;SAVE ABS/REL FLAG ON STACK
+  CALL DECFET     ;BACK UP SO VALSCN WILL SEE "-"
+  CALL VALSCN     ;GET X VALUE
+  PUSH DE         ;SAVE IT
+  CALL FETCHZ     ;NOW CHECK FOR COMMA
+  CP ','          ;COMMA?
+  JP NZ,FC_ERR    ; If not, Err $05 - "Illegal function call"
+  CALL VALSCN     ;GET Y VALUE IN D
+  POP BC          ;GET BACK X VALUE
+  POP AF          ;GET ABS/REL FLAG
+  OR A
+  JR NZ,DRWABS    ;NZ - ABSOLUTE
+  
+
+; This entry point is used by the DRAW routines at DRUP, DRLEFT, DRWHHH and DRWEEE.
+DOMOVR:
+  CALL DSCLDE     ;ADJUST Y OFFSET BY SCALE
+  PUSH DE         ;SAVE Y OFFSET
+  LD D,B          ;GET X INTO [DE]
+  LD E,C          ;GO SCALE IT.
+  CALL DSCLDE     ;GET ADJUSTED X INTO [HL]
+  EX DE,HL        ;GET ADJUSTED Y INTO [DE]
+  POP DE
+  LD A,(DRWANG)   ;GET ANGLE BYTE
+  RRA             ;LOW BIT TO CARRY
+  JR NC,ANGEVN    ;ANGLE IS EVEN - DON'T SWAP X AND Y
+  PUSH AF         ;SAVE THIS BYTE
+  CALL NEGHL      ;ALWAYS NEGATE NEW DY
+  EX DE,HL
+  POP AF          ;GET BACK SHIFTED ANGLE
+ANGEVN:
+  RRA             ;TEST SECOND BIT
+  JR NC,ANGPOS    ;DON'T NEGATE COORDS IF NOT SET
+  CALL NEGHL
+  CALL NEGDE      ;NEGATE BOTH DELTAS
+ANGPOS:
+  CALL GTABSC     ;GO CALC TRUE COORDINATES
+DRWABS:
+  LD A,(DRWFLG)   ;SEE WHETHER WE PLOT OR NOT
+  ADD A,A         ;CHECK HI BIT
+  JR C,DSTPOS     ;JUST SET POSITION.
+  PUSH AF         ;SAVE THIS FLAG
+  PUSH BC         ;SAVE X,Y COORDS
+  PUSH DE         ;BEFORE SCALE SO REFLECT DISTANCE OFF
+  CALL CLINE2     ;SCALE IN CASE COORDS OFF SCREEN
+  POP DE
+  POP BC          ;GET THEM BACK
+  POP AF          ;GET BACK FLAG
+DSTPOS:
+  ADD A,A         ;SEE WHETHER TO STORE COORDS
+  JR C,DNSTOR     ;DON'T UPDATE IF B6=1
+  LD (GRPACY),DE  ;UPDATE GRAPHICS AC
+  LD H,B
+  LD L,C
+  LD (GRPACX),HL
+DNSTOR:
+  XOR A           ;CLEAR SPECIAL FUNCTION FLAGS   (Reset draw mode when finished drawing)
+  LD (DRWFLG),A
+  RET
+
+; Set flags to return to the starting position after performing the command 
+DNOMOV:
+  LD A,$40        ;SET BIT SIX IN FLAG BYTE
+  JR DSTFLG
+
+; Set flags to move to the location specified by the command, but don't draw a line 
+DNOPLT:
+  LD A,$80        ;SET BIT 7
+
+; This entry point is used by the routine at DNOMOV.
+DSTFLG:
+  LD HL,DRWFLG
+  OR (HL)
+  LD (HL),A       ;STORE UPDATED BYTE
+  RET
+
+; Data block at 24142
+; Change the orientation of the drawing to 0 (normal), 1 (90 degrees clockwise), 2 (180 degrees clockwise) or 3 (270 degrees clockwise)
+DANGLE:
+  JR NC,DSCALE    ;ERROR IF NO ARG
+  LD A,E          ;MAKE SURE LESS THAN 4
+  CP $04
+  JR NC,DSCALE    ;ERROR IF NOT
+  LD (DRWANG),A	  ; DrawAngle (0..3): 1=90 degrees rotation .. 3=270 degrees, etc..
+  RET
+
+; S<scale> Scale every length specified after this command by <scale/4> pixels.
+DSCALE:
+  JP NC,FC_ERR			; Err $05 - "Illegal function call"
+  LD A,D          ;MAKE SURE LESS THAN 256
+  OR A
+  JP NZ,FC_ERR			; Err $05 - "Illegal function call"
+  LD A,E
+  LD (DRWSCL),A   ;STORE SCALE FACTOR
+  RET
+
+
+; Used by the routine at DMOVE.
+DSCLDE:
+  LD A,(DRWSCL)   ;GET SCALE FACTOR
+  OR A            ;ZERO MEANS NO SCALING
+  RET Z
+  LD HL,$0000
+DSCLP:
+  ADD HL,DE       ;ADD IN [DE] SCALE TIMES
+  DEC A
+  JR NZ,DSCLP
+  EX DE,HL        ;PUT IT BACK IN [DE]
+  LD A,D          ;SEE IF VALUE IS NEGATIVE
+  ADD A,A
+  PUSH AF         ;SAVE RESULTS OF TEST
+  JR NC,DSCPOS
+  DEC DE          ;MAKE IT TRUNCATE DOWN
+DSCPOS:
+  CALL DE_DIV2    ;DIVIDE BY FOUR
+  CALL DE_DIV2
+  POP AF          ;SEE IF WAS NEGATIVE
+  RET NC          ;ALL DONE IF WAS POSITIVE
+  LD A,D          ;OR IN HIGH 2 BITS TO MAKE NEGATIVE
+  OR $C0
+  LD D,A
+  INC DE          ;ADJUST SO TRUNCATING TO LOWER VALUE
+  RET
+
+
+DCOLR:
+  JR NC,DSCALE    ; "NCFER": FC ERROR IF NO ARG
+  LD A,E          ;GO SET ATTRIBUTE
+  CALL SETATR     ; Set attribute byte
+  JP C,FC_ERR     ;ERROR IF ILLEGAL ATTRIBUTE   ( Err $05 - "Illegal function call" )
+  RET
+
+
+  
+; ________________________________________________________
+
+;
+;       MACLNG - MACRO LANGUAGE DRIVER
+;
+; MICROSOFT GRAPHICS AND SOUND MACRO LANGUAGES
+;
+
+
+MCLTAB: defw 0
+;MCLFLG: defb 0
+MCLPTR: defw 0
+MCLLEN: defw 0
+
+; Data block at 22124
+MACLNG:
+  LD   (MCLTAB),DE  ;SAVE POINTER TO COMMAND TABLE
+  CALL EVAL         ;EVALUATE STRING ARGUMENT
+  PUSH HL           ;SAVE TXTPTR TILL DONE
+  LD   DE,$0000     ;PUSH DUMMY ENTRY TO MARK END OF STK
+  PUSH DE           ;DUMMY ADDR
+  PUSH AF           ;DUMMY LENGTH
+MCLNEW:
+  CALL GETSTR
+  CALL LOADFP       ;GET LENGTH & POINTER
+  LD   B,C
+  LD   C,D
+  LD   D,E
+  LD   A,B
+  OR C
+  JR Z,MCLOOP       ;Don't Push if addr is 0
+  LD A,D
+  OR A
+  JR Z,MCLOOP       ; or if Len is 0...
+  PUSH BC           ;PUSH ADDR OF STRING
+  PUSH DE           ;PUT IN [AL]
+MCLOOP:
+  POP AF            ;GET LENGTH OFF STACK
+  LD (MCLLEN),A
+  POP HL            ;GET ADDR
+  LD A,H            ;SEE IF LAST ENTRY
+  OR L
+  JR NZ,MACLNG_0
+;  LD A,(MCLFLG)
+;  OR A
+;  JP Z,MC_POPTRT    ;ALL FINISHED IF ZERO
+;  JP MCLPLAY_0
+  JR MC_POPTRT    ;ALL FINISHED IF ZERO
+
+
+MACLNG_0:
+  LD (MCLPTR),HL    ;SET UP POINTER
+
+; This entry point is used by the routines at __PLAY_2 and DOSND.
+MCLSCN:
+  CALL FETCHR       ;GET A CHAR FROM STRING
+  JR Z,MCLOOP       ;END OF STRING - SEE IF MORE ON STK
+  ADD A,A           ;PUT CHAR * 2 INTO [C]
+  LD C,A
+  LD HL,(MCLTAB)    ;POINT TO COMMAND TABLE
+MSCNLP:
+  LD A,(HL)         ;GET CHAR FROM COMMAND TABLE
+  ADD A,A           ;CHAR = CHAR * 2 (CLR HI BIT FOR CMP)
+GOFCER:
+  CALL Z,FC_ERR     ;END OF TABLE.    ( Err $05 - "Illegal function call" )
+  CP C              ;HAVE WE GOT IT?
+  JR Z,MISCMD       ;YES.
+  INC HL            ;MOVE TO NEXT ENTRY
+  INC HL
+  INC HL
+  JR MSCNLP
+
+MISCMD:
+  LD BC,MCLSCN      ;RETURN TO TOP OF LOOP WHEN DONE
+  PUSH BC
+  LD A,(HL)         ;SEE IF A VALUE NEEDED
+  LD C,A            ;PASS GOTTEN CHAR IN [C]
+  ADD A,A
+  JR NC,MNOARG      ;COMMAND DOESN'T REQUIRE ARGUMENT
+  OR A              ;CLEAR CARRY
+  RRA               ;MAKE IT A CHAR AGAIN
+  LD C,A            ;PUT IN [C]
+  PUSH BC
+  PUSH HL           ;SAVE PTR INTO CMD TABLE
+  CALL FETCHR       ;GET A CHAR
+  LD DE,$0001       ;DEFAULT ARG=1
+  JP Z,VSNARG_0     ;NO ARG IF END OF STRING
+  CALL ISLETTER_A   ;SEE IF POSSIBLE LETTER
+  JP NC,VSNARG
+  CALL VALSC3       ;GET THE VALUE
+  SCF               ;SET CARRY TO FLAG USING NON-DEFAULT
+  JR ISCMD3
+
+VSNARG:
+  CALL DECFET       ;PUT CHAR BACK INTO STRING
+VSNARG_0:
+  OR A              ;CLEAR CARRY
+ISCMD3:
+  POP HL
+  POP BC            ;GET BACK COMMAND CHAR
+MNOARG:
+  INC HL            ;POINT TO DISPATCH ADDR
+  LD A,(HL)         ;GET ADDRESS INTO HL
+  INC HL
+  LD H,(HL)
+  LD L,A
+  JP (HL)           ;DISPATCH
+
+
+
+; This entry point is used by the routines at VALSCN, SCNVAR and DMOVE.
+FETCHZ:
+  CALL FETCHR       ;GET A CHAR FROM STRING
+  JR Z,GOFCER       ;GIVE ERROR IF END OF LINE
+  RET
+
+FETCHR:
+  PUSH HL
+FETCH2:
+  LD HL,MCLLEN      ;POINT TO STRING LENGTH
+  LD A,(HL)
+  OR A
+  JR Z,MC_POPTRT    ;RETURN Z=0 IF END OF STRING
+  DEC (HL)          ;UPDATE COUNT FOR NEXT TIME
+  LD HL,(MCLPTR)    ;GET PTR TO STRING
+  LD A,(HL)         ;GET CHARACTER FROM STRING
+  INC HL            ;UPDATE PTR FOR NEXT TIME
+  LD (MCLPTR),HL
+  CP ' '            ;SKIP SPACES
+  JR Z,FETCH2
+  CP 'a'-1          ;CONVERT LOWER CASE TO UPPER
+  JR C,MC_POPTRT
+  SUB $20           ;DO CONVERSION
+
+MC_POPTRT:
+  POP HL
+  RET
+
+DECFET:
+  PUSH HL
+  LD HL,MCLLEN      ;INCREMENT LENGTH
+  INC (HL)
+  LD HL,(MCLPTR)    ;BACK UP POINTER
+  DEC HL
+  LD (MCLPTR),HL
+  POP HL
+  RET
+
+; Used by the routine at DMOVE.
+VALSCN:
+  CALL FETCHZ       ;GET FIRST CHAR OF ARGUMENT
+VALSC3:
+  CP '='            ;NUMERIC?
+  JP Z,VARGET
+  CP '+'            ;PLUS SIGN?
+  JR Z,VALSCN       ;THEN SKIP IT
+  CP '-'            ;NEGATIVE VALUE?
+  JR NZ,VALSC2
+  LD DE,NEGD        ;IF SO, NEGATE BEFORE RETURNING
+  PUSH DE
+  JR VALSCN         ;EAT THE "-"
+  
+; This entry point is used by the routine at DOSND.
+VALSC2:
+  LD DE,$0000       ;INITIAL VALUE OF ZERO
+NUMLOP:
+  CP ','            ;COMMA
+  JR Z,DECFET       ;YES, BACK UP AND RETURN
+  CP ';'            ;SEMICOLON?
+  RET Z             ;YES, JUST RETURN
+  CP '9'+1          ;NOW SEE IF ITS A DIGIT
+  JR NC,DECFET      ;IF NOT, BACK UP AND RETURN
+  CP '0'
+  JR C,DECFET
+
+  LD HL,$0000       ;[HL] is accumulator
+  LD B,$0A          ;[HL]=[DE]*10
+MUL10:
+  ADD HL,DE
+  JR C, SCNFC       ;overflow - JMP Function Call Error
+  DJNZ MUL10
+  
+  SUB '0'           ;ADD IN THE DIGIT
+  LD E,A
+  LD D,$00
+  ADD HL,DE
+  JR C, SCNFC       ;overflow - JMP Function Call Error
+  EX DE,HL          ;VALUE SHOULD BE IN [DE]
+  CALL FETCHR       ;GET NEXT CHAR
+  JR NZ,NUMLOP      ;branch if not end of string
+  RET
+
+
+; (GW-BASIC has extra code here to "Allow VARPTR$(variable) for BASCOM compatibility")
+;
+; Used by the routines at VARGET and MCLXEQ.
+SCNVAR:
+  CALL FETCHZ       ;MAKE SURE FIRST CHAR IS LETTER
+  LD DE,BUF         ;PLACE TO COPY NAME FOR PTRGET
+  PUSH DE           ;SAVE ADDR OF BUF FOR "ISVAR"
+  LD B,40           ;COPY MAX OF 40 CHARACTERS
+  CALL ISLETTER_A   ;MAKE SURE IT'S A LETTER
+  JR C, SCNFC       ;FC ERROR IF NOT LETTER
+SCNVLP:
+  LD (DE),A         ;STORE CHAR IN BUF
+  INC DE
+  CP ';'            ;A SEMICOLON?
+  JR Z,SCNV2        ;YES - END OF VARIABLE NAME
+  CALL FETCHZ       ;GET NEXT CHAR
+  DJNZ SCNVLP
+
+; This entry point is used by the routine at VALSCN.
+ SCNFC:
+  CALL FC_ERR       ;ERROR - VARIABLE TOO LONG
+SCNV2:
+  POP HL            ;GET PTR TO BUF
+  JP EVAL_VARIABLE  ;GO GET ITS VALUE
+
+; Used by the routine at VALSCN.
+VARGET:
+  CALL SCNVAR       ;SCAN & EVALUATE VARIABLE
+  CALL __CINT       ;MAKE IT AN INTEGER
+  EX DE,HL          ;IN [DE]
+  RET
+
+; Used by the DRAW and PLAY routines.
+;  Plays MML stored in string variable A$ *3 / Executes a drawing substring
+MCLXEQ:
+  CALL SCNVAR       ;SCAN VARIABLE NAME
+  LD A,(MCLLEN)     ;SAVE CURRENT STRING POS & LENGTH
+  LD HL,(MCLPTR)
+  EX (SP),HL        ;POP OFF RET ADDR, PUSH MCLPTR
+  PUSH AF
+  LD C,$02          ;MAKE SURE OF ROOM ON STACK
+  CALL CHKSTK
+  JP MCLNEW
+
+NEGD:
+  XOR A
+  SUB E
+  LD E,A
+  SBC A,D
+  SUB E
+  LD D,A
+  RET
+
+; ________________________________________________________
+;  End of MACRO LANGUAGE block 
+ENDIF
+
+
 ;
 ; Used by the routine at DONCMD.
 _READY:
