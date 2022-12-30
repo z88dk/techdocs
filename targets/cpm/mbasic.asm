@@ -4074,7 +4074,6 @@ ENDIF
   PUSH BC                 ; Get MSB of address
   EX DE,HL                ; Restore code string address    ;RESTORE THE TEXT POINTER
 
-; a.k.a. CHRGTR
 ; Pick next char from program
 ;
 ; Used by the routines at PROMPT, LINKER, CRNCLP, TSTNUM, SAVSTP, EXEC,
@@ -7770,47 +7769,48 @@ LINE_ERR_MSG:
   DEFM "Undefined line "
   DEFB $00
 
+  
 ; Routine at 9257
 ;
 ; Used by the routine at _LINE2PTR.
 SCNPT2:
-  CP PTRCON             ;POINTER
-  JP NZ,_SCNEXT         ;NO, KEEP SCANNING
-  PUSH DE               ;SAVE CURRENT LINE #
-  CALL LINGT3           ;GET #
-  PUSH HL               ;SAVE TEXT POINTER
-  EX DE,HL              ;FLIP CURRENT TEXT PTR & PTR
-  INC HL                ;BUMP POINTER
-  INC HL                ;POINT TO LINE # FIELD
+  CP PTRCON            ;POINTER
+  JP NZ,_SCNEXT        ;NO, KEEP SCANNING
+  PUSH DE              ;SAVE CURRENT LINE #
+  CALL LINGT3          ;GET #
+  PUSH HL              ;SAVE TEXT POINTER
+  EX DE,HL             ;FLIP CURRENT TEXT PTR & PTR
+  INC HL               ;BUMP POINTER
+  INC HL               ;POINT TO LINE # FIELD
   INC HL
-  LD C,(HL)             ;PICK UP LINE #
-  INC HL                ;POINT TO HIGH PART
+  LD C,(HL)            ;PICK UP LINE #
+  INC HL               ;POINT TO HIGH PART
   LD B,(HL)
-  LD A,LINCON           ;CHANGE TO LINE CONSTANT
+  LD A,LINCON		; Line number prefix
 ; This entry point is used by the routine at _LINE2PTR.
 MAKPTR:
-  LD HL,SCNPOP          ;PLACE TO RETURN TO AFTER CHANGING CONSTANT
-  PUSH HL               ;SAVE ON STACK
-  LD HL,(CONTXT)        ;GET TXT PTR AFTER CONSTANT IN [H,L]
+  LD HL,SCNPOP         ;PLACE TO RETURN TO AFTER CHANGING CONSTANT
+  PUSH HL              ;SAVE ON STACK
+  LD HL,(CONTXT)       ;GET TXT PTR AFTER CONSTANT IN [H,L]
 
 ; This entry point is used by the routine at __GOTO.
 CONCH2:
-  PUSH HL               ;SAVE PTR TO END OF CONSTANT
+  PUSH HL              ;SAVE PTR TO END OF CONSTANT
   DEC HL
   LD (HL),B
   DEC HL
-  LD (HL),C             ;CHANGE TO VALUE IN [B,C]
-  DEC HL                ;POINT TO CONSTANT TOKEN
-  LD (HL),A             ;CHANGE TO VALUE IN [A]
-  POP HL                ;RESTORE POINTER TO AFTER CONSTANT
+  LD (HL),C            ;CHANGE TO VALUE IN [B,C]
+  DEC HL               ;POINT TO CONSTANT TOKEN
+  LD (HL),A            ;CHANGE TO VALUE IN [A]
+  POP HL               ;RESTORE POINTER TO AFTER CONSTANT
   RET
 
 ; This entry point is used by the routines at PROMPT, __DELETE and __CHAIN.
 DEPTR:
-  LD A,(PTRFLG)         ;DO LINE POINTERS EXIST IN PGM?
-  OR A                  ;SET CC'S
-  RET Z                 ;NO, JUST RETURN
-  JP SCCPTR             ;CONVERT THEN TO LINE #'S
+  LD A,(PTRFLG)        ;DO LINE POINTERS EXIST IN PGM?
+  OR A                 ;SET CC'S
+  RET Z                ;NO, JUST RETURN
+  JP SCCPTR            ;CONVERT THEN TO LINE #'S
 
 ; 'OPTION' BASIC command
 __OPTION:
@@ -7822,38 +7822,37 @@ __OPTION:
   DEFM "S"
   CALL SYNCHR
   DEFM "E"
-  LD A,(OPTFLG)         ;GET THE BASE NUMBER
-  OR A                  ;HAVE WE SEEN OPTION BASE BEFOR
-  JP NZ,DD_ERR          ;IF SO "DOUBLE DIMENSION ERROR"
-  PUSH HL               ;SAVE THE TEXT POINTER
-  LD HL,(ARYTAB)        ;SEE IF WE HAVE ANY ARRAYS YET
+  LD A,(OPTFLG)        ;GET THE BASE NUMBER
+  OR A                 ;HAVE WE SEEN OPTION BASE BEFOR
+  JP NZ,DD_ERR         ;IF SO "DOUBLE DIMENSION ERROR"
+  PUSH HL              ;SAVE THE TEXT POINTER
+  LD HL,(ARYTAB)       ;SEE IF WE HAVE ANY ARRAYS YET
   EX DE,HL
   LD HL,(STREND)
-  CALL DCOMPR           ;IF THESE ARE EQUAL WE HAVE NOT
+  CALL DCOMPR          ;IF THESE ARE EQUAL WE HAVE NOT
   JP NZ,DD_ERR
   POP HL
   LD A,(HL)
-  SUB '0'               ; convert from ASCII
+  SUB '0'              ; convert from ASCII
   JP C,SN_ERR
-  CP $02                ;ONLY 0 AND 1 ARE LEGAL
+  CP $02
   JP NC,SN_ERR
-  LD (OPTVAL),A         ;SAVE IF FOR DIM AND PTRGET
-  INC A                 ;MAKE SURE [A] IS NON ZERO
-  LD (OPTFLG),A         ;FLAG THAT WE HAVE SEEN "OPTION BASE"
-  CALL CHRGTB           ;FETCH THE TERMINATOR
+  LD (OPTVAL),A
+  INC A
+  LD (OPTFLG),A
+  CALL CHRGTB
   RET
 
 ; Print string using CALTTY
 ;
 ; Used by the routine at DDIV_SUB.
 STRPRN:
-  LD A,(HL)             ;GET BYTE FROM MESSAGE
-  OR A                  ;END OF MESSAGE
-  RET Z                 ;YES, DONE
-  CALL CALTTY           ;PRINT CHAR
-  INC HL                ;INCREMENT POINTER
-  JP STRPRN             ;PRINT NEXT CHAR
-
+  LD A,(HL)            ;GET BYTE FROM MESSAGE
+  OR A                 ;END OF MESSAGE
+  RET Z                ;YES, DONE
+  CALL CALTTY          ;PRINT CHAR
+  INC HL               ;INCREMENT POINTER
+  JP STRPRN            ;PRINT NEXT CHAR
 
 ;
 ; CALTTY IS A SPECIAL ROUTINE TO OUTPUT ERROR MESSAGE TO TTY, REGARDLESS OF CURRENT FILE I/O.
@@ -7865,7 +7864,6 @@ STRPRN:
 CALTTY:
   PUSH AF
   JP CHPUT
-
 
 ; 'RANDOMIZE' BASIC command
 __RANDOMIZE:
@@ -7901,17 +7899,15 @@ RND_SEED_MSG:
   DEFM "Random number seed (-32768 to 32767)"
   DEFB $00
 
-
 ;
 ; THIS CODE SCANS AHEAD TO FIND THE "NEXT" THAT MATCHES A "FOR"
-; IN ORDER TO 1) HANDLE EMPTY LOOPS AND 2) MAKE SURE LOOPS
-; MATCH UP PROPERLY.
+; IN ORDER TO 1) HANDLE EMPTY LOOPS AND 
+;             2) MAKE SURE LOOPS MATCH UP PROPERLY.
 ;
 ; Used by the routine at __WHILE.
 WNDSCN:
   LD C,$1D                ; Err $1D - "WHILE without WEND"  -  SCAN FOR MATCHING WEND THIS IS ERROR IF FAIL
   JP SCNCNT
-
 ; This entry point is used by the routine at SAVSTP.
 NXTSCN:
   LD C,$1A                ; Err $1A - "FOR Without NEXT"
@@ -7920,8 +7916,8 @@ NXTSCN:
 ;
 ; Used by the routine at WNDSCN.
 SCNCNT:
-  LD B,$00             ;SET UP THE COUNT OF "FOR"S SEEN
-  EX DE,HL             ;INITIALIZE NXTLIN FOR NEXT ON SAME LINE
+  LD B,$00                ;SET UP THE COUNT OF "FOR"S SEEN
+  EX DE,HL                ;INITIALIZE NXTLIN FOR NEXT ON SAME LINE
   LD HL,(CURLIN)
   LD (NXTLIN),HL
   EX DE,HL             ;RESTORE THE TEXT POINTER TO [H,L]
@@ -7993,8 +7989,8 @@ DECNXT:
   POP BC               ;GET BACK THE "FOR" COUNT
   DEC HL               ;CHECK TERMINATOR
   CALL CHRGTB
-  LD DE,FORTRM         ;PLACE TO GO TO
-  JP Z,TRMNXT          ;END OF "NEXT"
+  LD DE,FORTRM
+  JP Z,TRMNXT
   CALL SYNCHR
   DEFM ","             ;SHOULD HAVE COMMAS IN BETWEEN
   DEC HL               ;RESCAN FIRST CHARACTER
@@ -8005,7 +8001,6 @@ TRMNXT:
   POP HL
   PUSH DE              ;GO OFF TO ADDRESS IN [B,C]
   RET
-
 
 ;
 ; THIS ROUTINE CLEARS FLGOVC TO RESET TO NORMAL OVERFLOW MODE.
@@ -11176,7 +11171,7 @@ OV1A:
   LD A,$0D
   CALL CALTTY
   LD A,$0A
-  CALL CALTTY          ;CARRIAGE RETURN,LINE FEED
+  CALL CALTTY            ;CARRIAGE RETURN,LINE FEED
 OVFPRT:
   POP AF                 ;GET PLUS,MINUS INDICATION BACK
   LD HL,FACCU            ;MUST NOW PUT RIGHT INFINITY INTO THE FAC
@@ -13401,7 +13396,7 @@ SHTNAM:
   LD (NAMCNT),A
 
 LNGNAM:
-  LD A,(OPTVAL)           ;SEE WHAT THE OPTION BASE IS
+  LD A,(OPTVAL)          ;SEE WHAT THE OPTION BASE IS
   OR A
   JP Z,OPTB0              ;IF BASE 0 DO NOTHING
   LD A,D                  ;CHECK FOR 0 SUBSCRIPT
@@ -13580,7 +13575,7 @@ CREARY:
 CRARLP:
   JP C,GETSIZ
   PUSH AF
-  LD A,(OPTVAL)                                              ;GET THE OPTION BASE
+  LD A,(OPTVAL)                                             ;GET THE OPTION BASE
   XOR 10+1                ; Default dimension size is 10     ;MAP 0 TO 11 AND 1 TO 10
   LD C,A                  ; BC = number of dimensions        ;[B,C]=DEFAULT DIMENSION
   LD B,$00
@@ -15212,8 +15207,8 @@ _CLVAR:
   OR A                    ;TEST
   JP NZ,LEVDTB            ;LEAVE DEFAULT TABLE ALONE
   XOR A
-  LD (OPTFLG),A           ;INDICATE NO "OPTION" HAS BEEN SEEN
-  LD (OPTVAL),A           ;DEFAULT TO "OPTION BASE 0"
+  LD (OPTFLG),A      ;INDICATE NO "OPTION" HAS BEEN SEEN
+  LD (OPTVAL),A          ;DEFAULT TO "OPTION BASE 0"
   LD B,26                 ;INITIALIZE THE DEFAULT VALTYPE TABLE
   LD HL,DEFTBL            ;POINT AT THE FIRST ENTRY
 LOPDFT:
@@ -17043,9 +17038,9 @@ CLCDIF:
   JP GIVDBL               ;RETURN [H,L]-[D,E]
 
 
-; BASIC INPUT Statements with output of "?" first
+; Question (print '?' before a line input)
 ;
-; Used also by the routine at __RANDOMIZE.
+; Used by the routine at __RANDOMIZE.
 
 ; THIS IS THE LINE INPUT ROUTINE
 ; IT READS CHARACTERS INTO BUF USING _ AS THE
@@ -17077,7 +17072,7 @@ MORINP:
 QINLIN_0:
   LD (HL),B         ; STORE ZERO IN BUF
 
-; Program line input (aka RINPUT)
+; Line input (aka RINPUT)
 ;
 ; Used by the routines at PROMPT, QINLIN and TTYLIN.
 PINLIN:
@@ -17270,7 +17265,6 @@ NEXT_LINE:
   LD HL,BUFMIN			; "," ..
   RET
 
-; BASIC INPUT statement scan for semicolon
 ; This entry point is used by the routines at __LINE and __INPUT.
 SCNSEM:
   PUSH AF
@@ -17278,9 +17272,9 @@ SCNSEM:
   LD (INTFLG),A
   POP AF
   CP ';'
-  RET NZ                  ; BRIF not semicolon, return
+  RET NZ
   LD (INTFLG),A
-  JP CHRGTB               ; Skip semicolon and return
+  JP CHRGTB
 
 
 
@@ -21112,11 +21106,11 @@ __COLOR_2:
   EX DE,HL
   LD (FORCLR),HL
   LD A,L
-IF ZXPLUS3
+;IF ZXPLUS3
   CALL SETATR
-ELSE
-  LD (ATRBYT),A
-ENDIF
+;ELSE
+;  LD (ATRBYT),A
+;ENDIF
   CALL CHGCLR
   POP HL
   RET
@@ -21835,6 +21829,15 @@ XDELT:
 XDELT_0:
   RET NC             ;IF NO CARRY, NO NEED TO NEGATE COUNT
 
+NEGHL:
+  XOR A              ;STANDARD [H,L] NEGATE
+  SUB L              ; Negate exponent
+  LD L,A             ; Re-save exponent
+  SBC A,H
+  SUB L
+  LD H,A
+  SCF
+  RET
 
 
 ;
@@ -22439,17 +22442,6 @@ DRAW_TAB:
 
 ; -- -- -- -- -- --
 
-
-NEGHL:
-  XOR A              ;STANDARD [H,L] NEGATE
-  SUB L              ; Negate exponent
-  LD L,A             ; Re-save exponent
-  SBC A,H
-  SUB L
-  LD H,A
-  SCF
-  RET
-
   
 NEGDE:
   EX DE,HL
@@ -22680,11 +22672,7 @@ DSCPOS:
 DCOLR:
   JR NC,DSCALE    ; "NCFER": FC ERROR IF NO ARG
   LD A,E          ;GO SET ATTRIBUTE
-IF ZXPLUS3
-  CALL SETATR
-ELSE
-  LD (ATRBYT),A
-ENDIF
+  CALL SETATR     ; Set attribute byte
   JP C,FC_ERR     ;ERROR IF ILLEGAL ATTRIBUTE   ( Err $05 - "Illegal function call" )
   RET
 
