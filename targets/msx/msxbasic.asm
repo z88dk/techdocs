@@ -12410,24 +12410,24 @@ __OUT:
 __WAIT:
   CALL SETIO		; Get "WORD,BYTE" parameters
   PUSH BC
-  PUSH AF
-  LD E,$00
+  PUSH AF           ;SAVE THE MASK
+  LD E,$00          ;DEFAULT MASK2 TO ZERO
   DEC HL
-  RST CHRGTB		; Gets next character (or token) from BASIC text.
-  JR Z,__WAIT_0
-  RST SYNCHR 		;   Check syntax: next byte holds the byte to be found
-  DEFB ','
+  RST CHRGTB		;SEE IF THE STATEMENT ENDED
+  JR Z,__WAIT_0     ;IF NO THIRD ARGUMENT SKIP THIS
+  RST SYNCHR
+  DEFB ','          ;MAKE SURE THERE IS A ","
   CALL GETINT              ; Get integer 0-255
 __WAIT_0:
-  POP AF
+  POP AF            ;REGET THE "AND" MASK
   LD D,A
   POP BC
 __WAIT_1:
   CALL CKCNTC
   IN A,(C)
-  XOR E
-  AND D
-  JR Z,__WAIT_1
+  XOR E             ;XOR WITH MASK2
+  AND D             ;AND WITH MASK
+  JR Z,__WAIT_1     ;LOOP UNTIL RESULT IS NON-ZERO
   RET
 
 ; Routine at 16441
@@ -23053,7 +23053,7 @@ LOPCRS:
   POP HL                 ;RESTORE DEST. PTR.
   CP LF                  ;LF?
   JR NZ,NOTQTL           ;NO, TEST OTHER TERMINATORS
-SKIP_LF:
+LPISLF:
   LD C,A                 ;SAVE CURRENT CHAR
   LD A,E                 ;GET TERMINATOR 2
   CP ','                 ;CHECK FOR COMMA (UNQUOTED STRING)
@@ -23061,8 +23061,12 @@ SKIP_LF:
   CALL NZ,STRCHR         ;IF NOT, STORE LF (?)
   CALL RDBYT             ;GET NEXT CHAR
   JR C,QUITSI            ;IF EOF, ALL DONE.
+
+  ;** 5/14/82 BUG FIX (MULTIPLE LF FOR UNQUOTED STRING)
+  ; This extra check exists on GW-BASIC, Tandy M100, Olivetti M10 and MSX
   CP LF                  ;IS IT LF?
-  JR Z,SKIP_LF
+  JR Z,LPISLF
+
   CP CR                  ;IS IT A CR?
   JR NZ,NOTQTL           ;IF NOT SEE IF STORE NORMALLY
   LD A,E                 ;GET TERMINATOR
