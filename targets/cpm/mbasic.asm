@@ -3847,12 +3847,12 @@ __FOR:
   POP DE                  ;GET BACK THE VARIABLE POINTER
   POP BC                  ;GET RID OF THE NEWSTT RETURN
   PUSH HL                 ;SAVE THE TEXT POINTER
-  CALL __DATA             ; Get next statement address         SET [H,L]=END OF STATEMENT
-  LD (ENDFOR),HL          ; Next address of FOR st.            SAVE FOR COMPARISON
-  LD HL,$0002             ; Offset for "FOR" block             SET UP POINTER INTO STACK
+  CALL __DATA             ; Get next statement address           SET [H,L]=END OF STATEMENT
+  LD (ENDFOR),HL          ; Next address of FOR st.              SAVE FOR COMPARISON
+  LD HL,$0002             ; Offset for "FOR" block               SET UP POINTER INTO STACK
   ADD HL,SP               ; Point to it
 FORSLP:
-  CALL LOKFOR             ; Look for existing "FOR" block      MUST HAVE VARIABLE POINTER IN [D,E]
+  CALL LOKFOR             ; Look for existing "FOR" block        MUST HAVE VARIABLE POINTER IN [D,E]
   JP NZ,FORFND            ; IF NO MATCHING ENTRY, DON'T ELIMINATE ANYTHING
   ADD HL,BC               ; IN THE CASE OF "FOR" WE ELIMINATE THE MATCHING ENTRY AS WELL AS EVERYTHING AFTER IT
   PUSH DE                 ; SAVE THE TEXT POINTER
@@ -3862,14 +3862,14 @@ FORSLP:
   LD E,(HL)               ; FOR THE ENTRY ON THE STACK
   INC HL                  ; WITHOUT CHANGING [H,L]
   INC HL
-  PUSH HL                 ; Save block address                 SAVE THE STACK POINTER FOR THE COMPARISON
-  LD HL,(ENDFOR)          ; Get address of loop statement      GET ENDING TEXT POINTER FOR THIS "FOR"
-  CALL DCOMPR             ; Compare the FOR loops              SEE IF THEY MATCH
-  POP HL                  ; Restore block address              GET BACK THE STACK POINTER
-  POP DE                  ;                                    GET BACK THE TEXT POINTER
-  JP NZ,FORSLP            ; Different FORs - Find another      KEEP SEARCHING IF NO MATCH
-  POP DE                  ; Restore code string address        GET BACK THE TEXT POINTER
-  LD SP,HL                ; Remove all nested loops            DO THE ELIMINATION
+  PUSH HL                 ; Save block address                   SAVE THE STACK POINTER FOR THE COMPARISON
+  LD HL,(ENDFOR)          ; Get address of loop statement        GET ENDING TEXT POINTER FOR THIS "FOR"
+  CALL DCOMPR             ; Compare the FOR loops                SEE IF THEY MATCH
+  POP HL                  ; Restore block address                GET BACK THE STACK POINTER
+  POP DE                  ;                                      GET BACK THE TEXT POINTER
+  JP NZ,FORSLP            ; Different FORs - Find another        KEEP SEARCHING IF NO MATCH
+  POP DE                  ; Restore code string address          GET BACK THE TEXT POINTER
+  LD SP,HL                ; Remove all nested loops              DO THE ELIMINATION
   LD (SAVSTK),HL          ; UPDATE SAVED STACK SINCE A MATCHING ENTRY WAS FOUND
 
   DEFB $0E                ; LD C,N to mask the next byte
@@ -3883,21 +3883,21 @@ FORFND:
   LD C,$08                ; MAKE SURE 16 BYTES ARE AVAILABLE OFF OF THE STACK
   CALL CHKSTK             ; Check for 8 levels of stack
   PUSH HL                 ; REALLY SAVE THE TEXT POINTER
-  LD HL,(ENDFOR)          ; Get first statement of loop     PICK UP POINTER AT END OF "FOR" 
-                          ;                                 JUST BEYOND THE TERMINATOR
-  EX (SP),HL              ; Save and restore code string    PUT [H,L] POINTER TO TERMINATOR ON THE STACK
-                          ;                                 AND RESTORE [H,L] AS TEXT POINTER AT VARIABLE NAME
-  PUSH HL                 ; Re-save code string address     PUSH THE TEXT POINTER ONTO THE STACK
-  LD HL,(CURLIN)          ; Get current line number         [H,L] GET THE CURRENT LINE #
-  EX (SP),HL              ; Save and restore code string    NOW THE CURRENT LINE # IS ON THE STACK, HL IS THE TEXT POINTER
+  LD HL,(ENDFOR)          ; Get first statement of loop          PICK UP POINTER AT END OF "FOR" 
+                          ;                                      JUST BEYOND THE TERMINATOR
+  EX (SP),HL              ; Save and restore code string         PUT [H,L] POINTER TO TERMINATOR ON THE STACK
+                          ;                                      AND RESTORE [H,L] AS TEXT POINTER AT VARIABLE NAME
+  PUSH HL                 ; Re-save code string address          PUSH THE TEXT POINTER ONTO THE STACK
+  LD HL,(CURLIN)          ; Get current line number              [H,L] GET THE CURRENT LINE #
+  EX (SP),HL              ; Save and restore code string         NOW THE CURRENT LINE # IS ON THE STACK, HL IS THE TEXT POINTER
   CALL SYNCHR             ; Make sure "TO" is next
-  DEFB TK_TO              ; "TO" token                         "TO" IS NECESSARY
-  CALL GETYPR             ; Get the number type (FAC)          SEE WHAT TYPE THIS VALUE HAS
-  JP Z,TM_ERR             ; If string type, "Type mismatch"    GIVE STRINGS A "TYPE MISMATCH"
-  JP NC,TM_ERR            ;                                    AS WELL AS DOUBLE-PRECISION
-  PUSH AF                 ; save type                          SAVE THE INTEGER/FLOATING FLAG
-  CALL EVAL               ;                                    EVALUATE THE TARGET VALUE FORMULA
-  POP AF                  ; Restore type                       POP OFF THE FLAG
+  DEFB TK_TO              ; "TO" token                           "TO" IS NECESSARY
+  CALL GETYPR             ; Get the number type (FAC)            SEE WHAT TYPE THIS VALUE HAS
+  JP Z,TM_ERR             ; If string type, "Type mismatch"      GIVE STRINGS A "TYPE MISMATCH"
+  JP NC,TM_ERR            ;                                      AS WELL AS DOUBLE-PRECISION
+  PUSH AF                 ; save type                            SAVE THE INTEGER/FLOATING FLAG
+  CALL EVAL               ;                                      EVALUATE THE TARGET VALUE FORMULA
+  POP AF                  ; Restore type                         POP OFF THE FLAG
   PUSH HL                 ; SAVE THE TEXT POINTER
   JP P,FORFND_SNG         ; POSITIVE MEANS SINGLE PRECISION "FOR"-LOOP
   CALL __CINT             ; COERCE THE FINAL VALUE
@@ -3922,7 +3922,7 @@ FORFND_SNG:
   LD BC,$8100             ; BCDE = 1.0 (default STEP)
   LD D,C                  ; C=0
   LD E,D                  ; D=0
-  LD A,(HL)               ; Get next byte in code string          GET TERMINATING CHARACTER
+  LD A,(HL)               ; Get next byte in code string         GET TERMINATING CHARACTER
   CP TK_STEP              ; See if "STEP" is stated
   LD A,$01                ; Sign of step = 1
   JP NZ,SAVSTP            ; No STEP given - Default to 1
@@ -3955,13 +3955,13 @@ SAVSTP_0:
   CALL CHRGTB             ;FETCH FIRST CHARACTER OF "NEXT"
   PUSH HL                 ;MAKE THE NEXT TXTPTR PART OF THE ENTRY
   PUSH HL
-  LD HL,(NXTLIN)                                             ;GET THE LINE NUMBER OF NEXT
-  LD (CURLIN),HL                                             ;MAKE IT THE CURRENT LINE
-  LD HL,(TEMP)            ; Get address of index variable    ;GET THE POINTER TO THE VARIABLE BACK
-  EX (SP),HL              ; Save and restore code string     ;PUT THE PTR ON SP AND RESTORE THE TEXT POINTER
-  LD B,TK_FOR             ; "FOR" block marker               ;FINISH UP "FOR"
+  LD HL,(NXTLIN)                                                ;GET THE LINE NUMBER OF NEXT
+  LD (CURLIN),HL                                                ;MAKE IT THE CURRENT LINE
+  LD HL,(TEMP)            ; Get address of index variable        GET THE POINTER TO THE VARIABLE BACK
+  EX (SP),HL              ; Save and restore code string         PUT THE PTR ON SP AND RESTORE THE TEXT POINTER
+  LD B,TK_FOR             ; "FOR" block marker                   FINISH UP "FOR"
   PUSH BC                 ; Save it
-  INC SP                  ; Don't save C                     ;THE "TOKEN" ONLY TAKES ONE BYTE OF STACK SPACE
+  INC SP                  ; Don't save C                         THE "TOKEN" ONLY TAKES ONE BYTE OF STACK SPACE
   PUSH AF                 ;SAVE THE CHARACTER
   PUSH AF                 ;MAKE A STACK ENTRY TO SUBSTITUTE FOR "NEWSTT"
   JP __NEXT_0             ;GO EXECUTE "NEXT" WITH NXTFLG ZERO
@@ -3971,9 +3971,9 @@ SAVSTP_0:
 ; Used by the routine at __NEXT.
 ; --- Put "FOR" block marker ---
 PUTFID:
-  LD B,TK_FOR             ; "FOR" block marker               ;PUT A 'FOR' TOKEN ONTO THE STACK
+  LD B,TK_FOR             ; "FOR" block marker                   PUT A 'FOR' TOKEN ONTO THE STACK
   PUSH BC                 ; Save it                          
-  INC SP                  ; Don't save C                     ;THE "TOKEN" ONLY TAKES ONE BYTE OF STACK SPACE
+  INC SP                  ; Don't save C                         THE "TOKEN" ONLY TAKES ONE BYTE OF STACK SPACE
 ;	JMP	NEWSTT		;ALL DONE
 
 ;
@@ -4411,7 +4411,7 @@ __RUN:
 ;CLEAN UP,SET [H,L]=[TXTTAB]-1 AND
 ;RETURN TO NEWSTT
 __RUN_0:
-  CALL _CLVAR          ; Initialise variables      ;CLEAN UP -- RESET THE STACK, DATPTR,VARIABLES ...
+  CALL CLEARC          ; Initialise variables      ;CLEAN UP -- RESET THE STACK, DATPTR,VARIABLES ...
                                                    ;[H,L] IS THE ONLY THING PRESERVED
   LD BC,NEWSTT         ; Execution driver loop
   JP RUNLIN            ; RUN from line number      ;PUT "NEWSTT" ON AND FALL INTO "GOTO"
@@ -15200,15 +15200,25 @@ RUN_FST:
   LD HL,(TXTTAB)          ;POINT AT THE START OF TEXT
   DEC HL
 
+;
+; CLEARC IS A SUBROUTINE WHICH INITIALIZES THE VARIABLE AND
+; ARRAY SPACE BY RESETING ARYTAB [THE END OF SIMPLE VARIABLE SPACE]
+; AND STREND [THE END OF ARRAY STORAGE]. IT FALLS INTO STKINI
+; WHICH RESETS THE STACK. [H,L] IS PRESERVED.
+;
 ; This entry point is used by the routines at ATOH and CLVAR.
-_CLVAR:
+CLEARC:
   LD (TEMP),HL            ; Save code string address in TEMP
+IF HAVE_GFX
+  CALL GRPRST             ;Reset graphics
+ENDIF
+  ;;CALL INITRP             ;INIT TRAP TABLE
   LD A,(MRGFLG)           ;DOING A CHAIN MERGE?
   OR A                    ;TEST
   JP NZ,LEVDTB            ;LEAVE DEFAULT TABLE ALONE
   XOR A
-  LD (OPTFLG),A      ;INDICATE NO "OPTION" HAS BEEN SEEN
-  LD (OPTVAL),A          ;DEFAULT TO "OPTION BASE 0"
+  LD (OPTFLG),A           ;INDICATE NO "OPTION" HAS BEEN SEEN
+  LD (OPTVAL),A           ;DEFAULT TO "OPTION BASE 0"
   LD B,26                 ;INITIALIZE THE DEFAULT VALTYPE TABLE
   LD HL,DEFTBL            ;POINT AT THE FIRST ENTRY
 LOPDFT:
@@ -15585,7 +15595,7 @@ ISLETTER_A:
 ;
 ; Used by the routine at __CLEAR.
 CLVAR:
-  JP _CLVAR
+  JP CLEARC
 
 ; 'CLEAR' BASIC command
 ;
@@ -18964,12 +18974,12 @@ FN_INPUT:
   DEFM "$"                ;STRING FUNCTION
   CALL SYNCHR
   DEFM "("
-  PUSH HL
-  LD HL,(PTRFIL)
-  LD DE,$0000
+  PUSH HL                 ;Preserve PTRFIL across INPUT$ so
+  LD HL,(PTRFIL)          ;cases like PRINT #2,INPUT$(3,#1)
+  LD DE,$0000             ;will work properly.
   EX DE,HL
-  LD (PTRFIL),HL
-  EX DE,HL
+  LD (PTRFIL),HL          ;(Clear PTRFIL in case no file number
+  EX DE,HL                ;is specified.)
   EX (SP),HL
   CALL GETINT             ;Get # of bytes to read
   PUSH DE                 ;Save # of bytes to read
@@ -18983,7 +18993,7 @@ FN_INPUT:
   CALL FILSET             ;SET UP PTRFIL
   XOR A                   ;SET ZERO FOR FLAG
 REDTTY:
-  PUSH AF                 ;NON ZERO SET IF TERMINAL I/O
+  PUSH AF                 ;NON ZERO SET IF TERMINAL I/O             ; PUSH PSW
   CALL SYNCHR
   DEFM ")"                ;Must have paren
   POP AF                  ;Get flag off stack
@@ -18997,8 +19007,8 @@ REDTTY:
   EX DE,HL
   POP BC                  ;[C] = # to read
 FIXLOP:
-  POP AF
-  PUSH AF                 ;NON-ZERO set if should read from TTY
+  POP AF                                                            ; POP PSW
+  PUSH AF                 ;NON-ZERO set if should read from TTY     ; PUSH PSW
   JP Z,DSKCHR             ;Read from disk file
   CALL CHARCG             ;GET CHAR IF ONE
   JP NZ,CHARCW            ;WAS ONE
@@ -20756,14 +20766,14 @@ CMPFPS:
 
 ; This entry point is used by the routine at __MERGE.
 PROSAV:
-  CALL CHRGTB             ;Get char after "S"
+  CALL CHRGTB             ;Get char after "S"               ;skip "P"
   LD (TEMP),HL            ;Save text pointer
   CALL SCCPTR             ;Get rid of GOTO pointers
   CALL PENCOD             ;encode binary
-  LD A,$FE                ;Put out 254 at start of file
-  CALL BINPSV
-  CALL PDECOD             ;Re-decode binary
-  JP GTMPRT               ;Back to NEWSTT
+  LD A,$FE                ;Put out 254 at start of file     ;ID byte for Protected files
+  CALL BINPSV                                               ;Do the SAVE
+  CALL PDECOD             ;Re-decode binary                 ;Decode binary
+  JP GTMPRT               ;Back to NEWSTT                   ;return to NEWSTT
 
 
 defc N1 = 11  ;Number of bytes to use from ATNCON (FP_ATNTAB)
@@ -22371,10 +22381,65 @@ ENDIF
 
 IF HAVE_GFX
 
+;GRPRST resets graphics.  It is called at CLEARC and during INIT
+;Entry - none
+;Exit  - all registers preserved
+;
+GRPRST:
+  PUSH AF
+  PUSH BC
+  PUSH HL
+  XOR A
+  LD (DRWSCL),A          ;Draw scale init
+  LD (DRWANG),A          ;Draw angle init
+;  CALL GRPINI            ;Center the graphics cursor
+  LD HL,255/2
+  LD (GRPACX),HL
+  LD HL,192/2
+  LD (GRPACY),HL
 
-DRWFLG: defb 0
-DRWSCL: defb 0
-DRWANG: defb 0
+  LD A,(FORCLR)          ;Get foreground/(background) colors
+  CALL SETATR            ;Set the default DRAW color
+  
+  POP HL
+  POP BC
+  POP AF
+  RET
+
+
+
+;;GRPINI - center the graphics cursor.
+;; This routine has been documented to OEMs for versions of GW BASIC which are translated to ASM86.
+;;Entry - none
+;;Exit  - none
+;;
+;
+;GRPINI:
+;  CALL GRPSIZ             ;Get screen pixel dimensions
+;  PUSH BC                 ;B,C has X dimension
+;  POP HL                  ;Move X dimension to H
+;  INC HL                  ;Adjust for zero relative
+;  SRL H
+;  RR L
+;  LD (GRPACX),HL          ;Store as previous position
+;  PUSH DE                 ;D,E has Y dimension
+;  POP HL                  ;Move Y dimension to H
+;  INC HL
+;  SRL H
+;  RR L
+;  LD (GRPACY),HL          ;Store as previous position
+;  RET	
+;	
+;
+;GRPSIZ:
+;  LD BC,255
+;  LD DE,192
+;  RET
+
+
+DRWSCL: defb 0            ;DRAW: SCALE           DRAW POS,2 ling factor
+DRWFLG: defb 0            ;DRAW flag
+DRWANG: defb 0            ;DRAW "ANGLE" (0..3)   DRAW translation angle
 
 
 
@@ -22687,10 +22752,12 @@ DCOLR:
 ;
 
 
-MCLTAB: defw 0
-;MCLFLG: defb 0
-MCLPTR: defw 0
-MCLLEN: defw 0
+;MCLFLG: defb 0		;Used to extend the MCL interpreter to PLAY music
+
+;Other 'DRAW' vars. not initialized
+MCLPTR: defw 0      ;MAC LANG PTR
+MCLLEN: defb 0      ;STRING LENGTH
+MCLTAB: defw 0      ;PTR TO COMMAND TABLE
 
 ; Data block at 22124
 MACLNG:
