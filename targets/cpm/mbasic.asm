@@ -16,7 +16,7 @@ ENDIF
 
 
 ; Proof of concept:  ZX Spectrum +3 graphics and Terminal
-; (VPOKE, VPEEK, PSET, PRESET, POINT, CSRLIN, LINE, CLS, COLOR, LOCATE, LINE@ [replacing DRAW])
+; (VPOKE, VPEEK, PSET, PRESET, POINT, CSRLIN, LINE, CLS, COLOR, LOCATE, "LINE@" [replacing DRAW], "LINE!" [replacing CIRCLE])
 ; add -DTAPE for CLOAD and CSAVE (Kansas City Standard), at 1200 bps.
 ;
 ; z80asm -b -DHAVE_GFX -DZXPLUS3 -DVT52 mbasic.asm
@@ -50,6 +50,7 @@ defc _BDOS   =  BASE+5
 ; --- Sizes --- 
 
 defc NUMLEV   =   0*20+19+2*5       ; NUMBER OF STACK LEVELS RESERVED BY AN EXPLICIT CALL TO GETSTK
+;defc NUMLEV   =   110				; ..the amount used by GW-BASIC
 defc NAMLEN   =   40                ;  ;MAXIMUM LENGTH NAME -- 3 TO 127
 
 ; --- Prefixes, Tokens.. --- 
@@ -4061,7 +4062,7 @@ IF ZXPLUS3
 ELSE
   CP TK_RESET+1-TK_END    ; END to RESET ?
 ENDIF
-  JP NC,ISMID         ; Not a key word - ?SN Error      ;SEE IF LHS MID$ CASE
+  JP NC,ISMID             ; Not a key word - ?SN Error      ;SEE IF LHS MID$ CASE
   RLCA                    ; Double it                       ;MULTIPLY BY 2
   LD C,A                  ; BC = Offset into table
   LD B,$00
@@ -5140,11 +5141,14 @@ FINPRT:
 __LINE:
 
 IF HAVE_GFX
-  CP '@'		; New Syntax.  LINE@ replaces DRAW, we ran out of space for TOKEN codes !
-  JP Z,__DRAW		; No, this is a real graphics command !
+  CP '!'            ; New Syntax.  LINE! replaces CIRCLE, we ran out of space for TOKEN codes !
+  JP Z,__CIRCLE
 
-  CP TK_INPUT		; ? Token for INPUT to support the "LINE INPUT" statement ?
-  JP NZ,LINE		; No, this is a real graphics command !
+  CP '@'            ; New Syntax.  LINE@ replaces DRAW, we ran out of space for TOKEN codes !
+  JP Z,__DRAW
+
+  CP TK_INPUT       ; ? Token for INPUT to support the "LINE INPUT" statement ?
+  JP NZ,LINE        ; No, this is a real graphics command !
 ENDIF
 
   CALL SYNCHR
@@ -6261,13 +6265,14 @@ DISPAT:
   LD L,C                ; Address to HL
   JP (HL)               ; Jump to function                   ;GO PERFORM THE FUNCTION
 
-; Routine at 7497
 ;
 ; THE FOLLOWING ROUTINE IS CALLED FROM FIN IN F4
 ; TO SCAN LEADING SIGNS FOR NUMBERS. IT WAS MOVED
 ; TO F3 TO ELIMINATE BYTE EXTERNALS
 ;
 ; test '+', '-'..
+; a.k.a. MINPLS
+;
 ; Used by the routine at _ASCTFP.
 SGNEXP:
   DEC D                   ; Dee to flag negative exponent      ;SET SIGN OF EXPONENT FLAG
@@ -6292,7 +6297,7 @@ DOCMP:
   ADD A,$FF               ;MAP 0 TO 0
   SBC A,A                 ;AND ALL OTHERS TO 377
   CALL CONIA              ;CONVERT [A] TO AN INTEGER SIGNED
-  JP NOT_0                ;RETURN FROM OPERATOR APPLICATION PLACE SO THE TEXT POINTER
+  JP RETAPG               ;RETURN FROM OPERATOR APPLICATION PLACE SO THE TEXT POINTER
                           ;WILL GET SET UP TO WHAT IT WAS WHEN LPOPER RETURNED.
 
 ; 'NOT' boolean expression
@@ -6312,7 +6317,7 @@ NOT:
   POP BC                  ; Clean up stack                     ;FRMEVL, AFTER SEEING THE PRECEDENCE OF 90 THINKS IT IS 
                                                                ;APPLYING AN OPERATOR SO IT HAS THE TEXT POINTER IN TEMP2 SO
 ; This entry point is used by the routine at DOCMP.
-NOT_0:
+RETAPG:
   JP EVAL3               ; Continue evaluation                 ;RETURN TO REFETCH IT
 
 ; Test number FAC type (Precision mode, etc..)                 ;REPLACEMENT FOR "GETYPE" RST
@@ -6400,10 +6405,10 @@ XOR:
 ; This entry point is used by the routine at AND.
 NOTXOR:
   CP $32            ;EQV?
-  JP NZ,IMP         ;NO
+  JP NZ,NOTEQV         ;NO
 
 ; 'EQV' boolean expression
-EQV:
+;EQV:
   LD A,E            ;LOW PART
   XOR L
   CPL
@@ -6417,7 +6422,7 @@ EQV:
 ;
 ; Used by the routine at XOR.
 ;FOR "IMP" USE A IMP B = NOT(A AND NOT(B))
-IMP:
+NOTEQV:
   LD A,L            ;MUST BE "IMP"
   CPL
   AND E
@@ -6867,11 +6872,11 @@ GETFNM:
 ; STRING FUNCTIONS - LEFT HAND SIDE MID$
 ; Used by the routine at EXEC.
 ISMID:
-  CP $FF-TK_END           ;LHS MID$?
+  CP $FF-TK_END           ;LHS MID$?                   ;FUNCTION? (FF - $END)
   JP NZ,SN_ERR            ;NO, ERROR.
   INC HL                  ;POINT TO NEXT CHAR
   LD A,(HL)               ;GET FN DESCRIPTOR
-  INC HL                  ;BUMP POINTER
+  INC HL                  ;BUMP POINTER                ;POINT TO CHAR AFTER
   CP $80+TK_MID_S         ;IS IT MID?
   JP Z,LHSMID
   JP SN_ERR               ;NO, ERROR
@@ -6883,6 +6888,7 @@ ISMID:
 ; OF THE CHANNEL. OUT CHANNEL#,VALUE PUTS OUT THE INTEGER
 ; VALUE ON CHANNEL #. IT IS A STATEMENT, NOT A FUNCTION.
 ;
+; a.k.a. FNINP
 
 IF ORIGINAL
 __INP:
@@ -6915,7 +6921,7 @@ OTPORT:
   RET
 
 
-; 'WAIT' BASIC command
+; 'WAIT' BASIC command, a.k.a. FNWAIT
 ;
 ; THE WAIT CHANNEL#,MASK,MASK2 WAITS UNTIL THE STATUS
 ; RETURNED BY CHANNEL# IS NON ZERO WHEN XORED WITH MASK2
@@ -12924,6 +12930,9 @@ __SIN_2:
 
   DEFB $00,$00,$00,$00
 
+;  defb 0,0, $80, $90	; -32768
+;  defb 0,0, $80, $80	; -0.5
+
 ; Routine at 14610
 FP_EPSILON:
   DEFB $83,$F9,$22,$7E    ; 1/(2*PI) 0.159155
@@ -15208,11 +15217,12 @@ RUN_FST:
 ;
 ; This entry point is used by the routines at ATOH and CLVAR.
 CLEARC:
-  LD (TEMP),HL            ; Save code string address in TEMP
+  LD (TEMP),HL            ; Save code string address in TEMP                 ;SAVE [H,L] IN TEMP
 IF HAVE_GFX
   CALL GRPRST             ;Reset graphics
 ENDIF
-  ;;CALL INITRP             ;INIT TRAP TABLE
+  ;;CALL INITRP             ;INIT TRAP TABLE                                 ;Initialize trapping
+  ;;CALL SNDINI             ;Initialize SOUND & PLAY
   LD A,(MRGFLG)           ;DOING A CHAIN MERGE?
   OR A                    ;TEST
   JP NZ,LEVDTB            ;LEAVE DEFAULT TABLE ALONE
@@ -15242,7 +15252,7 @@ LEVDTB:
   LD (ONEFLG),A           ;RESET ON ERROR FLAG FOR RUNS
   LD L,A                  ;RESET ERROR LINE NUMBER
   LD H,A                  ;BY SETTING ONELIN=0.
-  LD (ONELIN),HL
+  LD (ONELIN),HL          ;Clear error line number
   LD (OLDTXT),HL          ;MAKE CONTINUING IMPOSSIBLE
   LD HL,(MEMSIZ)
   LD A,(CHNFLG)           ;ARE WE CHAINING?
@@ -15301,7 +15311,7 @@ STKERR:
 
 ; This entry point is used by the routines at __OPEN, __LOAD and __GET.
 GTMPRT:
-  LD HL,(TEMP)            ;Restore code string address
+  LD HL,(TEMP)            ;Restore code string address                       ;GET SAVED [H,L]
   RET
 
 ; compare DE and HL (aka CPDEHL)
@@ -20964,12 +20974,12 @@ __PSET_0:
         CALL ATRENT               ; Get color, if specified          ;SCAN POSSIBLE ATTRIBUTE
         PUSH    HL                ; Save code string address         ;SAVE TEXT POINTER
 
-IF ZXPLUS3
-;
-ELSE
+;IF ZXPLUS3
+;;
+;ELSE
         CALL SCALXY               ;SCALE INTO BOUNDS
         JR NC,__PSET_1            ;NO PSET IF NOT IN BOUNDS
-ENDIF
+;ENDIF
 
         CALL MAPXY                ;MAP INTO A "C"           ; Find position in VRAM. CLOC=memory address, CMASK=color pixelmask
         CALL SETC                 ;ACTUALLY DO THE SET
@@ -20997,8 +21007,8 @@ __PSET_1:
 ; Used by the routines at LINE, (__PAINT, __CIRCLE and PUT_SPRITE).
 SCAN1:
   LD A,(HL)        ;GET THE CURRENT CHARACTER
-  CP '@'           ;ALLOW MEANINGLESS "@"
-  CALL Z,CHRGTB    ;BY SKIPPING OVER IT
+  ;CP '@'           ;ALLOW MEANINGLESS "@"
+  ;CALL Z,CHRGTB    ;BY SKIPPING OVER IT
   LD BC,$0000      ;ASSUME NO COODINATES AT ALL (-SECOND)
   LD D,B
   LD E,C
@@ -21604,6 +21614,62 @@ ELSE
 
 
 
+; Used by the routines at SCALXY and _GRPPRT.
+SCALXY:
+  PUSH HL
+  PUSH BC
+  LD B,$01
+  EX DE,HL
+  LD A,H
+  ADD A,A
+  JR NC,_SCALXY_1
+  LD HL,$0000
+  JR _SCALXY_2
+
+_SCALXY_1:
+  LD DE,192
+  CALL DCOMPR		; Compare HL with DE.
+  JR C,_SCALXY_3
+  EX DE,HL
+  DEC HL
+
+_SCALXY_2:
+  LD B,$00
+_SCALXY_3:
+  EX (SP),HL
+  LD A,H
+  ADD A,A
+  JR NC,_SCALXY_4
+  LD HL,$0000
+  JR _SCALXY_5
+
+_SCALXY_4:
+  LD DE,256
+  CALL DCOMPR		; Compare HL with DE.
+  JR C,_SCALXY_6
+  EX DE,HL
+  DEC HL
+
+_SCALXY_5:
+  LD B,$00
+_SCALXY_6:
+  POP DE
+;  CALL IN_GRP_MODE       ; Z if GRP (high resolution screen with 256×192 pixels)
+;  JR Z,_SCALXY_7
+;  SRL L
+;  SRL L
+;  SRL E
+;  SRL E
+;_SCALXY_7:
+  LD A,B
+  RRCA
+  LD B,H
+  LD C,L
+  POP HL
+  RET
+
+
+
 
 CHGCLR:
 IF ZXPLUS3
@@ -21925,9 +21991,9 @@ LINE:
 
 DOBOXF:
   PUSH HL             ;SAVE THE TEXT POINTER
-  ;CALL SCALXY        ;SCALE FIRST POINT
+  CALL SCALXY         ;SCALE FIRST POINT
   CALL XCHGAC         ;SWITCH POINTS
-  ;CALL SCALXY        ;SCALE SECOND POINT
+  CALL SCALXY         ;SCALE SECOND POINT
   CALL YDELT          ;SEE HOW MANY LINES AND SET CARRY
   CALL C,XCHGY        ;MAKE [D,E] THE SMALLEST Y
   INC HL              ;MAKE [H,L] INTO A COUNT
@@ -22030,9 +22096,9 @@ BOXLIN:
 ; Routine at 22844
 ; Used by the routines at LINE and DOGRPH_GRPAC.
 DOGRPH:
-  ;CALL SCALXY       ;CHEATY SCALING - JUST TRUNCATE FOR NOW
+  CALL SCALXY       ;CHEATY SCALING - JUST TRUNCATE FOR NOW
   CALL XCHGAC
-  ;CALL SCALXY
+  CALL SCALXY
   CALL YDELT         ;GET COUNT DIFFERENCE IN [H,L]
   CALL C,XCHGAC      ;IF CURRENT Y IS SMALLER NO EXCHANGE
   PUSH DE            ;SAVE Y1 COORDINATE
@@ -22437,11 +22503,462 @@ GRPRST:
 ;  RET
 
 
+
+
+
+
+;
+;       CIRCLE - DRAW A CIRCLE
+;
+; SYNTAX: CIRCLE @(X,Y),RADIUS[,ATRB[,+/-STARTANG[,+/-ENDANG[,ASPECT]]]]
+;
+
+__CIRCLE:
+
+  CALL SYNCHR
+  DEFB '!'
+
+  CALL SCAN1            ;GET (X,Y) OF CENTER INTO GRPACX,Y
+  CALL SYNCHR
+  DEFB ','              ;EAT COMMA
+  CALL FPSINT_0         ;GET THE RADIUS
+  PUSH HL               ;SAVE TXTPTR
+  EX DE,HL
+  LD (GXPOS),HL         ;SAVE HERE TILL START OF MAIN LOOP
+  CALL MAKINT           ;PUT INTEGER INTO FAC
+  CALL __CSNG           ;CONVERT TO SINGLE PRECISION
+  LD BC,$7040           ;LOAD REGS WITH SQR(2)/2   (BCDE = 0.707107)
+  LD DE,$0771
+  CALL FMULT            ;DO FLOATING PT MULTIPLY
+  CALL __CINT           ;CONVERT TO INTEGER & GET INTO [HL]
+  LD (CNPNTS),HL        ;CNPNTS=RADIUS*SQR(2)/2=# PTS TO PLOT
+  XOR A                 ;ZERO OUT CLINEF - NO LINES TO CENTER
+  LD (CLINEF),A
+  LD (CSCLXY),A         ;INITIALLY SCALING Y
+  POP HL                ;REGET TXTPTR
+  CALL ATRSCN           ;SCAN POSSIBLE ATTRIBUTE
+  LD C,$01              ;SET LO BIT IN CLINEF FOR LINE TO CNTR
+  LD DE,$0000           ;DEFAULT START COUNT = 0
+  CALL CGTCNT           ;PARSE THE BEGIN ANGLE
+  PUSH DE               ;SAVE COUNT FOR LATER COMPARISON
+  LD C,$80              ;SET HI BIT IN CLINEF FOR LINE TO CNTR
+  LD DE,$FFFF           ;DEFAULT END COUNT = INFINITY
+  CALL CGTCNT           ;PARSE THE END ANGLE
+  EX (SP),HL            ;GET START COUNT, PUSH TXTPTR TILL DONE
+  XOR A
+  EX DE,HL              ;REVERSE REGS TO TEST FOR .LT.
+  CALL DCOMPR            ;SEE IF END .GE. START
+  LD A,$00
+  JR NC,CSTPLT          ;YES, PLOT POINTS BETWEEN STRT & END
+  DEC A                 ;PLOT POINTS ABOVE & BELOW
+  EX DE,HL              ;SWAP START AND END SO START .LT. END
+  PUSH AF               ;Swap sense of center line flags
+  LD A,(CLINEF)
+  LD C,A
+  RLCA
+  RLCA
+  OR C
+  RRCA
+  LD (CLINEF),A         ;Store swapped flags
+  POP AF
+CSTPLT:
+  LD (CPLOTF),A         ;SET UP PLOT POLARITY FLAG
+  LD (CSTCNT),DE        ;STORE START COUNT
+  LD (CENCNT),HL        ;AND END COUNT
+  POP HL                ;GET TXTPTR
+  DEC HL                ;NOW SEE IF LAST CHAR WAS A COMMA
+  CALL CHRGTB
+  JR NZ,CIRC1           ;SOMETHING THERE
+  PUSH HL               ;SAVE TXTPTR
+  CALL GTASPC           ;GET DEFAULT ASPECT RATIO INTO [HL]
+  LD A,H
+  OR A                  ;IS ASPECT RATIO GREATER THAN ONE?
+  JR Z,CIRC2            ;BRIF GOOD ASPECT RATIO
+  LD A,$01
+  LD (CSCLXY),A
+  EX DE,HL              ;ASPECT RATIO IS GREATER THAN ONE, USE INVERSE
+  JR CIRC2              ;NOW GO CONVERT TO FRACTION OF 256
+
+CIRC1:
+  CALL SYNCHR
+  DEFB ','              ;EAT COMMA
+  CALL EVAL
+  PUSH HL               ;SAVE TXTPTR
+  CALL __CSNG           ;MAKE IT FLOATING POINT
+  CALL SIGN                ; test FP number sign
+  JP Z,FC_ERR              ; Err $05 - "Illegal function call"
+  JP M,FC_ERR              ; Err $05 - "Illegal function call"
+  CALL CMPONE           ;SEE IF GREATER THAN ONE
+  JR NZ,__CIRCLE_2      ;LESS THAN ONE - SCALING Y
+  INC A                 ;MAKE [A] NZ
+  LD (CSCLXY),A         ;FLAG SCALING X
+  CALL FDIV             ;RATIO = 1/RATIO
+__CIRCLE_2:
+
+  ;LD BC,$			;MAKE NUMBER FRACTION OF 256   (BCDE = 256 (float))
+  ;LD DE,$
+  ;CALL FMULT            ;BY MULTIPLYING BY 2^8 (256)
+  LD HL,FPEXP
+  ld a,(hl)
+  add 8                  ;ADD 8 TO EXPONENT
+  ld (hl),a
+
+  CALL __CINT           ;MAKE IT AN INTEGER IN [HL]
+CIRC2:
+  LD (ASPECT),HL        ;STORE ASPECT RATIO
+
+;
+;       CIRCLE ALGORITHM
+;
+;       [HL]=X=RADIUS * 2 (ONE BIT FRACTION FOR ROUNDING)
+;       [DE]=Y=0
+;       SUM =0
+; LOOP: IF Y IS EVEN THEN
+;             REFLECT((X+1)/2,(Y+1)/2) (I.E., PLOT POINTS)
+;             IF X.LT.Y THEN EXIT
+;       SUM=SUM+2*Y+1
+;       Y=Y+1
+;       IF SUM.GGWGRP.RNO
+;             SUM=SUM-2*X+1
+;             X=X-1
+;       ENDIF
+;       GOTO LOOP
+;
+
+  LD DE,$0000           ;INIT Y = 0
+  LD (CRCSUM),DE        ;SUM = 0
+  LD HL,(GXPOS)         ;X = RADIUS*2
+  ADD HL,HL
+
+CIRCLP:
+  CALL ISCNTC
+  LD A,E                ;TEST EVENNESS OF Y
+  RRA                   ;TO SEE IF WE NEED TO PLOT
+  JR C,CRCLP2           ;Y IS ODD - DON'T TEST OR PLOT
+  PUSH DE               ;SAVE Y AND X
+  PUSH HL
+  INC HL                ;ACTUAL COORDS ARE (X+1)/2,(Y+1)/2
+  EX DE,HL              ;(PLUS ONE BEFORE DIVIDE TO ROUND UP)
+  CALL DE_DIV2		; "RR DE"
+  EX DE,HL
+  INC DE
+  CALL DE_DIV2		; "RR DE"
+  CALL CPLOT8
+  POP DE                ;RESTORE X AND Y
+  POP HL                ;INTO [DE] AND [HL] (BACKWARDS FOR CMP)
+  CALL DCOMPR            ;QUIT IF Y .GE. X
+  JP NC,MC_POPTRT        ;GO POP TXTPTR AND QUIT
+  EX DE,HL
+CRCLP2:
+  LD B,H                ;GET OFFSETS INTO PROPER REGISTERS
+  LD C,L                ;[BC]=X
+  LD HL,(CRCSUM)
+  INC HL                ;SUM = SUM+2*Y+1
+  ADD HL,DE
+  ADD HL,DE
+  LD A,H                ;NOW CHECK SIGN OF RESULT
+  ADD A,A
+  JR C,CNODEX           ;DON'T ADJUST X IF WAS NEGATIVE
+  PUSH DE               ;SAVE Y
+  EX DE,HL              ;[DE]=SUM
+  LD H,B                ;[HL]=X
+  LD L,C
+  ADD HL,HL             ;[HL]=2*X-1
+  DEC HL
+  EX DE,HL              ;PREPARE TO SUBTRACT
+  OR A
+  SBC HL,DE             ;CALC SUM-2*X+1
+  DEC BC                ;X=X-1
+  POP DE                ;GET Y BACK
+CNODEX:
+  LD (CRCSUM),HL        ;UPDATE CIRCLE SUM
+  LD H,B                ;GET X BACK TO [HL]
+  LD L,C
+  INC DE                ;Y=Y+1
+  JR CIRCLP
+
+
+GTASPC:
+  LD HL,(ASPCT1)
+  EX DE,HL
+  LD HL,(ASPCT2)
+  RET
+
+CPLSCX:
+  PUSH DE
+  CALL SCALEY
+  POP HL                ;GET UNSCALED INTO [HL]
+  LD A,(CSCLXY)         ;SEE WHETHER ASPECT WAS .GT. 1
+  OR A 
+  RET Z
+  EX DE,HL
+  RET                   ;DON'T SWAP IF ZERO
+
+; Used by the routine at CPLSCX.
+SCALEY:
+  LD HL,(ASPECT)        ;SCALE [DE] BY ASPECT RATIO
+  LD A,L                ;CHECK FOR *0 AND *1 CASES
+  OR A                  ;ENTRY TO DO [A]*[DE] ([A] NON-Z)
+  JR NZ,SCAL2           ;NON-ZERO
+  OR H                  ;TEST HI BYTE
+  RET NZ                ;IF NZ, THEN WAS *1 CASE
+  EX DE,HL              ;WAS *0 CASE - PUT 0 IN [DE]
+  RET
+
+SCAL2:
+  LD C,D
+  LD D,$00
+  PUSH AF
+  CALL SCL_MULTIPLY
+  LD E,$80              ; ROUND UP
+  ADD HL,DE
+  LD E,C
+  LD C,H
+  POP AF
+  CALL SCL_MULTIPLY
+  LD E,C
+  ADD HL,DE
+  EX DE,HL
+  RET
+
+; Used by the routine at SCALEY.
+SCL_MULTIPLY:
+  LD B,$08
+  LD HL,$0000
+SCL_MULTIPLY_0:
+  ADD HL,HL
+  ADD A,A
+  JR NC,SCL_MULTIPLY_1
+  ADD HL,DE
+SCL_MULTIPLY_1:
+  DJNZ SCL_MULTIPLY_0
+  RET
+
+;
+; REFLECT THE POINTS AROUND CENTER
+; [HL]=X OFFSET FROM CENTER, [DE]=Y OFFSET FROM CENTER
+;
+
+; Routine at 23558
+;
+; Used by the routine at __CIRCLE.
+CPLOT8:
+  LD (CPCNT),DE         ;POINT COUNT IS ALWAYS = Y
+  PUSH HL               ;SAVE X
+  LD HL,$0000           ;START CPCNT8 OUT AT 0
+  LD (CPCNT8),HL
+  CALL CPLSCX           ;SCALE Y AS APPROPRIATE
+  LD (CXOFF),HL         ;SAVE CXOFF
+  POP HL                ;GET BACK X
+  EX DE,HL
+  PUSH HL               ;SAVE INITIAL [DE]
+  CALL CPLSCX           ;SCALE X AS APPROPRIATE
+  LD (CYOFF),DE
+  POP DE                ;GET BACK INITIAL [DE]
+  CALL NEGDE            ;START: [DE]=-Y,[HL]=X,CXOFF=Y,CY=X
+
+  CALL CPLOT4           ;PLOT +X,-SY -Y,-SX -X,+SY +Y,-SX
+
+  PUSH HL
+  PUSH DE
+  LD HL,(CNPNTS)        ;GET # PNTS PER OCTANT
+  LD (CPCNT8),HL        ;AND SET FOR DOING ODD OCTANTS
+  LD DE,(CPCNT)         ;GET POINT COUNT
+  OR A
+  SBC HL,DE             ;ODD OCTANTS ARE BACKWARDS SO
+  LD (CPCNT),HL         ;PNTCNT = PNTS/OCT - PNTCNT
+  LD HL,(CXOFF)         ;NEED TO NEGATE CXOFF TO START OUT RIGHT
+  CALL NEGHL
+  LD (CXOFF),HL
+  POP DE
+  POP HL
+  CALL NEGDE            ;ALSO NEED TO MAKE [DE]=-SX=-[DE]
+                        ;PLOT +Y,-SX -X,-SY -Y,+SX +X,+SY
+                        ;(FALL THRU TO CPLOT4)
+CPLOT4:
+  LD A,$04              ;LOOP FOUR TIMES
+CPLOT:
+  PUSH AF               ;SAVE LOOP COUNT
+  PUSH HL               ;SAVE BOTH X & Y OFFSETS
+  PUSH DE
+  PUSH HL               ;SAVE TWICE
+  PUSH DE
+  LD DE,(CPCNT8)        ;GET NP*OCTANT*8
+  LD HL,(CNPNTS)        ;ADD SQR(2)*RADIUS FOR NEXT OCTANT
+  ADD HL,HL
+  ADD HL,DE
+  LD (CPCNT8),HL        ;UPDATE FOR NEXT TIME
+  LD HL,(CPCNT)         ;CALC THIS POINT'S POINT COUNT
+  ADD HL,DE             ;ADD IN PNTCNT*OCTANT*NP
+  EX DE,HL              ;SAVE THIS POINT'S COUNT IN [DE]
+  LD HL,(CSTCNT)        ;GET START COUNT
+  CALL DCOMPR
+  JR Z,CLINSC           ;SEE IF LINE TO CENTER REQUIRED
+  JR NC,CNBTWN          ;IF SC .GT. PC, THEN NOT BETWEEN
+  LD HL,(CENCNT)        ;GET END COUNT
+  CALL DCOMPR
+  JR Z,CLINEC           ;GO SEE IF LINE FROM CENTER NEEDED
+  JR NC,CBTWEN          ;IF EC .GT. PC, THEN BETWEEN
+
+CNBTWN:
+  LD A,(CPLOTF)         ;SEE WHETHER TO PLOT OR NOT
+  OR A                  ;IF NZ, PLOT POINTS NOT IN BETWEEN
+  JR NZ,CPLTIT          ;NEED TO PLOT NOT-BETWEEN POINTS
+  JR GCPLFN             ;DON'T PLOT - FIX UP STACK & RETURN
+
+CLINEC:
+  LD A,(CLINEF)         ;GET CENTER LINE FLAG BYTE
+  ADD A,A               ;BIT 7=1 MEANS DRAW LINE FROM CENTER
+  JR NC,CPLTIT          ;NO LINE REQUIRED - JUST PLOT POINT
+  JR CLINE              ;LINE REQUIRED.
+
+CLINSC:
+  LD A,(CLINEF)         ;GET CENTER LINE FLAG BYTE
+  RRA                   ;BIT 0=1 MEANS LINE FROM CENTER NEEDED.
+  JR NC,CPLTIT          ;NO LINE REQUIRED - JUST PLOT POINT
+
+CLINE:
+  POP DE                ;GET X & Y OFFSETS
+  POP HL
+  CALL GTABSC           ;GO CALC TRUE COORDINATE OF POINT
+  CALL CLINE2           ;DRAW LINE FROM [BC],[DE] TO CENTER
+  JR CPLFIN
+  
+CBTWEN:
+  LD A,(CPLOTF)         ;SEE WHETHER PLOTTING BETWEENS OR NOT
+  OR A
+  JR Z,CPLTIT           ;IF Z, THEN DOING BETWEENS
+GCPLFN:
+  POP DE                ;CLEAN UP STACK
+  POP HL
+  JR CPLFIN
+
+CPLTIT:
+  POP DE                ;GET X & Y OFFSETS
+  POP HL
+  CALL GTABSC           ;CALC TRUE COORDINATE OF POINT
+  CALL SCALXY           ;SEE IF POINT OFF SCREEN
+  JR NC,CPLFIN          ;NC IF POINT OFF SCREEN - NO PLOT
+  CALL MAPXY
+  CALL SETC             ;PLOT THE POINT
+CPLFIN:
+  POP DE                ;GET BACK OFFSETS
+  POP HL
+  POP AF                ;GET BACK LOOP COUNT
+  DEC A
+  RET Z                 ;QUIT IF DONE.
+  PUSH AF               ; PUSH PSW
+  PUSH DE               ;SAVE X OFFSET
+  LD DE,(CXOFF)         ;SWAP [HL] AND CXOFF
+  CALL NEGDE            ;NEGATE NEW [HL]
+  LD (CXOFF),HL         ;SWAP [DE] AND CYOFF
+  EX DE,HL              ;NEGATE NEW [DE]
+  POP DE
+  PUSH HL
+  LD HL,(CYOFF)
+  EX DE,HL
+  LD (CYOFF),HL
+  CALL NEGDE
+  POP HL
+  POP AF                ; POP PSW
+  JP CPLOT              ;PLOT NEXT POINT
+
+
+;
+; PARSE THE BEGIN AND END ANGLES
+;  SETTING APPROPRIATE BITS IN CLINEF IF NEG.
+;
+
+; Routine at 23831
+; Used by the routine at __CIRCLE.
+CGTCNT:
+  DEC HL
+  CALL CHRGTB            ;GET CURRENT CHAR
+  RET Z                 ;IF NOTHING, RETURN DFLT IN [DE]
+  CALL SYNCHR
+  DEFB ','              ;EAT THE COMMA
+  CP ','                ;USE DEFAULT IF NO ARGUMENT.
+  RET Z
+  PUSH BC               ;SAVE FLAG BYTE IN [C]
+  CALL EVAL             ;EVALUATE THE THING   ('FRMEVL' in GW-BASIC, 'EVAL' on MSX)
+  EX (SP),HL            ;POP FLAG BYTE, PUSH TXTPTR
+  PUSH HL               ;RESAVE FLAG BYTE
+  CALL __CSNG           ;MAKE IT A SINGLE PRECISION VALUE
+  POP BC                ;GET BACK FLAG BYTE
+  LD HL,FACCU           ;NOW SEE WHETHER POSITIVE OR NOT
+  LD A,(HL)             ;GET EXPONENT BYTE
+  OR A
+  JP P,CGTCNT_0
+  AND $7F               ;MAKE IT POSITIVE
+  LD (HL),A
+  LD HL,CLINEF          ;SET BIT IN [C] IN CLINEF
+  LD A,(HL)
+  OR C
+  LD (HL),A
+
+CGTCNT_0:
+  LD BC,$7E22           ;LOAD REGS WITH 1/2*PI  (BCDE = 0.159155)
+  LD DE,$F983
+  CALL FMULT            ;MULTIPLY BY 1/(2*PI) TO GET FRACTION
+  CALL CMPONE           ;SEE IF RESULT IS GREATER THAN ONE
+  JP Z,FC_ERR			;FC ERROR IF SO   (Err $05 - "Illegal function call")
+  CALL PUSHF            ;SAVE FAC ON STAC
+  LD HL,(CNPNTS)        ;GET NO. OF POINTS PER OCTANT
+  ADD HL,HL             ;TIMES 8 FOR TRUE CIRCUMFERENCE
+  ADD HL,HL
+  ADD HL,HL
+  CALL MAKINT           ;STICK IT IN FAC
+  CALL __CSNG           ;AND MAKE IT SINGLE PRECISION
+  POP BC                ;GET BACK ANG/2*PI IN REGS
+  POP DE
+  CALL FMULT            ;DO THE MULTIPLY
+  CALL __CINT           ;CONVERT TO INTEGER IN [HL]
+  POP DE                ;GET BACK TXTPTR
+  EX DE,HL
+  RET
+
+
+; Used by the routines at __CIRCLE and CGTCNT.
+CMPONE:
+  LD BC,$8100           ;MAKE SURE FAC IS LESS THAN ONE  ..BCDE = 1 (float)
+  LD D,C
+  LD E,C
+  CALL FCOMP
+  DEC A
+  RET
+
+
+
+
+; DATA AREA FOR CIRCLE STATEMENT
+ASPECT: defw 0            ; Aspect ratio of the circle; set by <ratio> of CIRCLE
+CENCNT: defw 0            ; End count
+CLINEF: defb 0            ; Flag to draw line to centre
+CNPNTS: defw 0            ; Points to be plottted
+CPLOTF: defb 0            ; Plot polarity flag
+CPCNT:  defw 0            ;  1/8 of number of points in circle
+CPCNT8: defw 0            ; 
+CRCSUM: defw 0            ; CIRCLE sum
+CSTCNT: defw 0            ; CIRCLE start count
+CSCLXY: defb 0            ; Scale of X & Y
+
+CXOFF:  defw 0            ; X offset from center
+CYOFF:  defw 0            ; Y offset from center
+
+ASPCT1:  defw $0100       ;2 Horizontal / Vertical aspect for CIRCLE command 
+ASPCT2:  defw $0100       ;2 Horizontal / Vertical aspect for CIRCLE command 
+
+
+
 DRWSCL: defb 0            ;DRAW: SCALE           DRAW POS,2 ling factor
 DRWFLG: defb 0            ;DRAW flag
 DRWANG: defb 0            ;DRAW "ANGLE" (0..3)   DRAW translation angle
 
 
+
+
+; "LINE@" is used to replace "DRAW" (I ran out of tokens !)
+; Microsoft refers to it as "GML", Graphics Macro Language
 
 __DRAW:
 
@@ -23009,7 +23526,7 @@ _READY:
   JP NZ,_RUN_FILE
   JP READY
 
-
+DEFS 32
 
 ;----------------------------------------------------------------
 ; WARNING:  All the code after this position will be destroyed
@@ -23190,8 +23707,8 @@ INIT_4:
 HAVE_OPTIONS:
   CALL CHRGTB
   CALL SYNCHR
-  DEFM ":"
-  CALL CNSGET
+  DEFM ":"            ;MAKE SURE COLON FOLLOWS
+  CALL CNSGET         ;[DE]=VALUE FOLLOWING COLON
   POP AF
   JP Z,INIT_6
 
@@ -23206,7 +23723,7 @@ HAVE_OPTIONS:
   LD A,E
   CP $10
   JP NC,FC_ERR
-  LD (MAXFIL),A			; HIGHEST FILE NUMBER ALLOWED
+  LD (MAXFIL),A       ; HIGHEST FILE NUMBER ALLOWED
   JP INIT_7
 
 
@@ -23230,8 +23747,8 @@ INIT_7:
 GET_RECSIZ:
   CALL CHRGTB
   CALL SYNCHR
-  DEFM ":"
-  CALL CNSGET
+  DEFM ":"            ;MAKE SURE COLON FOLLOWS
+  CALL CNSGET         ;[DE]=VALUE FOLLOWING COLON
   EX DE,HL
   LD (RECSIZ),HL
   EX DE,HL
@@ -23264,7 +23781,6 @@ pokebyte_code:
 		ei
 		ret
 		; adjust code size
-		nop
 peekbyte_code:
 		di
 		; ..$15 00010101 -> banks 4,5,6,3
@@ -23285,7 +23801,6 @@ peekbyte_code:
 		ei
 		ret
 		; adjust code size
-		nop
 ; ---------------------------------------------------------------
 ENDIF
 
@@ -23410,7 +23925,7 @@ SMLSTK:
 
 IF ZXPLUS3
 	push de
-	ld de,-36	; let's reserve extra space on stack for the JP routines
+	ld de,-34	; let's reserve extra space on stack for the JP routines
 	add hl,de
 	push hl
 	
@@ -23419,7 +23934,7 @@ IF ZXPLUS3
 
 	; Determine entry for p3_peek
 	push hl		; keep a copy
-	ld de,18	; -36+18..
+	ld de,17	; -34+17..
 	add hl,de
 	ld (p3_peek+1),hl
 
@@ -23428,7 +23943,7 @@ IF ZXPLUS3
 	ld d,h
 	ld e,l
 	ld hl,pokebyte_code
-	ld bc,18+18
+	ld bc,17+17
 	ldir
 	pop hl
 	pop de
