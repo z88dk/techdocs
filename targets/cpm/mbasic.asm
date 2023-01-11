@@ -16,8 +16,8 @@ ENDIF
 
 
 ; Proof of concept:  ZX Spectrum +3 graphics and Terminal
-; (VPOKE, VPEEK, PSET, PRESET, POINT, CSRLIN, LINE, CLS, COLOR, LOCATE, "LINE@" [replacing DRAW], "LINE!" [replacing CIRCLE])
-; add -DTAPE for CLOAD and CSAVE (Kansas City Standard), at 1200 bps.
+; (VPOKE, VPEEK, PSET, PRESET, POINT, CSRLIN, LINE, CLS, COLOR, LOCATE, DRAW, CIRCLE)
+; add -DTAPE for LOAD!, LOAD!? (=CLOAD, CLOAD?) and SAVE! (=CSAVE) ...Kansas City Standard, at 1200 bps, MSX style CSAVE protocol.
 ;
 ; z80asm -b -DHAVE_GFX -DZXPLUS3 -DVT52 mbasic.asm
 ; ren mbasic.bin P3BASIC.COM
@@ -198,9 +198,9 @@ defc TK_WAIT     =  $97
 defc TK_DEF      =  $98
 defc TK_POKE     =  $99
 defc TK_CONT     =  $9A
-IF TAPE
-defc TK_CSAVE    =  $9B
-defc TK_CLOAD    =  $9C
+IF HAVE_GFX
+defc TK_DRAW     =  $9B
+defc TK_CIRCLE   =  $9C
 ENDIF
 defc TK_OUT      =  $9D	; Token for 'OUT' (used also in 'OPEN' to check syntax)
 defc TK_LPRINT   =  $9E
@@ -385,9 +385,9 @@ FNCTAB:
   DEFW __DEF
   DEFW __POKE
   DEFW __CONT
-IF TAPE
-  DEFW __CSAVE
-  DEFW __CLOAD
+IF HAVE_GFX
+  DEFW __DRAW
+  DEFW __CIRCLE
 ELSE
   DEFW SN_ERR
   DEFW SN_ERR
@@ -614,19 +614,15 @@ WORDS_C:
   DEFB 'R'+$80
   DEFB TK_CLEAR
 
-IF TAPE
-  DEFM "LOA"
-  DEFB 'D'+$80
-  DEFB TK_CLOAD
-
-  DEFM "SAV"
-  DEFB 'E'+$80
-  DEFB TK_CSAVE
-ENDIF
-
   DEFM "IN"
   DEFB 'T'+$80
   DEFB TK_CINT
+
+IF HAVE_GFX
+  DEFM "IRCL"
+  DEFB 'E'+$80
+  DEFB TK_CIRCLE
+ENDIF
 
   DEFM "SN"
   DEFB 'G'+$80
@@ -720,6 +716,12 @@ WORDS_D:
   DEFM "E"
   DEFB 'F'+$80
   DEFB TK_DEF
+
+IF HAVE_GFX
+  DEFM "RA"
+  DEFB 'W'+$80
+  DEFB TK_DRAW
+ENDIF
 
   DEFB $00
 
@@ -1935,6 +1937,10 @@ LOWLIM:  defb 0      ; Used by the Cassette system (minimal length of startbit)
 WINWID:  defb 0      ; Used by the Cassette system (store the difference between a low-and high-cycle)
 
 __CLOAD:
+
+  CALL SYNCHR
+  DEFB '!'		; LOAD!, new syntax in place of CLOAD
+
   SUB $91		 ; TK_PRINT (Check if a "CLOAD?" command was issued to VERIFY the file only)
   JR Z,_VERIFY
   XOR A
@@ -2336,6 +2342,9 @@ SAVEND: defw 0
 
 
 __CSAVE:
+  CALL SYNCHR
+  DEFB '!'		; SAVE!, new syntax in place of CSAVE
+
   CALL FNAME_ARG
   DEC HL
   CALL CHRGTB		; Gets next character (or token) from BASIC text.
@@ -5141,12 +5150,6 @@ FINPRT:
 __LINE:
 
 IF HAVE_GFX
-  CP '!'            ; New Syntax.  LINE! replaces CIRCLE, we ran out of space for TOKEN codes !
-  JP Z,__CIRCLE
-
-  CP '@'            ; New Syntax.  LINE@ replaces DRAW, we ran out of space for TOKEN codes !
-  JP Z,__DRAW
-
   CP TK_INPUT       ; ? Token for INPUT to support the "LINE INPUT" statement ?
   JP NZ,LINE        ; No, this is a real graphics command !
 ENDIF
@@ -18481,6 +18484,13 @@ _RUN_FILE:
 
 ; 'LOAD' BASIC command
 __LOAD:
+
+IF TAPE
+  CP '!'            ; New Syntax.  LOAD! replaces CLOAD, we ran out of space for TOKEN codes !
+  JP Z,__CLOAD
+ENDIF
+
+
   XOR A                 ;FLAG ZERO FOR "LOAD"
   PUSH AF               ;SAVE "RUN"/"LOAD" FLAG
   CALL PRGFLI           ;FIND THAT FILE AND SETUP FOR USING INDSKC SUBROUTINE
@@ -18647,6 +18657,12 @@ DIRDO:
 ; SAVE COMMAND -- ASCII OR BINARY
 ;
 __SAVE:
+
+IF TAPE
+  CP '!'            ; New Syntax.  SAVE! replaces CSAVE, we ran out of space for TOKEN codes !
+  JP Z,__CSAVE
+ENDIF
+
   LD D,$02                ;(MD.SQO) ELIMINATE EARLIER VERSION AND CREATE EMPTY FILE
   CALL FILE_OPENOUT       ;READ FILE NAME AND DISK NUMBER AND LOOK IT UP
   DEC HL
@@ -21007,8 +21023,8 @@ __PSET_1:
 ; Used by the routines at LINE, (__PAINT, __CIRCLE and PUT_SPRITE).
 SCAN1:
   LD A,(HL)        ;GET THE CURRENT CHARACTER
-  ;CP '@'           ;ALLOW MEANINGLESS "@"
-  ;CALL Z,CHRGTB    ;BY SKIPPING OVER IT
+  CP '@'           ;ALLOW MEANINGLESS "@"
+  CALL Z,CHRGTB    ;BY SKIPPING OVER IT
   LD BC,$0000      ;ASSUME NO COODINATES AT ALL (-SECOND)
   LD D,B
   LD E,C
@@ -22514,10 +22530,6 @@ GRPRST:
 ;
 
 __CIRCLE:
-
-  CALL SYNCHR
-  DEFB '!'
-
   CALL SCAN1            ;GET (X,Y) OF CENTER INTO GRPACX,Y
   CALL SYNCHR
   DEFB ','              ;EAT COMMA
@@ -22961,10 +22973,6 @@ DRWANG: defb 0            ;DRAW "ANGLE" (0..3)   DRAW translation angle
 ; Microsoft refers to it as "GML", Graphics Macro Language
 
 __DRAW:
-
-  CALL SYNCHR
-  DEFB '@'
-
   LD DE,DRAW_TAB        ;DISPATCH TABLE FOR GML
   XOR A
   LD (DRWFLG),A
