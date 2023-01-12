@@ -16,7 +16,7 @@ ENDIF
 
 
 ; Proof of concept:  ZX Spectrum +3 graphics and Terminal
-; (VPOKE, VPEEK, PSET, PRESET, POINT, CSRLIN, LINE, CLS, COLOR, LOCATE, DRAW, CIRCLE)
+; (VPOKE, VPEEK, PSET, PRESET, POINT, CSRLIN, LINE, CLS, COLOR, LOCATE, PRINT @#, DRAW, CIRCLE)
 ; add -DTAPE for LOAD!, LOAD!? (=CLOAD, CLOAD?) and SAVE! (=CSAVE) ...Kansas City Standard, at 1200 bps, MSX style CSAVE protocol.
 ;
 ; z80asm -b -DHAVE_GFX -DZXPLUS3 -DVT52 mbasic.asm
@@ -4896,6 +4896,43 @@ SKPMRF:
   JP NZ,SKPMRF            ;SKIP MORE IF HAVEN'T SEEN ENOUGH
   JP DOCOND               ;FOUND THE RIGHT "ELSE" -- GO EXECUTE
 
+
+IF ZXPLUS3
+PRINT_AT:
+  CALL FPSINT
+  CALL SYNCHR 		;   Check syntax: next byte holds the byte to be found
+  DEFB ','
+  PUSH HL
+  EX DE,HL
+  LD A,50
+  CPL
+  INC A
+  LD C,A
+  LD B,$FF
+  LD E,B
+PRINT_AT_0:
+  INC E
+  LD D,L
+  ADD HL,BC
+  JP C,PRINT_AT_0
+  LD A,50
+  INC D
+  CP D
+  JP C,FC_ERR
+  LD A,23
+  INC E
+  CP E
+  JP C,FC_ERR
+  EX DE,HL	; cursor coordinates
+  CALL POSIT
+  LD A,H
+  DEC A
+  LD (TTYPOS),A		; Current horizontal position of cursor (0-39)
+  POP HL
+  RET
+ENDIF
+
+
 ; 'LPRINT' BASIC command
 __LPRINT:
   LD A,$01                ;SAY NON ZERO
@@ -4918,6 +4955,12 @@ __PRINT:
 ;  CP '@'
 ;  CALL Z,PRINT_AT
 ;ENDIF
+
+IF ZXPLUS3
+  CP '@'
+  CALL Z,PRINT_AT
+ENDIF
+
 
 ; This entry point is used by the routines at __LPRINT and PRNTNB.
 MRPRNT:
