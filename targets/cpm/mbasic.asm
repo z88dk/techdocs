@@ -1980,13 +1980,13 @@ __CLOAD_1:
   LD HL,(VARTAB)
   CALL DCOMPR		; Compare HL with DE.
   JP C,__CLOAD_0
-  LD E,$45				; "Verify error"
+  LD E,$45           ; "Verify error"
   JP ERROR
 
 
 CLOAD_HEADER:
-  CALL CSROON                   ; start tape for reading
-  LD B,$0A
+  CALL CSROON        ; start tape for reading
+  LD B,10            ; we check the leading header marker 10 times
   
 
 CLOAD_HEADER_0:
@@ -2390,7 +2390,7 @@ __CSAVE_BAS_1:
 
 __CSAVE_HEADER:
   CALL CWRTON		; start tape for writing
-  LD B,$0A
+  LD B,10           ; we write the leading header marker 10 times
 __CSAVE_HEADER_0:
   CALL CASOUT		; send byte to tape
   DJNZ __CSAVE_HEADER_0
@@ -2821,7 +2821,7 @@ OV_ERR:
 ; 'Operand Error' error entry
 ;
 ; Used by the routine at OPRND.
-OPERAND_ERR:
+MO_ERR:
   LD E,$16                ;MISSIN OPERAND ERROR
   DEFB $01                ; "LD BC,nn" to jump over the next word without executing it
 
@@ -5975,7 +5975,7 @@ IDIV:
 ; a.k.a. EVAL (in that case 'EVAL' was called 'FRMEVL')
 OPRND:
   CALL CHRGTB             ; Gets next character (or token) from BASIC text.
-  JP Z,OPERAND_ERR        ;TEST FOR MISSING OPERAND - IF NONE, Err $18 - "Missing Operand" Error
+  JP Z,MO_ERR             ;TEST FOR MISSING OPERAND - IF NONE, Err $18 - "Missing Operand" Error
   JP C,FIN                ;IF NUMERIC, INTERPRET CONSTANT              If numeric type, create FP number
   CALL ISLETTER_A         ;VARIABLE NAME?                              See if a letter
   JP NC,EVAL_VARIABLE     ;AN ALPHABETIC CHARACTER MEANS YES           Letter - Find variable
@@ -8822,7 +8822,7 @@ L27B8:
                           ;WE COULD DO THIS WITH NO CODE IN RAM, BUT
                           ; IT WOULD BE MUCH SLOWER.
 
-  DEFB $3E                ; "LD A,n" to Mask the next byte
+  DEFB $3E                ; LD A,n
 DIV4:
   DEFB $00
 
@@ -23064,10 +23064,10 @@ DRAW_TAB:
   DEFB 'X'      ;EXECUTE STRING
   DEFW MCLXEQ	; X<string> Execute a sub-string of instructions 
 
-  DEFB 'C'+$80      ;COLOR
+  DEFB 'C'+$80  ;COLOR
   DEFW DCOLR	; Change the foreground (drawing) color to <color>
   
-  DEFB 'S'+$80   ;SCALE
+  DEFB 'S'+$80  ;SCALE
   DEFW DSCALE	; S<scale> Scale every length specified after this command by <scale/4> pixels.
  
   DEFB $00		;END OF TABLE   (Table termination)
