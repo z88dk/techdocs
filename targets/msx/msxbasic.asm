@@ -17723,7 +17723,7 @@ SCNVAR:
   PUSH DE           ;SAVE ADDR OF BUF FOR "ISVAR"
   LD B,40           ;COPY MAX OF 40 CHARACTERS
   CALL ISLETTER_A   ;MAKE SURE IT'S A LETTER
-  JR C, SCNFC       ;FC ERROR IF NOT LETTER
+  JR C,SCNFC        ;FC ERROR IF NOT LETTER
 SCNVLP:
   LD (DE),A         ;STORE CHAR IN BUF
   INC DE
@@ -18564,11 +18564,11 @@ __CIRCLE:
   CALL ATRSCN           ;SCAN POSSIBLE ATTRIBUTE
   LD C,$01              ;SET LO BIT IN CLINEF FOR LINE TO CNTR
   LD DE,$0000           ;DEFAULT START COUNT = 0
-  CALL CGTCNT
+  CALL CGTCNT           ;PARSE THE BEGIN ANGLE
   PUSH DE               ;SAVE COUNT FOR LATER COMPARISON
   LD C,$80              ;SET HI BIT IN CLINEF FOR LINE TO CNTR
   LD DE,$FFFF           ;DEFAULT END COUNT = INFINITY
-  CALL CGTCNT
+  CALL CGTCNT           ;PARSE THE END ANGLE
   EX (SP),HL            ;GET START COUNT, PUSH TXTPTR TILL DONE
   XOR A
   EX DE,HL              ;REVERSE REGS TO TEST FOR .LT.
@@ -20353,7 +20353,7 @@ ENDIF
   LD (SUBFLG),A
   PUSH HL
   PUSH BC
-STKERR_0:
+GTMPRT:
   LD HL,(TEMP)
   RET
 
@@ -20763,6 +20763,7 @@ __CLEAR_0:
   POP BC            ; Restore code string address (1st copy)
   DEC HL
 STORED:
+  ;; CALL L6520     ; The Philips VG-5000 uses this call
   LD A,L            ; Get LSB of new RAM top
   SUB E             ; Subtract LSB of string space
   LD E,A            ; Save LSB
@@ -20793,6 +20794,7 @@ STORED:
   JP NEWSTT
 
 ; Routine at 25888
+; L6520 was probably replaced by inline code and never removed on MSX and SVI
 L6520:
   LD A,L
   SUB E
@@ -22986,7 +22988,7 @@ GDFILM:
 ;
 ; Used by the routine at L7380.
 CLOSE_STREAM:
-  LD BC,STKERR_0
+  LD BC,GTMPRT
   PUSH BC
   XOR A
   JP CLSFIL
@@ -23005,7 +23007,7 @@ FILIND:
 ; LINE INPUT & READ CODE FOR ITEM FETCHING FROM SEQUENTIAL INPUT FILES
 ; Data block at 28047
 LINE_INPUT:
-  LD  BC,FINPRT          ;RESET TO CONSOLE WHEN DONE READING
+  LD BC,FINPRT           ;RESET TO CONSOLE WHEN DONE READING
   PUSH BC                ;SAVE ON STACK
   CALL FILINP            ;GET FILE NUMBER SET UP
   CALL GETVAR            ;READ STRING TO STORE INTO
@@ -23604,7 +23606,7 @@ _VERIFY:
   CALL CLOAD_SUB
   JR NZ,__CLOAD_1
   LD (VARTAB),HL
-__CLOAD_0:
+__CLOAD_OK:
   LD HL,OK_MSG				; "Ok" Message
   CALL PRS
   LD HL,(TXTTAB)
@@ -23616,7 +23618,7 @@ __CLOAD_1:
   EX DE,HL
   LD HL,(VARTAB)
   RST DCOMPR		; Compare HL with DE.
-  JP C,__CLOAD_0
+  JP C,__CLOAD_OK
   LD E,$14				; Err $14 - "Verify error"
   JP ERROR
 
@@ -23663,7 +23665,7 @@ FNAME_ARG_2:
 ; Used by the routines at TAPE_LOAD, __CLOAD and L71D9.
 CLOAD_HEADER:
   CALL _CSROON                   ; start tape for reading
-  LD B,$0A
+  LD B,10			; we check the leading header marker 10 times
 
 CLOAD_HEADER_0:
   CALL _CASIN         ; get byte from tape
@@ -23743,7 +23745,7 @@ PRNAME_LOOP:
 ; Used by the routines at __CSAVE, DO_BSAVE and L71D9.
 CSAVE_HEADER:
   CALL CWRTON		; start tape for writing
-  LD B,$0A
+  LD B,10			; we write the leading header marker 10 times
 CSAVE_HEADER_0:
   CALL CASOUT		; send byte to tape
   DJNZ CSAVE_HEADER_0
