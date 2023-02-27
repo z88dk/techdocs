@@ -2444,99 +2444,128 @@ __SQR:
 
 ; POWER
 POWER:
-  POP BC
+  POP BC                  ;GET ARG IN REGISTERS, ENTRY TO FPWR IF ARGUMENT IS ON STACK.  FALL INTO FPWR
   POP DE
   RST VSIGN
-  LD A,B
-  JR Z,__EXP
-  JP P,POWER_0
-  OR A
-  JP Z,O_ERR
+  LD A,B                  ;POSITIVE EXPONENT                    ; Get exponent of base
+  JR Z,__EXP              ;IS IT ZERO TO MINUS POWER?           ; Make result 1 if zero
+  JP P,POWER_0            ;GIVE DIV BY ZERO AND CONTINUE        ; Positive base - Ok
+  OR A                    ; Zero to negative power?
+  JP Z,O_ERR              ; Yes - ?/0 Error
 POWER_0:
-  OR A
-  JP Z,ZERO0
-  PUSH DE
-  PUSH BC
-  LD A,C
-  OR $7F
-  CALL BCDEFP
-  JP P,POWER_2
-  PUSH AF
+  OR A                    ; Base zero?
+  JP Z,ZERO0              ; Yes - Return zero                   ;IT IS, RESULT IS ZERO
+  PUSH DE                 ; Save base
+  PUSH BC                 ;SAVE X ON STACK
+  LD A,C                  ;CHECK THE SIGN OF X                  ; Get MSB of base
+  OR $7F                  ;TURN THE ZERO FLAG OFF               ; Get sign status
+  CALL BCDEFP             ;GET Y IN THE REGISTERS               ; Move power to BCDE
+  JP P,POWER_2            ;NO PROBLEMS IF X IS POSITIVE         ; Positive base - Ok
+  PUSH AF                 ; Save power
   LD A,(FPEXP)
   CP $99
   JR C,POWER_1
   POP AF
-  JR POWER_2
+  JR POWER_2              ;NO PROBLEMS IF X IS POSITIVE
+
 POWER_1:
   POP AF
   PUSH DE
   PUSH BC
-  CALL __INT
-  POP BC
-  POP DE
-  PUSH AF
-  CALL FCOMP
-  POP HL
-  LD A,H
-  RRA
+  CALL __INT              ;SEE IF Y IS AN INTEGER                         ; Get integer of power
+  POP BC                                                                  ; Restore power
+  POP DE                  ;GET Y BACK
+  PUSH AF                 ;SAVE LO OF INT FOR EVEN AND ODD INFORMATION    ; MSB of base
+  CALL FCOMP              ;SEE IF WE HAVE AN INTEGER                      ; Power an integer?
+  POP HL                  ;GET EVEN-ODD INFORMATION                       ; Restore MSB of base
+  LD A,H                  ;PUT EVEN-ODD FLAG IN CARRY                     ; but don't affect flags
+  RRA                                                                     ; Exponent odd or even?
 POWER_2:
-  POP HL
-  LD (FACCU+2),HL
-  POP HL
-  LD (FACCU),HL
-  CALL C,NEGAFT
-  CALL Z,INVSGN
-  PUSH DE
-  PUSH BC
-  CALL __LOG
-  POP BC
+  POP HL                  ;GET X BACK IN FAC                              ; Restore MSB and exponent
+  LD (FACCU+2),HL         ;STORE HO'S                                     ; Save base in FPREG
+  POP HL                  ;GET LO'S OFF STACK                             ; LSBs of base
+  LD (FACCU),HL           ;STORE THEM IN FAC                              ; Save in FPREG
+  CALL C,NEGAFT           ;NEGATE NUMBER AT END IF Y WAS ODD              ; Odd power - Negate result
+  CALL Z,INVSGN           ;NEGATE THE NEGATIVE NUMBER                     ; Negative base - Negate it
+  PUSH DE                                                                 ; Save power
+  PUSH BC                 ;SAVE Y AGAIN
+  CALL __LOG              ;COMPUTE  EXP(Y*LOG(X))                         ; Get LOG of base
+  POP BC                                                                  ; Restore power
   POP DE
+                          ;IF X WAS NEGATIVE AND Y NOT AN INTEGER THEN
+                          ; LOG WILL BLOW HIM OUT OF THE WATER
+
 
 ; EXP
 EXP:
-  CALL FMULT
+  CALL FMULT              ; Multiply LOG by power
+
+
+	;THE FUNCTION EXP(X) CALCULATES e^X WHERE e=2.718282
+	;	THE TECHNIQUE USED IS TO EMPLOY A COUPLE
+	;	OF FUNDAMENTAL IDENTITIES THAT ALLOWS US TO
+	;	USE THE BASE 2 THROUGH THE DIFFICULT PORTIONS OF
+	;	THE CALCULATION:
+	;
+	;		(1)e^X=2^y  WHERE y=X*LOG2(e)   [LOG2(e) IS LOG BASE 2 OF e ]
+	;
+	;		(2) 2^y=2^[ INT(y)+(y-INT(y)]
+	;		(3) IF Ny=INT(y) THEN
+	;		    2^(Ny+y-Ny)=[2^Ny]*[2^(y-Ny)]
+	;
+	;	NOW, SINCE 2^Ny IS EASY TO COMPUTE (AN EXPONENT
+	;	CALCULATION WITH MANTISSA BITS OF ZERO) THE DIFFICULT
+	;	PORTION IS TO COMPUTE 2^(Y-Ny) WHERE 0.LE.(Y-Ny).LT.1
+	;	THIS IS ACCOMPLISHED WITH A POLYNOMIAL APPROXIMATION
+	;	TO 2^Z WHERE 0.LE.Z.LT.1  . ONCE THIS IS COMPUTED WE
+	;	HAVE TO EFFECT THE MULTIPLY BY 2^Ny .
+
 
 ; Routine at 2164
 ;
 ; Used by the routine at POWER.
 __EXP:
-  LD BC,$8138
-  LD DE,$AA3B
-  CALL FMULT
-  LD A,(FPEXP)
-  CP $88
-  JR NC,MUL_OVTST1
-  CP $68
-  JR C,GET_UNITY
-  CALL PUSHF
-  CALL __INT
-  ADD A,$81
+  LD BC,$8138             ;GET LOG2(e)                    ; BCDE = 1/Ln(2)
+  LD DE,$AA3B             
+  CALL FMULT              ;y=FAC*LOG2(e)                  ; Multiply value by 1/LN(2)
+  LD A,(FPEXP)            ;MUST SEE IF TOO LARGE          ; Get exponent
+  CP $88                  ;ABS .GT. 128?                  ; Is it in range?  (80H+8)
+  JR NC,MUL_OVTST1        ;IF SO OVERFLOW                 ; No - Test for overflow
+  CP $68                  ;IF TOO SMALL ANSWER IS 1
+  JR C,GET_UNITY                                          ; Load '1' to FP accumulator
+  CALL PUSHF              ;SAVE y                         ; Put value on stack
+  CALL __INT              ;DETERMINE INTEGER POWER OF 2   ; Get INT of FP accumulator
+  ADD A,$81               ;INTEGER WAS RETURNED IN A      ; 80h+1: For excess 128, Exponent = 126?
+                          ;BIAS IS $81 BECAUSE BINARY POINT IS TO LEFT OF UNDERSTOOD 1
+							 
   POP BC
-  POP DE
+  POP DE                  ;RECALL y
   JR Z,MUL_OVTST2
-  PUSH AF
-  CALL FSUB
-  LD HL,FP_EXPTAB
-  CALL POLY
-  POP BC
-  LD DE,$0000
-  LD C,D
-  JP FMULT
+  PUSH AF                 ;SAVE EXPONENT
+  CALL FSUB               ;FAC=y-INT(y)                   ; Subtract exponent from FP accumulator
+  LD HL,FP_EXPTAB         ;WILL USE HART 1302 POLY.       ; Coefficient table
+  CALL POLY               ;COMPUTE 2^[y-INT(y)]           ; Sum the series
+  POP BC                  ;INTEGER POWER OF 2 EXPONENT
+  LD DE,$0000             ;NOW HAVE FLOATING REPRESENTATION  OF INT(y) IN (BCDE)    ; Scaling factor
+  LD C,D                                                  ; Zero MSB
+
+  JP FMULT                ;MULTIPLY BY 2^[y-INT(y)] AND RETURN     ; Scale result to correct value
+
 MUL_OVTST1:
   CALL PUSHF
 MUL_OVTST2:
-  LD A,(FACCU+2)
-  OR A
-  JP P,RESZER
+  LD A,(FACCU+2)          ;IF NEG. THEN JUMP TO ZERO
+  OR A                                                     ; Test if new exponent zero
+  JP P,RESZER             ;OVERFLOW IF PLUS
+  POP AF                  ;NEED STACK RIGHT
   POP AF
-  POP AF
-  JP ZERO
+  JP ZERO                 ;GO ZERO THE FAC
 
 ; Routine at 2229
 ;
 ; Used by the routine at __EXP.
 RESZER:
-  JP OV_ERR
+  JP OV_ERR               ;OVERFLOW                        ; Overflow error
 
 ; Load '1' to FP accumulator
 ;
@@ -2547,30 +2576,44 @@ GET_UNITY:
   JP FPBCDE
 
 ; Data block at 2241
+
+;*************************************************************
+;	Hart 1302 polynomial coefficients
+; COEFFICIENTS FOR POLYNOMIAL EVALUATION OF LOG BASE 2 OF X
+; WHERE 5.LE.X.LE.1
+;*************************************************************
+
 FP_EXPTAB:
   DEFB $07
+  DEFB $7C,$88,$59,$74    ;.00020745577403-
+  DEFB $E0,$97,$26,$77    ;.00127100574569-
+  DEFB $C4,$1D,$1E,$7A    ;.00965065093202+
+  DEFB $5E,$50,$63,$7C    ;.05549656508324+
+  DEFB $1A,$FE,$75,$7E    ;.24022713817633-
+  DEFB $18,$72,$31,$80    ;.69314717213716+
+  DEFB $00,$00,$00,$81    ; 1.0! (1/1)
 
-; Data block at 2242
-L08C2:
-  DEFB $7C,$88,$59,$74
 
-; Data block at 2246
-L08C6:
-  DEFB $E0,$97,$26,$77,$C4,$1D,$1E,$7A
-  DEFB $5E,$50,$63,$7C,$1A,$FE,$75,$7E
-  DEFB $18,$72,$31,$80,$00,$00,$00,$81
+
 
 ; Series math sub: POLYNOMIAL EVALUATOR AND THE RANDOM NUMBER GENERATOR
 ;
+	;EVALUATE P(X^2)*X
+	;POINTER TO DEGREE+1 IS IN (HL)
+	;THE CONSTANTS FOLLOW THE DEGREE
+	;CONSTANTS SHOULD BE STORED IN REVERSE ORDER, FAC HAS X
+	;WE COMPUTE:
+	; C0*X+C1*X^3+C2*X^5+C3*X^7+...+C(N)*X^(2*N+1)
+;
 ; Used by the routines at __SIN and __ATN.
 SUMSER:
-  CALL PUSHF
-  LD DE,FMULTT		;$0478
-  PUSH DE
-  PUSH HL
-  CALL BCDEFP
-  CALL FMULT
-  POP HL
+  CALL PUSHF              ; Put FPREG on stack               ;SAVE X
+  LD DE,FMULTT            ; Multiply by "X"                  ;PUT ADDRESS OF FMULTT ON STACK SO WHEN WE
+  PUSH DE                 ; To be done after                 ; RETURN WE WILL MULTIPLY BY X
+  PUSH HL                 ; Save address of table            ;SAVE CONSTANT POINTER
+  CALL BCDEFP             ; Move FPREG to BCDE               ;SQUARE X
+  CALL FMULT              ; Square the value
+  POP HL                  ; Restore address of table         ;GET CONSTANT POINTER
 
 	;POLYNOMIAL EVALUATOR
 	;POINTER TO DEGREE+1 IS IN (HL), IT IS UPDATED
