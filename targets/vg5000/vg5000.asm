@@ -1,7 +1,10 @@
 
-; z80asm -b -m -l vg5000.asm
+; This ASM source can be used to create byte-identical ROM images for the
+; Philips (Radiola) VG-5000 computer family
+; Most of the location entries were kept in the few existing ROM versions, it is relatively safe to rely on them.
 
-; (Unfinished) Older version v1.0:  add -DV10
+; z80asm -b -m -l vg5000.asm
+; Older version v1.0:  add -DV10
 
 
 
@@ -74,6 +77,7 @@ defc EXTENF            = $4804	; <-- IX+$0A
 defc CURPOS            = $4805
 defc YCURSO            = $4806
 defc PRELIN            = $4807
+defc DOT               = $4809
 defc RETADR            = $480B
 defc ENTSTT            = $480D
 defc TMPSOUND          = $480E
@@ -375,7 +379,7 @@ CHRGTB:
   JP _CHRGTB_0
 
 ; This entry point is used by the routines at PRINT_FNAME_MSG, PROMPT, __TAB,
-; GTVLUS, T_EDIT, __LIST, PRS1, INLPNM, OUTDO_CRLF, SHIFT_STOP, L3DE1 and
+; GTVLUS, T_EDIT, __LIST, PRS1, INLPNM, OUTDO_CRLF, SHIFT_STOP, RINPUT_SUB and
 ; QINLIN.
 
 OUTDO:
@@ -601,18 +605,32 @@ DISPLAY:
   LD HL,SCREEN
   LD E,$03
   LD B,80                 ; send 80 bytes
+
+IF !V10
   LD A,$20
   OUT ($8F),A             ; $20=Command register
   OUT (C),E               ; Write on VDP memory and increment
+ENDIF
 
 DISPLAY_1:
-  LD A,$22             
-  OUT ($8F),A          
+  LD A,$22
+  OUT ($8F),A
   OUTI                    ; send attribute
-  LD A,$29             
+
+IF V10
+  LD A,$21
+  OUT ($8F),A
+  OUTI
+  LD A,$28
+  OUT ($8F),A             ; $28=Command register + exec request
+  OUT (C),E               ; Write on VDP memory and increment
+ELSE
+  LD A,$29
   OUT ($8F),A             ; $29=Data register R1 + exec request
   OUTI                    ; send character
-  JR NZ,DISPLAY_1        
+ENDIF
+
+  JR NZ,DISPLAY_1
 
   LD A,$26
   OUT ($8F),A             ; $26=Main pointer R6 (Y)
@@ -629,23 +647,54 @@ DISPLAY_1:
 DISPLAY_3:
   LD B,$78
 
-  M_WAIT_VDP
-
-  LD A,$20
-  OUT ($8F),A             ; $20=Command register
-  OUT (C),E
-
-DISPLAY_4:
+IF V10
+DISPLAY_ROWS:
+ENDIF
 
   M_WAIT_VDP
 
+IF V10
   LD A,$22
+ELSE
+  LD A,$20
+ENDIF
+  OUT ($8F),A             ; $20=Command register
+
+IF V10
+  OUTI
+ELSE
+  OUT (C),E
+ENDIF
+
+IF !V10
+DISPLAY_ROWS:
+ENDIF
+
+  M_WAIT_VDP
+
+IF V10
+  LD A,$21
+ELSE
+  LD A,$22
+ENDIF
   OUT ($8F),A             ; $22
+
   OUTI
+
+IF V10
+  LD A,$28
+ELSE
   LD A,$29
+ENDIF
   OUT ($8F),A             ; $29=Data register R1 + exec request
+
+IF V10
+  OUT (C),E
+ELSE
   OUTI
-  DJNZ DISPLAY_4
+ENDIF
+
+  DJNZ DISPLAY_ROWS
 
   M_WAIT_VDP
 
@@ -672,7 +721,7 @@ DISPLAY_5:
   OUT ($8F),A             ; $26=Main pointer R6 (Y)
   OUT (C),H
   LD A,$27
-  OUT ($8F),A
+  OUT ($8F),A             ; $27=Main pointer R7 (X)
   OUT (C),L
   LD A,$28
   OUT ($8F),A             ; $28=Command register + exec request
@@ -712,7 +761,7 @@ PUTCHAR_XY:
   OUT ($8F),A             ; $26=Main pointer R6 (Y)
   OUT (C),H
   LD A,$27
-  OUT ($8F),A
+  OUT ($8F),A             ; $27=Main pointer R7 (X)
   OUT (C),L
 
 ; display character at cursor position
@@ -746,7 +795,7 @@ GETCHAR_XY:
   OUT ($8F),A             ; $26=Main pointer R6 (Y)
   OUT (C),H
   LD A,$27
-  OUT ($8F),A
+  OUT ($8F),A             ; $27=Main pointer R7 (X)
   OUT (C),L
 
 ; read character at cursor position
@@ -789,12 +838,12 @@ GETCHAR_2:
   RES 2,(HL)
   POP HL
   LD A,L
-  CP $27
+  CP 39
   JR C,GETCHAR_4
   LD L,$00
   INC H
   LD A,H
-  CP $19
+  CP 25
   JR C,GETCHAR_3
   DEC H
   LD A,(PICFLG)
@@ -852,7 +901,7 @@ CLR_LINE:
   JR Z,CLR_LINE_0
   XOR A
 CLR_LINE_0:
-  LD B,$27
+  LD B,39
 CLR_LINE_1:
   LD (HL),A
   INC HL
@@ -3686,7 +3735,7 @@ __CURSOR:
   CALL GETINT
   CP 40
   JR C,__CURSOR_0
-  LD A,$27
+  LD A,39
 __CURSOR_0:
   LD (CURPOS),A
   RET
@@ -3817,10 +3866,28 @@ JOY_FIRE_F2:
   AND $03
   JR Z,JOY_FIRE_F2_0
   DEC A
-  JP Z,L1CC0_59
+IF V10
+  JR Z,JOY_FIRE_F2_1
+ELSE
+  JP Z,JOY_FIRE_F2_1_V11
+ENDIF
   IN A,($81)
   BIT 2,A
   JR JOY_L_R_5
+
+IF V10
+
+JOY_FIRE_F2_0:
+  IN A,($07)
+  BIT 4,A
+  JR JOY_L_R_5
+JOY_FIRE_F2_1:
+  IN A,($08)
+  BIT 4,A
+  JR JOY_L_R_5
+
+ELSE
+
 JOY_FIRE_F2_0:
   IN A,($07)
   CPL
@@ -3831,6 +3898,8 @@ JOY_FIRE_F2_0:
   RRCA
   LD B,A
   RET
+
+ENDIF
 
 ; Routine at 3913
 __KEY:
@@ -4016,7 +4085,7 @@ INIT_0:
   IM 1
   EI
   LD HL,$0001
-  LD ($4809),HL
+  LD (DOT),HL
   LD (IX+$03),$6E          ; CURSOR
   CALL SCR_CO
   LD HL,ROM_RAMLOW
@@ -4120,7 +4189,7 @@ WARM_BOOT:
   OUT ($10),A
   EI
   LD HL,$0001
-  LD ($4809),HL
+  LD (DOT),HL
   LD (IX+$03),$6E          ; CURSOR
   CALL SCR_CO
   CALL STKINI
@@ -4143,16 +4212,15 @@ VER_MSG:
   DEFM " version "
   DEFB $00
 
-; SOL-MI-SOL-DO
 ;
 ; Data block at 4461
 STARTUP_SOUND:
   DEFB '"'
-  DEFM "T8"
-  DEFM "O4"
-  DEFM "C"
-  DEFM "O3"
-  DEFM "GEC"
+  DEFM "T8"      ; set tempo
+  DEFM "O4"      ; (oct+)
+  DEFM "C"       ; DO
+  DEFM "O3"      ; (oct-)
+  DEFM "GEC"     ; SOL-MI-DO
   DEFB '"'
 
 ; Data block at 4473
@@ -4181,7 +4249,7 @@ VDP_TXT:
   DEFB $28,$02  ; $28=Command register + exec request
 
 
-
+;--------------- INIT copies this block in RAM ---------------
 
 ; INITAB: This ram area will be relocated to RAMLOW
 ROM_RAMLOW:
@@ -4305,8 +4373,6 @@ ROM_TMPSAV:
 
 ROM_OCTSAV:
   DEFB 13
-
-
 
   DEFB $1C,$0C,$F2,$77,$73,$2F
   DEFB $00,$2D,$3D,$00,$71,$78,$65,$2A
@@ -4636,7 +4702,12 @@ PRT_XLT_TBL:
   DEFB $D8,$D9,$DA,$DB,$DC,$DD,$DE,$DF
   DEFB $E0,$E1,$E2,$E3,$E4,$E5,$E6,$E7
   DEFB $E8,$E9,$EA,$EB,$EC,$ED,$EE,$EF
+IF V10
+; Documented bug, using MSX printers  a special symbol wasn't converted correctly
+  DEFB $F0,$F2,$F2,$F3,$F4,$F5,$F6,$F7
+ELSE
   DEFB $F0,$F1,$F2,$F3,$F4,$F5,$F6,$F7
+ENDIF
   DEFB $F8,$F9,$FA,$FB,$FC,$FD,$FE,$FF
 
 ; Routine at 6469
@@ -5849,8 +5920,11 @@ L1CC0_58:
   OUT ($CF),A
   RET
 
+IF V10
+  defs 11, $FF
+ELSE
 ; This entry point is used by the routine at JOY_FIRE_F2.
-L1CC0_59:
+JOY_FIRE_F2_1_V11:
   IN A,($08)
   CPL
   AND $30
@@ -5860,6 +5934,7 @@ L1CC0_59:
   RRCA
   LD B,A
   RET
+ENDIF
 
 ; Data block at 8190
 L1FFE:
@@ -6357,7 +6432,12 @@ PROMPT:
   OR A                     ;SET CC'S
   JR Z,GETCMD              ;NO, REUGLAR MODE
   LD HL,(AUTLIN)           ;GET CURRENT AUTO LINE
+
+IF V10
+  CALL LINPRT
+ELSE
   JP PROMPT_SUB
+ENDIF
 
 ; This entry point is used by the routine at SHIFT_STOP.
 PROMPT_RET1:
@@ -6390,19 +6470,24 @@ GETCMD:
   PUSH HL
   LD HL,(AUTINC)	       ;GET INCREMENT
   ADD HL,DE                ;ADD INCREMENT TO THIS LINE
-  JP SHIFT_STOP_21
+
+IF V10
+  LD (AUTLIN),HL           ;SAVE IN NEXT LINE
+ELSE
+  JP AUTLIN_SUB
+ENDIF
 
 ; This entry point is used by the routine at SHIFT_STOP.
 AUTSTR:
   POP HL
   RST CHRGTB
-  OR A
+  OR A                     ;IS IT NULL LINE?
   PUSH AF
   CALL SRCHLN
   JR C,LINFND
   POP AF
   PUSH AF
-  JP Z,PROMPT
+  JP Z,PROMPT              ;YES, LEAVE LINE ALONE
   OR A
 
 LINFND:
@@ -7550,13 +7635,29 @@ L2772:
 
 NOPMPT:
   PUSH HL                 ; Save code string address
-  CALL QINLIN             ; Get input with "? " prompt
+
+IF V10
+
+  LD A,(PICFLG)
+  SET 5,A
+  LD (PICFLG),A
+  SET 6,(IX+$03)
+QINLIN:
+  CALL QINLIN_SUB
+  RES 6,(IX+$03)
+  LD A,(PICFLG)
+  RES 0,A
+  LD (PICFLG),A
+
+ELSE
+
+  CALL QINLIN_V11             ; Get input with "? " prompt
   JR NOTQTI
 
   DEFB $00,$00,$00
 
 ; This entry point is used by the routine at QINLIN.
-_QINLIN:
+QINLIN:
   CALL QINLIN_SUB
   RES 6,(IX+$03)          ; CURSOR - Hide
   LD A,(PICFLG)
@@ -7566,6 +7667,8 @@ _QINLIN:
   RET
 
   DEFB $00
+
+ENDIF
 
 NOTQTI:
   POP BC                  ; Restore code string address
@@ -7644,7 +7747,13 @@ GTVLUS:
 
   LD A,'?'                ; More INPUT needed
   RST OUTDO               ; Output character
+
+IF V10
+  CALL QINLIN_SUB
+ELSE
   CALL QINLIN             ; Get INPUT with prompt, HL = resulting text 
+ENDIF
+
   POP DE                  ; Variable address
   POP BC                  ; Code string address
   JP C,INPBRK             ; Break pressed
@@ -8416,20 +8525,40 @@ __PEEK:
 
 ; Routine at 10939
 __POKE:
+
+IF V10
+  CALL GETNUM             ; Get integer 0 to 32767
+  CALL CONIS
+ELSE
   CALL GETWORD            ;READ A FORMULA
+ENDIF
+
   PUSH DE
 
   RST SYNCHR
   DEFB ','
 
+IF V10
+  CALL INTIDX_0           ; Get integer
+ELSE
   CALL GETINT             ; Get integer 0-255
+ENDIF
+
+IF V10
+  LD A,E
+ENDIF
+
   POP DE
   LD (DE),A
   RET
 
+
+IF !V10
 ; Data block at 10951
 L2AC7:
   DEFB $00,$00,$00,$00
+ENDIF
+
 
 ; Get a number to DE
 ; a.k.a. FRMQNT
@@ -8440,6 +8569,7 @@ GETWORD:
   CALL CONIS
   POP HL
   RET
+
 
 ; Text editor
 ;
@@ -8462,14 +8592,22 @@ T_EDIT:
   LD DE,$0001
   CALL SOUND
   LD A,(PICFLG)
+IF V10
+  AND $7F
+ELSE
   NOP
   NOP
+ENDIF
   OR $01
   LD (PICFLG),A           ;DONT ALLOW ^C TO CHANGE
   POP AF
   JP M,T_EDIT_55
   CP $0D
+IF V10
+  JP Z,T_EDIT_CR
+ELSE
   JP QINLIN_5
+  ENDIF
 
 ; This entry point is used by the routine at QINLIN.
 T_EDIT_0:
@@ -8479,9 +8617,17 @@ T_EDIT_0:
   JP Z,T_EDIT_LF
   CP $0C
   JP Z,T_EDIT_40
-  JP QINLIN_0
 
+IF V10
+
+  CP $1F
+  JR NZ,T_EDIT_2
+
+ELSE
+  JP QINLIN_0
   NOP
+ENDIF
+
 ; This entry point is used by the routine at QINLIN.
 T_EDIT_1:
   LD A,(PICFLG)
@@ -8507,30 +8653,30 @@ T_EDIT_5:
 T_EDIT_6:
   LD HL,(RETADR)
   LD A,H
-  CP $18
+  CP 24
   JR NC,T_EDIT_7
   PUSH HL
   INC H
-  LD L,$00
-  CALL L33CD_29
+  LD L,0
+  CALL SCR_GETCHR
   POP HL
   JR Z,T_EDIT_8
 T_EDIT_7:
   LD A,L
-  CP $27
+  CP 39
   JR NC,T_EDIT_11
 T_EDIT_8:
   PUSH AF
   LD A,L
-  CP $27
+  CP 39
   JR C,T_EDIT_9
   INC H
-  LD L,$00
+  LD L,0
 T_EDIT_9:
   INC L
   LD (RETADR),HL
   PUSH HL
-  CALL L33CD_29
+  CALL SCR_GETCHR
   LD B,A
   POP DE
   POP AF
@@ -8541,15 +8687,16 @@ T_EDIT_9:
 T_EDIT_10:
   INC E
   LD A,E
-  CP $28
+  CP 40
   JR NC,T_EDIT_11
   INC HL
   INC HL
   LD A,(HL)
   CP ' '
   JR Z,T_EDIT_10
-  LD A,$20
+  LD A,' '
   JR T_EDIT_16
+
 T_EDIT_11:
   LD A,(PICFLG)
   RES 1,A
@@ -8560,9 +8707,10 @@ T_EDIT_11:
   CP ' '
   JR Z,T_EDIT_12
   CP '0'
-  JR C,$2BA1
-  CP $3A
-  JR NC,$2BA1
+  JR C,L2BA1
+  CP '9'+1
+  JR NC,L2BA1
+
 T_EDIT_12:
   LD A,(CURPOS)
   CP $01
@@ -8572,16 +8720,32 @@ T_EDIT_13:
   CALL T_EDIT_23
   JR T_EDIT_15
 T_EDIT_14:
+
+IF V10
+
+  LD A,$06
+  RST $18
+  jr T_EDIT_15
+
+ELSE
+
   JP QINLIN_3
   NOP
-  LD B,$CD
-  OUT ($2B),A
-  LD A,$1E
+  DEFB $06    ; "LD B,n" over the next 2 bytes
+
+ENDIF
+
+L2BA1:
+  CALL T_EDIT_23
+
+  LD A,$1E            ; blank over previous character
   RST OUTDO
+ 
 ; This entry point is used by the routine at QINLIN.
 T_EDIT_15:
   LD A,$0D
   JP T_EDIT_5
+
 T_EDIT_16:
   CP $FF
   JR NZ,T_EDIT_17
@@ -8608,12 +8772,13 @@ T_EDIT_21:
   LD A,$1C
 T_EDIT_22:
   JP T_EDIT_5
+
 T_EDIT_23:
-  LD A,$03
+  LD A,$03                      ; NEWLINE
   RST OUTDO
   LD HL,(CURPOS)
   DEC L
-  CALL L33CD_29
+  CALL SCR_GETCHR
   JR Z,T_EDIT_23
   RET
 
@@ -8621,23 +8786,47 @@ T_EDIT_23:
 T_EDIT_CR:
   LD HL,(CURPOS)
 T_EDIT_25:
+
+IF V10
+  LD A,L
+  DEC A
+  JR Z,T_EDIT_26
+ENDIF
+
   DEC L
   PUSH HL
-  CALL L33CD_29
+  CALL SCR_GETCHR
   POP HL
+
+IF V10
+
+  CP '9'+1
+  JR NC,T_EDIT_27
+  CP '0'
+  JR C,T_EDIT_27
+
+ELSE
   CP $80
   JR Z,T_EDIT_26
   XOR $30
   CP $0A
   JR NC,T_EDIT_27
+
+ENDIF
   JR T_EDIT_25
+
 T_EDIT_26:
+
+IF !V10
   LD A,L
   OR A
   JR NZ,T_EDIT_25
   INC L
+ENDIF
+
   LD A,(AUTFLG)
   OR A
+
   JR Z,T_EDIT_27
   XOR A
   LD (AUTFLG),A
@@ -8646,12 +8835,15 @@ T_EDIT_26:
   RST OUTDO
   JP T_EDIT_15
 T_EDIT_27:
+IF V10
+  LD HL,(CURPOS)
+ENDIF
   LD L,$01
 T_EDIT_28:
   LD (RETADR),HL
   PUSH HL
   DEC L
-  CALL L33CD_29
+  CALL SCR_GETCHR
   POP HL
   JR NZ,T_EDIT_29
   DEC H
@@ -8661,11 +8853,16 @@ T_EDIT_29:
   LD A,(PICFLG)
   BIT 5,A
   JR Z,T_EDIT_32
+IF V10
+  RES 5,A
+  LD (PICFLG),A
+ELSE
   NOP
   NOP
   NOP
   NOP
   NOP
+ENDIF
   LD HL,(RETADR)
   PUSH HL
   CALL SCRADR
@@ -8688,7 +8885,7 @@ T_EDIT_31:
   JR T_EDIT_33
 
 T_EDIT_32:
-  CALL L33CD_29
+  CALL SCR_GETCHR
 T_EDIT_33:
   LD (ENTSTT),A
   LD A,(PICFLG)
@@ -8707,7 +8904,7 @@ T_EDIT_TAB:
   LD A,(PICFLG)
   BIT 5,A
   JP NZ,T_EDIT_4
-  LD DE,($4809)
+  LD DE,(DOT)
   CALL SRCHLN
   LD BC,(PRELIN)
   LD A,B
@@ -8725,7 +8922,7 @@ T_EDIT_LF:
   LD A,(PICFLG)
   BIT 5,A
   JP NZ,T_EDIT_4
-  LD DE,($4809)
+  LD DE,(DOT)
   INC DE
   CALL SRCHLN
   JP C,T_EDIT_38
@@ -8749,7 +8946,7 @@ T_EDIT_41:
   LD E,(HL)
   INC HL
   LD D,(HL)
-  LD ($4809),DE
+  LD (DOT),DE
   OR A
   LD HL,(CURPOS)
   PUSH HL
@@ -8762,7 +8959,7 @@ T_EDIT_42:
   LD HL,$0001
   LD (CURPOS),HL
   CALL CLR_SCR
-  LD DE,($4809)
+  LD DE,(DOT)
   CALL SRCHLN
   LD H,B
   LD L,C
@@ -8881,7 +9078,7 @@ T_EDIT_58:
   SUB $B0
   LD E,A
   LD D,$00
-  LD HL,$487A
+  LD HL,BUF10
   ADD HL,DE
   LD A,(HL)
   JP T_EDIT_2
@@ -9048,6 +9245,9 @@ OM_ERR:
   LD DE,$000C
   JP ERROR
 
+IF V10
+__NEW:
+ENDIF
   RET NZ
 ; This entry point is used by the routines at INIT, __SAVE, L1A50 and __NEW.
 CLRPTR:
@@ -9055,8 +9255,16 @@ CLRPTR:
 
 ; This entry point is used by the routine at __NEW.
 CLRPTR_0:
+
+IF V10
+  XOR A
+  LD (HL),A
+  INC HL
+  LD (HL),A
+ELSE
   XOR A
   JP CLRPTR_1
+ENDIF
 
 ; This entry point is used by the routine at SHIFT_STOP.
 RUN_FST_0:
@@ -9369,18 +9577,35 @@ HEXCNS_0:
 
 HEXCNS_1:
   CP '"'                ; final '"' required now
+IF V10
+  INC HL
+ENDIF
   JP NZ,SN_ERR
+IF !V10
   RST CHRGTB
+ENDIF
+
+IF V10
+  LD A,$98
+  LD (FPEXP),A
+  XOR A
+  LD B,A
+  LD C,A
+  PUSH HL
+  CALL CONPOS
+ELSE
   LD B,$98
   PUSH HL
   XOR A
   CALL FLOATR
+ENDIF
+
   POP HL
   RET
 
-
+IF !V10
   DEFB $00, $00, $00, $00, $00
-
+ENDIF
 
 ; 'RENUM' BASIC command
 ;
@@ -9701,8 +9926,13 @@ LNUM_RANGE:
   JR Z,__LIST_1
   CP ','
   CALL NZ,ATOH
+IF V10
+  LD (TEMP),DE
+__LIST_1:
+ELSE
 __LIST_1:
   LD (TEMP),DE
+ENDIF
   PUSH HL
   CALL SRCHLN
   POP HL
@@ -9738,7 +9968,8 @@ __LIST_5:
   LD A,B                  ;SEE IF END OF CHAIN
   OR C                    ; BC = 0 (End of program)?
   RET Z                   ;LAST LINE, STOP.
-  CALL ISCNTC             ; Test for break key
+
+  CALL ISCNTC             ; Test for break/pause status
   CP $04
   JR NZ,__LIST_8
   PUSH HL
@@ -9752,22 +9983,23 @@ __LIST_7:
   OR A
   JR Z,__LIST_7
   POP HL
+
 __LIST_8:
-  LD E,(HL)               ; Get LSB of line number
-  INC HL
-  LD D,(HL)               ; Get MSB of line number
+  LD E,(HL)               ; Get LSB of line number      INTO [D,E] FOR COMPARISON WITH
+  INC HL                  ;                             THE LINE # BEING SEARCHED FOR
+  LD D,(HL)               ; Get MSB of line number      WHICH IS IN [H,L]
   PUSH HL
   LD HL,(TMPSOUND)
-  RST DCOMPR
+  RST DCOMPR              ; Compare with line in DE         SEE IF IT MATCHES OR IF WE'VE GONE TOO FAR
   POP HL
   CCF
   RET NC
-  LD ($4809),DE
+  LD (DOT),DE             ;SAVE FOR LATER EDIT OR LIST <> AND WE WANT [H,L] ON THE STACK
   INC HL
   PUSH HL                 ; Save address of line start
   EX DE,HL                ; Line number to HL
   CALL LINPRT             ; Output line number in decimal
-  LD A,$20                ; Space after line number
+  LD A,' '                ; Space after line number                      ;PRINT A SPACE AFTER THE LINE #
   POP HL                  ; Restore start of line address
   LD (RETADR),HL
   RST OUTDO
@@ -9841,14 +10073,19 @@ SCR_CO:
 SCR_CO_0:
   CALL CONSOLE_RESET
   LD A,$7F
-  JP SHIFT_STOP_23
+
+IF V10
+  LD HL,CHR_DOTDOT
+ELSE
+  JP SCR_CO_SUB
+ENDIF
 
 ; This entry point is used by the routine at SHIFT_STOP.
 SCR_CO_1:
   CALL CHR_UPDATE
   LD A,$E6
 
-; CHR$(159) - CLR-HOME
+; CHR$(31) - CLR-HOME
 ;
 ; Used by the routines at __INIT and L3362.
 CONSOLE_CLS:
@@ -10020,38 +10257,38 @@ CONSOLE_ACC_MRK:
 
 ; Routine at 13154
 L3362:
-  JP CONSOLE_NULL
-  JP CONSOLE_NULL
-  JP L33CD_9
-  JP L33CD_0
-  JP L33CD_16
-  JP L33CD_20
-  JP CONSOLE_SCROLL
-  JP CONSOLE_CRIGHT
-  JP CONSOLE_CLEFT
-  JP CONSOLE_CUP
-  JP CONSOLE_CDOWN
-  JP CONSOLE_NULL
-  JP CONSOLE_HOME
-  JP L33CD_0
-  JP CONSOLE_BEL
-  JP CONSOLE_RESET
-  JP CONSOLE_DOTDOT
-  JP CONSOLE_I_MK
-  JP CONSOLE_ACC_MRK
-  JP CONSOLE_U_MK
-  JP CONSOLE_ACC_MRK
-  JP CONSOLE_ACC_MRK
-  JP CONSOLE_ACC_MRK
-  JP CONSOLE_ACC_MRK
-  JP CONSOLE_A_MK
-  JP CONSOLE_ACC_MRK
-  JP CONSOLE_O_MK
-  JP CONSOLE_ACC_MRK
-  JP CONSOLE_POUND
-  JP CONSOLE_ACC_MRK
-  JP L33CD_31
-  LD A,(IX+$09)				; ATTBAK - Background color
+  JP CONSOLE_NULL           ; CHR$(0)
+  JP CONSOLE_NULL           ; CHR$(1)
+  JP CONSOLE_BS             ; CHR$(2)
+  JP CONSOLE_NEWLINE        ; CHR$(3)
+  JP L33CD_16               ; CHR$(4)
+  JP L33CD_20               ; CHR$(5)
+  JP CONSOLE_SCROLL         ; CHR$(6)
+  JP CONSOLE_CRIGHT         ; CHR$(7)
+  JP CONSOLE_CLEFT          ; CHR$(8)
+  JP CONSOLE_CUP            ; CHR$(9)
+  JP CONSOLE_CDOWN          ; CHR$(10)
+  JP CONSOLE_NULL           ; CHR$(11)
+  JP CONSOLE_HOME           ; CHR$(12)
+  JP CONSOLE_NEWLINE        ; CHR$(13)
+  JP CONSOLE_BEL            ; CHR$(14)
+  JP CONSOLE_RESET          ; CHR$(15)
+  JP CONSOLE_DOTDOT         ; CHR$(16) ..
+  JP CONSOLE_I_MK           ; CHR$(17) î
+  JP CONSOLE_ACC_MRK        ; CHR$(18) é
+  JP CONSOLE_U_MK           ; CHR$(19) ù
+  JP CONSOLE_ACC_MRK        ; CHR$(20) ï
+  JP CONSOLE_ACC_MRK        ; CHR$(21) ç
+  JP CONSOLE_ACC_MRK        ; CHR$(22) û
+  JP CONSOLE_ACC_MRK        ; CHR$(23) à
+  JP CONSOLE_A_MK           ; CHR$(24) â, å
+  JP CONSOLE_ACC_MRK        ; CHR$(25) è
+  JP CONSOLE_O_MK           ; CHR$(26) ô
+  JP CONSOLE_ACC_MRK        ; CHR$(27) ê
+  JP CONSOLE_POUND          ; CHR$(28) £
+  JP CONSOLE_ACC_MRK        ; CHR$(29) 1/2
+  JP CONSOLE_BS_SPC         ; CHR$(30) delete previous chr
+  LD A,(IX+$09)				; CHR$(31) ATTBAK - Background color
   JP CONSOLE_CLS
 
 _CHPUT1:
@@ -10065,40 +10302,43 @@ L33CD:
   POP AF
   EXX
   RET
+
 ; This entry point is used by the routine at L3362.
-L33CD_0:
+CONSOLE_NEWLINE:
   LD HL,(CURPOS)
   LD A,$01
   CP L
-  JR NZ,L33CD_1
+  JR NZ,CONSOLE_NEWLINE_0
   LD A,(PICFLG)
   BIT 2,A
-  JR Z,L33CD_1
+  JR Z,CONSOLE_NEWLINE_0
   CALL SCRADR
   DEC HL
   DEC HL
   LD (HL),$80
   RET
-L33CD_1:
+
+CONSOLE_NEWLINE_0:
   LD L,$01
   LD (CURPOS),HL
 ; This entry point is used by the routine at L3362.
 CONSOLE_CDOWN:
   LD HL,(CURPOS)
   LD A,H
-  CP $18
-  JR C,L33CD_2
+  CP 24
+  JR C,CONSOLE_CDOWN_0
   LD A,(PICFLG)
   BIT 7,A
-  JR NZ,L33CD_3
+  JR NZ,CONSOLE_CDOWN_1
   CALL SCREEN_UP
   LD A,$18
   CALL CLR_LINE
-  JR L33CD_3
-L33CD_2:
+  JR CONSOLE_CDOWN_1
+
+CONSOLE_CDOWN_0:
   INC H
   LD (CURPOS),HL
-L33CD_3:
+CONSOLE_CDOWN_1:
   RET
 
 ; This entry point is used by the routine at L3362.
@@ -10160,12 +10400,16 @@ CONSOLE_CRIGHT_1:
   LD L,$01
   JR CONSOLE_CRIGHT_0
 
+
+; Backspace
+;
 ; This entry point is used by the routine at L3362.
-L33CD_9:
+CONSOLE_BS:
   LD HL,(CURPOS)
   LD A,$01
   CP L
-  JP NC,L33CD_12
+  JP NC,CONSOLE_BS_3
+CONSOLE_BS_0:
   PUSH HL
   CALL SCRADR
   POP BC
@@ -10178,16 +10422,16 @@ L33CD_9:
   ADD A,A
   LD C,A
   LD B,$00
-L33CD_10:
+CONSOLE_BS_1:
   LDIR
   LD A,(HL)
   CP $84
   DEC HL
   DEC HL
-  JR NZ,L33CD_14
+  JR NZ,CONSOLE_BS_5
   INC HL
   INC HL
-L33CD_11:
+CONSOLE_BS_2:
   INC HL
   INC HL
   LD A,(HL)
@@ -10205,26 +10449,42 @@ L33CD_11:
   INC HL
   INC HL
   LD BC,$004C
-  JR L33CD_10
-L33CD_12:
+  JR CONSOLE_BS_1
+
+CONSOLE_BS_3:
   LD A,H
   OR A
   RET Z
   DEC HL
-  CALL L33CD_29
+  CALL SCR_GETCHR
   RET NZ
-  JR L33CD_11
+
+
+IF V10
+
+  CALL CONSOLE_CUP
+  LD L,39
+  LD (CURPOS),HL
+CONSOLE_BS_4:
+  JR CONSOLE_BS_0
+
+ELSE
+
+  JR CONSOLE_BS_2
 ; This entry point is used by the routine at QINLIN.
-L33CD_13:
+CONSOLE_BS_4:
   JP NZ,T_EDIT_4
   LD A,$06
   JP T_EDIT_2
-L33CD_14:
-  LD A,$20
+
+ENDIF
+
+CONSOLE_BS_5:
+  LD A,' '
   BIT 7,(IX+$08)
-  JR Z,L33CD_15
+  JR Z,CONSOLE_BS_6
   XOR A
-L33CD_15:
+CONSOLE_BS_6:
   LD (HL),A
   CALL CONSOLE_CLEFT
   RET
@@ -10254,7 +10514,7 @@ L33CD_18:
   LD L,$00
   INC H
   PUSH HL
-  CALL L33CD_29
+  CALL SCR_GETCHR
   POP HL
   JR NZ,L33CD_19
   LD A,H
@@ -10271,7 +10531,7 @@ L33CD_20:
 L33CD_21:
   INC H
   PUSH HL
-  CALL L33CD_29
+  CALL SCR_GETCHR
   EX DE,HL
   POP HL
   JP Z,L33CD_21
@@ -10293,7 +10553,13 @@ L33CD_22:
 L33CD_23:
   LD HL,(CURPOS)
   DEC H
+
+IF V10
+  JP M,L33CD_25
+ELSE
   JP QINLIN_4
+ENDIF
+
 ; This entry point is used by the routine at QINLIN.
 L33CD_24:
   PUSH HL
@@ -10341,14 +10607,14 @@ L33CD_25:
 L33CD_26:
   LD HL,(CURPOS)
   PUSH HL
-  LD L,$26
+  LD L,38
   CALL SCRADR
   POP BC
   LD D,H
   LD E,L
   INC DE
   INC DE
-  LD A,$27
+  LD A,39
   SUB C
   JR Z,L33CD_27
   ADD A,A
@@ -10366,7 +10632,7 @@ L33CD_28:
   RET
 
 ; This entry point is used by the routine at T_EDIT.
-L33CD_29:
+SCR_GETCHR:
   CALL SCRADR
   LD A,(HL)
   CP $84
@@ -10377,7 +10643,7 @@ CONSOLE_SCROLL:
   LD HL,(CURPOS)
   LD A,H
   OR A
-  JR Z,L33CD_30
+  JR Z,CONSOLE_SCROLL_0
   LD L,$00
   CALL SCRADR
   LD DE,SCREEN
@@ -10387,21 +10653,21 @@ CONSOLE_SCROLL:
   LD B,H
   LD HL,SECOND_SCREEN_ROW
   LDIR
-L33CD_30:
+CONSOLE_SCROLL_0:
   LD A,(YCURSO)
   CALL CLR_LINE
   RET
 
 ; This entry point is used by the routine at L3362.
-L33CD_31:
+CONSOLE_BS_SPC:
   LD A,(YCURSO)
-L33CD_32:
+CONSOLE_BS_SPC_0:
   PUSH AF
   CALL CLR_LINE
   POP AF
   INC A
   CP $19
-  JR C,L33CD_32
+  JR C,CONSOLE_BS_SPC_0
   RET
 
 ; This entry point is used by the routine at GETCHAR.
@@ -10432,7 +10698,7 @@ CONSOLE_RESET:
   SET 6,(IX+$03)                ; CURSOR - Show
   RET
 
-; CHR$(142) - BEL
+; CHR$(14) - BEL
 ;
 ; Used by the routine at L3362.
 CONSOLE_BEL:
@@ -10447,13 +10713,17 @@ CONSOLE_NULL:
 
 ; Data block at 13812
 CHR_DIAMOND:
-  DEFB $00,$10,$38,$7C,$FE,$7C,$38,$10
-  DEFB $00,$00
+IF V10
+  DEFB $00,$10,$28,$00,$00,$00,$00,$00,$00,$00
+ELSE
+  DEFB $00,$10,$38,$7C,$FE,$7C,$38,$10,$00,$00
+ENDIF
 
 ; Data block at 13822
 CHR_DOTDOT:
-  DEFB $00,$00,$00,$00,$00,$24,$00,$00
-  DEFB $00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$24,$00,$00,$00,$00
+
+  DEFB $00
 
 ; BASIC string handler
 ;
@@ -12166,8 +12436,8 @@ QINLIN_SUB:
 RINPUT:
   CALL PINLIN
   LD HL,KBUF
-; This entry point is used by the routine at L3DE1.
-SHIFT_STOP_2:
+; This entry point is used by the routine at RINPUT_SUB.
+RINPUT_0:
   LD A,(GETFLG)
   OR A
   JR Z,SHIFT_STOP_3
@@ -12188,14 +12458,21 @@ SHIFT_STOP_4:
   JR Z,FINLPT_1
   RES 7,A
   LD (HL),A
+
+IF V10
+  LD DE,ENDBUF
+  RST DCOMPR
+  JP Z,FINLPT_1
+ELSE
   LD DE,ENDBUF-1
   RST DCOMPR
-  JP L3DE1
+  JP RINPUT_SUB
+ENDIF
 
-; This entry point is used by the routine at L3DE1.
+; This entry point is used by the routine at RINPUT_SUB.
 SHIFT_STOP_5:
   INC HL
-  JR SHIFT_STOP_2
+  JR RINPUT_0
 
 ; This entry point is used by the routine at OUTC.
 OUTPRT_CHR:
@@ -12301,6 +12578,7 @@ RINPUT8:
   LD (HL),A
   RLA
   RET
+
 OUTPRT_XLATE:
   PUSH AF
   LD A,(RAWPRT)
@@ -12329,6 +12607,8 @@ SHIFT_STOP_20:
   OUT ($10),A
   RET
 
+IF !V10
+
 ; This entry point is used by the routine at ENFMEM.
 CLRPTR_1:
   LD (AUTFLG),A           ;CLEAR AUTO MODE
@@ -12348,28 +12628,28 @@ PROMPT_SUB:
   JP PROMPT_RET2
 
 ; This entry point is used by the routine at PROMPT.
-SHIFT_STOP_21:
-  JR C,AUTRES
-  PUSH DE
-  LD DE,$FFF9
+AUTLIN_SUB:
+  JR C,AUTRES              ;CHECK FOR PATHETIC CASE
+  PUSH DE                  ;SAVE LINE NUMBER #
+  LD DE,65529              ;CHECK FOR LINE # TOO BIG
   RST DCOMPR
-  POP DE
-  JR NC,AUTRES
-  LD (AUTLIN),HL
-  JR SHIFT_STOP_22
+  POP DE                   ;GET BACK LINE #
+  JR NC,AUTRES             ;IF TOO BIG, QUIT
+  LD (AUTLIN),HL           ;SAVE IN NEXT LINE
+  JR _AUTSTR
 AUTRES:
   XOR A
-  LD (AUTFLG),A
-SHIFT_STOP_22:
-  JP AUTSTR
+  LD (AUTFLG),A            ;Clear auto flag
+_AUTSTR:
+  JP AUTSTR                ;And enter line
 
 ; This entry point is used by the routine at SCR_CO.
-SHIFT_STOP_23:
+SCR_CO_SUB:
   LD HL,CHR_DOTDOT
   CALL CHR_UPDATE
   LD A,$20
   LD HL,CHR_DIAMOND
-  JP SCR_CO_1
+  JP  SCR_CO_1
 
 ;
 ; THE "NEW" COMMAND CLEARS THE PROGRAM TEXT AS WELL
@@ -12390,23 +12670,25 @@ __NEW:
 ; Routine at 15841
 ;
 ; Used by the routine at SHIFT_STOP.
-L3DE1:
-  JR C,L3DE1_0
-  JP NZ,SHIFT_STOP_2
+RINPUT_SUB:
+  JR C,RINPUT_SUB_0
+  JP NZ,RINPUT_0
   LD A,$0E
   RST OUTDO
-L3DE1_0:
+RINPUT_SUB_0:
   JP SHIFT_STOP_5
+
 
 ; Get INPUT with prompt, HL = resulting text
 ;
 ; Used by the routines at __INPUT and GTVLUS.
-QINLIN:
+QINLIN_V11:
   LD A,(PICFLG)
   SET 5,A
   LD (PICFLG),A
   SET 6,(IX+$03)          ; CURSOR - Show
-  JP _QINLIN
+  JP QINLIN
+
 
 ; This entry point is used by the routine at T_EDIT.
 QINLIN_0:
@@ -12414,10 +12696,11 @@ QINLIN_0:
   JR NZ,QINLIN_2
   LD A,(PICFLG)
   BIT 5,A
-  JP L33CD_13
+  JP CONSOLE_BS_4
 
 QINLIN_1:
   JP T_EDIT_2
+
 
 QINLIN_2:
   CP $1F
@@ -12454,7 +12737,12 @@ QINLIN_6:
   POP AF
   JP QINLIN_0
 
-; Data block at 15935
-L3E3F:
+ENDIF
+
+
+IF V10 
+  DEFS 174, $FF
+ENDIF
+
   DEFS 449, $FF
 
