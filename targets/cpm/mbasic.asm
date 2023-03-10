@@ -18,7 +18,7 @@ ENDIF
 ; Proof of concept:  ZX Spectrum +3 graphics and Terminal
 ; (VPOKE, VPEEK, PSET, PRESET, POINT, CSRLIN, LINE, CLS, COLOR, LOCATE, PRINT @#, DRAW, CIRCLE)
 ; add -DTAPE for LOAD!, LOAD!? (=CLOAD, CLOAD?) and SAVE! (=CSAVE) ...Kansas City Standard, at 1200 bps, MSX style CSAVE protocol.
-; add -DBIT_PLAY for OUT! (=PLAY single channel melody command, Philips VG-5000 style syntax)
+; add -DBIT_PLAY for OUT! (=PLAY) and OUT@ (=SOUND), they're single channel melody commands, Philips VG-5000 style syntax
 ;
 ; z80asm -b -DHAVE_GFX -DZXPLUS3 -DVT52 mbasic.asm
 ; ren mbasic.bin P3BASIC.COM
@@ -1968,7 +1968,7 @@ _VERIFY:
   CALL CLOAD_SUB
   JR NZ,__CLOAD_1
   LD (VARTAB),HL
-__CLOAD_0:
+__CLOAD_OK:
   LD HL,OK_MSG				; "Ok" Message
   CALL PRS
   LD HL,(TXTTAB)
@@ -1980,7 +1980,7 @@ __CLOAD_1:
   EX DE,HL
   LD HL,(VARTAB)
   CALL DCOMPR		; Compare HL with DE.
-  JP C,__CLOAD_0
+  JP C,__CLOAD_OK
   LD E,$45           ; "Verify error"
   JP ERROR
 
@@ -5275,7 +5275,7 @@ FILSTI:
   CALL FILINP
   PUSH HL             ;PUT THE TEXT POINTER ON THE STACK
   LD HL,BUFMIN        ;POINT AT A COMMA
-  JP INPUT_CHANNEL
+  JP INPUT_CHANNEL    ; 'INPUT' from a stream
 
 ; 'INPUT' BASIC command
 __INPUT:
@@ -7018,6 +7018,8 @@ __OUT:
 IF BIT_PLAY
   CP '!'            ; New Syntax.  SAVE! replaces CSAVE, we ran out of space for TOKEN codes !
   JP Z,__PLAY
+  CP '@'            ; New Syntax.  SAVE! replaces CSAVE, we ran out of space for TOKEN codes !
+  JP Z,__SOUND
 ENDIF
   CALL SETIO		; Get "WORD,BYTE" parameters
   OUT (C),A
@@ -22836,6 +22838,17 @@ NOTE_TAB:
 
 ; Routine at 3178
 __SOUND:
+
+  CALL SYNCHR
+  DEFB '@'		; OUT@, new syntax in place of SOUND
+
+IF ZXPLUS3
+  ld a,(BDRCLR)
+  ld (SMC_PLAY1+1),a
+  or 16
+  ld (SMC_PLAY0+1),a
+ENDIF
+
   CALL GETINT
   OR A
   JR NZ,__SOUND_0
