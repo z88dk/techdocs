@@ -18,6 +18,7 @@ ENDIF
 ; Proof of concept:  ZX Spectrum +3 graphics and Terminal
 ; (VPOKE, VPEEK, PSET, PRESET, POINT, CSRLIN, LINE, CLS, COLOR, LOCATE, PRINT @#, DRAW, CIRCLE)
 ; add -DTAPE for LOAD!, LOAD!? (=CLOAD, CLOAD?) and SAVE! (=CSAVE) ...Kansas City Standard, at 1200 bps, MSX style CSAVE protocol.
+; add -DBIT_PLAY for OUT! (=PLAY single channel melody command, Philips VG-5000 style syntax)
 ;
 ; z80asm -b -DHAVE_GFX -DZXPLUS3 -DVT52 mbasic.asm
 ; ren mbasic.bin P3BASIC.COM
@@ -2484,8 +2485,8 @@ CLOAD_FNAME_ARG:
   JR  FNAME_ARG_1
 
 FNAME_ARG:
-  CALL EVAL
-  PUSH HL
+  CALL EVAL         ;EVALUATE STRING ARGUMENT
+  PUSH HL           ;SAVE TXTPTR
   CALL __ASC_0
   DEC HL
   DEC HL
@@ -7014,6 +7015,10 @@ SETIO:
   RET
 
 __OUT:
+IF BIT_PLAY
+  CP '!'            ; New Syntax.  SAVE! replaces CSAVE, we ran out of space for TOKEN codes !
+  JP Z,__PLAY
+ENDIF
   CALL SETIO		; Get "WORD,BYTE" parameters
   OUT (C),A
   RET
@@ -22509,6 +22514,444 @@ ENDIF
 
 ENDIF
 ENDIF
+
+
+
+;------------------------------------------------------------------------------
+
+IF BIT_PLAY
+
+TMPSOUND:  defw 0
+OCTSAV:    defb 0
+TMPSAV:    defb 0
+
+__PLAY:
+;  DI
+  CALL SYNCHR
+  DEFB '!'                ; LOAD!, new syntax in place of CLOAD, Eat '!'.
+
+  CALL EVAL               ;EVALUATE STRING ARGUMENT
+  PUSH HL                 ;SAVE TEXT POINTER
+
+IF ZXPLUS3
+  ld a,(BDRCLR)
+  ld (SMC_PLAY1+1),a
+  or 16
+  ld (SMC_PLAY0+1),a
+ENDIF
+
+;  CALL GSTRCU             ; Current string to pool               ;FREE UP ARGUMENT AND SETUP TO GIVE FREE STRING SPACE
+;  CALL LOADFP             ;GET LENGTH & POINTER
+;  INC E
+
+  CALL GETSTR
+  CALL LOADFP       ;GET LENGTH & POINTER
+  LD   B,C
+  LD   C,D
+  INC E
+
+
+; play a melody
+;
+; Used by the routine at _MUSIC.
+MUSIC:
+  CALL ISCNTC
+  LD A,(BC)
+  INC BC
+  DEC E
+  JP Z,MUSIC_END
+  CP ','                  ; Comma, space and '|' are equivalent separators
+  JR Z,MUSIC
+  CP '|'
+  JR Z,MUSIC
+  CP ' '
+  JR Z,MUSIC
+  CP 'A'
+  JP C,SN_ERR
+  RES 5,A
+  CP 'O'
+  JP Z,M_OCTAVE
+  CP 'R'
+  JP Z,M_PAUSE
+  CP 'T'
+  JP Z,M_TEMPO
+
+  CP 'G'+1
+  JP NC,SN_ERR
+  SUB 'A'
+  ADD A,A		; *2
+  INC A			; +1
+  LD D,A
+  LD A,(BC)
+
+  ; Extra syntax in MSX style
+  CP '#'            ;CHECK FOR POSSIBLE SHARP
+  JR Z,PLYSHARP     ;SHARP IT THEN
+
+  CP '+'            ;"+" ALSO MEANS SHARP
+  JR NZ,M_SHARP
+PLYSHARP:
+  INC BC
+  INC D
+  DEC E
+M_SHARP:
+  CP '-'            ;"-" MEANS FLAT
+  JR NZ,M_FLAT
+  INC BC
+  DEC D
+  DEC E
+M_FLAT:
+  LD A,(OCTSAV)
+  ADD A,D
+  LD D,A
+  CALL M_NUMBER
+  PUSH HL
+  LD A,D
+  EXX
+  LD E,A
+  LD D,$00
+  LD HL,NOTE_TAB
+  ADD HL,DE
+  ADD HL,DE
+  ADD HL,DE
+  LD C,(HL)
+  INC HL
+  LD B,(HL)
+  LD (TMPSOUND),BC
+  INC HL
+  LD A,(HL)
+  POP DE
+  CALL DELAY
+  OR A
+  RR D
+  RR E
+  OR A
+  RR D
+  RR E
+  OR A
+  RR D
+  RR E
+  LD A,(TMPSAV)
+  CALL DELAY
+  OR A
+  RR D
+  RR E
+  OR A
+  RR D
+  RR E
+  CALL SOUND
+  JP MUSIC
+
+MUSIC_END:
+  POP HL                    ;GET BACK SAVED TEXT POINTER
+;  EI
+  RET
+
+M_OCTAVE:
+  LD A,(BC)
+  INC BC
+  DEC E
+  JP Z,MO_ERR
+  CP '1'
+  JP C,SN_ERR
+  CP '5'
+  JP NC,SN_ERR
+  SUB '1'
+  ADD A,A
+  LD D,A
+  ADD A,A
+  ADD A,A
+  ADD A,A
+  SUB D
+  LD (OCTSAV),A
+  JP MUSIC
+
+M_TEMPO:
+  LD A,(BC)
+  SUB '0'
+  JP C,SN_ERR
+  CP 10
+  JP NC,SN_ERR
+  LD L,A
+  INC BC
+  DEC E
+  JR Z,M_TEMPO_0          ; Set the tempo (single digit)
+  LD A,(BC)
+  SUB '0'
+  JR C,M_TEMPO_0          ; Set the tempo (single digit)
+  CP 10
+  JR NC,M_TEMPO_0         ; Set the tempo (single digit)
+  LD H,A                  ; HL=HL*10
+  LD A,L
+  ADD A,A
+  LD L,A
+  ADD A,A
+  ADD A,A
+  ADD A,L
+  ADD A,H
+  LD L,A
+  INC BC
+  DEC E
+  JR Z,M_TEMPO_0          ; Set the tempo (2 digits)
+  LD A,(BC)
+  SUB '0'
+  JR C,M_TEMPO_0          ; Set the tempo (2 digits)
+  CP 10
+  JR NC,M_TEMPO_0         ; Set the tempo (2 digits)
+  LD H,A                  ; HL=HL*10
+  LD A,L
+  ADD A,A
+  LD L,A
+  ADD A,A
+  ADD A,A
+  ADD A,L
+  ADD A,H
+  LD L,A
+  INC BC
+  DEC E                   ; Set the tempo (3 digits)
+
+M_TEMPO_0:
+  LD A,L
+  OR A
+  RRA
+  OR A
+  RRA
+  INC A
+  LD (TMPSAV),A
+  JP MUSIC
+
+M_PAUSE:
+  CALL M_NUMBER
+  PUSH HL
+  EXX
+  POP DE
+  LD A,(TMPSAV)
+  CALL DELAY
+M_PAUSE_0:
+  DEC DE
+  LD B,$C0
+M_PAUSE_1:
+  NOP
+  DJNZ M_PAUSE_1
+  LD A,D
+  OR E
+  JR NZ,M_PAUSE_0
+  EXX
+  JP MUSIC
+
+; Get decimal number value
+M_NUMBER:
+  LD HL,16
+  LD A,(BC)
+  SUB '0'
+  RET C
+  CP 10
+  RET NC
+  LD L,A
+  LD H,$00
+  INC BC
+  DEC E
+  RET Z
+  LD A,(BC)
+  SUB '0'
+  RET C
+  CP 10
+  RET NC
+  PUSH DE
+  ADD HL,HL                  ; HL=HL*10
+  LD D,H
+  LD E,L
+  ADD HL,HL
+  ADD HL,HL
+  ADD HL,DE
+  LD E,A
+  LD D,$00
+  ADD HL,DE
+  POP DE
+  INC BC
+  DEC E
+  RET
+
+; Data block at 3007
+NOTE_TAB:
+  DEFB $CC,$CC,$08
+  DEFB $CA,$CA,$09
+  DEFB $BE,$BE,$09
+  DEFB $B3,$B3,$0A
+  DEFB $B3,$B3,$0A
+  DEFB $A9,$A9,$0A
+  DEFB $9F,$9F,$0B
+  DEFB $97,$97,$0C
+  DEFB $8E,$8E,$0C
+  DEFB $86,$86,$0D
+  DEFB $86,$86,$0D
+  DEFB $7F,$7F,$0E
+  DEFB $77,$77,$0F
+  DEFB $71,$71,$10
+  DEFB $6A,$6A,$11
+  DEFB $64,$64,$12
+  DEFB $5E,$5E,$13
+  DEFB $59,$59,$14
+  DEFB $59,$59,$14
+  DEFB $54,$54,$15
+  DEFB $4F,$4F,$17
+  DEFB $4B,$4B,$18
+  DEFB $46,$47,$19
+  DEFB $42,$43,$1B
+  DEFB $42,$43,$1B
+  DEFB $3E,$3F,$1D
+  DEFB $3A,$3B,$1E
+  DEFB $37,$38,$20
+  DEFB $34,$35,$22
+  DEFB $31,$32,$24
+  DEFB $2E,$2F,$25
+  DEFB $2C,$2C,$29
+  DEFB $2C,$2C,$29
+  DEFB $29,$2A,$2B
+  DEFB $27,$27,$2E
+  DEFB $25,$25,$30
+  DEFB $23,$23,$33
+  DEFB $21,$21,$36
+  DEFB $21,$21,$36
+  DEFB $1F,$1F,$3A
+  DEFB $1D,$1D,$3D
+  DEFB $1C,$1B,$41
+  DEFB $1A,$1A,$45
+  DEFB $19,$18,$49
+  DEFB $17,$17,$4D
+  DEFB $16,$15,$52
+  DEFB $16,$15,$52
+  DEFB $14,$14,$57
+  DEFB $13,$13,$5C
+  DEFB $12,$12,$61
+  DEFB $11,$11,$67
+  DEFB $10,$10,$6D
+  DEFB $10,$10,$6D
+  DEFB $0F,$0F,$74
+  DEFB $0E,$0E,$52
+  DEFB $0D,$0D,$82
+  DEFB $0C,$0C,$8A
+
+; Routine at 3178
+__SOUND:
+  CALL GETINT
+  OR A
+  JR NZ,__SOUND_0
+  INC A
+__SOUND_0:
+  EXX
+  LD E,A
+  LD D,$00
+  CPL
+  INC A
+  LD C,A
+  EXX
+
+  CALL SYNCHR
+  DEFB ','
+
+  CALL GETINT
+  EXX
+  CALL DELAY
+  LD B,$04
+__SOUND_1:
+  OR A
+  RR D
+  RR E
+  DJNZ __SOUND_1
+  INC DE
+  EXX
+  LD A,(HL)
+  CP ','
+  LD A,$00
+  JR NZ,__SOUND_2
+  INC HL
+  CALL GETINT
+__SOUND_2:
+  EXX
+  PUSH AF
+  ADD A,C
+  LD (TMPSOUND),A
+  POP HL
+  LD A,C
+  SUB H
+  LD (TMPSOUND+1),A
+
+; Sound output
+;
+; Used by the routines at _SOUND, MUSIC, T_EDIT and CONSOLE_BEL.
+SOUND:
+  DI
+SOUND_0:
+  PUSH HL
+  POP HL
+  LD A,$00
+  LD HL,(TMPSOUND)
+SOUND_1:
+  CALL DELAY_2
+  DEC L
+  JP NZ,SOUND_1
+SMC_PLAY0:
+  LD A,16
+IF ZXPLUS3
+  OUT ($FE),A             ; turn audio bit on
+ELSE
+  OUT ($AF),A             ; turn audio bit on
+ENDIF
+  DEC DE
+  CALL DELAY_3
+  CALL DELAY_4
+SOUND_2:
+  CALL DELAY_2
+  DEC H
+  JP NZ,SOUND_2
+SMC_PLAY1:
+  LD A,$00
+IF ZXPLUS3
+  OUT ($FE),A             ; turn audio bit off
+ELSE
+  OUT ($AF),A             ; turn audio bit off
+ENDIF
+  LD A,D
+  OR E
+  JP NZ,SOUND_0
+  EI
+  EXX
+  RET
+
+; Delay stubs
+;
+; Used by the routines at MUSIC and __SOUND.
+DELAY:
+  LD B,$08
+  LD HL,$0000
+DELAY_0:
+  RRCA
+  JR NC,DELAY_1
+  ADD HL,DE
+DELAY_1:
+  OR A
+  RL E
+  RL D
+  DJNZ DELAY_0
+  EX DE,HL
+  RET
+
+; This entry point is used by the routine at SOUND.
+DELAY_2:
+  EX (SP),HL
+  EX (SP),HL
+; This entry point is used by the routine at SOUND.
+DELAY_3:
+  NOP
+; This entry point is used by the routine at SOUND.
+DELAY_4:
+  RET
+
+ENDIF
+
+
+
 ;------------------------------------------------------------------------------
 
 
@@ -23345,10 +23788,10 @@ MACLNG:
   PUSH DE           ;DUMMY ADDR
   PUSH AF           ;DUMMY LENGTH
 MCLNEW:
-  CALL GETSTR
+  CALL GETSTR       ; 
   CALL LOADFP       ;GET LENGTH & POINTER
-  LD   B,C
-  LD   C,D
+  LD   B,C          ; convert string address from Extended Basic
+  LD   C,D          ; ... to 8K
   LD   D,E
   LD   A,B
   OR C
