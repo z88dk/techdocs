@@ -22540,14 +22540,12 @@ IF ZXPLUS3
   ld (SMC_PLAY0+1),a
 ENDIF
 
-;  CALL GSTRCU             ; Current string to pool               ;FREE UP ARGUMENT AND SETUP TO GIVE FREE STRING SPACE
-;  CALL LOADFP             ;GET LENGTH & POINTER
-;  INC E
-
-  CALL GETSTR
+  CALL GSTRCU       ;get music string to be played, make sure it is a string
   CALL LOADFP       ;GET LENGTH & POINTER
-  LD   B,C
-  LD   C,D
+
+  LD   B,C          ; Adjust string pointer..
+  LD   C,D          ;  ..from 8K parameter format to Extended BASIC
+
   INC E
 
 
@@ -22774,63 +22772,67 @@ M_NUMBER:
 
 ; Data block at 3007
 NOTE_TAB:
-  DEFB $CC,$CC,$08
-  DEFB $CA,$CA,$09
-  DEFB $BE,$BE,$09
-  DEFB $B3,$B3,$0A
-  DEFB $B3,$B3,$0A
-  DEFB $A9,$A9,$0A
-  DEFB $9F,$9F,$0B
-  DEFB $97,$97,$0C
-  DEFB $8E,$8E,$0C
-  DEFB $86,$86,$0D
-  DEFB $86,$86,$0D
-  DEFB $7F,$7F,$0E
-  DEFB $77,$77,$0F
-  DEFB $71,$71,$10
-  DEFB $6A,$6A,$11
-  DEFB $64,$64,$12
-  DEFB $5E,$5E,$13
-  DEFB $59,$59,$14
-  DEFB $59,$59,$14
-  DEFB $54,$54,$15
-  DEFB $4F,$4F,$17
-  DEFB $4B,$4B,$18
-  DEFB $46,$47,$19
-  DEFB $42,$43,$1B
-  DEFB $42,$43,$1B
-  DEFB $3E,$3F,$1D
-  DEFB $3A,$3B,$1E
-  DEFB $37,$38,$20
-  DEFB $34,$35,$22
-  DEFB $31,$32,$24
-  DEFB $2E,$2F,$25
-  DEFB $2C,$2C,$29
-  DEFB $2C,$2C,$29
-  DEFB $29,$2A,$2B
-  DEFB $27,$27,$2E
-  DEFB $25,$25,$30
-  DEFB $23,$23,$33
-  DEFB $21,$21,$36
-  DEFB $21,$21,$36
-  DEFB $1F,$1F,$3A
-  DEFB $1D,$1D,$3D
-  DEFB $1C,$1B,$41
-  DEFB $1A,$1A,$45
-  DEFB $19,$18,$49
-  DEFB $17,$17,$4D
-  DEFB $16,$15,$52
-  DEFB $16,$15,$52
-  DEFB $14,$14,$57
-  DEFB $13,$13,$5C
-  DEFB $12,$12,$61
-  DEFB $11,$11,$67
-  DEFB $10,$10,$6D
-  DEFB $10,$10,$6D
-  DEFB $0F,$0F,$74
-  DEFB $0E,$0E,$52
-  DEFB $0D,$0D,$82
-  DEFB $0C,$0C,$8A
+  DEFB $CC,$CC,$08	; A flat
+
+  DEFB $CA,$CA,$09	; A
+  DEFB $BE,$BE,$09  ; B flat
+  DEFB $B3,$B3,$0A  ; B
+  DEFB $B3,$B3,$0A  ; -> 'B sharp' does not exist, compensate..
+  DEFB $A9,$A9,$0A  ; C
+  DEFB $9F,$9F,$0B  ; D flat
+  DEFB $97,$97,$0C  ; D
+  DEFB $8E,$8E,$0C  ; E flat
+  DEFB $86,$86,$0D  ; E
+  DEFB $86,$86,$0D  ; -> 'E sharp' does not exist, compensate..
+  DEFB $7F,$7F,$0E  ; F
+  DEFB $77,$77,$0F  ; G flat
+  DEFB $71,$71,$10  ; G
+  DEFB $6A,$6A,$11  ; A flat (G sharp)
+
+  DEFB $64,$64,$12  ; A
+  DEFB $5E,$5E,$13  ; B flat
+  DEFB $59,$59,$14  ; B
+  DEFB $59,$59,$14  ; -> 'B sharp' does not exist, compensate..
+  DEFB $54,$54,$15  ; C
+  DEFB $4F,$4F,$17  ; D flat
+  DEFB $4B,$4B,$18  ; D
+  DEFB $46,$47,$19  ; E flat
+  DEFB $42,$43,$1B  ; E
+  DEFB $42,$43,$1B  ; -> 'E sharp' does not exist, compensate..
+  DEFB $3E,$3F,$1D  ; F
+  DEFB $3A,$3B,$1E  ; G flat
+  DEFB $37,$38,$20  ; G
+  DEFB $34,$35,$22  ; A flat (G sharp)
+
+  DEFB $31,$32,$24  ; A
+  DEFB $2E,$2F,$25  ; B flat
+  DEFB $2C,$2C,$29  ; B
+  DEFB $2C,$2C,$29  ; -> 'B sharp' does not exist, compensate..
+  DEFB $29,$2A,$2B  ; C
+  DEFB $27,$27,$2E  ; D flat
+  DEFB $25,$25,$30  ; D
+  DEFB $23,$23,$33  ; E flat
+  DEFB $21,$21,$36  ; E
+  DEFB $21,$21,$36  ; -> 'E sharp' does not exist, compensate..
+  DEFB $1F,$1F,$3A  ; F
+  DEFB $1D,$1D,$3D  ; G flat
+  DEFB $1C,$1B,$41  ; G
+  DEFB $1A,$1A,$45  ; A flat (G sharp)
+
+  DEFB $19,$18,$49  ; A
+  DEFB $17,$17,$4D  ; B flat
+  DEFB $16,$15,$52  ; B
+  DEFB $16,$15,$52  ; -> 'B sharp' does not exist, compensate..
+  DEFB $14,$14,$57  ; C
+  DEFB $13,$13,$5C  ; D flat
+  DEFB $12,$12,$61  ; D
+  DEFB $11,$11,$67  ; E flat
+  DEFB $10,$10,$6D  ; E
+  DEFB $10,$10,$6D  ; -> 'E sharp' does not exist, compensate..
+  DEFB $0F,$0F,$74  ; F
+  DEFB $0E,$0E,$52  ; G flat
+  DEFB $0D,$0D,$82  ; G
+  DEFB $0C,$0C,$8A  ; A flat (G sharp)
 
 ; Routine at 3178
 __SOUND:
@@ -24524,7 +24526,11 @@ ENDIF
   DEFM "CP/M Version]"
   DEFB $0D
   DEFB $0A
+IF ZXPLUS3
+  DEFM "Copyright 1977-1984 (C) by Microsoft"
+ELSE
   DEFM "Copyright 1977-1982 (C) by Microsoft"
+ENDIF
   DEFB $0D
   DEFB $0A
 IF ORIGINAL
