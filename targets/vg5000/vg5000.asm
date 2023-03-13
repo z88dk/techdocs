@@ -84,16 +84,22 @@ defc TMPSOUND          = $480E
 
 defc FILETAB           = $4810
 defc FILNAM            = $4811
-defc FILSTAR           = $4817
+defc FILMODE           = $4817
 defc FILTYPE           = $4818
 defc FILNM2            = $4819
 defc SAVADDR           = $4820
 defc SAVLEN            = $4822
+defc CHECKSUM          = $4824
 
-defc AUTORUN           = $4826
-defc L482C             = $482C
+defc LOW               = $4826
+;defc AUTORUN?           = $4826
+
+defc HIGH              = $4828  ; also SAVADDR+8
+defc HEADER            = $482A  ; also SAVLEN+8
 defc LOWLIM            = $482E
 defc WINWID            = $482F
+
+;------------------------------------
 defc RAMLOW            = $4830
 defc __USR             = $4833
 defc FDIVC             = $4836
@@ -105,17 +111,16 @@ defc SEED              = $4844
 defc RNDX              = $4867
 defc INPSUB            = $486B
 defc INPORT            = $486C
-defc L486D             = $486D
 defc LPTPOS            = $486E
 
 ; 0=screen, 1=printer, 255=ASCII cassette file
 defc PRTFLG            = $486F
 defc GETFLG            = $4870
 defc PICFLG            = $4871
-defc CASCOM            = $4872
+defc CASCOM            = $4872     ; Cassette related flags 
 defc RAWPRT            = $4873
 defc PRTSTT            = $4874
-defc PRTCOM            = $4875
+defc PRTCOM            = $4875     ; Set to '1' or '255' to disable "printer not ready" text mgs.  On error, It will BEEP in any case.
 defc PRTINT            = $4876
 defc PRTXLT            = $4878
 defc BUF10             = $487A
@@ -459,12 +464,12 @@ _INT:
   CALL INTHK
   PUSH AF
   DEC (IX+$00)            ; Screen refresh counter
-  JP NZ,DO_INT
+  JP NZ,NO_REFRESH
   LD A,(IX+$02)           ; INTRAT - Reference value for Interrupt frequency
   LD (IX+$00),A           ; Screen refresh counter
-  BIT 0,(IX+$01)          ;
+  BIT 0,(IX+$01)          ; INTACT - Is a screen refresh request pending ?
   RES 0,(IX+$01)
-  JP Z,DO_INT
+  JP Z,NO_REFRESH
 
   PUSH BC
   PUSH DE
@@ -729,7 +734,7 @@ ENDIF
   JR NZ,DISPLAY_3
 
   BIT 6,(IX+$03)          ; CURSOR - get status
-  JR Z,DISPLAY_6
+  JR Z,DISPLAY_NOCURS
   LD HL,(CURPOS)
   LD A,H
   OR A
@@ -763,13 +768,13 @@ DISPLAY_5:
   LD A,(IX+$03)
   OUT ($CF),A
 
-DISPLAY_6:
+DISPLAY_NOCURS:
   POP HL
   POP DE
   POP BC
 
 ; This entry point is used by the routine at VSIGN.
-DO_INT:
+NO_REFRESH:
   INC (IX+$06)            ; REPTIM - Keyboard repeat timer
   POP AF
   EI
@@ -879,7 +884,7 @@ GETCHAR_2:
   LD A,24
   CALL CLR_LINE
   POP HL
-  LD (IX+$00),$01            ; Screen refresh counter
+  LD (IX+$00),$01         ; Screen refresh counter, set to refresh at the next Interrupt occurrence
   LD DE,LAST_SCREEN_ROW
 GETCHAR_3:
   LD A,(PICFLG)
@@ -3042,7 +3047,7 @@ FP_ATNTAB:
 ; Used by the routine at INIT_BEL.
 __PLAY:
   CALL PLYHK
-  LD (IX+$01),$00
+  LD (IX+$01),$00         ; INTACT - Disable screen refresh requests
   CALL EVAL
   PUSH HL
   CALL GSTRCU
@@ -3136,8 +3141,8 @@ M_FLAT:
 
 MUSIC_END:
   POP HL
-  LD (IX+$00),$03            ; Screen refresh counter
-  LD (IX+$01),$01
+  LD (IX+$00),$03         ; Screen refresh counter
+  LD (IX+$01),$01         ; INTACT - Enable screen refresh
   RET
 
 M_OCTAVE:
@@ -3455,7 +3460,7 @@ __SETE:
 
 __SETE_0:
   PUSH BC
-  LD (IX+$01),$00
+  LD (IX+$01),$00         ; INTACT - Disable screen refresh requests
   CALL GETINT             ; Get character code to be modified
   CP ' '                  ; Check for space
   JP C,FC_ERR
@@ -3542,9 +3547,9 @@ __SETE_2:
   CP '"'                  ; Check for ending string spec
   JR NZ,__SETE_3
   INC HL                  ; if it was specified, skip it
-__SETE_3:
 
-  LD (IX+$01),$01
+__SETE_3:
+  LD (IX+$01),$01         ; INTACT - Enable screen refresh
   RET
 
 ; This entry point is used by the routines at __SETE and CHR_UPDATE.
@@ -3565,7 +3570,7 @@ CHR_UPDATE:
   LD B,$40
 CHR_UPDATE_0:
   PUSH BC
-  LD (IX+$01),$00
+  LD (IX+$01),$00         ; INTACT - Disable screen refresh requests
   SET 7,A
   LD E,A
   LD D,$22
@@ -3632,9 +3637,9 @@ CHR_UPDATE_2:
   LD E,A
   LD D,$25                ; $25=Set register R5
   CALL VDP_SET            ; Set VDP register [D], value [E]
-
   DJNZ CHR_UPDATE_1
-  LD (IX+$01),$01
+
+  LD (IX+$01),$01         ; INTACT - Enable screen refresh
   RET
 
 ; Enter in TEXT mode
@@ -3979,15 +3984,15 @@ __DELIM_0:
   POP HL
   POP AF
   LD (IX+$08),A
-  LD (IX+$01),$01
+  LD (IX+$01),$01         ; INTACT - Enable screen refresh
   RET
 
 ; Routine at 3982
 ;
 ; Used by the routine at __DISPLAY.
 __SCREEN:
-  LD (IX+$01),$01
-  LD (IX+$00),$01            ; Screen refresh counter, set to refresh at the next Interrupt occurrence
+  LD (IX+$01),$01         ; INTACT - Enable screen refresh
+  LD (IX+$00),$01         ; Screen refresh counter, set to refresh at the next Interrupt occurrence
   HALT
   RET
 
@@ -4110,7 +4115,7 @@ INIT_0:
   LD HL,VDP_TXT
   CALL SET_VDP_REGS
   LD (IX+$00),$05         ; Screen refresh counter
-  LD (IX+$01),$00
+  LD (IX+$01),$00         ; INTACT - Disable screen refresh requests
   LD (IX+$04),$01         ; FKLOCK - Uppercase/Lowercase switch
   IM 1
   EI                      ; Enable interrupts
@@ -4125,7 +4130,7 @@ INIT_0:
   XOR A
   OUT ($EF),A             ; Try to fire the NMI.
                           ; If the diode is in place, NMI_BOOT will be executed to switch from French to English.
-  OUT ($AF),A
+  OUT ($AF),A             ; Reset cassette and sound latches
   LD HL,WARMST
   LD (NMIADDR),HL         ; Change the value of the NMI interrupt, now it will make a WARM BOOT happen when "RESET" is pressed
   CALL STKINI             ; reset the BASIC stack pointer
@@ -4744,7 +4749,7 @@ ENDIF
 
 ; Routine at 6469
 __SAVE:
-  CALL L1ADB_15
+  CALL SET_SAVE_SPEED
   CALL LNUM_RANGE
   PUSH HL
   PUSH DE
@@ -4759,12 +4764,12 @@ __SAVE:
   LD (HL),A
   INC HL
   LD (SAVADDR),HL
-  LD ($4824),A
+  LD (CHECKSUM),A
   CALL __LIST_PROC
   LD A,$83
   CALL L1CC0_18
-  LD A,($4824)
-  CALL L1CC0_21
+  LD A,(CHECKSUM)
+  CALL DO_BSAVE
   CALL __CSAVE_0
   POP HL
   JP CLRPTR
@@ -4777,15 +4782,15 @@ __LOAD:
   LD (CASCOM),A
   CALL TAPION
   LD E,$05
-  CALL L1CC0_58
-  CALL INLPNM_19
+  CALL LOAD_BORDER
+  CALL _TAPION
   JR C,__LOAD_0
   CALL _CASIN
   JR C,__LOAD_0
   CP $82
   SCF
   JR NZ,__LOAD_0
-  LD (AUTORUN),A
+  LD (LOW),A		; used as AUTORUN flag
   CALL L1CC0_23
 __LOAD_0:
   JP C,LOAD_ABORT
@@ -4835,7 +4840,7 @@ __CSAVE:
   CP 'X'             ; String
   JR Z,CSAVEM
   CP 'L'
-  JP Z,PRINT_FNAME_MSG_7
+  JP Z,CSAVEL
   
   DEFB $3A ; "LD A,(nn)" over the next 2 bytes
   
@@ -4847,9 +4852,9 @@ CSAVEM:
   LD A,' '
 
   LD (FILETAB),A
-  CALL L1ADB_15
-  CALL L1BA4_2
-  CALL PRINT_FNAME_MSG_8
+  CALL SET_SAVE_SPEED
+  CALL CSAVE_SETNAME
+  CALL CSAVE_ARGS
   PUSH HL
   CALL CSAVE_HEADER
   JR C,__CSAVE_1
@@ -4860,7 +4865,7 @@ CSAVEM:
 __CSAVE_0:
   PUSH HL
 __CSAVE_1:
-  CALL INLPNM_3
+  CALL _TAPOOF
   JR NC,__CSAVE_2
   LD HL,CASCOM
   SET 7,(HL)
@@ -4877,8 +4882,8 @@ __CSAVE_2:
 
 ; Routine at 6713
 __CLOAD:
-  CP TK_STAR		 ; '*'=TK_STAR
-  LD (FILSTAR),A
+  CP TK_STAR		 ; '*'= Numeric or String Array
+  LD (FILMODE),A
   JR NZ,__CLOAD_0
   INC HL
 
@@ -4908,18 +4913,18 @@ _VERIFY:
   LD A,(CASCOM)
   AND $0F
   LD (CASCOM),A
-  CALL L1BA4_1
-  CALL L1CC0_2
+  CALL CLOAD_SETNAME
+  CALL CLOAD_ARGS
   CALL TAPION
 _CLOAD_0:
   LD E,$01
-  CALL L1CC0_58
-  CALL INLPNM_19
+  CALL LOAD_BORDER
+  CALL _TAPION
   JR C,CLOAD_END
   CALL CLOAD_HEADER
   JR C,CLOAD_END
   LD HL,FILNM2
-  CALL CLOAD_NAME
+  CALL CLOAD_CHECKNAME
   JR Z,CLOAD_FOUND
   LD HL,SKIP_MSG_FR
   LD A,(FRGFLG)
@@ -4929,10 +4934,11 @@ _CLOAD_0:
 CLOAD_SKIP_FR:
   CALL PRINT_FNAME_MSG
   LD E,$04
-  CALL L1CC0_58
-  CALL INLPNM_19
+  CALL LOAD_BORDER
+  CALL _TAPION
   JR C,CLOAD_END
 _CLOAD_2:
+
   LD B,10
 _CLOAD_3:
   CALL _CASIN
@@ -4940,7 +4946,9 @@ _CLOAD_3:
   OR A
   JR NZ,_CLOAD_2
   DJNZ _CLOAD_3
+
   JR _CLOAD_0
+
 
 CLOAD_FOUND:
   LD HL,FOUND_MSG_FR
@@ -4951,7 +4959,7 @@ CLOAD_FOUND:
 CLOAD_FOUND_FR:
   CALL PRINT_FNAME_MSG
   LD E,$02
-  CALL L1CC0_58
+  CALL LOAD_BORDER
   LD A,(FILTYPE)
   CP ' '
   JR NZ,CLOAD_FOUND_0
@@ -5056,12 +5064,12 @@ L1ADB_8:
   JR NZ,L1ADB_9         ; No, jump over
 
   LD HL,KBUF
-  LD A,(HL)             ; Get byte
+  LD A,(HL)             ; Check first byte in the keyboard input buffer
   OR A                  ; Nothing ?
   JR Z,L1ADB_9          ; Ok, jump over
 
   CP '0'
-  JR Z,L1ADB_10
+  JR Z,L1ADB_10         ; '0' ?
   JR L1ADB_13
 
 L1ADB_9:
@@ -5069,6 +5077,7 @@ L1ADB_9:
   LD A,(DE)
   OR A
   JR NZ,L1ADB_11
+
 L1ADB_10:
   LD A,(FILTYPE)
   CP 'M'
@@ -5094,18 +5103,19 @@ CLOAD_CONT:
   LD HL,(CONTXT)
   RET
 
+; CSAVE(1), CSAVE(2)
 ; This entry point is used by the routines at __SAVE and __CSAVE.
-L1ADB_15:
+SET_SAVE_SPEED:
   DEC HL
   RST CHRGTB
   RET Z
-  CP $28
+  CP '('
   RET NZ
   RST CHRGTB
   JP Z,SN_ERR
-  CP $31
+  CP '1'
   JR Z,L1ADB_16
-  CP $32
+  CP '2'
   JP NZ,FC_ERR
 L1ADB_16:
   LD D,A
@@ -5115,9 +5125,6 @@ L1ADB_16:
 ; Routine at 7074
 L1BA2:
   RST SYNCHR
-
-; Data block at 7075
-L1BA3:
   DEFB ')'
 
 ; Routine at 7076
@@ -5132,16 +5139,18 @@ L1BA4:
 L1BA4_0:
   POP HL
   RET
+
 ; This entry point is used by the routine at _CLOAD.
-L1BA4_1:
+CLOAD_SETNAME:
   XOR A
   LD (FILNAM),A
   DEC HL
   RST CHRGTB
   RET Z
+
 ; This entry point is used by the routine at __CSAVE.
-L1BA4_2:
-  CALL L1CC0_17
+CSAVE_SETNAME:
+  CALL FNAME_ARG
   PUSH HL
   LD B,C
   LD C,$06
@@ -5163,6 +5172,7 @@ L1BA4_4:
 ;
 ; Used by the routine at _CLOAD.
 CLOAD_HEADER:
+
   LD B,10
 CLOAD_HEADER_0:
   CALL _CASIN
@@ -5170,6 +5180,7 @@ CLOAD_HEADER_0:
   SUB $D3
   JR NZ,CLOAD_HEADER
   DJNZ CLOAD_HEADER_0
+
   LD HL,FILTYPE
   LD B,$16
 CLOAD_HEADER_1:
@@ -5181,10 +5192,10 @@ CLOAD_HEADER_1:
   RET
 
 ; This entry point is used by the routine at _CLOAD.
-CLOAD_NAME:
+CLOAD_CHECKNAME:
   LD BC,FILNAM
   LD E,$06
-CLOAD_NAME_0:
+CLOAD_CHECKNAME_0:
   LD A,(BC)
   OR A
   RET Z
@@ -5194,7 +5205,7 @@ CLOAD_NAME_0:
   INC BC
   RET NZ
   DEC E
-  JR NZ,CLOAD_NAME_0
+  JR NZ,CLOAD_CHECKNAME_0
   RET
 
 ; Routine at 7164
@@ -5220,7 +5231,7 @@ PRINT_FNAME_MSG_1:
   CALL OUTDO_CRLF
   LD A,$01
   EI
-  LD (IX+$00),A            ; Screen refresh counter
+  LD (IX+$00),A            ; Screen refresh counter, set to refresh at the next Interrupt occurrence
   HALT
   DI
 PRINT_FNAME_MSG_2:
@@ -5256,16 +5267,16 @@ PRINT_FNAME_MSG_6:
   JR PRINT_FNAME_MSG_4
 
 ; This entry point is used by the routine at __CSAVE.
-PRINT_FNAME_MSG_7:
+CSAVEL:
   INC HL
   LD B,$03
   JP INLPNM_0
 
 ; This entry point is used by the routine at __CSAVE.
-PRINT_FNAME_MSG_8:
+CSAVE_ARGS:
   PUSH HL
 
-  LD HL,FILSTAR
+  LD HL,FILMODE
   XOR A
   LD B,$09
 CLR_FNAME2:
@@ -5277,28 +5288,27 @@ CLR_FNAME2:
   LD (FILETAB+13),A          ; Put the current ALLFLG status in the tape header
   LD A,(FILETAB)
   CP ' '
-  JR NZ,PRINT_FNAME_MSG_11
+  JR NZ,CSAVEM_MODES
   LD HL,(TXTTAB)
   LD (SAVADDR),HL
   EX DE,HL
   LD HL,(VARTAB)
   OR A
   SBC HL,DE
+
 ; This entry point is used by the routine at L1C82.
-PRINT_FNAME_MSG_10:
+SET_CSAVE_LEN:
   LD (SAVLEN),HL
   JR L1C82_4
-PRINT_FNAME_MSG_11:
+
+CSAVEM_MODES:
   CP 'M'
-  JR NZ,L1C82_0
+  JR NZ,FIND_ADDRESSES
   POP HL
 
 ; Routine at 7284
 L1C74:
   RST SYNCHR
-
-; Data block at 7285
-L1C75:
   DEFB ','
 
 ; Routine at 7286
@@ -5310,9 +5320,6 @@ L1C76:
 ; Routine at 7296
 L1C80:
   RST SYNCHR
-
-; Data block at 7297
-L1C81:
   DEFB ','
 
 ; Routine at 7298
@@ -5321,11 +5328,11 @@ L1C82:
   CALL CONIS
   PUSH HL
   EX DE,HL
-  JR PRINT_FNAME_MSG_10
+  JR SET_CSAVE_LEN
   
 ; This entry point is used by the routine at PRINT_FNAME_MSG.
-L1C82_0:
-  CP $53
+FIND_ADDRESSES:
+  CP 'S'
   JR NZ,L1C82_2
   LD HL,SCREEN
   LD (SAVADDR),HL
@@ -5336,16 +5343,16 @@ L1C82_1:
   
 L1C82_2:
   POP HL
-  CP TK_STAR		 ; '*'=TK_STAR
+  CP TK_STAR		 ; '*'= Numeric or String Array
   JR NZ,L1C82_3
-  CALL L1CC0_16
+  CALL GET_ARRAY
   PUSH HL
   LD (SAVADDR),BC
   EX DE,HL
   JR L1C82_1
 
 L1C82_3:
-  CALL L1CC0_17
+  CALL FNAME_ARG
   LD (SAVADDR),DE
   LD (SAVLEN),BC
   RET
@@ -5360,9 +5367,6 @@ L1C82_4:
 ; Routine at 7358
 L1CBE:
   RST SYNCHR
-
-; Data block at 7359
-L1CBF:
   DEFB ','
 
 ; Routine at 7360
@@ -5383,7 +5387,7 @@ L1CC0_1:
   RET
 
 ; This entry point is used by the routine at _CLOAD.
-L1CC0_2:
+CLOAD_ARGS:
   XOR A
   LD C,A
   DEC HL
@@ -5406,7 +5410,7 @@ L1CC0_3:
 L1CC0_4:
   LD (CONTXT),HL
   LD A,C
-  LD (FILSTAR),A
+  LD (FILMODE),A
   RET
 
 L1CC0_5:
@@ -5423,10 +5427,10 @@ L1CC0_6:
   PUSH HL
   PUSH BC
   JR NZ,L1CC0_8
-  LD A,(FILSTAR)
+  LD A,(FILMODE)
   CP TK_STAR		 ; '*'=TK_STAR
   JR Z,L1CC0_8
-  CALL L1CC0_17
+  CALL FNAME_ARG
   POP BC
   DEC C
 L1CC0_7:
@@ -5434,7 +5438,7 @@ L1CC0_7:
   JR L1CC0_4
   
 L1CC0_8:
-  CALL L1CC0_16
+  CALL GET_ARRAY
   POP BC
   INC C
   JR L1CC0_7
@@ -5463,23 +5467,23 @@ L1CC0_11:
   RET
 
 L1CC0_12:
-  CP $53
+  CP 'S'
   JR NZ,L1CC0_13
   LD HL,SCREEN
   RET
 
 L1CC0_13:
   LD HL,(CONTXT)
-  CP $BB
+  CP TK_STAR              ; Array ?
   JR NZ,L1CC0_15
-  LD A,(FILSTAR)
+  LD A,(FILMODE)
   DEC A
   JR NZ,DIOERR
-  CALL L1CC0_16
+  CALL GET_ARRAY
   PUSH BC
 L1CC0_14:
   LD (CONTXT),HL
-  LD HL,(SAVLEN+8)
+  LD HL,(HEADER)
   RST DCOMPR
   POP HL
   RET C
@@ -5489,10 +5493,10 @@ L1CC0_14:
   JP OV_ERR
 
 L1CC0_15:
-  LD A,(FILSTAR)
+  LD A,(FILMODE)
   INC A
   JR NZ,DIOERR
-  CALL L1CC0_17
+  CALL FNAME_ARG
   PUSH DE
   LD D,B
   LD E,C
@@ -5503,15 +5507,16 @@ DIOERR:
   JP TM_ERR
 
 ; This entry point is used by the routine at L1C82.
-L1CC0_16:
+GET_ARRAY:
   LD A,$01
-  LD (SUBFLG),A
-  CALL GETVAR
-  JP NZ,FC_ERR
+  LD (SUBFLG),A           ;CALLING PTRGET
+  CALL GETVAR             ;
+  JP NZ,FC_ERR            ;PTRGET DID NOT FIND VARIABLE!
   LD (SUBFLG),A
   RET
+
 ; This entry point is used by the routines at L1BA4 and L1C82.
-L1CC0_17:
+FNAME_ARG:
   CALL EVAL
   PUSH HL
   CALL __ASC_0
@@ -5563,36 +5568,36 @@ L1CC0_20:
   LD (SAVADDR),HL
   DEC HL
   LD A,(HL)
-  LD HL,$4824
+  LD HL,CHECKSUM
   XOR (HL)
   LD (HL),A
   POP HL
   RET
 
 ; This entry point is used by the routine at __SAVE.
-L1CC0_21:
+DO_BSAVE:
   LD HL,(SAVADDR)
-  LD (HL),A
+  LD (HL),A              ; Save checksum
   INC HL
   LD DE,(VARTAB)
   XOR A
   SBC HL,DE
   PUSH HL
   DEC A
-  CALL INLPNM_5
+  CALL _TAPOON
   POP BC
   RET C
-L1CC0_22:
+DO_BSAVE_0:
   LD A,(DE)
   INC DE
   DEC BC
-  CALL CASOUT
-  RET C
+  CALL _CASOUT
+  RET C                   ; Exit on BREAK or errors
   LD A,B
   OR C
-  JR NZ,L1CC0_22
+  JR NZ,DO_BSAVE_0
   DEC A
-  JP INLPNM_7
+  JP _TAPOON_1
 
 ; This entry point is used by the routine at __LOAD.
 L1CC0_23:
@@ -5630,7 +5635,7 @@ L1CC0_24:
   LD A,$8D
   POP DE
 L1CC0_25:
-  LD HL,AUTORUN
+  LD HL,LOW		; used as AUTORUN flag
   XOR (HL)
   LD (HL),A
   POP HL
@@ -5677,7 +5682,7 @@ L1CC0_33:
   CALL _CASIN
   RET C
   PUSH HL
-  LD HL,AUTORUN
+  LD HL,LOW
   SUB (HL)
   CALL L1CC0_51
   POP HL
@@ -5692,8 +5697,9 @@ L1CC0_34:
   LD (HL),A
   RET
 
+; Get a character from the cassette buffer
 ; This entry point is used by the routine at SHIFT_STOP.
-L1CC0_35:
+CHGET_CAS:
   LD DE,(SAVADDR+8)
   INC DE
   LD A,(DE)
@@ -5704,18 +5710,20 @@ L1CC0_35:
   LD (GETFLG),A           ; Reset console (keyboard input stream)
   JP __CLOAD_OK
 
-AUTORUN_0:
+CS120:
 ;---------
-  LD E,A
-  LD H,A
-  DEC HL
-  INC SP
-  RRCA
-AUTORUN_1:
+; CS120 Cassette I/O parameters to use for 1200 baud 
+ DEFW $675F		; LOW - Signal delay when writing a 0 to tape 
+ DEFW $332B		; HIGH - Signal delay when writing a 1 to tape ($4D52 on SVI)
+ DEFB $0F		; HEADER - Delay of tape header (sync.) block 
+
+CS240:
 ;---------
-  DEC HL
-  INC SP
-  LD DE,CSAVE_DATA_HDR_2
+; CS240 - Cassette I/O parameters to use for 2400 baud 
+ DEFW $332B		; LOW - Signal delay when writing a 0 to tape 
+ DEFW $1911		; HIGH - Signal delay when writing a 1 to tape ($4D52 on SVI)
+ DEFB $1F		; HEADER - Delay of tape header (sync.) block 
+
 
 ; This entry point is used by the routine at __SAVE.
 L1E9D_0:
@@ -5724,13 +5732,13 @@ L1E9D_0:
   LD A,(HL)
   BIT 1,A
   RET NZ
-  LD HL,AUTORUN_0
-  LD DE,AUTORUN
+  LD HL,CS120
+  LD DE,LOW
   LD BC,$0005
   BIT 2,A               ; test speed
-  JR Z,L1E9D_1
-  ADD HL,BC
-L1E9D_1:
+  JR Z,SET1200
+  ADD HL,BC             ; add 5, use the values for 2400 bps
+SET1200:
   LDIR
   RET
 
@@ -5754,36 +5762,38 @@ CSAVE_HEADER_0:
   LD A,B
   OR C
   JR NZ,CSAVE_HEADER_0
-  LD ($4824),HL
+  LD (CHECKSUM),HL
   DEC A
-  CALL INLPNM_5
+  CALL _TAPOON
   RET C
+
   LD B,10
 CSAVE_HEADER_1:
-  LD A,$D3			; BASIC PROGRAM header mode (TK_NAME)
-  CALL CASOUT
-  RET C
+  LD A,$D3                ; BASIC PROGRAM header mode
+  CALL _CASOUT
+  RET C                   ; Exit on BREAK or errors
   DJNZ CSAVE_HEADER_1
-  LD B,$16
+
+  LD B,22
   LD HL,FILETAB
 CSAVE_HEADER_2:
   LD A,(HL)
   INC HL
-  CALL CASOUT
-  RET C
+  CALL _CASOUT
+  RET C                   ; Exit on BREAK or errors
   DJNZ CSAVE_HEADER_2
   RET
 
 ; This entry point is used by the routine at __CSAVE.
 CSAVE_DATA_HDR:
   XOR A
-  CALL INLPNM_5
+  CALL _TAPOON
   RET C
   LD B,10
 CSAVE_DATA_HDR_0:
-  LD A,$D6                ; data block
-  CALL CASOUT
-  RET C
+  LD A,$D6                ; data block header type
+  CALL _CASOUT
+  RET C                   ; Exit on BREAK or errors
   DJNZ CSAVE_DATA_HDR_0
   LD DE,(SAVADDR)
   LD BC,(SAVLEN)
@@ -5791,18 +5801,17 @@ CSAVE_DATA_HDR_1:
   LD A,(DE)
   INC DE
   DEC BC
-  CALL CASOUT
-
+  CALL _CASOUT
 CSAVE_DATA_HDR_2:
-  RET C
+  RET C                   ; Exit on BREAK or errors
   LD A,B
   OR C
   JR NZ,CSAVE_DATA_HDR_1
   LD B,10
 CSAVE_DATA_HDR_3:
   XOR A
-  CALL CASOUT
-  RET C
+  CALL _CASOUT
+  RET C                   ; Exit on BREAK or errors
   DJNZ CSAVE_DATA_HDR_3
   RET
 
@@ -5810,8 +5819,8 @@ CSAVE_DATA_HDR_3:
 L1CC0_46:
   PUSH HL
   PUSH AF
-  CALL INLPNM_19
-  JP C,L1CC0_55
+  CALL _TAPION
+  JP C,POPRET
   LD A,(FILETAB+8+13)
   LD HL,ALLFLG         ; Get the protection flag
   OR (HL)				; Merge it
@@ -5824,24 +5833,24 @@ L1CC0_47:
 L1CC0_48:
   CALL _CASIN
   RET C
-  SUB $D6                         ; Data block ?
+  SUB $D6                 ; data block header type ?
   JR NZ,L1CC0_47
   DJNZ L1CC0_48
 
-  LD BC,(SAVLEN+8)
+  LD BC,(HEADER)        ; get expected block length
 L1CC0_49:
   CALL _CASIN
   RET C
   LD E,A
   PUSH HL
-  LD HL,(AUTORUN)
+  LD HL,(LOW)
   OR A
   ADD A,L
   LD L,A
   LD A,$00
   ADC A,H
   LD H,A
-  LD (AUTORUN),HL
+  LD (LOW),HL
   POP HL
   LD A,E
   SUB (HL)
@@ -5873,8 +5882,8 @@ L1CC0_50:
   JR NZ,L1CC0_49
   LD C,D
   PUSH HL
-  LD HL,(AUTORUN)
-  LD DE,(L482C)
+  LD HL,(LOW)
+  LD DE,(CHECKSUM+8)
   RST DCOMPR
   POP HL
 L1CC0_51:
@@ -5903,13 +5912,13 @@ L1CC0_53:
   DEC A
   RET
 
-CASOUT:
+_CASOUT:
   PUSH HL
   PUSH DE
   PUSH BC
-  CALL INLPNM_10
+  CALL TAPOUT
   POP BC
-L1CC0_55:
+POPRET:
   POP DE
   POP HL
   RET
@@ -5919,7 +5928,7 @@ _CASIN:
   PUSH HL
   PUSH DE
   PUSH BC
-  CALL TAPIN
+  CALL _TAPIN
   POP BC
   POP DE
   POP HL
@@ -5942,8 +5951,9 @@ TAPION:
   HALT
   RET
 
+; Border animation effect while loading
 ; This entry point is used by the routines at __LOAD and _CLOAD.
-L1CC0_58:
+LOAD_BORDER:
   LD A,$28
   OUT ($8F),A             ; $28=Command register + exec request
   LD A,$82
@@ -8726,10 +8736,12 @@ T_EDIT_1:
 ; This entry point is used by the routines at L33CD and QINLIN.
 T_EDIT_2:
   RST OUTDO
-T_EDIT_3:
-  LD (IX+$01),$01
-  LD (IX+$00),$01            ; Screen refresh counter
+
+UPDATE_SCREEN:
+  LD (IX+$01),$01         ; INTACT - Enable screen refresh
+  LD (IX+$00),$01         ; Screen refresh counter, set to refresh at the next Interrupt occurrence
   HALT
+
 ; This entry point is used by the routine at L33CD.
 T_EDIT_4:
   XOR A
@@ -8939,6 +8951,11 @@ T_EDIT_28:
   DEC H
   JP M,T_EDIT_34
   JR T_EDIT_28
+
+              ; PATCH 1.1/0009/00 :   Prevents the "insert line" key from operating during an INPUT command,
+              ;                       and stops the screen editor from automatically issuing an "insert line"
+			  ;                       Also preserves PAGE command status during INPUT commands.
+			  ;                       (BASIC 1.0-TB 18.1/2, BASIC 1.0-TB 10.2 )
 T_EDIT_29:
   LD A,(PICFLG)
   BIT 5,A
@@ -9045,8 +9062,8 @@ T_EDIT_42:
   PUSH AF
   LD A,$81
   LD (PICFLG),A
-  LD (IX+$00),$40            ; Screen refresh counter
-  LD (IX+$08),$00           ; Reset video attributes
+  LD (IX+$00),$40         ; Screen refresh counter, add a bit of delay
+  LD (IX+$08),$00         ; Reset video attributes
   LD HL,$0001
   LD (CURPOS),HL
   CALL CLR_SCR
@@ -9071,7 +9088,8 @@ T_EDIT_45:
   LD HL,$0001
 T_EDIT_46:
   LD (CURPOS),HL
-  JP T_EDIT_3
+  JP UPDATE_SCREEN
+
 T_EDIT_47:
   LD C,(HL)
   INC HL
@@ -9160,7 +9178,7 @@ T_EDIT_56:
 T_EDIT_57:
   LD A,(HL)
   BIT 7,A
-  JP NZ,T_EDIT_3
+  JP NZ,UPDATE_SCREEN     ; Refresh display NOW
   RST OUTDO
   INC HL
   JR T_EDIT_57
@@ -9668,8 +9686,15 @@ HEXCNS_0:
   EX DE,HL
   DJNZ HEXCNS_0
 
+		; PATCH 1.1/0001/00 :  Corrects the hexadecimal number evaluation error (BASIC 1.0-TB 2.2)
+		
+		; Workaround on V1.0:  Set a dummy variable to 0  (remove "A=0" to see the bug)
+		;     100 A=0 : FOR LOOP=-&"7000" TO -&"6ff0"
+		;     110 PRINT LOOP
+		;     129 NEXT LOOP
+
 HEXCNS_1:
-  CP '"'                ; final '"' required now
+  CP '"'                  ; final '"' required now
 IF V10
   INC HL
 ENDIF
@@ -9679,7 +9704,7 @@ IF !V10
 ENDIF
 
 IF V10
-  LD A,$98
+  LD A,$80+24             ; 24 bits integer exponent
   LD (FPEXP),A
   XOR A
   LD B,A
@@ -9687,7 +9712,7 @@ IF V10
   PUSH HL
   CALL CONPOS
 ELSE
-  LD B,$98
+  LD B,$80+24             ; 24 bits integer exponent
   PUSH HL
   XOR A
   CALL FLOATR
@@ -10195,7 +10220,7 @@ CONSOLE_CLS:
 CONSOLE_HOME:
   LD HL,$0001
   LD (CURPOS),HL
-  LD (IX+$01),$01
+  LD (IX+$01),$01         ; INTACT - Enable screen refresh
   LD (IX+$00),$01            ; Screen refresh counter
   HALT
   RET
@@ -10247,7 +10272,7 @@ KEY_SCAN_5:
   SET 0,(IX+$04)          ; FKLOCK- Uppercase/Lowercase switch
   RES 4,(IX+$03)
 KEY_SCAN_6:
-  LD (IX+$01),$01
+  LD (IX+$01),$01         ; INTACT - Enable screen refresh
   JR KEY_SCAN_8
 KEY_SCAN_7:
   BIT 0,(IX+$04)          ; FKLOCK- Uppercase/Lowercase switch
@@ -10405,7 +10430,7 @@ _CHPUT1:
 
 ; Routine at 13261
 L33CD:
-  LD (IX+$01),$01
+  LD (IX+$01),$01         ; INTACT - Enable screen refresh           ; INTACT
   POP AF
   EXX
   RET
@@ -10799,7 +10824,7 @@ CONSOLE_RESET:
   LD (PICFLG),A
   LD (IX+$0A),$00           ; EXTENF - Character redefinition flag
   LD (IX+$08),$00           ; Reset video attributes
-  LD (IX+$01),$01
+  LD (IX+$01),$01         ; INTACT - Enable screen refresh
   LD (IX+$02),10            ; INTRAT - Set to refresh the screen every 10 Interrupt occurrences
   RES 7,(IX+$03)
   SET 6,(IX+$03)            ; CURSOR - Show
@@ -12084,7 +12109,7 @@ ENDDIM:
 ; This entry point is used by the routine at PRINT_FNAME_MSG.
 INLPNM_0:
   LD A,$02
-  OUT ($AF),A
+  OUT ($AF),A             ; Enable cassette latch
   DI
 INLPNM_1:
   PUSH BC
@@ -12098,149 +12123,174 @@ INLPNM_2:
   DJNZ INLPNM_2
   POP BC
   DJNZ INLPNM_1
+
+
+; This routine is equivalent to the one in the MSX BIOS
+; Stops writing on the tape
+;
+; a.k.a. CTWOFF
 ; This entry point is used by the routine at __CSAVE.
-INLPNM_3:
+_TAPOOF:
   PUSH BC
   PUSH AF
   LD BC,$0000
-INLPNM_4:
+_TAPOOF_0:
   DEC BC
   LD A,B
   OR C
-  JR NZ,INLPNM_4
+  JR NZ,_TAPOOF_0
   POP AF
   POP BC
+
+; This routine is equivalent to the one in the MSX BIOS
+; Stops reading from the tape
+;
+; a.k.a. CTOFF
 ; This entry point is used by the routine at L1CC0.
 _TAPIOF:
   PUSH AF
   LD A,$00
-  OUT ($AF),A
+  OUT ($AF),A             ; Reset cassette and sound latches
   POP AF
   EI
   RET
-  
+
+; This routine is almost identical to the one in the MSX BIOS
+; Turns on the cassette motor and writes the header
+;
 ; This entry point is used by the routine at L1CC0.
-INLPNM_5:
+_TAPOON:
   OR A
   PUSH AF
   LD A,$02
-  OUT ($AF),A
+  OUT ($AF),A             ; Enable cassette latch
   LD HL,$0000
-INLPNM_6:
+_TAPOON_0:
   DEC HL
   LD A,H
   OR L
-  JR NZ,INLPNM_6
+  JR NZ,_TAPOON_0
   POP AF
 ; This entry point is used by the routine at L1CC0.
-INLPNM_7:
-  LD A,(SAVLEN+8)
-  JR Z,INLPNM_8
+_TAPOON_1:
+  LD A,(HEADER)        ; get expected block length
+  JR Z,_TAPOON_2
   ADD A,A
   ADD A,A
-INLPNM_8:
+_TAPOON_2:
   LD B,A
   LD C,$00
   DI
-INLPNM_9:
-  CALL INLPNM_15
-  CALL INLPNM_13
+_TAPOON_3:
+  CALL TAPSEND_HIGH
+  CALL TAPSEND_RET
   DEC BC
   LD A,B
   OR C
-  JR NZ,INLPNM_9
-  JP ISCNTC_0
+  JR NZ,_TAPOON_3
+  JP _BREAKX
 
+; This routine is almost identical to the one in the MSX BIOS
+; Writes data on the tape
+;
 ; This entry point is used by the routine at L1CC0.
-INLPNM_10:
-  LD HL,(AUTORUN)
+TAPOUT:
+  LD HL,(LOW)
   PUSH AF
   LD A,L
   SUB $0E
   LD L,A
-  CALL INLPNM_16
+  ; start bit (HL=LOW)
+  CALL TAPSEND_0
   POP AF
-  LD B,8
-INLPNM_11:
-  RRCA
-  CALL C,INLPNM_14
-  CALL NC,INLPNM_12
-  DJNZ INLPNM_11
-  CALL INLPNM_14
-  CALL INLPNM_14
-  JP ISCNTC_0
 
-INLPNM_12:
-  LD HL,(AUTORUN)
-  CALL INLPNM_16
-INLPNM_13:
+  LD B,8                  ; 8 bits
+TAPOUT_0:
+  RRCA
+  CALL C,TAPSEND_HIGH_X2  ; '1'
+  CALL NC,TAPSEND_LOW     ; '0'
+  DJNZ TAPOUT_0
+
+  CALL TAPSEND_HIGH_X2
+  CALL TAPSEND_HIGH_X2
+  JP _BREAKX              ; Set CY if STOP is pressed
+
+
+TAPSEND_LOW:
+  LD HL,(LOW)
+  CALL TAPSEND_0
+TAPSEND_RET:
   RET
   
-INLPNM_14:
-  CALL INLPNM_15
+TAPSEND_HIGH_X2:
+  CALL TAPSEND_HIGH
   EX (SP),HL
   EX (SP),HL
   NOP
   NOP
   NOP
   NOP
-  CALL INLPNM_15
+  CALL TAPSEND_HIGH
   RET
 
-INLPNM_15:
-  LD HL,(SAVADDR+8)
-INLPNM_16:
+TAPSEND_HIGH:
+  LD HL,(HIGH)
+TAPSEND_0:
   PUSH AF
-INLPNM_17:
+TAPSEND_1:
   DEC L
-  JP NZ,INLPNM_17
+  JP NZ,TAPSEND_1
   LD A,$03
   OUT ($AF),A
-INLPNM_18:
+TAPSEND_2:
   DEC H
-  JP NZ,INLPNM_18
+  JP NZ,TAPSEND_2
   LD A,$02
-  OUT ($AF),A
+  OUT ($AF),A             ; Enable cassette latch
   POP AF
   RET
 
+
+; This routine is equivalent to the one in the MSX BIOS
+; Reads the header block after turning the cassette motor on
+;
 ; This entry point is used by the routines at __LOAD, _CLOAD and L1CC0.
-INLPNM_19:
+_TAPION:
   LD A,$02
-  OUT ($AF),A
+  OUT ($AF),A             ; Enable cassette latch
   DI
-INLPNM_20:
-  LD HL,$0457
-INLPNM_21:
+_TAPION_0:
+  LD HL,$0457             ; 1111
+_TAPION_1:
   LD D,C
-  CALL INLPNM_37
-  RET C
-  LD A,C
-  CP $DE
-  JR NC,INLPNM_20
-  CP $05
-  JR C,INLPNM_20
+  CALL TAPIN_BIT
+  RET C                   ; Exit if BREAK was pressed
+  LD A,C                  ; get measured tape sync speed
+  CP $DE                  ; Timeout ?
+  JR NC,_TAPION_0         ; Try again
+  CP $05                  ; Too short ?
+  JR C,_TAPION_0          ; Try again
   SUB D
-  JR NC,INLPNM_22
+  JR NC,_TAPION_2
   CPL
   INC A
-INLPNM_22:
+_TAPION_2:
   CP $04
-  JR NC,INLPNM_20
+  JR NC,_TAPION_0         ; Try again
   DEC HL
   LD A,H
   OR L
-  JR NZ,INLPNM_21
+  JR NZ,_TAPION_1
   LD HL,$0000
   LD B,L
   LD D,L
-INLPNM_23:
-  CALL INLPNM_37
-  RET C
+_TAPION_3:
+  CALL TAPIN_BIT
+  RET C                   ; Exit if BREAK was pressed
   ADD HL,BC
   DEC D
-  JP NZ,INLPNM_23
-  LD BC,$05FA
+  JP NZ,_TAPION_3
+  LD BC,$05FA             ; 1530
   ADD HL,BC
   LD A,H
   RRA
@@ -12251,50 +12301,54 @@ INLPNM_23:
   SUB D
   LD D,A
   SUB $05
-  LD (LOWLIM),A
+  LD (LOWLIM),A    		  ; Keep the minimal length of startbit
   LD A,D
   ADD A,A
   LD B,$00
-INLPNM_24:
+_TAPION_4:
   SUB $03
   INC B
-  JR NC,INLPNM_24
+  JR NC,_TAPION_4
   LD A,B
   SUB $03
-  LD (WINWID),A
+  LD (WINWID),A           ;  Store the difference between a low-and high-cycle
   OR A
   RET
 
+
+; This routine is equivalent to the one in the MSX BIOS
+; Read data from the tape
+;
 ; This entry point is used by the routine at L1CC0.
-TAPIN:
-  LD A,(LOWLIM)			; Minimal length of startbit
+_TAPIN:
+  LD A,(LOWLIM)           ; Minimal length of startbit
   LD D,A
-TAPIN_0:
-  CALL ISCNTC_0
+_TAPIN_0:
+  CALL _BREAKX            ; Set CY if STOP is pressed
   RET C
   IN A,($AF)
   RLCA
-  JR NC,TAPIN_0
-TAPIN_1:
-  CALL ISCNTC_0
+  JR NC,_TAPIN_0
+_TAPIN_1:
+  CALL _BREAKX            ; Set CY if STOP is pressed
   RET C
   IN A,($AF)
   RLCA
-  JR C,TAPIN_1
+  JR C,_TAPIN_1
   LD E,$00
   CALL TAPIN_PERIOD
-TAPIN_2:
+_TAPIN_2:
   LD B,C
   CALL TAPIN_PERIOD
   RET C
   LD A,B
   ADD A,C
-  JR C,TAPIN_2
+  JR C,_TAPIN_2
   CP D
-  JR C,TAPIN_2
+  JR C,_TAPIN_2
   LD L,$08              ; 8 bits
-TAPIN_3:
-  CALL _TAPIN_STARTBIT
+TAPIN_BYTE:
+  CALL TAPIN_STARTBIT
   CP $04
   CCF
   RET C
@@ -12306,37 +12360,39 @@ TAPIN_3:
   CALL NC,TAPIN_PERIOD_0
   CALL TAPIN_PERIOD
   DEC L
-  JP NZ,TAPIN_3
-  CALL ISCNTC_0
+  JP NZ,TAPIN_BYTE
+  CALL _BREAKX            ; Set CY if STOP is pressed
   LD A,D
   RET
 
-_TAPIN_STARTBIT:
+TAPIN_STARTBIT:
   LD A,(WINWID)
   LD B,A
   LD C,$00
-_TAPIN_STARTBIT_0:
+
+TAPIN_STARTBIT_0:
   IN A,($AF)
   XOR E
-  JP P,_TAPIN_STARTBIT_1
+  JP P,TAPIN_STARTBIT_1
   LD A,E
   CPL
   LD E,A
   INC C
-  DJNZ _TAPIN_STARTBIT_0
+  DJNZ TAPIN_STARTBIT_0
   LD A,C
   RET
-_TAPIN_STARTBIT_1:
+
+TAPIN_STARTBIT_1:
   NOP
   NOP
   NOP
   NOP
-  DJNZ _TAPIN_STARTBIT_0
+  DJNZ TAPIN_STARTBIT_0
   LD A,C
   RET
 
 TAPIN_PERIOD:
-  CALL ISCNTC_0
+  CALL _BREAKX            ; Set CY if STOP is pressed
   RET C
 TAPIN_PERIOD_0:
   LD C,$00
@@ -12355,12 +12411,12 @@ TAPIN_PERIOD_2:
   DEC C
   RET
 
-INLPNM_37:
-  CALL ISCNTC_0
+TAPIN_BIT:
+  CALL _BREAKX            ; Set CY if STOP is pressed
   RET C
   IN A,($AF)
   RLCA
-  JR C,INLPNM_37
+  JR C,TAPIN_BIT
   LD E,$00
   CALL TAPIN_PERIOD_0
   JP TAPIN_PERIOD_1
@@ -12459,19 +12515,22 @@ CONSOLE_CRLF:
   RET Z
   JR CRLF_CONSOLE
 
+
+; ROUTINE TO BACK UP POINTER AFTER # EATEN
 ; This entry point is used by the routine at SHIFT_STOP.
-FINLPT_1:
-  DEC HL
-  LD A,(HL)
-  CP ' '
-  JR Z,FINLPT_1
-  INC HL
+BAKSP:
+  DEC HL                  ;POINT TO PREVIOUS CHAR
+  LD A,(HL)               ;GET THE CHAR
+  CP ' '                  ;A SPACE?
+  JR Z,BAKSP              ;YES, KEEP BACKING UP
+  INC HL                  ;POINT TO CHAR AFTER LAST NON-SPACE
 ; This entry point is used by the routine at SHIFT_STOP.
 FINLPT_2:
   XOR A
   LD (HL),A               ;PUT A ZERO AT THE END OF BUF
   LD HL,BUFMIN            ;SETUP POINTER
-  RET
+  RET                     ;ALL DONE.
+
 
 ; a.k.a. CRDO
 ;
@@ -12514,7 +12573,7 @@ ISCNTC:
   JP __STOP
 
 ; This entry point is used by the routine at INLPNM.
-ISCNTC_0:
+_BREAKX:
   EX (SP),HL
   EX (SP),HL
 
@@ -12563,7 +12622,7 @@ RINPUT_0:
   LD A,(GETFLG)           ; Check keyboard input stream
   OR A                    ; empty?
   JR Z,RINPUT_NOBUF
-  CALL L1CC0_35
+  CALL CHGET_CAS
   JR NZ,SHIFT_STOP_4
   JR FINLPT_2
 
@@ -12577,14 +12636,14 @@ RINPUT_NOBUF:
 
 SHIFT_STOP_4:
   CP $0D
-  JR Z,FINLPT_1
+  JR Z,BAKSP
   RES 7,A
   LD (HL),A
 
 IF V10
   LD DE,ENDBUF
   RST DCOMPR
-  JP Z,FINLPT_1
+  JP Z,BAKSP
 ELSE
   LD DE,ENDBUF-1
   RST DCOMPR
@@ -12604,14 +12663,14 @@ OUTPRT_CHR:
   PUSH AF
   CALL KBDSCAN
   CP $D8
-  CALL Z,RINPUT8
+  CALL Z,PRINTER_WAIT_KEY
   LD A,(PRTSTT)
   BIT 6,A
   JR NZ,OUTPRT_CHR_0
   CALL OUTPRT_CHR_DO
 OUTPRT_CHR_0:
-  CALL RINPUT0
-  JR C,OUTPRT_CHR_END
+  CALL PRINTER_READY      ; Check if printer is ready
+  JR C,OUTPRT_CHR_END     ; no, exit
   POP AF
   PUSH AF
   CALL OUTPRT_XLATE
@@ -12639,61 +12698,63 @@ OUTPRT_CHR_DO_0:
   POP AF
   RET
 
-RINPUT0:
+PRINTER_READY:
   RLA
   RET C
   RRA
   AND $F0
   LD (PRTSTT),A
-RINPUT1:
+PRINTER_READY_0:
   LD HL,7000
-RINPUT2:
-  IN A,($10)
-  AND $02
+PRINTER_READY_1:
+  IN A,($10)              ; Check printer status
+  AND $02                 ; Get back if ready
   RET Z
   DEC HL
   XOR A
-RINPUT3:
+PRINTER_READY_2:
   DEC A
   OR A
-  JR NZ,RINPUT3
+  JR NZ,PRINTER_READY_2
   LD A,H
   OR L
-  JR NZ,RINPUT2
-  XOR A             ; set "output to screen" flag
+  JR NZ,PRINTER_READY_1
+  XOR A                   ; set "output to screen" flag
   LD (PRTFLG),A
 
-  LD B,5
-RINPUT4:
-  LD A,$0E
+  LD B,5                  ; Repeat the warning tone 5 times
+PRINTER_ERR:
+  LD A,$0E                ; Warning BELL
   RST OUTDO
-  DJNZ RINPUT4
+  DJNZ PRINTER_ERR
 
   LD HL,PRTSTT
   SET 0,(HL)
   LD A,(PRTCOM)
   RRA
-  JR C,RINPUT6
+  JR C,PRTCOM_SILENCED
+
   LD HL,PRINTER_MSG_FR
   LD A,(FRGFLG)
   OR A
-  JR Z,RINPUT5
-  LD HL,PRINTER_MSG
-RINPUT5:
+  JR Z,PRINTER_ERR_FR
+  LD HL,PRINTER_MSG       ; 'Printer not ready'
+PRINTER_ERR_FR:
   CALL PRS
-RINPUT6:
+
+PRTCOM_SILENCED:
   LD A,$01             ; set "output to printer" flag
   LD (PRTFLG),A
-RINPUT7:
+PRINTER_WAIT_NOKEY:
   CALL KBDSCAN
   OR A
-  JR Z,RINPUT7
+  JR Z,PRINTER_WAIT_NOKEY
   CP $D8
-  JR NZ,RINPUT1
-RINPUT8:
+  JR NZ,PRINTER_READY_0
+PRINTER_WAIT_KEY:
   CALL KBDSCAN
   CP $D8
-  JR Z,RINPUT8
+  JR Z,PRINTER_WAIT_KEY
   LD HL,PRTSTT
   LD A,$80
   XOR (HL)
@@ -12814,7 +12875,7 @@ __NEW:
 RINPUT_SUB:
   JR C,RINPUT_SUB_0
   JP NZ,RINPUT_0
-  LD A,$0E
+  LD A,$0E                ; Warning BELL
   RST OUTDO
 RINPUT_SUB_0:
   JP SHIFT_STOP_5
