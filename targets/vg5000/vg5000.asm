@@ -8,12 +8,16 @@
 
 
 
+; --- Sizes --- 
+
+defc NUMLEV   =   48       ; NUMBER OF STACK LEVELS RESERVED BY AN EXPLICIT CALL TO GETSTK
+                           ; On MSX it is 60,   On CP/M it is 19+2*5 (29),  on NASCOM it is 24
+
 
 ; --- Prefixes, Tokens.. --- 
 
-
-defc PTRCON   = 13  ; $0D - A LINE REFERENCE CONSTANT
-defc LINCON   = 14  ; $0E - A LINE NUMBER UNCONVERTED TO POINTER
+defc PTRCON   =   13   ; $0D - A LINE REFERENCE CONSTANT
+defc LINCON   =   14   ; $0E - A LINE NUMBER UNCONVERTED TO POINTER
 
 ;------------------------------------
 
@@ -28,8 +32,8 @@ defc LPTSIZ   =  LPTLEN    ; LPTSIZ on other targets is a variable, here we use 
 ;------------------------------------
 
 defc SCREEN            = $4000
-defc SECOND_SCREEN_ROW = $4050
-defc LAST_SCREEN_ROW   = $4780
+defc SECOND_ROW        = $4050
+defc LAST_ROW          = $4780
 defc SCREEN_END        = $47D0
 
 ; --- Hook jump table ---
@@ -59,6 +63,10 @@ defc FKLOCK            = $47FE	; <-- IX+$04
 defc CRCHAR            = $47FF	; <-- IX+$05
 defc REPTIM            = $4800	; <-- IX+$06
 defc REPENA            = $4801	; <-- IX+$07
+
+; Bit 0..2:  text color (black, red, green, yellow, blue, magenta, cyan, white)
+; Bit 3: flashing text
+; Bit 4..6:  dbl heigth, dbl width, inv. video
 defc ATTRCAR           = $4802	; <-- IX+$08
 
 ;Bits 0 to 2	column 0 ink color
@@ -84,14 +92,11 @@ defc FILETAB           = $4810
 defc FILNAM            = $4811
 defc FILMODE           = $4817
 defc FILTYPE           = $4818
-defc FILNM2            = $4819
 defc SAVADDR           = $4820
 defc SAVLEN            = $4822
 defc CHECKSUM          = $4824
 
 defc LOW               = $4826
-;defc AUTORUN?           = $4826
-
 defc HIGH              = $4828  ; also SAVADDR+8
 defc HEADER            = $482A  ; also SAVLEN+8
 defc LOWLIM            = $482E
@@ -121,7 +126,7 @@ defc PRTSTT            = $4874
 defc PRTCOM            = $4875     ; Set to '1' or '255' to disable "printer not ready" text mgs.  On error, It will BEEP in any case.
 defc PRTINT            = $4876
 defc PRTXLT            = $4878
-defc BUF10             = $487A
+defc ACCMAP            = $487A
 
 defc AUTFLG            = $4884
 defc AUTLIN            = $4885
@@ -352,7 +357,7 @@ ENDM
 ;
 ; Used by the routine at PROMPT.
 L0000:
-  JP _STARTUP
+  JP CSTART
 
 ; Data block at 3
 L0003:
@@ -369,9 +374,9 @@ ENDIF
 
 ; (a.k.a. CHKSYN) Check syntax, 1 byte follows to be compared
 ;
-; Used by the routines at __SOUND, __SETE, L0E17, L0E2B, __INIT, __DELIM,
-; L1BA2, L1C74, L1C80, L1CBE, FORFND, __LET, __ON, __IF, __TAB, __INPUT,
-; LOPDT2, FRMEQL, OPNPAR, L2910, EVAL_VARIABLE, __DEF, L2A36, GETFNM, __POKE, __CLEAR,
+; Used by the routines at __SOUND, __SETE, __TX, __INIT, __DELIM,
+; SET_SAVE_SPEED, CSAVEM_MODES, L1CBE, FORFND, __LET, __ON, __IF, __TAB, __INPUT,
+; LOPDT2, FRMEQL, OPNPAR, EVLPAR, EVAL_VARIABLE, __DEF, L2A36, GETFNM, __POKE, __CLEAR,
 ; HEXCNS, __RENUM, __AUTO, __MID_S, LFRGNM, DIMRET and DOCHRT.
 SYNCHR:
   LD A,(HL)         ; Check syntax of character
@@ -383,7 +388,7 @@ SYNCHR:
 
 ; (a.k.a. GETCHR, GETNEXT), pick next char from program
 ;
-; Used by the routines at _ASCTFP, CLOAD_END, L1BA4, L1C82, L1CC0, PROMPT, FNDWRD,
+; Used by the routines at _ASCTFP, CLOAD_END, SET_SAVE_SPEED, L1C82, L1CC0, PROMPT, FNDWRD,
 ; FORFND, _CHRGTB, ATOH2, GTLNLP, __IF, __LPRINT, NEXITM, SCNVAL, INPBIN,
 ; FDTLP, STKTHS, OPRND, VARRET, __DEF, DOFN, FNDNUM, CONINT, __CLEAR,
 ; __CLEAR, __NEXT, HEXCNS, SCCPTR, __LIST, __VAL, DIMRET and GETVAR.
@@ -849,14 +854,14 @@ GETCHAR:
 
 ; This entry point is used by the routines at __DELIM, CONSOLE_POUND and L33CD.
 GETCHAR_2:
-  OR (IX+$0A)				; EXTENF - Character redefinition flag
+  OR (IX+$0A)             ; EXTENF - Character redefinition flag
   LD HL,(CURPOS)
   PUSH HL
   PUSH AF
   CALL SCRADR
   POP AF
   LD (HL),A
-  LD A,(IX+$08)
+  LD A,(IX+$08)           ; Get current text attribute
   INC HL
   LD (HL),A
   INC HL
@@ -884,7 +889,7 @@ GETCHAR_2:
   CALL CLR_LINE
   POP HL
   LD (IX+$00),$01         ; Screen refresh counter, set to refresh at the next Interrupt occurrence
-  LD DE,LAST_SCREEN_ROW
+  LD DE,LAST_ROW
 GETCHAR_3:
   LD A,(PICFLG)
   BIT 0,A
@@ -905,7 +910,7 @@ CLR_SCR:
   XOR A
   CALL CLR_LINE
   LD HL,SCREEN
-  LD DE,SECOND_SCREEN_ROW
+  LD DE,SECOND_ROW
   LD BC,80*24
   LDIR
   RET
@@ -918,12 +923,12 @@ CLR_LINE:
   LD H,A
   CALL SCRADR
   LD (HL),$80
-  LD A,(IX+$09)				; ATTBAK - Background color
+  LD A,(IX+$09)           ; ATTBAK - Background color
   INC HL
   LD (HL),A
-  LD C,(IX+$08)
+  LD C,(IX+$08)           ; Get current text attribute
   INC HL
-  LD A,$20
+  LD A,' '
   BIT 7,C
   JR Z,CLR_LINE_0
   XOR A
@@ -3669,57 +3674,44 @@ __TX:
 ; This entry point is used by the routines at __GR, __ET and __EG.
 __TX_0:
   PUSH AF
-  OR $07
+  OR $07                  ; default text color is white
   LD (IX+$08),A
   POP AF
-  RET Z
-  CALL GETINT
+  RET Z                   ; keep default if no arguments
+
+  CALL GETINT             ; Get specified text color
   PUSH AF
   AND $07
   LD D,A
-  LD A,(IX+$08)
+  LD A,(IX+$08)           ; Get current text attributes
   AND 11111000b
-  OR D
+  OR D                    ; update
   LD (IX+$08),A
   POP AF
   RET Z
 
-; Routine at 3607
-L0E17:
   RST SYNCHR
-
-; Data block at 3608
-L0E18:
   DEFB ','
 
-; Routine at 3609
-L0E19:
-  CALL GETINT
+  CALL GETINT             ; Get specified text mode
   PUSH AF
-  AND $07
+  AND 00000111b
+  ADD A,A                 ; << 4
   ADD A,A
   ADD A,A
   ADD A,A
-  ADD A,A
-  OR (IX+$08)
+  OR (IX+$08)             ; Update current attributes
   LD (IX+$08),A
   POP AF
   RET Z
 
-; Routine at 3627
-L0E2B:
   RST SYNCHR
-
-; Data block at 3628
-L0E2C:
   DEFB ','
 
-; Routine at 3629
-L0E2D:
-  CALL GETINT
+  CALL GETINT             ; Get specified flash mode (1 or 0)
   OR A
   RET Z
-  SET 3,(IX+$08)
+  SET 3,(IX+$08)          ; Set FLASH bit
   RET
 
 ; Enter in GRAPHICS mode
@@ -3737,18 +3729,18 @@ __ET:
 ; Routine at 3657
 __EG:
   LD A,$80
-  LD (IX+$0A),A				; EXTENF - Character redefinition flag
+  LD (IX+$0A),A           ; EXTENF - Character redefinition flag
   JP __TX_0
 
 ; Routine at 3665
 __INIT:
-  LD (IX+$08),$00           ; Reset video attributes
+  LD (IX+$08),$00         ; Reset video attributes (black text color)
   PUSH HL
-  LD A,14*16+6              ; default color attributes: ink 6, background 15
-  JR Z,__INIT_1             ; keep default if no arg. given
+  LD A,14*16+6            ; default color attributes: ink 6, background 15
+  JR Z,__INIT_1           ; keep default if no arg. given
   POP HL
-  CALL GETINT               ; get argument
-  JR Z,__INIT_0             ; jump over no extra arg for border was given
+  CALL GETINT             ; get argument
+  JR Z,__INIT_0           ; jump over no extra arg for border was given
   PUSH AF
 
   RST SYNCHR
@@ -3968,12 +3960,12 @@ __KEY:
 
 ; Routine at 3922
 __DELIM:
-  LD A,(IX+$08)
+  LD A,(IX+$08)           ; Get current text attribute
   PUSH AF
-  LD A,$00
+  LD A,0
   PUSH AF
   CALL GETINT
-  AND $07
+  AND 00000111b
   POP DE
   OR D
   PUSH AF
@@ -4088,10 +4080,12 @@ L0FEE:
   DEFS 18, $FF
 
 
-; Routine at 4096
+
+; Cold start
 ;
+; Routine at 4096
 ; Used by the routines at L0000 and ERROR.
-_STARTUP:
+CSTART:
   DI			; Previous (buggy) version 1.1 had "INC BC" in place of DI
   LD HL,$0000
   LD DE,SCREEN
@@ -4100,12 +4094,12 @@ _STARTUP:
   LD B,H
   LD C,L
   LD HL,SCREEN
-_STARTUP_0:
+CSTART_0:
   LD A,(DE)
   CPI
   INC DE
   JR NZ,INIT
-  JP PE,_STARTUP_0
+  JP PE,CSTART_0
 
 ; "LD A,n" AROUND THE NEXT BYTE
 L101A:
@@ -4113,7 +4107,7 @@ L101A:
 
 ; Routine at 4123
 ;
-; Used by the routine at _STARTUP.
+; Used by the routine at CSTART.
 INIT:
   DEC HL
   LD SP,HL
@@ -4184,13 +4178,13 @@ INIT_0:
   SBC A,D
   LD H,A
   PUSH HL
-  LD (IX+$08),$30         ; Set the video attributes to enlarged text
+  LD (IX+$08),$30         ; Set the video attributes to double height & double width
   LD HL,STARTUP_MSG
   CALL PRS
   CALL OUTDO_CRLF
   LD HL,STARTUP_MSG
   CALL PRS
-  LD (IX+$08),$00         ; Reset video attributes
+  LD (IX+$08),$00         ; Reset video attributes (black text)
   LD HL,VER_MSG
   CALL PRS
   LD HL,VERSION
@@ -4247,7 +4241,7 @@ WARMGO:
   LD SP,ENDBUF            ; Set up a temporary stack pointer
   XOR A
   OUT ($AF),A             ; Reset cassette and sound latches
-  LD (GETFLG),A           ; Reset console (keyboard input stream)
+  LD (GETFLG),A           ; Reset console (set input stream to "keyboard")
   INC A
   OUT ($10),A             ; Reset printer strobe
   EI                      ; Enable interrupts
@@ -4400,9 +4394,12 @@ ROM_PRTXLT:
   DEFW PRT_XLT_TBL
 
 ; Data block at 4574
-ROM_BUF10:
-  DEFB $17,$18,$12,$1B,$14,$13,$1A,$19
-  DEFB $16,$15
+ROM_ACCMAP:
+  DEFB $17,$18       ; à, â
+  DEFB $12,$1B       ; é, ê
+  DEFB $14,$13       ; ï, ù
+  DEFB $1A,$19       ; ô, è
+  DEFB $16,$15       ; ç, û
   
 ROM_AUTFLG:
   DEFB $00
@@ -4684,7 +4681,7 @@ FOUND_MSG:
 SKIP_MSG:
   DEFM "Skip:"
   DEFB $00
-ABORTED_MSG:
+ABORT_MSG:
   DEFM "ABORTED - reposition tape"
   DEFB $0E
   DEFB $03
@@ -4712,7 +4709,7 @@ SKIP_MSG_FR:
   DEFB $12
   DEFM ":"
   DEFB $00
-ABORTED_MSG_FR:
+ABORT_MSG_FR:
   DEFM "ANNULE - repositionner la bande"
   DEFB $0E
   DEFB $03
@@ -4792,7 +4789,7 @@ __SAVE:
   LD (SAVADDR),HL
   LD (CHECKSUM),A
   CALL __LIST_PROC
-  LD A,$83                ; Tell the subroutine we are SAVEing
+  LD A,$83                ; Tell the subroutine we need to update SAVADDR and CHECKSUM only
   CALL FILE_CHECKSUM
   LD A,(CHECKSUM)
   CALL FILOUT
@@ -4816,7 +4813,7 @@ __LOAD:
   CP $82
   SCF
   JR NZ,__LOAD_0
-  LD (LOW),A		; used as AUTORUN flag?
+  LD (CHECKSUM+2),A		; (LOW)
   CALL L1CC0_23
 __LOAD_0:
   JP C,LOAD_ABORT
@@ -4844,9 +4841,9 @@ __LOAD_3:
   LD HL,PAUSE_MSG
   CALL PRS
   XOR A
-  LD (AUTFLG),A
+  LD (AUTFLG),A           ; Be sure the "AUTO" mode is off
   DEC A
-  LD (GETFLG),A
+  LD (GETFLG),A           ; Set the input stream to 'cassette' ($FF)
   JP P_PROMPT
 
 ; Message at 6627
@@ -4895,11 +4892,11 @@ __CSAVE_1:
   JR NC,__CSAVE_2
   LD HL,CASCOM
   SET 7,(HL)
-  LD HL,ABORTED_MSG_FR
+  LD HL,ABORT_MSG_FR
   LD A,(FRGFLG)
   OR A
   JR Z,__CSAVE_FR
-  LD HL,ABORTED_MSG
+  LD HL,ABORT_MSG
 __CSAVE_FR:
   CALL PRS
 __CSAVE_2:
@@ -4949,7 +4946,7 @@ _CLOAD_0:
   JR C,CLOAD_END
   CALL CLOAD_HEADER
   JR C,CLOAD_END
-  LD HL,FILNM2
+  LD HL,FILNAM+8
   CALL CLOAD_CHECKNAME
   JR Z,CLOAD_FOUND
   LD HL,SKIP_MSG_FR
@@ -5035,11 +5032,11 @@ CLOAD_OM_ERR:
 ; This entry point is used by the routine at __LOAD.
 LOAD_ABORT:
   SET 7,(HL)
-  LD HL,ABORTED_MSG_FR
+  LD HL,ABORT_MSG_FR
   LD A,(FRGFLG)
   OR A
   JR Z,CLOAD_ERR_MSG
-  LD HL,ABORTED_MSG
+  LD HL,ABORT_MSG
   JR CLOAD_ERR_MSG
 
 FILE_ERR:
@@ -5149,13 +5146,9 @@ L1ADB_16:
   RST CHRGTB
   JP Z,SN_ERR
 
-; Routine at 7074
-L1BA2:
   RST SYNCHR
   DEFB ')'
 
-; Routine at 7076
-L1BA4:
   PUSH HL
   LD HL,CASCOM
   RES 2,(HL)
@@ -5245,7 +5238,7 @@ PRINT_FNAME_MSG:
   BIT 0,A
   JR NZ,PRINT_FNAME_MSG_2
   CALL PRS
-  LD HL,FILNM2
+  LD HL,FILNAM+8
   LD B,$06
 PRINT_FNAME_MSG_0:
   LD A,(HL)
@@ -5297,7 +5290,7 @@ PRINT_FNAME_MSG_6:
 CSAVEL:
   INC HL
   LD B,$03
-  JP INLPNM_0
+  JP CSAVEL_0
 
 ; This entry point is used by the routine at __CSAVE.
 CSAVE_ARGS:
@@ -5333,19 +5326,13 @@ CSAVEM_MODES:
   JR NZ,FIND_ADDRESSES
   POP HL
 
-; Routine at 7284
-L1C74:
   RST SYNCHR
   DEFB ','
 
-; Routine at 7286
-L1C76:
   CALL GETNUM             ;READ A VALUE
   CALL CONIS
   LD (SAVADDR),DE
 
-; Routine at 7296
-L1C80:
   RST SYNCHR
   DEFB ','
 
@@ -5360,29 +5347,33 @@ L1C82:
 ; This entry point is used by the routine at PRINT_FNAME_MSG.
 FIND_ADDRESSES:
   CP 'S'
-  JR NZ,L1C82_2
+  JR NZ,FIND_ADDRESSES_0
+
+  ; Set up the addresses to save the screen
   LD HL,SCREEN
   LD (SAVADDR),HL
-  LD HL,DOEBIT
-L1C82_1:
+  LD HL,SCREEN_END-SCREEN
+  
+FIND_ADDRESSES_END:
   LD (SAVLEN),HL
   JR L1CC0_1
   
-L1C82_2:
+FIND_ADDRESSES_0:
   POP HL
   CP TK_STAR		 ; '*'= Numeric or String Array
-  JR NZ,L1C82_3
+  JR NZ,FIND_ADDRESSES_1
   CALL GET_ARRAY
   PUSH HL
   LD (SAVADDR),BC
   EX DE,HL
-  JR L1C82_1
+  JR FIND_ADDRESSES_END
 
-L1C82_3:
+FIND_ADDRESSES_1:
   CALL FNAME_ARG
   LD (SAVADDR),DE
   LD (SAVLEN),BC
   RET
+
 
 ; This entry point is used by the routine at PRINT_FNAME_MSG.
 L1C82_4:
@@ -5543,7 +5534,7 @@ GET_ARRAY:
   LD (SUBFLG),A
   RET
 
-; This entry point is used by the routines at L1BA4 and L1C82.
+; This entry point is used by the routines at SET_SAVE_SPEED and L1C82.
 FNAME_ARG:
   CALL EVAL
   PUSH HL
@@ -5667,8 +5658,8 @@ L1CC0_24:
   LD C,E
   LD A,$8D
   POP DE
-L1CC0_25:
-  LD HL,LOW		; used as AUTORUN flag
+UPD_CHECKSUM:
+  LD HL,CHECKSUM+2		; (LOW)
   XOR (HL)
   LD (HL),A
   POP HL
@@ -5699,7 +5690,7 @@ L1CC0_29:
 L1CC0_30:
   PUSH AF
   PUSH HL
-  JR L1CC0_25
+  JR UPD_CHECKSUM
 
 L1CC0_31:
   POP HL
@@ -5731,7 +5722,7 @@ L1CC0_34:
   RET
 
 ; Get a character from the cassette buffer
-; This entry point is used by the routine at SHIFT_STOP.
+; This entry point is used by the routine at RINPUT.
 CHGET_CAS:
   LD DE,(SAVADDR+8)
   INC DE
@@ -5740,7 +5731,7 @@ CHGET_CAS:
   CP $03
   RET NZ
   XOR A
-  LD (GETFLG),A           ; Reset console (keyboard input stream)
+  LD (GETFLG),A           ; Set the input stream to 'keyboard'
   JP __CLOAD_OK
 
 CS120:
@@ -5876,14 +5867,14 @@ L1CC0_49:
   RET C
   LD E,A
   PUSH HL
-  LD HL,(LOW)
+  LD HL,(CHECKSUM+2) 		; (LOW)
   OR A
   ADD A,L
   LD L,A
   LD A,$00
   ADC A,H
   LD H,A
-  LD (LOW),HL
+  LD (CHECKSUM+2),HL
   POP HL
   LD A,E
   SUB (HL)
@@ -5915,7 +5906,7 @@ L1CC0_50:
   JR NZ,L1CC0_49
   LD C,D
   PUSH HL
-  LD HL,(LOW)
+  LD HL,(CHECKSUM+2)		; (LOW)
   LD DE,(CHECKSUM+8)
   RST DCOMPR
   POP HL
@@ -6295,44 +6286,31 @@ WORDS:
   DEFB $80
 
 
-PRITAB:
-  DEFB $79
-  DEFW FADDT
-
-  DEFB $79
-  DEFW FSUBT
-
-  DEFB $7C
-  DEFW FMULTT
-
-  DEFB $7C
-  DEFW FDIVT
-
-  DEFB $7F
-  DEFW POWER
-
-  DEFB $50
-  DEFW PAND
-
-;        DB      7CH             ; Precedence value
-;        DW      MULT            ; PPREG = <last> * FPREG
-;
-;        DB      7CH             ; Precedence value
-;        DW      DIV             ; FPREG = <last> / FPREG
-;
-;        DB      7FH             ; Precedence value
-;        DW      POWER           ; FPREG = <last> ^ FPREG
-;
-;        DB      50H             ; Precedence value
-;        DW      PAND            ; FPREG = <last> AND FPREG
-;
-;        DB      46H             ; Precedence value
-;        DW      POR             ; FPREG = <last> OR FPREG
-;
 ; ARITHMETIC PRECEDENCE TABLE
-;PRITAB:
 
-  DEFB $46,$77,$29
+PRITAB:
+  DEFB $79                ; Precedence value
+  DEFW FADDT              ; FPREG = <last> + FPREG
+
+  DEFB $79                ; Precedence value
+  DEFW FSUBT              ; FPREG = <last> - FPREG
+
+  DEFB $7C                ; Precedence value
+  DEFW FMULTT             ; PPREG = <last> * FPREG
+
+  DEFB $7C                ; Precedence value
+  DEFW FDIVT              ; FPREG = <last> / FPREG
+
+  DEFB $7F                ; Precedence value
+  DEFW POWER              ; FPREG = <last> ^ FPREG
+
+  DEFB $50                ; Precedence value
+  DEFW PAND               ; FPREG = <last> AND FPREG
+  
+  DEFB $46                ; Precedence value
+  DEFW POR                ; FPREG = <last> OR FPREG
+
+
 
 ; label=NULL_STRING
 NULL_STRING:
@@ -6451,12 +6429,12 @@ UNDEFINED_ERR:
 ERROR:
   CALL STKINI             ; reset the BASIC stack pointer
   CALL CONSOLE_CRLF
-  LD HL,ERRMSG_FR
+  LD HL,ERRMSG_FR         ; "Error" message table in French
   LD A,(FRGFLG)
   OR A
-  JR Z,ERROR_0
-  LD HL,ERRMSG
-ERROR_0:
+  JR Z,ERROR_FR
+  LD HL,ERRMSG            ; "Error" message table in English
+ERROR_FR:
   INC E
   INC E
   RES 0,E
@@ -6473,26 +6451,26 @@ ERROR_1:
   DEC E
   JR NZ,ERROR_1
 ; This entry point is used by the routine at INPBRK.
-_ERROR_REPORT:
-  CALL PRS
-  LD HL,(CURLIN)
-  LD DE,$FFFE
-  RST DCOMPR
-  JP Z,_STARTUP
-  LD A,H
-  AND L
+ERRIN:
+  CALL PRS                ; Output message
+  LD HL,(CURLIN)          ; Get line of error
+  LD DE,-2                ; Cold start error if -2
+  RST DCOMPR              ; See if cold start error
+  JP Z,CSTART             ; Cold start error - Restart
+  LD A,H                  ; Was it a direct error?
+  AND L                   ; Line = -1 if direct error
   INC A
-  CALL NZ,IN_PRT
+  CALL NZ,IN_PRT          ; No - output line of error
 
 ; "LD A,n" to Mask the next byte
 L228B:
-  DEFB $3E
+  DEFB $3E                ; Skip "POP BC"
 
 ; Routine at 8844
 ;
 ; Used by the routines at CLOAD_END and __LIST.
 RESTART:
-  POP BC
+  POP BC                  ; Drop address in input buffer
 
 ; Routine at 8845
 ;
@@ -6500,22 +6478,22 @@ RESTART:
 READY:
   CALL FINLPT             ; Disable printer echo if enabled
   CALL CONSOLE_CRLF
-  LD HL,OK_MSG
-  CALL PRS
+  LD HL,OK_MSG            ; "Ok" message
+  CALL PRS                ; Output "Ok"
 
 ; Routine at 8857
 ;
 ; Used by the routine at __AUTO.
 PROMPT:
-  LD HL,-1                 ;SETUP CURLIN FOR DIRECT MODE
-  LD (CURLIN),HL           ; Set interpreter in 'DIRECT' (immediate) mode
-  LD A,(AUTFLG)            ;IN AN AUTO COMMAND?
-  OR A                     ;SET CC'S
-  JR Z,GETCMD              ;NO, REUGLAR MODE
-  LD HL,(AUTLIN)           ;GET CURRENT AUTO LINE
+  LD HL,-1                ; Flag direct mode         ;SETUP CURLIN FOR DIRECT MODE
+  LD (CURLIN),HL          ; Save as current line     ; Set interpreter in 'DIRECT' (immediate) mode
+  LD A,(AUTFLG)           ;IN AN AUTO COMMAND?
+  OR A                    ;SET CC'S
+  JR Z,GETCMD             ;NO, REUGLAR MODE
+  LD HL,(AUTLIN)          ;GET CURRENT AUTO LINE
 
 IF V10
-  CALL LINPRT
+  CALL LINPRT             ;PRINT THE LINE #
 ELSE
   JP PROMPT_SUB
 ENDIF
@@ -6561,38 +6539,41 @@ ELSE
   JP AUTLIN_SUB
 ENDIF
 
-; This entry point is used by the routine at SHIFT_STOP.
+; This entry point is used by the routine at AUTLIN_SUB.
 AUTSTR:
   POP HL
   RST CHRGTB
-  OR A                     ;IS IT NULL LINE?
-  PUSH AF
-  CALL SRCHLN
-  JR C,LINFND
-  POP AF
-  PUSH AF
-  JP Z,PROMPT              ;YES, LEAVE LINE ALONE
-  OR A
+  OR A                    ; Test if end of line             ;IS IT NULL LINE?
+  PUSH AF                 ; Save Carry status
+  CALL SRCHLN             ; Search for line number in DE
+  JR C,LINFND             ; Jump if line found
+  POP AF                  ; Get status
+  PUSH AF                 ; And re-save
+  JP Z,PROMPT             ; Nothing after number -          ;YES, LEAVE LINE ALONE
+  OR A                    ; Clear Carry
 
 LINFND:
-  PUSH BC
-  JR NC,LEVFRE
-  EX DE,HL
+  PUSH BC                  ; Save address of line in prog
+  JR NC,LEVFRE             ; Line not found - Insert new
+  EX DE,HL                 ; Next line address in DE
   LD HL,(VARTAB)
-PROMPT_3:
-  LD A,(DE)
+
+SFTPRG:
+  LD A,(DE)               ; Shift rest of program down
   LD (BC),A
-  INC BC
-  INC DE
-  RST DCOMPR
-  JR NZ,PROMPT_3
-  LD H,B
+  INC BC                  ; Next destination
+  INC DE                  ; Next source
+  RST DCOMPR              ; All done?
+  JR NZ,SFTPRG            ; More to do
+  LD H,B                  ; HL - New end of program
   LD L,C
-  LD (VARTAB),HL
+  LD (VARTAB),HL          ; Update end of program
+
+; a.k.a. INEWLN
 LEVFRE:
-  POP DE
-  POP AF
-  JR Z,FINI
+  POP DE                  ; Get address of line,
+  POP AF                  ; Get status
+  JR Z,FINI               ; No text - Set up pointers
   LD HL,(VARTAB)          ; Get end of program           CURRENT END
   EX (SP),HL              ; Get length of input line     [H,L]=CHARACTER COUNT. VARTAB ONTO THE STACK
   POP BC                  ; End of program to BC         [B,C]=OLD VARTAB
@@ -7163,7 +7144,7 @@ DEPINT:
 
 ; parameter acquisition on 2 bytes
 ;
-; Used by the routines at __CONIS, __CALL, L1C76, L1C82, EVAL_VARIABLE, NOT, __PEEK,
+; Used by the routines at __CONIS, __CALL, CSAVEM_MODES, L1C82, EVAL_VARIABLE, NOT, __PEEK,
 ; GETWORD and __CLEAR.
 CONIS:
   LD A,(FPEXP)          ;GET THE EXPONENT
@@ -7990,7 +7971,7 @@ FANDT:
 
 ; acquisition parameter sign on 2 bytes
 ;
-; Used by the routines at _GETNUM, __CALL, L1C76, L1C82, FORFND, _CHRGTB, DOFN,
+; Used by the routines at _GETNUM, __CALL, CSAVEM_MODES, L1C82, FORFND, _CHRGTB, DOFN,
 ; GETINT and __CLEAR.
 GETNUM:
   CALL EVAL             ; Get a numeric expression
@@ -8183,23 +8164,18 @@ OPRND:
   SUB TK_SGN              ; Is it a function?
   JR NC,ISFUN
 
+
 ; End of expression.  Look for ')'.
 ;
 ; Used by the routines at EVAL VARIABLE and DOFN.
 EVLPAR:
   CALL OPNPAR
 
-; Routine at 10512
-L2910:
   RST SYNCHR
-
-; Data block at 10513
-L2911:
   DEFB ')'
 
-; Routine at 10514
-L2912:
   RET
+
 
 ; '-', deal with minus sign
 ;
@@ -8626,7 +8602,7 @@ FNDNUM:
 ; Get a number to 'A'
 ; a.k.a. GETBYT, get integer in 0-255 range
 ;
-; Used by the routines at __GETINT, __SOUND, __SOUND, __SETE, __TX, L0E19, L0E2D,
+; Used by the routines at __GETINT, __SOUND, __SOUND, __SETE, __TX,
 ; __INIT, __CURSOR, __DELIM, __DISPLAY, __ON, EVAL_VARIABLE, __POKE and __MID_S.
 GETINT:
   CALL GETNUM             ;READ A VALUE
@@ -8705,8 +8681,8 @@ GETWORD:
 
 ; Text editor
 ;
-; Used by the routine at SHIFT_STOP.
-TED:
+; Used by the routine at RINPUT.
+EDITOR:
   PUSH BC
   PUSH DE
   PUSH HL
@@ -8714,15 +8690,17 @@ TED:
   BIT 1,A
   JP NZ,TED_6
   HALT
-  CALL KEY_SCAN_0
+  CALL KEY_SCAN
   OR A
-  JR Z,TED_5
+  JR Z,TED_END
   PUSH AF
   EXX
-  LD HL,$2020
+
+  LD HL,$2020             ; Keyboard click
   LD (TMPSOUND),HL
   LD DE,$0001
   CALL SOUND
+
   LD A,(PICFLG)
 IF V10
   AND $7F
@@ -8764,7 +8742,7 @@ ENDIF
 TED_1:
   LD A,(PICFLG)
   BIT 5,A
-  JR NZ,TED_4
+  JR NZ,TED_NUL
 
   LD A,$1F    ; CLR-HOME
 ; This entry point is used by the routines at L33CD and QINLIN.
@@ -8777,9 +8755,10 @@ UPDATE_SCREEN:
   HALT
 
 ; This entry point is used by the routine at L33CD.
-TED_4:
-  XOR A
-TED_5:
+TED_NUL:
+  XOR A                   ; Not a valid character, force NUL
+
+TED_END:
   POP HL
   POP DE
   POP BC
@@ -8879,7 +8858,7 @@ L2BA1:
 ; This entry point is used by the routine at QINLIN.
 TED_15:
   LD A,$0D
-  JP TED_5
+  JP TED_END
 
 TED_16:
   CP $FF
@@ -8906,7 +8885,7 @@ TED_21:
   JR NZ,TED_22
   LD A,$1C
 TED_22:
-  JP TED_5
+  JP TED_END
 
 TED_23:
   LD A,$03                      ; NEWLINE
@@ -9036,7 +9015,7 @@ TED_33:
   DEC L
   LD (RETADR),HL
 TED_34:
-  JP TED_4
+  JP TED_NUL
 
 TED_TAB:
   LD A,(YCURSO)
@@ -9044,14 +9023,14 @@ TED_TAB:
   JR NZ,TED_36
   LD A,(PICFLG)
   BIT 5,A
-  JP NZ,TED_4
+  JP NZ,TED_NUL
   LD DE,(DOT)
   CALL SRCHLN
   LD BC,(PRELIN)
   LD A,B
   OR C
-  JP Z,TED_4
-  JP TED_41
+  JP Z,TED_NUL
+  JP TED_NUL1
 TED_36:
   LD A,$09
   JP TED_OUTDO
@@ -9062,14 +9041,14 @@ TED_LF:
   JP C,TED_39
   LD A,(PICFLG)
   BIT 5,A
-  JP NZ,TED_4
+  JP NZ,TED_NUL
   LD DE,(DOT)
   INC DE
   CALL SRCHLN
   JP C,TED_38
-  JP Z,TED_4
+  JP Z,TED_NUL
 TED_38:
-  JP TED_41
+  JP TED_NUL1
 TED_39:
   LD A,$0A
   JP TED_OUTDO
@@ -9077,11 +9056,11 @@ TED_39:
 TED_HOME:
   LD A,(PICFLG)
   BIT 5,A
-  JP NZ,TED_4
+  JP NZ,TED_NUL
   SCF
-  JR TED_42
+  JR TED_NUL2
 
-TED_41:
+TED_NUL1:
   INC BC
   INC BC
   LD H,B
@@ -9093,12 +9072,12 @@ TED_41:
   OR A
   LD HL,(CURPOS)
   PUSH HL
-TED_42:
+TED_NUL2:
   PUSH AF
   LD A,$81
   LD (PICFLG),A
   LD (IX+$00),$40         ; Screen refresh counter, add a bit of delay
-  LD (IX+$08),$00         ; Reset video attributes
+  LD (IX+$08),$00         ; Reset video attributes (black text)
   LD HL,$0001
   LD (CURPOS),HL
   CALL CLR_SCR
@@ -9106,26 +9085,26 @@ TED_42:
   CALL SRCHLN
   LD H,B
   LD L,C
-TED_43:
-  CALL TED_47
-  JR C,TED_44
+TED_NUL3:
+  CALL TED_NUL7
+  JR C,TED_NUL4
   LD A,(YCURSO)
   CP $18
   LD A,$03
   CALL C,_CHPUT
-  JR C,TED_43
-TED_44:
+  JR C,TED_NUL3
+TED_NUL4:
   POP AF
-  JR C,TED_45
+  JR C,TED_NUL5
   POP HL
-  JR TED_46
-TED_45:
+  JR TED_NUL6
+TED_NUL5:
   LD HL,$0001
-TED_46:
+TED_NUL6:
   LD (CURPOS),HL
   JP UPDATE_SCREEN
 
-TED_47:
+TED_NUL7:
   LD C,(HL)
   INC HL
   LD B,(HL)
@@ -9139,17 +9118,17 @@ TED_47:
   INC HL
   PUSH HL
   EX DE,HL
-  CALL LINPRT
+  CALL LINPRT             ;PRINT THE LINE #
   LD A,' '
   POP HL
-TED_48:
-  RST OUTDO
+TED_LSTLP2:
+  RST OUTDO               ; Output character in A
   LD A,(PICFLG)
   BIT 6,A
   JP NZ,TED_53
-TED_49:
-  LD A,(HL)
-  INC HL
+TED_LSTLP3:
+  LD A,(HL)               ; Get next byte in line
+  INC HL                  ; To next byte in line
   CP LINCON
   JR NZ,TED_50
   LD A,(HL)
@@ -9161,68 +9140,73 @@ TED_49:
   LD H,A
   EX AF,AF'
   LD L,A
-  CALL LINPRT
+  CALL LINPRT             ;PRINT THE LINE #
   POP HL
-  JR TED_49
+  JR TED_LSTLP3
 
 TED_50:
-  OR A
-  JP Z,TED_54
-  JP P,TED_48
+  OR A                    ; End of line?
+  JP Z,TED_LISTLP         ; Yes - get next line
+  JP P,TED_LSTLP2         ; No token - output it
 
   SUB TK_END-1
-  LD C,A
-  LD DE,WORDS
-  CP $0F
-  JR NZ,TED_51
-  LD (IX+$08),$01
-TED_51:
-  LD A,(DE)
-  INC DE
-  OR A
-  JP P,TED_51
-  DEC C
-  JP NZ,TED_51
-TED_52:
-  AND $7F
-  RST OUTDO
+  LD C,A                  ; Find and output word
+  LD DE,WORDS             ; Token offset+1 to C
+
+  CP TK_REM-(TK_END-1)    ; "REM" ?
+  JR NZ,TED_FNDTOK
+  LD (IX+$08),$01         ; Set video text color to RED
+
+TED_FNDTOK:
+  LD A,(DE)               ; Get character in list
+  INC DE                  ; Move on to next
+  OR A                    ; Is it start of word?
+  JP P,TED_FNDTOK         ; No - Keep looking for word
+  DEC C                   ; Count words
+  JP NZ,TED_FNDTOK
+
+TED_OUTWRD:
+  AND 01111111b           ; Strip bit 7
+  RST OUTDO               ; Output first character
   LD A,(PICFLG)
   BIT 6,A
   JP NZ,TED_53
-  LD A,(DE)
-  INC DE
-  OR A
-  JP P,TED_52
-  JP TED_49
+  LD A,(DE)               ; Get next character
+  INC DE                  ; Move on to next
+  OR A                    ; Is it end of word?
+  JP P,TED_OUTWRD         ; No - output the rest
+  JP TED_LSTLP3           ; Next byte in line
+
 TED_53:
   SCF
-TED_54:
+TED_LISTLP:
   LD (IX+$08),$00           ; Reset video attributes
   RET
 
 TED_55:
-  CP $BA                       ; TK_MINUS ?
-  JP C,TED_58
-  CP $FB
-  JP NC,TED_4
-  LD HL,FNKSTR
-TED_56:
+  CP $BA                       ; Ctl+1..Ctl+0: $B0..$B9 ?
+  JP C,TED_MAP_ACC             ; Yes, deal with accent markers
+  CP $FB                       ; < $FB ?
+  JP NC,TED_NUL
+
+  LD HL,FNKSTR                 ; no, deal with the text shortcuts
+TED_FNK:
   CP (HL)
   INC HL
-  JR NZ,TED_56
-TED_57:
+  JR NZ,TED_FNK
+TED_FNK_0:
   LD A,(HL)
   BIT 7,A
   JP NZ,UPDATE_SCREEN     ; Refresh display NOW
   RST OUTDO
   INC HL
-  JR TED_57
+  JR TED_FNK_0
 
-TED_58:
+TED_MAP_ACC:
   SUB $B0
   LD E,A
   LD D,$00
-  LD HL,BUF10
+  LD HL,ACCMAP            ; Key map for accent markers, it is in RAM and can be customized
   ADD HL,DE
   LD A,(HL)
   JP TED_OUTDO
@@ -9373,20 +9357,20 @@ L2EC3:
 ; Used by the routines at L1CC0, MOVUP and BS_ERR.
 ENFMEM:
   PUSH HL                 ; Save code string address
-  LD A,$FF-95             ; (-95), low order byte, NASCOM keeps -48, MSX -120.
+  LD A,256-(2*NUMLEV)     ; low order byte for -(2*NUMLEV)
   SUB L
   LD L,A
-  LD A,$FF                ; (-95), low order byte
+  LD A,$FF                ; high order byte, negative value
   SBC A,H
   LD H,A
   JR C,OM_ERR             ; ?OM Error if so
   ADD HL,SP               ; Test if stack is overflowed
   POP HL                  ; Restore code string address
-  RET C
+  RET C                   ; Return if enough mmory
 
 ; This entry point is used by the routines at INIT, __CLEAR and BS_ERR.
 OM_ERR:
-  LD DE,$000C
+  LD DE,$000C             ; ?OM Error
   JP ERROR
 
 IF V10
@@ -9395,16 +9379,16 @@ ENDIF
   RET NZ
 ; This entry point is used by the routines at INIT, __SAVE, _CLOAD and __NEW.
 CLRPTR:
-  LD HL,(TXTTAB)
+  LD HL,(TXTTAB)          ; Point to start of program
 
 ; This entry point is used by the routine at __NEW.
 CLRPTR_0:
 
 IF V10
-  XOR A
-  LD (HL),A
+  XOR A                   ; Set program area to empty
+  LD (HL),A               ; Save LSB = 00
   INC HL
-  LD (HL),A
+  LD (HL),A               ; Save MSB = 00
 ELSE
               ; PATCH 1.1/0005/00
               ; PATCH 1.1/0005/01 :   Cancels AUTO mode if a NEW is executed (BASIC 1.0-TB 3.3)
@@ -9412,14 +9396,14 @@ ELSE
   JP CLRPTR_1
 ENDIF
 
-; This entry point is used by the routine at SHIFT_STOP.
+; This entry point is used by the routine at CLRPTR_1.
 RUN_FST_0:
-  INC HL                  ;BUMP POINTER
-  LD (VARTAB),HL          ;NEW START OF VARIABLES
+  INC HL                                           ;BUMP POINTER
+  LD (VARTAB),HL          ; Set program end        ;NEW START OF VARIABLES
 
 ; This entry point is used by the routines at PROMPT and __RUN.
 RUN_FST:
-  LD HL,(TXTTAB)          ;POINT AT THE START OF TEXT
+  LD HL,(TXTTAB)          ; Clear all variables    ;POINT AT THE START OF TEXT
   DEC HL
 
 
@@ -9532,16 +9516,16 @@ ENDCON:
 NOLIN:
   CALL FINLPT             ; Disable printer echo if enabled
   CALL CONSOLE_CRLF
-  POP AF
+  POP AF                  ; Restore STOP / END status
   LD HL,BREAK_MSG_FR
   PUSH AF
   LD A,(FRGFLG)
   OR A
-  JR Z,INPBRK_0
+  JR Z,BREAK_FR
   LD HL,BREAK_MSG         ; "Break" message
-INPBRK_0:
+BREAK_FR:
   POP AF
-  JP NZ,_ERROR_REPORT
+  JP NZ,ERRIN
   JP READY                ; Go to command mode
 
 ; Routine at 12143
@@ -10052,6 +10036,7 @@ __AUTO_0:
   LD (AUTLIN),DE          ;SAVE IN INTIAL LINE
   LD A,$01
   LD (AUTFLG),A
+
 ; This entry point is used by the routine at __LOAD.
 P_PROMPT:
   POP BC                  ;GET RID OF NEWSTT ADDR
@@ -10237,10 +10222,10 @@ INIT_CONSOLE_0:
 IF V10
   LD HL,CHR_DOTDOT
 ELSE
-  JP INIT_CONSOLE_SUB
+  JP INIT_CONSOLE_SUB           ; PATCH 1.1/0010/00..05 :   Improves the AUTO command to warn that the generated line number is already used
 ENDIF
 
-; This entry point is used by the routine at SHIFT_STOP.
+; This entry point is used by the routine at INIT_CONSOLE_SUB.
 INIT_CONSOLE_1:
   CALL CHR_UPDATE
   LD A,14*16+6            ; ink 6, background 15
@@ -10273,7 +10258,7 @@ IN_KEY:
   RET
   
 ; This entry point is used by the routine at TED.
-KEY_SCAN_0:
+KEY_SCAN:
   EXX
   CALL KBDSCAN
   JR NC,KEY_SCAN_3
@@ -10645,7 +10630,7 @@ ELSE
   JR CONSOLE_BS_2
 ; This entry point is used by the routine at QINLIN.
 CONSOLE_BS_4:
-  JP NZ,TED_4
+  JP NZ,TED_NUL
   LD A,$06
   JP TED_OUTDO
 
@@ -10670,8 +10655,8 @@ L33CD_16:
   PUSH AF
   CALL SCRADR
   POP BC
-  LD E,(IX+$08)
-  LD A,$20
+  LD E,(IX+$08)           ; Get current text attribute
+  LD A,' '
   BIT 7,E
   JR Z,L33CD_17
   XOR A
@@ -10683,7 +10668,7 @@ L33CD_17:
   DJNZ L33CD_17
 L33CD_18:
   POP HL
-  LD L,$00
+  LD L,0
   INC H
   PUSH HL
   CALL SCR_GETCHR
@@ -10693,6 +10678,7 @@ L33CD_18:
   PUSH HL
   CALL CLR_LINE
   JR L33CD_18
+
 L33CD_19:
   RET
 
@@ -10823,7 +10809,7 @@ CONSOLE_SCROLL:
   SBC HL,DE
   LD C,L
   LD B,H
-  LD HL,SECOND_SCREEN_ROW
+  LD HL,SECOND_ROW
   LDIR
 CONSOLE_SCROLL_0:
   LD A,(YCURSO)
@@ -10844,14 +10830,14 @@ CONSOLE_BS_SPC_0:
 
 ; This entry point is used by the routine at GETCHAR.
 SCREEN_UP:
-  LD HL,SECOND_SCREEN_ROW
+  LD HL,SECOND_ROW
   LD DE,SCREEN
   LD BC,80*24
   LDIR
   RET
 
 SCREEN_DOWN:
-  LD HL,LAST_SCREEN_ROW
+  LD HL,LAST_ROW
   LD DE,SCREEN_END
   LD BC,80*24
   LDDR
@@ -11252,22 +11238,22 @@ ARYSTR:
 ; This entry point is used by the routine at GARBGE.
 STPOOL:
   PUSH BC                 ;GOES ON STACK                        ; Save return address
-  OR $80
+  OR $80                  ; Flag string type
 
 ; This entry point is used by the routine at GARBGE.
 STRADD:
-  LD A,(HL)
+  LD A,(HL)               ; Get string length
   INC HL
   INC HL
-  LD E,(HL)
+  LD E,(HL)               ; Get LSB of string address
   INC HL
-  LD D,(HL)
+  LD D,(HL)               ; Get MSB of string address
   INC HL
-  RET P
-  OR A
-  RET Z                   ;NULL STRING, RETURN
+  RET P                   ; Not a string - Return
+  OR A                    ; Set flags on string length
+  RET Z                   ; Null string - Return
 
-  LD B,H                                                       ;MOVE [H,L] TO [B,C]
+  LD B,H                  ; Save variable pointer              ;MOVE [H,L] TO [B,C]
   LD C,L
   LD HL,(FRETOP)          ; Bottom of new area                 ;GET POINTER TO TOP OF STRING FREE SPACE
   RST DCOMPR              ; String been done?                  ;IS THIS STRINGS POINTER .LT. FRETOP
@@ -12147,22 +12133,22 @@ ENDDIM:
   RET
 
 ; This entry point is used by the routine at PRINT_FNAME_MSG.
-INLPNM_0:
+CSAVEL_0:
   LD A,$02
   OUT ($AF),A             ; Enable cassette latch
   DI
-INLPNM_1:
+CSAVEL_1:
   PUSH BC
   LD BC,$0000
-INLPNM_2:
+CSAVEL_2:
   EX (SP),HL
   EX (SP),HL
   NOP
   DEC C
-  JR NZ,INLPNM_2
-  DJNZ INLPNM_2
+  JR NZ,CSAVEL_2
+  DJNZ CSAVEL_2
   POP BC
-  DJNZ INLPNM_1
+  DJNZ CSAVEL_1
 
 
 ; This routine is equivalent to the one in the MSX BIOS
@@ -12655,26 +12641,26 @@ QINLIN_SUB:
 
 ; This entry point is used by the routine at PROMPT.
 RINPUT:
-  CALL RINHK
+  CALL RINHK         ; Hook entry for BASIC extensions  (HINLI on MSX)
   LD HL,KBUF
 ; This entry point is used by the routine at RINPUT_SUB.
 RINPUT_0:
-  LD A,(GETFLG)           ; Check keyboard input stream
-  OR A                    ; empty?
+  LD A,(GETFLG)           ; Check the current input stream
+  OR A                    ; Keyboard ?
   JR Z,RINPUT_NOBUF
-  CALL CHGET_CAS
-  JR NZ,SHIFT_STOP_4
+  CALL CHGET_CAS          ; no, get data from tape
+  JR NZ,RINPUT_1
   JR FINLPT_2
 
 RINPUT_NOBUF:
-  CALL TED
+  CALL EDITOR
   OR A
-  JR NZ,SHIFT_STOP_4
+  JR NZ,RINPUT_1
   CALL SHIFT_STOP
   JR NC,RINPUT_NOBUF
   RET
 
-SHIFT_STOP_4:
+RINPUT_1:
   CP $0D
   JR Z,BAKSP
   RES 7,A
@@ -12691,7 +12677,7 @@ ELSE
 ENDIF
 
 ; This entry point is used by the routine at RINPUT_SUB.
-SHIFT_STOP_5:
+RINPUT_SUB_1:
   INC HL
   JR RINPUT_0
 
@@ -12839,10 +12825,15 @@ IF !V10
 ; This entry point is used by the routine at ENFMEM.
 CLRPTR_1:
   LD (AUTFLG),A           ;CLEAR AUTO MODE
-  LD (HL),A               ;SAVE AT END OFF TEXT
-  INC HL                  ;BUMP POINTER
-  LD (HL),A               ;SAVE ZERO
+  LD (HL),A               ; Set program area to empty
+  INC HL                  ; MSB = LSB = 00
+  LD (HL),A
   JP RUN_FST_0
+
+
+              ; PATCH 1.1/0010/00..05 :   Improves the AUTO command to warn that the generated line number is
+			  ;                           already used in the program (BASIC 1.0-TB 17.1)
+			  ; (Diamond symbol)
 
 ; This entry point is used by the routine at PROMPT.
 PROMPT_SUB:
@@ -12875,9 +12866,9 @@ AUTRES:
 _AUTSTR:
   JP AUTSTR                ;And enter line
 
+
               ; PATCH 1.1/0010/00..05 :   Improves the AUTO command to warn that the generated line number is
 			  ;                           already used in the program (BASIC 1.0-TB 17.1)
-			  ; (Diamond symbol)
 
 ;
 ; This entry point is used by the routine at INIT_CONSOLE.
@@ -12918,7 +12909,7 @@ RINPUT_SUB:
   LD A,$0E                ; Warning BELL
   RST OUTDO
 RINPUT_SUB_0:
-  JP SHIFT_STOP_5
+  JP RINPUT_SUB_1
 
               ; PATCH 1.1/0009/00 :   Prevents the "insert line" key from operating during an INPUT command,
               ;                       and stops the screen editor from automatically issuing an "insert line"
