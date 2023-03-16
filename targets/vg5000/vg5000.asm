@@ -892,8 +892,8 @@ GETCHAR_2:
   LD DE,LAST_ROW
 GETCHAR_3:
   LD A,(PICFLG)
-  BIT 0,A
-  JR Z,GETCHAR_4
+  BIT 0,A                 ; ^C allowed ?
+  JR Z,GETCHAR_4          ; Yes
   SET 2,A
   LD (PICFLG),A
   LD A,$84
@@ -1022,10 +1022,10 @@ KBDSCAN_5:
   ADD HL,DE
   LD A,(HL)
 KBDSCAN_6:
-  CP (IX+$05)
+  CP (IX+$05)             ; CRCHAR
   SCF
   JR Z,KBDSCAN_7
-  LD (IX+$05),A
+  LD (IX+$05),A           ; CRCHAR
   CCF
 KBDSCAN_7:
   RET
@@ -3083,7 +3083,7 @@ __PLAY:
 ;
 ; Used by the routine at _MUSIC.
 MUSIC:
-  CALL ISCNTC
+  CALL ISCNTC             ; Test for stop key status
   LD A,(BC)
   INC BC
   DEC E
@@ -3773,30 +3773,34 @@ __INIT_1:
   POP HL
   RET
 
+
 ; Routine at 3715
 __CURSOR:
   LD A,(HL)
   INC HL
-  CP $59
-  JR Z,__CURSOR_1
-  CP $58
+  CP 'Y'
+  JR Z,__CURSORY
+  CP 'X'
   JP NZ,SN_ERR
+
+;__CURSORX
   CALL GETINT
   CP 40
-  JR C,__CURSOR_0
+  JR C,__CURSORX_SET
   LD A,39
-__CURSOR_0:
+__CURSORX_SET:
   LD (CURPOS),A
   RET
 
-__CURSOR_1:
+__CURSORY:
   CALL GETINT
   CP 25
-  JR C,__CURSOR_2
+  JR C,__CURSORY_SET
   LD A,24
-__CURSOR_2:
+__CURSORY_SET:
   LD (YCURSO),A
   RET
+
 
 ; Routine at 3752
 __SCROLL:
@@ -5085,7 +5089,7 @@ L1ADB_7:
 L1ADB_8:
   LD A,(ALLFLG)         ; Any of the protection flags set ?
   OR A
-  JR NZ,L1ADB_9         ; No, jump over
+  JR NZ,L1ADB_9         ; Yes, jump over
 
   LD HL,KBUF
   LD A,(HL)             ; Check first byte in the keyboard input buffer
@@ -6593,12 +6597,14 @@ LEVFRE:
   INC HL                  ; To first byte in line
   EX DE,HL
   LD HL,KBUF              ; Copy buffer to program       ;MOVE LINE FRM KBUF TO PROGRAM AREA
+
+; NOW TRANSFERING LINE IN FROM BUF
 MOVBUF:
   LD A,(HL)               ; Get source
   LDI                     ; Save destinations
-  CP LINCON
+  CP LINCON               ; Line number?
   JR NZ,MOVBUF_0
-  LDI
+  LDI                     ; if so, move also the next 2 bytes
   LDI
   JR MOVBUF
 MOVBUF_0:
@@ -6606,33 +6612,34 @@ MOVBUF_0:
   JR NZ,MOVBUF            ; No - Repeat
 
 ; This entry point is used by the routine at CLOAD_END.
+; a.k.a. SETPTR
 FINI:
-  CALL RUN_FST
-  INC HL
-  EX DE,HL
-PROMPT_6:
-  LD H,D
+  CALL RUN_FST            ; Set line pointers          ; DO CLEAR & SET UP STACK 
+  INC HL                  ; To LSB of pointer
+  EX DE,HL                ; Address to DE
+PTRLP:
+  LD H,D                  ; Address to HL
   LD L,E
+  LD A,(HL)               ; Get LSB of pointer
+  INC HL                  ; To MSB of pointer
+  OR (HL)                 ; Compare with MSB pointer
+  JP Z,PROMPT             ; Get command line if end
+  INC HL                  ; To LSB of line number
+SKIPLN:
+  INC HL                  ; Skip line number
+  INC HL                  ; Point to first byte in line
+FNDEND:
   LD A,(HL)
   INC HL
-  OR (HL)
-  JP Z,PROMPT
+  CP LINCON               ; Line number?
+  JR Z,SKIPLN
+  OR A                    ; Found end of line?
+  JR NZ,FNDEND            ; No - Keep looking
+  EX DE,HL                ; Next line address to HL
+  LD (HL),E               ; Save LSB of pointer
   INC HL
-PROMPT_7:
-  INC HL
-  INC HL
-PROMPT_8:
-  LD A,(HL)
-  INC HL
-  CP LINCON
-  JR Z,PROMPT_7
-  OR A
-  JR NZ,PROMPT_8
-  EX DE,HL
-  LD (HL),E
-  INC HL
-  LD (HL),D
-  JR PROMPT_6
+  LD (HL),D               ; Save MSB of pointer
+  JR PTRLP                ; Do next line
 
 
 ;
@@ -6666,7 +6673,7 @@ SRCHLN:
 ;
 ; Used by the routine at __GOTO.
 SRCHLP:
-  LD (PRELIN),BC
+  LD (PRELIN),BC        ; Keep the previous line number
   LD B,H                ; BC = Address to look at     IF EXITING BECAUSE OF END OF PROGRAM,
   LD C,L                ;                             SET [B,C] TO POINT TO DOUBLE ZEROES.
   LD A,(HL)             ; Get address of next line
@@ -7688,8 +7695,8 @@ __INPUT:
 
   CALL QTSTR              ; Get string terminated by '"' ; MAKE THE MESSAGE A STRING
 
-  RST SYNCHR
-  DEFB $3B
+  RST SYNCHR              ; Check for ";" after prompt
+  DEFB ';'                ; MUST END WITH SEMI-COLON
 
   PUSH HL                 ; Save code string address     ;REMEMBER WHERE IT ENDED
   CALL PRS1               ; Output prompt string
@@ -7710,7 +7717,7 @@ QINLIN:
   RES 6,(IX+$03)          ; CURSOR - Hide
   LD A,(PICFLG)
   RES 0,A
-  LD (PICFLG),A
+  LD (PICFLG),A           ; ALLOW ^C TO CHANGE
 
 ELSE
 
@@ -7733,7 +7740,7 @@ QINLIN:
   RES 6,(IX+$03)          ; CURSOR - Hide
   LD A,(PICFLG)
   RES 5,A
-  RES 0,A
+  RES 0,A                 ; ALLOW ^C TO CHANGE
   LD (PICFLG),A
   RET
 
@@ -8687,8 +8694,9 @@ EDITOR:
   PUSH DE
   PUSH HL
   LD A,(PICFLG)
-  BIT 1,A
-  JP NZ,TED_6
+  BIT 1,A                 ; Are we in "screen scraping" mode ?
+  JP NZ,SCREEN_SCRAPING
+
   HALT
   CALL KEY_SCAN
   OR A
@@ -8703,28 +8711,28 @@ EDITOR:
 
   LD A,(PICFLG)
 IF V10
-  AND $7F
+  AND $7F                 ; bit 7 to '0'
 ELSE
   NOP
   NOP
 ENDIF
   OR $01
-  LD (PICFLG),A           ;DONT ALLOW ^C TO CHANGE
+  LD (PICFLG),A           ; Enter in "screen scraping" mode
   POP AF
   JP M,TED_55
   CP $0D
 IF V10
   JP Z,TED_CR
 ELSE
-  JP QINLIN_5
+  JP EDITOR_SUB
   ENDIF
 
 ; This entry point is used by the routine at QINLIN.
-TED_0:
+EDITOR_0:
   CP $09
-  JP Z,TED_TAB
+  JP Z,TED_LEFT
   CP $0A
-  JP Z,TED_LF
+  JP Z,TED_DOWN
   CP $0C
   JP Z,TED_HOME
 
@@ -8739,7 +8747,7 @@ ELSE
 ENDIF
 
 ; This entry point is used by the routine at QINLIN.
-TED_1:
+EDITOR_1:
   LD A,(PICFLG)
   BIT 5,A
   JR NZ,TED_NUL
@@ -8764,29 +8772,31 @@ TED_END:
   POP BC
   RET
 
-TED_6:
+
+; Pick existing text from screen
+SCREEN_SCRAPING:
   LD HL,(RETADR)
   LD A,H
   CP 24
-  JR NC,TED_7
+  JR NC,SCREEN_SCRAPING_0
   PUSH HL
   INC H
   LD L,0
   CALL SCR_GETCHR
   POP HL
-  JR Z,TED_8
-TED_7:
+  JR Z,SCREEN_SCRAPING_1
+SCREEN_SCRAPING_0:
   LD A,L
   CP 39
-  JR NC,TED_11
-TED_8:
+  JR NC,SCREEN_SCRAPING_END
+SCREEN_SCRAPING_1:
   PUSH AF
   LD A,L
   CP 39
-  JR C,TED_9
+  JR C,SCREEN_SCRAPING_2
   INC H
   LD L,0
-TED_9:
+SCREEN_SCRAPING_2:
   INC L
   LD (RETADR),HL
   PUSH HL
@@ -8795,29 +8805,29 @@ TED_9:
   POP DE
   POP AF
   LD A,B
-  JR NC,TED_16
+  JR NC,SCR_TO_CHR
   CP ' '
-  JR NZ,TED_16
-TED_10:
+  JR NZ,SCR_TO_CHR
+SCREEN_SCRAPING_3:
   INC E
   LD A,E
   CP 40
-  JR NC,TED_11
+  JR NC,SCREEN_SCRAPING_END
   INC HL
   INC HL
   LD A,(HL)
   CP ' '
-  JR Z,TED_10
+  JR Z,SCREEN_SCRAPING_3
   LD A,' '
-  JR TED_16
+  JR SCR_TO_CHR
 
-TED_11:
+SCREEN_SCRAPING_END:
   LD A,(PICFLG)
   RES 1,A
-  LD (PICFLG),A           ;ALLOW ^C TO CHANGE
+  LD (PICFLG),A           ; Disable screen scraping mode
   LD A,(ENTSTT)
   BIT 7,A
-  JR NZ,TED_15
+  JR NZ,TED_EOL
   CP ' '
   JR Z,TED_12
   CP '0'
@@ -8831,15 +8841,15 @@ TED_12:
   JR Z,TED_14
 ; This entry point is used by the routine at QINLIN.
 TED_13:
-  CALL TED_23
-  JR TED_15
+  CALL TED_NEWLINE
+  JR TED_EOL
 TED_14:
 
 IF V10
 
   LD A,$06
   RST $18
-  jr TED_15
+  JR TED_EOL
 
 ELSE
 
@@ -8850,56 +8860,58 @@ ELSE
 ENDIF
 
 L2BA1:
-  CALL TED_23
+  CALL TED_NEWLINE
 
   LD A,$1E            ; blank over previous character
   RST OUTDO
  
 ; This entry point is used by the routine at QINLIN.
-TED_15:
+TED_EOL:
   LD A,$0D
   JP TED_END
 
-TED_16:
+
+; Re-map those special characters got from the screen memory to chr$ codes
+SCR_TO_CHR:
   CP $FF
   JR NZ,TED_17
-  LD A,$10		; ".." (TX) symbol
+  LD A,$10                ; ".." symbol
 TED_17:
   CP $0D
   JR NZ,TED_18
-  LD A,$11
+  LD A,$11                ; î
 TED_18:
   CP $08
   JR NZ,TED_19
-  LD A,$13
+  LD A,$13                ; ù
 TED_19:
   CP $04
   JR NZ,TED_20
-  LD A,$18
+  LD A,$18                ; â, å
 TED_20:
   CP $1F
   JR NZ,TED_21
-  LD A,$1A
+  LD A,$1A                ; ô
 TED_21:
   CP $03
   JR NZ,TED_22
-  LD A,$1C
+  LD A,$1C                ; £
 TED_22:
   JP TED_END
 
-TED_23:
+TED_NEWLINE:
   LD A,$03                      ; NEWLINE
   RST OUTDO
   LD HL,(CURPOS)
   DEC L
   CALL SCR_GETCHR
-  JR Z,TED_23
+  JR Z,TED_NEWLINE
   RET
 
 ; This entry point is used by the routine at QINLIN.
 TED_CR:
   LD HL,(CURPOS)
-TED_25:
+TED_CR_0:
 
 IF V10
   LD A,L
@@ -8927,14 +8939,14 @@ ELSE
   JR NC,TED_27
 
 ENDIF
-  JR TED_25
+  JR TED_CR_0
 
 TED_26:
 
 IF !V10
   LD A,L
   OR A
-  JR NZ,TED_25
+  JR NZ,TED_CR_0
   INC L
 ENDIF
 
@@ -8947,7 +8959,7 @@ ENDIF
   LD (CURPOS),HL
   LD A,$04
   RST OUTDO
-  JP TED_15
+  JP TED_EOL
 
 TED_27:
 IF V10
@@ -8989,7 +9001,7 @@ ENDIF
   POP DE
 TED_30:
   LD A,E
-  CP $28
+  CP $28      ;   '('
   JR NC,TED_31
   INC E
   LD A,(HL)
@@ -9009,7 +9021,7 @@ TED_32:
 TED_33:
   LD (ENTSTT),A
   LD A,(PICFLG)
-  SET 1,A
+  SET 1,A                 ; Enter in screen scraping mode to pick the remaining text
   LD (PICFLG),A
   LD HL,(RETADR)
   DEC L
@@ -9017,7 +9029,7 @@ TED_33:
 TED_34:
   JP TED_NUL
 
-TED_TAB:
+TED_LEFT:
   LD A,(YCURSO)
   OR A
   JR NZ,TED_36
@@ -9025,17 +9037,18 @@ TED_TAB:
   BIT 5,A
   JP NZ,TED_NUL
   LD DE,(DOT)
-  CALL SRCHLN
-  LD BC,(PRELIN)
+  CALL SRCHLN             ; Search for line number in DE
+  LD BC,(PRELIN)          ; Get the previous line number
   LD A,B
   OR C
   JP Z,TED_NUL
-  JP TED_NUL1
+  JP TED_41
+
 TED_36:
   LD A,$09
   JP TED_OUTDO
 
-TED_LF:
+TED_DOWN:
   LD A,(YCURSO)
   CP 24
   JP C,TED_39
@@ -9044,11 +9057,12 @@ TED_LF:
   JP NZ,TED_NUL
   LD DE,(DOT)
   INC DE
-  CALL SRCHLN
+  CALL SRCHLN             ; Search for line number in DE
   JP C,TED_38
   JP Z,TED_NUL
 TED_38:
-  JP TED_NUL1
+  JP TED_41
+
 TED_39:
   LD A,$0A
   JP TED_OUTDO
@@ -9058,9 +9072,9 @@ TED_HOME:
   BIT 5,A
   JP NZ,TED_NUL
   SCF
-  JR TED_NUL2
+  JR TED_42
 
-TED_NUL1:
+TED_41:
   INC BC
   INC BC
   LD H,B
@@ -9072,39 +9086,40 @@ TED_NUL1:
   OR A
   LD HL,(CURPOS)
   PUSH HL
-TED_NUL2:
+
+TED_42:
   PUSH AF
   LD A,$81
-  LD (PICFLG),A
+  LD (PICFLG),A           ; bit 7 (editor mode ?) + bit 0 (screen scraping mode)
   LD (IX+$00),$40         ; Screen refresh counter, add a bit of delay
   LD (IX+$08),$00         ; Reset video attributes (black text)
   LD HL,$0001
   LD (CURPOS),HL
   CALL CLR_SCR
   LD DE,(DOT)
-  CALL SRCHLN
+  CALL SRCHLN             ; Search for line number in DE
   LD H,B
   LD L,C
-TED_NUL3:
-  CALL TED_NUL7
-  JR C,TED_NUL4
+TED_43:
+  CALL TED_47
+  JR C,TED_44
   LD A,(YCURSO)
-  CP $18
+  CP 24                   ; are we on the last row ?
   LD A,$03
-  CALL C,_CHPUT
-  JR C,TED_NUL3
-TED_NUL4:
+  CALL C,_CHPUT           ; If not, NEWLINE
+  JR C,TED_43
+TED_44:
   POP AF
-  JR C,TED_NUL5
+  JR C,TED_45
   POP HL
-  JR TED_NUL6
-TED_NUL5:
+  JR TED_46
+TED_45:
   LD HL,$0001
-TED_NUL6:
+TED_46:
   LD (CURPOS),HL
   JP UPDATE_SCREEN
 
-TED_NUL7:
+TED_47:
   LD C,(HL)
   INC HL
   LD B,(HL)
@@ -10097,7 +10112,7 @@ SNGLIN:
 ; This entry point is used by the routine at __SAVE.
 __LIST_PROC:
   LD A,$01
-  LD (PICFLG),A           ;DONT ALLOW ^C TO CHANGE
+  LD (PICFLG),A           ; Enter in screen scraping mode to pick the remaining text
   EX DE,HL
 LSTLP_0:
   LD C,(HL)               ; Get LSB of next line       ;[B,C]=THE LINK POINTING TO THE NEXT LINE
@@ -10108,7 +10123,7 @@ LSTLP_0:
   OR C                    ; BC = 0 (End of program)?
   RET Z                   ;LAST LINE, STOP.
 
-  CALL ISCNTC             ; Test for break/pause status
+  CALL ISCNTC             ; Test for stop key status
   CP $04
   JR NZ,__LIST_8
   PUSH HL                 ; pause untill key status change
@@ -10117,7 +10132,7 @@ __LIST_6:
   OR A
   JR NZ,__LIST_6
 __LIST_7:
-  CALL ISCNTC
+  CALL ISCNTC             ; Test for stop key status
   CALL KBDSCAN
   OR A
   JR Z,__LIST_7
@@ -10263,7 +10278,7 @@ KEY_SCAN:
   CALL KBDSCAN
   JR NC,KEY_SCAN_3
   LD L,A
-  BIT 7,(IX+$07)
+  BIT 7,(IX+$07)          ; REPENA - auto-repetition flag set ?
   LD A,(IX+$06)           ; REPTIM - Keyboard repeat timer
   JP NZ,KEY_SCAN_1
   CP $80
@@ -10273,12 +10288,12 @@ KEY_SCAN_1:
   CP $08
 KEY_SCAN_2:
   JP C,KEY_SCAN_8
-  LD (IX+$07),$80
+  LD (IX+$07),$80         ; REPENA - set auto-repetition flag
   LD A,L
   JP KEY_SCAN_4
 
 KEY_SCAN_3:
-  LD (IX+$07),$00
+  LD (IX+$07),$00         ; REPENA - reset auto-repetition flag
 KEY_SCAN_4:
   LD (IX+$06),$00         ; REPTIM - Keyboard repeat timer
   CP $01
@@ -10418,7 +10433,7 @@ CONSOLE_JPTAB:
   JP CONSOLE_BS             ; CHR$(2)
   JP CONSOLE_NEWLINE        ; CHR$(3)
   JP L33CD_16               ; CHR$(4)
-  JP L33CD_20               ; CHR$(5)
+  JP CONSOLE_INS            ; CHR$(5)
   JP CONSOLE_SCROLL         ; CHR$(6)
   JP CONSOLE_CRIGHT         ; CHR$(7)
   JP CONSOLE_CLEFT          ; CHR$(8)
@@ -10682,17 +10697,18 @@ L33CD_18:
 L33CD_19:
   RET
 
+; Insert a character shifting text right
 ; This entry point is used by the routine at CONSOLE_JPTAB.
-L33CD_20:
+CONSOLE_INS:
   LD HL,(CURPOS)
   LD L,$00
-L33CD_21:
+CONSOLE_INS_0:
   INC H
   PUSH HL
   CALL SCR_GETCHR
   EX DE,HL
   POP HL
-  JP Z,L33CD_21
+  JP Z,CONSOLE_INS_0
   EX DE,HL
   DEC HL
   DEC HL
@@ -10700,26 +10716,25 @@ L33CD_21:
   DEC D
   PUSH DE
   BIT 7,(IX+$08)
-  JR Z,L33CD_22
+  JR Z,CONSOLE_INS_1
   OR A
   JP Z,L33CD_25
-  JR L33CD_23
-
-L33CD_22:
+  JR CONSOLE_INS_2
+CONSOLE_INS_1:
   CP ' '
   JP Z,L33CD_25
-L33CD_23:
+CONSOLE_INS_2:
   LD HL,(CURPOS)
   DEC H
 
 IF V10
   JP M,L33CD_25
 ELSE
-  JP QINLIN_4
+  JP CONSOLE_INS_SUB
 ENDIF
 
 ; This entry point is used by the routine at QINLIN.
-L33CD_24:
+CONSOLE_INS_3:
   PUSH HL
   LD (CURPOS),DE
   LD A,$06
@@ -10824,7 +10839,7 @@ CONSOLE_BS_SPC_0:
   CALL CLR_LINE
   POP AF
   INC A
-  CP $19
+  CP 25
   JR C,CONSOLE_BS_SPC_0
   RET
 
@@ -10846,7 +10861,7 @@ SCREEN_DOWN:
 ; This entry point is used by the routines at INIT_CONSOLE, CONSOLE_JPTAB and FINLPT.
 CONSOLE_RESET:
   LD A,(PICFLG)
-  AND 01111101b
+  AND 01111101b             ; Disable "editor" and "screen scraping" mode
   LD (PICFLG),A
   LD (IX+$0A),$00           ; EXTENF - Character redefinition flag, set to normal
   LD (IX+$08),$00           ; Reset video attributes
@@ -12619,7 +12634,7 @@ SHIFT_STOP:
   RET NZ                  ; If so, do nothing and return
 
   LD (IX+$05),$F2         ; CRCHAR
-  LD (IX+$07),$00
+  LD (IX+$07),$00         ; REPENA - reset auto-repetition flag
   LD (IX+$06),$00         ; REPTIM - Keyboard repeat timer
   SCF
   RET
@@ -12929,7 +12944,7 @@ QINLIN_V11:
 
 ; This entry point is used by the routine at TED.
 QINLIN_0:
-  CP $06                  ; ??? 'LIST' keys  ???
+  CP $06
   JR NZ,QINLIN_2
   LD A,(PICFLG)
   BIT 5,A
@@ -12942,7 +12957,7 @@ QINLIN_1:
 QINLIN_2:
   CP $1F
   JR NZ,QINLIN_1
-  JP TED_1
+  JP EDITOR_1
 
 ; This entry point is used by the routine at TED.
 QINLIN_3:
@@ -12951,17 +12966,18 @@ QINLIN_3:
   JP NZ,TED_13
   LD A,$06
   RST OUTDO
-  JP TED_15
+  JP TED_EOL
+
 ; This entry point is used by the routine at L33CD.
-QINLIN_4:
+CONSOLE_INS_SUB:
   JP M,L33CD_25
   LD A,(PICFLG)
   BIT 5,A
   JP NZ,L33CD_25
-  JP L33CD_24
+  JP CONSOLE_INS_3
 
 ; This entry point is used by the routine at TED.
-QINLIN_5:
+EDITOR_SUB:
   JP Z,TED_CR
 
               ; PATCH 1.1/0023/00 :
@@ -12970,12 +12986,12 @@ QINLIN_5:
   PUSH AF
   LD A,(ALLFLG)           ; Any protection flag set ?
   OR A
-  JR NZ,QINLIN_6          ; No, continuee
-
+  JR NZ,EDITOR_LOCKED     ; Yes
   POP AF
-  JP TED_0
 
-QINLIN_6:
+  JP EDITOR_0                ; No, get back to editor
+
+EDITOR_LOCKED:
   POP AF
   JP QINLIN_0
 
