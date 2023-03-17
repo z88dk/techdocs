@@ -2,17 +2,29 @@
 ; BASIC-80 Rev. 5.22 - March 19, 1982
 ; (The previous version was released on March 10th)
 
+
+; --- CP/M Specific definitions --- 
+
 IF !BASE
   defc BASE = 0
 ENDIF
 
+defc CPMWRM  =  BASE                ;CP/M WARM BOOT ADDR
+defc CPMENT  =  BASE+5              ;CP/M BDOS CALL ADDR
+defc DIRTMP  =  BASE+$0080
+
+
   ORG BASE+$0100
 
 
-; Classic build:
+; The original code now includes Z80 specific optimizations,
+; but Z80ASM is able to transparently convert back to 8080.
 ;
-; z80asm -b -DORIGINAL -DCPMV1 mbasic.asm
+; Classic build (almost byte-identical but for few small bug fixes):
+;
+; z80asm -b -DORIGINAL -DCPMV1 -m8080 mbasic.asm
 ; ren mbasic.bin MBASIC.COM
+
 
 
 ; Proof of concept:  ZX Spectrum +3 graphics and Terminal
@@ -20,9 +32,10 @@ ENDIF
 ; add -DTAPE for LOAD!, LOAD!? (=CLOAD, CLOAD?) and SAVE! (=CSAVE) ...Kansas City Standard, at 1200 bps, MSX style CSAVE protocol.
 ; add -DBIT_PLAY for OUT! (=PLAY) and OUT@ (=SOUND), they're single channel melody commands, Philips VG-5000 style syntax
 ;
-; z80asm -b -DHAVE_GFX -DZXPLUS3 -DVT52 mbasic.asm
+; z80asm -b -DHAVE_GFX -DZXPLUS3 -DVT52 -DBIT_PLAY mbasic.asm
 ; ren mbasic.bin P3BASIC.COM
 ; z88dk-appmake +cpmdisk -f plus3 -b P3BASIC.COM
+
 
 
 ; Experimental, rebased CP/M on TRDOS by Kamil Karimov
@@ -40,13 +53,6 @@ ENDIF
 ; z88dk-appmake +fat -f msxdos -b MSXBAS.COM
 
 
-
-
-; --- CP/M Specific --- 
-
-defc DIRTMP  =  BASE+$0080
-defc CPMWRM  =  BASE
-defc _BDOS   =  BASE+5
 
 ; --- Sizes --- 
 
@@ -109,8 +115,6 @@ defc DATPSC   =  128    ;NUMBER OF DATA BYTES IN DISK SECTOR
 						;NEVER WRITTEN INTO A FILE
 ;MD.SQO	SET	2			;THE MODE FOR SEQUENTIAL OUTPUT FILES
 						;AND PROGRAM FILES
-;CPMWRM	SET	0			;CP/M WARM BOOT ADDR
-;CPMENT	SET	CPMWRM+5	;CP/M BDOS CALL ADDR
 
 
 ;------------------------------------
@@ -1767,7 +1771,7 @@ IMPFLG:
   DEFB $00                ; This flag is related to the INPUT status
 SAVFRE:
   DEFW $0000              ; Temporary usage of the free string area (used by CHAIN to keep a copy of FRETOP)
-RECSIZ:
+MAXREC:
   DEFW $0000              ; $0bea:  maximum record size for use with random files.
 PROFLG:
   DEFB $00                ; 'File protected' status flag
@@ -2996,7 +3000,7 @@ ENDIF
 ;  Other versione here have an extra check:
 ;  "ERRORS IN CP/M INITIALIZATION, RETURN TO CP/M"
 
-  DEFB $CD                 ; CALL CPMWRM
+  DEFB $CD                 ; CALL CPMWRM   ->  Warm boot
 
 ; Data block at 3480
 SMC_PRINTMSG:
@@ -3092,9 +3096,7 @@ EDENT:
   CALL CHRGTB             ;REMEMBER IF THIS LINE IS
   OR A                    ;SET THE ZERO FLAG ON ZERO      LINES THAT START WITH ":" SHOULD NOT BE IGNORED
   PUSH AF                 ;BLANK SO WE DON'T INSERT IT
-  EX DE,HL                ;SAVE THIS LINE # IN DOT;
-  LD (DOT),HL
-  EX DE,HL
+  LD (DOT),DE             ;SAVE THIS LINE # IN DOT;
   CALL SRCHLN             ; Search for line number in DE: GET A POINTER TO THE LINE
   JP C,LINFND             ; Jump if line found: LINE EXISTS, DELETE IT
   POP AF                  ;GET FLAG SAYS WHETHER LINE BLANK
@@ -3117,10 +3119,12 @@ LINFND:
   JP Z,FINI               ;IF NOT DON'T INSERT
   POP DE                  ;GET RID OF START OF LINK FIX
   LD A,(CHNFLG)           ;ONLY CHANGET FRETOP IF NOT CHAINING
-  OR A                    
+  OR A                    ; Clear Carry
   JP NZ,LEVFRE            ;LEAVE FRETOP ALONE
   LD HL,(MEMSIZ)          ;DELETE ALL STRINGS
   LD (FRETOP),HL          ;SO REASON DOESNT USE THEM
+
+
 LEVFRE:
   LD HL,(VARTAB)          ; Get end of program           CURRENT END
   EX (SP),HL              ; Get length of input line     [H,L]=CHARACTER COUNT. VARTAB ONTO THE STACK
@@ -3304,7 +3308,7 @@ SRCHLP:
   RET Z                 ; Lines found - Exit
   CCF                   
   RET NC                ; Line not found,at line after    NO MATCH RETURN (GREATER)
-  JP SRCHLP             ; Keep looking
+  JR SRCHLP             ; Keep looking
 
 
 ; Routine at 3864
@@ -3336,7 +3340,7 @@ TOKENIZE:
 NXTCHR:                   ; (=KLOOP)
   LD A,(HL)               ; Get byte            GET CHARACTER FROM BUF
   OR A                    ; End of line ?
-  JP NZ,CRNCLP            ; No, continue
+  JR NZ,CRNCLP            ; No, continue
 
 ; Routine at 3882
 ;
@@ -3364,13 +3368,13 @@ CRDONE:                   ; Yes - Terminate buffer
 ; Used by the routine at NXTCHR.
 CRNCLP:
   CP '"'                  ; Is it a quote?                   QUOTE SIGN? 
-  JP Z,CPYLIT             ; Yes - Copy literal string        YES, GO TO SPECIAL STRING HANDLING
+  JR Z,CPYLIT             ; Yes - Copy literal string        YES, GO TO SPECIAL STRING HANDLING
   CP ' '                  ; Is it a space?                   SPACE?
-  JP Z,STUFFH             ; Yes - Copy direct                JUST STUFF AWAY
+  JR Z,STUFFH             ; Yes - Copy direct                JUST STUFF AWAY
   LD A,(OPRTYP)           ; a.k.a. DORES, indicates whether stored word can be
   OR A                    ; crunched, etc..                  END OF LINE?
   LD A,(HL)
-  JP Z,CRNCLP_2           ;                                  YES, DONE CRUNCHING
+  JR Z,CRNCLP_2           ;                                  YES, DONE CRUNCHING
 
 ; This entry point is used by the routine at TSTNUM.
 STUFFH:
@@ -3379,16 +3383,16 @@ STUFFH:
   CALL KRNSAV             ; SAVE CHAR IN KRUNCH BUFFER   (Insert during tokenization)
   POP AF                  ; RESTORE CHAR
   SUB ':'                 ; ":", End of statement?
-  JP Z,SETLIT             ; IF SO ALLOW CRUNCHING AGAIN
+  JR Z,SETLIT             ; IF SO ALLOW CRUNCHING AGAIN
   CP TK_DATA-':'          ; SEE IF IT IS A DATA TOKEN
-  JP NZ,TSTREM            ; No - see if REM
+  JR NZ,TSTREM            ; No - see if REM
   LD A,$01                ;SET LINE NUMBER ALLOWED FLAG - KLUDGE AS HAS TO BE NON-ZERO.
 SETLIT:
   LD (OPRTYP),A           ;SETUP FLAG
   LD (DONUM),A            ;SET NUMBER ALLOWED FLAG
 TSTREM:
   SUB TK_REM-':'
-  JP NZ,NXTCHR            ;KEEP LOOPING
+  JR NZ,NXTCHR            ;KEEP LOOPING
   PUSH AF                 ;SAVE TERMINATOR ON STACK
 STR1_LP:
   LD A,(HL)               ;GET A CHAR
@@ -3396,9 +3400,9 @@ STR1_LP:
   EX (SP),HL              ;GET SAVED TERMINATOR OFF STACK, SAVE [H,L]
   LD A,H                  ;GET TERMINATOR INTO [A] WITHOUT AFFECTING PSW
   POP HL                  ;RESTORE [H,L]
-  JP Z,CRDONE             ;IF END OF LINE THEN DONE
+  JR Z,CRDONE             ;IF END OF LINE THEN DONE
   CP (HL)                 ;COMPARE CHAR WITH THIS TERMINATOR
-  JP Z,STUFFH             ;IF YES, DONE WITH STRING
+  JR Z,STUFFH             ;IF YES, DONE WITH STRING
 
 CPYLIT:
   PUSH AF                 ;SAVE TERMINATOR
@@ -3407,7 +3411,7 @@ CPYLIT:
 CRNCLP_1:
   INC HL                  ;INCREMENT TEXT POINTER
   CALL KRNSAV             ;SAVE CHAR IN KRUNCH BUFFER
-  JP STR1_LP              ;KEEP LOOPING
+  JR STR1_LP              ;KEEP LOOPING
 
 CRNCLP_2:
   CP '?'                  ;A QMARK?  (Is it "?" short for PRINT)
@@ -3423,15 +3427,15 @@ CRNCLP_2:
   PUSH HL                 ;SAVE TEXT POINTER
   LD DE,FNC_GO            ;PLACE TO RETURN IF NOT FUNNY GO
   CALL TK_TXT_COMPARE
-  JP NZ,CRNCH_MORE
+  JR NZ,CRNCH_MORE
   CALL CHRGTB
   LD DE,FNC_TO
   CALL TK_TXT_COMPARE
   LD A,TK_GOTO
-  JP Z,CRNCLP_3
+  JR Z,CRNCLP_3
   LD DE,FNC_SUB
   CALL TK_TXT_COMPARE
-  JP NZ,CRNCH_MORE
+  JR NZ,CRNCH_MORE
   LD A,TK_GOSUB
 CRNCLP_3:
   POP BC
@@ -3447,7 +3451,7 @@ TK_TXT_COMPARE:
   RET NZ
   INC HL
   INC DE
-  JP TK_TXT_COMPARE
+  JR TK_TXT_COMPARE
 
 FNC_GO:
   DEFM "GO "
@@ -3490,31 +3494,31 @@ LOPPSI:
   JP Z,NOTRES             ;IF=0 THEN END OF THIS CHARS RESLT  (JP if end of list)
   INC HL                  ;BUMP SOURCE POINTER
   CP C                    ;COMPARE TO CHAR FROM SOURCE LINE     (Same character as in buffer?)
-  JP NZ,LOPSKP            ;IF NO MATCH, SEARCH FOR NEXT RESWRD  (No - get next word)
+  JR NZ,LOPSKP            ;IF NO MATCH, SEARCH FOR NEXT RESWRD  (No - get next word)
   LD A,(DE)               ;GET RESWRD BYTE AGAIN
   INC DE                  ;BUMP RESLST POINTER
   OR A                    ;SET CC'S
   JP P,LOPPSI             ;SEE IF REST OF CHARS MATCH
   LD A,C                  ;GET LAST CHAR OF RESWRD
   CP '('                  ;IF TAB( OR SPC(, SPACE NEED NOT FOLLOW
-  JP Z,ISRESW             ;IS A RESWORD
+  JR Z,ISRESW             ;IS A RESWORD
   LD A,(DE)               ;LOOK AFTER CHAR
   CP TK_FN                ;FUNCTION?
-  JP Z,ISRESW             ;THEN NO SPACE NEED AFTERWARD
+  JR Z,ISRESW             ;THEN NO SPACE NEED AFTERWARD
   CP TK_USR               ;OR USR DEFINITION?
-  JP Z,ISRESW
+  JR Z,ISRESW
 IF HAVE_GFX
   CP TK_POINT
-  JP Z,ISRESW        ; <-- there must be a better way
+  JR Z,ISRESW        ; <-- there must be a better way
 ENDIF
 IF ZXPLUS3
   CP TK_CSRLIN
-  JP Z,ISRESW        ; <-- there must be a better way
+  JR Z,ISRESW        ; <-- there must be a better way
 ENDIF
 
   CALL MAKUPL             ;GET NEXT CHAR IN LINE (MC 6/22/80)
   CP '.'                  ;IS IT A DOT
-  JP Z,ISVARS             ;YES
+  JR Z,ISVARS             ;YES
   CALL TSTANM             ;IS IT A LETTER IMMEDIATELY FOLLOWING RESWRD
 ISVARS:
   LD A,$00                ;SET DONUM TO -1
@@ -3544,7 +3548,7 @@ LOPSK2:
   OR A                    ;SET CC'S
   JP P,LOPSK2             ;NOT END OF RESWRD, KEEP SKIPPING
   INC DE                  ;POINT AFTER TOKEN
-  JP TRYAGA               ;TRY ANOTHER RESWRD
+  JR TRYAGA               ;TRY ANOTHER RESWRD
 
 NOTFNT:
   DEC HL
@@ -3560,11 +3564,11 @@ MOVDIR:
 MOVDIR_0:
   LD A,(DE)
   OR A
-  JP Z,TOKEN_BUILT
+  JR Z,TOKEN_BUILT
   INC DE
   CP C
-  JP NZ,MOVDIR_0
-  JP TOKENIZE_LNUM
+  JR NZ,MOVDIR_0
+  JR TOKENIZE_LNUM
 
 ; Data block at 4186
 ; List of commands (tokens) requiring program line numbers
@@ -3605,7 +3609,7 @@ NOTRS6:
   CALL Z,TOKENIZE_COLON     ;SAVE ":" IN CRUNCH BUFFER
   POP AF                    ;GET BACK TOKEN
   CP TK_WHILE               ; <<--  new feature in v5.22
-  JP NZ,TOKEN_BUILT_1
+  JR NZ,TOKEN_BUILT_1
   CALL KRNSAV				; save 'TK_WHILE'
   LD A,TK_PLUS              ; replace the currently examined byte with '+' 
 TOKEN_BUILT_1:
@@ -3625,11 +3629,11 @@ TOKEN_BUILT_1:
 TSTNUM:
   LD A,(HL)                 ;GET CHAR
   CP '.'                    ;TEST FOR START OF FLOATING #
-  JP Z,NUMTRY               ;TRY INPUTTING IT AS CONSTANT
+  JR Z,NUMTRY               ;TRY INPUTTING IT AS CONSTANT
   CP '9'+1                  ;IS IT A DIGIT?
-  JP NC,SRCSPC              ;NO, TRY OTHER THINGS
+  JR NC,SRCSPC              ;NO, TRY OTHER THINGS
   CP '0'                    ;TRY LOWER END
-  JP C,SRCSPC               ;NO TRY OTHER POSSIBILITIES
+  JR C,SRCSPC               ;NO TRY OTHER POSSIBILITIES
 NUMTRY:
   LD A,(DONUM)              ;TEST FOR NUMBERS ALLOWED
   OR A                      ;SET CC'S
@@ -3637,7 +3641,7 @@ NUMTRY:
   POP BC                    ;RESTORE CHAR COUNT
   POP DE                    ;RESTORE DEP. POINTER
   JP M,STUFFH               ;NO, JUST STUFF IT (!)
-  JP Z,FLTGET               ;IF DONUM=0 THEN FLOATING #'S ALLOWED
+  JR Z,FLTGET               ;IF DONUM=0 THEN FLOATING #'S ALLOWED
   CP '.'                    ;IS IT DOT?
   JP Z,STUFFH               ;YES, STUFF IT FOR HEAVENS SAKE! (EDIT .)
   LD A,LINCON               ;GET LINE # TOKEN
@@ -3668,19 +3672,19 @@ FLTGET:
   PUSH HL                   ;SAVE TEXT POINTER
   LD A,(VALTYP)             ;GET VALUE TYPE
   CP $02                    ;INTEGER?
-  JP NZ,NTINTG              ;NO
+  JR NZ,NTINTG              ;NO
   LD HL,(FACCU)             ;GET IT
   LD A,H                    ;GET HIGH PART
   OR A                      ;IS IT ZERO?
   LD A,$02                  ;RESTORE INT VALTYP
-  JP NZ,NTINTG              ;THEN ISNT SINGLE BYTE INT
+  JR NZ,NTINTG              ;THEN ISNT SINGLE BYTE INT
   LD A,L                    ;GET LOW BYTE
   LD H,L                    ;GET LOW BYTE IN HIGH BYTE TO STORE
   LD L,$0F                  ;GET CONSTANT FOR 1 BYTE INTS
   CP $0A                    ;IS IT TOO BIG FOR A SINGLE BYTE CONSTANT?
-  JP NC,TSTNUM_2            ;TOO BIG, USE SINGLE BYTE INT
+  JR NC,TSTNUM_2            ;TOO BIG, USE SINGLE BYTE INT
   ADD A,ONECON              ;MAKE SINGLE BYTE CONSTANT
-  JP POPSTF                 ;POP H & STUFF AWAY CHAR
+  JR POPSTF                 ;POP H & STUFF AWAY CHAR
   
 NTINTG:
   PUSH AF                   ;SAVE FOR LATER
@@ -3689,7 +3693,7 @@ NTINTG:
   CALL KRNSAV               ;SAVE THE TOKEN
   LD HL,FACCU               ;GET START POINTER
   CALL GETYPR               ;SET CC'S ON VALTYPE
-  JP C,NTDBL                ;IF NOT DOUBLE, START MOVING AT FACLO
+  JR C,NTDBL                ;IF NOT DOUBLE, START MOVING AT FACLO
   LD HL,FACLOW              ;DOUBLE, START MOVING AT DFACLO
 NTDBL:
   POP AF                    ;RESTORE COUNT OF BYTES TO MOVE
@@ -3700,7 +3704,7 @@ TSTNUM_7:
   POP AF                    ;GET BACK COUNT
   INC HL                    ;BUMP POINTER INTO FAC
   DEC A                     ;MOVE IT DOWN
-  JP NZ,TSTNUM_7            ;KEEP MOVING IT
+  JR NZ,TSTNUM_7            ;KEEP MOVING IT
   POP HL                    ;GET BACK SAVED TEXT POINTER
   JP NXTCHR                 ;KEEP LOOPING
 
@@ -3710,12 +3714,12 @@ SRCSP2:
   INC DE                  ; MOVE POINTER AHEAD
   LD A,(DE)               ; GET BYTE FROM TABLE
   AND $7F                 ; MASK OFF HIGH BIT
-  JP Z,NOTRS5             ; IF END OF TABLE, STUFF AWAY, DONT CHANGE DONUM
+  JR Z,NOTRS5             ; IF END OF TABLE, STUFF AWAY, DONT CHANGE DONUM
   INC DE                  ; BUMP POINTER
   CP (HL)                 ; IS THIS SPECIAL CHAR SAME AS CURRENT TEXT CHAR?
   LD A,(DE)               ; GET NEXT RESWRD
-  JP NZ,SRCSP2            ; IF NO MATCH, KEEP LOOKING
-  JP NOTRS1               ; FOUND, SAVE AWAY AND SET DONUM=1.
+  JR NZ,SRCSP2            ; IF NO MATCH, KEEP LOOKING
+  JR NOTRS1               ; FOUND, SAVE AWAY AND SET DONUM=1.
 
 ; This entry point is used by the routine at TOKEN_BUILT.
 NTSNGT:
@@ -3727,7 +3731,7 @@ NTSNGT:
   CALL UCASE              ; MAKE CHAR UPPER CASE
   CP 'H'                  ; '&H' HEX CONSTANT?
   LD A,OCTCON             ; Octal Number prefix
-  JP NZ,WUZOCT
+  JR NZ,WUZOCT
   LD A,$0C				  ; Hex Number prefix
 WUZOCT:
   CALL KRNSAV		; Insert during tokenization
@@ -3774,13 +3778,13 @@ KRNVAR:
   INC HL                  ;INCRMENT SOURCE POINTER
   CALL MAKUPL             ;MAKE UPPER CASE (?)
   CALL ISLETTER_A         ;IS IT A LETTER?
-  JP NC,KRNVAR            ;YES, EAT
+  JR NC,KRNVAR            ;YES, EAT
   CP '9'+1                ;DIGIT?
-  JP NC,JKLOOP            ;NO, TOO LARGE
+  JR NC,JKLOOP            ;NO, TOO LARGE
   CP '0'                  
-  JP NC,KRNVAR            ;YES, EAT
+  JR NC,KRNVAR            ;YES, EAT
   CP '.'                  ;IS IT DOT
-  JP Z,KRNVAR             ;YES, DOTS OK IN VAR NAMES
+  JR Z,KRNVAR             ;YES, DOTS OK IN VAR NAMES
 JKLOOP:
   JP NXTCHR               ;(=KLOOP) DONE LOOKING AT VARIABLE NAME
 
@@ -3788,18 +3792,18 @@ JKLOOP:
 NOTRS5:
   LD A,(HL)               ;GET CHAR FROM LINE
   CP ' '                  ;SPACE OR HIGHER ?
-  JP NC,NOTRS1            ;YES = SAVE IT
+  JR NC,NOTRS1            ;YES = SAVE IT
   CP $09                  ;TAB ?
-  JP Z,NOTRS1             ;YES = THAT'S OK
+  JR Z,NOTRS1             ;YES = THAT'S OK
   CP $0A                  ;ALSO ALLOW...
-  JP Z,NOTRS1             ;...LINE FEEDS
+  JR Z,NOTRS1             ;...LINE FEEDS
   LD A,' '                ;FORCE REST TO SPACES
 ; This entry point is used by the routine at TSTNUM.
 NOTRS1:
   PUSH AF                 ;SAVE THIS CHAR
   LD A,(DONUM)            ;GET NUMBER OK FLAG
   INC A                   ;SEE IF IN A VARIABLE NAME.
-  JP Z,NOTRES_4           ;IF SO & SPECIAL CHAR SEEN, RESET DONUM
+  JR Z,NOTRES_4           ;IF SO & SPECIAL CHAR SEEN, RESET DONUM
   DEC A                   ;OTHERWISE LEAVE DONUM UNCHANGED.
 NOTRES_4:
   JP NOTRS6
@@ -3813,11 +3817,11 @@ BAKSP:
   DEC HL                  ;POINT TO PREVIOUS CHAR
   LD A,(HL)               ;GET THE CHAR
   CP ' '                  ;A SPACE?
-  JP Z,BAKSP              ;YES, KEEP BACKING UP
+  JR Z,BAKSP              ;YES, KEEP BACKING UP
   CP $09                  ;TAB?
-  JP Z,BAKSP              ;YES, BACK UP
+  JR Z,BAKSP              ;YES, BACK UP
   CP $0A                  ;LF?
-  JP Z,BAKSP
+  JR Z,BAKSP
   INC HL                  ;POINT TO CHAR AFTER LAST NON-SPACE
   RET                     ;ALL DONE.
 
@@ -3842,9 +3846,7 @@ __FOR:
   CALL SYNCHR
   DEFB TK_EQUAL           ; Token code for '='          SKIP OVER ASSIGNMENT "="
   PUSH DE                 ;SAVE THE VARIABLE POINTER
-  EX DE,HL                ;SAVE THE LOOP VARIABLE IN TEMP
-  LD (TEMP),HL            ;FOR USE LATER ON
-  EX DE,HL
+  LD (TEMP),DE            ;SAVE THE LOOP VARIABLE IN TEMP FOR USE LATER ON
   LD A,(VALTYP)           ; Get data type
   PUSH AF                 ;REMEMBER THE LOOP VARIABLE TYPE
   CALL EVAL               ;GET THE START VALUE
@@ -3863,7 +3865,7 @@ __FOR:
   ADD HL,SP               ; Point to it
 FORSLP:
   CALL LOKFOR             ; Look for existing "FOR" block        MUST HAVE VARIABLE POINTER IN [D,E]
-  JP NZ,FORFND            ; IF NO MATCHING ENTRY, DON'T ELIMINATE ANYTHING
+  JR NZ,FORFND            ; IF NO MATCHING ENTRY, DON'T ELIMINATE ANYTHING
   ADD HL,BC               ; IN THE CASE OF "FOR" WE ELIMINATE THE MATCHING ENTRY AS WELL AS EVERYTHING AFTER IT
   PUSH DE                 ; SAVE THE TEXT POINTER
   DEC HL                  ; SEE IF END TEXT POINTER OF MATCHING ENTRY
@@ -3877,7 +3879,7 @@ FORSLP:
   CALL DCOMPR             ; Compare the FOR loops                SEE IF THEY MATCH
   POP HL                  ; Restore block address                GET BACK THE STACK POINTER
   POP DE                  ;                                      GET BACK THE TEXT POINTER
-  JP NZ,FORSLP            ; Different FORs - Find another        KEEP SEARCHING IF NO MATCH
+  JR NZ,FORSLP            ; Different FORs - Find another        KEEP SEARCHING IF NO MATCH
   POP DE                  ; Restore code string address          GET BACK THE TEXT POINTER
   LD SP,HL                ; Remove all nested loops              DO THE ELIMINATION
   LD (SAVSTK),HL          ; UPDATE SAVED STACK SINCE A MATCHING ENTRY WAS FOUND
@@ -3920,7 +3922,7 @@ FORFND:
   PUSH HL                 ; Save code string address             SAVE THE TEXT POINTER
   EX DE,HL                ;                                      STEP INTO [H,L]
   CALL ISIGN              ; Test sign for 'STEP'                 THE SIGN OF THE STEP INTO [A]
-  JP FORFND_0             ;                                      FINISH UP THE ENTRY BY PUTTING THE SIGN OF
+  JR FORFND_0             ;                                      FINISH UP THE ENTRY BY PUTTING THE SIGN OF
                           ;                                      THE STEP AND THE DUMMY ENTRIES ON THE STACK
 
 FORFND_SNG:
@@ -3935,7 +3937,7 @@ FORFND_SNG:
   LD A,(HL)               ; Get next byte in code string         GET TERMINATING CHARACTER
   CP TK_STEP              ; See if "STEP" is stated
   LD A,$01                ; Sign of step = 1
-  JP NZ,SAVSTP            ; No STEP given - Default to 1
+  JR NZ,SAVSTP            ; No STEP given - Default to 1
   CALL EVAL_0             ; Jump over "STEP" token and point to step value
   PUSH HL                 ; Save code string address
   CALL __CSNG             ; Get value for 'STEP'
@@ -3951,7 +3953,7 @@ SAVSTP:
   PUSH BC                 ; Save the STEP value in block         PUT VALUE ON BACKWARDS
   PUSH DE                 ;OPPOSITE OF PUSHR
   OR A
-  JP NZ,SAVSTP_0
+  JR NZ,SAVSTP_0
   LD A,$02
 SAVSTP_0:
   LD C,A                  ;[C]=SIGN OF STEP
@@ -4017,7 +4019,7 @@ NEWSTT_0:
   EX DE,HL                ;GET CURRENT TEXT POINTER BACK IN [H,L] TO SAVE BYTES & SPEED
   LD A,(HL)               ;GET CURRENT CHARACTER WHICH TERMINATED THE LAST STATEMENT
   CP ':'                  ; Multi statement line?
-  JP Z,EXEC               ; Yes - Execute it
+  JR Z,EXEC               ; Yes - Execute it
   OR A                    ; End of line?
   JP NZ,SN_ERR            ; No - Syntax error           ;MUST BE A ZERO
   INC HL                  ; Point to address of next line
@@ -4036,7 +4038,7 @@ GONE4:                    ;CHECK POINTER TO SEE IF IT IS ZERO, IF SO WE ARE AT T
   LD (CURLIN),HL          ; Save as current line number      ;SETUP CURLIN WITH THE CURRENT LINE #
   LD A,(TRCFLG)           ; SEE IF TRACE IS ON
   OR A                    ; NON-ZERO MEANS YES
-  JP Z,NO_TRACE           ; SKIP THIS PRINTING
+  JR Z,NO_TRACE           ; SKIP THIS PRINTING
 
   ; If "TRACE" is ON, then print current line number between brackets
   ; [0000] <<<-- print line number being executed
@@ -4116,30 +4118,30 @@ __CHRCKB:
 ;
 CHRGTB_1:
   CP ' '                  ;                                MUST SKIP SPACES
-  JP Z,CHRGTB             ; Skip over spaces               GET ANOTHER CHARACTER
-  JP NC,NOTLFT            ; NC if < "0"                    NOT SPECIAL TRY OTHER POSSIB.
+  JR Z,CHRGTB             ; Skip over spaces               GET ANOTHER CHARACTER
+  JR NC,NOTLFT            ; NC if < "0"                    NOT SPECIAL TRY OTHER POSSIB.
   OR A                    ; Test for zero - Leave carry
   RET Z
   CP OCTCON               ;IS IT INLINE CONSTANT ?
-  JP C,NOTCON             ;NO, SHOULD BE TAB OR LF
+  JR C,NOTCON             ;NO, SHOULD BE TAB OR LF
   CP CONCON               ;ARE WE TRYING TO RE-SCAN A CONSTANT?
-  JP NZ,NTRSCC            ;NO.
+  JR NZ,NTRSCC            ;NO.
   LD A,(CONSAV)           ;GET THE SAVED CONSTANT TOKEN
   OR A                    ;SET NON-ZERO, NON CARRY CC'S
   RET                     ;ALL DONE
 
 NTRSCC:
   CP CONCN2               ;GOING TO SCAN PAST EMBEDDED CONSTANT?
-  JP Z,NTRSC2             ;NO, TRY OTHER CASES
+  JR Z,NTRSC2             ;NO, TRY OTHER CASES
   PUSH AF                 ;SAVE TOKEN TO RETURN
   INC HL                  ;POINT TO NUMBER
   LD (CONSAV),A           ;SAVE CURRENT TOKEN
   SUB INTCON              ;IS IT LESS THAN INTEGER CONSTANT?
-  JP NC,MAKTKN            ;NO, NOT LINE NUMBER CONSTANT
+  JR NC,MAKTKN            ;NO, NOT LINE NUMBER CONSTANT
   SUB ONECON-INTCON       ;LESS THAN EMBEDDED 1 BYTER
-  JP NC,ONEI              ;WAS ONE BYTER
+  JR NC,ONEI              ;WAS ONE BYTER
   CP IN2CON-ONECON        ;IS IT TWO BYTER?
-  JP NZ,FRCINC            ;NOPE, NORMAL INT
+  JR NZ,FRCINC            ;NOPE, NORMAL INT
   LD A,(HL)               ;GET EMBEDED INT
   INC HL                  ;POINT AFTER CONSTANT
 ONEI:
@@ -4162,7 +4164,7 @@ FRCINC:
   LD (CONTXT),HL          ;SAVE POINTER PAST
   DEC HL                  ;BACK TO HIGH BYTE
   LD H,(HL)               ;GET HIGH BYTE
-  JP ONEI2                ;FINISH SCANNING
+  JR ONEI2                ;FINISH SCANNING
 
 ;RESCAN THE TOKEN & RESTORE OLD TEXT PTR
 ; This entry point is used by the routine at OPRND.
@@ -4170,7 +4172,7 @@ _CONFAC:
   CALL CONFAC
 NTRSC2:
   LD HL,(CONTXT)
-  JP __CHRCKB
+  JR __CHRCKB
 
 MAKTKN:                   ;CALCULATE VALTYPE
   INC A                   ;*2 TO GET VALTYPE 0=2, 1=4, 3=8
@@ -4193,7 +4195,7 @@ MAKTKN:                   ;CALCULATE VALTYPE
   
 NOTCON:
   CP $09                  ;LINE FEED OR TAB?
-  JP NC,CHRGTB            ;YES, EAT.
+  JR NC,CHRGTB            ;YES, EAT.
 NOTLFT:
   CP '0'                  ;ALL CHARACTERS GREATER THAN "9" HAVE RETURNED, SO SEE IF NUMERIC
   CCF                     ;MAKE NUMERICS HAVE CARRY ON
@@ -4212,11 +4214,11 @@ NUMCON:
 CONFAC:
   LD A,(CONSAV)            ;GET CONSTANT TOKEN
   CP LINCON+1              ;LINE# CONSTANT? (ERL=#)
-  JP NC,NTLINE             ;NO
+  JR NC,NTLINE             ;NO
   CP PTRCON                ;LINE POINTER CONSTANT?
-  JP C,NTLINE              ;NO
+  JR C,NTLINE              ;NO
   LD HL,(CONLO)            ;GET VALUE
-  JP NZ,FLTLIN             ;MUST BE LINE NUMBER, NOT POINTER
+  JR NZ,FLTLIN             ;MUST BE LINE NUMBER, NOT POINTER
   INC HL                   ;POINT TO LINE #
   INC HL
   INC HL
@@ -4231,7 +4233,7 @@ NTLINE:
   LD A,(CONTYP)            ;GET SAVED CONSTANT VALTYP
   LD (VALTYP),A            ;SAVE IN REAL VALTYP
   CP $08                   ;DOUBLE PRECISION ?
-  JP Z,CONFDB              ;YES
+  JR Z,CONFDB              ;YES
   LD HL,(CONLO)            ;GET LOW TWO BYTES OF FAC
   LD (FACCU),HL            ;SAVE THEM
   LD HL,(CONLO+2)          ;GET NEXT TWO BYTES
@@ -4273,7 +4275,7 @@ DEFCON:
   LD B,A                  ;ASSUME IT WILL BE THE FINAL OFFSET
   CALL CHRGTB             ;GET THE POSSIBLE DASH
   CP TK_MINUS             ;(token code for '-'): A RANGE ARGUMENT? ; 
-  JP NZ,NOTRNG            ;IF NOT, JUST ONE LETTER
+  JR NZ,NOTRNG            ;IF NOT, JUST ONE LETTER
   CALL CHRGTB             ;GET THE FINAL POSITION
   CALL CHKLTR             ;CHECK FOR A LETTER
   RET C                   ;GIVE A SYNTAX ERROR IF IMPROPER
@@ -4293,13 +4295,13 @@ LPDCHG:
   LD (HL),E               ;MODIFY THE DEFAULT TABLE
   INC HL                  
   DEC A                   ;COUNT DOUNT THE NUMBER OF CHANGES TO MAKE
-  JP NZ,LPDCHG            
+  JR NZ,LPDCHG            
   POP HL                  ;GET BACK THE TEXT POINTER
   LD A,(HL)               ;GET LAST CHARACTER
   CP ','                  ;IS IT A COMMA?
   RET NZ                  ;IF NOT STATEMENT SHOULD HAVE ENDED
   CALL CHRGTB             ;OTHERWISE SET UP TO SCAN NEW RANGE
-  JP DEFCON
+  JR DEFCON
 
 ; Get subscript
 ;
@@ -4339,9 +4341,7 @@ FC_ERR:
 LNUM_PARM:
   LD A,(HL)             ;GET CHAR FROM MEMORY
   CP '.'                ;IS IT CURRENT LINE SPECIFIER
-  EX DE,HL              ;SAVE TEXT POINTER
-  LD HL,(DOT)           ;GET CURRENT LINE #
-  EX DE,HL              ;GET BACK TEXT POINTER
+  LD DE,(DOT)           ;GET CURRENT LINE #
   JP Z,CHRGTB           ;ALL DONE.
 
 ; Get specified line number
@@ -4367,14 +4367,12 @@ ATOH:
 ATOH2:
   CALL CHRGTB           ;FETCH CHAR (GOBBLE LINE CONSTANTS)
   CP LINCON             ;$0E: EMBEDDED LINE CONSTANT?
-  JP Z,LINGT3           ;YES, RETURN DOUBLE BYTE VALUE
+  JR Z,LINGT3           ;YES, RETURN DOUBLE BYTE VALUE
   CP PTRCON             ;$0D: ALSO CHECK FOR POINTER
 
 ; This entry point is used by the routines at _LINE2PTR and SCNPT2.
 LINGT3:
-  EX DE,HL              ;SAVE TEXT PTR IN [D,E]
-  LD HL,(CONLO)         ;GET EMBEDDED LINE #
-  EX DE,HL              ;RESTORE TEXT PTR.
+  LD DE,(CONLO)         ;GET EMBEDDED LINE #
   JP Z,CHRGTB           ;EAT FOLLOWING CHAR
   XOR A
   LD (CONSAV),A
@@ -4388,7 +4386,7 @@ GTLNLP:               ;a.k.a. MORLIN
   PUSH AF             ; Save digit
   LD HL,65529/10      ; Largest number 65529         ;SEE IF THE LINE # IS TOO BIG
   CALL DCOMPR         ; Compare HL with DE.
-  JP C,POPHSR         ; YES, DON'T SCAN ANY MORE DIGITS IF SO.  FORCE CALLER TO SEE DIGIT AND GIVE SYNTAX ERROR
+  JR C,POPHSR         ; YES, DON'T SCAN ANY MORE DIGITS IF SO.  FORCE CALLER TO SEE DIGIT AND GIVE SYNTAX ERROR
                       ; CAN'T JUST GO TO SYNTAX ERROR BECAUSE OF NON-FAST RENUM WHICH CAN'T TERMINATE
   LD H,D              ;SAVE [D,E]
   LD L,E
@@ -4403,7 +4401,7 @@ GTLNLP:               ;a.k.a. MORLIN
   ADD HL,DE		      ; Add to number                   ;ADD THE NEW DIGIT
   EX DE,HL            ; Number to DE
   POP HL              ; Restore code string address     ;GET BACK TEXT POINTER
-  JP GTLNLP           ; Go to next character
+  JR GTLNLP           ; Go to next character
   
 POPHSR:
   POP AF              ;GET OFF TERMINATING DIGIT
@@ -4414,7 +4412,7 @@ POPHSR:
 __RUN:
   JP Z,RUN_FST        ; RUN from start if just RUN   ;NO LINE # ARGUMENT
   CP LINCON           ;LINE NUMBER CONSTANT?
-  JP Z,__RUN_0        ;YES
+  JR Z,__RUN_0        ;YES
   CP PTRCON           ;LINE POINTER (RATHER UNLIKELY)
   JP NZ,_RUN_FILE
 
@@ -4424,7 +4422,7 @@ __RUN_0:
   CALL CLEARC          ; Initialise variables      ;CLEAN UP -- RESET THE STACK, DATPTR,VARIABLES ...
                                                    ;[H,L] IS THE ONLY THING PRESERVED
   LD BC,NEWSTT         ; Execution driver loop
-  JP RUNLIN            ; RUN from line number      ;PUT "NEWSTT" ON AND FALL INTO "GOTO"
+  JR RUNLIN            ; RUN from line number      ;PUT "NEWSTT" ON AND FALL INTO "GOTO"
 
 ; 'GOSUB' BASIC command
 ;
@@ -4453,7 +4451,7 @@ __GOSUB:
   PUSH AF                 ; Save token                       ;PUT GOSUB TOKEN ON THE STACK
   INC SP                  ; Don't save flags                 ;THE GOSUB TOKEN TAKES ONLY ONE BYTE
   PUSH BC                 ; Save return address              ;SAVE NEWSTT ON STACK
-  JP __GOTO_0                                               ;HAVE NOW GRAB LINE # PROPERLY
+  JR __GOTO_0                                               ;HAVE NOW GRAB LINE # PROPERLY
   
 ; This entry point is used by the routine at __RUN.
 RUNLIN:                                            ; CONTINUE WITH SUBROUTINE
@@ -4488,7 +4486,7 @@ __GOTO_0:
   CALL C,SRCHLP           ; Line is after current line         ; SEARCH FROM THIS POINT
   CALL NC,SRCHLN          ; Line is before current line        ; SEARCH FROM THE BEGINNING
                                                                ; -- ACTUALLY SEARCH AGAIN IF ABOVE SEARCH FAILED
-  JP NC,UL_ERR            ; Err $08 - "Undefined line number"  ;LINE NOT FOUND, DEATH
+  JR NC,UL_ERR            ; Err $08 - "Undefined line number"  ;LINE NOT FOUND, DEATH
   DEC BC                  ; Incremented after                  ;POINT TO ZERO AT END OF PREVIOUS LINE
   LD A,PTRCON             ;POINTER CONSTANT
   LD (PTRFLG),A           ;SET PTRFLG
@@ -4568,7 +4566,7 @@ __REM_1:
   RET Z                   ; Yes - Exit
   INC HL                  ; Next byte
   CP '"'                  ; Literal string?              ;IS IT A QUOTE?
-  JP Z,NXTSTL             ; Yes - Look for another '"'   ;IF SO TIME TO TRADE
+  JR Z,NXTSTL             ; Yes - Look for another '"'   ;IF SO TIME TO TRADE
 ;
 ; WHEN AN "IF" TAKES A FALSE BRANCH IT MUST FIND THE APPROPRIATE "ELSE" TO START EXECUTION AT.
 ; "DATA" COUNTS THE NUMBER OF "IF"S, IT SEES SO THAT THE "ELSE" CODE CAN MATCH "ELSE"S WITH "IF"S.
@@ -4578,14 +4576,14 @@ __REM_1:
 ; FIX IS TO HAVE FALSIF IGNORE CHANGES IN [D] IF ITS A DATA STATEMENT
 ;
   INC A                   ;FUNCTION TOKEN?
-  JP Z,__REM_1            ;THEN IGNORE FOLLOWING FN NUMBER
+  JR Z,__REM_1            ;THEN IGNORE FOLLOWING FN NUMBER
   SUB TK_IF+1             ;IS IT AN "IF"
-  JP NZ,__REM_0           ;IF NOT, CONTINUE ON
+  JR NZ,__REM_0           ;IF NOT, CONTINUE ON
   CP B                    ;SINCE "REM" CAN'T SMASH [D,E] WE HAVE TO BE CAREFUL
                           ;SO ONLY IF B DOESN'T EQUAL ZERO WE INCREMENT D. (THE "IF" COUNT)
   ADC A,D                 ;CARRY ON IF [B] NOT ZERO
   LD D,A                  ;UPDATE [D]
-  JP __REM_0              ; Keep looking
+  JR __REM_0              ; Keep looking
 
 ; Code at $1518
 ; LETCON IS LET ENTRY POINT WITH VALTYP-3 IN [A]
@@ -4593,7 +4591,7 @@ __REM_1:
 LETCON:
   POP AF                  ;GET VALTYPE OFF STACK
   ADD A,$03               ;MAKE VALTYPE CORRECT
-  JP __LET_0              ;CONTINUE
+  JR __LET_0              ;CONTINUE
 
 ; 'LET' BASIC command
 ;
@@ -4602,9 +4600,9 @@ __LET:
   CALL GETVAR             ;GET THE POINTER TO THE VARIABLE NAMED IN TEXT AND PUT IT INTO [D,E]
   CALL SYNCHR
   DEFB TK_EQUAL           ;CHECK FOR "="
-  EX DE,HL                ;MUST SET UP TEMP FOR "FOR"
-  LD (TEMP),HL            ;UP HERE SO WHEN USER-FUNCTIONS
-  EX DE,HL                ;CALL REDINP, TEMP DOESN'T GET CHANGED
+  LD (TEMP),DE            ;MUST SET UP TEMP FOR "FOR"
+                          ;UP HERE SO WHEN USER-FUNCTIONS
+                          ;CALL REDINP, TEMP DOESN'T GET CHANGED
   PUSH DE
   LD A,(VALTYP)           ; Get data type
   PUSH AF                 ; save type         ;CALL REDINP, TEMP DOESN'T GET CHANGED
@@ -4620,7 +4618,7 @@ __LET_1:
   LD A,(VALTYP)           ;GET PRESENT VALTYPE
   CP B                    ;COMPARE THE TWO
   LD A,B                  ;GET BACK CURRENT
-  JP Z,__LET_2            ;VALTYPE ALREADY SET UP, GO!
+  JR Z,__LET_2            ;VALTYPE ALREADY SET UP, GO!
   CALL CHKTYP             ;FORCE VALTPES TO BE [A]'S
 ; This entry point is used by the routine at DOFN.
 LETCN4:
@@ -4628,12 +4626,12 @@ LETCN4:
 __LET_2:
   LD DE,FACCU             ;ASSUME THIS IS WHERE TO START MOVEING
   CP $05                  ;IS IT?   ; (Integer ?)
-  JP C,__LET_3            ;YES
+  JR C,__LET_3            ;YES
   LD DE,FACLOW            ;NO, USE D.P. FAC
 __LET_3:
   PUSH HL                 ;SAVE THE POINTER AT THE VALUE POSITION
   CP $03                  ; String ?
-  JP NZ,LETNUM            ; Numeric - Move value              ;NUMERIC, SO FORCE IT AND COPY
+  JR NZ,LETNUM            ; Numeric - Move value              ;NUMERIC, SO FORCE IT AND COPY
 
   LD HL,(FACCU)           ; Pointer to string entry           ;GET POINTER TO THE DESCRIPTOR OF THE RESULT
   PUSH HL                 ; Save it on stack                  ;SAVE THE POINTER AT THE DESCRIPTOR
@@ -4643,14 +4641,14 @@ __LET_3:
   LD D,(HL)               ; MSB of string address
   LD HL,(TXTTAB)          ; Point to start of program         ;IF THE DATA IS IN BUF, OR IN DISK RANDOM BUFFER, COPY.
   CALL DCOMPR             ; Is string before program?         ;SINCE BUF CHANGES ALL THE TIME
-  JP NC,CRESTR            ; Yes - Create string entry         ;GO COPY, IF DATA REALLY IS IN BUF
+  JR NC,CRESTR            ; Yes - Create string entry         ;GO COPY, IF DATA REALLY IS IN BUF
   LD HL,(STREND)          ; Point to string space             ;SEE IF IT POINTS INTO STRING SPACE
   CALL DCOMPR             ; Is string literal in program?     ;IF NOT DON'T COPY
   POP DE                  ; Restore address of string         ;GET BACK THE POINTER AT THE DESCRIPTOR
-  JP NC,DNTCPY            ; Yes - Set up pointer              ;DON'T COPY LITERALS
+  JR NC,DNTCPY            ; Yes - Set up pointer              ;DON'T COPY LITERALS
   LD HL,DSCTMP            ; Temporary string pool             ;NOW, SEE IF ITS A VARIABLE
   CALL DCOMPR             ; Is string in temporary pool?      ;BY SEEING IF THE DESCRIPTOR IS IN THE TEMPORARY STORAGE AREA (BELOW DSCTMP)
-  JP NC,DNTCPY            ; No - Set up pointer               ;DON'T COPY IF ITS NOT A VARIABLE
+  JR NC,DNTCPY            ; No - Set up pointer               ;DON'T COPY IF ITS NOT A VARIABLE
 
   DEFB $3E                ; "LD A,n" to Mask the next byte
 
@@ -4676,23 +4674,21 @@ LETNUM:
 ; ON..GOTO, ON ERROR GOTO CODE
 __ON:
   CP TK_ERROR             ;"ON...ERROR"?
-  JP NZ,NTOERR            ;NO.
+  JR NZ,NTOERR            ;NO.
   CALL CHRGTB             ;GET NEXT THING
   CALL SYNCHR             
   DEFB TK_GOTO            ;MUST HAVE ...GOTO
   CALL ATOH               ;GET FOLLOWING LINE #
   LD A,D                  ;IS LINE NUMBER ZERO?
   OR E                    ;SEE
-  JP Z,__ON_0             ;IF ON ERROR GOTO 0, RESET TRAP
+  JR Z,__ON_0             ;IF ON ERROR GOTO 0, RESET TRAP
   CALL FNDLN1             ;SEE IF LINE EXISTS (SAVE [H,L] ON STACK)	..Sink HL in stack and get first line number
   LD D,B                  ;GET POINTER TO LINE IN [D,E]
   LD E,C                  ;(LINK FIELD OF LINE)
   POP HL                  ;RESTORE [H,L]
   JP NC,UL_ERR            ;ERROR IF LINE NOT FOUND.. Err $08 - "Undefined line number"
 __ON_0:
-  EX DE,HL                ;GET LINE POINTER IN [H,L]
-  LD (ONELIN),HL          ;SAVE POINTER TO LINE OR ZERO IF 0.
-  EX DE,HL                ;BACK TO NORMAL
+  LD (ONELIN),DE          ;SAVE POINTER TO LINE OR ZERO IF 0.
   RET C                   ;YOU WOULDN'T BELIEVE IT IF I TOLD YOU
   LD A,(ONEFLG)           ;ARE WE IN AN "ON...ERROR" ROUTINE?
   OR A                    ;SET CONDITION CODES
@@ -4708,7 +4704,7 @@ NTOERR:
   LD A,(HL)               ; Get "GOTO" or "GOSUB" token        ;GET THE TERMINATOR BACK
   LD B,A                  ; Save in B                          ;SAVE THIS CHARACTER FOR LATER
   CP TK_GOSUB             ; "GOSUB" token?                     ;AN "ON ... GOSUB" PERHAPS?
-  JP Z,ONGO               ; Yes - Find line number             ;YES, SOME FEATURE USE
+  JR Z,ONGO               ; Yes - Find line number             ;YES, SOME FEATURE USE
   CALL SYNCHR             ; Make sure it's "GOTO"
   DEFB TK_GOTO            ; "GOTO" token                       ;OTHERWISE MUST BE "GOTO"
   DEC HL                  ; Cancel increment                   ;BACK UP CHARACTER POINTER
@@ -4722,7 +4718,7 @@ ONGOLP:
   CP ','                  ; Another line number?          ;A COMMA
   RET NZ                  ; No - Drop through, IF A COMMA DOESN'T DELIMIT THE END OF THE
                           ; CURRENT LINE #, WE MUST BE THE END OF THE LINE
-  JP ONGOLP               ; Yes - loop                    ;CONTINUE GOBBLING LINE #S
+  JR ONGOLP               ; Yes - loop                    ;CONTINUE GOBBLING LINE #S
 
 ; 'RESUME' BASIC command
 __RESUME:
@@ -4745,7 +4741,7 @@ __RESUME:
   LD (DE),A
   LD A,(HL)
   CP TK_NEXT              ;RESUME NEXT?
-  JP Z,RESNXT             ;YUP.
+  JR Z,RESNXT             ;YUP.
                           ;No error, continue
 
 ;__RESUME_0:
@@ -4768,7 +4764,7 @@ __RESUME:
 
   JP NZ,__GOTO_0
   INC A
-  JP RESTXT
+  JR RESTXT
 
 RESNXT:
   CALL CHRGTB             ;MUST TERMINATE
@@ -4786,7 +4782,7 @@ RESTXT:
   RET NZ                  ;GO TO NEWSTT IF JUST "RESUME"
   LD A,(HL)               ;GET ":" OR LINE HEADER
   OR A                    ;SET CC
-  JP NZ,NOTBGL            ;#0 MEANS MUST BE ":"
+  JR NZ,NOTBGL            ;#0 MEANS MUST BE ":"
   INC HL                  ;SKIP HEADER
   INC HL
   INC HL
@@ -4824,18 +4820,16 @@ __ERROR:
 __AUTO:
   LD DE,10                ;ASSUME INITIAL LINE # OF 10
   PUSH DE                 ;SAVE IT
-  JP Z,__AUTO_0           ;IF END OF COMMAND USE 10,10
+  JR Z,__AUTO_0           ;IF END OF COMMAND USE 10,10
   CALL LNUM_PARM          ;GET LINE #, ALLOW USE OF . FOR CURRENT LINE
   EX DE,HL                ;GET TXT PTR IN [D,E]
   EX (SP),HL              ;PUT INIT ON STACK, GET 10 IN [H,L]
-  JP Z,__AUTO_1           ;IF TERMINATOR, USE INC OF 10
+  JR Z,__AUTO_1           ;IF TERMINATOR, USE INC OF 10
   EX DE,HL                ;GET TEXT PTR BACK IN [H,L]
   CALL SYNCHR
   DEFM ","                ;COMMA MUST FOLLOW
-  EX DE,HL                ;SAVE TEXT PTR IN [D,E]
-  LD HL,(AUTINC)          ;GET PREVIOUS INC
-  EX DE,HL                ;GET BACK TEXT PTR; GET IN IN[D,E]
-  JP Z,__AUTO_0           ;USE PREVIOUS INC IF TERMINATOR
+  LD DE,(AUTINC)          ;GET PREVIOUS INC
+  JR Z,__AUTO_0           ;USE PREVIOUS INC IF TERMINATOR
   CALL ATOH               ;GET INC
   JP NZ,SN_ERR            ;SHOULD HAVE FINISHED.
 __AUTO_0:
@@ -4859,7 +4853,7 @@ __IF:
   CP ','                  ; "," GET TERMINATING CHARACTER OF FORMULA
   CALL Z,CHRGTB           ; IF SO SKIP IT
   CP TK_GOTO              ; "GOTO" token?
-  JP Z,IFGO               ; Yes - Get line
+  JR Z,IFGO               ; Yes - Get line
   CALL SYNCHR             ; Make sure it's "THEN"
   DEFB TK_THEN            ; "THEN" token
   DEC HL                  ; Cancel increment
@@ -4867,7 +4861,7 @@ IFGO:
   PUSH HL                 ; SAVE THE TEXT POINTER
   CALL VSIGN              ; Test state of expression        
   POP HL                  ; GET BACK THE TEXT POINTER
-  JP Z,FALSE_IF           ; False - Drop through, HANDLE POSSIBLE "ELSE"
+  JR Z,FALSE_IF           ; False - Drop through, HANDLE POSSIBLE "ELSE"
 DOCOND:
   CALL CHRGTB             ; PICK UP THE FIRST LINE # CHARACTER
   RET Z                   ; Go to NEWSTT (RUNCNT) if end of STMT (RETURN FOR "THEN :" OR "ELSE :")
@@ -4891,10 +4885,10 @@ SKPMRF:
   RET Z                   ;IF SO, NO "ELSE" CLAUSE
   CALL CHRGTB             ;SEE IF WE HIT AN "ELSE"
   CP TK_ELSE
-  JP NZ,SKPMRF            ;NO, STILL IN THE "THEN" CLAUSE
+  JR NZ,SKPMRF            ;NO, STILL IN THE "THEN" CLAUSE
   DEC D                   ;DECREMENT THE NUMBER OF "ELSE"S THAT MUST BE SEEN
-  JP NZ,SKPMRF            ;SKIP MORE IF HAVEN'T SEEN ENOUGH
-  JP DOCOND               ;FOUND THE RIGHT "ELSE" -- GO EXECUTE
+  JR NZ,SKPMRF            ;SKIP MORE IF HAVEN'T SEEN ENOUGH
+  JR DOCOND               ;FOUND THE RIGHT "ELSE" -- GO EXECUTE
 
 
 IF ZXPLUS3
@@ -4914,7 +4908,7 @@ PRINT_AT_0:
   INC E
   LD D,L
   ADD HL,BC
-  JP C,PRINT_AT_0
+  JR C,PRINT_AT_0
   LD A,50
   INC D
   CP D
@@ -4937,7 +4931,7 @@ ENDIF
 __LPRINT:
   LD A,$01                ;SAY NON ZERO
   LD (PRTFLG),A           ;SAVE AWAY
-  JP MRPRNT               ; a.k.a. NEWCHR
+  JR MRPRNT               ; a.k.a. NEWCHR
 
 ; 'PRINT' BASIC command
 __PRINT:
@@ -4979,14 +4973,14 @@ PRNTLP:
   JP Z,__TAB              ; Yes - Do SPC routine          ;THE SPC FUNCTION?
   PUSH HL                 ; Save code string address      ;SAVE THE TEXT POINTER
   CP ','                  ; Comma?                        ;IS IT A COMMA?
-  JP Z,DOCOM              ; Yes - Move to next zone
+  JR Z,DOCOM              ; Yes - Move to next zone
   CP ';'                  ; Semi-colon?                   ;IS IT A ";"
   JP Z,NEXITM             ; Do semi-colon routine
   POP BC                  ; Code string address to BC     ;GET RID OF OLD TEXT POINTER
   CALL EVAL               ; Evaluate expression           ;EVALUATE THE FORMULA
   PUSH HL                 ; Save code string address      ;SAVE TEXT POINTER
   CALL GETYPR             ; Get the number type (FAC)     ;SEE IF WE HAVE A STRING
-  JP Z,PRNTST             ; JP If string type             ;IF SO, PRINT SPECIALY
+  JR Z,PRNTST             ; JP If string type             ;IF SO, PRINT SPECIALY
   CALL FOUT               ; Convert number to text        ;MAKE A NUMBER INTO A STRING
   CALL CRTST              ; Create temporary string       ;MAKE IT  A STRING
   LD (HL),' '             ; Followed by a space           ;PUT A SPACE AT THE END
@@ -4999,36 +4993,36 @@ PRNTLP:
 ; Used by the routine at __PRINT.
 PRNTST:
   CALL ISFLIO             ;DISK OUTPUT?  IF SO, DON'T EVER FORCE A CRLF
-  JP NZ,LINCH2
+  JR NZ,LINCH2
   LD HL,(FACCU)           ;GET THE POINTER
   LD A,(PRTFLG)
   OR A
-  JP Z,ISTTY              ;LPT OR TTY?
+  JR Z,ISTTY              ;LPT OR TTY?
   LD A,(LPTSIZ)           ; GET WIDTH OF PRINTER
   LD B,A                  ; SAVE IN [B]
   INC A                   ; IS IT INFINITE? (255="infinite")
-  JP Z,LINCH2             ; THEN JUST PRINT
+  JR Z,LINCH2             ; THEN JUST PRINT
   LD A,(LPTPOS)           ; Get cursor position
   OR A                    ; DON'T DO A CRLF IF STRING LONGER THAN LINE
-  JP Z,LINCH2             ; LENGTH IF POSITION IS 0
+  JR Z,LINCH2             ; LENGTH IF POSITION IS 0
   ADD A,(HL)              ; Add length of string
   CCF                     ; SET NC IF OVERFLOW ON CHECK
-  JP NC,PRNTNB            ; START ON A NEW LINE
+  JR NC,PRNTNB            ; START ON A NEW LINE
   DEC A                   ; Adjust it
   CP B                    ; Will output fit on this line?
-  JP PRNTNB
+  JR PRNTNB
 
 ISTTY:
   LD A,(LINLEN)           ; Get width of line
   LD B,A                  ; To B
   INC A                   ; NO OVERFLOW LINE WIDTH?
-  JP Z,LINCH2             ; YES
+  JR Z,LINCH2             ; YES
   LD A,(TTYPOS)           ; Get cursor position             ; SEE WHERE WE ARE
   OR A                    ; DON'T DO CRLF
-  JP Z,LINCH2             ; IF ALREADY AT 0 EVEN IF STRING IS LONGER THAT LINE LENGTH
+  JR Z,LINCH2             ; IF ALREADY AT 0 EVEN IF STRING IS LONGER THAT LINE LENGTH
   ADD A,(HL)              ; Add length of string  			; ADD THIS LENGTH
   CCF                     ; SET NC IF OVERFLOW ON CHECK
-  JP NC,PRNTNB            ; (POSSIBLE SINCE STRINGS CAN BE BIG..)
+  JR NC,PRNTNB            ; (POSSIBLE SINCE STRINGS CAN BE BIG..)
   DEC A                   ; Adjust it ACTUALLY EQUAL TO LINE LENGTH IS OK
   CP B                    ; Will output fit on this line?
 
@@ -5041,7 +5035,7 @@ PRNTNB:
 LINCH2:
   CALL PRS1               ; Output string at (HL)             ;PRINT THE NUMBER
   POP HL                  ; Restore code string address
-  JP MRPRNT               ; See if more to PRINT              ;PRINT SOME MORE
+  JR MRPRNT               ; See if more to PRINT              ;PRINT SOME MORE
 
 ; This entry point is used by the routine at __PRINT.
 DOCOM:
@@ -5050,24 +5044,24 @@ DOCOM:
   ADD HL,BC               ;[H,L] POINT AT POSITION
   CALL ISFLIO             ;OUTPUTING INTO A FILE?
   LD A,(HL)               ;IF FILE IS ACTIVE
-  JP NZ,ZONELP 
+  JR NZ,ZONELP 
   LD A,(PRTFLG)           ;OUTPUT TO THE LINE PRINTER?
   OR A                    ;NON-ZERO MEANS YES
-  JP Z,ISCTTY             ;NO, DO TELETYPE COMMA
+  JR Z,ISCTTY             ;NO, DO TELETYPE COMMA
   LD A,(COMMAN)           ; Get comma width   (NLPPOS)
   LD B,A                  ; Save in B
   INC A                   ;TEST
   LD A,(LPTPOS)           ;GET LINE PRINTER POSITION
-  JP Z,ZONELP             ;ALWAYS DO MODULUS IF WIDTH=255
+  JR Z,ZONELP             ;ALWAYS DO MODULUS IF WIDTH=255
   CP B                    ;CHECK IF NO MORE COMMA FIELDS
-  JP CHKCOM               ;USE TELETYPE CHECK
+  JR CHKCOM               ;USE TELETYPE CHECK
 
 ISCTTY:
   LD A,(NCMPOS)           ; Get comma width             ;POSITION BEYOND WHICH THERE ARE NO MORE COMMA FIELDS
   LD B,A                  ; Save in B
   LD A,(TTYPOS)           ; Get current position        ;GET TELETYPE POSITION
   CP $FF                  ;INFINITE WIDTH?
-  JP Z,ZONELP             ;DO MODULUS
+  JR Z,ZONELP             ;DO MODULUS
   ;<- extra code here with MBASIC versions with a "TERMINAL WIDTH" QUESTION
   CP B                    ; Within the limit?
 CHKCOM:
@@ -5077,11 +5071,11 @@ CHKCOM:
 ; a.k.a MORCOM
 ZONELP:
   SUB CLMWID              ; Next zone of 14 characters
-  JP NC,ZONELP            ; Repeat if more zones
+  JR NC,ZONELP            ; Repeat if more zones
   CPL                     ; Number of spaces to output
                           ; WE WANT TO  FILL THE PRINT POSITION OUT TO AN EVEN CLMWID,
                           ; SO WE PRINT CLMWID-[A] MOD CLMWID SPACES
-  JP ASPCS                ; Output them              ;GO PRINT [A]+1 SPACES
+  JR ASPCS                ; Output them              ;GO PRINT [A]+1 SPACES
 
 ; PRINT TAB( or PRINT SPC(
 ;
@@ -5093,7 +5087,7 @@ __TAB:
   POP AF                  ; Restore token               ;SEE IF ITS SPC OR TAB
   PUSH AF                 ; Save token
   CP TK_SPC               ; TK_SPC - Was it "SPC(" ?    ;IF SPACE LEAVE ALONE
-  JP Z,__SPC
+  JR Z,__SPC
   DEC DE                  ;OFFSET BY 1
 __SPC:
   LD A,D
@@ -5103,16 +5097,16 @@ __SPC:
 __TAB_0:
   PUSH HL                 ;SAVE THE TEXT POINTER
   CALL ISFLIO             ;SEE IF GOING TO DISK FILE
-  JP NZ,LNOMOD            ;DONT MOD
+  JR NZ,LNOMOD            ;DONT MOD
   LD A,(PRTFLG)           ;GOING TO PRINTER?
   OR A                    ;SET FLAGS
   LD A,(LPTSIZ)           ;GET SIZE
-  JP NZ,LPTMDF            ;WAS LPT, MOD BY ITS SIZE
+  JR NZ,LPTMDF            ;WAS LPT, MOD BY ITS SIZE
   LD A,(LINLEN)           ;GET THE LINE LENGTH
 LPTMDF:
   LD L,A
   INC A                   ;TEST FOR WIDTH OF 255 (NO FOLDING)
-  JP Z,LNOMOD             ;IF SO, DONT MOD
+  JR Z,LNOMOD             ;IF SO, DONT MOD
   LD H,$00                ;MOD OUT BY LINE LENGTH
   CALL IMOD
   EX DE,HL                ;SET [E] = POSITION TO GO TO 
@@ -5128,27 +5122,27 @@ LNOMOD:
   POP AF                  ; Restore token                    ;GET BACK SPCTK OR TABTK
   SUB TK_SPC              ; Was it "SPC(" ?                  ;WAS IT SPCTK?
   PUSH HL                 ; Save code string address         ;SAVE THE TEXT POINTER
-  JP Z,DOSPC              ; Yes - Do "E" spaces              ;VALUE IN [A]
+  JR Z,DOSPC              ; Yes - Do "E" spaces              ;VALUE IN [A]
   LD BC,$0028             ; (NMLO.C) if file output, SPECIAL PRINT POSITION SHOULD BE FETCHED FROM FILE DATA
   LD HL,(PTRFIL)
   ADD HL,BC               ;[H,L] POINT AT POSITION
   CALL ISFLIO             ;OUTPUTING INTO A FILE?  (IF SO, [PTRFIL] .NE. 0)
   LD A,(HL)               ;IF FILE IS ACTIVE
-  JP NZ,DOSPC             ;DO TAB CALCULATION NOW
+  JR NZ,DOSPC             ;DO TAB CALCULATION NOW
   LD A,(PRTFLG)           ;LINE PRINTER OR TTY?
   OR A                    ;NON-ZERO MEANS LPT
-  JP Z,TTYIST
+  JR Z,TTYIST
   LD A,(LPTPOS)           ; Get current printer position     ;GET LINE PRINTER POSITION
-  JP DOSPC
+  JR DOSPC
 
 TTYIST:
   LD A,(TTYPOS)           ; Get current position        ;GET TELETYPE PRINT POSITION
 DOSPC:
   CPL                     ; Number of spaces to print to   ;PRINT [E]-[A] SPACES
   ADD A,E                 ; Total number to print
-  JP C,ASPCS                                               ;PRINT IF PAST CURRENT
+  JR C,ASPCS                                               ;PRINT IF PAST CURRENT
   INC A
-  JP Z,NEXITM             ;DO NOTHING IF AT CURRENT
+  JR Z,NEXITM             ;DO NOTHING IF AT CURRENT
   CALL OUTDO_CRLF         ;GO TO A NEW LINE
   LD A,E                  ;GET THE POSITION TO GO TO
   DEC A
@@ -5160,8 +5154,8 @@ ASPCS:
   LD A,' '                ; Space                       ;[A]=SPACE
 SPCLP:
   CALL OUTDO              ; Output character in A       ;PRINT [A]
-  DEC B                   ; Count them                  ;DECREMENT THE COUNT
-  JP NZ,SPCLP             ; Repeat if more
+  ;DEC B                   ; Count them                  ;DECREMENT THE COUNT
+  DJNZ SPCLP             ; Repeat if more
 
 ; Move to next item in the PRINT list
 ;
@@ -5239,14 +5233,14 @@ SCNSTR:
   OR A                ;END OF LINE?
   JP Z,SN_ERR         ;ENDING IN STRING IN SUBSCRIPT IS BAD SYNTAX
   CP '"'              ;ONLY OTHER TERMINATOR IS QUOTE
-  JP NZ,SCNSTR        ;CONTINUE UNTIL QUOTE OR 0 IS FOUND
+  JR NZ,SCNSTR        ;CONTINUE UNTIL QUOTE OR 0 IS FOUND
   JP SCNCON           ;CONTINUE MATCHING PARENS SINCE STRING ENDED
 
 ; This entry point is used by the routine at NOTQTI.
 INPBAK:
   POP HL              ;GET RID OF PASS1 DATA POINTER
   POP HL              ;GET RID OF PASS2 DATA POINTER
-  JP RDOIN2           ;GET RID OF PASS2 VARLST POINTER AND RETRY
+  JR RDOIN2           ;GET RID OF PASS2 VARLST POINTER AND RETRY
 
 ;
 ; HERE WHEN THE DATA THAT WAS TYPED IN OR IN "DATA" STATEMENTS
@@ -5280,7 +5274,7 @@ FILSTI:
 ; 'INPUT' BASIC command
 __INPUT:
   CP '#'
-  JP Z,FILSTI             ; "set input channel"
+  JR Z,FILSTI             ; "set input channel"
   CALL SCNSEM             ;SCAN SEMICOLON FOR NO-CR
   LD BC,NOTQTI            ;WHERE TO GO
   PUSH BC                 ;WHEN DONE WITH QUOTED STRING
@@ -5295,11 +5289,11 @@ __INPUT_0:
   CALL QTSTR              ;MAKE THE MESSAGE A STRING
   LD A,(HL)               ;GET CHAR
   CP ','                  ;COMMA?
-  JP NZ,NTICMA            ;NO
+  JR NZ,NTICMA            ;NO
   XOR A                   ;FLAG NOT TO DO IT
   LD (IMPFLG),A
   CALL CHRGTB             ;FETCH NEXT CHAR
-  JP __INPUT_2            ;CONTINUE
+  JR __INPUT_2            ;CONTINUE
 
 NTICMA:
   CALL SYNCHR
@@ -5315,7 +5309,7 @@ NOTQTI:
   PUSH HL                   ; Save code string address
   LD A,(IMPFLG)             ;DO "? "
   OR A
-  JP Z,SUPPRS             ;THEN SUPPRESS "?"
+  JR Z,SUPPRS             ;THEN SUPPRESS "?"
   LD A,'?'                  ;TYPE "?" AND INPUT A LINE OF TEXT    ; Get input with "? " prompt
   CALL OUTDO                ; Output character
   LD A,' '                  ; Space
@@ -5349,9 +5343,9 @@ VARLOP:
   LD A,(HL)                 ;SEE IF IT ENDED ON "("
   DEC HL                    ;RESCAN THE TERMINATOR
   CP '['
-  JP Z,HAVE_ARRAY
+  JR Z,HAVE_ARRAY
   CP '('                    ;ARRAY OR NOT?
-  JP NZ,ENDSCN              ;IF NOT, VARIABLE NAME IS DONE
+  JR NZ,ENDSCN              ;IF NOT, VARIABLE NAME IS DONE
 HAVE_ARRAY:
   INC HL                    ;NOW SCAN THE SUBSCRIPT EXPRESSION
   LD B,$00                  ;INITIALIZE THE PAREN COUNT
@@ -5364,19 +5358,19 @@ SCNCON:
   CP '"'                    ;IS THERE A QUOTED STRING CONSTANT
   JP Z,SCNSTR               ;GO SCAN THE ENDTIRE CONSTANT (MAY CONTAIN PARENS)
   CP '('                    ;ANOTHER LEVEL OF NESTING?
-  JP Z,SCNOPN               ;INCREMENT COUTN AND KEEP SCANNING
+  JR Z,SCNOPN               ;INCREMENT COUTN AND KEEP SCANNING
   CP '['
-  JP Z,SCNCON
+  JR Z,SCNCON
   CP ']'
-  JP Z,SQ_PAREN
+  JR Z,SQ_PAREN
   CP ')'                    ;ONE LESS LEVEL OF PARENS?
-  JP NZ,SCNCON              ;NO, KEEP SCANNING
+  JR NZ,SCNCON              ;NO, KEEP SCANNING
 SQ_PAREN:
-  DEC B                     ;DECREMENT PAREN COUNT. OUT OF SUBSCRIPT?
-  JP NZ,SCNCON              ;IF NOT AT ZERO LEVEL, KEEP SCANNING
+  ;DEC B                     ;DECREMENT PAREN COUNT. OUT OF SUBSCRIPT?
+  DJNZ SCNCON              ;IF NOT AT ZERO LEVEL, KEEP SCANNING
 ENDSCN:
   CALL CHRGTB               ;GET TERMINATING CHARACTER
-  JP Z,OKVLST               ;LAST VARIABLE IN INPUT LIST
+  JR Z,OKVLST               ;LAST VARIABLE IN INPUT LIST
   CP ','                    ;OTHERWISE IT MUST BE A COMMA
   JP NZ,SN_ERR              ;BADLY FORMED INPUT -- SYNTAX ERROR
 OKVLST:
@@ -5403,7 +5397,7 @@ OKVLST:
   EX (SP),HL                ;SAVE THE DATA POINTER <> [H,L]=DATA LIST POINTER
   LD A,(HL)                 ;DID VARIABLE LIST CONTINUE?
   CP ','                    ;MUST HAVE HAD A COMMA
-  JP Z,VARLOP               ;GO CHECK ANOTHER
+  JR Z,VARLOP               ;GO CHECK ANOTHER
   POP HL                    ;GET FINAL DATA POINTER
   DEC HL                    ;SKIP OVER ANY TRAILING SPACES
   CALL CHRGTB
@@ -5416,7 +5410,7 @@ OKVLST:
 ; Used by the routine at FILSTI.
 INPUT_CHANNEL:
   LD (HL),','               ;SETUP COMMA AT BUFMIN
-  JP INPCON
+  JR INPCON
 
 ; 'READ' BASIC command
 __READ:
@@ -5438,7 +5432,7 @@ INPCON:
 ; TERMINATOR -- A , : OR END-OF-LINE
 ;
   EX (SP),HL              ; Get code str' , Save pointer  ;[H,L]=VARIABLE LIST POINTER <> DATA POINTER GOES ON THE STACK
-  JP GTVLUS               ; Get values
+  JR GTVLUS               ; Get values
 
 ; This entry point is used by the routine at LTSTND.
 LOPDT2:
@@ -5458,10 +5452,10 @@ GTVLUS:
   ;SINCE THE DATA LIST POINTER ALWAYS POINTS AT A TERMINATOR LETS READ THE TERMINATOR INTO [A] AND SEE WHAT IT IS
   LD A,(HL)               ; Get next "INPUT"/"DATA" byte
   CP ','                  ; Comma?
-  JP Z,ANTVLU             ; Yes - Get another value       ;A COMMA SO A VALUE MUST FOLLOW
+  JR Z,ANTVLU             ; Yes - Get another value       ;A COMMA SO A VALUE MUST FOLLOW
   LD A,(FLGINP)           ; Is it READ?                   ;SEE WHAT TYPE OF STATEMENT THIS WAS
   OR A
-  JP NZ,FDTLP             ; Yes - Find next DATA stmt     ;SEARCH FOR ANOTHER DATA STATEMENT
+  JR NZ,FDTLP             ; Yes - Find next DATA stmt     ;SEARCH FOR ANOTHER DATA STATEMENT
 
 ;THE DATA NOW STARTS AT THE BEGINNING OF THE BUFFER
 ;AND QINLIN LEAVES [H,L]=BUF
@@ -5483,17 +5477,17 @@ SCNVAL:
 ; IF NUMERIC, USE FIN TO GET IT
 ; ONLY THE VARAIBLE TYPE IS CHECKED SO AN UNQUOTED STRING CAN BE ALL DIGITS
 ;
-  JP NZ,INPBIN            ; If numeric, convert to binary
+  JR NZ,INPBIN            ; If numeric, convert to binary
 
   CALL CHRGTB             ; Get next character
   LD D,A                  ; Save input character            ;ASSUME QUOTED STRING
   LD B,A                  ; Again                           ;SETUP TERMINATORS
   CP '"'                  ; Start of literal sting?         ;QUOTE ?
-  JP Z,STRENT             ; Yes - Create string entry       ;TERMINATORS OK
+  JR Z,STRENT             ; Yes - Create string entry       ;TERMINATORS OK
   LD A,(FLGINP)           ; "READ" or "INPUT" ?             ;INPUT SHOULDN'T TERMINATE ON ":"
   OR A                                                      ;SEE IF READ OR INPUT
   LD D,A                  ; Save 00 if "INPUT"              ;SET D TO ZERO FOR INPUT
-  JP Z,ITMSEP             ; "INPUT" - End with 00
+  JR Z,ITMSEP             ; "INPUT" - End with 00
   LD D,':'                ; "DATA" - End with 00 or ":"     ;UNQUOTED STRING TERMINATORS
 ITMSEP:
   LD B,','                ; ARE COLON AND COMMA
@@ -5538,7 +5532,7 @@ INPBIN:
 LTSTND:
   DEC HL                  ; DEC 'cos GETCHR INCs
   CALL CHRGTB             ; Get next character
-  JP Z,MORDT              ; End of line - More needed?
+  JR Z,MORDT              ; End of line - More needed?
   CP ','                  ; Another value?
   JP NZ,TRMNOK            ; No - Bad input           ;ENDED PROPERLY?
 
@@ -5546,7 +5540,7 @@ MORDT:
   EX (SP),HL              ; Get code string address
   DEC HL                  ; DEC 'cos GETCHR INCs     ;LOOK AT TERMINATOR
   CALL CHRGTB             ; Get next character       ;AND SET UP CONDITION CODES
-  JP NZ,LOPDT2            ; More needed - Get it     ;NOT ENDING, CHECK FOR COMMA AND GET
+  JR NZ,LOPDT2            ; More needed - Get it     ;NOT ENDING, CHECK FOR COMMA AND GET
                                                      ;ANOTHER VARIABLE TO FILL WITH DATA
   POP DE                  ; Restore DATA pointer     ;POP OFF THE POINTER INTO DATA
   LD A,(FLGINP)           ; "READ" or "INPUT" ?      ;FETCH THE STATEMENT TYPE FLAG
@@ -5573,7 +5567,7 @@ MORDT:
 FDTLP:
   CALL __DATA             ; Get next statement
   OR A                    ; End of line?
-  JP NZ,FANDT             ; No - See if DATA statement
+  JR NZ,FANDT             ; No - See if DATA statement
   INC HL
   LD A,(HL)               ; End of program?
   INC HL
@@ -5584,13 +5578,11 @@ FDTLP:
   LD E,(HL)               ; LSB of line number                    ;GET DATA LINE #
   INC HL
   LD D,(HL)               ; MSB of line number
-  EX DE,HL
-  LD (DATLIN),HL          ; Set line of current DATA item
-  EX DE,HL                ;RESTORE TEXT POINTER
+  LD (DATLIN),DE          ; Set line of current DATA item
 FANDT:
   CALL CHRGTB             ; Get next character               ;GET THE STATEMENT TYPE
   CP TK_DATA              ; "DATA" token                     ;IS IS "DATA"?
-  JP NZ,FDTLP             ; No "DATA" - Keep looking         ;NOT DATA SO LOOK SOME MORE
+  JR NZ,FDTLP             ; No "DATA" - Keep looking         ;NOT DATA SO LOOK SOME MORE
   JP ANTVLU               ; Found - Convert input            ;CONTINUE READING
 
 ; Routine at 6670
@@ -5617,7 +5609,7 @@ FANDT:
 FRMEQL:
   CALL SYNCHR
   DEFB TK_EQUAL       ; Token code for '='       ;CHECK FOR EQUAL SIGN
-  JP EVAL                                            ;EVALUATE FORMULA AND RETURN
+  JR EVAL                                            ;EVALUATE FORMULA AND RETURN
 
 ; Routine at 6677
 ;
@@ -5663,10 +5655,10 @@ EVAL3:
   CP TK_GREATER       ; Token code for '>' (lower opr code) ;IS IT AN OPERATOR?
   RET C               ; NO, ALL DONE (THIS CAN RESULT IN OPERATOR APPLICATION OR ACTUAL RETURN)
   CP TK_MINOR+1       ; '<' +1  (higher opr code)           ;SOME KIND OF RELATIONAL?
-  JP C,DORELS                                               ;YES, DO IT
+  JR C,DORELS                                               ;YES, DO IT
   SUB TK_PLUS         ; Token code for '+'                  ;SUBTRAXDCT OFFSET FOR FIRST ARITHMETIC
   LD E,A              ; Coded operator                      ;MUST MULTIPLY BY 3 SINCE OPTAB ENTRIES ARE 3 LONG
-  JP NZ,FOPRND        ; Function - Call it                  ;NOT ADDITION OP
+  JR NZ,FOPRND        ; Function - Call it                  ;NOT ADDITION OP
 
   LD A,(VALTYP)       ; Get data type                       ;SEE IF LEFT PART IS STRING
   CP $03              ; String ?                            ;SEE IF ITS A STRING
@@ -5688,12 +5680,12 @@ FOPRND:
   PUSH BC             ; Save on stack for return            ;PLACE TO RETURN TO AFTER OPERATOR APPLICATION
   LD A,D                                                    ;SEE IF THE OPERATOR IS EXPONENTIATION
   CP $7F              ; '^' as mapped in PRITAB             ;WHICH HAS PRECEDENCE 127
-  JP Z,EVAL_EXPONENT                                        ;IF SO, "FRCSNG" AND MAKE A SPECIAL STACK ENTRY
+  JR Z,EVAL_EXPONENT                                        ;IF SO, "FRCSNG" AND MAKE A SPECIAL STACK ENTRY
   CP $51                                                       ;SEE IF THE OPERATOR IS "AND" OR "OR"
-  JP C,EVAL_BOOL      ; one less than AND as mapped in PRITAB  ;AND IF SO "FRCINT" AND MAKE A SPECIAL STACK ENTRY
+  JR C,EVAL_BOOL      ; one less than AND as mapped in PRITAB  ;AND IF SO "FRCINT" AND MAKE A SPECIAL STACK ENTRY
   AND $FE                                                      ;MAKE 123 AND 122 BOTH MAP TO 122
   CP $7A              ; MOD as mapped in PRITAB                ;MAKE A SPECIAL CHECK FOR "MOD" AND "IDIV"
-  JP Z,EVAL_BOOL                                               ;IF SO, COERCE ARGUMENTS TO INTEGER
+  JR Z,EVAL_BOOL                                               ;IF SO, COERCE ARGUMENTS TO INTEGER
   
 ; THIS CODE PUSHES THE CURRENT VALUE IN THE FAC
 ; ONTO THE STACK, EXCEPT IN THE CASE OF STRINGS IN WHICH IT CALLS
@@ -5750,9 +5742,9 @@ DORELS:
   LD D,$00       ;ASSUME NO RELATION OPS, ALSO SETUP THE HIGH ORDER OF THE INDEX INTO OPTAB
 LOPREL:
   SUB TK_GREATER            ;IS THIS ONE RELATION?
-  JP C,FINREL               ;RELATIONS ALL THROUGH
+  JR C,FINREL               ;RELATIONS ALL THROUGH
   CP TK_MINOR-TK_GREATER+1  ;IS IT REALLY RELATIONAL?
-  JP NC,FINREL              ;NO JUST BIG
+  JR NC,FINREL              ;NO JUST BIG
   CP 1                      ;SET UP BITS BY MAPPING
   RLA                       ;0 TO 1 1 TO 2 AND 2 TO 4
   XOR D                     ;BRING IN THE OLD BITS
@@ -5761,7 +5753,7 @@ LOPREL:
   JP C,SN_ERR               ;DON'T ALLOW TWO OF THE SAME
   LD (TEMP3),HL             ;SAVE CHARACTER POINTER
   CALL CHRGTB               ;GET THE NEXT CANDIDATE
-  JP LOPREL
+  JR LOPREL
 
 ;
 ; FOR EXPONENTIATION WE WANT TO FORCE THE CURRENT VALUE IN THE FAC
@@ -5773,7 +5765,7 @@ EVAL_EXPONENT:              ;COERCE LEFT HAND OPERAND
   CALL PUSHF                ;PLACE TO COERCE RIGHT HAND
   LD BC,POWER               ;OPERAND AND DO EXPONENTIATION
   LD D,$7F                  ;RESTORE THE PRECEDENCE
-  JP EVAL_MORE              ;FINISH ENTRY AND EVALUATE MORE FORMULA
+  JR EVAL_MORE              ;FINISH ENTRY AND EVALUATE MORE FORMULA
 
 ;
 ; FOR "AND" AND "OR" AND "\" AND "MOD" WE WANT TO FORCE THE CURRENT VALUE
@@ -5786,7 +5778,7 @@ EVAL_BOOL:
   POP DE                    ;[D]=PRECEDENCE
   PUSH HL                   ;PUSH THE LEFT HAND OPERAND
   LD BC,DANDOR              ;"AND" AND "OR" DOER
-  JP EVAL_MORE              ;PUSH ON THIS ADDRESS,PRECEDENCE AND CONTINUE EVALUATION
+  JR EVAL_MORE              ;PUSH ON THIS ADDRESS,PRECEDENCE AND CONTINUE EVALUATION
 
 ;
 ; HERE TO BUILD AN ENTRY FOR A RELATIONAL OPERATOR
@@ -5809,11 +5801,11 @@ FINREL:
                             ;AND RELATIONAL BITS AND RETURN THE ANSWER
   PUSH HL                   ;DOES A JMP TO RETAOP WHEN DONE
   CALL GETYPR               ;SEE IF WE HAVE A NUMERIC COMPARE
-  JP NZ,EVAL_NUMERIC        ;YES, BUILD AN APPLOP ENTRY
+  JR NZ,EVAL_NUMERIC        ;YES, BUILD AN APPLOP ENTRY
   LD HL,(FACCU)             ;GET THE POINTER AT THE STRING DESCRIPTOR
   PUSH HL                   ;SAVE IT FOR STRCMP
   LD BC,STRCMP              ;STRING COMPARE ROUTINE
-  JP EVAL_MORE              ;PUSH THE ADDRESS, REGET THE TEXT POINTER
+  JR EVAL_MORE              ;PUSH THE ADDRESS, REGET THE TEXT POINTER
                             ;SAVE THE PRECEDENCE AND SCAN
                             ;MORE OF THE FORMULA
 
@@ -5835,27 +5827,27 @@ APPLOP:
   LD (OPRTYP),A             ;A RAM LOCATION
   LD A,(VALTYP)             ;GET VALTYP OF FAC
   CP B                      ;ARE VALTYPES THE SAME?
-  JP NZ,VALNSM              ;NO
+  JR NZ,VALNSM              ;NO
   CP $02                    ;INTEGER?
-  JP Z,INTDPC               ;YES, DISPATCH!!
+  JR Z,INTDPC               ;YES, DISPATCH!!
   CP $04                    ;SINGLE?
-  JP Z,SNGDPC               ;YES, DISPATCH!!
-  JP NC,DBLDPC              ;MUST BE DOUBLE, DISPATCH!!
+  JR Z,SNGDPC               ;YES, DISPATCH!!
+  JR NC,DBLDPC              ;MUST BE DOUBLE, DISPATCH!!
 VALNSM:
   LD D,A                    ;SAVE IN [D]
   LD A,B                    ;CHECK FOR DOUBLE
   CP $08                    ;PRECISION ENTRY ON THE STACK
-  JP Z,STKDBL               ;FORCE FAC TO DOUBLE
+  JR Z,STKDBL               ;FORCE FAC TO DOUBLE
   LD A,D                    ;GET VALTYPE OF FAC
   CP $08                    ;AND IF SO, CONVERT THE STACK OPERAND
-  JP Z,FACDBL               ;TO DOUBLE PRECISION
+  JR Z,FACDBL               ;TO DOUBLE PRECISION
   LD A,B                    ;SEE IF THE STACK ENTRY IS SINGLE
   CP $04                    ;PRECISION AND IF SO, CONVERT
-  JP Z,STKSNG               ;THE FAC TO SINGLE PRECISION
+  JR Z,STKSNG               ;THE FAC TO SINGLE PRECISION
   LD A,D                    ;SEE IF THE FAC IS SINGLE PRECISION
   CP $03                    ;BLOW UP ON RIGHT HAND STRING OPERAND
   JP Z,TM_ERR               ; Err $0D - "Type mismatch"
-  JP NC,EVAL_FP             ;AND IF SO CONVERT THE STACK TO SINGLE PRECISION
+  JR NC,EVAL_FP             ;AND IF SO CONVERT THE STACK TO SINGLE PRECISION
 
 ;NOTE: THE STACK MUST BE INTEGER AT THIS POINT
 
@@ -5919,10 +5911,10 @@ FACDBL:
   POP AF                   ;POP THE STACK VALUE TYPE INTO [A]
   LD (VALTYP),A            ;PUT IT IN VALTYP FOR THE FORCE ROUTINE
   CP $04                   ;SEE IF ITS SINGLE, SO WE KNOW HOW TO POP THE VALUE OFF
-  JP Z,SNGDBL              ;IT'S SINGLE PRECISION SO DO A POPR / CALL MOVFR
+  JR Z,SNGDBL              ;IT'S SINGLE PRECISION SO DO A POPR / CALL MOVFR
   POP HL                   ;POP OFF THE INTEGER VALUE
   LD (FACCU),HL            ;SAVE IT FOR CONVERSION
-  JP SETDBL                ;SET IT UP
+  JR SETDBL                ;SET IT UP
 
 ;
 ; THIS IS THE CASE WHERE THE STACK IS SINGLE PRECISION
@@ -5936,7 +5928,7 @@ SNGDPC:
   POP DE
 SNGDO:
   LD HL,FLT_OPR            ;SETUP THE DISPATCH ADDRESS FOR THE SINGLE PRECISION OPERATOR ROUTINES
-  JP DODSP                 ;DISPATCH
+  JR DODSP                 ;DISPATCH
 
 ;
 ; THIS IS THE CASE WHERE THE FAC IS SINGLE PRECISION AND THE STACK
@@ -5951,7 +5943,7 @@ EVAL_FP:
   LD (FACCU+2),HL          ;FROM THE STACK
   POP HL
   LD (FACCU),HL
-  JP SNGDO                 ;PERFORM THE OPERATION
+  JR SNGDO                 ;PERFORM THE OPERATION
 
 ;
 ; HERE TO DO INTEGER DIVISION. SINCE WE WANT 1/3 TO BE
@@ -5985,7 +5977,7 @@ OPRND:
   JP Z,ISFUN              ;YES, DO IT
   DEC A                   ;FIX A BACK
   CP TK_PLUS              ;IGNORE "+"
-  JP Z,OPRND              ; ..skip it, we will look the digits
+  JR Z,OPRND              ; ..skip it, we will look the digits
   CP TK_MINUS             ;NEGATION?
   JP Z,MINUS              ; Yes - deal with minus sign
   CP '"'                  ;STRING CONSTANT?
@@ -5996,7 +5988,7 @@ OPRND:
   CP '&'                  ;OCTAL CONSTANT?
   JP Z,OCTCNS
   CP TK_ERR               ;'ERR' token ?
-  JP NZ,NTERC             ;NO, TRY OTHER POSSIBILITIES
+  JR NZ,NTERC             ;NO, TRY OTHER POSSIBILITIES
 
 ; 'ERR' BASIC function
 __ERR:
@@ -6010,7 +6002,7 @@ __ERR:
 ; This entry point is used by the routine at OPRND.
 NTERC:
   CP TK_ERL               ;ERROR LINE NUMBER VARIABLE
-  JP NZ,NTERL             ;NO, TRY MORE THINGS.
+  JR NZ,NTERL             ;NO, TRY MORE THINGS.
 
 ; 'ERL' BASIC function
 __ERL:
@@ -6035,21 +6027,21 @@ IF ZXPLUS3
 ENDIF
 
   CP TK_VARPTR            ;VARPTR CALL?
-  JP NZ,NTVARP            ;NO
+  JR NZ,NTVARP            ;NO
 
 VARPTR:
   CALL CHRGTB             ;EAT CHAR AFTER
   CALL SYNCHR             ;EAT LEFT PAREN
   DEFM "("                
   CP '#'                  ;WANT POINTER TO FILE?
-  JP NZ,NVRFIL            ;NO, MUST BE VARIABLE
+  JR NZ,NVRFIL            ;NO, MUST BE VARIABLE
 
 VARPTR_BUF:
   CALL FNDNUM             ;READ FILE #
   PUSH HL                 ;SAVE TEXT PTR
   CALL GETPTR             ;GET PTR TO FILE
   POP HL                  ;RESTORE TEXT PTR
-  JP VARPTR_0
+  JR VARPTR_0
 
 NVRFIL:
   CALL PTRGET             ;GET ADDRESS OF VARIABLE
@@ -6157,9 +6149,9 @@ OCTCNS:
   CALL CHRGTB           ;GET FIRST CHAR
   CALL UCASE            ;MAKE UPPER IF NESC.
   CP 'O'                ;"&o": OCTAL?
-  JP Z,LOPOCT           ;IF SO, DO IT
+  JR Z,LOPOCT           ;IF SO, DO IT
   CP 'H'                ;"&h": HEX?
-  JP NZ,LOPOC2          ;THEN DO IT
+  JR NZ,LOPOC2          ;THEN DO IT
   LD B,$05              ;INIT DIGIT COUNT
 LOPHEX:
   INC HL                ;BUMP POINTER
@@ -6167,16 +6159,16 @@ LOPHEX:
   CALL UCASE            ;MAKE UPPER CASE
   CALL ISLETTER_A       ;FETCH CHAR, SEE IF ALPHA
   EX DE,HL              ;SAVE [H,L]
-  JP NC,ALPTST          ;YES, MAKE SURE LEGAL HEC
+  JR NC,ALPTST          ;YES, MAKE SURE LEGAL HEC
   CP '9'+1              ;IS IT BIGGER THAN LARGEST DIGIT?
-  JP NC,OCTFIN          ;YES, BE FORGIVING & RETURN
+  JR NC,OCTFIN          ;YES, BE FORGIVING & RETURN
   SUB '0'               ;CONVERT DIGIT, MAKE BINARY
-  JP C,OCTFIN           ;BE FORGIVING IF NOT HEX DIGIT
-  JP NXTHEX             ;ADD IN OFFSET
+  JR C,OCTFIN           ;BE FORGIVING IF NOT HEX DIGIT
+  JR NXTHEX             ;ADD IN OFFSET
 
 ALPTST:
   CP 'F'+1              ;IS IT LEGAL HEX?
-  JP NC,OCTFIN          ;YES, TERMINATE
+  JR NC,OCTFIN          ;YES, TERMINATE
   SUB 'A'-10            ;MAKE BINARY VALUE
 NXTHEX:
   ADD HL,HL             ;SHIFT RIGHT FOUR BITS
@@ -6187,7 +6179,7 @@ NXTHEX:
   LD L,A                ;SAVE BACK
   EX DE,HL              ;GET TEXT POINTER BACK IN [H,L]
   DEC B
-  JP NZ,LOPHEX          ;KEEP EATING
+  JR NZ,LOPHEX          ;KEEP EATING
   JP OV_ERR             ;TOO MANY DIGITS?
   
 LOPOC2:
@@ -6195,7 +6187,7 @@ LOPOC2:
 LOPOCT:
   CALL CHRGTB           ;READ A DIGIT
   EX DE,HL              ;RESULT INTO [H,L]
-  JP NC,OCTFIN          ;OUT OF DIGITS MEANS DONE
+  JR NC,OCTFIN          ;OUT OF DIGITS MEANS DONE
   CP '8'                ;IS THIS AN OCTAL DIGIT
   JP NC,SN_ERR          ;NO, TOO BAD YOU WILL LOSE
   LD BC,OV_ERR          ;WHERE TO GO ON OVERFLOW ERROR
@@ -6212,7 +6204,7 @@ LOPOCT:
   LD C,A
   ADD HL,BC             ;ADD IN THE DIGIT
   EX DE,HL              ;PUT TEXT POINTER BACK IN [H,L]
-  JP LOPOCT             ;SCAN MORE DIGITS
+  JR LOPOCT             ;SCAN MORE DIGITS
 
 OCTFIN:
   CALL MAKINT           ;SAVE AS AN INTEGER
@@ -6227,7 +6219,7 @@ ISFUN:
   LD A,(HL)              ; GET THE ACTUAL TOKEN FOR FN
   SUB $80+ONEFUN         ; MAKE INTO OFFSET  (Is it a function?  -$80-1)
   CP TK_RND-ONEFUN       ; IS IT RND?
-  JP NZ,NTMRND           ; IF NOT NO NEED TO CHECK MONADIC
+  JR NZ,NTMRND           ; IF NOT NO NEED TO CHECK MONADIC
   PUSH HL                ; SAVE TEXT POINTER
   CALL CHRGTB            ; Make sure "(" follows
   CP '('                 ; SEE IF NEXT CHAR IS "("
@@ -6242,7 +6234,7 @@ NTMRND:
   CALL CHRGTB            ; Get next character
   LD A,C                 ; Get adjusted token value           ;LOOK AT FUNCTION #
   CP 2*TK_MID_S-2*ONEFUN+1 ; Adj' LEFT$,RIGHT$ or MID$ ?
-  JP NC,OKNORM            ; No - Do function
+  JR NC,OKNORM            ; No - Do function
 
 ;
 ; MOST FUNCTIONS TAKE A SINGLE ARGUMENT.
@@ -6276,7 +6268,7 @@ NTMRND:
   CALL GETINT            ; Get integer 0-255                  ;[E]=VALUE OF FORMULA
   EX DE,HL               ; Save code string address           ;TEXT POINTER INTO [D,E] <> [H,L]=INT VALUE OF SECOND ARGUMENT
   EX (SP),HL             ; Save integer,HL = adj' token       ;SAVE INT VALUE OF SECOND ARG <> [H,L]=FUNCTION NUMBER
-  JP GOFUNC              ; Jump to string function            ;DISPATCH TO FUNCTION
+  JR GOFUNC              ; Jump to string function            ;DISPATCH TO FUNCTION
 
 ; a.k.a. FNVAL
 OKNORM:
@@ -6291,7 +6283,7 @@ OKNORM:
 ;
   LD A,L                 ;[A]=FUNCTION NUMBER
   CP 2*(TK_SQR-ONEFUN)   ;LESS THAN SQUARE ROOT?        ; Adj' SGN, INT or ABS ?
-  JP C,NOTFRF            ;DON'T FORCE THE ARGUMENT
+  JR C,NOTFRF            ;DON'T FORCE THE ARGUMENT
   CP 2*(TK_ATN-ONEFUN)+1 ;BIGGER THAN ARC-TANGENT?      ; Adj' ABS, SQR, RND, SIN, LOG, EXP, COS, TAN or ATN ?
   PUSH HL                ;SAVE THE FUNCTION NUMBER
   CALL C,__CSNG          ;IF NOT, FORCE FAC TO SINGLE-PRECISION
@@ -6344,7 +6336,7 @@ DOCMP:
   ADD A,$FF               ;MAP 0 TO 0
   SBC A,A                 ;AND ALL OTHERS TO 377
   CALL CONIA              ;CONVERT [A] TO AN INTEGER SIGNED
-  JP RETAPG               ;RETURN FROM OPERATOR APPLICATION PLACE SO THE TEXT POINTER
+  JR RETAPG               ;RETURN FROM OPERATOR APPLICATION PLACE SO THE TEXT POINTER
                           ;WILL GET SET UP TO WHAT IT WAS WHEN LPOPER RETURNED.
 
 ; 'NOT' boolean expression
@@ -6380,7 +6372,7 @@ GETYPR:
 ;
 ; CONTINUATION OF GETYPE RST
 ;
-  JP NC,NCASE        ;SPLIT OFF NO CARRY CASE
+  JR NC,NCASE        ;SPLIT OFF NO CARRY CASE
   SUB $03            ;SET A CORRECTLY
   OR A               ;NOW SET LOGICAL'S OK
   SCF                ;CARRY MUST BE SET
@@ -6412,7 +6404,7 @@ DANDOR:
   LD BC,GIVINT      ;PLACE TO RETURN WHEN DONE
   PUSH BC           ;SAVE ON STACK
   CP $46            ;SET ZERO FOR "OR"
-  JP NZ,NOTOR
+  JR NZ,NOTOR
 
 ; 'OR' boolean expression
 OR:
@@ -6426,7 +6418,7 @@ OR:
 ; This entry point is used by the routine at DANDOR.
 NOTOR:
   CP $50            ;AND?
-  JP NZ,NOTAND
+  JR NZ,NOTAND
 
 ; 'AND' boolean expression
 AND:
@@ -6439,7 +6431,7 @@ AND:
 ; This entry point is used by the routine at OR.
 NOTAND:
   CP $3C            ;XOR?
-  JP NZ,NOTXOR      ;NO
+  JR NZ,NOTXOR      ;NO
 
 ; 'XOR' boolean expression
 XOR:
@@ -6452,7 +6444,7 @@ XOR:
 ; This entry point is used by the routine at AND.
 NOTXOR:
   CP $32            ;EQV?
-  JP NZ,NOTEQV         ;NO
+  JR NZ,NOTEQV         ;NO
 
 ; 'EQV' boolean expression
 ;EQV:
@@ -6503,7 +6495,7 @@ ENDIF
 ; 'LPOS' BASIC command
 __LPOS:
   LD A,(LPTPOS)
-  JP SNGFLI
+  JR SNGFLI
 
 ; 'POS' BASIC instruction
 ; Returns the current cursor position. The leftmost position is 1 for GW-BASIC, while MSX had 0.
@@ -6559,9 +6551,9 @@ SCNUSR:
   CALL CHRGTB         ;GET A CHAR
   LD BC,$0000         ;ASSUME USR0
   CP ONECON+10        ;SINGLE BYTE INT EXPECTED
-  JP NC,NOARGU        ;NO, MUST BE DEFAULTING TO USR0
+  JR NC,NOARGU        ;NO, MUST BE DEFAULTING TO USR0
   CP ONECON           ;IS IT SMALLER THAN ONECON
-  JP C,NOARGU         ;YES, ASSUME TRYING TO DEFAULT TO USR0
+  JR C,NOARGU         ;YES, ASSUME TRYING TO DEFAULT TO USR0
   CALL CHRGTB         ;SCAN PAST NEXT CHAR
   LD A,(CONLO)        ;GET VALUE OF 1 BYTER
   OR A                ;MAKE SURE CARRY IS OFF
@@ -6614,7 +6606,7 @@ DEF_USR:
 ; 'DEF' BASIC instruction
 __DEF:
   CP TK_USR               ;DEFINING THE CALL ADDRESS OF USR ROUTINE?
-  JP Z,DEF_USR            ;YES, DO IT
+  JR Z,DEF_USR            ;YES, DO IT
 
 ; DEF FN<name>[«parameter list>}]=<function definition>
 ;
@@ -6637,7 +6629,7 @@ SCNLIS:
   JP Z,__DATA             ;YES
   CALL SYNCHR
   DEFM ","                ;"," MUST FOLLOW THEN
-  JP SCNLIS
+  JR SCNLIS
 
 ; Routine at 7787
 ;
@@ -6699,14 +6691,14 @@ ASGMOR:
   LD HL,(NXTOPR)          ;REGET THE ARGUMENT LIST POINTER
   LD A,(HL)               ;SEE WHAT COMES AFTER THE ARGUMENT FORMULA
   CP ')'                  ;IS THE ARGUMENT LIST ENDING?
-  JP Z,POPASG             ;MAKE SURE THE ARGUMENT LIST ALSO ENDED
+  JR Z,POPASG             ;MAKE SURE THE ARGUMENT LIST ALSO ENDED
   CALL SYNCHR
   DEFM ","                ;SKIP OVER ARGUMENT COMMA
   PUSH HL                 ;SAVE THE ARGUMENT LIST TEXT POINTER
   LD HL,(TEMP3)           ;GET THE TEXT POINTER INTO THE DEFINTION'S PARAMETER LIST
   CALL SYNCHR             
   DEFM ","                ;SKIP OVER THE PARAMETER LIST COMMA
-  JP ASGMOR               ;AND BIND THE REST OF THE PARAMETERS
+  JR ASGMOR               ;AND BIND THE REST OF THE PARAMETERS
 
 POPAS2:
   POP AF                  ;IF ASSIGNMENT IS SUCESSFUL UPDATE PRMLN2
@@ -6714,7 +6706,7 @@ POPAS2:
 POPASG:
   POP AF                  ;GET THE VALUE TYPE
   OR A
-  JP Z,FINASG             ;ZERO MEANS NO MORE LEFT TO POP AND ASSIGN
+  JR Z,FINASG             ;ZERO MEANS NO MORE LEFT TO POP AND ASSIGN
   LD (VALTYP),A
   LD HL,$0000             ;POINT INTO STACK
   ADD HL,SP               ;TO GET SAVED VALUE
@@ -6815,12 +6807,12 @@ FINVLS:
   JP NZ,SN_ERR            ;THIS IS A CHEAT, SINCE THE LINE NUMBER OF THE ERROR WILL BE
                           ;THE CALLER'S LINE # INSTEAD OF THE DEFINITIONS LINE #
   CALL GETYPR             ;SEE IF THE RESULT IS A STRING
-  JP NZ,NOCPRS            ;WHOSE DESCRIPTOR IS ABOUT TO BE WIPED OUT BECAUSE IT IS SITTING IN PARM1
+  JR NZ,NOCPRS            ;WHOSE DESCRIPTOR IS ABOUT TO BE WIPED OUT BECAUSE IT IS SITTING IN PARM1
                           ;(THIS HAPPENS IT THE FUNCTION IS A PROJECTION FUNCTION ON A STRING ARGUMENT)
   LD DE,DSCTMP            ;DSCTMP IS PAST ALL THE TEMP AREA
   LD HL,(FACCU)           ;GET THE ADDRESS OF THE DESCRIPTOR
   CALL DCOMPR
-  JP C,NOCPRS             ;RESULT IS A TEMP - NO COPY NESC
+  JR C,NOCPRS             ;RESULT IS A TEMP - NO COPY NESC
   CALL STRCPY             ;MAKE A COPY IN DSCTMP
   CALL PUTTMP             ;PUT RESULT IN A TEMP AND MAKE FACLO POINT AT IT
 NOCPRS:
@@ -6876,7 +6868,7 @@ BCTRAL:
 BCTRAN:
   LD A,B
   OR C
-  JP NZ,BCTRAL
+  JR NZ,BCTRAL
   RET
 
 ; Routine at 8157
@@ -6981,7 +6973,7 @@ __WAIT:
   LD E,$00                ;DEFAULT MASK2 TO ZERO
   DEC HL
   CALL CHRGTB             ;SEE IF THE STATEMENT ENDED
-  JP Z,__WAIT_0           ;IF NO THIRD ARGUMENT SKIP THIS
+  JR Z,__WAIT_0           ;IF NO THIRD ARGUMENT SKIP THIS
   CALL SYNCHR
   DEFM ","                ;MAKE SURE THERE IS A ","
   CALL GETINT             ; Get integer 0-255
@@ -6994,7 +6986,7 @@ WAIT_INPORT:
   DEFB $00                ; Current port for 'INP' function
   XOR E                   ;XOR WITH MASK2
   AND D                   ;AND WITH MASK
-  JP Z,__WAIT_1           ;LOOP UNTIL RESULT IS NON-ZERO
+  JR Z,__WAIT_1           ;LOOP UNTIL RESULT IS NON-ZERO
   RET
 					;NOTE: THIS LOOP CANNOT BE CONTROL-C'ED
 					;UNLESS THE WAIT IS BEING DONE ON CHANNEL
@@ -7034,7 +7026,7 @@ __WAIT:
   LD E,$00
   DEC HL
   CALL CHRGTB
-  JP Z,__WAIT_0
+  JR Z,__WAIT_0
   CALL SYNCHR
   DEFM ","
   CALL GETINT             ; Get integer 0-255
@@ -7049,7 +7041,7 @@ __WAIT_1:
 ;  DEFB $00                ; Current port for 'INP' function
   XOR E
   AND D
-  JP Z,__WAIT_1
+  JR Z,__WAIT_1
   RET
 
 ENDIF
@@ -7069,7 +7061,7 @@ ENDIF
 ;
 __WIDTH:
   CP TK_LPRINT            ;WIDTH LPRINT?
-  JP NZ,NOTWLP            ;NO
+  JR NZ,NOTWLP            ;NO
   CALL CHRGTB             ;FETCH NEXT CHAR
   CALL GETINT             ;GET WIDTH
   LD (LPTSIZ),A           ;SAVE IT
@@ -7092,7 +7084,7 @@ ENDIF
 
 __WIDTH_1:
   SUB CLMWID
-  JP NC,__WIDTH_1
+  JR NC,__WIDTH_1
   ADD A,2*CLMWID
   CPL
   INC A
@@ -7133,7 +7125,7 @@ SETIO:
   LD (OTPORT),A           ;SETUP "OUT"
   CALL SYNCHR
   DEFM ","                ;MAKE SURE THERE IS A COMMA
-  JP GETINT               ; Get integer 0-255
+  JR GETINT               ; Get integer 0-255
 ENDIF
 
 ; Load 'A' with the next number in BASIC program
@@ -7216,7 +7208,7 @@ __LIST_0:
   POP HL
   LD A,(HL)               ;GET BYTE FROM LINE
   CP $09                  ;IS IT A TAB?
-  JP Z,__LIST_1           ;THEN DONT PRINT SPACE
+  JR Z,__LIST_1           ;THEN DONT PRINT SPACE
   LD A,' '
   CALL OUTDO              ;PRINT A SPACE AFTER THE LINE #
 __LIST_1:
@@ -7224,7 +7216,7 @@ __LIST_1:
   LD HL,BUF               ;POINT AT THE START OF THE UNPACKED CHARACTERS
   CALL LISPRT             ;PRINT THE LINE
   CALL OUTDO_CRLF         ;PRINT CRLF
-  JP __LIST_0             ;GO BACK FOR NEXT LINE
+  JR __LIST_0             ;GO BACK FOR NEXT LINE
 
 ; Routine at 8435
 ;
@@ -7235,7 +7227,7 @@ LISPRT:
   RET Z                   ;IF =0 THEN END OF LINE
   CALL OUTCH1             ;OUTPUT CHAR AND CHECK FOR LF
   INC HL                  ;INCR POINTER
-  JP LISPRT               ;PRINT NEXT CHAR
+  JR LISPRT               ;PRINT NEXT CHAR
 
 ; This entry point is used by the routines at __LIST and __EDIT.
 DETOKEN_LIST:
@@ -7244,7 +7236,7 @@ DETOKEN_LIST:
   XOR A                   ;SET ON SPECIAL CHAR FOR SPACE INSERTION
   LD (INTFLG),A           ; in other versions DORES, OPRTYP, TEMPA.. are used
   CALL PROCHK             ;ONLY PROCEED IF OK
-  JP PLOOP2               ;START HERE
+  JR PLOOP2               ;START HERE
   
 DETOKEN_NEXT_1:
   INC BC                   ;INCREMENT DEPOSIT PTR.
@@ -7258,26 +7250,26 @@ PLOOP2:
   LD (BC),A                ;SAVE THIS CHAR
   RET Z                    ;IF END OF SOURCE BUFFER, ALL DONE.
   CP OCTCON                ;IS IT SMALLER THAN SMALLEST EMBEDDED CONSTANT?   (Not a number constant prefix ?)
-  JP C,NTEMBL              ;YES, DONT TREAT AS ONE
+  JR C,NTEMBL              ;YES, DONT TREAT AS ONE
   CP DBLCON+1              ;IS IT EMBEDED CONSTANT?
   LD E,A                                                 ;SAVE CHAR IN [E]
-  JP C,PRTVAR              ; JP if control code     	;PRINT LEADING SPACE IF NESC.
+  JR C,PRTVAR              ; JP if control code     	;PRINT LEADING SPACE IF NESC.
 NTEMBL:
   OR A                     ;SET CC'S
   JP M,PLOOPR              ;RESERVED WORD OF SOME KIND
   LD E,A                   ;SAVE CHAR IN [E]
   CP '.'                   ;DOT IS PART OF VAR NAME
-  JP Z,PRTVAR
+  JR Z,PRTVAR
   CALL TSTANM              ;IS CHAR ALPHANUMERIC
-  JP NC,PRTVAR             ;ALPHANUMERIC
+  JR NC,PRTVAR             ;ALPHANUMERIC
   XOR A                    ;MAKE SPECIAL
-  JP DETOKEN_NEXT_6
+  JR DETOKEN_NEXT_6
 PRTVAR:
   LD A,(INTFLG)            ;WHAT DID WE DO LAST?
   OR A                     ;SET CONDITION CODES
-  JP Z,PLOOPG              ;SPECIAL, NEVER INSERT SPACE
+  JR Z,PLOOPG              ;SPECIAL, NEVER INSERT SPACE
   INC A                    ;IN RESERVED WORD?
-  JP NZ,PLOOPG             ;NO
+  JR NZ,PLOOPG             ;NO
   LD A,' '                 ;PUT OUT SPACE BEFORE RESWORD
   LD (BC),A                ;STORE IN BUFFER
   INC BC                   ;INCRMENT POINTER INTO BUFFER
@@ -7289,24 +7281,24 @@ DETOKEN_NEXT_6:
   LD (INTFLG),A
   LD A,E
   CP OCTCON                ;IS IT SMALLER THAN SMALLEST EMBEDDED CONSTANT? (Not a number constant prefix ?)
-  JP C,PLOOPZ           ; ...then JP
+  JR C,PLOOPZ           ; ...then JP
   CP DBLCON+1                   ;IS IT EMBEDED CONSTANT?
   JP C,NUMLIN           ; JP if control code
 PLOOPZ:
   LD (BC),A
-  JP DETOKEN_NEXT_1
+  JR DETOKEN_NEXT_1
 
 PLOOPR:
   INC A                  ;SET ZERO IF FN TOKEN
   LD A,(HL)              ;GET CHAR BACK
-  JP NZ,NTFNTK           ;NOT FUNCTION JUST TREAT NORMALLY
+  JR NZ,NTFNTK           ;NOT FUNCTION JUST TREAT NORMALLY
   INC HL                 ;BUMP POINTER
   LD A,(HL)              ;GET CHAR
   AND $7F                ;TURN OFF HIGH BIT
 NTFNTK:
   INC HL                 ;ADVANCE TO POINT AFTER
   CP TK_APOSTROPHE       ;SINGLE QUOTE TOKEN?
-  JP NZ,NTQTTK           ;NO, JUMP OUT
+  JR NZ,NTQTTK           ;NO, JUMP OUT
   DEC BC                 ;MOVE DEPOSIT PTR BACK OVER :$REM
   DEC BC
   DEC BC
@@ -7319,12 +7311,12 @@ NTQTTK:
   CP TK_ELSE             ;ELSE?
   CALL Z,DCXBRT          ;MOVE DEPOSIT PTR BACK OVER LEADING COLON.
   CP TK_WHILE
-  JP NZ,FNDWRD
+  JR NZ,FNDWRD
   LD A,(HL)
   INC HL
   CP TK_PLUS			; Token for '+'
   LD A,TK_WHILE
-  JP Z,FNDWRD
+  JR Z,FNDWRD
   DEC HL
 FNDWRD:
   PUSH HL                 ;SAVE TEXT PTR.
@@ -7342,34 +7334,34 @@ RESSR1:
 RESSRC:
   LD A,(HL)               ;GET CHAR FROM RESLST
   OR A                    ;SET CC'S
-  JP Z,RESSR3             ;IF END OF THIS CHARS TABLE, GO BACK & BUMP C
+  JR Z,RESSR3             ;IF END OF THIS CHARS TABLE, GO BACK & BUMP C
   INC HL                  ;BUMP SOURCE PTR
   JP P,RESSRC             ;IF NOT END OF THIS RESWRD, THEN KEEP LOOKING
   LD A,(HL)               ;GET PTR TO RESERVED WORD VALUE
   CP B                    ;SAME AS THE ONE WE SEARCH FOR?
-  JP NZ,RESSR1            ;NO, KEEP LOOKING.
+  JR NZ,RESSR1            ;NO, KEEP LOOKING.
   EX DE,HL                ;SAVE FOUND PTR IN [H,L]
   CP TK_USR               ;USR FUNCTION TOKEN?
-  JP Z,NOISPA             ;DONT INSERT SPACE
+  JR Z,NOISPA             ;DONT INSERT SPACE
   CP TK_FN                ;IS IT FUNCTION TOKEN?
 NOISPA:
   LD A,C                  ;GET LEADING CHAR
   POP DE                  ;RESTORE LINE CHAR COUNT
   POP BC                  ;RESTORE DEPOSIT PTR
   LD E,A                  ;SAVE LEADING CHAR
-  JP NZ,NTFNEX            ;NOT "FN" EXPANSION
+  JR NZ,NTFNEX            ;NOT "FN" EXPANSION
   LD A,(INTFLG)           ;SET CC'S ON TEMPA(=INTFLG)
   OR A
   LD A,$00
   LD (INTFLG),A
-  JP MORLNZ
+  JR MORLNZ
 
 NTFNEX:
   CP 'Z'+1                ;WAS IT A SPECIAL CHAR?
-  JP NZ,NTSPCH            ;NON-SPECIAL CHAR
+  JR NZ,NTSPCH            ;NON-SPECIAL CHAR
   XOR A                   ;SET NON-SPECIAL
   LD (INTFLG),A
-  JP MORPUR               ;PRINT IT
+  JR MORPUR               ;PRINT IT
 
 NTSPCH:
   LD A,(INTFLG)           ;WHAT DID WE DO LAST?
@@ -7377,7 +7369,7 @@ NTSPCH:
   LD A,$FF                ;FLAG IN RESERVED WORD
   LD (INTFLG),A           ;CLEAR FLAG
 MORLNZ:
-  JP Z,MORLN0             ;GET CHAR AND PROCEED
+  JR Z,MORLN0             ;GET CHAR AND PROCEED
   LD A,' '                ;PUT SPACE IN BUFFER
   LD (BC),A
   INC BC
@@ -7386,7 +7378,7 @@ MORLNZ:
   
 MORLN0:
   LD A,E
-  JP MORLN1               ;CONTINUE
+  JR MORLN1               ;CONTINUE
 
 MORPUR:
   LD A,(HL)               ;GET BYTE FROM RESWRD
@@ -7401,7 +7393,7 @@ MORLN1:
   OR E                    ;SET CC'S
   JP P,MORPUR             ;END OF RESWRD?
   CP '('+128              ;SPC( OR TAB( ?
-  JP NZ,NTSPCT            ;NO
+  JR NZ,NTSPCT            ;NO
   XOR A                   ;CLEAR FLAG
   LD (INTFLG),A           ;TO INSERT SPACE AFTERWARDS
 NTSPCT:
@@ -7442,10 +7434,10 @@ CONLIN:
   LD A,(CONSAV)           ;GET SAVED CONSTANT TOKEN
   LD E,'O'                ;ASSUME OCTAL CONSTANT
   CP OCTCON               ;OCTAL CONSTANT?
-  JP Z,SAVBAS             ;YES, PRINT IT
+  JR Z,SAVBAS             ;YES, PRINT IT
   CP HEXCON               ;HEX CONSTANT?
   LD E,'H'                ;ASSUME SO.
-  JP NZ,NUMSLN            ;NOT BASE CONSTANT
+  JR NZ,NUMSLN            ;NOT BASE CONSTANT
 SAVBAS:
   LD A,'&'                ;PRINT LEADING BASE INDICATOR
   LD (BC),A               ;SAVE IT
@@ -7461,9 +7453,9 @@ NUMSLN:
   LD A,(CONTYP)     	  ;GET TYPE OF CONSTANT WE ARE
   CP $04                  ;IS IT SINGLE OR DOUBLE PREC?
   LD E,$00                ;NO, NEVER PRINT TRAILING TYPE INDICATOR
-  JP C,TYPSET         
+  JR C,TYPSET         
   LD E,'!'                ;ASSUME SINGLE PREC.
-  JP Z,TYPSET             ;IS CONTYP=4, WAS SINGLE
+  JR Z,TYPSET             ;IS CONTYP=4, WAS SINGLE
   LD E,'#'                ;DOUBLE PREC INDICATOR
 TYPSET:
   LD A,(HL)               ;GET LEADING CHAR
@@ -7473,35 +7465,35 @@ NUMSL2:
   LD A,(HL)               ;GET CHAR FROM NUMBER BUFFER
   INC HL                  ;BUMP POINTER
   OR A                    ;SET CC'S
-  JP Z,NUMDN              ;IF ZERO, ALL DONE.
+  JR Z,NUMDN              ;IF ZERO, ALL DONE.
   LD (BC),A               ;SAVE CHAR IN BUF.
   INC BC                  ;BUMP PTR
   DEC D                   ;SEE IF END OF BUFFER
   RET Z                   ;IF END OF BUFFER, RETURN
   LD A,(CONTYP)           ;GET TYPE OF CONSTANT TO BE PRINTED
   CP $04                  ;TEST FOR SINGLE OR DOUBLE PRECISION
-  JP C,NUMSL2             ;NO, WAS INTEGER
+  JR C,NUMSL2             ;NO, WAS INTEGER
   DEC BC                  ;PICK UP SAVED CHAR
   LD A,(BC)               ;EASIER THAN PUSHING ON STACK
   INC BC                  ;RESTORE TO POINT WHERE IT SHOULD
-  JP NZ,DBLSCN            ;IF DOUBLE, DONT TEST FOR EMBEDED "."
+  JR NZ,DBLSCN            ;IF DOUBLE, DONT TEST FOR EMBEDED "."
   CP '.'                  ;TEST FOR FRACTION  ; $2E
-  JP Z,ZERE               ;IF SINGLE & EMBEDED ., THEN DONT PRINT !   
+  JR Z,ZERE               ;IF SINGLE & EMBEDED ., THEN DONT PRINT !   
 DBLSCN: 
 ; Double Precision specifier (exponential syntax, e.g. -1.09432D-06)                   
   CP 'D'                  ;DOUBLE PREC. EXPONENT?
-  JP Z,ZERE               ;YES, MARK NO VALUE TYPE INDICATOR NESC.
+  JR Z,ZERE               ;YES, MARK NO VALUE TYPE INDICATOR NESC.
 ; Exponential format specifier (e.g. -1.09E-06)
   CP 'E'                  ;SINGLE PREC. EXPONENT?
-  JP NZ,NUMSL2            ;NO, PROCEED
+  JR NZ,NUMSL2            ;NO, PROCEED
 ZERE:
   LD E,$00                ;MARK NO PRINTING OF TYPE INDICATOR
-  JP NUMSL2               ;KEEP MOVING NUMBER CHARS INTO BUF
+  JR NUMSL2               ;KEEP MOVING NUMBER CHARS INTO BUF
   
 NUMDN:
   LD A,E                  ;GET FLAG TO INDICATE WHETHER TO INSERT
   OR A                    ;A "D" AFTER DOUBLE PREC. #
-  JP Z,NOD                ;NO, DONT INSERT IT
+  JR Z,NOD                ;NO, DONT INSERT IT
   LD (BC),A               ;SAVE IN BUFFER
   INC BC                  ;BUMP POINTER
   DEC D                   ;DECRMENT COUNT OF CHARS LEFT IN BUFFER
@@ -7525,7 +7517,7 @@ __DELETE:
   PUSH BC                 ;SAVE POINTER TO START OF DELETION FOR USE BY CHEAD AFTER FINI
   PUSH BC                 ;SAVE POINTER TO START OF 1ST LINE
   CALL SRCHLN             ;FIND THE LAST LINE
-  JP NC,_FCERRG           ;MUST HAVE A MATCH ON THE UPPER BOUND
+  JR NC,_FCERRG           ;MUST HAVE A MATCH ON THE UPPER BOUND
   LD D,H                  ;[D,E] =  POINTER AT THE START OF THE LINE
   LD E,L                  ;BEYOND THE LAST LINE IN THE RANGE
   EX (SP),HL              ;SAVE THE POINTER TO THE NEXT LINE
@@ -7554,7 +7546,7 @@ MLOOP:
   INC BC
   INC DE
   CALL DCOMPR
-  JP NZ,MLOOP             ;DONE COMPACTIFYING?
+  JR NZ,MLOOP             ;DONE COMPACTIFYING?
   LD H,B
   LD L,C
   LD (VARTAB),HL
@@ -7630,20 +7622,20 @@ __RENUM:
   PUSH BC              	;SAVE ON STACK
   LD D,B                ;RESEQ ALL LINES BY SETTING [D,E]=0
   LD E,B
-  JP Z,__RENUM_1        ;IF JUST 'RESEQ' RESEQ 10 BY 10
+  JR Z,__RENUM_1        ;IF JUST 'RESEQ' RESEQ 10 BY 10
   CP ','                ;COMMA
-  JP Z,__RENUM_0        ;DONT USE STARTING # OF ZERO
+  JR Z,__RENUM_0        ;DONT USE STARTING # OF ZERO
   PUSH DE               ;SAVE [D,E]
   CALL LNUM_PARM        ;GET NEW NN
   LD B,D                ;GET IN IN [B,C] WHERE IT BELONGS
   LD C,E
   POP DE                ;GET BACK [D,E]
-  JP Z,__RENUM_1        ;IF EOS, DONE
+  JR Z,__RENUM_1        ;IF EOS, DONE
 __RENUM_0:
   CALL SYNCHR
   DEFM ","              ;EXPECT COMMA
   CALL LNUM_PARM        ;GET NEW MM
-  JP Z,__RENUM_1        ;IF EOS, DONE
+  JR Z,__RENUM_1        ;IF EOS, DONE
   POP AF                ;GET RID OF OLD INC
   CALL SYNCHR
   DEFM ","              ;EXPECT COMMA
@@ -7674,7 +7666,7 @@ __RENUM_1:
   POP AF                ;GET RID OF NEWSTT
   PUSH HL               ;SAVE PTR TO FIRST LINE TO RESEQ.
   PUSH DE               ;SAVE NN ON STACK
-  JP __RENUM_NXT_0
+  JR __RENUM_NXT_0
   
 __RENUM_NXT:
   ADD HL,BC             ;ADD INCREMENT INTO
@@ -7694,13 +7686,13 @@ __RENUM_NXT_0:
   OR E                  ;SET CC'S ON LINK FIELD
   EX DE,HL              ;SEE IF NEXT LINK ZERO
   POP DE                ;GET BACK ACCUM LINE #
-  JP Z,__RENUM_FIN      ;ZERO, DONE
+  JR Z,__RENUM_FIN      ;ZERO, DONE
   LD A,(HL)             ;GET FIRST BYTE OF LINK
   INC HL                ;INC POINTER
   OR (HL)               ;SET CC'S
   DEC HL                ;MOVE POINTER BACK
   EX DE,HL              ;BACK IN [D,E]
-  JP NZ,__RENUM_NXT     ;INC COUNT
+  JR NZ,__RENUM_NXT     ;INC COUNT
 
 __RENUM_FIN:
   PUSH BC               ;SAVE INC
@@ -7715,7 +7707,7 @@ __RENUM_LP:
   LD D,(HL)
   LD A,D
   OR E
-  JP Z,LINE2PTR         ;STOP RESEQING WHEN SEE END OF PGM
+  JR Z,LINE2PTR         ;STOP RESEQING WHEN SEE END OF PGM
   EX DE,HL              ;FLIP LINE PTR, LINK FIELD
   EX (SP),HL            ;PUT LINK ON STACK, GET NEW LINE # OFF
   EX DE,HL              ;PUT NEW LINE # IN [D,E], THIS LINE PTR IN [H,L]
@@ -7727,7 +7719,7 @@ __RENUM_LP:
   ADD HL,BC             ;ADD INC
   EX DE,HL              ;GET NEW LINE # BACK IN [D,E]
   POP HL                ;GET PTR TO NEXT LINE
-  JP __RENUM_LP         ;KEEP RESEQING
+  JR __RENUM_LP         ;KEEP RESEQING
   
 LINE2PTR:
   LD BC,RESTART         ;WHERE TO GO WHEN DONE
@@ -7771,30 +7763,30 @@ SCNEXT:
 ; Line number to pointer
 _LINE2PTR:
   OR A                  ;END OF LINE
-  JP Z,SCNPLN           ;SCAN NEXT LINE
+  JR Z,SCNPLN           ;SCAN NEXT LINE
   LD C,A                ;SAVE [A]
   LD A,(PTRFLG)         ;CHANGE LINE TOKENS WHICH WAY?
   OR A                  ;SET CC'S
   LD A,C                ;GET BACK CURRENT CHAR
-  JP Z,SCNPT2           ;CHANGING POINTERS TO #'S
+  JR Z,SCNPT2           ;CHANGING POINTERS TO #'S
   CP TK_ERROR           ;IS IT ERROR TOKEN?
-  JP NZ,NTERRG          ;NO.
+  JR NZ,NTERRG          ;NO.
   CALL CHRGTB           ;SCAN NEXT CHAR
   CP TK_GOTO            ;ERROR GOTO?
-  JP NZ,_LINE2PTR       ;GET NEXT ONE
+  JR NZ,_LINE2PTR       ;GET NEXT ONE
   CALL CHRGTB           ;GET NEXT CHAR
   CP LINCON             ; Line number prefix:  LINE # CONSTANT?
-  JP NZ,_LINE2PTR       ;NO, IGNORE.
+  JR NZ,_LINE2PTR       ;NO, IGNORE.
   PUSH DE               ;SAVE [D,E]
   CALL LINGT3           ;GET IT
   LD A,D                ;IS IT LINE # ZERO?
   OR E                  ;SET CC'S
-  JP NZ,CHGPTR          ;CHANGE IT TO A POINTER
-  JP SCNEX3             ;YES, DONT CHANGE IT
+  JR NZ,CHGPTR          ;CHANGE IT TO A POINTER
+  JR SCNEX3             ;YES, DONT CHANGE IT
   
 NTERRG:
   CP LINCON             ; Line number prefix: LINE # CONSTANT?
-  JP NZ,SCNEXT          ;NOT, KEEP SCANNING
+  JR NZ,SCNEXT          ;NOT, KEEP SCANNING
   PUSH DE               ;SAVE CURRENT LINE # FOR POSSIBLE ERROR MSG
   CALL LINGT3           ;GET LINE # OF LINE CONSTANT INTO [D,E]
 CHGPTR:                 
@@ -7802,7 +7794,7 @@ CHGPTR:
   CALL SRCHLN           ;TRY TO FIND LINE IN PGM.
   DEC BC                ;POINT TO ZERO AT END OF PREVIOUS LINE
   LD A,PTRCON           ;CHANGE LINE # TO PTR
-  JP C,MAKPTR           ;IF LINE FOUND CHANE # TO PTR
+  JR C,MAKPTR           ;IF LINE FOUND CHANE # TO PTR
   CALL CONSOLE_CRLF     ;PRINT CRLF IF REQUIRED
   LD HL,LINE_ERR_MSG    ;PRINT "Undefined line" MESSAGE
   PUSH DE               ;SAVE LINE #
@@ -7821,7 +7813,7 @@ SCNEX3:
   DEC HL                ;BACKUP POINTER
 
 _SCNEXT:
-  JP SCNEXT             ;KEEP SCANNING
+  JR SCNEXT             ;KEEP SCANNING
 
 ; Message at 9241
 LINE_ERR_MSG:
@@ -7834,7 +7826,7 @@ LINE_ERR_MSG:
 ; Used by the routine at _LINE2PTR.
 SCNPT2:
   CP PTRCON            ;POINTER
-  JP NZ,_SCNEXT        ;NO, KEEP SCANNING
+  JR NZ,_SCNEXT        ;NO, KEEP SCANNING
   PUSH DE              ;SAVE CURRENT LINE #
   CALL LINGT3          ;GET #
   PUSH HL              ;SAVE TEXT POINTER
@@ -7911,7 +7903,7 @@ STRPRN:
   RET Z                ;YES, DONE
   CALL CALTTY          ;PRINT CHAR
   INC HL               ;INCREMENT POINTER
-  JP STRPRN            ;PRINT NEXT CHAR
+  JR STRPRN            ;PRINT NEXT CHAR
 
 ;
 ; CALTTY IS A SPECIAL ROUTINE TO OUTPUT ERROR MESSAGE TO TTY, REGARDLESS OF CURRENT FILE I/O.
@@ -7926,11 +7918,11 @@ CALTTY:
 
 ; 'RANDOMIZE' BASIC command
 __RANDOMIZE:
-  JP Z,__RANDOMIZE_0
+  JR Z,__RANDOMIZE_0
   CALL EVAL
   PUSH HL
   CALL __CINT
-  JP __RANDOMIZE_2
+  JR __RANDOMIZE_2
 __RANDOMIZE_0:
   PUSH HL
 __RANDOMIZE_1:
@@ -7945,7 +7937,7 @@ __RANDOMIZE_1:
   CALL FIN
   LD A,(HL)
   OR A
-  JP NZ,__RANDOMIZE_1
+  JR NZ,__RANDOMIZE_1
   CALL __CINT
 __RANDOMIZE_2:
   LD (RNDX+1),HL
@@ -7966,7 +7958,7 @@ RND_SEED_MSG:
 ; Used by the routine at __WHILE.
 WNDSCN:
   LD C,$1D                ; Err $1D - "WHILE without WEND"  -  SCAN FOR MATCHING WEND THIS IS ERROR IF FAIL
-  JP SCNCNT
+  JR SCNCNT
 ; This entry point is used by the routine at SAVSTP.
 NXTSCN:
   LD C,$1A                ; Err $1A - "FOR Without NEXT"
@@ -7986,14 +7978,14 @@ FNLOP:
   DEC HL               ;** FIX HERE FOR 5.03 CAN'T CALL DATA
 SCANWF:
   CALL CHRGTB          ;TO SKIP TO STATEMENT BECAUSE COULD
-  JP Z,FORTRM          ;HAVE STATEMENT AFTER "THEN"
+  JR Z,FORTRM          ;HAVE STATEMENT AFTER "THEN"
   CP TK_ELSE           ;ELSE STATMENT
-  JP Z,FNNWST          ;THEN ALLOW NEXT OR WEND AFTER IT
+  JR Z,FNNWST          ;THEN ALLOW NEXT OR WEND AFTER IT
   CP TK_THEN           ;SO SCAN USING CHRGET WAITING FOR END
-  JP NZ,SCANWF         ;OF STATEMENT OR $THEN
+  JR NZ,SCANWF         ;OF STATEMENT OR $THEN
 FORTRM:
   OR A                 ;SEE HOW IT ENDED
-  JP NZ,FNNWST         ;JUST NEW STATEMENT -- EXAMINE IT
+  JR NZ,FNNWST         ;JUST NEW STATEMENT -- EXAMINE IT
                        ;OR COULD BE COLON IN STRING BUT NO HARM
                        ;IN NON KANABS (HGHBIT) VERSION SINCE NO RESERVED
                        ;WORDS WILL MATCH THE NEXT CHARACTER
@@ -8007,28 +7999,26 @@ FORTRM:
   LD E,(HL)
   INC HL
   LD D,(HL)
-  EX DE,HL
-  LD (NXTLIN),HL       ;SAVE AS "NEXT" LINE NUMBER
-  EX DE,HL
+  LD (NXTLIN),DE       ;SAVE AS "NEXT" LINE NUMBER
 FNNWST:
   CALL CHRGTB          ;GET THE TYPE OF THE NEXT STATEMENT
   LD A,C               ;GET THE ERROR NUMBER TO SEE WHAT WE ARE
   CP $1A               ;SCANNING FOR
   LD A,(HL)            ;GET BACK THE CHARACTER
-  JP Z,NXTLOK          ;FOR/NEXT SEARCHING
+  JR Z,NXTLOK          ;FOR/NEXT SEARCHING
   CP TK_WHILE          ;ANOTHER WHILE/WEND NEST?
-  JP Z,FORINC
+  JR Z,FORINC
   CP TK_WEND
-  JP NZ,FNLOP
+  JR NZ,FNLOP
   DEC B
-  JP NZ,FNLOP
+  JR NZ,FNLOP
   RET
 
 NXTLOK:
   CP TK_FOR            ;ANOTHER "FOR"?
-  JP Z,FORINC          ;INCREMENT THE FOR COUNT
+  JR Z,FORINC          ;INCREMENT THE FOR COUNT
   CP TK_NEXT           ;END WITH NEXT?
-  JP NZ,FNLOP          ;SKIP OVER THIS STATEMENT
+  JR NZ,FNLOP          ;SKIP OVER THIS STATEMENT
 DECNXT:
   DEC B                ;DECREMENT THE LOOP COUNT
   RET Z
@@ -8036,7 +8026,7 @@ DECNXT:
 ; SCAN  THE VARIABLES LISTED IN A "NEXT" STATEMENT
 ;
   CALL CHRGTB          ;SEE IF THERE IS A NAME
-  JP Z,FORTRM          ;ONLY ONE SO SCAN MORE STATEMENTS
+  JR Z,FORTRM          ;ONLY ONE SO SCAN MORE STATEMENTS
   EX DE,HL             ;SAVE TEXT POINTER IN [D,E]
   LD HL,(CURLIN)       ;SAVE THE CURRENT LINE NUMBER
   PUSH HL
@@ -8049,7 +8039,7 @@ DECNXT:
   DEC HL               ;CHECK TERMINATOR
   CALL CHRGTB
   LD DE,FORTRM
-  JP Z,TRMNXT
+  JR Z,TRMNXT
   CALL SYNCHR
   DEFM ","             ;SHOULD HAVE COMMAS IN BETWEEN
   DEC HL               ;RESCAN FIRST CHARACTER
@@ -8169,7 +8159,7 @@ CLROVC:
 ; FLOATING POINT ADDITION AND SUBTRACTION
 ; ENTRY TO FADD WITH POINTER TO ARG IN (HL)
 
-;
+; a.k.a. ROUND
 ; Used by the routines at __CINT and RNGTST.
 FADDH:
   LD HL,FP_HALF           ;ENTRY TO ADD 1/2
@@ -8180,7 +8170,7 @@ FADDH:
 ; Used by the routines at __RND, __COS and __NEXT.
 FADDS:
   CALL LOADFP             ;GET ARGUMENT INTO THE REGISTERS
-  JP FADD                 ;DO THE ADDITION
+  JR FADD                 ;DO THE ADDITION
 
 
 ;SUBTRACTION	FAC:=ARG-FAC
@@ -8217,7 +8207,7 @@ FADD:
 ;AND ALIGN THE BINARY POINTS OF THE TWO NUMBERS.  THEN WE CAN JUST ADD OR
 ;SUBTRACT THEM (DEPENDING ON THEIR SIGNS) BYTEWISE.
   SUB B                   ; BCDE number larger?             ;CHECK RELATIVE SIZES
-  JP NC,NOSWAP            ; No - Don't swap them            ;IS FAC SMALLER?
+  JR NC,NOSWAP            ; No - Don't swap them            ;IS FAC SMALLER?
   CPL                     ; Two's complement                ;YES, NEGATE SHIFT COUNT
   INC A                   ; FP exponent
   EX DE,HL                                                  ;SWITCH FAC AND REGISTERS, SAVE (DE)
@@ -8253,14 +8243,14 @@ NOSWAP:
   LD HL,FACCU             ; Point to FPREG                  ;SET POINTER TO LO'S
   JP P,MINCDE             ; No - Subtract FPREG from CDE    ;SUBTRACT IF THE SIGNS WERE DIFFERENT
   CALL PLUCDE             ; Add FPREG to CDE                ;ADD THE NUMBERS
-  JP NC,RONDUP            ; No overflow - Round it up       ;ROUND RESULT IF THERE WAS NO OVERFLOW
+  JR NC,RONDUP            ; No overflow - Round it up       ;ROUND RESULT IF THERE WAS NO OVERFLOW
                                                             ;THE MOST IT CAN OVERFLOW IS ONE BIT
   INC HL                  ; Point to exponent               ;THERE WAS OVERFLOW
   INC (HL)                ; Increment it                    ;INCREMENT EXPONENT
   JP Z,OVERR_1            ; Number overflowed - Error
   LD L,$01                ; 1 bit to shift right            ;SHIFT RESULT RIGHT ONE, SHIFT CARRY IN
   CALL SHRITE_1           ; Shift result right
-  JP RONDUP               ; Round it up                     ;ROUND RESULT AND WE ARE DONE
+  JR RONDUP               ; Round it up                     ;ROUND RESULT AND WE ARE DONE
 
 MINCDE:                                                     ;HERE TO SUBTRACT C,D,E,B FROM ((HL)+0,1,2),0
   XOR A                   ; Clear A and carry               ;SUBTRACT NUMBERS, NEGATE UNDERFLOW BYTE
@@ -8302,7 +8292,7 @@ BNRMLP:
   LD B,A                  ; Save bit count                  ;SAVE SHIFT COUNT
   LD A,C                  ; Get MSB                         ;DO WE HAVE 1 BYTE OF ZEROS
   OR A                    ; Is it zero?
-  JP NZ,PNORM             ; No - Do it bit at a time        ;NO, SHIFT ONE PLACE AT A TIME
+  JR NZ,PNORM             ; No - Do it bit at a time        ;NO, SHIFT ONE PLACE AT A TIME
   
   ;THIS LOOP SPEEDS THINGS UP BY SHIFTING 8 PLACES AT ONE TIME
   LD C,D                  ; MSB = NMSB                      ;YES, SHIFT OVER 1 BYTE
@@ -8312,7 +8302,7 @@ BNRMLP:
   LD A,B                  ; Get exponent                    ;UPDATE SHIFT COUNT
   SUB 8                   ; Count 8 bits
   CP -24-8                ; Was number zero?                ;DID WE SHIFT IN 4 BYTES OF ZEROS?
-  JP NZ,BNRMLP            ; No - Keep normalising           ;NO, TRY TO SHIFT OVER 8 MORE
+  JR NZ,BNRMLP            ; No - Keep normalising           ;NO, TRY TO SHIFT OVER 8 MORE
                                                             ;YES, NUMBER WAS ZERO.  FALL INTO ZERO
 
 
@@ -8336,17 +8326,17 @@ NORMAL:
   LD A,H                  ;CHECK FOR CASE OF NORMALIZING A SMALL INT
   OR L
   OR D
-  JP NZ,BNORM_1           ;DO USUAL THING
+  JR NZ,BNORM_1           ;DO USUAL THING
   LD A,C                  ;GET BYTE TO SHIFT
 
 BNORM_0:
   DEC B                   ;DECRMENT SHIFT COUNT        ; Count bits
   RLA                     ;SHIFT LEFT                  ; Shift left
-  JP NC,BNORM_0           ;NORMALIZE LIKE SOB
+  JR NC,BNORM_0           ;NORMALIZE LIKE SOB
   INC B                   ;CORRECT SHIFT COUNT
   RRA                     ;WE DID IT ONE TOO MANY TIMES
   LD C,A                  ;RESULT TO [C]
-  JP BNORM_2              ;ALL DONE
+  JR BNORM_2              ;ALL DONE
 
 BNORM_1:
   DEC B                   ;DECREMENT SHIFT COUNT                        ; Count bits
@@ -8365,12 +8355,12 @@ BNORM_2:
   LD E,H                  ; Save HL in EB                  ;PUT LO'S BACK IN E,B
   LD B,L
   OR A                    ; Any shifting done?             ;CHECK IF WE DID NO SHIFTING
-  JP Z,RONDUP             ; No - Round it up
+  JR Z,RONDUP             ; No - Round it up
   LD HL,FPEXP             ; Point to exponent              ;LOOK AT FAC'S EXPONENT
   ADD A,(HL)              ; Add shifted bits               ;UPDATE EXPONENT
   LD (HL),A               ; Re-save exponent
-  JP NC,ZERO              ; Underflow - Result is zero     ;CHECK FOR UNDERFLOW
-  JP Z,ZERO               ; Result is zero                 ;NUMBER IS ZERO, ALL DONE
+  JR NC,ZERO              ; Underflow - Result is zero     ;CHECK FOR UNDERFLOW
+  JR Z,ZERO               ; Result is zero                 ;NUMBER IS ZERO, ALL DONE
                                                            ;FALL INTO ROUND AND WE ARE DONE
 
 
@@ -8473,13 +8463,13 @@ SCALE:
   LD B,$00                ; Clear underflow                ;ZERO OVERFLOW BYTE
 SCALLP:
   SUB $08                 ; 8 bits (a whole byte)?         ;CAN WE SHIFT IT 8 RIGHT?
-  JP C,SHRITE             ; No - Shift right A bits        ;NO, SHIFT IT ONE PLACE AT A TIME
+  JR C,SHRITE             ; No - Shift right A bits        ;NO, SHIFT IT ONE PLACE AT A TIME
                                                            ;THIS LOOP SPEEDS THINGS UP BY SHIFTING 8 PLACES AT ONE TIME
   LD B,E                  ; <- Shift                       ;SHIFT NUMBER 1 BYTE RIGHT
   LD E,D                  ; <- right
   LD D,C                  ; <- eight
   LD C,$00                ; <- bits                        ;PUT 0 IN HO
-  JP SCALLP               ; More bits to shift             ;TRY TO SHIFT 8 RIGHT AGAIN
+  JR SCALLP               ; More bits to shift             ;TRY TO SHIFT 8 RIGHT AGAIN
 
 ; Shift right number in BCDE
 ;
@@ -8493,15 +8483,15 @@ SHRITE:
   LD A,D                  ;SEE IF THREE LOWS ARE ZERO.
   OR E                    
   OR B                    
-  JP NZ,SHRLP             ;IF SO, DO USUAL.
+  JR NZ,SHRLP             ;IF SO, DO USUAL.
   LD A,C                  ;GET HIGH BYTE TO SHIFT          ; Get MSB
 SHRITE_0:
   DEC L                   ;DONE SHIFTING?
   RET Z                   ;YES, DONE
   RRA                     ;ROTATE ONE RIGHT                ; Shift it right
   LD C,A                  ;SAVE RESULT                     ; Re-save
-  JP NC,SHRITE_0          ;ZAP BACK AND DO NEXT ONE IF NONE
-  JP SHRITE_2             ;CONTINUE SHIFTING
+  JR NC,SHRITE_0          ;ZAP BACK AND DO NEXT ONE IF NONE
+  JR SHRITE_2             ;CONTINUE SHIFTING
 
 SHRLP:
   XOR A                   ; Flag for all done              ;CLEAR CARRY
@@ -8523,7 +8513,7 @@ SHRITE_2:
   LD A,B                  ; Get underflow                  ;SHIFT OVERFLOW BYTE RIGHT
   RRA                     ; Shift right with last bit
   LD B,A                  ; Re-save underflow
-  JP SHRLP                ; More bits to do                ;SEE IF WE ARE DONE
+  JR SHRLP                ; More bits to do                ;SEE IF WE ARE DONE
 
 
 
@@ -8568,7 +8558,7 @@ __LOG:
   CALL __LOG_0
   LD BC,$8031             ; BCDE = Ln(2)
   LD DE,$7218
-  JP FMULT                ;COMPLETE LOG CALCULATION
+  JR FMULT                ;COMPLETE LOG CALCULATION
 
 ;USE HART 2524 CALCULATION
 __LOG_0:
@@ -8633,7 +8623,7 @@ MULT8:
   LD A,(HL)               ; Get LSB of number                ;GET BYTE TO MULTIPLY BY
   INC HL                  ; Point to NMSB                    ;MOVE POINTER TO NEXT BYTE
   OR A                    ; Test LSB
-  JP Z,BYTSFT             ; Zero - shift to next byte        ;ARE WE MULTIPLYING BY ZERO?
+  JR Z,BYTSFT             ; Zero - shift to next byte        ;ARE WE MULTIPLYING BY ZERO?
   PUSH HL                 ; Save address of number           ;SAVE POINTER
   EX DE,HL                                                   ;GET LO'S IN (HL)
   LD E,$08                ; 8 bits to multiply by            ;SET UP A COUNT
@@ -8656,7 +8646,7 @@ MUL8LP:
   RRA                     ; Shift LSB right                ;ROTATE BYTE RIGHT
   LD D,A                  ; Save LSB                       ;SAVE IT
   LD A,C                  ; Get MSB                        ;GET HO
-  JP NC,NOMADD            ; Bit was zero - Don't add       ;DON'T ADD IN NUMBER IF BIT WAS ZERO
+  JR NC,NOMADD            ; Bit was zero - Don't add       ;DON'T ADD IN NUMBER IF BIT WAS ZERO
   PUSH DE                                                  ;SAVE COUNTERS
 
   DEFB $11                ; SMC trick: "LD DE,nn"          ;GET LO'S OF NUMBER TO ADD, THIS IS SET ABOVE
@@ -8689,14 +8679,14 @@ NOMADD:
   RRA                     ; Shift VLSB right
   LD B,A                  ; Re-save VLSB
   AND $10                 ;SEE IF WE ROTATED THRU ST
-  JP Z,NOMADD_0           ;IF NOT DON'T WORRY
+  JR Z,NOMADD_0           ;IF NOT DON'T WORRY
   LD A,B                  ;RE FETCH LO
   OR $20                  ;"OR" IN STICKY
   LD B,A                  ;BACK TO LO
 NOMADD_0:
   DEC E                   ;ARE WE DONE?
   LD A,D                  ;GET NUMBER WE ARE MULTIPLYING BY
-  JP NZ,MUL8LP            ;MULTIPLY AGAIN IF WE ARE NOT DONE
+  JR NZ,MUL8LP            ;MULTIPLY AGAIN IF WE ARE NOT DONE
   EX DE,HL                ;GET LO'S IN (DE)
 
 ; (POP HL / RET)
@@ -8837,7 +8827,7 @@ DIV4:
 L27BB:
   SBC A,$00               ; Count for overflows                             ;SUBTRACT THE CARRY FROM IT
   CCF                                                                       ;SET CARRY TO CORESPOND TO NEXT QUOTIENT BIT
-  JP NC,RESDIV            ; Restore divisor if borrow                       ;GET OLD NUMBER BACK IF WE SUBTRACTED TOO MUCH
+  JR NC,RESDIV            ; Restore divisor if borrow                       ;GET OLD NUMBER BACK IF WE SUBTRACTED TOO MUCH
   LD (DIV4),A             ; Re-save overflow count                          ;UPDATE HIGHEST ORDER
   POP AF                  ; Scrap divisor                                   ;THE SUBTRACTION WAS GOOD
   POP AF                                                                    ;GET PREVIOUS NUMBER OFF STACK
@@ -8863,7 +8853,7 @@ RESDIV:
   LD A,B                  ;FETCH HO OF REMAINDER
   OR H                    ;FETCH HO
   OR L                    ;SEE IF OTHER REMAINDER BITS AND IF SO SET ST
-  JP Z,RESDIV_0           ;IF NOT IGNORE
+  JR Z,RESDIV_0           ;IF NOT IGNORE
   LD A,$20                ;ST BIT
 
 RESDIV_0:
@@ -8893,12 +8883,12 @@ DIV2A:
   LD A,C                  ; Get MSB of quotient             ;ADD ONE TO EXPONENT IF THE FIRST SUBTRACTION
   OR D                    ; Merge NMSB                      ; DID NOT WORK
   OR E                    ; Merge LSB
-  JP NZ,FDIV_0            ; Not done - Keep dividing        ;THIS ISN'T THE CASE
+  JR NZ,FDIV_0            ; Not done - Keep dividing        ;THIS ISN'T THE CASE
   PUSH HL                 ; Save divisor                    ;SAVE PART OF NUMBER
   LD HL,FPEXP             ; Point to exponent               ;GET POINTER TO FAC
   DEC (HL)                ; Divide by 2                     ;DECREMENT EXPONENT
   POP HL                  ; Restore divisor                 ;GET NUMBER BACK
-  JP NZ,FDIV_0            ; Ok - Keep going                 ;DIVIDE MORE IF NO OVERFLOW OCCURED
+  JR NZ,FDIV_0            ; Ok - Keep going                 ;DIVIDE MORE IF NO OVERFLOW OCCURED
   JP ZERO                 ; Overflow error                  ;UNDERFLOW!!
 
 
@@ -8926,7 +8916,7 @@ MULDVA:
 ADDEXP:
   LD A,B                  ; Get exponent of dividend         ;IS NUMBER IN REGISTERS ZERO?
   OR A                    ; Test it
-  JP Z,OVTST3             ; Zero - Result zero               ;IT IS, ZERO FAC AND WE ARE DONE
+  JR Z,OVTST3             ; Zero - Result zero               ;IT IS, ZERO FAC AND WE ARE DONE
   LD A,L                  ; Get add/subtract flag            ;GET ADD OR SUBTRACT FLAG
   LD HL,FPEXP             ; Point to exponent                ;GET POINTER TO EXPONENT
   XOR (HL)                ; Add or subtract it               ;GET EXPONENT
@@ -9156,7 +9146,7 @@ ISIGN:
   OR L                  ;CHECK IF THE NUMBER IS ZERO
   RET Z                 ;IT IS, WE ARE DONE
   LD A,H                ;IT ISN'T, SIGN IS THE SIGN OF H
-  JP ICOMPS             ;GO SET A CORRECTLY
+  JR ICOMPS             ;GO SET A CORRECTLY
 
 
 ; Put FP value on stack
@@ -9258,7 +9248,7 @@ FPTHL:
 ; This entry point is used by the routines at DDIV_SUB and __NEW.
 MOVE:
   LD B,$04                ; 4 bytes to move    ;SET COUNTER
-  JP MOVE1                                     ;CONTINUE WITH THE MOVE
+  JR MOVE1                                     ;CONTINUE WITH THE MOVE
 
 
 ; Copy number value from HL to DE
@@ -9281,8 +9271,8 @@ MOVE1:
   LD (HL),A               ; Save destination      ;PUT IT WHERE IT BELONGS
   INC DE                  ; Next source           ;INCREMENT POINTERS TO NEXT WORD
   INC HL                  ; Next destination
-  DEC B                   ; Count bytes
-  JP NZ,MOVE1             ; Loop if more
+  ;DEC B                   ; Count bytes
+  DJNZ MOVE1             ; Loop if more
   RET
 
 
@@ -9325,7 +9315,7 @@ VMOVFA:
 ; __CINT, RNGTST, __CVD and __CALL.
 VMOVFM:
   LD DE,MOVVFM            ;GET ADDRESS OF LOCATION THAT DOES  ; Copy number value from HL to DEES
-  JP VMVVFM               ; AN "XCHG" AND FALLS INTO MOVE1
+  JR VMVVFM               ; AN "XCHG" AND FALLS INTO MOVE1
 
 
 	;MOVE ANY TYPE VALUE FROM FAC TO MEMORY [(HL)]
@@ -9426,7 +9416,7 @@ ICOMP:
   LD A,H                ;IF NOT, ANSWER IS THE SIGN OF (HL)
   JP M,ICOMPS           ;THEY ARE DIFFERENT
   CP D                  ;THEY ARE THE SAME, COMPARE THE HO'S
-  JP NZ,ICOMP_0         ;GO SET UP A
+  JR NZ,ICOMP_0         ;GO SET UP A
   LD A,L                ;COMPARE THE LO'S
   SUB E
   RET Z                 ;ALL DONE, THEY ARE THE SAME
@@ -9474,11 +9464,11 @@ XDCOMP:
 XDCOMP_0:
   LD A,(DE)             ;GET A BYTE FROM ARG
   SUB (HL)              ;COMPARE IT WITH THE FAC
-  JP NZ,FCOMPD          ;THEY ARE DIFFERENT, GO SET UP A
+  JR NZ,FCOMPD          ;THEY ARE DIFFERENT, GO SET UP A
   DEC DE                ;THEY ARE THE SAME, EXAMINE THE NEXT LOWER
   DEC HL                ; ORDER BYTES
-  DEC B                 ;ARE WE DONE?
-  JP NZ,XDCOMP_0        ;NO, COMPARE THE NEXT BYTES
+  ;DEC B                 ;ARE WE DONE?
+  DJNZ XDCOMP_0        ;NO, COMPARE THE NEXT BYTES
   POP BC                ;THEY ARE THE SAME, GET FCOMPS OFF STACK
   RET                   ;ALL DONE
 
@@ -9519,7 +9509,7 @@ __CINT:
   CALL VMOVFM
   CALL DADD
   CALL CONSD
-  JP __CINT_1
+  JR __CINT_1
 
 __CINT_0:
   CALL FADDH
@@ -9535,10 +9525,10 @@ __CINT_1:
   CALL QINT             ;CONVERT TO INTEGER
   LD A,(FPEXP)
   OR A
-  JP NZ,__CINT_2
+  JR NZ,__CINT_2
   POP AF
   EX DE,HL
-  JP __CINT_3
+  JR __CINT_3
 
 __CINT_2:
   POP AF
@@ -9552,7 +9542,7 @@ __CINT_3:
   CPL
   LD L,A
 __CINT_4:
-  JP MAKINT
+  JR MAKINT
 
 ;FRCIN4:
   LD HL,OV_ERR          ;PUT OVERR ON THE STACK SO WE WILL GET ERROR
@@ -9563,7 +9553,7 @@ __CINT_4:
 CONIS:
   LD A,(FPEXP)          ;GET THE EXPONENT
   CP $90                ;SEE IF IT IS TOO BIG
-  JP NC,CONIS2          ;IT IS, BUT IT MIGHT BE -32768
+  JR NC,CONIS2          ;IT IS, BUT IT MIGHT BE -32768
   CALL QINT             ;IT ISN'T, CONVERT IT TO AN INTEGER
   EX DE,HL              ;PUT IT IN (HL)
 
@@ -9604,7 +9594,7 @@ CONIS2:
   RET NZ                ;ERROR:  IT CAN'T BE CONVERTED TO AN INTEGER
   LD H,C                ;IT IS -32768, PUT IT IN (HL)
   LD L,D
-  JP CONIS1             ;STORE IT IN THE FAC AND SET VALTYP
+  JR CONIS1             ;STORE IT IN THE FAC AND SET VALTYP
 
 
 ; 'CSNG' BASIC function
@@ -9684,7 +9674,7 @@ VALDBL:
 ; Used by the routines at __CSNG, INEG and RNDMN2.
 VALSNG:
   LD A,$04             ;SET VALTYP TO "SINGLE PRECISION"
-  JP SETTYPE
+  JR SETTYPE
 
 
 ; Test for string type, 'Type Error' if it is not
@@ -9788,7 +9778,7 @@ __FIX:
 __INT:
   CALL GETYPR            ;SEE WHAT TYPE OF A NUMBER WE HAVE
   RET M                  ;IT IS AN INTEGER, ALL DONE
-  JP NC,DINT             ;CONVERT THE DOUBLE PRECISION NUMBER
+  JR NC,DINT             ;CONVERT THE DOUBLE PRECISION NUMBER
   JP Z,TM_ERR            ;BLOW UP ON STRINGS
   CALL CONIS             ;TRY TO CONVERT THE NUMBER TO AN INTEGER
                          ;IF WE CAN'T, WE WILL RETURN HERE TO GIVE A
@@ -9825,7 +9815,7 @@ DINT:
   LD HL,FPEXP            ;GET POINTER TO FAC
   LD A,(HL)              ;GET EXPONENT
   CP $90                 ;CAN WE CONVERT IT TO AN INTEGER?
-  JP NZ,DINT2            ;CHECK FOR -32768
+  JR NZ,DINT2            ;CHECK FOR -32768
   LD C,A                 ;SAVE EXPONENT IN C
   DEC HL                 ;GET POINTER TO SIGN AND HO
   LD A,(HL)              ;GET SIGN AND HO
@@ -9834,11 +9824,11 @@ DINT:
 DINT1:
   DEC HL                 ; THE NUMBER IS ZERO, POINT TO NEXT BYTE
   OR (HL)                ;IF ANY BITS ARE NON-ZERO, A WILL BE NON-ZERO
-  DEC B                  ;ARE WE DONE?
-  JP NZ,DINT1            ;NO, CHECK THE NEXT LOWER ORDER BYTE
+  ;DEC B                  ;ARE WE DONE?
+  DJNZ DINT1            ;NO, CHECK THE NEXT LOWER ORDER BYTE
   OR A                   ;IS A NOW ZERO?
   LD HL,$8000            ;GET -32768 JUST IN CASE
-  JP NZ,DIN05
+  JR NZ,DIN05
   CALL MAKINT            ;A IS ZERO SO WE HAVE -32768
   JP __CDBL              ;FORCE BACK TO DOUBLE
 
@@ -9883,7 +9873,7 @@ DINTA1:
   DEC (HL)               ;SUBTRACT ONE FROM IT
   OR A                   ;CONTINUE ONLY IF THE BYTE USED TO BE ZERO
   INC HL                 ;INCREMENT POINTER TO NEXT BYTE
-  JP Z,DINTA1            ;CONTINUE IF NECESSARY
+  JR Z,DINTA1            ;CONTINUE IF NECESSARY
   RET                    ;ALL DONE
 
 
@@ -9900,7 +9890,7 @@ MLDEBC:
   LD HL,$0000            ; Clear partial product             ;ZERO PRODUCT REGISTERS
   LD A,B                 ; Test multiplier                   ;CHECK IF (BC) IS ZERO
   OR C                                                       ;IF SO, JUST RETURN, (HL) IS ALREADY ZERO
-  JP Z,MLDEBC_2          ; Return zero if zero               ;THIS IS DONE FOR SPEED
+  JR Z,MLDEBC_2          ; Return zero if zero               ;THIS IS DONE FOR SPEED
   LD A,$10               ; 16 bits                           ;SET UP A COUNT
 MLDEBC_0:
   ADD HL,HL              ; Shift P.P left                    ;ROTATE (HL) LEFT ONE
@@ -9908,12 +9898,12 @@ MLDEBC_0:
   EX DE,HL                                                   ; BAD SUBSCRIPT (BS) ERROR
   ADD HL,HL              ; Shift multiplier left             ;ROTATE (DE) LEFT ONE
   EX DE,HL
-  JP NC,MLDEBC_1         ; Bit was zero - No add             ;ADD IN (BC) IF HO WAS 1
+  JR NC,MLDEBC_1         ; Bit was zero - No add             ;ADD IN (BC) IF HO WAS 1
   ADD HL,BC              ; Add multiplicand                  
   JP C,BS_ERR            ; "Subscript error" if overflow     ;CHECK FOR OVERFLOW
 MLDEBC_1:
   DEC A                  ; Count bits                        ;SEE IF DONE
-  JP NZ,MLDEBC_0
+  JR NZ,MLDEBC_0
 MLDEBC_2:
   EX DE,HL                                                   ;RETURN THE RESULT IN [D,E]
   POP HL                                                     ;GET BACK THE SAVED [H,L]
@@ -9950,7 +9940,7 @@ ISUB:
   CALL INEGHL          ;NEGATE (HL)
   LD A,C               ;GET A ZERO
   SBC A,B              ;NEGATE SIGN
-  JP IADD_0            ;GO ADD THE NUMBERS
+  JR IADD_0            ;GO ADD THE NUMBERS
 
 
 ; Integer ADD
@@ -10004,16 +9994,16 @@ IMULT:
   LD A,16              ;SET UP A COUNT
 IMULT_0:
   ADD HL,HL            ;ROTATE PRODUCT LEFT ONE
-  JP C,IMULT5          ;CHECK FOR OVERLFOW
+  JR C,IMULT5          ;CHECK FOR OVERLFOW
   EX DE,HL             ;ROTATE FIRST ARGUMENT LEFT ONE TO SEE IF
   ADD HL,HL            ; WE ADD IN (BC) OR NOT
   EX DE,HL
-  JP NC,IMULT_1        ;DON'T ADD IN ANYTHING
+  JR NC,IMULT_1        ;DON'T ADD IN ANYTHING
   ADD HL,BC            ;ADD IN (BC)
-  JP C,IMULT5          ;CHECK FOR OVERLFOW
+  JR C,IMULT5          ;CHECK FOR OVERLFOW
 IMULT_1:
   DEC A                ;ARE WE DONE?
-  JP NZ,IMULT_0        ;NO, DO IT AGAIN
+  JR NZ,IMULT_0        ;NO, DO IT AGAIN
   POP BC               ;WE ARE DONE, GET SIGN OF RESULT
   POP DE               ;GET ORIGINAL FIRST ARGUMENT
 ; This entry point is used by the routine at IDIV2.
@@ -10023,12 +10013,12 @@ IMLDIV:
   JP M,IMULT_3         ;IT IS, CHECK FOR SPECIAL CASE OF -32768
   POP DE               ;RESULT IS OK, GET SECOND ARGUMENT OFF STACK
   LD A,B               ;GET THE SIGN OF RESULT IN A
-  JP INEGA             ;NEGATE THE RESULT IF NECESSARY
+  JR INEGA             ;NEGATE THE RESULT IF NECESSARY
 
 IMULT_3:
   XOR $80              ;IS RESULT 32768?
   OR L                 ;NOTE: IF WE GET HERE FROM IDIV, THE RESULT
-  JP Z,IMULT4          ; MUST BE 32768, IT CANNOT BE GREATER
+  JR Z,IMULT4          ; MUST BE 32768, IT CANNOT BE GREATER
   EX DE,HL             ;IT IS .GT. 32768, WE HAVE OVERFLOW
   DEFB $01             ; "LD BC,nn" OVER NEXT 2 BYTES
 
@@ -10084,14 +10074,14 @@ INT_DIV:
   LD A,17               ;SET UP A COUNT
   PUSH AF               ;SAVE IT
   OR A                  ;CLEAR CARRY 
-  JP IDIV3              ;GO DIVIDE
+  JR IDIV3              ;GO DIVIDE
 
 ; This entry point is used by the routine at IDIV2.
 DIVLP:
   PUSH AF               ;SAVE COUNT
   PUSH HL               ;SAVE (HL) I.E. CURRENT NUMERATOR
   ADD HL,BC             ;SUBTRACT DENOMINATOR
-  JP NC,IDIV2           ;WE SUBTRACTED TOO MUCH, GET OLD (HL) BACK
+  JR NC,IDIV2           ;WE SUBTRACTED TOO MUCH, GET OLD (HL) BACK
   POP AF                ;THE SUBTRACTION WAS GOOD, DISCARD OLD (HL)
   SCF                   ;NEXT BIT IN QUOTIENT IS A ONE
   DEFB $3E              ; "LD A,n" OVER NEXT BYTE
@@ -10116,11 +10106,11 @@ IDIV3:
   LD H,A                ;SAVE THE HO
   POP AF                ;GET COUNT BACK
   DEC A                 ;ARE WE DONE?
-  JP NZ,DIVLP           ;NO, DIVIDE AGAIN
+  JR NZ,DIVLP           ;NO, DIVIDE AGAIN
   EX DE,HL              ;GET QUOTIENT IN (HL), REMAINDER IN (DE)
   POP BC                ;GET SIGN OF RESULT
   PUSH DE               ;SAVE REMAINDER SO STACK WILL BE ALRIGHT
-  JP IMLDIV             ;CHECK FOR SPECIAL CASE OF 32768
+  JR IMLDIV             ;CHECK FOR SPECIAL CASE OF 32768
 
 
 	;GET READY TO MULTIPLY OR DIVIDE
@@ -10199,7 +10189,7 @@ IMOD:
   LD L,A                ; ***WHG01*** FIX TO MOD OPERATOR
   CALL VALINT           ;SET VALTYP TO "INTEGER" IN CASE RESULT OF
   POP AF
-  JP INEGA
+  JR INEGA
 
 
 
@@ -10255,7 +10245,7 @@ DADD:
   OR A                  ;SEE IF IT IS ZERO                            ; Is this number zero?
   JP Z,VMOVFA           ;IT IS, MOVE ARG TO FAC AND WE ARE DONE       ; Yes - Move FP to FPREG
   SUB B                 ;SUBTRACT EXPONENTS TO GET SHIFT COUNT        ; FP number larger?
-  JP NC,NOSWAP_DEC      ;PUT THE SMALLER NUMBER IN FAC                ; No - Don't swap them
+  JR NC,NOSWAP_DEC      ;PUT THE SMALLER NUMBER IN FAC                ; No - Don't swap them
   CPL                   ;NEGATE SHIFT COUNT                           ; Two's complement
   INC A
   PUSH AF               ;SAVE SHIFT COUNT
@@ -10272,7 +10262,7 @@ DADD_SWAP:
   DEC DE                ;POINT TO THE NEXT LO BYTE OF FAC
   DEC HL                ;POINT TO THE NEXT LO BYTE OF ARG
   DEC C                 ;ARE WE DONE?
-  JP NZ,DADD_SWAP       ;NO, DO THE NEXT LO BYTE
+  JR NZ,DADD_SWAP       ;NO, DO THE NEXT LO BYTE
   POP HL                ;GET THE HO BACK
   LD B,(HL)             ;GET THE EXPONENT
   DEC HL                ;POINT TO THE HO AND SIGN
@@ -10306,7 +10296,7 @@ NOSWAP_DEC:
   LD A,(FPARG-1)        ;GET SUBTRACTION FLAG
   LD (FACLOW-1),A       ;SUBTRACT NUMBERS IF THEIR SIGNS ARE DIFFERENT
   CALL PLUCDE_DEC       ;SIGNS ARE THE SAME, ADD THE NUMBERS          ; Add FPREG to CDE
-  JP NC,DECROU          ;ROUND THE RESULT IF NO CARRY       ; No overflow - Round it up
+  JR NC,DECROU          ;ROUND THE RESULT IF NO CARRY       ; No overflow - Round it up
   EX DE,HL              ;GET POINTER TO FAC IN (HL)         ; Point to exponent
   INC (HL)              ;ADD 1 TO EXPONENT                  ; Increment it
   JP Z,OVERR_1                                              ; Number overflowed - Error
@@ -10318,7 +10308,7 @@ NOSWAP_DEC:
 ;*************************************************************
 
   CALL DSHFRB           ;SHIFT NUMBER RIGHT ONE, SHIFT IN CARRY    ; Shift result right
-  JP DECROU             ;ROUND THE RESULT                   ; Round it up
+  JR DECROU             ;ROUND THE RESULT                   ; Round it up
 
 ;**************************************************************
 ;TO GET HERE THE SIGNS OF THE FAC AND ARG WERE DIFFERENT THUS
@@ -10343,7 +10333,7 @@ DNORM1:
   LD B,A                ;SAVE SHIFT COUNT
   LD A,(FACCU+2)        ;GET HO
   OR A                  ;SEE IF WE CAN SHIFT 8 LEFT
-  JP NZ,DNORM5          ;WE CAN'T, SEE IF NUMBER IS NORMALIZED
+  JR NZ,DNORM5          ;WE CAN'T, SEE IF NUMBER IS NORMALIZED
   LD HL,FACLOW-1        ;WE CAN, GET POINTER TO LO
   LD C,$08              ;SET UP A COUNT
 DNORM2:
@@ -10352,12 +10342,12 @@ DNORM2:
   LD A,D                ;PUT THE CURRENT BYTE IN A FOR NEXT TIME
   INC HL                ;INCREMENT POINTER TO NEXT HIGHER ORDER
   DEC C                 ;ARE WE DONE?
-  JP NZ,DNORM2          ;NO, DO THE NEXT BYTE
+  JR NZ,DNORM2          ;NO, DO THE NEXT BYTE
 
   LD A,B                ;SUBTRACT 8 FROM SHIFT COUNT
   SUB $08
   CP $C0                ;HAVE WE SHIFTED ALL BYTES TO ZERO?
-  JP NZ,DNORM1          ;NO, TRY TO SHIFT 8 MORE
+  JR NZ,DNORM1          ;NO, TRY TO SHIFT 8 MORE
   JP ZERO               ;YES, THE NUMBER IS ZERO
 
 DNORM3:
@@ -10369,7 +10359,7 @@ DNORM5:
   JP P,DNORM3           ;SHIFT FAC LEFT ONE IF IT IS NOT NORMALIZED
   LD A,B                ;GET THE SHIFT COUNT
   OR A                  ;SEE IF NO SHIFTING WAS DONE
-  JP Z,DECROU           ;NONE WAS, PROCEED TO ROUND THE NUMBER
+  JR Z,DECROU           ;NONE WAS, PROCEED TO ROUND THE NUMBER
   LD HL,FPEXP           ;GET POINTER TO EXPONENT
   ADD A,(HL)            ;UPDATE IT
   LD (HL),A             ;SAVE UPDATED EXPONENT
@@ -10405,8 +10395,8 @@ DROUNA_LP:              ;INCREMENT A BYTE                           ; (GWBASIC)
   INC (HL)              ;RETURN IF THERE WAS NO CARRY               ;IF THIS GETS ZF=1 THEN CARRY
   RET NZ                ;INCREMENT POINTER TO NEXT HIGHER ORDER
   INC HL                ;HAVE WE INCREMENTED ALL BYTES
-  DEC B                 ;NO, TRY THE NEXT ONE
-  JP NZ,DROUNA_LP       ;YES, INCREMENT THE EXPONENT
+  ;DEC B                 ;NO, TRY THE NEXT ONE
+  DJNZ DROUNA_LP       ;YES, INCREMENT THE EXPONENT
   INC (HL)                                                          ;MUST INCREMENT EXPONENT
   JP Z,OVERR_1          ;THE NUMBER OVERFLOWED ITS EXPONENT
   DEC HL
@@ -10421,7 +10411,7 @@ DROUNA_LP:              ;INCREMENT A BYTE                           ; (GWBASIC)
 DADDD:
   LD DE,FBUFFR+27       ;ENTRY FROM DDIV
   LD HL,FPARG
-  JP DADDD_1
+  JR DADDD_1
 
 ; This entry point is used by the routine at DMUL.
 PLUCDE_DEC:
@@ -10444,7 +10434,7 @@ DADDD_BYTE:
   INC DE                ;INCREMENT POINTERS TO NEXT HIGHER ORDER BYTE
   INC HL
   DEC C                 ;ARE WE DONE?
-  JP NZ,DADDD_2         ;NO, DO THE NEXT HIGHER ORDER BYTE
+  JR NZ,DADDD_2         ;NO, DO THE NEXT HIGHER ORDER BYTE
   RET                   ;ALL DONE
   
 
@@ -10465,8 +10455,8 @@ NEGR_0:
   SBC A,(HL)             ;NEGATE THE BYTE OF FAC
   LD (HL),A              ;UPDATE FAC
   INC HL                 ;INCREMENT POINTER TO NEXT HIGHER ORDER BYTE
-  DEC B                  ;ARE WE DONE?
-  JP NZ,NEGR_0           ;NO, NEGATE THE NEXT BYTE
+  ;DEC B                  ;ARE WE DONE?
+  DJNZ NEGR_0           ;NO, NEGATE THE NEXT BYTE
   RET                    ;ALL DONE
 
 
@@ -10480,7 +10470,7 @@ DSHFTR:
   PUSH HL                ;SAVE POINTER TO WHAT TO SHIFT
 DSHFTR_0:
   SUB $08                ;SEE IF WE CAN SHIFT 8 RIGHT        ; 8 bits (a whole byte)?
-  JP C,DSHFTR_3          ;WE CAN'T, CHECK IF WE ARE DONE     ; No - Shift right A bits
+  JR C,DSHFTR_3          ;WE CAN'T, CHECK IF WE ARE DONE     ; No - Shift right A bits
   POP HL                 ;GET POINTER BACK
 ; This entry point is used by the routine at DMUL.
 DSHFTR_1:
@@ -10492,8 +10482,8 @@ DSHFTR_2:
   LD E,C                 ;SET UP E FOR NEXT TIME THROUGH THE LOOP
   DEC HL                 ;POINT TO NEXT LOWER ORDER BYTE
   DEC D                  ;ARE WE DONE?
-  JP NZ,DSHFTR_2         ;NO, DO THE NEXT BYTE
-  JP DSHFTR_0            ;YES, SEE IF WE CAN SHIFT OVER 8 MORE
+  JR NZ,DSHFTR_2         ;NO, DO THE NEXT BYTE
+  JR DSHFTR_0            ;YES, SEE IF WE CAN SHIFT OVER 8 MORE
 
 DSHFTR_3:
   ADD A,8+1              ;CORRECT SHIFT COUNT        ; Adjust count
@@ -10512,8 +10502,8 @@ DSHFTR_5:
   LD (HL),A              ;PUT THE UPDATED BYTE BACK
   DEC HL                 ;DECREMENT POINTER TO NEXT LOWER ORDER BYTE
   DEC E                  ;ARE WE DONE?
-  JP NZ,DSHFTR_5         ;NO, ROTATE THE NEXT LOWER ORDER BYTE
-  JP DSHFTR_4            ;YES, SEE IF WE ARE DONE SHIFTING
+  JR NZ,DSHFTR_5         ;NO, ROTATE THE NEXT LOWER ORDER BYTE
+  JR DSHFTR_4            ;YES, SEE IF WE ARE DONE SHIFTING
 
 
 	;ENTRY TO DSHFTR FROM DADD, DMULT
@@ -10521,7 +10511,7 @@ DSHFTR_5:
 DSHFRB:
   LD HL,FACCU+2          ;GET POINTER TO HO OF FAC
   LD D,$01               ;SHIFT RIGHT ONCE
-  JP DSHFTRA             ;GO DO IT
+  JR DSHFTRA             ;GO DO IT
 
 
 	;ROTATE FAC LEFT ONE
@@ -10536,7 +10526,7 @@ DSHFTL:
   LD (HL),A              ;UPDATE BYTE IN FAC
   INC HL                 ;INCREMENT POINTER TO NEXT HIGHER ORDER BYTE
   DEC C                  ;ARE WE DONE?
-  JP NZ,DSHFTL
+  JR NZ,DSHFTL
   RET                    ;ALL DONE
 
 
@@ -10564,7 +10554,7 @@ DMUL_0:
   INC DE                 ;INCREMENT POINTER TO NEXT HIGHER BYTE
   OR A                   ;CHECK IF WE ARE MULTIPLYING BY ZERO
   PUSH DE                ;SAVE POINTER TO ARG
-  JP Z,DMUL_3            ;WE ARE
+  JR Z,DMUL_3            ;WE ARE
   LD C,$08               ;SET UP A COUNT
 DMUL_1:
   PUSH BC                ;SAVE COUNTERS
@@ -10575,11 +10565,11 @@ DMUL_1:
   LD A,B                 ;GET MULTIPLIER IN A
   POP BC                 ;GET COUNTERS BACK
   DEC C                  ;ARE WE DONE WITH THIS BYTE OF ARG?
-  JP NZ,DMUL_1           ;NO, MULTIPLY BY THE NEXT BIT OF THE MULTIPLIER
+  JR NZ,DMUL_1           ;NO, MULTIPLY BY THE NEXT BIT OF THE MULTIPLIER
 DMUL_2:
   POP DE                 ;YES, GET POINTER INTO ARG BACK
-  DEC B                  ;ARE WE DONE?
-  JP NZ,DMUL_0           ;NO, MULTIPLY BY NEXT HIGHER ORDER BY OF ARG
+  ;DEC B                  ;ARE WE DONE?
+  DJNZ DMUL_0           ;NO, MULTIPLY BY NEXT HIGHER ORDER BY OF ARG
                          ;POINT IS TO RIGHT OF UNDERSTOOD ONE
 
   JP DNORML              ;ALL DONE, NORMALIZE AND ROUND RESULT
@@ -10587,7 +10577,7 @@ DMUL_2:
 DMUL_3:
   LD HL,FACCU+2          ;GET POINTER TO HO OF FAC
   CALL DSHFTR_1          ;SHIFT PRODUCT RIGHT ONE BYTE, WE ARE
-  JP DMUL_2              ; MULTIPLYIING BY ZERO
+  JR DMUL_2              ; MULTIPLYIING BY ZERO
 
 
 
@@ -10611,11 +10601,11 @@ FP_TEN:
 DDIV10:
   LD A,(FPEXP)           ;MUST ASSURE OURSELVES WE CAN DO
   CP $41                 ;65 EXPONENT DECREMENTS W/O   ($41 = 65)
-  JP NC,DDIV10_0         ;REACHING ZERO
+  JR NC,DDIV10_0         ;REACHING ZERO
   LD DE,TENTH            ;POINT TO .1D0
   LD HL,FPARG            ;POINT TO ARG
   CALL VMOVE
-  JP DMUL
+  JR DMUL
 
 DDIV10_0:
   LD A,(FACCU+2)         ;NEGATIVE NO?
@@ -10645,7 +10635,7 @@ DDIV10_2:
   CALL PPARG             ;POP ARG OFF THE STACK
   POP AF                 ;FETCH LOOP COUNTER
   DEC A
-  JP NZ,DDIV10_2
+  JR NZ,DDIV10_2
   CALL DECF1
   CALL DECF1
 
@@ -10666,7 +10656,7 @@ DECA4_0:
   DEC (HL)
   RET Z
   DEC A
-  JP NZ,DECA4_0
+  JR NZ,DECA4_0
   RET
 
 
@@ -10682,7 +10672,7 @@ PSARG_0:
   INC HL
   PUSH BC
   DEC A                  ;THROUGH?
-  JP NZ,PSARG_0
+  JR NZ,PSARG_0
   PUSH DE
   RET
 
@@ -10699,7 +10689,7 @@ DDIV10_9:
   LD (HL),C
   DEC HL
   DEC A
-  JP NZ,DDIV10_9
+  JR NZ,DDIV10_9
   PUSH DE
   RET
 
@@ -10731,7 +10721,7 @@ DDIV_0:
   LD A,(DE)             ;SUBTRACT FROM EXTRA HO BYTE
   SBC A,C               ;HERE C=0
   CCF                   ;CARRY=1 IF SUBTRACTION WAS GOOD
-  JP C,DDIV_1           ;WAS IT OK?
+  JR C,DDIV_1           ;WAS IT OK?
   LD A,$8E              ; ADC A,(HL)  ->    NO, ADD FBUFFR BACK IN
   CALL DADDD            ;DO THE ADDITION
   XOR A                 ;CLEAR CARRY
@@ -10752,10 +10742,10 @@ DDIV_1:
   CALL DSHFLC           ;SHIFT DIVIDEND ONE LEFT
   LD A,B                ;IS THIS THE FIRST TIME AND WAS THE
   OR A                  ; SUBTRACTION NOT GOOD? (B WILL GET
-  JP NZ,DDIV_0          ; CHANGED ON THE FIRST OR SECOND SUBTRACTION)
+  JR NZ,DDIV_0          ; CHANGED ON THE FIRST OR SECOND SUBTRACTION)
   LD HL,FPEXP           ;YES, SUBTRACT ONE FROM EXPONENT TO CORRECT
   DEC (HL)              ; SCALING
-  JP NZ,DDIV_0          ;CONTINUE DIVIDING IF NO UNDERFLOW
+  JR NZ,DDIV_0          ;CONTINUE DIVIDING IF NO UNDERFLOW
   JP ZERO               ;UNDERFLOW
 
 
@@ -10774,8 +10764,8 @@ DMULDV_0:
   LD (HL),C             ;PUT A ZERO IN FAC
   DEC DE                ;POINT TO NEXT BYTE IN FBUFFR
   DEC HL                ;POINT TO NEXT LOWER ORDER BYTE IN FAC
-  DEC B                 ;ARE WE DONE?
-  JP NZ,DMULDV_0        ;NO, TRANSFER THE NEXT BYTE
+  ;DEC B                 ;ARE WE DONE?
+  DJNZ DMULDV_0        ;NO, TRANSFER THE NEXT BYTE
   RET                   ;ALL DONE
 
 
@@ -10850,9 +10840,9 @@ H_ASCTFP:
 _ASCTFP:                                                    ;IF WE ARE CALLED BY VAL OR INPUT OR READ, THE SIGNS MAY NOT BE CRUNCHED
   CP '-'                  ; '-': Negative?                  ;SEE IF NUMBER IS NEGATIVE
   PUSH AF                 ; Save it and flags               ;SAVE SIGN
-  JP Z,_ASCTFP_0          ; Yes - Convert number            ;IGNORE MINUS SIGN
+  JR Z,_ASCTFP_0          ; Yes - Convert number            ;IGNORE MINUS SIGN
   CP '+'                  ; Positive?                       ;IGNORE A LEADING SIGN
-  JP Z,_ASCTFP_0          ; Yes - Convert number
+  JR Z,_ASCTFP_0          ; Yes - Convert number
   DEC HL                  ; DEC 'cos GETCHR INCs            ;SET CHARACTER POINTER BACK ONE
 
 ; This entry point is used by the routine at MULTEN.
@@ -10862,41 +10852,41 @@ _ASCTFP_0:                                                  ;HERE TO CHECK FOR A
   CP '.'                                                    ;CHECK FOR A DECIMAL POINT
   JP Z,DPOINT             ; "." - Flag point                ;WE HAVE ONE, I GUESS
   CP 'e'                                                    ;LOWER CASE "E"
-  JP Z,EXPONENTIAL
+  JR Z,EXPONENTIAL
   CP 'E'                  ;CHECK FOR A SINGLE PRECISION EXPONENT
 EXPONENTIAL:
-  JP NZ,NOTE              ;NO
+  JR NZ,NOTE              ;NO
   PUSH HL                 ;SAVE TEXT PTR
   CALL CHRGTB             ;GET NEXT CHAR
   CP 'l'                  ;SEE IF LOWER CASE "L"
-  JP Z,_ASCTFP_1          ;IF SO POSSIBLE ELSE
+  JR Z,_ASCTFP_1          ;IF SO POSSIBLE ELSE
   CP 'L'                  ;IS THIS REALLY AN "ELSE"?
-  JP Z,_ASCTFP_1          ;WAS ELSE
+  JR Z,_ASCTFP_1          ;WAS ELSE
   CP 'q'                  ;SEE IF LOWER CASE "Q"
-  JP Z,_ASCTFP_1          ;IF SO POSSIBLE "EQV"
+  JR Z,_ASCTFP_1          ;IF SO POSSIBLE "EQV"
   CP 'Q'                  ;POSSIBLE "EQV"
 _ASCTFP_1:
   POP HL                  ;RESTORE [H,L]
-  JP Z,_ASCTFP_2          ;IT WAS JUMP!
+  JR Z,_ASCTFP_2          ;IT WAS JUMP!
   LD A,(VALTYP)           ;IF DOUBLE DON'T DOWNGRADE TO SINGLE
   CP $08                  ;SET CONDITION CODES
-  JP Z,FINEX1    
+  JR Z,FINEX1    
   LD A,$00                ;MAKE A=0 SO NUMBER IS A SINGLE
-  JP FINEX1
+  JR FINEX1
 
 _ASCTFP_2:
   LD A,(HL)               ;RESTORE ORIGINAL CHAR
 NOTE:
   CP '%'				  ;TRAILING % (RSTS-11 COMPATIBILITY)    ; Integer variable ?
-  JP Z,FININT             ;MUST BE INTEGER.
+  JR Z,FININT             ;MUST BE INTEGER.
   CP '#'				  ;FORCE DOUBLE PRECISION?               ; Double precision variable ?
-  JP Z,FINDBF             ;YES, FORCE IT & FINISH UP.
+  JR Z,FINDBF             ;YES, FORCE IT & FINISH UP.
   CP '!'				  ;FORCE SINGLE PREC.                    ; Single precision variable ?
-  JP Z,FINSNF
+  JR Z,FINSNF
   CP 'd'                  ;LOWER CASE "D"
-  JP Z,FINEX1
+  JR Z,FINEX1
   CP 'D'                  ;CHECK FOR A DOUBLE PRECISION EXPONENT
-  JP NZ,FINE              ;WE DON'T HAVE ONE, THE NUMBER IS FINISHED
+  JR NZ,FINE              ;WE DON'T HAVE ONE, THE NUMBER IS FINISHED
 
 FINEX1:
   OR A                    ;DOUBLE PRECISION NUMBER -- TURN OFF ZERO FLAG
@@ -10911,7 +10901,7 @@ FINEC:
   CALL CHRGTB             ;GET THE NEXT CHARATER
   JP C,FINEDG             ;PACK THE NEXT DIGIT INTO THE EXPONENT
   INC D                   ;IT WAS NOT A DIGIT, PUT THE CORRECT SIGN ON
-  JP NZ,FINE              ; THE EXPONENT, IT IS POSITIVE
+  JR NZ,FINE              ; THE EXPONENT, IT IS POSITIVE
   XOR A                   ;THE EXPONENT IS NEGATIVE
   SUB E                   ;NEGATE IT
   LD E,A                  ;SAVE IT AGAIN
@@ -10928,7 +10918,7 @@ FINE:
 FINE_0:
   CALL P,FINMUL           ;MULTIPLY IF WE HAVE TO
   CALL M,FINDIV           ;DIVIDE IF WE HAVE TO
-  JP NZ,FINE_0            ;MULTIPLY OR DIVIDE AGAIN IF WE ARE NOT DONE
+  JR NZ,FINE_0            ;MULTIPLY OR DIVIDE AGAIN IF WE ARE NOT DONE
 
 ;HERE TO PUT THE CORRECT SIGN ON THE NUMBER
   POP HL                  ;GET THE TEXT POINTER
@@ -10951,7 +10941,7 @@ FINE_0:
 DPOINT:
   CALL GETYPR             ;SET CARRY IF WE DON'T HAVE A DOUBLE
   INC C                   ;SET THE FLAG
-  JP NZ,FINE              ;WE HAD 2 DECIMAL POINTS, NOW WE ARE DONE
+  JR NZ,FINE              ;WE HAD 2 DECIMAL POINTS, NOW WE ARE DONE
   CALL C,FINFRC           ;THIS IS THE FIRST ONE, CONVERT FAC TO SNG IF WE DON'T ALREADY HAVE A DOUBLE
   JP _ASCTFP_0            ;CONTINUE LOOKING FOR DIGITS
 
@@ -10964,7 +10954,7 @@ FININT:
   LD HL,__CINT            ; *
   PUSH HL                 ;WILL WANT TO FORCE ONCE D.P. DONE
   PUSH AF                 ;PUT SIGN BACK ON THE STACK
-  JP FINE                 ;ALL DONE
+  JR FINE                 ;ALL DONE
 
 FINDBF:
   OR A                    ;SET NON-ZERO TO FORCE DOUBLE PREC
@@ -10972,7 +10962,7 @@ FINDBF:
 FINSNF:
   CALL FINFRC             ;FORCE THE TYPE
   CALL CHRGTB             ;READ AFTER TERMINATOR
-  JP FINE                 ;ALL DONE
+  JR FINE                 ;ALL DONE
 
 
 	;FORCE THE FAC TO BE SNG OR DBL
@@ -10996,7 +10986,7 @@ FINFRC:
 	;IT IS A SUBROUTINE BECAUSE IT SAVES BYTES WHEN WE CHECK IF A IS ZERO
 	;ALTERS ALL REGISTERS
 FINMUL:
-  RET Z                   ;RETURN IF EXPONENT IS ZERO, ENTRY FROM FOUT
+  RET Z                   ; Exit if no scaling needed        ;RETURN IF EXPONENT IS ZERO, ENTRY FROM FOUT
 
 ; Multiply FP value by ten
 ;
@@ -11056,7 +11046,7 @@ ADDIG:
   LD HL,(FACCU)          ;WE HAVE AN INTEGER, GET IT IN (HL)
   LD DE,3277             ;SEE IF WE WILL OVERFLOW                    ; Const: $0CCD
   CALL DCOMPR            ;COMPAR RETURNS WITH CARRY ON IF            ; Compare HL with DE.
-  JP NC,FINDG2           ; (HL) .LT. (DE), SO THE NUMBER IS TOO BIG
+  JR NC,FINDG2           ; (HL) .LT. (DE), SO THE NUMBER IS TOO BIG
   LD D,H                 ;COPY (HL) INTO (DE)
   LD E,L
   ADD HL,HL              ;MULTIPLY (HL) BY 2                         ; * 10
@@ -11090,7 +11080,7 @@ FINDG2:
 
 	;HERE TO DECIDE IF WE HAVE A SINGLE OR DOUBLE PRECISION NUMBER
 FINDGV:
-  JP NC,FINDGD           ;FALL THROUGH IF VALTYP WAS 4 I.E. SNG PREC
+  JR NC,FINDGD           ;FALL THROUGH IF VALTYP WAS 4 I.E. SNG PREC
   LD BC,$9474            ;GET 1000000, DO WE HAVE 7 DIGITS ALREADY?
   LD DE,$2400
   CALL FCOMP             ;IF SO, FAC .GE. 1000000
@@ -11098,7 +11088,7 @@ FINDGV:
   CALL MLSP10            ;MULTIPLY THE OLD NUMBER BY TEN
   POP AF                 ;GET THE NEXT DIGIT
   CALL FINDG4            ;PACK IT INTO THE FAC
-  JP FINDGE              ;GET FLAGS OFF STACK AND WE ARE DONE
+  JR FINDGE              ;GET FLAGS OFF STACK AND WE ARE DONE
 
 	;HERE TO CONVERT A 7 DIGIT SINGLE PRECISION NUMBER TO DOUBLE PRECISION
 FINDG3:
@@ -11112,8 +11102,9 @@ FINDGD:
   CALL FLOAT             ;CONVERT THE DIGIT TO SINGLE PRECISION
   CALL CONDS             ;NOW, CONVERT THE DIGIT TO DOUBLE PRECISION
   CALL DADD              ;ADD IN THE DIGIT
-  JP FINDGE              ;GET THE FLAGS OFF THE STACK AND WE ARE DONE
+  JR FINDGE              ;GET THE FLAGS OFF THE STACK AND WE ARE DONE
 
+; a.k.a. RSCALE
 FINDG4:
   CALL PUSHF
   CALL FLOAT
@@ -11128,7 +11119,7 @@ FINEDG:
   LD A,E                 ;EXPONENT DIGIT -- MULTIPLY EXPONENT BY 10
   CP 10                  ;CHECK THAT THE EXPONENT DOES NOT OVERFLOW
                          ;IF IT DID, E COULD GET GARBAGE IN IT.
-  JP NC,FINEDO           ;WE ALREADY HAVE TWO DIGITS
+  JR NC,FINEDO           ;WE ALREADY HAVE TWO DIGITS
   RLCA                   ;FIRST BY 4
   RLCA
   ADD A,E                ;ADD 1 TO MAKE 5
@@ -11150,7 +11141,7 @@ OVFIN1:
   CALL GETYPR
   JP PO,OVF2A            ;SP PROCEED AS NORMAL
   LD A,(ARG-1)
-  JP OVF2B
+  JR OVF2B
 
 OVF2A:
   LD A,C
@@ -11158,7 +11149,7 @@ OVF2B:
   XOR (HL)               ;SIGN IN HIGH BIT OF (A)
   RLA                    ;SIGN IN CARRY
   POP HL
-  JP OVFINT              ;GO PRINT OVERFLOW
+  JR OVFINT              ;GO PRINT OVERFLOW
 
 ; This entry point is used by the routine at __EXP.
 OVFIN6:
@@ -11171,7 +11162,7 @@ OVFIN6:
 OVERR:
   LD A,(FACCU+2)
   RLA
-  JP OVFINT              ;GO PRINT OVERFLOW
+  JR OVFINT              ;GO PRINT OVERFLOW
 
 ; This entry point is used by the routine at BNORM.
 OVERR_0:
@@ -11182,14 +11173,14 @@ OVERR_1:
   LD A,(SGNRES)          ;GET SIGN BYTE
   CPL                    ;SIGN WAS STORED COMPLEMENTED
   RLA                    ;SIGN TO CARRY
-  JP OVFINT              ;GO PRINT OVERFLOW
+  JR OVFINT              ;GO PRINT OVERFLOW
 
 ; This entry point is used by the routine at FDIV.
 DIV_DZERR:
   OR B
-  JP Z,DZERR
+  JR Z,DZERR
   LD A,C
-  JP DZERR
+  JR DZERR
 
 ; Division (exponent is 0)
 ;
@@ -11215,13 +11206,13 @@ OVFINT:
   LD HL,(ONELIN)         ;TRAPPING ERRORS?
   LD A,H                 
   OR L
-  JP NZ,OVFPRT           ;JUMP PRINT IF TRAPPING OTHERWISE +INFINITY
+  JR NZ,OVFPRT           ;JUMP PRINT IF TRAPPING OTHERWISE +INFINITY
   LD HL,FLGOVC           ;PRINT INDICATOR FLAG
   LD A,(HL)
   OR A                   ;PRINT IF 0,1;SET TO 2 IF 1
-  JP Z,OV1A
+  JR Z,OV1A
   DEC A
-  JP NZ,OVFPRT
+  JR NZ,OVFPRT
   INC (HL)
 OV1A:
   LD HL,(OVERRI)         ;ADDRESS OF OVERFLOW MESSAGE
@@ -11235,12 +11226,12 @@ OVFPRT:
   POP AF                 ;GET PLUS,MINUS INDICATION BACK
   LD HL,FACCU            ;MUST NOW PUT RIGHT INFINITY INTO THE FAC
   LD DE,INFP
-  JP NC,OVFINA
+  JR NC,OVFINA
   LD DE,INFM             ;MINUS INFINITY
 OVFINA:
   CALL MOVE              ;MOVE INTO FAC
   CALL GETYPR
-  JP C,OVFINB            ;SP ALL OK
+  JR C,OVFINB            ;SP ALL OK
   LD HL,FACLOW
   LD DE,INFM             ;ALL ONES
   CALL MOVE
@@ -11252,7 +11243,7 @@ OVFINB:
   LD DE,OVERFLOW_MSG
   EX DE,HL               ;PUT "OVRMSG" ADDRESS IN OVERRI
   LD (OVERRI),HL         ;IN CASE THIS WAS A DIV BY 0
-  JP Z,NOODTP            ;JUMP IF NOT TRAPPING
+  JR Z,NOODTP            ;JUMP IF NOT TRAPPING
   CALL DCOMPR
   JP Z,OV_ERR            ;ALL RESTORED 
   JP O_ERR               ;CONTINUE PROCESSING
@@ -11298,7 +11289,7 @@ LINPRT:
   XOR A                  ;SET FORMAT TO FREE FORMAT
   CALL FOUINI            ;SET UP THE SIGN
   OR (HL)                ;TURN OFF THE ZERO FLAG
-  JP SPCFST              ;CONVERT THE NUMBER INTO DIGITS
+  JR SPCFST              ;CONVERT THE NUMBER INTO DIGITS
 
 
 
@@ -11360,7 +11351,7 @@ FOUT:                   ;ENTRY TO PRINT THE FAC IN FREE FORMAT
 PUFOUT:                 ;ENTRY TO PRINT THE FAC USING THE FORMAT SPECIFICATIONS IN A, B AND C
   CALL FOUINI           ;SAVE THE FORMAT SPECIFICATION IN A AND PUT A SPACE FOR POSITIVE NUMBERS IN THE BUFFER
   AND $08               ;CHECK IF POSITIVE NUMBERS GET A PLUS SIGN      ; bit 3 - Sign (+ or -) preceeds number
-  JP Z,PUFOUT_0         ;THEY DON'T
+  JR Z,PUFOUT_0         ;THEY DON'T
   LD (HL),'+'           ;THEY DO, PUT IN A PLUS SIGN
 PUFOUT_0:
   EX DE,HL              ;SAVE BUFFER POINTER
@@ -11389,7 +11380,7 @@ SPCFST:
 	;HERE TO PRINT NUMBERS IN FREE FORMAT
   JP Z,FOUTZR           ;IF THE NUMBER IS ZERO, FINISH IT UP
   CP $04                ;DECIDE WHAT KIND OF A VALUE WE HAVE
-  JP NC,FOUFRV          ;WE HAVE A SNG OR DBL
+  JR NC,FOUFRV          ;WE HAVE A SNG OR DBL
 
 	;HERE TO PRINT AN INTEGER IN FREE FORMAT
   LD BC,$0000           ;SET THE DECIMAL POINT COUNT AND COMMA COUNT TO ZERO
@@ -11406,39 +11397,39 @@ FOUTZS:
   LD A,(TEMP3)          ;GET FORMAT SPECS TO SEE IF WE HAVE TO
   LD E,A                ; ASTERISK FILL.  SAVE IT                       ; bit 5 - Asterisks fill  
   AND $20
-  JP Z,FOUTZS_0         ;WE DON'T
+  JR Z,FOUTZS_0         ;WE DON'T
   LD A,B                ;WE DO, SEE IF THE SIGN WAS A SPACE
   CP C                  ;ZERO FLAG IS SET IF IT WAS
   LD C,$2A              ;SET FILL CHARACTER TO AN ASTERISK
-  JP NZ,FOUTZS_0        ;SET THE SIGN TO AN ASTERISK IF IT WAS A SPACE
+  JR NZ,FOUTZS_0        ;SET THE SIGN TO AN ASTERISK IF IT WAS A SPACE
   LD A,E                ;GET FORMAT SPECS AGAIN
   AND $04               ;SEE IF SIGN IS TRAILING                        ; bit 2 - Sign (+ or -) follows ASCII number  
-  JP NZ,FOUTZS_0        ;IF SO DON'T ASTERISK FILL
+  JR NZ,FOUTZS_0        ;IF SO DON'T ASTERISK FILL
   LD B,C                ;B HAS THE SIGN, C THE FILL CHARACTER
 
 FOUTZS_0:
   LD (HL),C             ;FILL IN THE ZERO OR THE SIGN
   CALL CHRGTB           ;GET THE NEXT CHARACTER IN THE BUFFER SINCE THERE ARE NO SPACES, "CHRGET" IS EQUIVALENT TO "INX	H"/"MOV	A,M"
-  JP Z,FOUTZS_1         ;IF WE SEE A REAL ZERO, IT IS THE END OF THE NUMBER, AND WE MUST BACK UP AND PUT IN A ZERO.
+  JR Z,FOUTZS_1         ;IF WE SEE A REAL ZERO, IT IS THE END OF THE NUMBER, AND WE MUST BACK UP AND PUT IN A ZERO.
                         ;CHRGET SETS THE ZERO FLAG ON REAL ZEROS OR COLONS, BUT WE WON'T SEE ANY COLONS IN THIS BUFFER.
 
   CP 'E'                ;BACK UP AND PUT IN A ZERO IF WE SEE
-  JP Z,FOUTZS_1         ;AN "E" OR A "D" SO WE CAN PRINT 0 IN
+  JR Z,FOUTZS_1         ;AN "E" OR A "D" SO WE CAN PRINT 0 IN
   CP 'D'                ;FLOATING POINT NOTATION WITH THE C FORMAT ZERO
-  JP Z,FOUTZS_1
+  JR Z,FOUTZS_1
   CP '0'                ;DO WE HAVE A ZERO?
-  JP Z,FOUTZS_0         ;YES, SUPPRESS IT
+  JR Z,FOUTZS_0         ;YES, SUPPRESS IT
   CP ','                ;DO WE HAVE A COMMA?
-  JP Z,FOUTZS_0         ;YES, SUPPRESS IT
+  JR Z,FOUTZS_0         ;YES, SUPPRESS IT
   CP '.'                ;ARE WE AT THE DECIMAL POINT?
-  JP NZ,FOUTZS_2        ;NO, I GUESS NOT
+  JR NZ,FOUTZS_2        ;NO, I GUESS NOT
 FOUTZS_1:
   DEC HL                ;YES, BACK UP AND PUT A ZERO BEFORE IT
   LD (HL),'0'
 FOUTZS_2:
   LD A,E                ;GET THE FORMAT SPECS TO CHECK FOR A FLOATING
   AND $10               ; DOLLAR SIGN                                   ; bit 4 - Print leading '$'  
-  JP Z,FOUTZS_3         ;WE DON'T HAVE ONE
+  JR Z,FOUTZS_3         ;WE DON'T HAVE ONE
   DEC HL                ;WE HAVE ONE, BACK UP AND PUT IN THE DOLLAR
   LD (HL),'$'           ; SIGN
 FOUTZS_3:
@@ -11491,23 +11482,23 @@ FU1:                    ;GET ORIGINAL FBUFFER POINTER
   LD A,(HL)             ;FETCH UP FIRST CHARACTER
 FU2:
   CP B                  ;SCIENTIFIC NOTATION?
-  JP Z,FU4              ;IF SO, JUMP
+  JR Z,FU4              ;IF SO, JUMP
   CP '9'+1              ;IF CARRY NOT SET NOT A DIGIT
-  JP NC,FU2A
+  JR NC,FU2A
   CP '0'                ;IF CARRY SET NOT A DIGIT
-  JP C,FU2A
+  JR C,FU2A
   INC C                 ;INCREMENTED DIGITS TO PRINT
 FU2A:
   INC HL                ;POINT TO NEXT BUFFER CHARACTER
   LD A,(HL)             ;FETCH NEXT CHARACTER
   OR A                  ;0(BINARY) AT THE END OF CHARACTERS
-  JP NZ,FU2             ;CONTINUE SEARCH IF NOT AT END
+  JR NZ,FU2             ;CONTINUE SEARCH IF NOT AT END
   LD A,'D'              ;NOW TO CHECK TO SEE IF SEARCHED FOR D
   CP B
   LD B,A                ;IN CASE NOT YET SEARCHED FOR
   POP HL                ;NOW TO CHECK FOR "D"
   LD C,$00              ;ZERO DIGIT COUNT
-  JP NZ,FU1             ;GO SEARCH FOR "D" IF NOT DONE SO
+  JR NZ,FU1             ;GO SEARCH FOR "D" IF NOT DONE SO
 FU3:
   POP AF                ;POP	ORIGINAL PSW
   POP BC
@@ -11529,9 +11520,9 @@ FU4:                    ;PRINT IS IN SCIENTIFIC NOTATION , IS THIS BEST?
   LD A,(HL)             ;FETCH NEXT CHARACTER OF EXPONENT
 FU5:
   CP '+'                ;IS EXPONENT POSITIVE?
-  JP Z,FU8              ;IF SO NO BETTER PRINTOUT
+  JR Z,FU8              ;IF SO NO BETTER PRINTOUT
   CP '-'                ;MUST BE NEGATIVE!
-  JP Z,FU5A             ;MUST PROCESS THE DIGITS
+  JR Z,FU5A             ;MUST PROCESS THE DIGITS
   SUB '0'               ;SUBTRACT OUT ASCII BIAS
   LD C,A                ;DIGIT TO C
   LD A,B                ;FETCH OLD DIGIT
@@ -11542,39 +11533,39 @@ FU5:
   ADD A,C               ;ADD IN NEW DIGIT
   LD B,A                ;BACK OUT TO EXPONENT ACCUMULATOR
   CP 16                 ;16 D.P. DIGITS FOR MICROSOFT FORMAT
-  JP NC,FU8             ;IF SO STOP TRYING
+  JR NC,FU8             ;IF SO STOP TRYING
 FU5A:
   INC HL                ;POINT TO NEXT CHARACTER 
   LD A,(HL)             ;FETCH UP
   OR A                  ;BINARY ZERO AT END
-  JP NZ,FU5             ;CONTINUE IF NOT AT END
+  JR NZ,FU5             ;CONTINUE IF NOT AT END
   LD H,B                ;SAVE EXPONENT
   POP BC                ;FETCH TYPE, DIGIT COUNT
   LD A,B                ;DETERMINE TYPE
   CP 'E'                ;SINGLE PRECISION?
-  JP NZ,FU7             ;NO - GO PROCESS AS DOUBLE PRECISION
+  JR NZ,FU7             ;NO - GO PROCESS AS DOUBLE PRECISION
   LD A,C                ;DIGIT COUNT
   ADD A,H               ;ADD EXPONENT VALUE
   CP $09
   POP HL                ;POP OLD BUFFER POINTER
-  JP NC,FU3             ;CAN'T DO BETTER
+  JR NC,FU3             ;CAN'T DO BETTER
 FU6:
   LD A,$80
   LD (FANSII),A
-  JP FU9                ;DO FIXED POINT PRINTOUT
+  JR FU9                ;DO FIXED POINT PRINTOUT
   
 FU7:
   LD A,H                ;SAVE EXPONENT
   ADD A,C               ;TOTAL DIGITS NECESSARY
   CP $12                ;MUST PRODUCE CARRY TO USE FIXED POINT
   POP HL                ;GET STACK RIGHT
-  JP NC,FU3
-  JP FU6                ;GO PRINT IN FIXED POINT
+  JR NC,FU3
+  JR FU6                ;GO PRINT IN FIXED POINT
   
 FU8:
   POP BC
   POP HL                ;GET ORIGINAL BUFFER PTR BACK
-  JP FU3
+  JR FU3
   
 FU9:
   POP AF                ;GET ORIGINAL PSW OFF STACK
@@ -11610,7 +11601,7 @@ FOUFRF:
   JP P,FOFV5A           ;DO NORMAL THING
   POP AF
   ADD A,D
-  JP FOUFV6             ;FIXED OUTPUT
+  JR FOUFV6             ;FIXED OUTPUT
   
 FOFV5A:
   POP AF                ;NORMAL ROUTE
@@ -11618,7 +11609,7 @@ FOFV5A:
   JP M,FOFRS1           ;IT SHOULD, IT IS .LT. .01
   INC D                 ;CHECK IF IT IS TOO BIG
   CP D
-  JP NC,FOFRS1          ;IT IS TOO BIG, IT IS .GT. 10^D-1
+  JR NC,FOFRS1          ;IT IS TOO BIG, IT IS .GT. 10^D-1
 FOUFV6:
   INC A                 ;IT IS OK FOR FIXED POINT NOTATION
   LD B,A                ;SET DECIMAL POINT COUNT
@@ -11639,11 +11630,11 @@ SUPTLZ:
   DEC HL                ; Move back through buffer         ;MOVE BACK TO THE LAST CHARACTER
   LD A,(HL)             ; Get character                    ;GET IT AND SEE IF IT WAS ZERO
   CP '0'                ; "0" character?
-  JP Z,SUPTLZ           ; Yes - Look back for more         ;IT WAS, CONTINUE SUPPRESSING
+  JR Z,SUPTLZ           ; Yes - Look back for more         ;IT WAS, CONTINUE SUPPRESSING
   CP '.'                ; A decimal point?                 ;HAVE WE SUPPRESSED ALL THE FRACTIONAL DIGITS?
   CALL NZ,INCHL         ; Move back over digit             ;YES, IGNORE THE DECIMAL POINT ALSO
   POP AF                ; Get "E" flag                     ;GET THE EXPONENT BACK
-  JP Z,NOENED           ; No "E" needed - End buffer       ;WE ARE DONE IF WE ARE IN FIXED POINT NOTATION
+  JR Z,NOENED           ; No "E" needed - End buffer       ;WE ARE DONE IF WE ARE IN FIXED POINT NOTATION
                                                            ;FALL IN AND PUT THE EXPONENT IN THE BUFFER
 
 ; a.k.a. FOFLDN
@@ -11675,7 +11666,7 @@ OUTEXP:
 EXPTEN:
   INC B                 ; Count subtractions               ;INCREMENT DIGIT
   SUB 10                ; Tens digit                       ;SUBTRACT TEN
-  JP NC,EXPTEN          ; More to do                       ;DO IT AGAIN IF RESULT WAS POSITIVE
+  JR NC,EXPTEN          ; More to do                       ;DO IT AGAIN IF RESULT WAS POSITIVE
   ADD A,'0'+10          ; Restore and make ASCII           ;ADD BACK IN TEN AND CONVERT TO ASCII
 
 	;PUT THE EXPONENT IN THE BUFFER
@@ -11701,7 +11692,7 @@ FOUTFX:
   PUSH BC               ;SAVE THE FIELD LENGTH SPECIFICATIONS
   CP $04                ;CHECK WHAT KIND OF VALUE WE HAVE
   LD A,D                ;GET THE FORMAT SPECS
-  JP NC,FOUFXV          ;WE HAVE A SNG OR A DBL
+  JR NC,FOUFXV          ;WE HAVE A SNG OR A DBL
   
 	;HERE TO PRINT AN INTEGER IN FIXED FORMAT
   RRA                   ;CHECK IF WE HAVE TO PRINT IT IN FLOATING
@@ -11733,7 +11724,7 @@ FOUTTS:
   PUSH HL               ;SAVE BUFFER POINTER
   CALL FOUTZS           ;ZERO SUPPRESS THE NUMBER
   POP HL                ;GET THE BUFFER POINTER BACK
-  JP Z,FFXIX1           ;CHECK IF WE HAVE A TRAILING SIGN
+  JR Z,FFXIX1           ;CHECK IF WE HAVE A TRAILING SIGN
   LD (HL),B             ;WE DO, PUT THE SIGN IN THE BUFFER
   INC HL                ;INCREMENT THE BUFFER POINTER
 FFXIX1:
@@ -11763,9 +11754,9 @@ FOUBE5:
 	; AND THE FIELD MUST BE SMALL ENOUGH TO FIT IN THE BUFFER.
 	; GET THE NEXT CHARACTER IN THE BUFFER.
   CP ' '                ;IF IT IS A SPACE OR AN ASTERISK, WE CAN
-  JP Z,FOUBE1           ; IGNORE IT AND MAKE THE FIELD SHORTER WITH
+  JR Z,FOUBE1           ; IGNORE IT AND MAKE THE FIELD SHORTER WITH
   CP '*'                ; NO ILL EFFECTS
-  JP Z,FOUBE1
+  JR Z,FOUBE1
   DEC HL                ;MOVE THE POINTER BACK ONE TO READ THE CHARACTER WITH CHRGET
   PUSH HL               ;SAVE THE POINTER
 
@@ -11796,10 +11787,10 @@ FOUBE2:
   RET Z 
   POP BC                ;IT ISN'T, GET THE ADDRESS OFF THE STACK
   CP '0'                ;IS IT A ZERO?
-  JP NZ,FOUBE4          ;NO, WE CAN NOT GET RID OF ANOTHER CHARACTER
+  JR NZ,FOUBE4          ;NO, WE CAN NOT GET RID OF ANOTHER CHARACTER
   INC HL                ;SKIP OVER THE DECIMAL POINT
   CALL CHRGTB           ;GET THE NEXT CHARACTER
-  JP NC,FOUBE4          ;IT IS NOT A DIGIT, WE CAN'T SHORTEN THE FIELD
+  JR NC,FOUBE4          ;IT IS NOT A DIGIT, WE CAN'T SHORTEN THE FIELD
   DEC HL                ;WE CAN!!!  POINT TO THE DECIMAL POINT
   DEFB $01              ; "LD BC,nn" OVER THE NEXT 2 BYTES
 
@@ -11817,15 +11808,15 @@ FOUBE3:
 	;THE FIRST CHARACTER BEING IN THE BUFFER TWICE BECAUSE THE POINTER
 	;WHEN FOUT EXITS WILL BE POINTING TO THE SECOND OCCURANCE.
   POP AF                ;GET THE CHARACTER OFF THE STACK
-  JP Z,FOUBE3           ;PUT IT BACK IN THE BUFFER IF IT IS NOT THE LAST ONE
+  JR Z,FOUBE3           ;PUT IT BACK IN THE BUFFER IF IT IS NOT THE LAST ONE
   POP BC                ;GET THE BUFFER POINTER OFF THE STACK
-  JP FOUBE5             ;SEE IF THE FIELD IS NOW SMALL ENOUGH
+  JR FOUBE5             ;SEE IF THE FIELD IS NOW SMALL ENOUGH
 
 	;HERE IF THE NUMBER IS TOO BIG FOR THE FIELD
 ; This entry point is used by the routine at L3338.
 FOUBE4:
   POP AF                ;GET THE CHARACTERS OFF THE STACK
-  JP Z,FOUBE4           ;LEAVE THE NUMBER IN THE BUFFER ALONE
+  JR Z,FOUBE4           ;LEAVE THE NUMBER IN THE BUFFER ALONE
   POP HL                ;GET THE POINTER TO THE BEGINNING OF THE NUMBER MINUS 1
   LD (HL),'%'           ;PUT IN A PERCENT SIGN TO INDICATE THE NUMBER WAS TOO LARGE FOR THE FIELD
   RET                   ;ALL DONE -- RETURN FROM FOUT
@@ -11837,7 +11828,7 @@ FOUFXV:
   PUSH HL               ;SAVE THE BUFFER POINTER
   RRA                   ;GET FIXED OR FLOATING NOTATION FLAG IN CARRY
   JP C,FFXFLV           ;PRINT THE NUMBER IN E-NOTATION
-  JP Z,FFXSFX           ;WE HAVE A SNG HERE TO PRINT A DBL IN FIXED FORMAT--FIXED POINT NOTATION
+  JR Z,FFXSFX           ;WE HAVE A SNG HERE TO PRINT A DBL IN FIXED FORMAT--FIXED POINT NOTATION
   LD DE,FP_FFXDXM       ;GET POINTER TO 1D16
   CALL CMPPHL           ;WE CAN'T PRINT A NUMBER .GE. 10^16 IN FIXED POINT NOTATION
   LD D,$10              ;SET D = NUMBER OF DIGITS TO PRINT FOR A DBL
@@ -11924,7 +11915,7 @@ FFXXV2:
   CALL P,FOTZER         ; PRINT
   PUSH BC               ;SAVE FIELD SPEC
   CALL FOUTCD           ;SET UP DECIMAL POINT AND COMMA COUNT
-  JP FFXXV6             ;CONVERT THE DIGITS AND DO THE TRIMMING UP
+  JR FFXXV6             ;CONVERT THE DIGITS AND DO THE TRIMMING UP
 
 	;HERE TO PRINT A NUMBER WITHOUT INTEGER DIGITS
 FFXXV3:
@@ -11943,7 +11934,7 @@ FFXXV6:
   CALL FOUTCV           ;CONVERT THE NUMBER TO DECIMAL DIGITS
   POP BC                ;GET THE FIELD SPECS BACK
   OR C                  ;CHECK IF WE HAVE TO PRINT ANY ZEROS AFTER THE LAST DIGIT
-  JP NZ,FFXXV7          ;CHECK IF THERE WERE ANY DECIMAL PLACES AT ALL
+  JR NZ,FFXXV7          ;CHECK IF THERE WERE ANY DECIMAL PLACES AT ALL
                         ;E CAN NEVER BE 200, (IT IS NEGATIVE) SO IF
                         ; A=0 HERE, THERE IS NO WAY WE WILL CALL FOTZER 
   LD HL,(NXTOPR)        ;THE END OF THE NUMBER IS WHERE THE DP IS
@@ -11964,7 +11955,7 @@ FFXIFL:
   XOR A                 ;SET FLAGS TO PRINT THE NUMBER AS A SNG
                         ;FALL INTO FFXFLV
 FFXFLV:
-  JP Z,FFXSFL           ;IF WE HAVE A SNG, SET THE RIGHT FLAGS
+  JR Z,FFXSFL           ;IF WE HAVE A SNG, SET THE RIGHT FLAGS
   LD E,$10              ;WE HAVE A DBL, GET HOW MANY DIGITS WE HAVE
 
   DEFB $01              ; "LD BC,nn" OVER THE NEXT TWO BYTES
@@ -12021,7 +12012,7 @@ FFXLV3:
   CALL FOUTED           ;IN CASE D.P. IS LAST ON LIST
   POP BC                ;GET # OF SIG DIGITS AND "B" FIELD SPAC BACK
   POP AF                ;GET THE "C" FIELD SPEC BACK
-  JP NZ,FFXLV4          ;IF NON-ZERO PROCEED
+  JR NZ,FFXLV4          ;IF NON-ZERO PROCEED
   CALL DCXHRT           ;SEE IF D.P. THERE
   LD A,(HL)             ;FETCH TO MAKE SURE D.P.
   CP '.'                ;IF NOT MUST BE ZERO
@@ -12029,7 +12020,7 @@ FFXLV3:
   LD (NXTOPR),HL        ;NEED D.P. LOCATION IN TEMP2
 FFXLV4:                 ; SO IGNORE IT.
   POP AF                ;GET THE EXPONENT BACK
-  JP C,FFXLV2           ;EXPONENT=0 IF THE NUMBER IS ZERO
+  JR C,FFXLV2           ;EXPONENT=0 IF THE NUMBER IS ZERO
   ADD A,E               ;SCALE IT CORRECTLY
   SUB B
   SUB D
@@ -12054,7 +12045,7 @@ FOUTNV:
 FORBIG:
   LD A,(FPEXP)          ;GET EXPONENT
   CP $91                ;IS IT .LT.1D5?
-  JP NC,FOUNDB          ;NO, DONT MULTPLY
+  JR NC,FOUNDB          ;NO, DONT MULTPLY
   LD DE,FP_TENTEN       ;MULTIPLY BY 1D10
   LD HL,FPARG           ;MOVE INTO ARG
   CALL VMOVE            ;PUT IN ARG
@@ -12062,7 +12053,7 @@ FORBIG:
   POP AF                ;GET ORIG EXPONENT OFF STACK
   SUB 10                ;GET PROPER OFFSET FOR EXPONENT
   PUSH AF               ;SAVE EXPONENT BACK
-  JP FORBIG             ;FORCE IT BIGGER IF POSSIBLE
+  JR FORBIG             ;FORCE IT BIGGER IF POSSIBLE
 
 FOUNDB:
   CALL RNGTST           ;IS THE FAC TOO BIG OR TOO SMALL?        ; Test number is in range
@@ -12072,7 +12063,7 @@ SIXDIG:
   LD BC,$9143           ;GET 99999.95 TO SEE IF THE FAC IS BIG
   LD DE,$4FF9
   CALL FCOMP            ; ENOUGH YET
-  JP FOUNV5             ;GO DO THE CHECK
+  JR FOUNV5             ;GO DO THE CHECK
 
 FOUNV4:
   LD DE,FP_FOUTDL       ;GET POINTER TO 999,999,999,999,999.5
@@ -12082,7 +12073,7 @@ FOUNV5:
   POP AF                ;IT IS, MULTIPLY BY TEN
   CALL MULTEN
   PUSH AF               ;SAVE THE EXPONENT AGAIN
-  JP SIXDIG             ;NOW SEE IF IT IS BIG ENOUGH
+  JR SIXDIG             ;NOW SEE IF IT IS BIG ENOUGH
 
 ; This entry point is used by the routine at RNGTST.
 FOUNV2:
@@ -12107,7 +12098,7 @@ RNGTST:
   LD BC,$9474           ;GET 999999.5 TO SEE IF THE FAC IS TOO BIG
   LD DE,$23F8
   CALL FCOMP
-  JP RNGTST_1           ;GO DO THE CHECK
+  JR RNGTST_1           ;GO DO THE CHECK
 RNGTST_0:
   LD DE,FP_FOUTDU       ;GET POINTER TO 9,999,999,999,999,999.5
   CALL CMPPHL           ;SEE IF THE NUMBER IS TOO BIG
@@ -12129,7 +12120,7 @@ FOTZR1:
   DEC A                 ;WE ARE NOT DONE, SO DECREMENT THE COUNT
   LD (HL),'0'           ;PUT A ZERO IN THE BUFFER
   INC HL                ;UPDATE THE BUFFER POINTER
-  JP FOTZR1             ;GO SEE IF WE ARE NOW DONE
+  JR FOTZR1             ;GO SEE IF WE ARE NOW DONE
 
 
 	;HERE TO PUT ZEROS IN THE BUFFER WITH COMMAS OR A DECIMAL POINT IN THE MIDDLE.  
@@ -12138,7 +12129,7 @@ FOTZR1:
 	;A,B,C,H,L ARE ALTERED
 ; This entry point is used by the routine at FOUBE3.
 FOTZNC:
-  JP NZ,FOTZEC          ;ENTRY AFTER A "CALL FOUTCV"
+  JR NZ,FOTZEC          ;ENTRY AFTER A "CALL FOUTCV"
 FOTZRC:
   RET Z                 ;RETURN IF WE ARE DONE
   CALL FOUTED           ;SEE IF WE HAVE TO PUT A COMMA OR A DECIMAL POINT BEFORE THIS ZERO
@@ -12146,7 +12137,7 @@ FOTZEC:
   LD (HL),'0'           ;PUT A ZERO IN THE BUFFER
   INC HL                ;UPDATE THE BUFFER POINTER
   DEC A                 ;DECREMENT THE ZERO COUNT
-  JP FOTZRC             ;GO BACK AND SEE IF WE ARE DONE
+  JR FOTZRC             ;GO BACK AND SEE IF WE ARE DONE
 
 
 	;HERE TO PUT A POSSIBLE COMMA COUNT IN C, AND ZERO C IF WE ARE NOT
@@ -12160,7 +12151,7 @@ FOUTCD:
   INC A                 ;SETUP COMMA COUNT
 FOUTCD_0:
   SUB $03               ;REDUCE [A] MOD 3
-  JP NC,FOUTCD_0
+  JR NC,FOUTCD_0
   ADD A,$05             ;ADD 3 BACK IN AND ADD 2 MORE FOR SCALING
   LD C,A                ;SAVE A POSSIBLE COMMA COUNT
 
@@ -12208,7 +12199,7 @@ FTN10:
   INC HL                ;POINT TO NEXT OUTPUT POSITION
   LD (HL),'0'           ;PUT IN LEADING ZERO
   INC B                 ;WILL INCREMENT B UNTIL ZERO
-  JP NZ,FTN10          
+  JR NZ,FTN10          
   INC HL                ;PUT IN LEADING ZEROS UNTIL B ZERO
   LD C,B                ;POINT TO NEXT AVAILABLE BUFFER LOCATION
   RET
@@ -12217,7 +12208,7 @@ FTN10:
 FOUTED:
   DEC B                 ;TIME FOR D.P.?
 FTD05:                  
-  JP NZ,FOUED1          ;IF NOT D.P. TIME, SEE IF COMMA TIME
+  JR NZ,FOUED1          ;IF NOT D.P. TIME, SEE IF COMMA TIME
 
 	;ENTRY TO PUT A DECIMAL POINT IN THE BUFFER
 ; This entry point is used by the routine at FOUBE3.
@@ -12279,7 +12270,7 @@ FOUCD2:
   PUSH HL               ;SAVE IT AGAIN
   LD A,$9E			; SBC A,(HL)     GET THE INSTRUCTION TO SUBTRACT THE POWER OF TEN
   CALL DADDFO           ;GO SUBTRACT THEM
-  JP NC,FOUCD2          ;IF THE NUMBER WAS NOT LESS THAN THE POWER OF TEN, SUBTRACT AGAIN
+  JR NC,FOUCD2          ;IF THE NUMBER WAS NOT LESS THAN THE POWER OF TEN, SUBTRACT AGAIN
   POP HL                ;WE ARE DONE SUBTRACTING, BUT WE DID IT ONCE
   LD A,$8E			; ADC A,(HL)     GET THE INSTRUCTION TO ADD THE POWER OF TEN AND THE NUMBER
   CALL DADDFO           ;ADD THE TWO NUMBERS
@@ -12290,12 +12281,12 @@ FOUCD2:
   POP AF                ;GET THE DIGIT COUNT BACK
   POP BC                ;GET THE DECIMAL POINT AND COMMA COUNTS
   DEC A                 ;HAVE WE PRINTED THE LAST DIGIT?
-  JP NZ,FOUCD1          ;NO, GO DO THE NEXT ONE
+  JR NZ,FOUCD1          ;NO, GO DO THE NEXT ONE
   PUSH BC               ;YES, CONVERT REMAINING DIGITS USING SINGLE
   PUSH HL               ; PRECISION, THIS IS FASTER, MOVE THE NUMBER
   LD HL,FACLOW          ; THAT IS LEFT INTO THE SNG FAC
   CALL MOVFM
-  JP FOUCDC
+  JR FOUCDC
 
 	;HERE TO CONVERT A SINGLE PRECISION NUMBER TO DECIMAL DIGITS
 FOUTCS:
@@ -12339,7 +12330,7 @@ FOUCS2:
   LD C,A
   DEC HL                ;POINT TO BEGINNING OF POWER OF TEN
   DEC HL
-  JP NC,FOUCS2          ;SUBTRACT AGAIN IF RESULT WAS POSITIVE
+  JR NC,FOUCS2          ;SUBTRACT AGAIN IF RESULT WAS POSITIVE
   CALL PLUCDE           ;IT WASN'T, ADD POWER OF TEN BACK IN
   INC HL                ;INCREMENT POINTER TO NEXT POWER OF TEN
   CALL FPBCDE           ;SAVE C,D,E IN FAC
@@ -12349,11 +12340,11 @@ FOUCS2:
   INC HL                ;INCREMENT BUFFER POINTER
   POP AF                ;GET DIGIT COUNT (THE CARRY) BACK
   POP BC                ;GET COMMA AND DP INFORMATION BACK
-  JP C,FOUCS1           ;CALCULATE NEXT DIGIT IF WE HAVE NOT DONE 2
+  JR C,FOUCS1           ;CALCULATE NEXT DIGIT IF WE HAVE NOT DONE 2
   INC DE                ;WE HAVE, INCREMENT POINTER TO CORRECT PLACE
   INC DE                ; IN THE INTEGER POWER OF TEN TABLE
   LD A,$04              ;GET THE DIGIT COUNT
-  JP FOUCI1             ;COMPUTE THE REST OF THE DIGITS LIKE INTEGERS
+  JR FOUCI1             ;COMPUTE THE REST OF THE DIGITS LIKE INTEGERS
                         ;NOTE THAT THE CARRY IS OFF
 
 
@@ -12405,7 +12396,7 @@ FOUCI2:
   LD A,H                ;SUBTRACT THE HIGH ORDERS
   SBC A,D
   LD H,A                ;SAVE THE NEW HIGH ORDER
-  JP NC,FOUCI2          ;IF (HL) WAS .GE. (DE) THEN SUBTRACT AGAIN
+  JR NC,FOUCI2          ;IF (HL) WAS .GE. (DE) THEN SUBTRACT AGAIN
   ADD HL,DE             ;WE ARE DONE, BUT WE SUBTRACTED (DE) ONCE TOO OFTEN, SO ADD IT BACK IN
   LD (FACCU),HL         ;SAVE IN THE FAC WHAT IS LEFT
   POP DE                ;GET THE POWER OF TEN POINTER BACK
@@ -12415,7 +12406,7 @@ FOUCI2:
   POP AF                ;GET THE DIGIT COUNT BACK
   POP BC                ;GET THE COMMA AND DP INFORMATION BACK
   DEC A                 ;WAS THAT THE LAST DIGIT?
-  JP NZ,FOUCI1          ;NO, GO DO THE NEXT ONE
+  JR NZ,FOUCI1          ;NO, GO DO THE NEXT ONE
   CALL FOUTED           ;YES, SEE IF A DP GOES AFTER THE LAST DIGIT
   LD (HL),A             ;PUT A ZERO AT THE END OF THE NUMBER, BUT DON'T INCREMENT (HL)
                         ;SINCE AN EXPONENT OR A TRAILING SIGN MAY BE COMMING
@@ -12492,7 +12483,7 @@ FOUTH:
   DEC B                ;SEE IF OCTAL
   INC B                ;IF SO, ZERO SET
   LD C,$06             ;SIX DIGITS FOR OCTAL
-  JP Z,OCTONE          ;DO FIRST OCTAL DIGIT
+  JR Z,OCTONE          ;DO FIRST OCTAL DIGIT
   LD C,$04             ;FOUR DIGIT FOR HEX
 OUTHLP:
   ADD HL,HL            ;SHIFT LEFT ONE BIT
@@ -12506,18 +12497,18 @@ OCTONE:
   ADD HL,HL            ;ENTER HERE FOR FIRST OCTAL DIGIT
   ADC A,A
   OR A                 ;SEE IF WE GOT A ZERO DIGIT
-  JP NZ,MAKDIG         ;NO, MAKE A DIGIT
+  JR NZ,MAKDIG         ;NO, MAKE A DIGIT
   LD A,C               ;GET DIGIT COUNTER
   DEC A                ;WAS IT GOING TO GO TO ZERO (LAST DIG?)
-  JP Z,MAKDIG          ;IF SO, FORCE ONE ZERO DIGIT
+  JR Z,MAKDIG          ;IF SO, FORCE ONE ZERO DIGIT
   LD A,(DE)            ;HAVE WE PRINTED A NON-ZERO DIGIT?
   OR A                 ;SET CC'S
-  JP Z,NOLEAD          ;NO, DONT PRINT THIS LEADING ZERO
+  JR Z,NOLEAD          ;NO, DONT PRINT THIS LEADING ZERO
   XOR A                ;GET ZERO
 MAKDIG:
   ADD A,'0'            ;MAKE NUMERIC DIGIT
   CP '9'+1             ;IS IT A BIG HEX DIGIT? (A-F)
-  JP C,NOTHAL          ;NO, DONT ADD OFFSET
+  JR C,NOTHAL          ;NO, DONT ADD OFFSET
   ADD A,'A'-'9'-1      ;(A..F) ADD OFFSET
 NOTHAL:
   LD (DE),A            ;SAVE DIGIT IN FBUFFR
@@ -12526,11 +12517,11 @@ NOTHAL:
 NOLEAD:
   XOR A                ;MAKE A ZERO
   DEC C                ;ALL DONE PRINTING?
-  JP Z,FINOHO          ;YES, RETURN
+  JR Z,FINOHO          ;YES, RETURN
   DEC B                ;SEE IF HEX OR OCTAL
   INC B                ;TEST
-  JP Z,OUTOLP          ;WAS OCTAL
-  JP OUTHLP            ;WAS HEX
+  JR Z,OUTOLP          ;WAS OCTAL
+  JR OUTHLP            ;WAS HEX
 
 FINOHO:
   LD (DE),A            ;STORE FINAL ZERO
@@ -12559,7 +12550,7 @@ __SQR:
   CALL PUSHF              ; Put value on stack          ;SAVE ARG X
   LD HL,FP_HALF           ; Set power to 1/2            ;GET 1/2
   CALL MOVFM              ; Move 1/2 to FPREG           ;SQR(X)=X^.5
-  JP POWER_0              ;SKIP OVER THE NEXT 3 BYTES
+  JR POWER_0              ;SKIP OVER THE NEXT 3 BYTES
 
 POWER:
   CALL __CSNG             ;MAKE SURE THE FAC IS A SNG
@@ -12574,7 +12565,7 @@ POWER_0:
   LD (FLGOVC),A           ;SEE IF Y IS ZERO
   CALL SIGN               ;IT IS, RESULT IS ONE                 ; Test sign of power
   LD A,B                  ;POSITIVE EXPONENT                    ; Get exponent of base
-  JP Z,__EXP              ;IS IT ZERO TO MINUS POWER?           ; Make result 1 if zero
+  JR Z,__EXP              ;IS IT ZERO TO MINUS POWER?           ; Make result 1 if zero
   JP P,POWER_1            ;GIVE DIV BY ZERO AND CONTINUE        ; Positive base - Ok
   OR A                    ; Zero to negative power?
   JP Z,DZERR              ; Yes - ?/0 Error
@@ -12587,15 +12578,17 @@ POWER_1:
   OR $7F                  ;TURN THE ZERO FLAG OFF               ; Get sign status
   CALL BCDEFP             ;GET Y IN THE REGISTERS               ; Move power to BCDE
   JP P,POWER_3            ;NO PROBLEMS IF X IS POSITIVE         ; Positive base - Ok
-  PUSH AF                 ; Save power
-  LD A,(FPEXP)
+
+  PUSH AF                 ; Save exponent
+  LD A,(FPEXP)            ; Check the sign of power
   CP $99
-  JP C,POWER_2
-  POP AF
-  JP POWER_3              ;NO PROBLEMS IF X IS POSITIVE
+  JR C,POWER_2            ; Negative
+  POP AF                  ; Restore exponent
+  JR POWER_3              ; Positive
 
 POWER_2:
-  POP AF
+  POP AF                  ; Restore exponent
+
   PUSH DE
   PUSH BC
   CALL INT                ;SEE IF Y IS AN INTEGER                         ; Get integer of power
@@ -12655,15 +12648,15 @@ __EXP:
   CALL FMULT              ;y=FAC*LOG2(e)                  ; Multiply value by 1/LN(2)
   LD A,(FPEXP)            ;MUST SEE IF TOO LARGE          ; Get exponent
   CP $88                  ;ABS .GT. 128?                  ; Is it in range?  (80H+8)
-  JP NC,MUL_OVTST1        ;IF SO OVERFLOW                 ; No - Test for overflow
+  JR NC,MUL_OVTST1        ;IF SO OVERFLOW                 ; No - Test for overflow
   CP $68                  ;IF TOO SMALL ANSWER IS 1
-  JP C,GET_UNITY                                          ; Load '1' to FP accumulator
+  JR C,GET_UNITY                                          ; Load '1' to FP accumulator
   CALL PUSHF              ;SAVE y                         ; Put value on stack
   CALL INT                ;DETERMINE INTEGER POWER OF 2   ; Get INT of FP accumulator
   ADD A,$81               ;INTEGER WAS RETURNED IN A      ; 80h+1: For excess 128, Exponent = 126?
                           ;BIAS IS $81 BECAUSE BINARY POINT IS TO LEFT OF UNDERSTOOD 1
 							 
-  JP Z,MUL_OVTST2         ; Yes - Test for overflow       ;OVERFLOW
+  JR Z,MUL_OVTST2         ; Yes - Test for overflow       ;OVERFLOW
   POP BC
   POP DE                  ;RECALL y
   PUSH AF                 ;SAVE EXPONENT
@@ -12767,7 +12760,7 @@ SUMLP:
   PUSH HL                 ; Save address in table            ;STORE LOCATION OF CONSTANTS SO FADD AND FMULT
   CALL FADD               ; Add coefficient to FPREG         ; WILL NOT SCREW THEM UP, ADD IN CONSTANT
   POP HL                  ; Restore address in table         ;MOVE CONSTANT POINTER TO NEXT CONSTANT
-  JP SUMLP                ; More coefficients                ;SEE IF DONE
+  JR SUMLP                ; More coefficients                ;SEE IF DONE
 
 
 
@@ -12853,7 +12846,7 @@ RND1:
   INC (HL)                ; Count seed                           ;INCREMENT THE PERTUBATION COUNT
   LD A,(HL)               ; Get seed                             ;SEE IF ITS TIME
   SUB $AB                 ; Do it modulo 171
-  JP NZ,RND2              ; Non-zero - Ok
+  JR NZ,RND2              ; Non-zero - Ok
   LD (HL),A               ; Zero seed                            ;ZERO THE COUNTER
   INC C                   ; Fillde about
   DEC D                   ; with the
@@ -12869,7 +12862,7 @@ RESEED:
   LD (HL),A
   DEC HL
   LD (HL),A
-  JP RND1
+  JR RND1
 
 
 ; RNDCNT = SEED+1
@@ -13042,7 +13035,7 @@ __ATN:
   CALL M,NEG              ; Negate value if -ve              ;   ARCTAN(X)=-ARCTAN(-X)
   LD A,(FPEXP)            ; Get exponent                     ;SEE IF FAC .GT. 1
   CP $81                  ; Number less than 1?
-  JP C,__ATN_0            ; Yes - Get arc tangnt
+  JR C,__ATN_0            ; Yes - Get arc tangnt
   LD BC,$8100             ; BCDE = 1                         ;GET THE CONSTANT 1
   LD D,C
   LD E,C                                                     ;COMPUTE RECIPROCAL TO USE THE IDENTITY:
@@ -13132,15 +13125,15 @@ GTFNAM:
   INC HL                  ;INCRMENT TEXT POINTER
   LD A,(HL)               ;GET CHAR
   CP '.'                  ;IS IT A DOT?
-  JP C,NOSEC              ;TOO SMALL FOR ANYTHING REASONABLE
-  JP Z,ISSEC              ;"." IS VALID VAR CHAR
+  JR C,NOSEC              ;TOO SMALL FOR ANYTHING REASONABLE
+  JR Z,ISSEC              ;"." IS VALID VAR CHAR
   CP '9'+1                ;TOO BIG FOR NUMERIC?
-  JP NC,PTRGT3            ;YES
+  JR NC,PTRGT3            ;YES
   CP '0'                  ;IN RIGHT RANGE?
-  JP NC,ISSEC             ;YES, WAS NUMERIC
+  JR NC,ISSEC             ;YES, WAS NUMERIC
 PTRGT3:
   CALL ISLETTER_A
-  JP C,NOSEC              ;ALLOW ALPHABETICS
+  JR C,NOSEC              ;ALLOW ALPHABETICS
 ISSEC:
   LD B,A                  ;IT IS A NUMBER--SAVE IN B
   PUSH BC                 ;SAVE [B,C]
@@ -13155,14 +13148,14 @@ VMORCH:
   INC HL                  ;INCREMENT TEXT POINTER
   LD A,(HL)               ;GET CHAR
   CP '9'+1                ;TOO BIG?
-  JP NC,VMORC1            ;YES
+  JR NC,VMORC1            ;YES
   CP '0'                  ;IN RANGE FOR DIGIT
-  JP NC,VMORCH            ;YES, VALID CHAR
+  JR NC,VMORCH            ;YES, VALID CHAR
 VMORC1:
   CALL ISLETTER_A         ;AS ARE ALPHABETICS
-  JP NC,VMORCH            ; JP if letter
+  JR NC,VMORCH            ; JP if letter
   CP '.'                  ;DOTS ALSO OK
-  JP Z,VMORCH             ;SO EAT IT
+  JR Z,VMORCH             ;SO EAT IT
   LD A,B                  ;CHECK FOR MAXIMUM COUNT
   CP NAMLEN-1             ;LIMITED TO SIZE OF NAMBUF ONLY
   JP NC,SN_ERR            ;MUST BE BAD SYNTAX
@@ -13171,7 +13164,7 @@ VMORC1:
   LD A,(HL)               ;RESTORE TERMINATING CHAR
 NOSEC:                    
   CP '%'+1                ;NOT A TYPE INDICATOR
-  JP NC,TABTYP            ;THEN DONT CHECK THEM
+  JR NC,TABTYP            ;THEN DONT CHECK THEM
   LD DE,HAVTYP            ;SAVE JUMPS BY USING RETURN ADDRESS
   PUSH DE
   LD D,$02                ;CHECK FOR INTEGER
@@ -13223,13 +13216,13 @@ NSCFOR:
   LD A,(NOFUNS)           ;ARE FUNCTIONS ACTIVE?
   OR A
   LD (PRMFLG),A           ;INDICATE IF PARM1 NEEDS SEARCHING
-  JP Z,SNFUNS             ;NO FUNCTIONS SO NO SPECIAL SEARCH
+  JR Z,SNFUNS             ;NO FUNCTIONS SO NO SPECIAL SEARCH
   LD HL,(PRMLEN)          ;GET THE SIZE TO SEARCH
   LD DE,PARM1             ;GET THE BASE OF THE SEARCH
   ADD HL,DE               ;[H,L]= PLACE TO STOP SEARCHING
   LD (ARYTA2),HL          ;SET UP STOPPING POINT
   EX DE,HL                ;[H,L]=START [D,E]=END
-  JP LOPFND               ;START LOOPING
+  JR LOPFND               ;START LOOPING
   
 LOPTOP:
   LD A,(DE)               ;GET THE VALTYP OF THIS SIMPLE VARIABLE
@@ -13238,10 +13231,10 @@ LOPTOP:
   LD A,(DE)               ;[A]=FIRST CHARACTER OF THIS VARIABLE
   INC DE                  ;POINT TO 2ND CHAR OF VAR NAME
   CP C                    ;SEE IF OUR VARIABLE MATCHES
-  JP NZ,NOTIT1
+  JR NZ,NOTIT1
   LD A,(VALTYP)           ;GET TYPE WERE LOOKING FOR
   CP L                    ;COMPARE WITH OUR VALTYP
-  JP NZ,NOTIT1            ;NOT RIGHT KIND -- SKIP IT
+  JR NZ,NOTIT1            ;NOT RIGHT KIND -- SKIP IT
   LD A,(DE)               ;SEE IF SECOND CHACRACTER MATCHES
   CP B
   JP Z,FINPTR             ;THAT WAS IT, ALL DONE
@@ -13266,21 +13259,21 @@ LOPFND:
   EX DE,HL                ;[D,E]=POINTER INTO SIMPLE VARIABLES
   LD A,(ARYTA2)           ;ARE LOW BYTES DIFFERENT
   CP E                    ;TEST
-  JP NZ,LOPTOP            ;YES
+  JR NZ,LOPTOP            ;YES
   LD A,(ARYTA2+1)         ;ARE HIGH BYTES DIFFERENT
   CP D                    ;THE SAME?
-  JP NZ,LOPTOP            ;NO, MUST BE MORE VARS TO EXAMINE
+  JR NZ,LOPTOP            ;NO, MUST BE MORE VARS TO EXAMINE
 ;NOTFNS:
   LD A,(PRMFLG)           ;HAS PARM1 BEEN SEARCHED
   OR A
-  JP Z,SMKVAR             ;IF SO, CREATE VARIABLE
+  JR Z,SMKVAR             ;IF SO, CREATE VARIABLE
   XOR A                   ;FLAG PARM1 AS SEARCHED
   LD (PRMFLG),A
 SNFUNS:
   LD HL,(ARYTAB)          ;STOPPING POINT IS [ARYTA2]
   LD (ARYTA2),HL
   LD HL,(VARTAB)          ;SET UP STARTING POINT
-  JP LOPFND
+  JR LOPFND
 
 ; This entry point is used by the routines at NOTQTI, __ERL and __CHAIN.
 PTRGET:
@@ -13305,11 +13298,11 @@ SMKVAR:
   PUSH DE                 ;SAVE CURRENT VARIABLE TABLE POSITION
   LD DE,VARRET            ;ARE WE RETURNING TO VARPTR?
   CALL DCOMPR             ;COMPARE
-  JP Z,VARNOT             ;YES.
+  JR Z,VARNOT             ;YES.
   LD DE,COMPTR            ;RETURN HERE IF NOT FOUND
   CALL DCOMPR
   POP DE                  ;RESTORE THE POSITION
-  JP Z,FINZER             ;MAKE FAC ZERO (ALL TYPES) AND SKIP RETURN
+  JR Z,FINZER             ;MAKE FAC ZERO (ALL TYPES) AND SKIP RETURN
   EX (SP),HL              ;PUT RETURN ADDRESS BACK
   PUSH HL                 ;PUT THE TEXT POINTER BACK
   PUSH BC                 ;SAVE THE LOOKS
@@ -13340,7 +13333,7 @@ ZEROER:
   DEC HL                  ;[H,L] IS RETURNED POINTING TO THE
   LD (HL),$00             ;END OF THE VARIABLE SO WE
   CALL DCOMPR             ;ZERO BACKWARDS TO [D,E] WHICH
-  JP NZ,ZEROER            ;POINTS TO THE START OF THE VARIABLE
+  JR NZ,ZEROER            ;POINTS TO THE START OF THE VARIABLE
   POP DE                  ;[E]=VALTYP
   LD (HL),D               ;VALTYP IS IN HIGH ORDER
   INC HL
@@ -13363,7 +13356,7 @@ FINPTR:
   CP H                    ;ARE THEY THE SAME?
   JP NZ,NFINPT            ;SKIP EXTRAS AND CONTINUE SEARCH
   OR A                    ;LENGTH ZERO?
-  JP NZ,NTFPRT            ;NO, MORE CHARS TO LOOK AT
+  JR NZ,NTFPRT            ;NO, MORE CHARS TO LOOK AT
   INC DE                  ;POINT TO VALUE OF VAR
   POP HL                  ;RESTORE TEXT POINTER
   RET                     ;ALL DONE WITH THIS VAR
@@ -13385,7 +13378,7 @@ FINZER:
   LD L,A
   LD (FACCU),HL
   CALL GETYPR             ;SEE IF ITS A STRING
-  JP NZ,POPHR2            ;IF NOT, DONE
+  JR NZ,POPHR2            ;IF NOT, DONE
   LD HL,NULL_STRING       ;MAKE IT A NULL STRING BY
   LD (FACCU),HL           ;POINTING AT A ZERO
 POPHR2:
@@ -13419,7 +13412,7 @@ SCPTLP:
   LD DE,NAMCNT            ;POINT AT THE AREA TO SAVE
   LD A,(DE)               ;GET LENGTH
   OR A                    ;IS IT ZERO?
-  JP Z,SHTNAM             ;YES, SHORT NAME
+  JR Z,SHTNAM             ;YES, SHORT NAME
   EX DE,HL                ;SAVE THE TEXT POINTER IN [D,E]
   ADD A,$02               ;WE WANT SMALLEST INT .GE.(NAMCNT+1)/2
   RRA
@@ -13433,7 +13426,7 @@ LPPSNM:
   INC HL
   PUSH BC                 ;AND DO THE SAVE
   DEC A                   ;[A] TIMES
-  JP NZ,LPPSNM
+  JR NZ,LPPSNM
   PUSH HL                 ;SAVE THE ADDRESS TO STORE TO
   LD A,(NAMCNT)           ;SAVE THE NUMBER OF BYTES FOR A COUNT
   PUSH AF
@@ -13451,9 +13444,9 @@ LPLNAM:
   DEC HL
   LD (HL),C
   DEC A                   ;LOOP [A] TIMES POPING NAME BACK INTO NAMBUF
-  JP NZ,LPLNAM
+  JR NZ,LPLNAM
   LD HL,(NAMTMP)
-  JP LNGNAM               ;WAS LONG ONE
+  JR LNGNAM               ;WAS LONG ONE
 
 SHTNAM:
   CALL INTIDX             ;EVALUATE IT
@@ -13463,10 +13456,10 @@ SHTNAM:
 LNGNAM:
   LD A,(OPTVAL)          ;SEE WHAT THE OPTION BASE IS
   OR A
-  JP Z,OPTB0              ;IF BASE 0 DO NOTHING
+  JR Z,OPTB0              ;IF BASE 0 DO NOTHING
   LD A,D                  ;CHECK FOR 0 SUBSCRIPT
   OR E                    ;WHICH IS ILLEGAL IN BASE 1
-  JP Z,BS_ERR             ;ADJUST SUBSCRIPT
+  JR Z,BS_ERR             ;ADJUST SUBSCRIPT
   DEC DE
 OPTB0:
   POP BC                  ;POP OFF THE LOOKS
@@ -13479,9 +13472,9 @@ OPTB0:
   LD D,A                  ;[D]=NUMBER OF DIMENSIONS                               ; Save in D
   LD A,(HL)               ;GET TERMINATING CHARACTER                              ; Get next byte in code string
   CP ','                  ;A COMMA SO MORE INDICES FOLLOW?                        ; Comma (more to come)?
-  JP Z,SCPTLP             ;IF SO, READ MORE                                       ; Yes - More subscripts
+  JR Z,SCPTLP             ;IF SO, READ MORE                                       ; Yes - More subscripts
   CP ')'                  ;EXPECTED TERMINATOR?                                   ; Make sure ")" follows
-  JP Z,DOCHRT             ;DO CHRGET FOR NEXT ONE
+  JR Z,DOCHRT             ;DO CHRGET FOR NEXT ONE
   CP ']'                  ;BRACKET?
   JP NZ,SN_ERR            ;NO, GIVE ERROR
 DOCHRT:
@@ -13512,23 +13505,21 @@ ARLDSV:
 ; This entry point is used by the routine at NXTARY.
 FNDARY:
   ADD HL,DE               ; Move to next array start                    ;SKIP OVER THIS ARRAY SINCE IT'S NOT THE ONE
-  EX DE,HL                                                              ;[D,E]=CURRENT SEARCH POINT
-  LD HL,(STREND)          ; End of arrays                               ;GET THE PLACE TO STOP INTO [H,L]
-  EX DE,HL                                                              ;[H,L]=SEARCH POINT
+  LD DE,(STREND)          ; End of arrays                               ;GET THE PLACE TO STOP INTO [D,E]
   CALL DCOMPR             ; End of arrays found?                        ;STOPPING TIME?
-  JP Z,CREARY             ; Yes - Create array                          ;YES, COULDN'T FIND THIS ARRAY
+  JR Z,CREARY             ; Yes - Create array                          ;YES, COULDN'T FIND THIS ARRAY
   LD E,(HL)               ; Get type                                    ;GET VALTYP IN [E]
   INC HL                  ; Move on
   LD A,(HL)               ; Get second byte of name                     ;GET FIRST CHARACTER
   INC HL                  ; Move on
   CP C                    ; Compare with name given (second byte)       ;SEE IF IT MATCHES
-  JP NZ,NXTARY            ; Different - Find next array                 ;NOT THIS ONE
+  JR NZ,NXTARY            ; Different - Find next array                 ;NOT THIS ONE
   LD A,(VALTYP)                                                         ;GET TYPE OF VAR WERE LOOKING FOR
   CP E                    ; Compare type                                ;SAME AS THIS ONE?
-  JP NZ,NXTARY            ; Different - Find next array                 ;NO, SKIP THIS VAR
+  JR NZ,NXTARY            ; Different - Find next array                 ;NO, SKIP THIS VAR
   LD A,(HL)               ; Get first byte of name                      ;GET SECOND CHARACTER
   CP B                    ; Compare with name given (first byte)        ;ANOTHER MATCH?
-  JP Z,BSNTERC                                                          ;MATCH, CHECK OUT REST OF NAME
+  JR Z,BSNTERC                                                          ;MATCH, CHECK OUT REST OF NAME
 
 ; Routine at 20540
 ;
@@ -13547,7 +13538,7 @@ NXTARY_1:
   INC HL                  ;OF THE ARRAY BEING LOOKED AT
   LD D,(HL)
   INC HL
-  JP NZ,FNDARY            ; Not found - Keep looking                    ;IF NO MATCH, SKIP THIS ONE AND TRY AGAIN
+  JR NZ,FNDARY            ; Not found - Keep looking                    ;IF NO MATCH, SKIP THIS ONE AND TRY AGAIN
   LD A,(DIMFLG)           ; Found Locate or Create it?                  ;SEE IF CALLED BY "DIM"
   OR A                                                                  ;ZERO MEANS NO
   JP NZ,DD_ERR            ; Create - Err $0A - "Redimensioned array"    ;PRESERVE [D,E], AND DISPATCH TO
@@ -13581,13 +13572,13 @@ BSNTERC:
   INC HL                  ;POINT TO LENGTH OF NAME
   LD A,(NAMCNT)           ;SEE IF COUNT MATCHES COUNT IN COMPLEX TABLE
   CP (HL)
-  JP NZ,BNAMSZ            ;BAD NAME SIZE JUST SKIP AND SET NZ CC
+  JR NZ,BNAMSZ            ;BAD NAME SIZE JUST SKIP AND SET NZ CC
   INC HL                  ;POINT ONE BYTE AFTER LENGTH FIELD
   OR A                    ;LENGTH ZERO?
-  JP Z,NXTARY_1           ;THEN FOUND, EXIT
+  JR Z,NXTARY_1           ;THEN FOUND, EXIT
   DEC HL                  ;MOVE BACK ONE
   CALL MATSUB             ;OTHERWISE TRY TO MATCH CHARACTERS
-  JP NXTARY_1             ;USING COMMON SUBROUTINE
+  JR NXTARY_1             ;USING COMMON SUBROUTINE
 
 ;
 ; HERE WHEN VARIABLE IS NOT FOUND IN THE ARRAY TABLE
@@ -13638,14 +13629,14 @@ CREARY:
   RLA                     ; Carry set = Create          ;SET CARRY IF SO
   LD A,C                  ; Get number of dimensions    ;[A]=NUMBER OF DIMENSIONS
 CRARLP:
-  JP C,GETSIZ
+  JR C,GETSIZ
   PUSH AF
   LD A,(OPTVAL)                                             ;GET THE OPTION BASE
   XOR 10+1                ; Default dimension size is 10     ;MAP 0 TO 11 AND 1 TO 10
   LD C,A                  ; BC = number of dimensions        ;[B,C]=DEFAULT DIMENSION
   LD B,$00
   POP AF
-  JP NC,DEFSIZ            ; Locate - Set default size        ;DEFAULT DIMENSIONS TO TEN
+  JR NC,DEFSIZ            ; Locate - Set default size        ;DEFAULT DIMENSIONS TO TEN
 GETSIZ:
   POP BC                  ; Get specified dimension size     ;POP OFF AN INDICE INTO [B,C]
   INC BC                  ; Include zero element             ;ADD ONE TO IT FOR THE ZERO ENTRY
@@ -13658,7 +13649,7 @@ DEFSIZ:
   CALL MLDEBC             ; Multiply DE by BC to find amount of mem needed   ;MULTIPLY [B,C]=NEWMAX BY CURTOL=[D,E]
   POP AF                  ; Restore number of dimensions      ;GET THE NUMBER OF DIMENSIONS AND DIMFLG (CARRY) BACK
   DEC A                   ; Count them                        ;DECREMENT THE NUMBER OF DIMENSIONS LEFT
-  JP NZ,CRARLP            ; Do next dimension if more         ;HANDLE THE OTHER INDICES
+  JR NZ,CRARLP            ; Do next dimension if more         ;HANDLE THE OTHER INDICES
   PUSH AF                 ; Save locate/create flag           ;SAVE DIMFLG (CARRY)
   LD B,D                  ; MSB of memory needed              ;[B,C]=SIZE
   LD C,E                  ; LSB of memory needed
@@ -13673,7 +13664,7 @@ ZERARY:
   DEC HL                  ; Back through array data          ;ZERO THE NEW ARRAY
   LD (HL),$00             ; Set array element to zero
   CALL DCOMPR             ; All elements zeroed?             ;BACK AT THE BEGINNING?
-  JP NZ,ZERARY            ; No - Keep on going               ;NO, ZERO MORE
+  JR NZ,ZERARY            ; No - Keep on going               ;NO, ZERO MORE
   INC BC                  ; Number of bytes + 1              ;ADD ONE TO THE SIZE TO INCLUDE THE BYTE FOR THE NUMBER OF DIMENSIONS
   LD D,A                  ; A=0                              ;[D]=ZERO
   LD HL,(TEMP3)           ; Get address of array             ;GET A POINTER AT THE NUMBER OF DIMENSIONS
@@ -13689,7 +13680,7 @@ ZERARY:
   LD (HL),D               ; Save MSB of bytes needed
   INC HL
   POP AF                  ; Locate / Create?                 ;GET BACK DIMFLG (CARRY) AND SET [A]=0
-  JP C,ENDDIM             ; A is 0 , End if create
+  JR C,ENDDIM             ; A is 0 , End if create
 
 ;
 ; AT THIS POINT [H,L] POINTS BEYOND THE SIZE TO THE NUMBER OF DIMENSIONS
@@ -13730,15 +13721,15 @@ INLPNM:
   DEC A                   ; Count them                      ;SEE IF ALL THE INDICES HAVE BEEN PROCESSED
   LD B,H                  ; MSB of pointer                  ;[B,C]=CURTOL IN CASE WE LOOP BACK
   LD C,L                  ; LSB of pointer
-  JP NZ,INLPNM            ; More - Keep going               ;PROCESS THE REST OF THE INDICES
+  JR NZ,INLPNM            ; More - Keep going               ;PROCESS THE REST OF THE INDICES
   LD A,(VALTYP)           ; SEE HOW BIG THE VALUES ARE AND MULTIPLY BY THAT SIZE
   LD B,H                  ; SAVE THE ORIGINAL VALUE FOR MULTIPLYING
   LD C,L                  ; BY THREE
   ADD HL,HL               ; MULTIPLY BY TWO AT LEAST
   SUB $04                 ; FOR INTEGERS AND STRINGS NO MORE MULTIPLYING BY TWO
-  JP C,SMLVAL
+  JR C,SMLVAL
   ADD HL,HL               ;NOW MULTIPLIED BY FOUR
-  JP Z,DONMUL             ;IF SINGLE ALL DONE
+  JR Z,DONMUL             ;IF SINGLE ALL DONE
   ADD HL,HL               ;BY EIGHT FOR DOUBLES
 SMLVAL:
   OR A                    ;FIX CC'S FOR Z-80
@@ -13793,8 +13784,8 @@ SLPLNG:
   INC DE
   INC HL                  ;MOVE UP TO STORE NAME INTO TABLE
   LD (HL),A               ;DO THE STORE
-  DEC B                   ;AND REPEAT [B] TIMES
-  JP NZ,SLPLNG            ;FOR THE COUNT AND DATA
+  ;DEC B                   ;AND REPEAT [B] TIMES
+  DJNZ SLPLNG            ;FOR THE COUNT AND DATA
   POP AF
   POP DE
   POP BC
@@ -13811,12 +13802,12 @@ MATSUB:
   INC B                   ;START OFF LOOP
 SLPMAT:
   DEC B                   ;MATCHED ALL CHARACTERS YET?
-  JP Z,ISMAT2             ;IF SO, ITS A MATCH
+  JR Z,ISMAT2             ;IF SO, ITS A MATCH
   LD A,(DE)               ;GET ANOTHER CHARACTER
   INC DE                  ;SEE IF ITS THE SAME
   CP (HL)                 ;MOVE FORWARD IN DEFINITION TABLE
   INC HL                  ;MORE FORWARD IN STORED NAME
-  JP Z,SLPMAT             ;IF MATCH KEEP GOING UNTIL END
+  JR Z,SLPMAT             ;IF MATCH KEEP GOING UNTIL END
   LD A,B                  ;NEED TO ADVANCE BY [B]-1 TO SKIP BAD CHARS
   DEC A
   CALL NZ,ADDAHL          ;USE THE COMMON SUBROUTINE. [H,L]=[H,L]+[A]
@@ -13837,7 +13828,7 @@ ERR_EDIT:
   INC A
   EX DE,HL
   RET Z
-  JP __EDIT_0
+  JR __EDIT_0
 
 
 ; 'EDIT' BASIC command
@@ -13853,9 +13844,7 @@ __EDIT_0:                   ;GET RID OF NEWSTT ADDRESS
 ; Sub-command loop.
 ; Picks an optional number of repetitions and a command key
 EDIT_LOOP:
-  EX DE,HL                  ;SAVE CURRENT LINE IN DOT
-  LD (DOT),HL               ;FOR LATER EDIT OR LIST
-  EX DE,HL                  ;GET BACK LINE # IN [H,L]
+  LD (DOT),DE               ;SAVE CURRENT LINE IN DOT FOR LATER EDIT OR LIST
   CALL SRCHLN               ;FIND THE LINE IN QUESTION
   JP NC,UL_ERR              ;IF NOT FOUND, UNDEFINED STATEMENT ERROR.
   LD H,B                    ;PONTER TO LINE IS IN [B,C]
@@ -13897,7 +13886,7 @@ __EDIT_4:                   ;BUMP COUNT OF CHARS
   LD A,(HL)                 ;GET CHAR FROM LINE
   INC HL                    ;BUMP POINTER
   OR A
-  JP NZ,__EDIT_4            ;IF NOT ZERO (END OF LINE) KEEP COUNTING...
+  JR NZ,__EDIT_4            ;IF NOT ZERO (END OF LINE) KEEP COUNTING...
   POP HL                    ;GET BACK POINTER TO LINE
   LD B,A                    ;SET CURRENT LINE POSIT TO ZERO
 
@@ -13907,12 +13896,12 @@ DISPED:
 DISPI:
   CALL INCHRI               ;GET A CHAR FROM USER
   OR A                      ;IGNORE NULLS
-  JP Z,DISPI
+  JR Z,DISPI
   CALL UCASE                ;MAKE UPPER CASE COMMAND
   SUB '0'                   ; convert from ASCII
-  JP C,NOTDGI               ;GET RID OF OFFSET
+  JR C,NOTDGI               ;GET RID OF OFFSET
   CP 10                     	;...
-  JP NC,NOTDGI
+  JR NC,NOTDGI
   LD E,A                    ;SAVE CHAR
   LD A,D                    ;GET ACCUM REPITITION
   RLCA                      ;MULTIPLY BY 2
@@ -13921,7 +13910,7 @@ DISPI:
   RLCA                      ;*2 TO GET 10*D
   ADD A,E                   ;ADD DIGIT
   LD D,A                    ;SAVE BACK NEW ACCUM
-  JP DISPI                  ;GET NEXT CHAR
+  JR DISPI                  ;GET NEXT CHAR
 
 ; Proceed by typing an Edit Mode subcommand.
 ;
@@ -13932,7 +13921,7 @@ NOTDGI:
   EX (SP),HL                ;ON THE STACK
   DEC D                     ;SEE IF D=0 (REP FACTOR)
   INC D                     ;SET CONDITION CODES
-  JP NZ,NOTDGI_0            ;BRANCH AROUND
+  JR NZ,NOTDGI_0            ;BRANCH AROUND
   INC D                     ;MAKE IT 1
 NOTDGI_0:
   CP $08-'0'		        ; TAB:  $08 - '0' = $D8
@@ -13942,21 +13931,21 @@ NOTDGI_0:
   CP $0D-'0'		        ; CR:   $0D - '0' = $DD
   JP Z,EDIT_DONE            
   CP ' '-'0'
-  JP Z,EDIT_SPC             
+  JR Z,EDIT_SPC             
   CP $31			        ;COMMAND IN LOWER CASE?
-  JP C,NOTDGI_1
+  JR C,NOTDGI_1
   SUB $20                   ; TO UPPERCASE
 NOTDGI_1:
   CP 'Q'-'0'			; 'Q': QUIT?
   JP Z,EDIT_QUIT        ;     IF SO, QUIT & PRINT "OK" OR RETURN TO INLIN
   CP 'L'-'0'
-  JP Z,EDIT_BRANCH      ; BRANCH
+  JR Z,EDIT_BRANCH      ; BRANCH
   CP 'S'-'0'
-  JP Z,EDIT_SEARCH      ; SEARCH
+  JR Z,EDIT_SEARCH      ; SEARCH
   CP 'I'-'0'
   JP Z,EDIT_INSERT      ; INSERT
   CP 'D'-'0'
-  JP Z,EDIT_DELETE      ; DELETE
+  JR Z,EDIT_DELETE      ; DELETE
   CP 'C'-'0'
   JP Z,EDIT_CHANGE      ; CHANGE
   CP 'E'-'0'          	;END?
@@ -13964,7 +13953,7 @@ NOTDGI_1:
   CP 'X'-'0'         	;EXTEND?
   JP Z,EDIT_XTEND       ; GO TO END OF LINE & INSERT
   CP 'K'-'0'          	;KILL??
-  JP Z,EDIT_REPLACE     ; (SAME AS "S" BUT DELETES CHARS)
+  JR Z,EDIT_REPLACE     ; (SAME AS "S" BUT DELETES CHARS)
   CP 'H'-'0'          	;HACK??
   JP Z,EDIT_HACK        ;HACK OFF THE REST OF THE LINE & INSERT
   CP 'A'-'0'         	;AGAIN??
@@ -13986,7 +13975,7 @@ EDIT_SPC:
   CALL OUTCH1          ;TYPE CHARACTER
   INC HL                ;MOVE POINTER TO NEXT CHAR
   DEC D                 ;TEST IF DONE WITH REPITITIONS
-  JP NZ,EDIT_SPC        ;REPEAT
+  JR NZ,EDIT_SPC        ;REPEAT
   RET                   ;RETURN TO DISPATCHER
 
 
@@ -14009,20 +13998,20 @@ EDIT_SEARCH:
 EDIT_SEARCH_LP:
   LD A,(HL)
   OR A
-  JP Z,EDIT_SEARCH_2
+  JR Z,EDIT_SEARCH_2
   CALL OUTCH1          ;TYPE THE CHAR
   POP AF                ;GET KILL FLAG
   PUSH AF               ;SAVE BACK
   CALL C,EDIT_REMOVE    ;DELETE THE CHAR IF K COMMAND.
-  JP C,NOTSRC           ;AND DONT MOVE POINTER AS DELCHR ALREADY DID
+  JR C,NOTSRC           ;AND DONT MOVE POINTER AS DELCHR ALREADY DID
   INC HL
   INC B                 ;INCREMENT LINE POSIT
 NOTSRC:
   LD A,(HL)             ;ARE WE AT END ?
   CP E                  ;ARE CURRENT CHAR & SEARCH
-  JP NZ,EDIT_SEARCH_LP  ;CHAR THE SAME? IF NOT, LOOK MORE
+  JR NZ,EDIT_SEARCH_LP  ;CHAR THE SAME? IF NOT, LOOK MORE
   DEC D                 ;LOOK FOR N MATCHES
-  JP NZ,EDIT_SEARCH_LP  ;IF NOT 0, KEEP LOOKING
+  JR NZ,EDIT_SEARCH_LP  ;IF NOT 0, KEEP LOOKING
 EDIT_SEARCH_2:
   POP AF                ;GET RID OF KILL FLAG
   RET                   ;DONE SEARCHING
@@ -14048,11 +14037,11 @@ EDIT_DELETE:
 DELLP:
   LD A,(HL)             ;GET CHAR FROM LINE
   OR A                  ;ARE WE AT END?
-  JP Z,TYPSLH           ;TYPE SLASH
+  JR Z,TYPSLH           ;TYPE SLASH
   CALL OUTCH1          ;TYPE CHAR WE'RE GOING TO DELETE
   CALL EDIT_REMOVE      ;DELETE CURRENT CHAR
   DEC D                 ;DECREMENT DELETE COUNT
-  JP NZ,DELLP           ;KEEP DOING IT
+  JR NZ,DELLP           ;KEEP DOING IT
 TYPSLH:                 
   LD A,'\\'             ;TYPE ENDING SLASH
   CALL OUTDO
@@ -14065,16 +14054,16 @@ EDIT_CHANGE:
 EDIT_CHANGE_0:
   CALL INCHRI
   CP ' '                ;IS IT CONTROL CHAR?
-  JP NC,NOTCCC          ;NO
+  JR NC,NOTCCC          ;NO
   CP $0A                ;IS IT LF?
-  JP Z,NOTCCC           ;YES
+  JR Z,NOTCCC           ;YES
   CP $07                ;OR BELL?
-  JP Z,NOTCCC           ;OK
+  JR Z,NOTCCC           ;OK
   CP $09                ;OR TAB?
-  JP Z,NOTCCC           ;OK
+  JR Z,NOTCCC           ;OK
   LD A,$07              ;GET BELL
   CALL OUTDO            ;SEND IT
-  JP EDIT_CHANGE_0      ;RETRY
+  JR EDIT_CHANGE_0      ;RETRY
 
 NOTCCC:
   LD (HL),A             ;SAVE IN MEMORY
@@ -14082,7 +14071,7 @@ NOTCCC:
   INC HL                ;BUMP POINTER
   INC B                 ;INCREMENT POSITION WITHIN LINE
   DEC D                 ;ARE WE DONE CHANGING?
-  JP NZ,EDIT_CHANGE     ;IF NOT, CHANGE SOME MORE.
+  JR NZ,EDIT_CHANGE     ;IF NOT, CHANGE SOME MORE.
   RET                   ;DONE
 
 
@@ -14110,32 +14099,32 @@ EDIT_XTEND:
 EDIT_INSERT:
   CALL INCHRI           ;GET CHAR TO INSERT
   CP $7F                ;DELETE??
-  JP Z,TYPARW           ;YES, ACT LIKE "_"
+  JR Z,TYPARW           ;YES, ACT LIKE "_"
   CP $08                ;Backspace?
-  JP Z,TYPARW_0         ;Do delete
+  JR Z,TYPARW_0         ;Do delete
   CP $0D                ;IS IT A CARRIAGE RETURN?
   JP Z,EDIT_DONE        ;DONT INSERT, AND SIMULATE <CR>
   CP $1B                ;IS IT ESCAPE?
   RET Z                 ;IF SO, DONE.
   CP $08                ;BACKSPACE?
-  JP Z,TYPARW_0         ;TYPE BACKARROW AND DELETE
+  JR Z,TYPARW_0         ;TYPE BACKARROW AND DELETE
   CP $0A                ;LINE FEED?
-  JP Z,NTARRW           ;ALLOW IT
+  JR Z,NTARRW           ;ALLOW IT
   CP $07                ;BELL?
-  JP Z,NTARRW           ;ALLOW IT
+  JR Z,NTARRW           ;ALLOW IT
   CP $09                ;TAB?
-  JP Z,NTARRW           ;ALLOW IT
+  JR Z,NTARRW           ;ALLOW IT
   CP ' '                ;IS IT ILLEGAL CHAR
-  JP C,EDIT_INSERT      ;TOO SMALL
+  JR C,EDIT_INSERT      ;TOO SMALL
   CP '_'                ;DELETE PREVIOUS CHAR INSERTED?
-  JP NZ,NTARRW          ;IF NOT, JUMP AROUND NEXT CODE
+  JR NZ,NTARRW          ;IF NOT, JUMP AROUND NEXT CODE
 
 TYPARW:
   LD A,'_'              ;TYPE IT
 TYPARW_0:
   DEC B                 ;ARE WE AT START OF LINE?
   INC B                 ;LETS SEE
-  JP Z,DINGI            ;IF SO, TYPE DING.
+  JR Z,DINGI            ;IF SO, TYPE DING.
   CALL OUTCH1          ;TYPE THE BACK ARROW
   DEC HL                ;BACK UP THE POINTER
   DEC B                 ;MOVE BACK POSIT IN LINE
@@ -14156,7 +14145,7 @@ EDIT_REMOVE_LP:
   DEC HL                ;NOW BACK AGAIN
   LD (HL),A             ;DEPOSIT IT
   INC HL                ;NOW TO NEXT BYTE
-  JP EDIT_REMOVE_LP     ;KEEP CRUNCHING
+  JR EDIT_REMOVE_LP     ;KEEP CRUNCHING
 
 NTARRW:
   PUSH AF               ;SAVE THE CHAR TO BE INSERTED
@@ -14165,14 +14154,14 @@ NTARRW:
 ; If an attempt is made to insert a character that will make the line longer than
 ; 255 characters, a bell (Control-G) is typed and the character is not printed.
   CP BUFLEN             ;SEE IF WE ARENT TRYING TO MAKE LINE TOO LONG
-  JP C,EDIT_INS_CH      ;IF LENGTH OK, GO INSERT
+  JR C,EDIT_INS_CH      ;IF LENGTH OK, GO INSERT
   POP AF                ;GET THE UNLAWFUL CHAR
 DINGI:
   LD A,$07              ;TYPE A BELL TO LET USER KNOW
   CALL OUTDO            ;IT ALL OVER
 
 EDIT_INSERT_LP:
-  JP EDIT_INSERT        ;HE HAS TO TYPE <ESC> TO GET OUT
+  JR EDIT_INSERT        ;HE HAS TO TYPE <ESC> TO GET OUT
 
 EDIT_INS_CH:
   SUB B                	;CALC POINTER TO 0 AT END OF LINE
@@ -14192,7 +14181,7 @@ EDIT_INS_CH:
   LD (HL),A             ;SAVE IT IN LINE
   CALL OUTCH1          ;TYPE THE CHAR
   INC HL                ;POINT TO NEXT CHAR
-  JP EDIT_INSERT_LP    	;AND GO GET MORE CHARS
+  JR EDIT_INSERT_LP    	;AND GO GET MORE CHARS
 
 
 EDIT_BKSP:
@@ -14204,7 +14193,7 @@ EDIT_BKSP:
   CALL OUTCH1          ;ECHO IT
   DEC B                 ;CHANGE CURRENT POSITION
   DEC D                 ;ARE WE DONE MOVING BACK?
-  JP NZ,EDIT_DEL        ;IF NOT, GO BACK MORE
+  JR NZ,EDIT_DEL        ;IF NOT, GO BACK MORE
   RET                   ;RETURN
 
 
@@ -14219,7 +14208,7 @@ EDIT_DEL:
   LD A,(HL)             ;GET CURRENT CHAR
   CALL OUTCH1          ;ECHO IT
   DEC D                 ;ARE WE DONE MOVING BACK?
-  JP NZ,EDIT_DEL        ;IF NOT, GO BACK MORE
+  JR NZ,EDIT_DEL        ;IF NOT, GO BACK MORE
   RET                   ;RETURN
 
 
@@ -14281,13 +14270,13 @@ __USING:
   DEFM ";"                 ;MUST BE DELIMITED BY A SEMI-COLON
   EX DE,HL                 ;[D,E]=TEXT POINTER
   LD HL,(FACCU)            ;GET POINTER TO "USING" STRING DESCRIPTOR
-  JP __USING_1             ;DONT POP OFF OR LOOK AT USFLG
+  JR __USING_1             ;DONT POP OFF OR LOOK AT USFLG
 
 ; This entry point is used by the routine at NOTSCI.
 REUSST:
   LD A,(FLGINP)            ;DID WE PRINT OUT A VALUE LAST SCAN?
   OR A                     ;SET CC'S
-  JP Z,FCERR3              ;NO, GIVE ERROR
+  JR Z,FCERR3              ;NO, GIVE ERROR
   POP DE                   ;[D,E]=POINTER TO "USING" STRING DESCRIPTOR
   EX DE,HL                 ;[D,E]=TEXT POINTER
 __USING_1:
@@ -14312,7 +14301,7 @@ FCERR3:
   INC HL
   LD H,(HL)
   LD L,A
-  JP PRCCHR                ;GO INTO THE LOOP TO SCAN THE "USING" STRING
+  JR PRCCHR                ;GO INTO THE LOOP TO SCAN THE "USING" STRING
 
 BGSTRF:
   LD E,B                   ;SAVE THE "USING" STRING CHARACTER COUNT
@@ -14324,11 +14313,11 @@ LPSTRF:
   CP '\\'                  ;THE FIELD TERMINATOR?
   JP Z,ISSTRF              ;GO EVALUATE A STRING AND PRINT
   CP ' '                   ;A FIELD EXTENDER?
-  JP NZ,NOSTRF             ;IF NOT, ITS NOT A STRING FIELD
+  JR NZ,NOSTRF             ;IF NOT, ITS NOT A STRING FIELD
   INC C                    ;INCREMENT THE FIELD WIDTH
 IF ORIGINAL
-  DEC B                    ;SEE IF THERE ARE MORE CHARACTERS
-  JP NZ,LPSTRF             ;KEEP SCANNING FOR THE FIELD TERMINATOR
+  ;DEC B                    ;SEE IF THERE ARE MORE CHARACTERS
+  DJNZ LPSTRF             ;KEEP SCANNING FOR THE FIELD TERMINATOR
 ELSE
   DJNZ LPSTRF              ;KEEP SCANNING FOR THE FIELD TERMINATOR
 ENDIF
@@ -14360,38 +14349,38 @@ PLSFIN:
   CP '!'                   ;CHECK FOR A SINGLE CHARACTER
   JP Z,SMSTRF              ;STRING FIELD
   CP '#'                   ;CHECK FOR THE START OF A NUMERIC FIELD 
-  JP Z,NUMNUM              ;GO SCAN IT
+  JR Z,NUMNUM              ;GO SCAN IT
   CP '&'                   ;SEE IF ITS A VARIABLE LENGTH STRING FIELD
   JP Z,VARSTR              ;GO PRINT ENTIRE STRING
   DEC B                    ;ALL THE OTHER POSSIBILITIES REQUIRE AT LEAST 2 CHARACTERS
   JP Z,REUSIN              ;IF THE VALUE LIST IS NOT EXHAUSTED GO REUSE "USING" STRING
   CP '+'                   ;A LEADING "+" ?
   LD A,$08                 ;SETUP [D] WITH THE PLUS-FLAG ON IN
-  JP Z,PLSFIN              ;CASE A NUMERIC FIELD STARTS
+  JR Z,PLSFIN              ;CASE A NUMERIC FIELD STARTS
   DEC HL                   ;POINTER HAS ALREADY BEEN INCREMENTED
   LD A,(HL)                ;GET BACK THE CURRENT CHARACTER
   INC HL                   ;REINCREMENT THE POINTER
   CP '.'                   ;NUMERIC FIELD WITH TRAILING DIGITS
-  JP Z,DOTNUM              ;IF SO GO SCAN WITH [E]=NUMBER OF DIGITS BEFORE THE "."=0
+  JR Z,DOTNUM              ;IF SO GO SCAN WITH [E]=NUMBER OF DIGITS BEFORE THE "."=0
   CP '_'                   ;CHECK FOR LITERAL CHARACTER DECLARATION
   JP Z,LITCHR
   CP '\\'                  ;CHECK FOR A BIG STRING FIELD STARTER
-  JP Z,BGSTRF              ;GO SEE IF IT REALLY IS A STRING FIELD
+  JR Z,BGSTRF              ;GO SEE IF IT REALLY IS A STRING FIELD
   CP (HL)                  ;SEE IF THE NEXT CHARACTER MATCHES THE CURRENT ONE
-  JP NZ,NEWUCH             ;IF NOT, CAN'T HAVE $$ OR ** SO ALL THE POSSIBILITIES ARE EXHAUSTED
+  JR NZ,NEWUCH             ;IF NOT, CAN'T HAVE $$ OR ** SO ALL THE POSSIBILITIES ARE EXHAUSTED
   CP '$'                   ;IS IT $$ ?
-  JP Z,DOLRNM              ;GO SET UP THE FLAG BIT
+  JR Z,DOLRNM              ;GO SET UP THE FLAG BIT
   CP '*'                   ;IS IT ** ?
-  JP NZ,NEWUCH             ;IF NOT, ITS NOT PART OF A FIELD SINCE ALL THE POSSIBILITIES HAVE BEEN TRIED
+  JR NZ,NEWUCH             ;IF NOT, ITS NOT PART OF A FIELD SINCE ALL THE POSSIBILITIES HAVE BEEN TRIED
   INC HL                   ;SEE IF THE "USING" STRING IS LONG
   LD A,B                   ;CHECK FOR $
   CP $02                   ;ENOUGH FOR THE SPECIAL CASE OF
-  JP C,_NOTSPC             ; **$
+  JR C,_NOTSPC             ; **$
   LD A,(HL)
   CP '$'                   ;IS THE NEXT CHARACTER $ ?
 _NOTSPC:
   LD A,32                  ;SET THE ASTERISK BIT
-  JP NZ,SPCNUM             ;IF IT NOT THE SPECIAL CASE, DON'T SET THE DOLLAR SIGN FLAG
+  JR NZ,SPCNUM             ;IF IT NOT THE SPECIAL CASE, DON'T SET THE DOLLAR SIGN FLAG
   DEC B                    ;DECREMENT THE "USING" STRING CHARACTER COUNT TO TAKE THE $ INTO CONSIDERATION
   INC E                    ;INCREMENT THE FIELD WIDTH FOR THE FLOATING DOLLAR SIGN
 
@@ -14409,19 +14398,19 @@ NUMNUM:
   INC E                    ;INCREMENT THE NUMBER OF DIGITS BEFORE THE DECIMAL POINT
   LD C,$00                 ;SET THE NUMBER OF DIGITS AFTER THE DECIMAL POINT = 0
   DEC B                    ;SEE IF THERE ARE MORE CHARACTERS
-  JP Z,ENDNUS              ;IF NOT, WE ARE DONE SCANNING THIS NUMERIC FIELD
+  JR Z,ENDNUS              ;IF NOT, WE ARE DONE SCANNING THIS NUMERIC FIELD
   LD A,(HL)                ;GET THE NEW CHARACTER
   INC HL                   ;ADVANCE THE POINTER AT THE "USING" STRING DATA
   CP '.'                   ;DO WE HAVE TRAILING DIGITS?
-  JP Z,AFTDOT              ;IF SO, USE SPECIAL SCAN LOOP
+  JR Z,AFTDOT              ;IF SO, USE SPECIAL SCAN LOOP
   CP '#'                   ;MORE LEADING DIGITS ?
-  JP Z,NUMNUM              ;INCREMENT THE COUNT AND KEEP SCANNING
+  JR Z,NUMNUM              ;INCREMENT THE COUNT AND KEEP SCANNING
   CP ','
-  JP NZ,FINNUM
+  JR NZ,FINNUM
   LD A,D                   ;TURN ON THE COMMA BIT
   OR 64
   LD D,A
-  JP NUMNUM                ;GO SCAN SOME MORE
+  JR NUMNUM                ;GO SCAN SOME MORE
 
 ;
 ; HERE WHEN A "." IS SEEN IN THE "USING" STRING
@@ -14432,17 +14421,17 @@ DOTNUM:
   LD A,(HL)                ;GET THE CHARACTER THAT FOLLOWS
   CP '#'                   ;IS THIS A NUMERIC FIELD?
   LD A,'.'                 ;IF NOT, GO BACK AND PRINT "."
-  JP NZ,NEWUCH
+  JR NZ,NEWUCH
   LD C,$01                 ;INITIALIZE THE NUMBER OF DIGITS AFTER THE DECIMAL POINT
   INC HL
 AFTDOT:
   INC C                    ;INCREMENT THE NUMBER OF DIGITS AFTER THE DECIMAL POINT
   DEC B                    ;SEE IF THE "USING" STRING HAS MORE
-  JP Z,ENDNUS              ;CHARACTERS, AND IF NOT, STOP SCANNING
+  JR Z,ENDNUS              ;CHARACTERS, AND IF NOT, STOP SCANNING
   LD A,(HL)                ;GET THE NEXT CHARACTER
   INC HL                   
   CP '#'                   ;MORE DIGITS AFTER THE DECIMAL POINT?
-  JP Z,AFTDOT              ;IF SO, INCREMENT THE COUNT AND KEEP SCANNING
+  JR Z,AFTDOT              ;IF SO, INCREMENT THE COUNT AND KEEP SCANNING
 ;
 ; CHECK FOR THE "^^^^" THAT INDICATES SCIENTIFIC NOTATION
 ;
@@ -14484,16 +14473,16 @@ ENDNUS:
   DEC HL                   
   INC E                    ;INCLUDE LEADING "+" IN NUMBER OF DIGITS
   AND $08                  ;DON'T CHECK FOR A TRAILING SIGN
-  JP NZ,ENDNUM             ;ALL DONE WITH THE FIELD IF SO IF THERE IS A LEADING PLUS
+  JR NZ,ENDNUM             ;ALL DONE WITH THE FIELD IF SO IF THERE IS A LEADING PLUS
   DEC E                    ;NO LEADING PLUS SO DON'T INCREMENT THE NUMBER OF DIGITS BEFORE THE DECIMAL POINT
   LD A,B
   OR A                     ;SEE IF THERE ARE MORE CHARACTERS
-  JP Z,ENDNUM              ;IF NOT, STOP SCANNING
+  JR Z,ENDNUM              ;IF NOT, STOP SCANNING
   LD A,(HL)                ;GET THE CURRENT CHARACTER
   SUB '-'                  ;TRAIL MINUS?
-  JP Z,SGNTRL              ;SET THE TRAILING SIGN FLAG
+  JR Z,SGNTRL              ;SET THE TRAILING SIGN FLAG
   CP '+'-'-'               ;A TRAILING PLUS?
-  JP NZ,ENDNUM             ;IF NOT, WE ARE DONE SCANNING
+  JR NZ,ENDNUM             ;IF NOT, WE ARE DONE SCANNING
   LD A,$08                 ;TURN ON THE POSITIVE="+" FLAG
 SGNTRL:
   ADD A,$04                ;TURN ON THE TRAILING SIGN FLAG
@@ -14503,7 +14492,7 @@ SGNTRL:
 ENDNUM:
   POP HL                   ;[H,L]=THE OLD TEXT POINTER
   POP AF                   ;POP OFF FLAG THAT SAYS WHETHER THERE ARE MORE VALUES IN THE VALUE LIST
-  JP Z,FLDFIN              ;IF NOT, WE ARE DONE WITH THE "PRINT"
+  JR Z,FLDFIN              ;IF NOT, WE ARE DONE WITH THE "PRINT"
   PUSH BC                  ;SAVE [B]=# OF CHARACTERS REMAINING IN "USING" STRING AND [C]=TRAILING DIGITS
   PUSH DE                  ;SAVE [D]=FLAGS AND [E]=LEADING DIGITS
   CALL EVAL                ;READ A VALUE FROM THE VALUE LIST
@@ -14529,11 +14518,11 @@ FNSTRF:
   DEC HL                   ;SEE WHAT THE TERMINATOR WAS
   CALL CHRGTB
   SCF                      ;SET FLAG THAT CRLF IS DESIRED
-  JP Z,CRDNUS              ;IF IT WAS A END-OF-STATEMENT, FLAG THAT THE VALUE LIST ENDED AND THAT CRLF SHOULD BE PRINTED
+  JR Z,CRDNUS              ;IF IT WAS A END-OF-STATEMENT, FLAG THAT THE VALUE LIST ENDED AND THAT CRLF SHOULD BE PRINTED
   LD (FLGINP),A            ;FLAG THAT VALUE HAS BEEN PRINTED.
                            ;DOESNT MATTER IF ZERO SET, [A] MUST BE NON-ZERO OTHERWISE
   CP ';'                   ;A SEMI-COLON?
-  JP Z,SEMUSN              ;A LEGAL DELIMITER
+  JR Z,SEMUSN              ;A LEGAL DELIMITER
   CP ','                   ;A COMMA ?
   JP NZ,SN_ERR             ;THE DELIMETER WAS ILLEGAL
 
@@ -14567,7 +14556,7 @@ CHKUSI:
   LD A,B                   ;[A]=THE NUMBER OF CHARACTERS LEFT TO SCAN
   OR A                     ;SEE IF THERE ARE ANY LEFT
   JP NZ,PRCCHR             ;IF SO, KEEP SCANNING
-  JP FINUSI                ;SEE IF THERE ARE MORE VALUES
+  JR FINUSI                ;SEE IF THERE ARE MORE VALUES
 
 ; This entry point is used by the routine at __USING.
 REUSIN:
@@ -14595,14 +14584,14 @@ LITCHR:
   LD A,(HL)                ;FETCH LITERAL CHARACTER
   INC HL
   CALL OUTDO               ;OUTPUT LITERAL CHARACTER
-  JP CHKUSI                ;GO SEE IF USING STRING ENDED
+  JR CHKUSI                ;GO SEE IF USING STRING ENDED
 
 ;
 ; HERE TO HANDLE VARIABLE LENGTH STRING FIELD SPECIFIED WITH "&"
 ;
 VARSTR:
   LD C,$00                 ;SET LENGTH TO MAXIMUM POSSIBLE
-  JP ISSTRF_0
+  JR ISSTRF_0
 
 ;
 ; HERE WHEN THE "!" INDICATING A SINGLE CHARACTER STRING FIELD HAS BEEN SCANNED
@@ -14623,7 +14612,7 @@ ISSTRF_0:
   CALL PLS_PRNT            ;PRINT A "+" IF ONE CAME BEFORE THE FIELD
   POP HL                   ;TAKE OFF THE TEXT POINTER
   POP AF                   ;TAKE OFF THE FLAG WHICH SAYS WHETHER THERE ARE MORE VALUES IN THE VALUE LIST
-  JP Z,FLDFIN              ;IF THERE ARE NO MORE VALUES THEN WE ARE DONE
+  JR Z,FLDFIN              ;IF THERE ARE NO MORE VALUES THEN WE ARE DONE
   PUSH BC                  ;SAVE [B]=NUMBER OF CHARACTERS YET TO BE SCANNED IN "USING" STRING
   CALL EVAL                ;READ A VALUE
   CALL TSTSTR              ;MAKE SURE ITS A STRING
@@ -14651,7 +14640,7 @@ UPRTSP:
   DEC B                    ;SEE IF MORE SPACES
   JP Z,FNSTRF              ;NO, GO SEE IF THE VALUE LIST ENDED AND RESUME SCANNING
   CALL OUTDO               ;PRINT A SPACE
-  JP UPRTSP                ;AND LOOP PRINTING THEM
+  JR UPRTSP                ;AND LOOP PRINTING THEM
 
 ;
 ; WHEN A "+" IS DETECTED IN THE "USING" STRING IF A NUMERIC FIELD FOLLOWS A BIT IN [D]
@@ -14690,31 +14679,31 @@ OUTDO:
   POP HL
   LD A,(PRTFLG)         ;SEE IF WE WANT TO TALK TO LPT
   OR A                  ;TEST BITS
-  JP Z,CHPUT            ;IF ZERO THEN NOT
+  JR Z,CHPUT            ;IF ZERO THEN NOT
   POP AF                ;GET BACK CHAR
   PUSH AF
   CP $08                ;BACKSPACE?
-  JP NZ,NTBKS2          ;NO
+  JR NZ,NTBKS2          ;NO
   LD A,(LPTPOS)         ;GET LPT POS
   SUB $01               ;SUBTRACT ONE FROM PRINTER POSIT
-  JP C,OUTDO_0
+  JR C,OUTDO_0
   LD (LPTPOS),A
 OUTDO_0:
   POP AF                ;GET BACK BACKSPACE
-  JP LPTCHR             ;SEND CHAR
+  JR LPTCHR             ;SEND CHAR
 
 NTBKS2:
   CP $09                ;TAB
-  JP NZ,OUTC            ;NO
+  JR NZ,OUTC            ;NO
 
 TABEXP_LOOP:
   LD A,' '
   CALL OUTDO
   LD A,(LPTPOS)         ;GET CURRENT PRINT POSIT
   CP $FF
-  JP Z,OUTC_TAB_END
+  JR Z,OUTC_TAB_END
   AND $07               ;AT TAB STOP?
-  JP NZ,TABEXP_LOOP     ;GO BACK IF MORE TO PRINT
+  JR NZ,TABEXP_LOOP     ;GO BACK IF MORE TO PRINT
 OUTC_TAB_END:
   POP AF                ;POP OFF CHAR
   RET                   ;RETURN
@@ -14726,12 +14715,12 @@ OUTC:
   POP AF                ;GET CHAR BACK
   PUSH AF               ;SAVE AGAIN
   SUB $0D               ;IF FUNNY CONTROL CHAR, (LF) DO NOTHING
-  JP Z,ZERLP1
-  JP C,_OUTPRT          ;JUST PRINT CHAR
+  JR Z,ZERLP1
+  JR C,_OUTPRT          ;JUST PRINT CHAR
   LD A,(LPTSIZ)         ;GET SIZE OF PRINTER
   INC A                 ;IS IT INFINITE?
   LD A,(LPTPOS)         ;GET POSIT
-  JP Z,ZERLPT           ;THEN DONT FOLD     ; If 'WIDTH' is 255, the line width is "infinite" (no CRLF)
+  JR Z,ZERLPT           ;THEN DONT FOLD     ; If 'WIDTH' is 255, the line width is "infinite" (no CRLF)
   PUSH HL               ;SAVE [H,L]
   LD HL,LPTSIZ          ; Value for 'WIDTH' on printer output.
   CP (HL)               ;MAX size reached ?
@@ -14740,7 +14729,7 @@ OUTC:
 
 ZERLPT:
   CP $FF                ;MAX LENGTH?
-  JP Z,_OUTPRT          ;THEN JUST PRINT
+  JR Z,_OUTPRT          ;THEN JUST PRINT
   INC A                 ;INCREMENT POSIT
 ZERLP1:
   LD (LPTPOS),A
@@ -14805,18 +14794,18 @@ CHPUT:
   PUSH BC
   PUSH AF               ;AND SAVE IT AGAIN
   CP $08                ;BACKSPACE?
-  JP NZ,NTBKS1
+  JR NZ,NTBKS1
   LD A,(TTYPOS)         ;GET TTY POS
   OR A                  ;SET CC'S
-  JP Z,TAB_LOOP_0       ;RETURN
+  JR Z,TAB_LOOP_0       ;RETURN
   DEC A                 ;DECRMENT POSIT BY ONE
   LD (TTYPOS),A         ;CORRECT TTYPOS
   LD A,$08              ;GET BACK BACKSPACE CHAR
-  JP TRYOUT             ;SEND IT
+  JR TRYOUT             ;SEND IT
 
 NTBKS1:
   CP $09                ;OUTPUTTING TAB?
-  JP NZ,NOTAB           ;NO.
+  JR NZ,NOTAB           ;NO.
 
 ; TAB_LOOP
 TAB_LOOP:
@@ -14824,9 +14813,9 @@ TAB_LOOP:
   CALL OUTDO            ;CALL OUTCHR RECURSIVELY (!)
   LD A,(TTYPOS)         ;GET CURRENT PRINT POS.
   CP $FF                ; 'Infinite TAB' mode ?
-  JP Z,TAB_LOOP_0      
+  JR Z,TAB_LOOP_0      
   AND $07               ;AT TAB STOP YET??
-  JP NZ,TAB_LOOP        ;NO, KEEP SPACING
+  JR NZ,TAB_LOOP        ;NO, KEEP SPACING
 ; This entry point is used by the routine at CHPUT.
 TAB_LOOP_0:
   POP AF                ;RESTORE CURRENT CHAR (TAB)
@@ -14838,18 +14827,18 @@ TAB_LOOP_0:
 ; Used by the routine at CHPUT.
 NOTAB:
   CP ' '                ;IS THIS A MEANINGFUL CHARACTER?
-  JP C,TRYOUT           ;IF IT'S A NON-PRINTING CHARACTER
+  JR C,TRYOUT           ;IF IT'S A NON-PRINTING CHARACTER
   LD A,(LINLEN)         ;[B]=LINE LENGTH  (DON'T INCLUDE IT IN TTYPOS)
   LD B,A                ;DON'T INCLUDE IT IN TTYPOS
   LD A,(TTYPOS)         ;SEE IF PRINT HEAD IS AT THE END OF THE LINE
   INC B                 ;IS WIDTH 255?
-  JP Z,INCTPS           ;YES, JUST INC TTYPOS
+  JR Z,INCTPS           ;YES, JUST INC TTYPOS
   DEC B                 ;CORRECT [B]
   CP B
   CALL Z,OUTDO_CRLF     ;TYPE CRLF AND SET TTYPOS AND [A]=0 IF SO
 INCTPS:
   CP $FF                ;HAVE WE HIT MAX #?
-  JP Z,TRYOUT           ;THEN LEAVE IT THERE
+  JR Z,TRYOUT           ;THEN LEAVE IT THERE
   INC A                 ;INCREMENT TTYPOS SINCE WE'RE GOING TO PRINT A CHARACTER.
   LD (TTYPOS),A         ;STORE NEW PRINT HEAD POSITION
 
@@ -14884,7 +14873,7 @@ L4D05:                  ;RESTORE REGS
 ; Get character and test ^O
 INCHR:
   CALL ISFLIO
-  JP Z,INCHRI            ;GET CHARACTER FROM TERMINAL
+  JR Z,INCHRI            ;GET CHARACTER FROM TERMINAL
   CALL RDBYT             ;READ A CHARACTER
   RET NC                 ;RETURN WITH CHARACTER
   PUSH BC                ;SAVE ALL REGISTERS
@@ -14899,7 +14888,7 @@ INCHR:
   JP NZ,CHNRET           ;YES, PERFORM VARIABLE BLOCK TRANSFER, ETC.
   LD A,(AUTORUN)         ;RUN IT OR NOT?
   OR A
-  JP Z,INCHR_PROMPT
+  JR Z,INCHR_PROMPT
   LD HL,NEWSTT
   PUSH HL
   JP RUN_FST             ;RUN IT
@@ -14935,7 +14924,7 @@ L4D46:
   POP HL                ;RESTORE REGS
   POP DE
   POP BC
-  AND $7F
+  AND $7F               ; This mask is missing on the Otrona Attachè variant
 IF ZXPLUS3
   ; Hack to fix the KBD oddities
   CP 127
@@ -14966,7 +14955,7 @@ CONSOLE_CRLF:
   LD A,(TTYPOS)         ;GET CURRENT TTYPOS
   OR A                  ;SET CC'S
   RET Z                 ;IF ALREADY ZERO, RETURN
-  JP OUTDO_CRLF         ;DO CR
+  JR OUTDO_CRLF         ;DO CR
  
 ; This entry point is used by the routines at PUTBUF and EDIT_DONE.
 FININL:
@@ -14988,7 +14977,7 @@ OUTDO_CRLF:
 ;DON'T PUT CR/LF OUT TO LOAD FILE
 CRFIN:
   CALL ISFLIO           ;SEE IF OUTPUTTING TO DISK
-  JP Z,CRCONT           ;NOT DISK FILE, CONTINUE
+  JR Z,CRCONT           ;NOT DISK FILE, CONTINUE
   XOR A                 ;CRFIN MUST ALWAYS RETURN WITH A=0
   RET                   ;AND CARRY=0.
 
@@ -14998,7 +14987,7 @@ CRFIN:
 CRCONT:
   LD A,(PRTFLG)         ;GOING TO PRINTER?
   OR A                  ;TEST
-  JP Z,NTPRTR           ;NO
+  JR Z,NTPRTR           ;NO
   XOR A                 ;DONE, RETURN
   LD (LPTPOS),A         ;ZERO POSITON
   RET
@@ -15019,7 +15008,7 @@ NULLP:
   XOR A                  ; Load a null             ;[A]= A NULL
   CALL OUTDO             ; Output it               ;SEND IT OUT
   POP AF                 ; Restore count           ;RESTORE THE COUNT
-  JP NULLP               ; Keep counting           ;LOOP PRINTING NULLS
+  JR NULLP               ; Keep counting           ;LOOP PRINTING NULLS
 
 ; TTY status check
 ;
@@ -15063,7 +15052,7 @@ FN_INKEY:
   CALL CHRGTB
   PUSH HL                 ;SAVE THE TEXT POINTER
   CALL CHARCG             ;GET CHARC AND CLEAR IF SET
-  JP NZ,BUFCIN
+  JR NZ,BUFCIN
 
   DEFB $CD                ; CALL nn
 
@@ -15074,7 +15063,7 @@ SMC_ISCNTC2:
 ; Routine at 19911
 FN_INKEY_0:
   OR A               ;SET NON-ZERO IF CHAR THERE
-  JP Z,NULRT         ;NO, RETURN NULL STRING
+  JR Z,NULRT         ;NO, RETURN NULL STRING
 
 ; GET CHAR IF ONE,
 ;****SOME VERSIONS ALREADY HAVE CHAR AND DONT WANT THIS CODE ***
@@ -15142,7 +15131,7 @@ MOVLP:
   RET Z                   ; Exit if all done
   DEC BC                  ; Next byte to move to
   DEC HL                  ; Next byte to move
-  JP MOVLP                ; Loop until all bytes moved
+  JR MOVLP                ; Loop until all bytes moved
 
 ; Check for C levels of stack
 ;
@@ -15171,7 +15160,7 @@ CHKSTK:
   LD A,$FF                ; (-1 for MSB) -(2*NUMLEV) Bytes minimum RAM
   SBC A,H
   LD H,A
-  JP C,OM_ERR             ; Not enough - ?OM Error
+  JR C,OM_ERR             ; Not enough - ?OM Error
   ADD HL,SP               ; Test if stack is overflowed
   POP HL                  ; Restore code string address
   RET C                   ; Return if enough memory
@@ -15195,9 +15184,11 @@ _OM_ERR:
 ENFMEM:
   CALL REALLY             ;ENOUGH SPACE BETWEEN STRING & STACK
   RET NC                  ;YES
-  LD A,(CHNFLG)
+
+  LD A,(CHNFLG)           ; This extra check was not present on CP/M 5.20, nor on MSX 5.22
   OR A
-  JP NZ,_OM_ERR
+  JR NZ,_OM_ERR
+
   PUSH BC                 ;SAVE ALL REGS
   PUSH DE
   PUSH HL
@@ -15207,7 +15198,7 @@ ENFMEM:
   POP BC
   CALL REALLY             ;ENOUGH SPACE THIS TIME?
   RET NC                  ;YES
-  JP _OM_ERR              ;NO, GIVE "OUT OF MEMORY BUT DONT TOUCH STACK
+  JR _OM_ERR              ;NO, GIVE "OUT OF MEMORY BUT DONT TOUCH STACK
 
 REALLY:
   PUSH DE                 ;SAVE [D,E]
@@ -15234,8 +15225,7 @@ LOPNTO:
   LD D,(HL)
   INC HL
   LD (DE),A               ;MARK FILE AS CLOSED (MODE ZERO)
-  DEC B
-  JP NZ,LOPNTO            ;LOOP UNTIL DONE
+  DJNZ LOPNTO             ;LOOP UNTIL DONE
   CALL CLSALL
   XOR A
 
@@ -15281,7 +15271,7 @@ ENDIF
   ;;CALL SNDINI             ;Initialize SOUND & PLAY
   LD A,(MRGFLG)           ;DOING A CHAIN MERGE?
   OR A                    ;TEST
-  JP NZ,LEVDTB            ;LEAVE DEFAULT TABLE ALONE
+  JR NZ,LEVDTB            ;LEAVE DEFAULT TABLE ALONE
   XOR A
   LD (OPTFLG),A           ;INDICATE NO "OPTION" HAS BEEN SEEN
   LD (OPTVAL),A           ;DEFAULT TO "OPTION BASE 0"
@@ -15290,8 +15280,8 @@ ENDIF
 LOPDFT:
   LD (HL),$04             ;LOOP 26 TIMES STORING A DEFAULT VALTYP
   INC HL                  ;FOR SINGLE PRECISION
-  DEC B                   ;COUNT OFF THE LETTERS
-  JP NZ,LOPDFT            ;LOOP BACK, AND SETUP THE REST OF THE TABLE
+  ;DEC B                   ;COUNT OFF THE LETTERS
+  DJNZ LOPDFT            ;LOOP BACK, AND SETUP THE REST OF THE TABLE
   
 LEVDTB:
   LD DE,RND_COPY          ;RESET THE RANDOM NUMBER GENERATOR
@@ -15313,7 +15303,7 @@ LEVDTB:
   LD HL,(MEMSIZ)
   LD A,(CHNFLG)           ;ARE WE CHAINING?
   OR A                    ;TEST
-  JP NZ,GOOD_FRETOP       ;FRETOP IS GOOD, LEAVE IT ALONE
+  JR NZ,GOOD_FRETOP       ;FRETOP IS GOOD, LEAVE IT ALONE
   LD (FRETOP),HL          ;FREE UP STRING SPACE
 GOOD_FRETOP:
   XOR A                   ;MAKE SURE [A] IS ZERO, CC'S SET
@@ -15399,7 +15389,7 @@ SYNCHR:
   EX (SP),HL        ; Address of test byte
   CP (HL)           ; Same as in code string?         ;CMPC-IS CHAR THE RIGHT ONE?
 IF ORIGINAL
-  JP NZ,SYNCHR_0    ; Different - ?SN Error           ;GIVE ERROR IF CHARS DONT MATCH
+  JR NZ,SYNCHR_0    ; Different - ?SN Error           ;GIVE ERROR IF CHARS DONT MATCH
 ELSE
   JP NZ,SN_ERR      ; Different - ?SN Error           ;GIVE ERROR IF CHARS DONT MATCH
 ENDIF
@@ -15420,7 +15410,7 @@ ENDIF
 __RESTORE:
   EX DE,HL          ; Save code string address
   LD HL,(TXTTAB)    ; Point to start of program
-  JP Z,BGNRST       ; Just RESTORE - reset pointer            ;RESTORE DATA POINTER TO BEGINNING OF PROGRAM
+  JR Z,BGNRST       ; Just RESTORE - reset pointer            ;RESTORE DATA POINTER TO BEGINNING OF PROGRAM
   EX DE,HL          ; Restore code string address             ;TEXT POINTER BACK TO [H,L]
   CALL ATOH         ; Get line number to DE                   ;GET THE FOLLOWING LINE NUMBER
   PUSH HL           ; Save code string address                ;SAVE TEXT POINTER
@@ -15447,7 +15437,7 @@ UPDATA:
 __STOP:
   RET NZ            ;RETURN IF NOT CONTROL-C AND MAKE
   INC A             ;SURE "STOP" STATEMENTS HAVE A TERMINATOR
-  JP __END_0
+  JR __END_0
 
 ; 'END' BASIC command
 __END:
@@ -15479,7 +15469,7 @@ ENDCON:
   LD A,L                  ; Is it direct break?
   AND H
   INC A                   ; Line is -1 if direct break
-  JP Z,NOLIN              ; Yes - No line number
+  JR Z,NOLIN              ; Yes - No line number
   LD (OLDLIN),HL          ; Save line of break
   LD HL,(SAVTXT)          ; Get point of break
   LD (OLDTXT),HL          ; Save point to CONTinue
@@ -15501,7 +15491,7 @@ CTROPT:
 KILIN:
   PUSH AF                 ;SAVE CURRENT CHAR
   SUB $03                 ;CONTROL-C?
-  JP NZ,NTCTCT
+  JR NZ,NTCTCT
   LD (PRTFLG),A           ;DISPLAY ^C ONLY(NOT ON LPT)
   LD (CTLOFG),A           ;RESET ^O FLAG
 
@@ -15526,8 +15516,8 @@ __CONT:
   EX DE,HL                ; Save code string address
   LD HL,(OLDLIN)          ; Get line of last break
 IF ORIGINAL
-  EX DE,HL                ; ???
-  EX DE,HL                ; ???  ...useless
+  EX DE,HL                ; Useless side effect got by macros
+  EX DE,HL                ;    ..here we probably had 2 consequent DE fetch/store operations 
 ENDIF
   LD (CURLIN),HL          ; Set up current line number
   EX DE,HL                ; Restore code string address
@@ -15576,7 +15566,7 @@ __SWAP:
   PUSH HL                 ;SAVE THE POINTER AT VALUE #2
   LD HL,(ARYTAB)          ;GET NEW [ARYTAB]
   CALL DCOMPR
-  JP NZ,FCERR             ;IF ITS CHANGED, ERROR
+  JR NZ,FCERR             ;IF ITS CHANGED, ERROR
   POP DE                  ;[D,E]=POINTER AT VALUE #2
   POP HL                  ;[H,L]=TEXT POINTER
   EX (SP),HL              ;SAVE THE TEXT POINTER ON THE STACK, [H,L]=POINTER AT VALUE #1
@@ -15597,7 +15587,7 @@ __ERASE:
   LD A,$01
   LD (SUBFLG),A           ;THAT THIS IS "ERASE" CALLING PTRGET
   CALL GETVAR             ;GO FIND OUT WHERE TO ERASE
-  JP NZ,FCERR             ;PTRGET DID NOT FIND VARIABLE!
+  JR NZ,FCERR             ;PTRGET DID NOT FIND VARIABLE!
   PUSH HL                 ;SAVE THE TEXT POINTER
   LD (SUBFLG),A           ;ZERO OUT SUBFLG TO RESET "ERASE" FLAG
   LD H,B                  ;[B,C]=START OF ARRAY TO ERASE
@@ -15623,7 +15613,7 @@ __ERASE_LP:
   LD (BC),A              
   INC DE                  ;UPDATE THE POINTERS
   INC BC
-  JP NZ,__ERASE_LP        ;MOVE THE REST
+  JR NZ,__ERASE_LP        ;MOVE THE REST
   DEC BC                   
   LD H,B                  ;SETUP THE NEW STORAGE END POINTER
   LD L,C
@@ -15633,7 +15623,7 @@ __ERASE_LP:
   CP ','                  ;ADDITIONAL VARIABLES DELIMITED BY COMMA
   RET NZ                  ;ALL DONE IF NOT
   CALL CHRGTB
-  JP __ERASE
+  JR __ERASE
 
 ; This entry point is used by the routine at __LOF.
 POPAHT:
@@ -15671,59 +15661,58 @@ CLVAR:
 ;
 ; CLEAR [,[<expressionl>] [,<expression2>]]
 __CLEAR:
-  JP Z,CLVAR              ; Just "CLEAR" Keep parameters    ;IF NO FORMULA JUST CLEAR
+  JR Z,CLVAR              ; Just "CLEAR" Keep parameters    ;IF NO FORMULA JUST CLEAR
   CP ','                  ;ALLOW NO STRING SPACE
-  JP Z,__CLEAR_0
+  JR Z,__CLEAR_0
   CALL INTIDX_0       ;GET AN INTEGER INTO [D,E]
   DEC HL
   CALL CHRGTB             ; Get next character, SEE IF ITS THE END
-  JP Z,CLVAR
+  JR Z,CLVAR
 
 __CLEAR_0:
   CALL SYNCHR
   DEFM ","
-  JP Z,CLVAR
-  EX DE,HL
-  LD HL,(STKTOP)          ;GET HIGHEST ADDRESS
-  EX DE,HL
+  JR Z,CLVAR
+  LD DE,(STKTOP)          ;GET HIGHEST ADDRESS
   CP ','
-  JP Z,__CLEAR_1          ;SHOULD FINISH THERE
+  JR Z,__CLEAR_1          ; No value given - Use stored           ;SHOULD FINISH THERE
   CALL POSINT             ; Get integer to DE
+
 __CLEAR_1:
   DEC HL                  ; Cancel increment   (BACK UP)
   CALL CHRGTB             ;GET CHAR
   PUSH DE                 ;SAVE NEW HIGH MEM
-  JP Z,__CLEAR_3          ;USE SAME STACK SIZE
+  JR Z,CDFSTK             ;USE SAME STACK SIZE
   CALL SYNCHR             ; Check for comma
   DEFM ","
-  JP Z,__CLEAR_3
+  JR Z,CDFSTK
   CALL POSINT             ; Get integer to DE
   DEC HL                  ; Cancel increment
   CALL CHRGTB             ; Get next character
   JP NZ,SN_ERR            ; ?SN Error if more on line
 
-__CLEAR_2:
+CLEART:
   EX (SP),HL              ; Save code string address
   PUSH HL                 ; Save code string address (again)
   LD HL,0+(NUMLEV*2)+20   ; CHECK STACK SIZE IS REASONABLE
   CALL DCOMPR
-  JP NC,OMERR
-  POP HL                  ; Restore code string address (1st copy)
-  CALL SUBDE              ; SUBTRACT [H,L]-[D,E] INTO [D,E]
-  JP C,OMERR              ; WANTED MORE THAN TOTAL!
+  JR NC,OMERR
+  POP HL                  ; [HL]=candidate for TOPMEM                         ; Restore code string address (1st copy)
+  CALL SUBDE              ; DE=HL-DE=High Ram - Stack Size=new stack bottom   ; SUBTRACT [H,L]-[D,E] INTO [D,E]
+  JR C,OMERR              ; WANTED MORE THAN TOTAL!
 
-  PUSH HL                 ; Save RAM top
-  LD HL,(VARTAB)          ; Get program end
-  LD BC,20                ; 20 Bytes minimum working RAM (LEAVE BREATHING ROOM)
+  PUSH HL                 ; Save RAM top                       ;SAVE STACK BOTTOM
+  LD HL,(VARTAB)          ; Get program end                    ;TOP LOCATION IN USE
+  LD BC,20                ; 20 Bytes minimum working RAM       ;LEAVE BREATHING ROOM
   ADD HL,BC               ; Get lowest address
   CALL DCOMPR             ; Enough memory?
-  JP NC,OMERR             ; No - ?OM Error
+  JR NC,OMERR             ; No - ?OM Error
   EX DE,HL                ; RAM top to HL
   LD (MEMSIZ),HL          ; Set new string space
   POP HL                  ; End of memory to use
   LD (STKTOP),HL          ; Set new top of RAM
   POP HL                  ; Restore code string address
-  JP CLVAR                ; Initialise variables
+  JR CLVAR                ; Initialise variables
 
 
 POSINT:
@@ -15737,19 +15726,19 @@ OMERR:
   JP OM_ERR
 
 
-__CLEAR_3:
+CDFSTK:
   PUSH HL
-  LD HL,(STKTOP)
+  LD HL,(STKTOP)          ;FIGURE OUT CURRENT STACK SIZE
   EX DE,HL
   LD HL,(MEMSIZ)
-  LD A,E
+  LD A,E                  ;SUB DX,STKLOW
   SUB L
   LD E,A
   LD A,D
   SBC A,H
   LD D,A
   POP HL
-  JP __CLEAR_2
+  JR CLEART
 
 ;SUBTRACT [H,L]-[D,E] INTO [D,E]
 SUBDE:
@@ -15824,7 +15813,7 @@ __NEXT_1:
   PUSH HL                 ; PUT THE POINTER TO THE LOOP VARIABLE BACK ONTO THE STACK
   LD A,(NEXFLG)           ; IS "FOR" USING "NEXT"
   OR A
-  JP NZ,NXTDO             ; NO, CONTINUE "NEXT"
+  JR NZ,NXTDO             ; NO, CONTINUE "NEXT"
   LD HL,FVALSV            ; FETCH THE INITIAL VALUE INTO THE FAC
   CALL MOVFM
   XOR A                   ; CONTINUE THE "NEXT" WITH INITIAL VALUE
@@ -15838,7 +15827,7 @@ NXTDO:
   PUSH HL                 ; SAVE THE ENTRY POINTER
   CALL FCOMP              ; COMPARE THE NUMBERS RETURNING $FF IF FAC IS LESS THAN THE REGISTERS,
                           ; 0 IF EQUAL, OTHERWISE 1
-  JP __NEXT_6             ; SKIP OVER INTEGER CODE
+  JR __NEXT_6             ; SKIP OVER INTEGER CODE
 
 INTNXT:
   INC HL                  ; SKIP THE FOUR DUMMY BYTES
@@ -15858,9 +15847,9 @@ INTNXT:
   LD H,B                  ; SETUP TO ADD [D,E] TO [H,L]
   LD A,(NEXFLG)           ; SEE IF "FOR" IS USING "NEXT"
   OR A
-  JP NZ,INXTDO            ; NO, JUST CONTINUE NEXT
+  JR NZ,INXTDO            ; NO, JUST CONTINUE NEXT
   LD HL,(FVALSV)          ; GET THE INITIAL VALUE
-  JP IFORIN               ; CONTINUE FIRST ITERATION CHECK
+  JR IFORIN               ; CONTINUE FIRST ITERATION CHECK
 
 INXTDO:
   CALL IADD               ; ADD THE STEP TO THE LOOP VARIABLE
@@ -15886,7 +15875,7 @@ __NEXT_6:
   POP BC                  ; GET THE SIGN OF THE INCREMENT
   SUB B                   ; SUBTRACT THE INCREMENTS SIGN FROM THAT OF (CURRENT VALUE-FINAL VALUE)
   CALL LOADFP             ; GET LINE # OF "FOR" INTO [D,E]
-  JP Z,KILFOR             ; IF SIGN(FINAL-CURRENT)+SIGN(STEP)=0, then loop finished - Terminate it
+  JR Z,KILFOR             ; IF SIGN(FINAL-CURRENT)+SIGN(STEP)=0, then loop finished - Terminate it
   EX DE,HL                ; Loop statement line number
   LD (CURLIN),HL          ; Set loop line number
   LD L,C                  ; Set code string to loop
@@ -15971,7 +15960,7 @@ CSLOOP:
   INC BC                   ; Move up string 2
   CP (HL)                  ; Compare to byte in string 1     ;COMPARE WITH FACLO STRING
   INC HL                   ; Move up string 1                ;BUMP POINTERS (INX DOESNT CLOBBER CC'S)
-  JP Z,CSLOOP              ; Same - Try next bytes           ;IF BOTH THE SAME, MUST BE MORE TO STRINGS
+  JR Z,CSLOOP              ; Same - Try next bytes           ;IF BOTH THE SAME, MUST BE MORE TO STRINGS
   CCF                      ; Flag difference (">" or "<")    ;HERE WHEN STRINGS DIFFER
   JP SIGNS                 ; "<" gives -1 , ">" gives +1     ;SET [A] ACCORDING TO CARRY
 
@@ -15983,13 +15972,13 @@ CSLOOP:
 ;
 __OCT_S:
   CALL FOUTO             ;PUT OCTAL NUMBER IN FBUFFR
-  JP __STR_S_0             ;JUMP INTO STR$ CODE
+  JR __STR_S_0             ;JUMP INTO STR$ CODE
 
 ; 'HEX$' BASIC function
 ; STRH$ SAME AS STRO$ EXCEPT USES HEX INSTEAD OF OCTAL
 __HEX_S:
   CALL FOUTH             ;PUT HEX NUMBER IN FBUFFR
-  JP __STR_S_0             ;JUMP INTO STR$ CODE
+  JR __STR_S_0             ;JUMP INTO STR$ CODE
 
 ; 'STR$' BASIC function
 ;
@@ -16093,11 +16082,11 @@ STRGET:
   LD A,(HL)               ; Get byte                        ;GET CHAR
   INC C                   ; Count bytes                     ;BUMP CHARACTER COUNT
   OR A                    ; End of line?                    ;IF 0, (END OF LINE) DONE
-  JP Z,STRFIN             ; Yes - Create string entry       ;TEST
+  JR Z,STRFIN             ; Yes - Create string entry       ;TEST
   CP D                    ; Terminator D found?
-  JP Z,STRFIN             ; Yes - Create string entry
+  JR Z,STRFIN             ; Yes - Create string entry
   CP B                    ; Terminator B found?             ;CLOSING QUOTE
-  JP NZ,STRGET            ; No - Keep looking               ;NO, GO BACK FOR MORE
+  JR NZ,STRGET            ; No - Keep looking               ;NO, GO BACK FOR MORE
 STRFIN:
   CP '"'                  ;IF QUOTE TERMINATES THE STRING   ; End with '"'?
   CALL Z,CHRGTB           ;SKIP OVER THE QUOTE              ; Yes - Get next character
@@ -16105,15 +16094,15 @@ STRFIN:
   PUSH HL                 ;SAVE POINTER AT END OF STRING
   LD A,B                  ;WERE WE SCANNING AN UNQUOTED STRING?
   CP ','
-  JP NZ,NTTRLS            ;IF NOT, DON'T SUPPRESS TRAILING SPACES
+  JR NZ,NTTRLS            ;IF NOT, DON'T SUPPRESS TRAILING SPACES
   INC C                   ;FIX [C] WHICH IS THE CHARACTER COUNT
 LPTRLS:
   DEC C                   ;DECREMENT UNTIL WE FIND A NON-SPACE CHARACTER
-  JP Z,NTTRLS             ;DON'T GO PAST START (ALL SPACES)
+  JR Z,NTTRLS             ;DON'T GO PAST START (ALL SPACES)
   DEC HL                  ;LOOK AT PREVIOUS CHARACTER
   LD A,(HL)
   CP ' '
-  JP Z,LPTRLS             ;IF SO CONTINUE LOOKING
+  JR Z,LPTRLS             ;IF SO CONTINUE LOOKING
 NTTRLS:
   POP HL
 ;------ <end> ------
@@ -16188,7 +16177,7 @@ PRS1_0:
   CP $0D
   CALL Z,CRFIN
   INC BC                  ;POINT TO THE NEXT CHARACTER
-  JP PRS1_0               ;AND PRINT IT...
+  JR PRS1_0               ;AND PRINT IT...
 
 
 ; Test if enough room for string
@@ -16218,7 +16207,7 @@ GRBDON:
   ADD HL,BC               ; Add to bottom of space in use     ;SUBTRACT FROM TOP OF FREE
   INC HL                  ; Plus one for 2's complement
   CALL DCOMPR             ; Below string RAM area?            ;COMPARE THE TWO
-  JP C,TESTOS             ; Tidy up if not done else err      ;NOT ENOUGH ROOM FOR STRING, OFFAL TIME
+  JR C,TESTOS             ; Tidy up if not done else err      ;NOT ENOUGH ROOM FOR STRING, OFFAL TIME
   LD (FRETOP),HL          ; Save new bottom of area           ;SAVE NEW BOTTOM OF MEMORY
   INC HL                  ; Point to first byte of string     ;MOVE BACK TO POINT TO STRING
   EX DE,HL                ; Address to DE                     ;RETURN WITH POINTER IN [D,E]
@@ -16256,9 +16245,7 @@ GARBLP:
 
 ; Routine at 23075
 TVAR:
-  EX DE,HL                ;SAVE IN [D,E]
-  LD HL,(TEMPPT)          ;SEE IF DONE     ; Temporary string pool pointer
-  EX DE,HL                ;FLIP
+  LD DE,(TEMPPT)          ;SEE IF DONE     ; Temporary string pool pointer
   CALL DCOMPR             ;TEST            ; Temporary string pool done?
 
   ;CANNOT RUN IN RAM SINCE IT STORES TO MESS UP BASIC
@@ -16270,11 +16257,9 @@ TVAR:
   LD (ARYTA2),HL          ;STORE IN STOP LOCATION
   LD HL,(VARTAB)          ;GET STARTING POINT IN [H,L]
 SMPVAR:
-  EX DE,HL
-  LD HL,(ARYTA2)          ;GET STOPPING LOCATION                    ; End of simple variables
-  EX DE,HL
+  LD DE,(ARYTA2)          ;GET STOPPING LOCATION                    ; End of simple variables
   CALL DCOMPR             ;SEE IF AT END OF SIMPS                   ; All simple strings done?
-  JP Z,ARYVAR                                                       ; Yes - Do string arrays
+  JR Z,ARYVAR                                                       ; Yes - Do string arrays
   LD A,(HL)               ;GET VALTYP                               ; Get type of variable
   INC HL                  ;BUMP POINTER TWICE
   INC HL                  ;
@@ -16283,14 +16268,14 @@ SMPVAR:
   CALL IADAHL             ;AND SKIP OVER EXTRA CHARACTERS AND COUNT
   POP AF                                                            ; Restore type of variable
   CP $03                  ;SEE IF ITS A STRING
-  JP NZ,SKPVAR            ;IF NOT, JUST SKIP AROUND IT
+  JR NZ,SKPVAR            ;IF NOT, JUST SKIP AROUND IT
   CALL STRADD             ;COLLECT IT                               ; Add if string in string area
   XOR A                   ;AND DON'T SKIP ANYTHING MORE
 SKPVAR:
   LD E,A
   LD D,$00                ;[D,E]=AMOUNT TO SKIP
   ADD HL,DE
-  JP SMPVAR               ;GET NEXT ONE                             ; Loop until simple ones done
+  JR SMPVAR               ;GET NEXT ONE                             ; Loop until simple ones done
 
 ARYVAR:
   LD HL,(TEMP9)           ;GET LINK IN PARAMETER BLOCK CHAIN
@@ -16300,7 +16285,7 @@ ARYVAR:
   LD A,D
   OR E                    ;WAS THAT THE END?
   LD HL,(ARYTAB)
-  JP Z,ARRLP              ;OTHERWISE GARBAGE COLLECT ARRAYS
+  JR Z,ARRLP              ;OTHERWISE GARBAGE COLLECT ARRAYS
   EX DE,HL
   LD (TEMP9),HL           ;SETUP NEXT LINK IN CHAIN FOR ITERATION
   INC HL                  ;SKIP CHAIN POINTER
@@ -16313,7 +16298,7 @@ ARYVAR:
   ADD HL,DE               ;ADDING BASE TO LENGTH
   LD (ARYTA2),HL          ;SET UP STOP LOCATION
   EX DE,HL
-  JP SMPVAR
+  JR SMPVAR
 
 ; Move to next array
 ;
@@ -16325,11 +16310,9 @@ GNXARY:
 ;
 ; Used by the routines at TVAR and ARYSTR.
 ARRLP:                                                         	
-  EX DE,HL                                                      ;SAVE ARYVAR IN [D,E]
-  LD HL,(STREND)          ; End of string arrays                ;GET END OF ARRAYS
-  EX DE,HL                                                      ;FLIP BACK
+  LD DE,(STREND)          ; End of string arrays                ;GET END OF ARRAYS
   CALL DCOMPR             ; All string arrays done?             ;SEE IF DONE WITH ARRAYS
-  JP Z,SCNEND             ; Yes - Move string if found          ;YES, SEE IF DONE COLLECTING
+  JR Z,SCNEND             ; Yes - Move string if found          ;YES, SEE IF DONE COLLECTING
   LD A,(HL)               ; Get type of array                   ;GET THE VALUE TYPE INTO [A]
   INC HL
   PUSH AF                 ; Save type of array                  ;SAVE THE VALTYP
@@ -16344,7 +16327,7 @@ ARRLP:
   PUSH HL                 ; Save address of num of dim'ns       ;SAVE POINTER TO DIMS
   ADD HL,BC               ; Start of next array                 ;ADD TO CURRENT POINTER PO
   CP $03                  ; Test type of array                  ;SEE IF ITS A STRING
-  JP NZ,GNXARY            ; Numeric array - Ignore it           ;IF NOT JUST SKIP IT
+  JR NZ,GNXARY            ; Numeric array - Ignore it           ;IF NOT JUST SKIP IT
   LD (TEMP8),HL           ; Save address of next array          ;SAVE END OF ARRAY
   POP HL                  ; Get address of num of dim'ns        ;GET BACK CURRENT POSITION
   LD C,(HL)               ; BC = Number of dimensions           ;PICK UP NUMBER OF DIMS
@@ -16355,12 +16338,10 @@ ARRLP:
 
 ; Routine at 23215
 ARYSTR:
-  EX DE,HL                ;SAVE CURRENT POSIT IN [D,E]          ; Get address of next array
-  LD HL,(TEMP8)           ;GET END OF ARRAY
-  EX DE,HL                ;FIX [H,L] BACK TO CURRENT            ; Is this array finished?
-  CALL DCOMPR             ;SEE IF AT END OF ARRAY               ; Yes - Get next one
-  JP Z,ARRLP              ;END OF ARRAY, TRY NEXT ARRAY         ; Loop until array all done
-  LD BC,ARYSTR            ;ADDR OF WHERE TO RETURN TO
+  LD DE,(TEMP8)           ;GET END OF ARRAY                     ; Get address of next array
+  CALL DCOMPR             ;SEE IF AT END OF ARRAY               ; Is this array finished?
+  JR Z,ARRLP              ;END OF ARRAY, TRY NEXT ARRAY         ; Yes - Get next one
+  LD BC,ARYSTR            ;ADDR OF WHERE TO RETURN TO           ; Loop until array all done
 
 ; Routine at 23229
 ;
@@ -16507,7 +16488,7 @@ TSALP:
   LD (DE),A               ; Save destination                   ;SAVE IT
   INC BC                  ; Next source                        ;MOVE POINTERS
   INC DE                  ; Next destination
-  JP TSALP                ; Loop until string moved            ;KEEP DOING IT
+  JR TSALP                ; Loop until string moved            ;KEEP DOING IT
 
 
 ; Get string pointed by FPREG 'Type Error' if it is not
@@ -16553,7 +16534,7 @@ GSTRDE:
   LD C,(HL)               ; Get string length                  ;[C]=LENGTH OF THE STRING FREED UP
   LD HL,(FRETOP)          ; Current bottom of string area      ;SEE IF ITS THE FIRST ONE IN STRING SPACE
   CALL DCOMPR             ; Last one in string area?
-  JP NZ,POPHL             ; No - Return                        ;NO SO DON'T ADD
+  JR NZ,POPHL             ; No - Return                        ;NO SO DON'T ADD
   LD B,A                  ; Clear B (A=0)                      ;MAKE [B]=0
   ADD HL,BC               ; Remove string from str' area       ;ADD
   LD (FRETOP),HL          ; Save new bottom of str' area       ;AND UPDATE FRETOP
@@ -16657,9 +16638,9 @@ FN_STRING:
   EX (SP),HL              ;SAVE TEXT POINTER ON STACK, GET REP FACTOR
   PUSH HL                 ;SAVE BACK REP FACTOR
   CALL GETYPR             ;GET TYPE OF ARG
-  JP Z,STRSTR             ;WAS A STRING
+  JR Z,STRSTR             ;WAS A STRING
   CALL CONINT             ;GET ASCII VALUE OF CHAR
-  JP CALSPA               ;NOW CALL SPACE CODE
+  JR CALSPA               ;NOW CALL SPACE CODE
 
 STRSTR:
   CALL __ASC_0            ;GET VALUE OF CHAR IN [A]
@@ -16681,14 +16662,14 @@ __SPACE_S_0:
   POP AF                  ;GET BACK CHAR TO PUT IN STRING
   INC B                   ;TEST FOR NULL STRING
   DEC B
-  JP Z,TOPOOL             ;YES, ALL DONE
+  JR Z,TOPOOL             ;YES, ALL DONE
   LD HL,(TMPSTR)          ;GET DESC. POINTER
 SPLP:
   LD (HL),A               ;SAVE CHAR
   INC HL                  ;BUMP PTR
-  DEC B                   ;DECR COUNT
-  JP NZ,SPLP              ;KEEP STORING CHAR
-  JP TOPOOL               ;PUT TEMP DESC WHEN DONE
+  ;DEC B                   ;DECR COUNT
+  DJNZ SPLP              ;KEEP STORING CHAR
+  JR TOPOOL               ;PUT TEMP DESC WHEN DONE
 
 
 ; 'LEFT$' BASIC function
@@ -16722,7 +16703,7 @@ MID1:
   PUSH HL                 ; Save string block address            ;SAVE DESC. FOR  FRETMP
   LD A,(HL)               ; Get length of string                 ;GET STRING LENGTH
   CP B                    ; Compare with number given            ;ENTIRE STRING WANTED?
-  JP C,ALLFOL             ; All following bytes required         ;IF #CHARS ASKED FOR.GE.LENGTH,YES
+  JR C,ALLFOL             ; All following bytes required         ;IF #CHARS ASKED FOR.GE.LENGTH,YES
   LD A,B                  ; Get new length                       ;GET TRUNCATED LENGTH OF STRING
   DEFB $11                ; "LD DE,nn" to skip "LD C,0"          ;SKIP OVER MVI USING "LXI D,"
 
@@ -16760,7 +16741,7 @@ __RIGHT_S:
   PUSH DE                 ; And re-save                          ;SAVE BACK FOR LEFT
   LD A,(DE)               ; Get length                           ;GET PRESENT LEN OF STR
   SUB B                   ; Move back N bytes                    ;SUBTRACT 2ND PARM
-  JP RIGHT1               ; Go and get sub-string                ;CONTINUE WITH LEFT CODE
+  JR RIGHT1               ; Go and get sub-string                ;CONTINUE WITH LEFT CODE
 
 
 ; 'MID$' BASIC function
@@ -16879,7 +16860,7 @@ FN_INSTR:
   CALL GETYPR             ;SET ZERO IF ARG A STRING.
   LD A,$01                ;IF SO, ASSUME, SEARCH STARTS AT FIRST CHAR
   PUSH AF                 ;SAVE OFFSET IN CASE STRING
-  JP Z,FN_INSTR_0         ;WAS A STRING
+  JR Z,FN_INSTR_0         ;WAS A STRING
   POP AF                  ;GET RID OF SAVED OFFSET
   CALL CONINT             ;FORCE ARG1 (I%) TO BE INTEGER
   OR A                    ;DONT ALLOW ZERO OFFSET
@@ -16950,13 +16931,13 @@ CHK1:
 CHK:
   LD A,(DE)               ;GET CHAR FROM SUBSTRING
   CP (HL)                 ; = CHAR POINTER TO BY [H,L]
-  JP NZ,OHWELL            ;NO
+  JR NZ,OHWELL            ;NO
   INC DE                  ;BUMP COMPARE POINTER
   DEC C                   ;END OF SEARCH STRING?
-  JP Z,GOTSTR             ;WE FOUND IT!
+  JR Z,GOTSTR             ;WE FOUND IT!
   INC HL                  ;BUMP POINTER INTO STRING BEING SEARCHED
-  DEC B                   ;DECREMENT LENGTH OF SEARCH STRING
-  JP NZ,CHK        
+  ;DEC B                   ;DECREMENT LENGTH OF SEARCH STRING
+  DJNZ CHK        
   POP DE                  ;END OF STRING, YOU LOSE
   POP DE                  ;GET RID OF POINTERS
   POP BC                  ;GET RID OF GARB
@@ -16981,9 +16962,9 @@ OHWELL:
   POP DE                  ;POINT TO START OF SUBSTRING
   POP HL                  ;GET BACK WHERE WE STARTED TO COMPARE
   INC HL                  ;AND POINT TO NEXT CHAR
-  DEC B                   ;DECR. # CHAR LEFT IN SOURCE STRING
-  JP NZ,CHK1              ;TRY SEARCHING SOME MORE
-  JP RETZER               ;END OF STRING, RETURN 0
+  ;DEC B                   ;DECR. # CHAR LEFT IN SOURCE STRING
+  DJNZ CHK1              ;TRY SEARCHING SOME MORE
+  JR RETZER               ;END OF STRING, RETURN 0
 
 
 ; STRING FUNCTIONS - LEFT HAND SIDE MID$
@@ -17002,12 +16983,12 @@ LHSMID:
   LD D,(HL)               ;PICK UP HIGH BYTE OF ADDRESS
   LD HL,(STREND)          ;SEE IF LHS STRING IS IN STRING SPACE
   CALL DCOMPR             ;BY COMPARING IT WITH STKTOP
-  JP C,NCPMID             ;IF ALREADY IN STRING SPACE DONT COPY.
+  JR C,NCPMID             ;IF ALREADY IN STRING SPACE DONT COPY.
 
 				;9/23/79 Allow MID$ on field strings
   LD HL,(TXTTAB)
   CALL DCOMPR             ;Is this a fielded string?
-  JP NC,NCPMID            ;Yes, Don't copy!!
+  JR NC,NCPMID            ;Yes, Don't copy!!
   POP HL                  ;GET BACK DESC. POINTER
   PUSH HL                 ;SAVE BACK ON STACK
   CALL STRCPY             ;COPY THE STRING LITERAL INTO STRING SPACE
@@ -17046,7 +17027,7 @@ NCPMID:
   JP C,FC_ERR             ;CANT ASSIGN PAST LEN(LHS)!
   INC A                   ;MAKE PROPER COUNT
   CP C                    ;SEE IF # OF CHARS IS .GT. THIRD ARG
-  JP C,BIGLEN             ;IF SO, DONT TRUNCATE
+  JR C,BIGLEN             ;IF SO, DONT TRUNCATE
   LD A,C                  ;TRUNCATE BY USING 3RD ARG.
 BIGLEN:
   LD C,B                  ;GET OFFSET OF STRING IN [C]
@@ -17086,8 +17067,8 @@ MID_LP:
   INC HL                  ;BUMP LHS POINTER.
   DEC C                   ;BUMP DOWN COUNT OF RHS.
   RET Z                   ;IF ZERO, ALL DONE.
-  DEC B                   ;IF LHS ENDED, ALSO DONE.
-  JP NZ,MID_LP            ;IF NOT DONE, MORE COPYING.
+  ;DEC B                   ;IF LHS ENDED, ALSO DONE.
+  DJNZ MID_LP            ;IF NOT DONE, MORE COPYING.
   RET                     ;BACK TO NEWSTT
 
 ; test ',' & ')' as argument separators in string functions
@@ -17096,7 +17077,7 @@ MID_LP:
 MID_ARGSEP:
   LD E,255                ;IF TWO ARG GUY, TRUNCATE.
   CP ')'
-  JP Z,MID_ARGSEP_0       ;[E] SAYS USE ALL CHARS
+  JR Z,MID_ARGSEP_0       ;[E] SAYS USE ALL CHARS
                           ;IF ONE ARGUMENT THIS IS CORRECT
   CALL SYNCHR
   DEFM ","                ;COMMA? MUST DELINEATE 3RD ARG.
@@ -17109,13 +17090,11 @@ MID_ARGSEP_0:
 ; 'FRE' BASIC function
 __FRE:
   CALL GETYPR
-  JP NZ,CLCDIF
+  JR NZ,CLCDIF
   CALL GSTRCU             ; Current string to pool               ;FREE UP ARGUMENT AND SETUP TO GIVE FREE STRING SPACE
   CALL GARBGE             ; Garbage collection                   ;DO GARBAGE COLLECTION
 CLCDIF:
-  EX DE,HL
-  LD HL,(STREND)          ; Bottom of string space in use
-  EX DE,HL
+  LD DE,(STREND)          ; Bottom of string space in use
   LD HL,(FRETOP)          ; Current bottom of string area        ;TOP OF FREE AREA
   JP GIVDBL               ;RETURN [H,L]-[D,E]
 
@@ -17137,7 +17116,7 @@ QINLIN:
   CALL OUTDO         ;TYPE IT
   LD A,' '           ;SPACE
   CALL OUTDO         ;TYPE IT TOO
-  JP PINLIN          ;NO CRUNCHING IN THIS CASE
+  JR PINLIN          ;NO CRUNCHING IN THIS CASE
 
 ; This entry point is used by the routines at PINLIN, DELCHR, TTYLIN and
 ; PUTBUF.
@@ -17145,10 +17124,10 @@ MORINP:
   CALL INCHR		; Get character and test ^O
 
   CP $01			; CTL-A  (enter in EDIT MODE?))
-  JP NZ,INLNC1      ; NO, TREAT NORMALLY
+  JR NZ,INLNC1      ; NO, TREAT NORMALLY
 
   LD (HL),$00       ; SAVE TERMINATOR
-  JP PINLIN_1       ; GO EDIT FROM HERE
+  JR PINLIN_1       ; GO EDIT FROM HERE
 
 ; This entry point is used by the routine at PINLIN.
 QINLIN_0:
@@ -17166,11 +17145,11 @@ PINLIN:
 INLIN:
   CALL INCHR		; Get character and test ^O
   CP $01			; CTL-A to enter in EDIT mode
-  JP NZ,TTYLIN
+  JR NZ,TTYLIN
 ; This entry point is used by the routine at QINLIN.
 PINLIN_1:
   CALL OUTDO_CRLF
-  LD HL,$FFFF
+  LD HL,-1
   JP __EDIT_3
 
 ; This entry point is used by the routine at TTYLIN.
@@ -17179,18 +17158,18 @@ RUBOUT:
   OR A
   LD A,'\\'
   LD (RUBSW),A
-  JP NZ,ECHDEL
+  JR NZ,ECHDEL
   DEC B
-  JP Z,QINLIN_0
+  JR Z,QINLIN_0
   CALL OUTDO
   INC B
 ECHDEL:
   DEC HL
   DEC B
-  JP Z,OTKLN
+  JR Z,OTKLN
   LD A,(HL)
   CALL OUTDO
-  JP MORINP
+  JR MORINP
 
 
 IF ORIGINAL
@@ -17207,7 +17186,7 @@ ENDIF
 DELCHR:
   DEC HL
   CALL OUTDO
-  JP NZ,MORINP
+  JR NZ,MORINP
 ; This entry point is used by the routines at PINLIN and TTYLIN.
 OTKLN:
   CALL OUTDO              ; Output character in A
@@ -17229,10 +17208,10 @@ TTYLIN:
 INLNC1:
   LD C,A
   CP $7F                 ; RUBOUT ?
-  JP Z,RUBOUT
+  JR Z,RUBOUT
   LD A,(RUBSW)
   OR A
-  JP Z,TTYLIN_1
+  JR Z,TTYLIN_1
   LD A,'\\'
   CALL OUTDO
   XOR A
@@ -17240,7 +17219,7 @@ INLNC1:
 TTYLIN_1:
   LD A,C
   CP $07
-  JP Z,PUTCTL
+  JR Z,PUTCTL
   CP $03                  ; CTL-C ?
   CALL Z,KILIN
   SCF
@@ -17248,20 +17227,20 @@ TTYLIN_1:
   CP $0D
   JP Z,NEXT_LINE
   CP $09                  ; Is it TAB ?
-  JP Z,PUTCTL
+  JR Z,PUTCTL
   CP $0A
-  JP NZ,TTYLIN_2
+  JR NZ,TTYLIN_2
   DEC B
-  JP Z,PINLIN
+  JR Z,PINLIN
   INC B
-  JP PUTCTL
+  JR PUTCTL
 
 TTYLIN_2:
   CP $15                  ; Is it control "U"?
   CALL Z,KILIN            ; Yes - Get another line (wipe current buffer)
   JP Z,PINLIN
   CP $08                  ; Is it delete (backspace: ctl-H) ?
-  JP NZ,NO_DELETE         ; No, skip over
+  JR NZ,NO_DELETE         ; No, skip over
 DO_DELETE:
   DEC B
   JP Z,INLIN
@@ -17269,17 +17248,17 @@ DO_DELETE:
   LD A,' '
   CALL OUTDO
   LD A,$08
-  JP DELCHR
+  JR DELCHR
 
 NO_DELETE:
   CP $18                  ; CTL-X ?
-  JP NZ,TTYLIN_3
+  JR NZ,TTYLIN_3
   LD A,'#'                ; Print '#' to confirm
-  JP OTKLN                ; .. and remove the current line being inserted
+  JR OTKLN                ; .. and remove the current line being inserted
 
 TTYLIN_3:
   CP $12                  ; Is it control "R"?
-  JP NZ,PUTBUF            ; No - Put in buffer
+  JR NZ,PUTBUF            ; No - Put in buffer
   PUSH BC                 ; Save buffer length
   PUSH DE                 ; Save DE
   PUSH HL                 ; Save buffer address
@@ -17303,14 +17282,14 @@ PUTBUF:
 PUTCTL:
   LD A,B                  ; Get number of bytes in buffer
   OR A
-  JP NZ,PUTBUF_0
+  JR NZ,PUTBUF_0
   PUSH HL
   LD HL,(PTRFIL)
   LD A,H                  ; Test for line overflow
   OR L
   POP HL
   LD A,$07                ; CTRL-G: Set a bell
-  JP Z,OUTIT              ; Ring bell if buffer full
+  JR Z,OUTIT              ; Ring bell if buffer full
   LD HL,BUF
   CALL ATOH
   EX DE,HL
@@ -17332,7 +17311,7 @@ OUTIT:
 PUTBUF_1:
   CALL INCHR		; Get character and test ^O
   OR A
-  JP Z,PUTBUF_1
+  JR Z,PUTBUF_1
   CP $0D
   JP Z,MORINP
   JP INLNC1
@@ -17370,7 +17349,7 @@ __WHILE:
   CALL FNDWND             ;SEE IF THERE IS A STACK ENTRY FOR THIS WHILE
   INC SP                  ;GET RID OF THE NEWSTT ADDRESS ON THE STACK
   INC SP
-  JP NZ,WNOTOL            ;IF NO MATCH NO NEED TO TRUNCATE THE STACK
+  JR NZ,WNOTOL            ;IF NO MATCH NO NEED TO TRUNCATE THE STACK
   ADD HL,BC               ;ELIMINATE EVERYTHING UP TO AND INCLUDING THE MATCHING WHILE ENTRY
   LD SP,HL
   LD (SAVSTK),HL
@@ -17380,21 +17359,23 @@ WNOTOL:
   LD HL,(ENDFOR)          ;GET TEXT POINTER FOR WHILE BACK
   PUSH HL
   PUSH DE                 ;SAVE THE WEND TEXT POINTER
-  JP __WEND_0             ;FINISH USING WEND CODE
+  JR __WEND_0             ;FINISH USING WEND CODE
 
 ; 'WEND' BASIC instruction
 __WEND:
   JP NZ,SN_ERR            ;STATEMENT HAS NO ARGUMENTS
   EX DE,HL                ;FIND MATCHING WHILE ENTRY ON STACK
   CALL FNDWND
-  JP NZ,WE_ERR            ;MUST MATCH OR ELSE ERROR
+  JR NZ,WE_ERR            ;MUST MATCH OR ELSE ERROR
   LD SP,HL                ;TRUNCATE STACK AT MATCH POINT
   LD (SAVSTK),HL
   EX DE,HL                ;SAVE [H,L] POINTING INTO STACK ENTRY
   LD HL,(CURLIN)          ;REMEMBER WEND LINE #
-  EX DE,HL                ;IN NXTLIN
-  EX DE,HL
-  LD (NXTLIN),HL
+IF ORIGINAL
+  EX DE,HL                ; Useless side effect got by macros
+  EX DE,HL                ;    ..here we probably had 2 consequent DE fetch/store operations 
+ENDIF
+  LD (NXTLIN),HL          ;IN NXTLIN
   EX DE,HL
   INC HL                  ;INDEX INTO STACK ENTRY TO GET VALUES
   INC HL                  ;SKIP OVER TEXT POINTER OF WEND
@@ -17415,7 +17396,7 @@ __WEND_0:
   PUSH HL                 ;SAVE TEXT POINTER
   CALL VSIGN              ;GET IF TRUE OR FALSE
   POP HL                  ;GET BACK WHILE TEXT POINTER
-  JP Z,FLSWHL             ;GO BACK AT WEND IF FALSE
+  JR Z,FLSWHL             ;GO BACK AT WEND IF FALSE
   LD BC,TK_WHILE          ;COMPLETE WHILE ENTRY
   LD B,C                  ;NEED IT IN THE HIGH BYTE
   PUSH BC
@@ -17448,10 +17429,10 @@ __WEND_3:
   INC HL                  
   LD BC,TK_FOR
   CP C                    ;SEE IF ITS $FOR
-  JP NZ,__WEND_4
+  JR NZ,__WEND_4
   LD BC,$0012             ; FORSZC+2? (size of a 'FOR' entry on stack)
   ADD HL,BC
-  JP __WEND_3
+  JR __WEND_3
 
 __WEND_4:
   LD BC,TK_WHILE
@@ -17467,7 +17448,7 @@ __WEND_4:
   LD BC,$0006
   RET Z                   ;RETURN IF ENTRY MATCHES
   ADD HL,BC
-  JP __WEND_3
+  JR __WEND_3
   
 WE_ERR:
   LD DE,$001E		; Err $1E - "WEND without WHILE"
@@ -17516,7 +17497,7 @@ __CALL:
   DEC HL                  ;Back up text pointer
   CALL CHRGTB             ;Get char
   LD (TEMP),HL            ;Save text pointer
-  JP Z,CALLST             ;If end of line, GO!   (jp if no parameters)
+  JR Z,CALLST             ;If end of line, GO!   (jp if no parameters)
                           
   CALL SYNCHR             ;Eat left paren
   DEFM "("
@@ -17535,10 +17516,10 @@ GETPAR:
   POP BC
   LD A,(HL)               ;Look at terminator
   CP ','                  ;Comma?
-  JP NZ,ENDPAR            ;Test
+  JR NZ,ENDPAR            ;Test
   DEC C                   ;Decrement count of params
   CALL CHRGTB             ;Get next char
-  JP GETPAR               ;Back for more
+  JR GETPAR               ;Back for more
 ENDPAR:
   CALL SYNCHR
   DEFM ")"                ;Should have left paren
@@ -17547,13 +17528,13 @@ ENDPAR:
   SUB C                   
   POP HL                  ;At least one, get its address in [H,L]    ; (HL=Parameter 1)
   DEC A                   ;Was it one?                               ; If the number of parameters is..
-  JP Z,CALLST             ;Yes                  
+  JR Z,CALLST             ;Yes                  
   POP DE                  ;Next address in [D,E]                     ; (DE=Parameter 2)
   DEC A                   ;Two?                                      ; ...less than ..
-  JP Z,CALLST             ;Yes
+  JR Z,CALLST             ;Yes
   POP BC                  ;Final in [B,C]                            ; (BC=Parameter 3)
   DEC A                   ;Three?                                    ; ...or equal to 3,
-  JP Z,CALLST             ;Yes                                       ; they are passed in the registers.
+  JR Z,CALLST             ;Yes                                       ; they are passed in the registers.
   PUSH BC                 ;Save back third parm                  
   PUSH HL                 ;Save back first
   LD HL,$0002             ;Point to rest of parm list                ; If the number of parameters is greater than 3,
@@ -17606,7 +17587,7 @@ __CHAIN:
   LD A,(HL)               ;Get current char
   LD DE,TK_MERGE          ;Is it MERGE?; d=0, e=TK_MERGE
   CP E                    ;Test
-  JP NZ,__CHAIN_0         ;NO
+  JR NZ,__CHAIN_0         ;NO
   LD (MRGFLG),A           ;Set MERGE flag
   INC HL
 __CHAIN_0:
@@ -17619,11 +17600,11 @@ __CHAIN_0:
   POP HL                  ;Restore text pointer
   DEC HL                  ;Back up pointer
   CALL CHRGTB             ;Scan char
-  JP Z,NTCHAL             ;No line number etc.
+  JR Z,NTCHAL             ;No line number etc.
   CALL SYNCHR             
   DEFM ","                ;Must be comma
   CP ','                  ;Ommit line # (Use ALL for instance)
-  JP Z,NTLINF             ;YES
+  JR Z,NTLINF             ;YES
   CALL EVAL               ;Evaluate line # formula
   PUSH HL                 ;Save text poiner
   CALL GETWORD_HL         ;Force to int in [H,L]
@@ -17631,13 +17612,13 @@ __CHAIN_0:
   POP HL                  ;Restore text poiner
   DEC HL                  ;Rescan last char
   CALL CHRGTB
-  JP Z,NTCHAL             ;No ALL i.e. preserve all vars across CHAIN
+  JR Z,NTCHAL             ;No ALL i.e. preserve all vars across CHAIN
 NTLINF:
   CALL SYNCHR
   DEFM ","                ;Should be comma here
   LD DE,TK_DELETE         ;Test for DELETE option ; d=0, e=TK_DELETE
   CP E                    ;Is it?
-  JP Z,CHMWDL             ;Yes
+  JR Z,CHMWDL             ;Yes
   CALL SYNCHR
   DEFM "A"                ;Check for "ALL"
   CALL SYNCHR
@@ -17664,7 +17645,7 @@ CHMWDL:
   LD L,C
   LD (CMSPTR),HL
   CALL SRCHLN             ;Find the last line
-  JP NC,FCERRG            ;Must have exact match on end of range
+  JR NC,FCERRG            ;Must have exact match on end of range
   LD D,H                  ;[D,E] =  pointer at the start of the line
   LD E,L                  ;beyond the last line in the range
   LD (CMEPTR),HL          ;Save pointer to end line
@@ -17689,25 +17670,23 @@ CLPSCN:
   LD E,(HL)               ;Get line # in [D,E]
   INC HL
   LD D,(HL)
-  EX DE,HL                ;Save current line # in CURLIN for errors
-  LD (CURLIN),HL
-  EX DE,HL
+  LD (CURLIN),DE          ;Save current line # in CURLIN for errors
 CSTSCN:
   CALL CHRGTB             ;Get statment type
 
 ; This entry point is used by the routine at BCKUCM.
 AFTCOM:
   OR A
-  JP Z,CLPSCN             ;EOL Scan next one
+  JR Z,CLPSCN             ;EOL Scan next one
   CP ':'                  ;Are we looking at colon
-  JP Z,CSTSCN             ;Yes, get next statement
+  JR Z,CSTSCN             ;Yes, get next statement
   LD DE,TK_COMMON         ;Test for COMMON, avoid byte externals
   CP E                    ;Is it a COMMON?
-  JP Z,CHAIN_COMMON       ;Yes, handle it
+  JR Z,CHAIN_COMMON       ;Yes, handle it
   CALL CHRGTB             ;Get first char of statement
   CALL __DATA             ;Skip over statement
   DEC HL                  ;Back up to rescan terminator
-  JP CSTSCN               ;Scan next one
+  JR CSTSCN               ;Scan next one
 
   
 ;	Example
@@ -17717,7 +17696,7 @@ AFTCOM:
   
 CHAIN_COMMON:
   CALL CHRGTB             ;Get thing after COMMON
-  JP Z,AFTCOM             ;Get next thing
+  JR Z,AFTCOM             ;Get next thing
 
 ; This entry point is used by the routine at BCKUCM.
 NXTCOM:
@@ -17725,7 +17704,7 @@ NXTCOM:
   LD A,$01                ;Call PTRGET to search for array
   LD (SUBFLG),A
   CALL PTRGET             ;This subroutine in F3 scans variables
-  JP Z,FNDAAY             ;Found array
+  JR Z,FNDAAY             ;Found array
   LD A,B                  ;Try finding array with COMMON bit set
   OR $80
   LD B,A
@@ -17733,12 +17712,12 @@ NXTCOM:
   CALL ARLDSV             ;Search array table
   LD A,$00                ;Clear SUBFLG in all cases
   LD (SUBFLG),A
-  JP NZ,NTFN2T            ;Not found, try simple
+  JR NZ,NTFN2T            ;Not found, try simple
   LD A,(HL)               ;Get terminator, should be "("
   CP '('                  ;Test
-  JP NZ,SCNSMP            ;Must be simple then
+  JR NZ,SCNSMP            ;Must be simple then
   POP AF                  ;Get rid of saved text pointer
-  JP COMADY               ;Already was COMMON, ignore it
+  JR COMADY               ;Already was COMMON, ignore it
 
 NTFN2T:
   LD A,(HL)               ;Get terminator
@@ -17752,7 +17731,7 @@ SCNSMP:
 ;COMPTR:
   LD A,D                 ;If var not found, [D,E]=0
   OR E
-  JP NZ,COMFNS           ;Found it
+  JR NZ,COMFNS           ;Found it
   LD A,B                 ;Try to find in COMMON
   OR $80                 ;Set COMMON bit
   LD B,A
@@ -17796,7 +17775,7 @@ FNDAAY:
   LD (SUBFLG),A          ;Array found, clear SUBFLG
   LD A,(HL)              ;Make sure really array spec
   CP '('                 ;Really an array?
-  JP NZ,SCNSMP           ;No, scan as simp
+  JR NZ,SCNSMP           ;No, scan as simp
   EX (SP),HL             ;Save text pointer, get rid of saved text pointer
   DEC BC                 ;Point at last char of name extension
   DEC BC
@@ -17809,7 +17788,7 @@ BCKUCM:
   CALL CHRGTB
   JP Z,AFTCOM            ;End of COMMON statement
   CP '('                 ;End of COMMON array spec?
-  JP NZ,CHKCST           ;No, should be comma
+  JR NZ,CHKCST           ;No, should be comma
 ; This entry point is used by the routine at __CHAIN.
 COMADY:
   CALL CHRGTB            ;Fetch char after paren
@@ -17827,13 +17806,11 @@ CHKCST:
 CLPFIN:
   POP HL
   LD (CURLIN),HL
-  EX DE,HL
-  LD HL,(ARYTAB)         ;End of simple var squeeze
-  EX DE,HL               ;To [D,E]
+  LD DE,(ARYTAB)         ;End of simple var squeeze
   LD HL,(VARTAB)         ;Start of simps
 CLPSLP:
   CALL DCOMPR            ;Are we done?
-  JP Z,DNCMDS            ;Yes done, with simps
+  JR Z,DNCMDS            ;Yes done, with simps
   PUSH HL                ;Save where this simp is
   LD C,(HL)              ;Get VALTYP
   INC HL
@@ -17857,7 +17834,7 @@ CLPSLP:
   LD (ARYTAB),HL         ;Save new ARYTAB
   EX DE,HL               ;To [D,E]
   POP HL                 ;Get current place back in [H,L]
-  JP CLPSLP
+  JR CLPSLP
 
 VARDLS:
   EX DE,HL               ;Point to where var ends
@@ -17868,7 +17845,7 @@ DLSVLP:
   LD (BC),A              ;Move down
   INC DE                 ;Increment pointers
   INC BC
-  JP NZ,DLSVLP
+  JR NZ,DLSVLP
   LD A,C                 ;Get difference between old and new
   SUB L                  ;Into [D,E] ([D,E]=[B,C]-[H,L])
   LD E,A
@@ -17883,12 +17860,10 @@ DLSVLP:
   RET
 
 DNCMDS:
-  EX DE,HL               ;Limit of array search
-  LD HL,(STREND)         ;To [D,E]
-  EX DE,HL
+  LD DE,(STREND)         ;Limit of array search
 CLPAKP:
   CALL DCOMPR            ;Done?
-  JP Z,DNCMDA            ;Yes
+  JR Z,DNCMDA            ;Yes
   PUSH HL                ;Save pointer to VALTYP
   INC HL                 ;Move down to COMMON bit
   INC HL                 
@@ -17911,7 +17886,7 @@ CLPAKP:
   CALL VARDLS            ;Delete variable
   EX DE,HL               ;Put STREND in [D,E]
   POP HL                 ;Point to next var
-  JP CLPAKP              ;Look at next array
+  JR CLPAKP              ;Look at next array
 
 
 
@@ -17924,14 +17899,12 @@ CLPAKP:
 DNCMDA:
   LD HL,(VARTAB)         ;Look at simple strings
 CSVAR:
-  EX DE,HL               ;Into [D,E]
-  LD HL,(ARYTAB)         ;Limit of search
-  EX DE,HL               ;Start in [H,L], limit in [D,E]
+  LD DE,(ARYTAB)         ;Limit of search
   CALL DCOMPR            ;Done?
-  JP Z,CAYVAR            ;Yes
+  JR Z,CAYVAR            ;Yes
 
   CALL DNCMDA_SUB        ;Get VALTYP of array
-  JP NZ,CSKPVA           ;If not string, skip this var
+  JR NZ,CSKPVA           ;If not string, skip this var
 
   CALL CDVARS            ;Copy this guy into string space if nesc
   XOR A                  ;CDVARS has already incremented [H,L]
@@ -17939,18 +17912,16 @@ CSKPVA:
   LD E,A
   LD D,$00               ;Add length of VALTYP
   ADD HL,DE
-  JP CSVAR
+  JR CSVAR
 
 CAYVA2:
   POP BC                 ;Adjust stack
 
 ; This entry point is used by the routine at CAYSTR.
 CAYVAR:
-  EX DE,HL               ;Save where we are
-  LD HL,(STREND)         ;New limit of search
-  EX DE,HL               ;In [D,E], limit in [H,L]
+  LD DE,(STREND)         ;New limit of search
   CALL DCOMPR            ;Done?
-  JP Z,DNCCLS            ;Yes
+  JR Z,DNCCLS            ;Yes
   CALL DNCMDA_SUB        ;Get VALTYP of array
   PUSH AF                ;Save VALTYP
   LD C,(HL)              ;Get length of array
@@ -17961,7 +17932,7 @@ CAYVAR:
   PUSH HL                ;Save pointer to array element
   ADD HL,BC              ;Point after array
   CP $03                 ;String array?
-  JP NZ,CAYVA2           ;No, look at next one
+  JR NZ,CAYVA2           ;No, look at next one
   LD (TEMP3),HL          ;Save pointer to end of array
   POP HL                 ;Get back pointer to array start
   LD C,(HL)              ;Pick up number of DIMs
@@ -17972,11 +17943,9 @@ CAYVAR:
 
 ; Routine at 18091
 CAYSTR:
-  EX DE,HL               ;Save current position in [D,E]
-  LD HL,(TEMP3)          ;Get end of array
-  EX DE,HL
+  LD DE,(TEMP3)          ;Get end of array
   CALL DCOMPR            ;See if at end of array
-  JP Z,CAYVAR            ;Get next array
+  JR Z,CAYVAR            ;Get next array
   LD BC,CAYSTR            ;Do next str in array
   PUSH BC                ;Save branch address on stack
 
@@ -18020,9 +17989,7 @@ DNCCLS:
   LD HL,(STREND)         ;Load end of vars
   LD B,H                 ;Into [B,C]
   LD C,L
-  EX DE,HL               ;Start of simps into [D,E]
-  LD HL,(VARTAB)
-  EX DE,HL
+  LD DE,(VARTAB)         ;Start of simps into [D,E]
   LD HL,(ARYTAB)         ;Get length of simps in [H,L]
   LD A,L
   SUB E
@@ -18040,7 +18007,7 @@ DNCCLS:
   LD (FRETOP),HL         ;Update FRETOP to reflect new value
   LD A,(MDLFLG)          ;MERGE w/ DELETE?
   OR A                   ;Test
-  JP Z,CAYSTR_2          ;No
+  JR Z,CAYSTR_2          ;No
   LD HL,(CMSPTR)         ;Start of lines to delete
   LD B,H                 ;Into [B,C]
   LD C,L
@@ -18086,25 +18053,23 @@ MVBKVR:
   LD (BC),A
   INC DE                 ;Increment pointers
   INC BC
-  JP NZ,MVBKVR
+  JR NZ,MVBKVR
   DEC BC                 ;Point to last var byte
   LD H,B                 ;[H,L]=last var byte
   LD L,C
   LD (STREND),HL         ;This is new end
-  EX DE,HL               ;Get CHAIN line #
-  LD HL,(CHNLIN)         ;Test for zero
-  EX DE,HL
-  LD HL,(TXTTAB)         ;Put in [D,E]
-  DEC HL                 ;Get prog start in [H,L]
-  LD A,D                 ;Point at zero before program
-  OR E                   ;line #=0, go...
-  JP Z,NEWSTT            ;Try to find destination line
-  CALL SRCHLN            ;Not there...
-  JP NC,UL_ERR           ;Point to zero on previous line
-  DEC BC                 ;Make text pointer for NEWSTT
-  LD H,B
-  LD L,C                 ;Bye...
-  JP NEWSTT
+  LD DE,(CHNLIN)         ;Get CHAIN line #
+  LD HL,(TXTTAB)         ;Get prog start in [H,L]
+  DEC HL                 ;Point at zero before program
+  LD A,D
+  OR E                   ;Test for zero
+  JP Z,NEWSTT            ;line #=0, go...
+  CALL SRCHLN            ;Try to find destination line
+  JP NC,UL_ERR           ;Not there...
+  DEC BC                 ;Point to zero on previous line
+  LD H,B                 ;Make text pointer for NEWSTT
+  LD L,C
+  JP NEWSTT              ;Bye...
 
 ; This entry point is used by the routine at DNCMDA.
 DNCMDA_SUB:
@@ -18128,12 +18093,12 @@ __WRITE:
   CALL FILGET          ; Look for '#' channel specifier and put the associated file buffer in BC
   DEC HL
   CALL CHRGTB          ;Get another character
-  JP Z,WRTFIN          ;Done with WRITE
+  JR Z,WRTFIN          ;Done with WRITE
 WRTMLP:
   CALL EVAL            ;Evaluate formula
   PUSH HL              ;Save the text pointer
   CALL GETYPR          ;See if we have a string
-  JP Z,WRTSTR          ;We do
+  JR Z,WRTSTR          ;We do
   CALL FOUT            ;Convert to a string
   CALL CRTST           ;Literalize string
   LD HL,(FACCU)        ;Get pointer to string
@@ -18143,7 +18108,7 @@ WRTMLP:
   LD D,(HL)
   LD A,(DE)            ;Is number positive?
   CP ' '               ;Test
-  JP NZ,WRTNEG         ;No, must be negative
+  JR NZ,WRTNEG         ;No, must be negative
   INC DE
   LD (HL),D
   DEC HL
@@ -18156,9 +18121,9 @@ NXTWRV:
   POP HL               ;Get back text pointer
   DEC HL               ;Back up pointer
   CALL CHRGTB          ;Get next char
-  JP Z,WRTFIN          ;end
+  JR Z,WRTFIN          ;end
   CP ';'               ;Semicolon?
-  JP Z,WASEMI          ;Was one
+  JR Z,WASEMI          ;Was one
   CALL SYNCHR
   DEFM ","             ;Only possib left is comma
   DEC HL               ;to compensate for later CHRGET
@@ -18166,7 +18131,7 @@ WASEMI:
   CALL CHRGTB          ;Fetch next char
   LD A,','             ;put out comma
   CALL OUTDO
-  JP WRTMLP            ;Back for more
+  JR WRTMLP            ;Back for more
 
 WRTSTR:
   LD A,'"'             ;put out double quote
@@ -18174,17 +18139,17 @@ WRTSTR:
   CALL PRS1            ;print the string
   LD A,'"'             ;Put out another double quote
   CALL OUTDO           ;Send it
-  JP NXTWRV            ;Get next value
+  JR NXTWRV            ;Get next value
 
 WRTFIN:
   PUSH HL              ;Save text pointer
   LD HL,(PTRFIL)       ;See if disk file
   LD A,H
   OR L
-  JP Z,NTRNDW          ;No
+  JR Z,NTRNDW          ;No
   LD A,(HL)            ;Get file mode
   CP $03               ;MD.RND: Random?
-  JP NZ,NTRNDW         ;NO
+  JR NZ,NTRNDW         ;NO
   CALL CMPFBC          ;See how many bytes left
   ; HL=HL-DE
   LD A,L               ;do subtract
@@ -18195,14 +18160,14 @@ WRTFIN:
   LD H,A
   LD DE,-2             ;Subtract number of bytes in CR/LF sequence
   ADD HL,DE
-  JP NC,NTRNDW         ;Not enough, give error eventually
+  JR NC,NTRNDW         ;Not enough, give error eventually
 CRLFSQ:
   LD A,' '             ;Put out spaces
   CALL OUTDO           ;Send space
   DEC HL               ;Count down
-  LD A,H               ;Count down
+  LD A,H
   OR L
-  JP NZ,CRLFSQ
+  JR NZ,CRLFSQ
 NTRNDW:
   POP HL               ;Restore [H,L]
   CALL OUTDO_CRLF      ;Do crlf
@@ -18233,7 +18198,7 @@ FILGET:
   CALL FILSCN        ;READ AND GET POINTER (in BC)
   POP DE             ;[E]=FILE MODE
   CP E               ;IS IT RIGHT?
-  JP Z,GDFILM        ;GOOD FILE MODE
+  JR Z,GDFILM        ;GOOD FILE MODE
   CP $03             ;ALLOW STUFF WITH RANDOM FILES
   JP NZ,FMODE_ERR    ;IF NOT, "BAD FILE MODE"
 
@@ -18245,9 +18210,7 @@ GDFILM:
 FILSET:
   LD D,B
   LD E,C
-  EX DE,HL               ;[D,E]=TEXT POINTER
-  LD (PTRFIL),HL         ;SETUP PTRFIL
-  EX DE,HL               ;TEXT POINTER BACK INTO [H,L]
+  LD (PTRFIL),DE         ;SETUP PTRFIL
   RET
 
 ;
@@ -18306,7 +18269,7 @@ GETPTR:
   CALL FILID2           ;INDEX INTO FILE DATA BLOCK
   LD HL,$0029           ;DATOFC: POINT TO DATA BLOCK
   CP $03                ;(MD.RND) RANDOM FILE?
-  JP NZ,NTFIVD          ;NO, USE NORMAL OFFSET
+  JR NZ,NTFIVD          ;NO, USE NORMAL OFFSET
   LD HL,$00B2           ;FD.DAT: YES
 
 NTFIVD:
@@ -18374,9 +18337,9 @@ FILIND:
   CALL GETYPR           ;SEE IF INPUT IS STRING OR NUMBER
   LD BC,DOASIG          ;RETURN ADDRESS TO SETUP [FAC]
   LD DE,$2C20           ; D=','  E=' '   ..SETUP TERMINATORS SPACE AND COMMA
-  JP NZ,INPDOR          ;IF NUMERIC, GO READ THE FILE
+  JR NZ,INPDOR          ;IF NUMERIC, GO READ THE FILE
   LD E,D                ;MAKE BOTH TERMINATORS COMMA
-  JP INPDOR             ;GO READ THE FILE
+  JR INPDOR             ;GO READ THE FILE
 
 ; Line input
 ; LINE INPUT & READ CODE FOR ITEM FETCHING FROM SEQUENTIAL INPUT FILES
@@ -18402,21 +18365,21 @@ NOTNWT:
   CALL RDBYT            ;READ A CHARACTER
   JP C,EF_ERR           ;READ PAST END ERROR IF EOF  -  Err: "Input past END" 
   CP ' '                ;SKIP LEADING SPACES
-  JP NZ,NOTSPC          ;EXCEPT FOR LINE INPUT
+  JR NZ,NOTSPC          ;EXCEPT FOR LINE INPUT
   INC D                 ;CHECK FOR LINEINPUT
   DEC D
-  JP NZ,NOTNWT          ;SKIP ANY NUMBER
+  JR NZ,NOTNWT          ;SKIP ANY NUMBER
 NOTSPC:
   CP '"'               	;QUOTED STRING COMING IN?
-  JP NZ,NOTQTE
+  JR NZ,NOTQTE
   LD A,E                ;SAVE THE QUOTE
   CP ','                ;MUST BE INPUT OF A STRING
   LD A,'"'              ;WHICH HAS [E]=44
-  JP NZ,NOTQTE          ;QUOTE BACK INTO [A]
+  JR NZ,NOTQTE          ;QUOTE BACK INTO [A]
   LD D,A
   LD E,A                ;TERMINATORS ARE QUOTES ONLY
   CALL RDBYT
-  JP C,QUITSI           ;READ PAST QUOTATION
+  JR C,QUITSI           ;READ PAST QUOTATION
 NOTQTE:                	;IF EOF, ALL DONE
   LD HL,BUF             ;BUFFER FOR DATA
   LD B,$FF              ;MAXIMUM NUMBER OF CHARACTERS (255)
@@ -18425,67 +18388,72 @@ LOPCRS:
   LD A,D                ;CHECK FOR QUOTED STRING
   CP '"'
   LD A,C                ;RESTORE CHARACTER
-  JP Z,NOTQTL           ;DON'T IGNORE CR OR STOP ON LF
+  JR Z,NOTQTL           ;DON'T IGNORE CR OR STOP ON LF
   CP $0D                ;CR?
   PUSH HL               ;SAVE DEST PTR. ON STACK
-  JP Z,ICASLF           ;EAT LINE FEED IF ONE
+  JR Z,ICASLF           ;EAT LINE FEED IF ONE
   POP HL                ;RESTORE DEST. PTR.
   CP $0A                ;LF?
-  JP NZ,NOTQTL          ;NO, TEST OTHER TERMINATORS
+  JR NZ,NOTQTL          ;NO, TEST OTHER TERMINATORS
 SKIP_LF:
   LD C,A                ;SAVE CURRENT CHAR
   LD A,E                ;GET TERMINATOR 2
-  ;  MBASIC v.5.22 has a bug here, it checks for 54 DECIMAL ('6') rather than 54 OCTAL (',') !!
+  ;  MBASIC v.5.20 and 5.22 have a bug here, they check for 54 DECIMAL ('6') rather than 54 OCTAL (',') !!
+IF KEEP_BUG
+  CP '6'
+ELSE
   CP ','                ;CHECK FOR COMMA (UNQUOTED STRING)
+ENDIF
   LD A,C                ;RESTORE ORIG CHAR
   CALL NZ,STRCHR        ;IF NOT, STORE LF (?)
   CALL RDBYT            ;GET NEXT CHAR
-  JP C,QUITSI           ;IF EOF, ALL DONE.
-IF ORIGINAL
+  JR C,QUITSI           ;IF EOF, ALL DONE.
+
+IF !ORIGINAL
   ; This extra check exists on Tandy M100, Olivetti M10 and MSX
-ELSE
   CP $0A                ;IS IT A LF?
   JR Z,SKIP_LF
 ENDIF
+
   CP $0D                ;IS IT A CR?
-  JP NZ,NOTQTL          ;IF NOT SEE IF STORE NORMALLY
+  JR NZ,NOTQTL          ;IF NOT SEE IF STORE NORMALLY
   LD A,E                ;GET TERMINATOR
   CP ' '                ;IS IT NUMERIC INPUT?
-  JP Z,LPCRGT           ;IF SO, IGNORE CR, DONT PUT IN BUFFER
+  JR Z,LPCRGT           ;IF SO, IGNORE CR, DONT PUT IN BUFFER
   CP ','                ;IS IT NON-QUOTED STRING (TERM=,)
   LD A,$0D              ;GET BACK CR.
-  JP Z,LPCRGT           ;IF SO, IGNORE CR.
+  JR Z,LPCRGT           ;IF SO, IGNORE CR.
 NOTQTL:
   OR A                  ;IS CHAR ZERO
-  JP Z,LPCRGT           ;ALWAYS IGNORE, AS IT IS TERMINATOR FOR STRLIT (SEE QUIT2B)
+  JR Z,LPCRGT           ;ALWAYS IGNORE, AS IT IS TERMINATOR FOR STRLIT (SEE QUIT2B)
   CP D                  ;TERMINATOR ONE?
-  JP Z,QUITSI           ;STOP THEN
+  JR Z,QUITSI           ;STOP THEN
   CP E                  ;TERMINATOR TWO?
-  JP Z,QUITSI
+  JR Z,QUITSI
   CALL STRCHR           ;SAVE THE CHAR
 LPCRGT:
   CALL RDBYT
-  JP NC,LOPCRS
+  JR NC,LOPCRS
 QUITSI:
   PUSH HL               ;SAVE PLACE TO STUFF ZERO
   CP '"'                ;STOPPED ON QUOTE?
-  JP Z,MORSPC           ;DON'T SKIP SPACES THEN, BUT DO SKIP FOLLOWING COMMA OR CRLF THOUGH
+  JR Z,MORSPC           ;DON'T SKIP SPACES THEN, BUT DO SKIP FOLLOWING COMMA OR CRLF THOUGH
   CP ' '                ;STOPPED ON SPACE?
-  JP NZ,NOSKCR          ;NO, DON'T SKIP SPACES OR ANY FOLLOWING COMMAS OR CRLFS EITHER
+  JR NZ,NOSKCR          ;NO, DON'T SKIP SPACES OR ANY FOLLOWING COMMAS OR CRLFS EITHER
 MORSPC:
   CALL RDBYT            ;READ SPACES
-  JP C,NOSKCR           ;EOF, ALL DONE.
+  JR C,NOSKCR           ;EOF, ALL DONE.
   CP ' '
-  JP Z,MORSPC
+  JR Z,MORSPC
   CP ','                ;COMMA?
-  JP Z,NOSKCR           ;OK, SKIP IT
+  JR Z,NOSKCR           ;OK, SKIP IT
   CP $0D                ;CARRIAGE RETURN?
-  JP NZ,BAKUPT          ;BACK UP PAST THIS CHARACTER
+  JR NZ,BAKUPT          ;BACK UP PAST THIS CHARACTER
 ICASLF:
   CALL RDBYT            ;READ ANOTHER
-  JP C,NOSKCR           ;EOF, ALL DONE.
+  JR C,NOSKCR           ;EOF, ALL DONE.
   CP $0A                ;LINE FEED?
-  JP Z,NOSKCR           ;OK, SKIP IT TOO
+  JR Z,NOSKCR           ;OK, SKIP IT TOO
 BAKUPT:
   LD HL,(PTRFIL)        ;GO TO NUMBER OF CHARATERS
   LD BC,$0028           ;NMLOFS
@@ -18498,7 +18466,7 @@ QUIT2B:
   LD HL,BUFMIN			;(buf-1) ITEM IS NOW STORED AT THIS POINT +1
   LD A,E                ;WAS IT A NUMERIC INPUT?
   SUB ' '               ;IF SO, [E]=" "
-  JP Z,NUMIMK           ;USE FIN TO SCAN IT
+  JR Z,NUMIMK           ;USE FIN TO SCAN IT
   LD B,D                ;SET [B]=44 IF SCANNING UNQUOTED STRING
   LD D,$00
   CALL DTSTR
@@ -18525,7 +18493,7 @@ STRCHR:
   DEC B                 ;128 YET?
   RET NZ                ;MORE SPACE IN BUFFER, RETURN
   POP BC                ;GET RID OF SUPERFLUOUS STACK ENTRY
-  JP QUIT2B             ;SPECIAL QUIT
+  JR QUIT2B             ;SPECIAL QUIT
 
 ; This entry point is used by the routines at __LOAD, __MERGE and __CHAIN.
 PRGFLI:
@@ -18558,7 +18526,7 @@ ENDIF
                         ;SO ,R OPTION CAN LEAVE FILES OPEN
   DEC HL                ;SEE IF NO RUN OPTION
   CALL CHRGTB
-  JP Z,NOTRNL           ;NO, JUST LOAD
+  JR Z,NOTRNL           ;NO, JUST LOAD
   CALL SYNCHR
   DEFM ","              ;GOTTA HAVE A COMMA
   CALL SYNCHR
@@ -18588,15 +18556,15 @@ NOTRNL:
   LD A,H
   AND L
   INC A
-  JP NZ,NOTINI          ;NO
+  JR NZ,NOTINI          ;NO
   LD (CURLIN),HL        ;SAVE DIRECT LINE NUMBER
 NOTINI:
   CALL RDBYT            ;READ THE FIRST CHARACTER
   JP C,PROMPT           ;ALL DONE IF NOTHING IN FILE
   CP $FE                ;IS THIS A PROTECTED FILE?
-  JP NZ,NTPROL          ;NO
+  JR NZ,NTPROL          ;NO
   LD (PROFLG),A         ;SET PROTECTED FILE
-  JP BINLOD             ;DO BINARY LOAD
+  JR BINLOD             ;DO BINARY LOAD
 
 NTPROL:
   INC A                 ;IS IT A BINARY FILE?
@@ -18621,7 +18589,7 @@ LPBLDR:
   ADD HL,BC
   CALL DCOMPR
   EX DE,HL
-  JP C,LOAD_OM_ERR        ;ERROR AND WIPE OUT PARTIAL GARBAGE
+  JR C,LOAD_OM_ERR        ;ERROR AND WIPE OUT PARTIAL GARBAGE
 				;UNLINKED!! NO ZEROES AT THE END!!
   CALL INDSKB             ;READ THE A DATA BYTE
 				;THIS IS SEMI-WEAK SINCE MEMORY
@@ -18629,7 +18597,7 @@ LPBLDR:
 				;IF AN I/O ERROR OCCURS
   LD (HL),A               ;STORE BYTE
   INC HL                  ;INCRMENT POINTER
-  JP NC,LPBLDR            ;READ THE NEXT CHAR
+  JR NC,LPBLDR            ;READ THE NEXT CHAR
   LD (VARTAB),HL          ;SAVE END TEMP FOR DECODING
   LD A,(PROFLG)           ;IS THIS A PROTECTED FILE?
   OR A                    ;SET CC'S
@@ -18674,7 +18642,7 @@ __MERGE:
   CALL PRGFLI             ;READ THE NAME AND DISK
   DEC HL                  ;MUST END THERE
   CALL CHRGTB
-  JP Z,OKGETM             ;READ THE FILE
+  JR Z,OKGETM             ;READ THE FILE
   CALL LOAD_END           ;CLOSE OUT TIME
   JP SN_ERR               ;AND "SYNTAX ERROR"
 
@@ -18726,7 +18694,7 @@ ENDIF
   CALL FILE_OPENOUT       ;READ FILE NAME AND DISK NUMBER AND LOOK IT UP
   DEC HL
   CALL CHRGTB             ;END OF STATEMENT?
-  JP Z,BINSAV             ;BINARY SAVE!!
+  JR Z,BINSAV             ;BINARY SAVE!!
   CALL SYNCHR             
   DEFM ","                ;ONLY OPTION IS ",A"
   CP 'P'                  ;PROTECTED SAVE?
@@ -18743,19 +18711,17 @@ BINSAV:
 ; This entry point is used by the routine at __GET.
 BINPSV:
   CALL FILOU3             ;SEND TO FILE
-  EX DE,HL
-  LD HL,(VARTAB)          ;GET STOP POINT
-  EX DE,HL                ;SAVE IN [D,E]
+  LD DE,(VARTAB)          ;GET STOP POINT
   LD HL,(TXTTAB)          ;GET START POINT
 BSAVLP:
   CALL DCOMPR             ;REACHED THE END?
-  JP Z,LOAD_END           ;REGET TEXT POINTER AND CLOSE FILE 0
+  JR Z,LOAD_END           ;REGET TEXT POINTER AND CLOSE FILE 0
   LD A,(HL)               ;GET LINE DATA
   INC HL                  ;POINT AT NEXT DATA
   PUSH DE                 ;SAVE LIMIT
   CALL FILOU3             ;SEND CHAR TO FILE
   POP DE                  ;RESTORE LIMIT
-  JP BSAVLP               ;CONTINUE WITH LINE DATA
+  JR BSAVLP               ;CONTINUE WITH LINE DATA
 
 ; 'CLOSE' BASIC command
 ;
@@ -18766,7 +18732,7 @@ BSAVLP:
 __CLOSE:
   LD BC,CPM_CLSFIL        ;SERVICE ROUTINE ADDRESS
   LD A,(MAXFIL)           ;HIGHEST POSSIBLE ARGUMENT, WHICH MEANS DO ALL POSSIBLE
-  JP NZ,RETRTS_0          ;NOT END OF STATEMENT, SO SCAN ARGUMENTS
+  JR NZ,RETRTS_0          ;NOT END OF STATEMENT, SO SCAN ARGUMENTS
   PUSH HL                 ;SAVE THE TEXT POINTER
 ; This entry point is used by the routine at RETALL.
 __CLOSE_0:
@@ -18881,7 +18847,7 @@ __FIELD_NEXT:
   INC HL
   LD (HL),D
   POP HL                  ;GET BACK THE TEXT POINTER
-  JP __FIELD_NEXT
+  JR __FIELD_NEXT
 
 ;LSET/RSET stringvar = stringexp
 ;
@@ -18921,13 +18887,13 @@ __LSET:
   INC HL
   LD D,(HL)              ;Get ptr to stringvar text
   OR A                   ;stringvar null?
-  JP Z,RETCUR            ;Yes, don't change
+  JR Z,RETCUR            ;Yes, don't change
   LD HL,(TXTTAB)
   CALL DCOMPR            ;stringvar in disk buffer?
-  JP NC,OLDSTR           ;Yes, use it
+  JR NC,OLDSTR           ;Yes, use it
   LD HL,(VARTAB)
   CALL DCOMPR            ;stringvar in program(literal)?
-  JP C,OLDSTR            ;No, in string space so use it
+  JR C,OLDSTR            ;No, in string space so use it
 
 ; Need to make new string for result since stringvar points to a literal.
 ; If stringexp was a temporary, it has been freed. If the length of
@@ -18943,7 +18909,7 @@ __LSET:
   EX DE,HL
   LD HL,(FRETOP)
   CALL DCOMPR            ;WILL GETSPA GARBAGE COLLECT?
-  JP C,MAKDSC            ;Yes, better have stringexp temp.
+  JR C,MAKDSC            ;Yes, better have stringexp temp.
   POP AF
 MADESC:
   LD A,C                 ;Get length of stringvar
@@ -18980,7 +18946,7 @@ OLDSTR:
   LD L,A                 ;Put pointer in [H,L]
   LD A,C                 ;Get length of field(stringvar)
   CP B
-  JP NC,FILDOK           ;Jump if field large enough for result
+  JR NC,FILDOK           ;Jump if field large enough for result
   LD B,A                 ;Save # of bytes to copy
 FILDOK:
   SUB B
@@ -18990,12 +18956,12 @@ FILDOK:
   INC B                  ;In case zero
 COPLOP:
   DEC B                  ;Decr. # to copy
-  JP Z,LRSTDN            ;Done when all copied
+  JR Z,LRSTDN            ;Done when all copied
   LD A,(HL)              ;Get byte from stringexp
   LD (DE),A              ;Copy to stringvar
   INC HL
   INC DE
-  JP COPLOP
+  JR COPLOP
 
 RETCUR:
   POP BC
@@ -19016,7 +18982,7 @@ BLKFL1:
   RET Z                  ;Return when done
   LD (DE),A              ;Store space
   INC DE
-  JP BLKFL1
+  JR BLKFL1
 
 ; If stringexp was a temporary, create a new temporary to point to
 ; stringexp since old one was freed. This must be done since GETSPA
@@ -19029,7 +18995,7 @@ MAKDSC:
   POP BC
   EX (SP),HL             ;Dig down to stringexp descr.
   EX DE,HL               ;FRETMS wants [D,E]
-  JP NZ,MAKDS1           ;Not a temp, don't reallocate
+  JR NZ,MAKDS1           ;Not a temp, don't reallocate
   PUSH BC
   LD A,B
   CALL MKTMST            ;Make a temp point to stringexp
@@ -19039,7 +19005,7 @@ MAKDS1:
   EX (SP),HL
   PUSH BC
   PUSH HL                ;Restore stack to previous state
-  JP MADESC
+  JR MADESC
 
 ;
 ; a.k.a. FIXINP:  Program I/O -- Fixed Length INPUT
@@ -19062,15 +19028,13 @@ FN_INPUT:
   PUSH HL                 ;Preserve PTRFIL across INPUT$ so
   LD HL,(PTRFIL)          ;cases like PRINT #2,INPUT$(3,#1)
   LD DE,$0000             ;will work properly.
-  EX DE,HL
-  LD (PTRFIL),HL          ;(Clear PTRFIL in case no file number
-  EX DE,HL                ;is specified.)
+  LD (PTRFIL),DE          ;(Clear PTRFIL in case no file number is specified.)
   EX (SP),HL
   CALL GETINT             ;Get # of bytes to read
   PUSH DE                 ;Save # of bytes to read
   LD A,(HL)
   CP ','                  ;Read from disk file?
-  JP NZ,REDTTY            ;No, from user's terminal
+  JR NZ,REDTTY            ;No, from user's terminal
   CALL CHRGTB
   CALL FILSCN             ; Check we have the '#' channel specifier and put the associated file buffer in BC
   CP $02                  ;SEQUENTIAL OUTPUT FILE?
@@ -19094,19 +19058,19 @@ REDTTY:
 FIXLOP:
   POP AF                                                            ; POP PSW
   PUSH AF                 ;NON-ZERO set if should read from TTY     ; PUSH PSW
-  JP Z,DSKCHR             ;Read from disk file
+  JR Z,DSKCHR             ;Read from disk file
   CALL CHARCG             ;GET CHAR IF ONE
-  JP NZ,CHARCW            ;WAS ONE
+  JR NZ,CHARCW            ;WAS ONE
   CALL INCHRI             ;Read a char from terminal
 CHARCW:
 ;Note : will check flag on interrupt ^c
   CP $03                  ;Control-C?
-  JP Z,INTCTC             ;Yes, stop
+  JR Z,INTCTC             ;Yes, stop
 PUTCHR:
   LD (HL),A               ;Put char into string
   INC HL
   DEC C                   ;Read enough yet?
-  JP NZ,FIXLOP            ;No, read more
+  JR NZ,FIXLOP            ;No, read more
   POP AF                  ;Get flag off stack
   POP BC
   POP HL
@@ -19122,7 +19086,7 @@ INTCTC:
 DSKCHR:
   CALL RDBYT              ;Get char from file
   JP C,EF_ERR             ;If carry, read past EOF
-  JP PUTCHR               ;Put char in string
+  JR PUTCHR               ;Put char in string
 
 
 
@@ -19191,20 +19155,20 @@ ORNCHK:
   ADD HL,BC
   LD A,(HL)               ;ZERO IFF IT IS END OF FILE
   OR A                    ;SET CC'S
-  JP Z,WASEOF             ;NO BYTES LEFT
+  JR Z,WASEOF             ;NO BYTES LEFT
   LD A,(BC)               ;** 5.11 **  GET FILE MODE
   CP $03                  ;IS IT A RANDOM FILE?
-  JP Z,WASEOF             ;** 5.11 **  (A) .NE. 0 - not EOF
+  JR Z,WASEOF             ;** 5.11 **  (A) .NE. 0 - not EOF
   INC HL                  ;POINT TO NUMBER LEFT IN BUFFER
   LD A,(HL)               ;GET NUMBER OF BYTES IN BUFFER
   OR A                    ;NON-ZERO?
-  JP NZ,CHKCTZ            ;THEN CHECK FOR CONTROL-Z
+  JR NZ,CHKCTZ            ;THEN CHECK FOR CONTROL-Z
   PUSH BC                 ;SAVE [B,C]
   LD H,B                  ;GET FCB POINTER IN [B,C]
   LD L,C                  
   CALL READIN             ;READ ANOTHER BUFFER
   POP BC                  ;RESTORE [B,C]
-  JP ORNCHK               ;HAVE NEW BUFFER, USE PREVIOUS PROCEDURE
+  JR ORNCHK               ;HAVE NEW BUFFER, USE PREVIOUS PROCEDURE
 CHKCTZ:
   LD A,DATPSC             ;GET # OF BYTES IN FULL BUFFER
   SUB (HL)                ;SUBTRACT LEFT
@@ -19256,13 +19220,13 @@ ENDIF
   DEC A                   ;ERROR EXTENDING FILE? (1)
   JP Z,DISK_ERR           ;YES
   DEC A                   ;DISK FULL? (2)
-  JP NZ,OUTSOK            ;NO
+  JR NZ,OUTSOK            ;NO
   POP DE                  ;GET BACK FILE POINTER
   XOR A                   ;GET ZERO
   LD (DE),A               ;MARK AS CLOSED
   LD C,$10                ;CLOSE IT (BDOS function 16 - Close file)
   INC DE                  ;POINT TO FCB
-  CALL _BDOS              ;CALL CP/M
+  CALL CPMENT             ;CALL CP/M
   JP DSK_FULL_ERR         ;GIVE "DISK FULL" ERROR MESSAGE
 
 OUTSOK:
@@ -19292,7 +19256,7 @@ OUTSOK:
 ; Used by the routine at __LOAD.
 CPM_CLSFIL:
   CALL FILIDX             ;GET POINTER TO DATA
-  JP Z,NTOPNC             ;RETURN IF NOT OPEN
+  JR Z,NTOPNC             ;RETURN IF NOT OPEN
                           ;SAVE FILE #
   PUSH BC                 ;SAVE FILE POINTER
   LD A,(BC)               ;GET FILE MODE
@@ -19301,14 +19265,14 @@ CPM_CLSFIL:
   INC DE                  ;POINT TO FCB
   PUSH DE                 ;SAVE [D,E] FOR LATER
   CP $02                  ;SEQENTIAL OUTPUT?
-  JP NZ,NOFORC            ;NO NEED TO FORCE PARTIAL OUTPUT BUFFER
+  JR NZ,NOFORC            ;NO NEED TO FORCE PARTIAL OUTPUT BUFFER
   LD HL,CLSFL1            ;RETURN HERE
   PUSH HL                 ;SAVE ON STACK
   PUSH HL                 ;NEED EXTRA STACK ENTRY
   LD H,B                  ;GET FILE POINTER
   LD L,C                  ;INTO [H,L]
   LD A,$1A                ;PUT OUT CONTROL-Z (OR FS)
-  JP FILOU4               ;JUMP INTO CHAR OUTPUT CODE
+  JR FILOU4               ;JUMP INTO CHAR OUTPUT CODE
 
 CLSFL1:
   LD HL,$0027             ; (0+ORNOFS) CHARS IN BUFFER
@@ -19326,7 +19290,7 @@ NOFORC:
 
   CALL SETBUF
   LD C,$10                ;THE CLOSE (BDOS function 16 - Close file)
-  CALL _BDOS              ;CALL CPM
+  CALL CPMENT             ;CALL CPM
   
   ;*****	NO CHECK FOR ERRORS
   
@@ -19338,7 +19302,7 @@ MORCZR:
   LD (BC),A
   INC BC
   DEC D
-  JP NZ,MORCZR
+  JR NZ,MORCZR
   RET
 
 
@@ -19350,7 +19314,7 @@ __LOC:
   JP Z,BN_ERR            ;IF NOT OPEN, "BAD FILE NUMBER"
   CP $03                 ;Random mode?
   LD HL,$0026            ;0+LOCOFS+1: Assume not
-  JP NZ,LOC1             ;No, use CURLOC
+  JR NZ,LOC1             ;No, use CURLOC
   LD HL,$00AE            ;0+FD.LOG+1: POINT AT LOGICAL RECORD NUMBER
 LOC1:
   ADD HL,BC
@@ -19417,7 +19381,7 @@ FILOU4:
   LD D,(HL)               ;[D]=CURRENT POSITION
   CP $0D                  ;BACK TO ZERO POSITION WITH RETURN?
   LD (HL),B               ;ASSUME RESET TO ZERO SINCE [B]=0
-  JP Z,ISCRDS             ;ALL DONE UPDATING POSITION
+  JR Z,ISCRDS             ;ALL DONE UPDATING POSITION
   ADD A,$E0               ;SET CARRY FOR SPACES AND HIGHER
   LD A,D                  ;[A]=CURRENT POSITION
   ADC A,B                 ;ADD ON CARRY SINCE [B]=0
@@ -19458,7 +19422,7 @@ IF CPMV1
 ;---------------------------------------------------------------------------------------
   LD A,(BDOSVER)          ;Get version number
   OR A                    
-  JP Z,RNDVR1             ;Version 1.x
+  JR Z,RNDVR1             ;Version 1.x
 ;---------------------------------------------------------------------------------------
 ENDIF
   LD HL,$0022             ;0+FCB.RN+1: Offset to random record number
@@ -19470,7 +19434,7 @@ ENDIF
   LD (HL),$00
 IF CPMV1
 ;---------------------------------------------------------------------------------------
-  JP RNDDON              ;Finished setting record number
+  JR RNDDON              ;Finished setting record number
 
 RNDVR1:
   LD HL,$000D            ;POINT TO EXTENT
@@ -19481,19 +19445,19 @@ RNDVR1:
   RLA                    ;ROTATE IN HIGH BYTE OF LOW PART
   LD D,(HL)              ;PUT ORIGINAL EXTENT IN [D]
   CP D                   ;ARE NEW AND OLD EXTENT THE SAME?
-  JP Z,SAMEXT            ;SAME EXTENT, DONT RE-OPEN
+  JR Z,SAMEXT            ;SAME EXTENT, DONT RE-OPEN
   PUSH DE                ;SAVE RECORD NUMBER
   PUSH AF                ;SAVE NEW EXTENT
   PUSH HL                ;SAVE POINTER TO EXTENT
   PUSH BC                ;SAVE FILE POINTER
   LD DE,DIRTMP           ;READ DIRECTORY IN HERE FOR OPEN
   LD C,$1A               ;SET CPM BUFFER ADDRESS ; BDOS function 26 - Set DMA address
-  CALL _BDOS             ;CALL CP/M
+  CALL CPMENT            ;CALL CP/M
   POP DE                 ;GET CPM FCB POINTER
   PUSH DE                ;SAVE BACK
   INC DE                 ;POINT TO FCB
   LD C,$10               ;CLOSE PREVIOUS EXTENT (?!) (BDOS function 16 - Close file)
-  CALL _BDOS             ;CALL CP/M
+  CALL CPMENT            ;CALL CP/M
   POP DE                 ;GET BACK FCB POINTER
   POP HL                 ;RESTORE POINTER TO EXTENT FIELD
   POP AF                 ;GET BACK NEW EXTENT
@@ -19502,12 +19466,12 @@ RNDVR1:
   INC DE                 ;POINT TO FCB
   LD C,$0F               ;OPEN NEW EXTENT (BDOS function 15 - Open file)
   PUSH DE                ;SAVE EXTENT POINTER
-  CALL _BDOS             ;BY CALLING CP/M
+  CALL CPMENT            ;BY CALLING CP/M
   POP DE                 ;RESTORE FCB POINTER
   INC A                  ;DOES EXTENT EXIST?
-  JP NZ,RNDOK            ;YES
+  JR NZ,RNDOK            ;YES
   LD C,$16               ;MAKE THE EXTENT EXIST (BDOS function 22 - create file)
-  CALL _BDOS             ;CALL CP/M
+  CALL CPMENT            ;CALL CP/M
   INC A                  ;ROOM IN DIRECTORY?
   JP Z,FL_ERR            ;NO
   
@@ -19531,7 +19495,7 @@ ENDIF
 
   LD A,(MAXTRK)          ;GET FLAG FOR "PUT" OR "GET"
   OR A                   
-  JP NZ,PUTFIN           ;DO THE PUTTING
+  JR NZ,PUTFIN           ;DO THE PUTTING
   CALL READIN            ;PERFORM THE GET
   POP HL                 ;GET THE TEXT POINTER
   RET
@@ -19564,8 +19528,8 @@ BUFSLP:
   INC HL                 ;BUMP POINTER
   LD (DE),A              ;SAVE IN DIRTMP
   INC DE                 ;BUMP POINTER
-  DEC B                  
-  JP NZ,BUFSLP           ;KEEP MOVING BYTES
+  ;DEC B                  
+  DJNZ BUFSLP           ;KEEP MOVING BYTES
   POP BC                 ;RESTORE [B,C]
   RET
 
@@ -19591,7 +19555,7 @@ INDSKB_0:
   ADD HL,BC              ;SEE HOW MANY CHARACTERS LEFT
   LD A,(HL)              
   OR A                   ;GET THE NUMBER
-  JP Z,FILLSQ          
+  JR Z,FILLSQ          
   DEC HL                 ;MUST GO READ SOME MORE -- IF CAN
   LD A,(HL)              ;POINT AT ORNOFS
   INC HL                 ;GET ORIGINAL NUMBER
@@ -19609,10 +19573,10 @@ FILLSQ:
   DEC HL                 ;BACK UP POINTER
   LD A,(HL)              ;TO ORNOFS
   OR A                   ;DID WE HIT EOF ON PREVIOUS READ?
-  JP Z,INDSKB_2          ;YES
+  JR Z,INDSKB_2          ;YES
   CALL READ2             ;READ A RECORD
   ; OR A              <-  USED TO BE - WAS IT EOF?
-  JP NZ,INDSKB_0         ;RETURN WITH A CHAR (GET A CHAR BY INDSKB)
+  JR NZ,INDSKB_0         ;RETURN WITH A CHAR (GET A CHAR BY INDSKB)
 INDSKB_2:
   SCF                    ;CARRY IS EOF FLAG
   POP HL                 ;RESTORE [H,L]
@@ -19651,7 +19615,7 @@ ZRRND:
   INC HL                 ;INCREMENT BUFFER POINTER
   LD (HL),$00            ;ZERO IT
   DEC C                  ;DECREMENT COUNT
-  JP NZ,ZRRND            ;KEEP ZEROING
+  JR NZ,ZRRND            ;KEEP ZEROING
 
 
 ;	READ SPECIFIED RECORD IN FILE
@@ -19680,7 +19644,7 @@ ENDIF
   CALL ACCFIL           ;Access file
   OR A                  ;EOF?
   LD A,$00              ;Return 0 if EOF
-  JP NZ,READI2          ;Assume EOF if error
+  JR NZ,READI2          ;Assume EOF if error
   LD A,DATPSC           ;OTHERWISE, HAVE 128 BYTES
 READI2:
   POP HL                ;POINT BACK TO # READ
@@ -19702,7 +19666,7 @@ SETBUF:
   ADD HL,DE             ;ADD
   EX DE,HL              ;PUT BUFFER ADDRESS IN [D,E]
   LD C,$1A              ;SET UP BUFFER ADDRESS (BDOS function 26 - Set DMA address)
-  CALL _BDOS            ;CALL CPM
+  CALL CPMENT           ;CALL CPM
   POP HL                ;RESTORE [H,L]
   POP DE                ;RESTORE [D,E]
   POP BC                ;RESTORE [B,C]
@@ -19752,13 +19716,13 @@ FNAME:
   LD E,A                 ;SAVE LENGTH
 
   CP $02                 ;CAN THERE BE A DEVICE?
-  JP C,NODEV             ;NO, NAME TOO SHORT
+  JR C,NODEV             ;NO, NAME TOO SHORT
   LD C,(HL)              ;[C]=POSSIBLE DEVICE NAME ('drive letter' in file specifier)
   INC HL                 ;POINT TO NEXT CHAR
   LD A,(HL)              ;GET IT
   DEC E                  ;DECREMENT COUNT FOR DEVICE NAME
   CP ':'                 ;COLON FOR DEVICE NAME?
-  JP Z,FNAME_1           ;YES, SO NOW GET FILE NAME
+  JR Z,FNAME_1           ;YES, SO NOW GET FILE NAME
   DEC HL                 ;BACK UP POINTER BY ONE
   INC E                  ;COMPENSATE FOR DCR
 NODEV:
@@ -19768,13 +19732,13 @@ NODEV:
                          ;                                if no drv letter in the filename)
 FNAME_1:
   DEC E                  ;DECRMENT CHAR COUNT
-  JP Z,NMERR             ;ERROR IF NO FILENAME
+  JR Z,NMERR             ;ERROR IF NO FILENAME
   LD A,C                 ; Get drive letter as written in file specifier
   AND $DF                ; Convert..
   SUB 'A'-1              ; ..to drive number (LOGICAL NUMBER).
-  JP C,NMERR             ;NOT IN RANGE
+  JR C,NMERR             ;NOT IN RANGE
   CP 27                  ;BIGGER THAN 27
-  JP NC,NMERR            ;NOT ALLOWED
+  JR NC,NMERR            ;NOT ALLOWED
   LD BC,FILNAM           ;WHERE TO PUT NAME
   LD (BC),A              ; Set drive number in FCB
   INC BC                 ; Point to name (POINT TO WHERE FIRST CHAR OF FILE NAME IS STORED)
@@ -19786,19 +19750,19 @@ FILLOP:
   JP M,FILSPC            ;YES, FILL REST OF FIELD WITH BLANKS
   LD A,(HL)              ;GET CHAR
   CP '.'                 ;EXTENSION?
-  JP NZ,FILLOP_NOEXT     ;NO
+  JR NZ,FILLOP_NOEXT     ;NO
   CALL FILLNM            ;YES, FILL NAME WITH BLANKS
   POP AF                 ;RESTORE CC'S
   SCF                    ;FLAG "." SEEN
   PUSH AF                ;SAVE CC'S BACK
-  JP FILINX              ;YES, IGNORE "."
+  JR FILINX              ;YES, IGNORE "."
 
 FILLOP_NOEXT:
   LD (BC),A              ;COPY CHAR
   INC BC
   INC HL
   DEC D                  ;DECRMENT POSSIBLE COUNT OF CHARS
-  JP NZ,FILLOP
+  JR NZ,FILLOP
 
 GOTNAM:
 ;  LD HL,FCB_EXTENT       ;CLEAR EXTENT FIELD..
@@ -19821,27 +19785,27 @@ GOTNAM:
 FILLNM:
   LD A,D                 ;GET # OF CHARS
   CP 11                  ;INITIAL POSITION?  (11+8*0-2*0)
-  JP Z,NMERR             ;DONT ALLOW NULL FILENAME
+  JR Z,NMERR             ;DONT ALLOW NULL FILENAME
   CP 3                   ;FILLED FIELD?
-  JP C,NMERR             ;NO, BUT 2ND "."
+  JR C,NMERR             ;NO, BUT 2ND "."
   RET Z                  ;YES, BACK TO LOOP
   LD A,' '               ;FILL WITH SPACE
   LD (BC),A
   INC BC
   DEC D
-  JP FILLNM
+  JR FILLNM
 
 FILSPC:
   INC D                  ;CHARS LEFT IN FILE BUFFER
   DEC D                  ;TEST
-  JP Z,GOTNAM            ;NO
+  JR Z,GOTNAM            ;NO
 FILSP2:
   LD A,' '               ;SPACE
   LD (BC),A              ;STORE
   INC BC                
   DEC D                  ;FILLED WHOLE FIELD?
-  JP NZ,FILSP2           ;NO, MORE SPACES
-  JP GOTNAM              ;YES, MAKE SURE NAME OK
+  JR NZ,FILSP2           ;NO, MORE SPACES
+  JR GOTNAM              ;YES, MAKE SURE NAME OK
   
 NMERR:
   JP NM_ERR
@@ -19852,10 +19816,10 @@ __NAME:
   PUSH HL                ;SAVE THE TEXT POINTER
   LD DE,DIRTMP           ;READ DIRECTORY IN HERE
   LD C,$1A               ;SET BUFFER ADDRESS  (BDOS function 26 - Set DMA address)
-  CALL _BDOS             ;CALL CP/M
+  CALL CPMENT            ;CALL CP/M
   LD DE,FILNAM           ;SEE IF ORIGINAL NAME EXISTS
   LD C,$0F               ;BY OPENING (BDOS function 15 - Open file)
-  CALL _BDOS             ;CALL CP/M
+  CALL CPMENT            ;CALL CP/M
   INC A                  ;DOES IT EXIST?
   JP Z,FF_ERR            ;FILE NOT FOUND
   LD HL,FILNA2           ;SAVE FILE NAME IN FILNA2
@@ -19867,7 +19831,7 @@ NAMRMV:
   INC HL                 ;BUMP POINTERS
   INC DE
   DEC B
-  JP NZ,NAMRMV
+  JR NZ,NAMRMV
   POP HL                 ;GET THE TEXT POINTER BACK
   CALL SYNCHR            
   DEFM "A"               ;MAKE SURE "AS" IS THERE
@@ -19881,20 +19845,19 @@ NAMRMV:
   JP NZ,FC_ERR           ;DISKS MUST BE THE SAME
   LD DE,FILNAM           ;SEE IF ORIGINAL NAME EXISTS
   LD C,$0F               ;BY OPENING (BDOS function 15 - Open file)
-  CALL _BDOS             ;CALL CP/M
+  CALL CPMENT            ;CALL CP/M
   INC A                  ;DOES IT EXIST?
   JP NZ,FILE_EXISTS_ERR  ;YES
   LD C,$17               ;RENAME OPERATION (BDOS function 23 - Rename file)
   LD DE,FILNA2           ;POINT AT OLD NAME FCB
-  CALL _BDOS             ;CALL CP/M
-IF ORIGINAL
-;	INC	A		;FILE FOUND?
+  CALL CPMENT            ;CALL CP/M
+
 ;****DONT CHECK ERROR RETURN, CP/M HAS PROBLEMS****
-;	JP Z,FF_ERR		;NO
-ELSE
-  INC	A		;FILE FOUND?   (A=0-3 if successful; A=0FFh if error)
-  JP Z,FF_ERR		;NO
+IF !ORIGINAL
+  INC A                  ;FILE FOUND?  (A=0-3 if successful; A=0FFh if error)
+  JP Z,FF_ERR            ;NO
 ENDIF
+
   POP HL                 ;RESTORE TEXT POINTER
   RET
 
@@ -19921,10 +19884,10 @@ __OPEN:
   AND $DF                ;FORCE TO UPPER CASE
   LD D,$02               ;ASSUME IT'S "O" (2=MD.SQO)
   CP 'O'                 ;IS IT?
-  JP Z,HAVMOD            ;[D] HAS CORRECT MODE
+  JR Z,HAVMOD            ;[D] HAS CORRECT MODE
   LD D,$01               ;ASSUME SEQUENTIAL (1=MD.SQI)
   CP 'I'                 ;IS IT?
-  JP Z,HAVMOD            ;[D] SAYS SEQUENTIAL INPUT
+  JR Z,HAVMOD            ;[D] SAYS SEQUENTIAL INPUT
   LD D,$03               ;MUST BE RANDOM (3=MD.RND)
   CP 'R'
   JP NZ,FMODE_ERR        ;IF NOT, NO MATCH SO "BAD FILE MODE"
@@ -19961,14 +19924,14 @@ PRGFIL:
   CALL VARECS               ;SCAN RECORD LENGTH FIELD
   POP AF                    ;GET BACK EXTENSION FLAG
   LD (TEMP),HL              ;SAVE THE TEXT POINTER FOR A WHILE
-  JP C,PRGDOT               ;IF "." SEEN, DONT DEFAULT EXTENSION
+  JR C,PRGDOT               ;IF "." SEEN, DONT DEFAULT EXTENSION
   LD A,E                    ;GET FILE NUMBER
   OR A                      ;SET CONDITION CODES
-  JP NZ,PRGDOT              ;NOT FILE 0, DONT DEFAULT FILE NAME
+  JR NZ,PRGDOT              ;NOT FILE 0, DONT DEFAULT FILE NAME
   LD HL,FCB_FTYP            ; (FILNAM+9-0-0-2*0): POINT TO FIRST CHAR OF EXTENSION
   LD A,(HL)                 ;GET IT
   CP ' '                    ;BLANK EXTENSION
-  JP NZ,PRGDOT              ;NON-BLANK EXTENSION, DONT USE DEFAULT
+  JR NZ,PRGDOT              ;NON-BLANK EXTENSION, DONT USE DEFAULT
   LD (HL),'B'               ;SET DEFAULT EXTENSION
   INC HL
   LD (HL),'A'
@@ -19990,7 +19953,7 @@ OPNLP:
   INC DE
   INC HL
   DEC C                     ;DECRMENT COUNT OF BYTES TO MOVE
-  JP NZ,OPNLP               ;KEEP LOOPING
+  JR NZ,OPNLP               ;KEEP LOOPING
 
 ;	OPEN FILE
 ;
@@ -20012,22 +19975,22 @@ OPNLP:
   PUSH HL                   ;SAVE BACK
   ;MOV	A,(HL)			;GET MODE   (found in other versions)
   CP $02                    ; (MD.SQO) SEQENTIAL OUTPUT?
-  JP NZ,OPNFIL              ;NO, DO CPM OPEN CALL
+  JR NZ,OPNFIL              ;NO, DO CPM OPEN CALL
   PUSH DE                   ;SAVE FCB POINTER
   LD C,$13                  ;DELETE EXISTING OUTPUT FILE, IF ANY  (BDOS function 19 - delete file)
-  CALL _BDOS                ;CALL CP/M
+  CALL CPMENT               ;CALL CP/M
   POP DE                    ;RESTORE FCB POINTER
 MAKFIL:
   LD C,$16                  ; BDOS function 22 - create file
-  CALL _BDOS                ;CALL CPM
+  CALL CPMENT               ;CALL CPM
   INC A                     ;TEST FOR TOO MANY FILES
   JP Z,FL_ERR               ;THAT WAS THE CASE
-  JP OPNSET                 ;FINISH SETUP OF FILE DATA BLOCK
+  JR OPNSET                 ;FINISH SETUP OF FILE DATA BLOCK
 OPNFIL:
   LD C,$0F                  ;CPM CODE FOR OPEN (BDOS function 15 - Open file)
-  CALL _BDOS                ;CALL CPM
+  CALL CPMENT               ;CALL CPM
   INC A                     ;FILE NOT FOUND
-  JP NZ,OPNSET              ;FOUND
+  JR NZ,OPNSET              ;FOUND
   POP DE                    ;GET BACK FILE POINTER
   POP AF                    ;GET MODE OF FILE  (LD A,(DE) somewhere else)
   PUSH AF                   
@@ -20035,7 +19998,7 @@ OPNFIL:
   CP $03                    ;RANDOM?
   JP NZ,FF_ERR              ;NO, SEQENTIAL INPUT, FILE NOT FOUND
   INC DE                    ;MAKE [D,E]=FCB POINTER
-  JP MAKFIL                 ;MAKE FILE
+  JR MAKFIL                 ;MAKE FILE
 
 ;	((SP)) points to File Data Block
 ;	((SP)+2) contains the file mode - DMC!X3200!R2E
@@ -20058,7 +20021,7 @@ OPNSET:
   POP HL                    ;GET POINTER AT MODE
   LD A,(HL)                 ;SEE WHAT HAS TO BE DONE
   CP $03                    ;IS IT RANDOM MODE?
-  JP Z,RNDFIN               ;YES RANDOM FINISH UP
+  JR Z,RNDFIN               ;YES RANDOM FINISH UP
   CP $01                    ;IF SEQUENTIAL ALL THAT IS LEFT TO DO
   JP NZ,GTMPRT              ;FETCH TEXT POINTER AND DONE
 ;
@@ -20077,7 +20040,7 @@ ZRRNDT:
   LD (HL),B
   INC HL
   DEC C
-  JP NZ,ZRRNDT
+  JR NZ,ZRRNDT
   JP GTMPRT                 ;Restore code string address
 
 
@@ -20184,14 +20147,14 @@ __RESET:
   PUSH HL                 ;SAVE TEXT POINTER
   CALL CLSALL             ;CLOSE ALL FILES
   LD C,$19                ;GET DRIVE CURRENTLY SELECTED (BDOS function 25 - Get current drive)
-  CALL _BDOS              ;GET IT IN [A]
+  CALL CPMENT             ;GET IT IN [A]
   PUSH AF                 ;SAVE CURRENT DRIVE #
   LD C,$0D                ;DO THE RESET CALL (BDOS function 13 - Reset discs)
-  CALL _BDOS
+  CALL CPMENT
   POP AF                  ;GET DRIVE TO SELECT
   LD E,A                  ;INTO [E]
   LD C,$0E                ;SET DRIVE, BDOS function 14 - Select disc (set current drive)
-  CALL _BDOS              ;CALL CPM
+  CALL CPMENT             ;CALL CPM
   POP HL                  ;RESTORE TEXT POINTER
   RET
 
@@ -20201,30 +20164,30 @@ __KILL:
   PUSH HL                ;SAVE TEXT POINTER
   LD DE,DIRTMP           ;(DIRTMP) READ DIRECTORY IN HERE
   LD C,$1A               ;SET BUFFER ADDRESS (BDOS function 26 - Set DMA address)
-  CALL _BDOS             ;FOR CP/M
+  CALL CPMENT            ;FOR CP/M
   LD DE,FILNAM           ;TRY TO OPEN FILE
   PUSH DE                ;SAVE FCB POINTER
   LD C,$0F               ; BDOS function 15 - Open file
-  CALL _BDOS
+  CALL CPMENT
   INC A                  ;FILE FOUND?
   POP DE                 ;GET BACK POINTER TO FCB
   PUSH DE                ;SAVE BACK
   PUSH AF                ;SAVE FOUND FLAG
   LD C,$10               ;THIS MAY NOT BE NESC. (BDOS function 16 - Close file)
-  JP Z,__KILL_0
-  CALL _BDOS             ;CLOSE FILE
+  JR Z,__KILL_0
+  CALL CPMENT            ;CLOSE FILE
 __KILL_0:
   POP AF                 ;RESTORE FOUND INDICATOR
   POP DE                 ;RESTORE FCB POINTER
   JP Z,FF_ERR            ;YES
   LD C,$13               ; BDOS function 19 - delete file
-  CALL _BDOS             ;CALL CPM
+  CALL CPMENT            ;CALL CPM
   POP HL                 ;GET BACK TEXT POINTER
   RET
 
 ; 'FILES' BASIC command
 __FILES:
-  JP NZ,__FILES_0        ;FILE NAME WAS SPECIFIED
+  JR NZ,__FILES_0        ;FILE NAME WAS SPECIFIED
   PUSH HL                ;SAVE TEXT POINTER
   LD HL,FILNAM           ;POINT TO FILE NAME
   LD (HL),$00            ;SET CURRENT DRIVE
@@ -20245,10 +20208,10 @@ __FILES_0:
   CALL FILENAME_QS       ;FILL IT WITH QMARKS
   LD DE,DIRTMP           ;SET BUFFER TO 80 HEX
   LD C,$1A               ;(C.BUFF) BDOS function 26 - Set DMA address
-  CALL _BDOS
+  CALL CPMENT
   LD DE,FILNAM           ;POINT TO FCB
   LD C,$11               ;DO INITIAL SEARCH FOR FILE - BDOS function 17 - search for first
-  CALL _BDOS
+  CALL CPMENT
   CP $FF                 ;FIND FIRST INCARNATION OF FILE
   JP Z,FF_ERR            ;NO
 
@@ -20271,22 +20234,22 @@ __FILES_2:
   CALL OUTDO             ;PRINT IT
   LD A,C                 ;GET  CHAR POSIT
   CP $04                 ; (4+5*0) ABOUT TO PRINT EXTENSION?
-  JP NZ,NOTEXT           ;NO
+  JR NZ,NOTEXT           ;NO
   LD A,(HL)              ;GET FIRST CHAR OF EXTENSION
   CP ' '                 ;IF SO, NOT SPACE
-  JP Z,PRISPA            ;PRINT SPACE
+  JR Z,PRISPA            ;PRINT SPACE
   LD A,'.'               ;PRINT DOT
 PRISPA:
   CALL OUTDO
 NOTEXT:
   DEC C                  ;DECREMENT CHAR COUNT
-  JP NZ,__FILES_2        ;MORE OF NAME TO PRINT
+  JR NZ,__FILES_2        ;MORE OF NAME TO PRINT
   LD A,(TTYPOS)          ;GET CURRENT TTY POSIT
   ADD A,$0D              ;SPACE FOR NEXT NAME?
   LD D,A                 ;SAVE IN D
   LD A,(LINLEN)          ;GET LENGTH OF TERMINAL LINE
   CP D                   ;COMPRE TO CURRENT POSIT
-  JP C,NWFILN            ;NEED TO FORCE CRLF
+  JR C,NWFILN            ;NEED TO FORCE CRLF
   LD A,' '               ;TWO SPACES BETWEEN FILE NAMES
   CALL OUTDO
   CALL OUTDO
@@ -20295,9 +20258,9 @@ NWFILN:
   CALL C,OUTDO_CRLF       ;TYPE CRLF
   LD DE,FILNAM            ;POINT AT FCB
   LD C,$12                ;SEARCH FOR NEXT ENTRY (BDOS function 18 - search for next)
-  CALL _BDOS              ;SEARCH FOR NEXT INCARNATION
+  CALL CPMENT             ;SEARCH FOR NEXT INCARNATION
   CP $FF                  ;NO MORE?
-  JP NZ,FILNXT            ;MORE.
+  JR NZ,FILNXT            ;MORE.
   POP HL                  ;RESTORE TEXT POINTER
   RET
 
@@ -20314,7 +20277,7 @@ FILENAME_FILL:
   LD (HL),'?'             ;STORE QUESTION MARK
   INC HL                  ;BUMP POINTER
   DEC C                   ;DECREMENT COUNT OF QMARKS
-  JP NZ,FILENAME_FILL     ;KEEP SAVING QMARKS
+  JR NZ,FILENAME_FILL     ;KEEP SAVING QMARKS
   RET
 
 
@@ -20329,23 +20292,23 @@ ACCFIL:
   PUSH DE                 ; Save FCB address
   LD C,A
   PUSH BC
-  CALL _BDOS
+  CALL CPMENT
   POP BC
   POP DE
   PUSH AF
   LD HL,$0021             ; (0+FCB.RN) Point to random record number
   ADD HL,DE               ; Now HL points to the random access record number
   INC (HL)                ; Increment record number LSB (R0)
-  JP NZ,ACCFL1
+  JR NZ,ACCFL1
   INC HL                  ; Increment record number R1
   INC (HL)                ; Increment record number R2
-  JP NZ,ACCFL1            ; NO
+  JR NZ,ACCFL1            ; NO
   INC HL
   INC (HL)
 ACCFL1:
   LD A,C                  ;Get back CPM call code
   CP $22                  ; was it a 'random write' BDOS call ?
-  JP NZ,ACCFL2
+  JR NZ,ACCFL2
   POP AF                  ;Get error code and map into 1.4 errors
   OR A
   RET Z                   ; Return if write OK
@@ -20403,13 +20366,13 @@ VARECS:
   CALL CHRGTB           ;Test for eol
   PUSH DE               ;Save [D,E]
   LD DE,DATPSC          ;Assume record length=DATPSC
-  JP Z,NOTSEP           ;No other params for OPEN
+  JR Z,NOTSEP           ;No other params for OPEN
   PUSH BC               ;Save file data block pointer
   CALL INTIDX           ;Get record length
   POP BC                ;Get back file data block
 NOTSEP:
-  PUSH HL
-  LD HL,(RECSIZ)
+  PUSH HL               ;Save text pointer
+  LD HL,(MAXREC)        ;Is size ok?
   CALL DCOMPR
   JP C,FC_ERR
   LD HL,$00A9           ;Stuff into data block: (FD.SIZ) POINT TO RECORD SIZE  
@@ -20423,7 +20386,7 @@ ZOFIVB:
   INC HL                ;Increment pointer
   LD (HL),A             ;Clear byte
   DEC E                 ;Count down
-  JP NZ,ZOFIVB          ;Go back for more
+  JR NZ,ZOFIVB          ;Go back for more
   POP HL                ;Text pointer 
   POP DE                ;Restore [D,E]
   RET
@@ -20491,9 +20454,9 @@ __GET:
   LD HL,DATPSC            ;Get sector size
   CALL DCOMPR             ;Compare the two
   POP HL                  ;Restore logical posit
-  JP NZ,NTLSAP            ;If record size=sector size, done
+  JR NZ,NTLSAP            ;If record size=sector size, done
   LD DE,$0000             ;Set offset to zero
-  JP DONCLC               ;Done with calculations
+  JR DONCLC               ;Done with calculations
 
 NTLSAP:
   LD B,D                  ;Copy record size to [B,C]
@@ -20505,10 +20468,10 @@ NTLSAP:
 FRMUL1:
   ADD HL,HL
   EX (SP),HL
-  JP NC,FNOCRY
+  JR NC,FNOCRY
   ADD HL,HL
   INC HL
-  JP FNOCY0
+  JR FNOCY0
 
 FNOCRY:
   ADD HL,HL
@@ -20517,16 +20480,16 @@ FNOCY0:
   EX DE,HL
   ADD HL,HL               ;Rotate [D,E] left one
   EX DE,HL
-  JP NC,FNOCY2            ;Add in [B,C] if Ho=1
+  JR NC,FNOCY2            ;Add in [B,C] if Ho=1
   ADD HL,BC
   EX (SP),HL
-  JP NC,FNOINH
+  JR NC,FNOINH
   INC HL
 FNOINH:
   EX (SP),HL
 FNOCY2:
   DEC A                   ;are we done multiplying
-  JP NZ,FRMUL1            ;No, go back for next bit of product
+  JR NZ,FRMUL1            ;No, go back for next bit of product
 
 
 ; Now divide by the number of bytes in a sector
@@ -20584,7 +20547,7 @@ FNOCY2:
   ADD HL,HL               ;Make space for it
   JP C,FC_ERR             ;UH-OH record # to big!
   RLA                     ;Is it set?
-  JP NC,DONINH            ;Not set
+  JR NC,DONINH            ;Not set
   INC HL                  ;Copy it into low bit
 DONINH:
   LD A,B                  ;Get high byte of record #
@@ -20627,16 +20590,16 @@ NXTOPD:
   POP DE                  ;Get back count (destroy offset)
   PUSH DE                 ;Save COUNT
   CALL DCOMPR             ;Which is smaller, count or DATPSC-offset?
-  JP C,DATMOF             ;The latter
+  JR C,DATMOF             ;The latter
   LD H,D                  ;Copy count into bytes
   LD L,E
 DATMOF:
   LD A,(PUTGET_FLG)       ;PUT or GET
   OR A                    ;Set cc's
-  JP Z,FIVDRD             ;Was Read
+  JR Z,FIVDRD             ;Was Read
   LD DE,DATPSC            ;If bytes .LT. DATPSC then read(sector)
   CALL DCOMPR
-  JP NC,NOFVRD            ;(Idea-if writing full buffer, no need to read)
+  JR NC,NOFVRD            ;(Idea-if writing full buffer, no need to read)
   PUSH HL                 ;Save bytes
   CALL GETSUB             ;Read record.
   POP HL                  ;Bytes
@@ -20644,9 +20607,7 @@ NOFVRD:
   PUSH BC
   LD B,H
   LD C,L
-  EX DE,HL
-  LD HL,(PBUFF)
-  EX DE,HL
+  LD DE,(PBUFF)
   LD HL,(LBUFF)          ;Get ready to move bytes between buffers
   CALL _LDIR             ;Move bytes to physical buffer
   LD (LBUFF),HL          ;Store updated pointer
@@ -20670,7 +20631,7 @@ NXFVBF:
   OR L                   ;Is count zero?
   LD DE,$0000            ;Set offset=0
   PUSH HL                ;Save COUNT
-  JP NZ,NXTOPD           ;Keep working on it
+  JR NZ,NXTOPD           ;Keep working on it
   POP HL                 ;Get rid of COUNT
   POP HL                 ;Restore text pointer
   RET                    ;Done
@@ -20686,9 +20647,7 @@ FIVDRD:
   PUSH BC
   LD B,H
   LD C,L
-  EX DE,HL
-  LD HL,(LBUFF)          ;Point to logical buffer
-  EX DE,HL
+  LD DE,(LBUFF)          ;Point to logical buffer
   LD HL,(PBUFF)
   CALL _LDIR
   EX DE,HL               ;Get pointer to FIELD buffer in [H,L]
@@ -20696,7 +20655,7 @@ FIVDRD:
   LD D,B                 ;COUNT TO [D,E]
   LD E,C
   POP BC
-  JP NXFVBF
+  JR NXFVBF
 
 PUTSUB:
   DEFB $F6                ; "OR n" to Mask 'XOR A'
@@ -20706,9 +20665,7 @@ GETSUB:
   PUSH BC
   PUSH DE
   PUSH HL
-  EX DE,HL
-  LD HL,(RECORD)
-  EX DE,HL
+  LD DE,(RECORD)
   LD HL,$00AB             ;FD.PHY: Point to physical record #
   ADD HL,BC               ;Add offset to file buffer
   PUSH HL                 ;Save this pointer
@@ -20722,10 +20679,10 @@ GETSUB:
   LD (HL),E
   INC HL
   LD (HL),D               ;Store new record number
-  JP NZ,NTREDS            ;Curent and previos record numbers are different
+  JR NZ,NTREDS            ;Curent and previos record numbers are different
   LD A,(MAXTRK)           ;Trying to do read?
   OR A
-  JP Z,SUBRET             ;If trying to read and record already in buffer, do nothing
+  JR Z,SUBRET             ;If trying to read and record already in buffer, do nothing
 
 NTREDS:
   LD HL,SUBRET            ;Where to return to
@@ -20747,6 +20704,7 @@ SUBRET:
 ; Move bytes from [H,L] to [D,E] [B,C] times
 _LDIR:
   PUSH BC                 ;Save count
+IF __CPU_8080__
 _LDIR1:
   LD A,(HL)               ;Get byte
   LD (DE),A               ;Store it
@@ -20756,8 +20714,13 @@ _LDIR1:
   LD A,B                  ;Gone to zero?
   OR C
   JP NZ,_LDIR1            ;Go back for more
+ELSE
+  LDIR
+ENDIF
   POP BC                  ;Return with count
+
   RET
+
 
 ; This entry point is used by the routine at __LOF.
 FILOFV:
@@ -20768,7 +20731,7 @@ FILOFV:
   LD B,H                  ;[B,C]=file data block
   LD C,L
   CALL CMPFPS             ;Any room in buffer
-  JP Z,DERFOV             ;No
+  JR Z,DERFOV             ;No
   CALL SETFPI             ;save new position
   LD HL,$00B1             ;FD.DAT-1: Index into data buffer
   ADD HL,BC               ;Add start of file control block
@@ -20781,7 +20744,7 @@ FILOFV:
   LD D,(HL)               ;Get present position
   LD (HL),$00             ;Assume set it to zero
   CP $0D                  ;Is it <Cr>?
-  JP Z,FISCR              ;Yes
+  JR Z,FISCR              ;Yes
   ADD A,$E0               ;Set carry for spaces & higher
   LD A,D                  ;Add one to current posit
   ADC A,$00
@@ -20800,7 +20763,7 @@ DERFOV:
 FILIFV:
   PUSH DE
   CALL CMPFBC             ;Save [D,E]
-  JP Z,DERFOV             ;Compare to present posit
+  JR Z,DERFOV             ;Compare to present posit
   CALL SETFPI             ;Return with null 
   LD HL,$00B1             ;FD.DAT-1: Set new position
   ADD HL,BC               ;Point to data
@@ -20814,7 +20777,7 @@ FILIFV:
 
 GETFSZ:
   LD HL,$00A9             ;FD.SIZ: Point to record size
-  JP GETFP1               ;Continue
+  JR GETFP1               ;Continue
 
 GETFPS:
   LD HL,$00B0             ;FD.OPS: Point to output position
@@ -20897,13 +20860,13 @@ ENCDBL:
   LD (DE),A               ;Store back in program
   INC DE                  ;Incrment pointer
   DEC C                   ;decrment first table index
-  JP NZ,CNTZER            ;Still non-Zero
+  JR NZ,CNTZER            ;Still non-Zero
   LD C,N1                 ;Re-initialize counter 1
 CNTZER:
-  DEC B                   ;dedecrement counter-2
-  JP NZ,ENCDBL            ;Still non-zero, go for more
+  ;DEC B                   ;dedecrement counter-2
+  DJNZ ENCDBL            ;Still non-zero, go for more
   LD B,N2                 ;Re-initialize counter 2
-  JP ENCDBL               ;Keep going until done
+  JR ENCDBL               ;Keep going until done
 
 ; This entry point is used by the routine at __LOAD.
 PDECOD:
@@ -20938,13 +20901,13 @@ DECDBL:
   LD (DE),A              ;Store back in program
   INC DE                 ;Increment pointer
   DEC C                  ;decrment first table index
-  JP NZ,CNTZR2           ;Still non-Zero
+  JR NZ,CNTZR2           ;Still non-Zero
   LD C,N1                ;Re-initialize counter 1
 CNTZR2:
   DEC B
-  JP NZ,DECDBL           ;Decrement counter-2, Still non-zero, go for more
+  JR NZ,DECDBL           ;Decrement counter-2, Still non-zero, go for more
   LD B,N2                ;Re-initialize counter 2
-  JP DECDBL              ;Keep going until done
+  JR DECDBL              ;Keep going until done
 
 
 ; This entry point is used by the routines at __DELETE and __POKE.
@@ -24044,7 +24007,12 @@ _READY:
   JP NZ,_RUN_FILE
   JP READY
 
-DEFS 32
+
+; This extra space seemed to add stability to the Spectrum version
+
+;IF !ORIGINAL
+;DEFS 32
+;ENDIF
 
 ;----------------------------------------------------------------
 ; WARNING:  All the code after this position will be destroyed
@@ -24116,11 +24084,11 @@ INIT:
   ;  Check CP/M Version Number
 IF CPMV1
   LD C,$0C                ; BDOS function 12 - Get BDOS version number
-  CALL _BDOS
+  CALL CPMENT
   LD (BDOSVER),A
   OR A
   LD HL,$1514             ; FN2=$15 (CP/M 1 WR), FN1=14 (CP/M 1 RD)
-  JP Z,CPMVR1             ; JP if BDOS Version 1
+  JR Z,CPMVR1             ; JP if BDOS Version 1
   LD HL,$2221             ; FN2=$22 (Write record FN), FN1=$21 (Read record FN)
 CPMVR1:
   LD (CPMREA),HL          ; Load the BDOS FN code pair (FN1+FN2)
@@ -24137,7 +24105,7 @@ ENDIF
   LD HL,0
   LD (LPTPOS),HL          ; ZERO FLAG AND POSITION
   LD HL,128               ; The default record size is 128 bytes.
-  LD (RECSIZ),HL          ; a.k.a. MAXREC
+  LD (MAXREC),HL          ; a.k.a. RECSIZ
   LD HL,TEMPST
   LD (TEMPPT),HL
   LD HL,PRMSTK            ; INITIALIZE PARAMETER BLOCK CHAIN
@@ -24156,13 +24124,13 @@ ENDIF
 ;
   LD A,3                ; If the /F option is omitted, the number of files defaults to 3.
   LD (MAXFIL),A			; HIGHEST FILE NUMBER ALLOWED
-  LD HL,WARM_0          ; POINT AT ZERO BYTE
+  LD HL,ZEROB           ; POINT AT ZERO BYTE
   LD (TEMP8),HL         ; SO IF RE-INITAILIZE OK
-  LD A,(WARM_FLG)       ; HAVE WE ALREADY READ COMMAND LINE
+  LD A,(COMAGN)         ; HAVE WE ALREADY READ COMMAND LINE
   OR A                  ; AND GOT ERROR?
   JP NZ,DONCMD          ; THEN DEFAULT
   INC A                 ; MAKE NON-ZERO
-  LD (WARM_FLG),A       ; STORE BACK NON-ZERO FOR NEXT TIME
+  LD (COMAGN),A         ; STORE BACK NON-ZERO FOR NEXT TIME
   LD HL,CPMWRM+128      ; POINT TO FIRST CHAR OF COMMAND BUFFER (CPMWRM+128)
   LD A,(HL)             ; WHICH CONTAINS # OF CHARS IN COMMAND
   OR A                  ; IS THERE A COMMAND?
@@ -24176,8 +24144,8 @@ TBF_LP:
   LD (HL),A             ; STORE CHAR BACK
   INC HL                ; NOW ADVANCE CHAR TO ONE PLACE
   INC HL                ; AFTER PREVIOUS POSIT.
-  DEC B                 ; DECREMENT COUNT OF CHARS TO MOVE
-  JP NZ,TBF_LP          ; KEEP MOVING CHARS
+  ;DEC B                 ; DECREMENT COUNT OF CHARS TO MOVE
+  DJNZ TBF_LP          ; KEEP MOVING CHARS
   DEC HL                ; BACK UP POINTER
 ENDCMD:
   LD (HL),$00           ; STORE TERMINATOR FOR CHRGET (0)
@@ -24194,18 +24162,18 @@ ENDCMD:
 ; Use first 36K of memory, 2 files, and execute PRGM.BAS.
   
   CP '/'
-  JP Z,INIT_3
+  JR Z,INIT_3
   DEC HL
   LD (HL),'"'
   LD (TEMP8),HL
   INC HL
 INIT_2:
   CP '/'
-  JP Z,INIT_3
+  JR Z,INIT_3
   CALL CHRGTB
   OR A
-  JP NZ,INIT_2
-  JP DONCMD
+  JR NZ,INIT_2
+  JR DONCMD
 
   
 INIT_3:
@@ -24213,64 +24181,62 @@ INIT_3:
   CALL CHRGTB
 INIT_4:
   CALL MAKUPL
-  CP 'S'		; [/S:<maximum record size>]
-  JP Z,GET_RECSIZ
-  CP 'M'		; [/M:<highest memory location>]
-  PUSH AF
-  JP Z,HAVE_OPTIONS
-  CP 'F'		; [/F:<number of files>]
-  JP NZ,SN_ERR
+  CP 'S'              ; [/S:<maximum record size>]
+  JR Z,WASS
+
+  CP 'M'              ; [/M:<highest memory location>]
+  PUSH AF             ;SAVE INDICATOR
+  JR Z,WASM           ;WAS MEMORY OPTION
+
+  CP 'F'              ; [/F:<number of files>]
+  JP NZ,SN_ERR        ;NOT "M" OR "F" ERROR
 
 
-HAVE_OPTIONS:
-  CALL CHRGTB
+WASM:
+  CALL CHRGTB         ;GET NEXT CHAR
   CALL SYNCHR
   DEFM ":"            ;MAKE SURE COLON FOLLOWS
   CALL CNSGET         ;[DE]=VALUE FOLLOWING COLON
-  POP AF
-  JP Z,INIT_6
+  POP AF              ;GET BACK M/F FLAG
+  JR Z,MEM            ;WAS MEMORY OPTION
 
 ; If /F:<number of files> is present, it sets the number of disk data files that may be 
 ; open at anyone time during the execution of a BASIC program.
 ; Each file data block allocated in this fashion requires 166 bytes of memory.
 ; If the /F option is omitted, the number of files defaults to 3.
 
-  LD A,D
-  OR A
-  JP NZ,FC_ERR
-  LD A,E
-  CP $10
+  LD A,D              ;FILES CANT BE .GT. 255
+  OR A                ;SET CC'S
+  JP NZ,FC_ERR        ;FUNCTION CALL ERROR
+  LD A,E              ;GET LOW BYTE
+  CP 16               ;MUST BE .LT. 16
   JP NC,FC_ERR
-  LD (MAXFIL),A       ; HIGHEST FILE NUMBER ALLOWED
-  JP INIT_7
+  LD (MAXFIL),A       ;STORE IN # OF FILES        ; HIGHEST FILE NUMBER ALLOWED
+  JR FOK              ;DONE
 
 
-INIT_6:
-  EX DE,HL
-  LD (MEMSIZ),HL
-  EX DE,HL
-INIT_7:
+MEM:
+  LD (MEMSIZ),DE
+FOK:
   DEC HL
   CALL CHRGTB
-  JP Z,DONCMD
+  JR Z,DONCMD
   CALL SYNCHR
   DEFM "/"
-  JP INIT_4
+  JR INIT_4
   
   
 ; /S:<maximum record size> may be added at the end of the command
 ; line to set the maximum record size for use with random files.
 ; The default record size is 128 bytes.
 
-GET_RECSIZ:
-  CALL CHRGTB
+WASS:
+  CALL CHRGTB         ;GET CHAR AFTER "S"
   CALL SYNCHR
   DEFM ":"            ;MAKE SURE COLON FOLLOWS
-  CALL CNSGET         ;[DE]=VALUE FOLLOWING COLON
-  EX DE,HL
-  LD (RECSIZ),HL
-  EX DE,HL
-  JP INIT_7
+  CALL CNSGET         ;GET VALUE FOLLOWING COLON             ;[DE]=VALUE FOLLOWING COLON
+  LD (MAXREC),DE      ;SAVE IT
+  JR FOK              ;CONTINUE SCANNING
 
 
 
@@ -24323,49 +24289,57 @@ peekbyte_code:
 ENDIF
 
 
-WARM_0:
-  DEFB $00
-WARM_FLG:
-  DEFB $00
+ZEROB:
+  DEFB $00              ;ZERO BYTE
+
+COMAGN:
+  DEFB $00              ;WE HAVENT SCANNED COMMAND YET
 
 ; Routine at 24346
 ;
 ; Used by the routine at INIT.
+; END OF COMMAND
 DONCMD:
+
+;
+IF ORIGINAL
   LD DE,USER_MEMORY
   LD A,(DE)
   OR A
-  JP Z,DONCMD_3
+  JR Z,DONCMD_3
   LD A,(PSP_BYTES)
   LD B,A
   
 PSP_LOOP:
   LD A,(CPMBOOT_ADDR)
   LD C,A
-  LD HL,($0006)           ; HL=BDOS entry address
-  LD L,$00                ; Reduce to the byte boundary to get the TPA size
-  
+  LD HL,($0006)         ; HL=BDOS entry address
+  LD L,$00              ; Reduce to the byte boundary to get the TPA size
+
 PSP_CHK:
   LD A,(DE)
   CP (HL)
-  JP NZ,PSP_DIFFERS
+  JR NZ,PSP_DIFFERS
   
   INC HL
   INC DE
   DEC C
-  JP NZ,PSP_CHK
-  JP DONCMD_3
+  JR NZ,PSP_CHK
+  JR DONCMD_3
   
 PSP_DIFFERS:
   INC DE
   DEC C
-  JP NZ,PSP_DIFFERS
+  JR NZ,PSP_DIFFERS
   DEC B
   RET Z
-  JP PSP_LOOP
-  
+  JR PSP_LOOP
+
+
 DONCMD_3:
-  DEC HL
+  DEC HL                ; useless ?  (this is also on the MSX version)
+ENDIF
+  
   LD HL,(MEMSIZ)        ; GET SIZE OF MEMORY
   DEC HL
 
@@ -24391,15 +24365,14 @@ DONCMD_4:
   EX DE,HL
   ADD HL,BC
   PUSH HL
-  LD HL,(RECSIZ)
+  LD HL,(MAXREC)
   LD BC,128+50		; The default record size is 128 bytes.
   ADD HL,BC
   LD B,H
   LD C,L
   POP HL
-  
   DEC A
-  JP NZ,DONCMD_4
+  JR NZ,DONCMD_4
 
   INC HL               ; INCREMENT POINTER
   LD (TXTTAB),HL       ; SAVE BOTTOM OF MEMORY
@@ -24424,11 +24397,11 @@ SHFLF3:
   RRA
   LD L,A
   DEC B
-  JP NZ,SHFLF3
+  JR NZ,SHFLF3
 
   LD A,H                ; SEE HOW MUCH
   CP $02				; IF LESS THAN 512 USE 1 EIGHTH
-  JP C,SMLSTK
+  JR C,SMLSTK
 
   LD HL,$0200			; Force minimum MEM size to 512
 
@@ -24562,9 +24535,13 @@ BASIC_SIGNATURE:
 
 ; Foo data in user memory
 USER_MEMORY:
-  
   DEFS 94
 
 TSTACK:
   defw $830
   defb 0
+
+; File padding, useful to compare binaries
+IF ORIGINAL
+defs 66,0
+ENDIF
