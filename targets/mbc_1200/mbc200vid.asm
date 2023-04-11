@@ -24,17 +24,19 @@ L0000:
   LD ($3FAA),A
   LD ($3FAB),A
   LD ($3FAC),A
-  LD B,$0E
-  LD HL,L006A-1
-L0000_0:
+
+  LD B,14
+  LD HL,CRTC_TABLE-1
+CRTC_LOOP:
   INC HL
   DEC B
   LD A,B
   OUT ($B0),A
   LD A,(HL)
   OUT ($B1),A
-  JR NZ,L0000_0
-  CALL L004A
+  JR NZ,CRTC_LOOP
+
+  CALL DO_CLS
   LD A,$90
   OUT ($73),A
   IN A,($72)
@@ -45,14 +47,14 @@ L0000_0:
 ; Routine at 74
 ;
 ; Used by the routine at L0000.
-L004A:
+DO_CLS:
   LD HL,0
   ADD HL,SP
   EX DE,HL
   LD HL,0
   LD SP,HL
   LD BC,$0800
-L004A_0:
+DO_CLS_0:
   PUSH HL
   PUSH HL
   PUSH HL
@@ -64,17 +66,31 @@ L004A_0:
   DEC BC
   LD A,B
   OR C
-  JP NZ,L004A_0
+  JP NZ,DO_CLS_0
   EX DE,HL
   LD SP,HL
   LD BC,0
-L006A-1:
   RET
 
+
 ; Data block at 106
-L006A:
-  DEFB $00,$00,$00,$20,$03,$02,$64,$64
-  DEFB $00,$68,$4B,$51,$50,$65
+CRTC_TABLE:
+  DEFB $00   ; Horizontal Total
+  DEFB $00   ; Horizontal Displayed
+  DEFB $00   ; Horizontal Sync Position
+  DEFB $20   ; Horizontal and Vertical Sync Widths
+  DEFB $03   ; Vertical Total
+  DEFB $02   ; Vertical Total Adjust
+  DEFB $64   ; Vertical Displayed
+  DEFB $64   ; Vertical Sync position
+  DEFB $00   ; Interlace and Skew
+  DEFB $68   ; Maximum Raster Address
+  DEFB $4B   ; Cursor Start Raster
+  DEFB $51   ; Cursor End Raster
+  DEFB $50   ; Display Start Address (High)
+  DEFB $65   ; Display Start Address (Low)
+
+
 
 ; Routine at 120
 ;
@@ -92,7 +108,7 @@ L0078:
 ;
 ; Used by the routine at L0078.
 CONTROL_CODES:
-  LD HL,L00A8-2
+  LD HL,CTL_TABLE-2
 ; This entry point is used by the routine at IN_ESC.
 CONTROL_CODES_0:
   PUSH BC
@@ -119,14 +135,14 @@ CONTROL_CODES_2:
 ; Routine at 160
 IN_ESC:
   CALL GET_BYTE
-  LD HL,L00BE-2
+  LD HL,ESC_TABLE-2
   JR CONTROL_CODES_0
 
 
 ; Data block at 168
-L00A8:
+CTL_TABLE:
   DEFB $07
-  DEFW L0544
+  DEFW BEEP
 
   DEFB $08
   DEFW L051E
@@ -135,13 +151,13 @@ L00A8:
   DEFW L04FF
 
   DEFB $0A
-  DEFW L0506
+  DEFW DO_LF
 
   DEFB $0D
-  DEFW L051B
+  DEFW DO_CR
 
   DEFB $1A
-  DEFW L004A
+  DEFW DO_CLS
 
   DEFB $1B
   DEFW IN_ESC
@@ -151,7 +167,7 @@ L00A8:
 
 
 ; Message at 190
-L00BE:
+ESC_TABLE:
   DEFM "Q"
   DEFW L03A0
 
@@ -159,7 +175,7 @@ L00BE:
   DEFW L013D
 
   DEFM "A"
-  DEFW L0147
+  DEFW LINES_40
 
   DEFM "F"
   DEFW L016F
@@ -168,13 +184,13 @@ L00BE:
   DEFW L01C1
 
   DEFM "="
-  DEFW L032A
+  DEFW SET_CURSOR
 
   DEFM "S"
-  DEFW $02F4
+  DEFW SET_PIXEL
 
   DEFM "R"
-  DEFW L0304
+  DEFW RESET_PIXEL
 
   DEFM "T"
   DEFW L036B
@@ -186,16 +202,16 @@ L00BE:
   DEFW L0592
 
   DEFM "L"
-  DEFW L019F
+  DEFW LD_CUSTOM
 
   DEFM "J"
-  DEFW L0397
+  DEFW JP_CUSTOM
 
   DEFM "G"
   DEFW L03C5
 
   DEFM "M"
-  DEFW L015D
+  DEFW LINES_33
 
   DEFM "D"
   DEFW DISABLE
@@ -279,17 +295,19 @@ L013D:
   LD A,$80
   LD ($3FA0),A
   LD L,$0A
-  JP L015D_0
+  JP SET_LINES_0
 
+
+; ESC 'A'
 
 ; Routine at 327
-L0147:
+LINES_40:
   LD A,($3FA0)
   LD H,A
   LD A,$01
   LD ($3FA0),A
   LD L,$05
-  CALL L015D_0
+  CALL SET_LINES_0
   LD A,H
   OR A
   RET Z
@@ -299,22 +317,26 @@ L0147:
   LD B,A
   RET
 
+
+; ESC 'M'
+
 ; Routine at 349
-L015D:
+LINES_33:
   LD A,$00
   LD ($3FA0),A
   LD L,$06
-; This entry point is used by the routines at L013D and L0147.
-L015D_0:
+
+; This entry point is used by the routines at L013D and LINES_40.
+SET_LINES_0:
   XOR A
   SUB L
-L015D_1:
+SET_LINES_1:
   ADD A,L
   CP B
-  JR C,L015D_1
-  JR Z,L015D_2
+  JR C,SET_LINES_1
+  JR Z,SET_LINES_2
   SUB L
-L015D_2:
+SET_LINES_2:
   LD B,A
   RET
 
@@ -362,8 +384,12 @@ L016F_2:
   POP BC
   RET
 
+
+; ESC 'L'
+; Load custom code at $2000
+
 ; Routine at 415
-L019F:
+LD_CUSTOM:
   PUSH BC
   CALL GET_BYTE
   LD H,A
@@ -374,19 +400,22 @@ L019F:
   XOR A
   SBC HL,DE
   EX DE,HL
-  JR C,L019F_1
+  JR C,LD_CUSTOM_1
   LD DE,$2000
-L019F_0:
+LD_CUSTOM_0:
   CALL GET_BYTE
   LD (DE),A
   INC DE
   DEC HL
   LD A,H
   OR L
-  JR NZ,L019F_0
-L019F_1:
+  JR NZ,LD_CUSTOM_0
+LD_CUSTOM_1:
   POP BC
   RET
+
+
+; ESC 'C'
 
 ; Routine at 449
 L01C1:
@@ -419,7 +448,7 @@ L01DC:
 ;
 ; Used by the routine at L01C1.
 L01E7:
-  LD IX,$02EB
+  LD IX,L02EB
   LD C,$02
   CALL L01F2
   POP BC
@@ -580,7 +609,7 @@ L027C_4:
   DEC E
   JR NZ,L027C_1
   POP HL
-  LD DE,$0140
+  LD DE,80*4
   CALL L02D8
   POP BC
   POP IY
@@ -615,24 +644,17 @@ L02D8_0:
 
 ; Routine at 734
 L02DE:
-  INC C
-  DEC C
-  DEC DE
-  LD B,A
-  DEC DE
-  DEC H
-  ADD HL,SP
-  LD C,$1B
-  DEC H
-  LD ($8002),A
-  EX AF,AF'
-  DEC C
-  DEC DE
-  LD B,C
-  DJNZ L0304_0
-  LD C,E
-  ADD A,B
-  LD (BC),A
+  DEFB 12
+  DEFB 0x1b,0x47,0x1b,0x25,0x39,0x0e,0x1b,0x25,0x32,0x02,0x80
+
+L02EB:
+ DEFB 8
+ DEFB 0x0d,0x1b,0x41,0x10,0x1b,0x4b,0x80,0x02 
+
+
+; ESC 'S'
+
+SET_PIXEL:
   PUSH BC
   CALL GET_2WORDS
   CALL L02FD
@@ -649,19 +671,22 @@ L02FD:
   LD (HL),A
   RET
 
+
+; ESC 'R' - Reset Pixel
+
 ; Routine at 772
-L0304:
+RESET_PIXEL:
   PUSH BC
   CALL GET_2WORDS
   CALL L030D
   POP BC
 ; This entry point is used by the routine at L02DE.
-L0304_0:
+RESET_PIXEL_0:
   RET
 
 ; Routine at 781
 ;
-; Used by the routines at L0304 and L04AC.
+; Used by the routines at RESET_PIXEL and L04AC.
 L030D:
   CALL L0932
   RET C
@@ -672,7 +697,7 @@ L030D:
 
 ; Routine at 789
 ;
-; Used by the routines at L02DE and L0304.
+; Used by the routines at L02DE and RESET_PIXEL.
 GET_2WORDS:
   CALL GET_BYTE
   LD D,A
@@ -688,69 +713,78 @@ GET_2WORDS:
   POP DE
   RET
 
+
+; ESC '='
+; Set cursor position
+
 ; Routine at 810
-L032A:
+SET_CURSOR:
   PUSH BC
   CALL GET_BYTE
-  SUB $20
+  SUB 32
   JR C,POPRET
   LD D,A
   CALL GET_BYTE
-  SUB $20
+  SUB 32
   JR C,POPRET
   LD C,A
   LD B,D
-  CP $50
+  CP 80
   JR NC,POPRET
   CALL CK_LINEMODE
   JR Z,L0356
   JP P,L035E
   LD A,B
-  CP $14
+  CP 20              ; 
   JR NC,POPRET
   LD A,B
-  ADD A,A
+  ADD A,A            ; Multiply by 10
+
 ; This entry point is used by the routine at L0356.
-L032A_0:
+SET_CURSOR_0:
   ADD A,A
   ADD A,A
   ADD A,B
   ADD A,B
+
 ; This entry point is used by the routine at L035E.
-L032A_1:
+SET_CURSOR_1:
   LD B,A
   POP AF
   RET
 
 ; Routine at 854
 ;
-; Used by the routine at L032A.
+; Used by the routine at SET_CURSOR.
 L0356:
   LD A,B
-  CP $21
+  CP 33
   JR NC,POPRET
   LD A,B
-  JR L032A_0
+  JR SET_CURSOR_0         ; Multiply by 6
 
 ; Routine at 862
 ;
-; Used by the routine at L032A.
+; Used by the routine at SET_CURSOR.
 L035E:
   LD A,B
-  CP $28
+  CP 40
   JR NC,POPRET
   LD A,B
-  ADD A,A
+  ADD A,A            ; Multiply by 5
   ADD A,A
   ADD A,B
-  JR L032A_1
+  JR SET_CURSOR_1
 
 ; Routine at 873
 ;
-; Used by the routines at L032A, L0356 and L035E.
+; Used by the routines at SET_CURSOR, L0356 and L035E.
 POPRET:
   POP BC
   RET
+
+
+; ESC 'T'
 
 ; Routine at 875
 L036B:
@@ -792,7 +826,7 @@ L0383_0:
   LD (DE),A
   INC C
   LD A,C
-  CP $50
+  CP 80
   JR C,L0383_0
   POP BC
   INC B
@@ -800,12 +834,19 @@ L0383_0:
   JR NZ,L0383
   RET
 
+
+; ESC 'J'
+; Jump to custom code at $2000
+
 ; Routine at 919
-L0397:
+JP_CUSTOM:
   CALL GET_BYTE
-  CP $50
+  CP 'P'		; ESC "JP" ?
   RET NZ
   JP $2000
+
+
+; ESC 'Q'
 
 ; Routine at 928
 L03A0:
@@ -846,6 +887,7 @@ L03B2_2:
 
 
 ; ESC 'G'
+
 ; Routine at 965
 L03C5:
   CALL GET_BYTE
@@ -865,7 +907,7 @@ L03C5:
   CALL MULT_X32
   LD DE,$2000
   ADD HL,DE
-  JP L071F_1
+  JP PUT_CHR_DBL
 
 
 ; Routine at 994
@@ -1014,7 +1056,7 @@ L04AC:
 ; Routine at 1216
 L04C0:
   LD DE,$7D00
-  LD HL,($3FA6)
+  LD HL,($3FA6)      ; VIDEO MEMORY
 L04C0_0:
   LD A,(HL)
   CPL
@@ -1036,14 +1078,17 @@ INCHL_DECDE:
   OR E
   RET
 
+
+; ESC 'H'
+
 ; Routine at 1240
 L04D8:
   CALL GET_BYTE
-  LD HL,($3FA6)
+  LD HL,($3FA6)      ; VIDEO MEMORY
   LD DE,$7D00
-  CP $52
+  CP 'R'
   JR Z,L04F2
-  CP $54
+  CP 'T'
   RET NZ
 L04D8_0:
   CALL GET_BYTE
@@ -1075,33 +1120,36 @@ L04FF:
   RET
 
 ; Routine at 1286
-L0506:
+DO_LF:
   CALL CK_LINEMODE
   JR Z,L0513
   JP P,L0517
   LD A,$0A
 ; This entry point is used by the routines at L0513 and L0517.
-L0506_0:
+DO_LF_0:
   ADD A,B
   LD B,A
   RET
 
 ; Routine at 1299
 ;
-; Used by the routine at L0506.
+; Used by the routine at DO_LF.
 L0513:
   LD A,$06
-  JR L0506_0
+  JR DO_LF_0
 
 ; Routine at 1303
 ;
-; Used by the routine at L0506.
+; Used by the routine at DO_LF.
 L0517:
   LD A,$05
-  JR L0506_0
+  JR DO_LF_0
+
+
+; 
 
 ; Routine at 1307
-L051B:
+DO_CR:
   XOR A
   LD C,A
   RET
@@ -1133,7 +1181,7 @@ L0533_0:
   LD A,C
   SUB H
   JR NC,L0542
-  ADD A,$50
+  ADD A,80
 
 ; Routine at 1338
 L053A:
@@ -1156,36 +1204,39 @@ L0542:
   LD C,A
   RET
 
+
+; CHR$ (7) - BEL
+
 ; Routine at 1348
-L0544:
+BEEP:
   PUSH BC
   LD BC,L00FA
-L0544_0:
+BEEP_0:
   IN A,($72)
   OR $10
   OUT ($72),A
-  CALL L0561
+  CALL DELAY_PERIOD
   IN A,($72)
   AND $EF
   OUT ($72),A
-  CALL L0561
+  CALL DELAY_PERIOD
   DEC BC
   LD A,B
   OR C
-  JR NZ,L0544_0
+  JR NZ,BEEP_0
   POP BC
   RET
 
 ; Routine at 1377
 ;
-; Used by the routine at L0544.
-L0561:
+; Used by the routine at BEEP.
+DELAY_PERIOD:
   LD HL,$0099
-L0561_0:
+DELAY_PERIOD_0:
   DEC HL
   LD A,L
   OR H
-  JR NZ,L0561_0
+  JR NZ,DELAY_PERIOD_0
   RET
 
 ; Routine at 1386
@@ -1205,10 +1256,10 @@ L0574:
   JP P,L07FD
   POP AF
   CP $21
-  RET C
+  RET C      ; Exit if not printable
   LD D,A
   CALL GET_BYTE
-  CP $21
+  CP $21      ; Exit if not printable
   RET C
   LD E,A
   JP L0700
@@ -1220,7 +1271,10 @@ L0586:
   CALL CK_LINEMODE
   JP Z,L0901
   JP P,L0818
-  JP L07E6
+  JP DO_CR
+
+
+; ESC 'B'
 
 ; Routine at 1426
 L0592:
@@ -1230,7 +1284,7 @@ L0592:
   CALL CK_LINEMODE
   JR Z,L05C1
   JP P,L05D7
-  LD A,$BE
+  LD A,$BE           ; 190
   CP B
   JR Z,L0592_0
   CALL L0644
@@ -1239,10 +1293,12 @@ L0592:
   CALL L05B8
 L0592_0:
   LD A,$0A
-  LD B,$BE
+  LD B,$BE           ; 190
+
+
 ; This entry point is used by the routines at L05C1, L05D7 and L0659.
-L0592_1:
-  CALL L0A96
+_BLANK_TXTROW:
+  CALL BLANK_TXTROW         ; Put a blank text row
   POP BC
   RET
 
@@ -1259,33 +1315,33 @@ L05B8:
 ;
 ; Used by the routine at L0592.
 L05C1:
-  LD A,$C0
+  LD A,$C0           ; 192
   CP B
   JR Z,L05C1_0
   CALL L0644
-  LD HL,$03C0
+  LD HL,$03C0        ; 192*5
   ADD HL,DE
   CALL L05B8
 ; This entry point is used by the routine at L0691.
 L05C1_0:
   LD A,$08
-  LD B,$C0
-  JP L0592_1
+  LD B,$C0           ; 192
+  JP _BLANK_TXTROW
 
 ; Routine at 1495
 ;
 ; Used by the routines at L0592 and L0818.
 L05D7:
   LD C,$00
-  LD A,$C3
+  LD A,$C3           ; 195
   SUB B
   CALL NZ,L05EE
   LD H,$01
-  LD BC,$C300
+  LD BC,$C300        ; 195, 0
   CALL L0383
   LD A,$04
-  LD B,$C4
-  JP L0592_1
+  LD B,$C4           ; 196
+  JP _BLANK_TXTROW
 
 ; Routine at 1518
 ;
@@ -1393,10 +1449,13 @@ L0644:
   POP DE
   RET
 
+
+; ESC 'I'
+
 ; Routine at 1625
 L0659:
   PUSH BC
-  LD BC,$C800
+  LD BC,$C800        ; 200,0
   CALL VADDR_BC
   DEC DE
   EX DE,HL
@@ -1405,12 +1464,12 @@ L0659:
   CALL CK_LINEMODE
   JR Z,L0691
   JP P,L06B2
-  LD A,$BE
+  LD A,$BE           ; 190
   CP B
   JR Z,L0659_0
   CALL L0644
   PUSH BC
-  LD BC,$BE00
+  LD BC,$BE00        ; 190,0
   CALL VADDR_BC
   DEC DE
   EX DE,HL
@@ -1422,7 +1481,7 @@ L0659_0:
 L0659_1:
   POP BC
   PUSH BC
-  JP L0592_1
+  JP _BLANK_TXTROW
 
 ; Routine at 1672
 ;
@@ -1458,7 +1517,7 @@ L0691:
 ;
 ; Used by the routine at L0659.
 L06B2:
-  LD A,$C3
+  LD A,$C3           ; 195
   SUB B
   CALL NZ,L06C1
   LD H,$05
@@ -1472,7 +1531,7 @@ L06B2:
 ; Used by the routine at L06B2.
 L06C1:
   PUSH AF
-  LD BC,$C400
+  LD BC,$C400        ; 196, 0
   CALL VADDR_BC
   DEC DE
   DEC DE
@@ -1527,11 +1586,11 @@ L06EC_0:
 L0700:
   PUSH BC
   LD A,C
-  CP $4F
+  CP 79           ; Got to the right margin ?
   JR NZ,L0700_0
   POP BC
-  INC C
-  CALL L07E6
+  INC C           ; Move to next row
+  CALL DO_CR
   PUSH BC
 L0700_0:
   LD HL,L07B9
@@ -1569,35 +1628,39 @@ L071F_0:
   LD HL,$4000
   ADD HL,DE
 ; This entry point is used by the routine at L03C5.
-L071F_1:
+PUT_CHR_DBL:
   POP BC
   PUSH BC
   CALL BLANK_ROW_X4
   POP BC
   PUSH BC
   INC B
+
   LD A,$04
 L071F_2:
   PUSH AF
   PUSH BC
+
   LD A,$02
 L071F_3:
   PUSH AF
   PUSH BC
-  LD A,$02
+  LD A,$02			; 2*2 = 4 rows
   CALL PUT_CHR
   POP BC
   POP AF
   INC C
   DEC A
-  JR NZ,L071F_3
+  JR NZ,L071F_3     ; *2 = 8 rows
+
   POP BC
   INC B
   INC B
   POP AF
   DEC A
-  JR NZ,L071F_2
-  CALL BLANK_ROW_X4
+  JR NZ,L071F_2     ; *2 = 16 rows
+
+  CALL BLANK_ROW_X4      ; 4 + 4 + 16 = 24 rows total
   POP BC
   INC C
   INC C
@@ -1660,6 +1723,7 @@ L078D_2:
   INC HL
   DEC B
   RET Z
+
 ; This entry point is used by the routine at L0700.
 L078D_3:
   LD A,D
@@ -1711,7 +1775,7 @@ MULT_X16:
 
 ; Routine at 1973
 ;
-; Used by the routine at L080D.
+; Used by the routine at CHR_MATRIX.
 MULT_X8:
   ADD HL,HL
   ADD HL,HL
@@ -1757,23 +1821,23 @@ L07E1:
 ; Routine at 2022
 ;
 ; Used by the routines at L0586 and L0700.
-L07E6:
+DO_CR:
   LD A,C
-  CP $50
-  JR C,L07E6_0
+  CP 80
+  JR C,DO_CR_0
   XOR A
   LD C,A
   LD A,$0A
   ADD A,B
   LD B,A
-L07E6_0:
+DO_CR_0:
   LD A,B
-  CP $C8
+  CP $C8             ; 200
   RET C
-  LD B,$BE
+  LD B,$BE           ; 190
   PUSH BC
   LD A,$05
-  JP L0A58
+  JP DO_SCROLL
 
 ; Routine at 2045
 ;
@@ -1781,10 +1845,10 @@ L07E6_0:
 L07FD:
   POP AF
   PUSH BC
-  CALL L080D
-  LD A,$04
+  CALL CHR_MATRIX
+  LD A,$04			; 4*2 = 8 rows
   CALL PUT_CHR
-  CALL BLANK_ROW_X2
+  CALL BLANK_ROW_X2 ; 10 rows total
   POP BC
   INC C
   RET
@@ -1792,11 +1856,11 @@ L07FD:
 ; Routine at 2061
 ;
 ; Used by the routines at L07FD and PRINT_33L.
-L080D:
+CHR_MATRIX:
   LD L,A
   LD H,$00
   CALL MULT_X8
-  LD DE,$1800
+  LD DE,$1800		; FONT - ( ' ' * 8)
   ADD HL,DE
   RET
 
@@ -1805,7 +1869,7 @@ L080D:
 ; Used by the routine at L0586.
 L0818:
   LD A,C
-  CP $50
+  CP 80
   JR C,L0818_0
   LD C,$00
   LD A,$05
@@ -1813,9 +1877,9 @@ L0818:
   LD B,A
 L0818_0:
   LD A,B
-  CP $C8
+  CP $C8             ; 200
   RET C
-  LD B,$C3
+  LD B,$C3           ; 195
   PUSH BC
   LD BC,0
   JP L05D7
@@ -1825,7 +1889,7 @@ L0818_0:
 ; Used by the routine at L056A.
 PRINT_33L:
   PUSH BC
-  CALL L080D
+  CALL CHR_MATRIX
   CALL VADDR_BC
   LD A,($3FAA)
   AND A
@@ -2007,7 +2071,7 @@ L08FA:
 ; Used by the routine at L0586.
 L0901:
   LD A,C
-  CP $50
+  CP 80
   JR C,L0901_0
   LD C,$00
   LD A,$06
@@ -2020,7 +2084,7 @@ L0901_0:
   LD B,$C0
   PUSH BC
   LD A,$03
-  JP L0A58
+  JP DO_SCROLL
 
 ; Routine at 2328
 ;
@@ -2033,7 +2097,7 @@ L0918:
 ; Routine at 2332
 ;
 ; Used by the routines at L01C1, L0383, L0592, L05EE, L0659, L0691, L06C1,
-; PUT_CHR, BLANK_ROW_X2, PRINT_33L and L0A96.
+; PUT_CHR, BLANK_ROW_X2, PRINT_33L and BLANK_TXTROW.
 VADDR_BC:
   PUSH HL
   PUSH BC
@@ -2060,7 +2124,7 @@ VADDR_BC_0:
 ;
 ; Used by the routines at L02FD and L030D.
 L0932:
-  LD HL,$018F
+  LD HL,399
   XOR A
   SBC HL,DE
   RET C
@@ -2124,7 +2188,7 @@ L0954:
   EX DE,HL
   POP HL
   ADD HL,DE
-  LD DE,($3FA6)
+  LD DE,($3FA6)      ; VIDEO MEMORY
   ADD HL,DE
   LD A,H
   OR $80
@@ -2154,8 +2218,8 @@ L098D_0:
 
 ; Routine at 2470
 ;
-; Used by the routines at L0078, IN_ESC, L0101, L016F, L019F, GET_2WORDS,
-; L032A, L0397, L03C5, L03EF, L04D8 and L0574.
+; Used by the routines at L0078, IN_ESC, L0101, L016F, LD_CUSTOM, GET_2WORDS,
+; SET_CURSOR, JP_CUSTOM, L03C5, L03EF, L04D8 and L0574.
 GET_BYTE:
   PUSH HL
   PUSH DE
@@ -2309,7 +2373,7 @@ L0A3D_0:
 
 ; Flag will be Z if 33 lines mode, otherwise it is 40 lines
 ;
-; Used by the routines at L032A, L036B, L03A0, L0506, L051E, L056A, L0586,
+; Used by the routines at SET_CURSOR, L036B, L03A0, DO_LF, L051E, L056A, L0586,
 ; L0592, L0659 and L09ED.
 CK_LINEMODE:
   LD A,($3FA0)
@@ -2326,24 +2390,24 @@ L0A52:
 
 ; Routine at 2648
 ;
-; Used by the routines at L07E6 and L0901.
-L0A58:
+; Used by the routines at DO_CR and L0901.
+DO_SCROLL:
   PUSH AF
-  LD B,$C8
+  LD B,$C8           ; 200
   ADD A,A
   CP $06
-  JR NZ,L0A58_0
+  JR NZ,DO_SCROLL_0
   ADD A,$02
-L0A58_0:
-  CALL L0A96
+DO_SCROLL_0:
+  CALL BLANK_TXTROW
   LD HL,($3FA8)
   POP AF
   PUSH AF
-  LD DE,$0050
-L0A58_1:
+  LD DE,80
+DO_SCROLL_1:
   ADD HL,DE
   DEC A
-  JR NZ,L0A58_1
+  JR NZ,DO_SCROLL_1
   LD ($3FA8),HL
   LD A,$0C
   OUT ($B0),A
@@ -2354,41 +2418,46 @@ L0A58_1:
   LD A,L
   OUT ($B1),A
   POP AF
-  LD DE,$0140
-  LD HL,($3FA6)
-L0A58_2:
+  LD DE,80*4
+  LD HL,($3FA6)      ; VIDEO MEMORY
+DO_SCROLL_2:
   ADD HL,DE
   DEC A
-  JR NZ,L0A58_2
+  JR NZ,DO_SCROLL_2
   LD A,H
   OR $80
   LD H,A
-  LD ($3FA6),HL
+  LD ($3FA6),HL      ; VIDEO MEMORY
   POP BC
   RET
 
+
+; Put a blank row
+
 ; Routine at 2710
 ;
-; Used by the routines at L0592 and L0A58.
-L0A96:
+; Used by the routines at L0592 and DO_SCROLL.
+BLANK_TXTROW:
   PUSH AF
   LD C,$00
   CALL VADDR_BC
   POP AF
-L0A96_0:
+BLANK_TXTROW_0:
   PUSH AF
-  LD B,$A0
-L0A96_1:
+
+  LD B,160           ; 2 pixel rows
+BLANK_TXTROW_1:
   LD A,D
   OR $80
   LD D,A
   XOR A
   LD (DE),A
   INC DE
-  DJNZ L0A96_1
+  DJNZ BLANK_TXTROW_1
+
   POP AF
   DEC A
-  JR NZ,L0A96_0
+  JR NZ,BLANK_TXTROW_0
   RET
 
 ; Data block at 2734
