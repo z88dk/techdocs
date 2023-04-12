@@ -8,7 +8,7 @@
 
 ; Routine at 0
 ;
-; Used by the routine at L04FC.
+; Used by the routine at RESTART.
 L0000:
   DI
   LD SP,$4000
@@ -23,9 +23,9 @@ L0000:
   LD ($3FA6),HL		; Screen start address
   LD ($3FA8),HL		; Screen start address for scrolling
   LD A,$00
-  LD ($3FAA),A
-  LD ($3FAB),A
-  LD ($3FAC),A
+  LD ($3FAA),A      ; 'inverse' attribute
+  LD ($3FAB),A      ; 'underline' attribute
+  LD ($3FAC),A      ; 'overline' attribute
 
   LD B,14
   LD HL,CRTC_TABLE-1
@@ -130,6 +130,7 @@ CONTROL_CODES_1:
   LD D,(HL)
   EX DE,HL
   JP (HL)
+
 CONTROL_CODES_2:
   POP BC
   RET
@@ -228,63 +229,65 @@ ESC_TABLE:
   DEFW HARDCOPY
 
   DEFM "N"
-  DEFW L04C0
+  DEFW NEGATIVE
 
   DEFM "?"
-  DEFW L04FC
+  DEFW RESTART
 
   DEFM "t"
-  DEFW L0101
+  DEFW ATTR
 
   DEFB $00
 
 
 
 ; Routine at 257
-L0101:
+ATTR:
   CALL GET_BYTE
   PUSH AF
   AND $04
-  JP NZ,L0127
+  JP NZ,SET_INVERSE
   LD A,$00
   LD ($3FAA),A
-; This entry point is used by the routine at L0127.
-L0101_0:
+
+; This entry point is used by the routine at SET_INVERSE.
+ATTR_0:
   POP AF
   PUSH AF
   AND $02
-  JP NZ,L012F
+  JP NZ,SET_UNDERLINE
   LD A,$00
   LD ($3FAB),A
-; This entry point is used by the routine at L012F.
-L0101_1:
+
+; This entry point is used by the routine at SET_UNDERLINE.
+ATTR_OVERLINE:
   POP AF
   AND $08
-  JP NZ,L0137
+  JP NZ,SET_OVERLINE
   LD A,$00
   LD ($3FAC),A
   RET
 
 ; Routine at 295
 ;
-; Used by the routine at L0101.
-L0127:
+; Used by the routine at ATTR.
+SET_INVERSE:
   LD A,$01
   LD ($3FAA),A
-  JP L0101_0
+  JP ATTR_0
 
 ; Routine at 303
 ;
-; Used by the routine at L0101.
-L012F:
+; Used by the routine at ATTR.
+SET_UNDERLINE:
   LD A,$01
   LD ($3FAB),A
-  JP L0101_1
+  JP ATTR_OVERLINE
 
 ; Routine at 311
 ;
-; Used by the routine at L0101.
-L0137:
+; Used by the routine at ATTR.
+SET_OVERLINE:
   LD A,$01
   LD ($3FAC),A
   RET
@@ -1059,21 +1062,25 @@ L04AC:
   JP Z,PIXEL_ON
   JP PIXEL_OFF
 
+
+; ESC 'N'
+; Invert the whole video memory 
+
 ; Routine at 1216
-L04C0:
+NEGATIVE:
   LD DE,$7D00
   LD HL,($3FA6)      ; VIDEO MEMORY
-L04C0_0:
+NEGATIVE_0:
   LD A,(HL)
   CPL
   LD (HL),A
   CALL INCHL_DECDE
-  JR NZ,L04C0_0
+  JR NZ,NEGATIVE_0
   RET
 
 ; Routine at 1231
 ;
-; Used by the routines at L04C0, HARDCOPY and L04F2.
+; Used by the routines at NEGATIVE, HARDCOPY and L04F2.
 INCHL_DECDE:
   INC HL
   LD A,H
@@ -1113,8 +1120,12 @@ L04F2:
   JR NZ,L04F2
   RET
 
+
+; ESC '?'
+; Reset the video CPU
+
 ; Routine at 1276
-L04FC:
+RESTART:
   JP L0000
 
 
@@ -1870,71 +1881,70 @@ PRINT_33L:
   PUSH BC
   CALL CHR_MATRIX
   CALL VADDR_BC
-  LD A,($3FAA)
+
+  LD A,($3FAA)           ; INVERSE attribute ?
   AND A
   JP Z,PRINT_33L_0
   LD A,$FF
   JP PRINT_33L_1
-
-; Routine at 2115
-;
-; Used by the routine at PRINT_33L.
 PRINT_33L_0:
   XOR A
-; This entry point is used by the routine at PRINT_33L.
 PRINT_33L_1:
+
   PUSH AF
-  LD A,($3FAC)
+  LD A,($3FAC)           ; OVERLINE attribute ?
   AND A
   JP Z,PRINT_33L_2
   POP AF
-  CPL
+  CPL                    ; Yes, invert the first byte on top
   JP PRINT_33L_3
-
-; Routine at 2129
-;
-; Used by the routine at PRINT_33L_0.
 PRINT_33L_2:
   POP AF
+
 ; This entry point is used by the routine at PRINT_33L_0.
 PRINT_33L_3:
-  CALL L08FA
+  CALL NEXT_ROW
   LD (DE),A
   INC DE
-  LD A,($3FAA)
+
+  LD A,($3FAA)           ; INVERSE attribute ?
   AND A
   JP Z,PRINT_33L_4
   LD A,$FF
 PRINT_33L_4:
-  CALL L08FA
+
+  CALL NEXT_ROW
   LD (DE),A
   INC DE
-  CALL L08FA
-  LD A,($3FAA)
+  CALL NEXT_ROW
+
+  LD A,($3FAA)           ; INVERSE attribute ?
   AND A
   JP Z,PRINT_33L_5
-  LD A,(HL)
-  CPL
-  LD (DE),A
+
+  LD A,(HL)            ; get the byte from chr font..
+  CPL                  ; ..invert it
+  LD (DE),A            ; ..and copy it to video memory
   INC DE
   INC HL
-  LD A,(HL)
-  CPL
+  LD A,(HL)            ; get another byte from chr font..
+  CPL                  ; ..invert it
   JP PRINT_33L_6
 
 ; Routine at 2169
 ;
 ; Used by the routine at PRINT_33L_2.
 PRINT_33L_5:
-  LD A,(HL)
-  LD (DE),A
+  LD A,(HL)            ; get the byte from chr font
+  LD (DE),A            ; ..and copy it to video memory
   INC DE
   INC HL
-  LD A,(HL)
+  LD A,(HL)            ; get another byte from chr font
+
 ; This entry point is used by the routine at PRINT_33L_2.
 PRINT_33L_6:
-  CALL L08FA
-  LD (DE),A
+  CALL NEXT_ROW
+  LD (DE),A            ; ..and copy it to video memory
   INC HL
   EX DE,HL
   LD BC,L013D
@@ -1948,7 +1958,7 @@ PRINT_33L_6:
   EX DE,HL
   LD BC,$0002
   CALL L08DA
-  LD A,($3FAA)
+  LD A,($3FAA)           ; INVERSE attribute ?
   AND A
   JP NZ,PRINT_33L_7
   XOR A
@@ -1961,21 +1971,18 @@ PRINT_33L_7:
   LD A,$FF
 ; This entry point is used by the routine at PRINT_33L_5.
 PRINT_33L_8:
-  CALL L08FA
+  CALL NEXT_ROW
   LD (DE),A
   INC DE
-  LD A,($3FAA)
+  LD A,($3FAA)           ; INVERSE attribute ?
   AND A
   JP NZ,PRINT_33L_10
-  LD A,($3FAB)
+
+  LD A,($3FAB)             ; 'underline' attribute
   AND A
   JP NZ,PRINT_33L_9
   LD A,$00
   JP PRINT_33L_12
-
-; Routine at 2240
-;
-; Used by the routine at PRINT_33L_7.
 PRINT_33L_9:
   LD A,$FF
   JP PRINT_33L_12
@@ -1984,20 +1991,17 @@ PRINT_33L_9:
 ;
 ; Used by the routine at PRINT_33L_7.
 PRINT_33L_10:
-  LD A,($3FAB)
+  LD A,($3FAB)            ; 'underline' attribute
   AND A
   JP Z,PRINT_33L_11
   LD A,$00
   JP PRINT_33L_12
-
-; Routine at 2257
-;
-; Used by the routine at PRINT_33L_10.
 PRINT_33L_11:
   LD A,$FF
+
 ; This entry point is used by the routines at PRINT_33L_7, PRINT_33L_9 and PRINT_33L_10.
 PRINT_33L_12:
-  CALL L08FA
+  CALL NEXT_ROW
   LD (DE),A
   POP BC
   INC C
@@ -2007,11 +2011,11 @@ PRINT_33L_12:
 ;
 ; Used by the routine at PRINT_33L_5.
 L08DA:
-  LD A,($3FAA)
+  LD A,($3FAA)           ; INVERSE attribute ?
   AND A
   JP NZ,L08ED
 L08DA_0:
-  CALL L08FA
+  CALL NEXT_ROW
   LD A,(HL)
   LD (DE),A
   INC DE
@@ -2024,7 +2028,7 @@ L08DA_0:
 ;
 ; Used by the routine at L08DA.
 L08ED:
-  CALL L08FA
+  CALL NEXT_ROW
   LD A,(HL)
   CPL
   LD (DE),A
@@ -2035,9 +2039,10 @@ L08ED:
   RET
 
 ; Routine at 2298
+; Move to next odd row in video memory
 ;
 ; Used by the routines at PRINT_33L_2, PRINT_33L_5, PRINT_33L_7, PRINT_33L_11, L08DA and L08ED.
-L08FA:
+NEXT_ROW:
   PUSH AF
   LD A,D
   OR $80
@@ -2197,7 +2202,7 @@ L098D_0:
 
 ; Routine at 2470
 ;
-; Used by the routines at L0078, IN_ESC, L0101, L016F, LD_CUSTOM, GET_2WORDS,
+; Used by the routines at L0078, IN_ESC, ATTR, L016F, LD_CUSTOM, GET_2WORDS,
 ; SET_CURSOR, JP_CUSTOM, L03C5, PLOT, HARDCOPY and L0574.
 GET_BYTE:
   PUSH HL
