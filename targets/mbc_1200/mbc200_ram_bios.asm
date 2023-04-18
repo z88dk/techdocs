@@ -18,17 +18,23 @@
 
  F233  call pe,$00F3                                       EC F3 00
  F236  nop                                                 00
- F237  and  a                                              A7
- F238  jp   p,$001C                                        F2 1C 00
- F23B  nop                                                 00
+ F235  defw 0       ; point to a 128 bytes sector buffer
+ F237  defw $F2A7   ; DPB
+ F239  defw $001C   ; CSV (directory checksum vector)
+ F23B  defw 0       ; ALV (allocation vector)
+
+
  F23C  nop                                                 00
  F23D  nop                                                 00
  F23E  nop                                                 00
- F23F  nop                                                 00
- F240  cp   $D6                                            FE D6
- F242  jp   p,$FA17                                        F2 17 FA
- F245  or   e                                              B3
- F246  ld   sp,hl                                          F9
+ F23F  defw $FE00   ; point to a 128 bytes sector buffer
+ F241  defw $F2D6   ; DPB
+ F243  defw $FA17   ; CSV (directory checksum vector)
+ F245  defw $F9B3   ; ALV (allocation vector)
+
+
+ F247  defw $F2A7   ; DPB
+
  F247  and  a                                              A7
  F248  jp   p,$0000                                        F2 00 00
  F24B  nop                                                 00
@@ -37,6 +43,9 @@
  F24E  nop                                                 00
  F24F  nop                                                 00
  F250  cp   $D6                                            FE D6
+
+ F251  defw $F2D6   ; DPB
+
  F252  jp   p,$FA37                                        F2 37 FA
  F255  rst  $00                                            C7
  F256  ld   sp,hl                                          F9
@@ -48,6 +57,7 @@
  F25E  nop                                                 00
  F25F  nop                                                 00
  F260  cp   $D6                                            FE D6
+
  F262  jp   p,$FA57                                        F2 57 FA
  F265  in   a,($F9)                                        DB F9
  F267  and  a                                              A7
@@ -58,6 +68,7 @@
  F26E  nop                                                 00
  F26F  nop                                                 00
  F270  cp   $D6                                            FE D6
+
  F272  jp   p,$FA77                                        F2 77 FA
  F275  rst  $28                                            EF
  F276  ld   sp,hl                                          F9
@@ -69,8 +80,8 @@
  F27E  nop                                                 00
  F27F  nop                                                 00
  F280  cp   $D6                                            FE D6
+
  F282  jp   p,$FA97                                        F2 97 FA
- 
  F285  inc  bc                                             03
  F286  jp   m,$F2A7                                        FA A7 F2
  F289  nop                                                 00
@@ -81,8 +92,8 @@
  F28E  nop                                                 00
  F28F  nop                                                 00
  F290  cp   $C7                                            FE C7
+
  F292  jp   p,$FAA7                                        F2 A7 FA
- 
  F295  inc  bc                                             03
  F296  jp   m,$F2A7                                        FA A7 F2
  F299  nop                                                 00
@@ -93,8 +104,8 @@
  F29E  nop                                                 00
  F29F  nop                                                 00
  F2A0  cp   $C7                                            FE C7
- F2A2  jp   p,$FAB7                                        F2 B7 FA
 
+ F2A2  jp   p,$FAB7                                        F2 B7 FA
  F2A5  inc  bc                                             03
  F2A6  jp   m,$0201                                        FA 01 02
  F2A9  rlca                                                07
@@ -104,45 +115,35 @@
  F2AE  inc  d                                              14
  F2AF  add  hl,de                                          19
  F2B0  ld   a,(de)                                         1A
+
  F2B1  rra                                                 1F
  F2B2  jr   nz,$F2B9                                       20 05
  F2B4  ld   b,$0B                                          06 0B
  F2B6  inc  c                                              0C
+
+     F2B8  12 17 18 1D 1E 03 04 09 0A 0F 10 15 16 1B 1C 
+
  F2B7  ld   de,$1712                                       11 12 17
  F2BA  jr   $F2D9                                          18 1D
  F2BC  ld   e,$03                                          1E 03
  F2BE  inc  b                                              04
+
  F2BF  add  hl,bc                                          09
  F2C0  ld   a,(bc)                                         0A
  F2C1  rrca                                                0F
  F2C2  djnz $F2D9                                          10 15
  F2C4  ld   d,$1B                                          16 1B
  F2C6  inc  e                                              1C
- F2C7  jr   nz,$F2C9                                       20 00
- F2C9  inc  b                                              04
- F2CA  rrca                                                0F
- F2CB  ld   bc,$009B                                       01 9B 00
- F2CE  ccf                                                 3F
- F2CF  nop                                                 00
- F2D0  add  a,b                                            80
- F2D1  nop                                                 00
- F2D2  djnz $F2D4                                          10 00
- F2D4  ld   (bc),a                                         02
- F2D5  nop                                                 00
- F2D6  jr   nz,$F2D8                                       20 00
- F2D8  dec  b                                              05
- F2D9  rra                                                 1F
- F2DA  inc  bc                                             03
- F2DB  sbc  a,e                                            9B
- F2DC  nop                                                 00
- F2DD  ld   a,a                                            7F
- F2DE  nop                                                 00
- F2DF  add  a,b                                            80
- F2E0  nop                                                 00
- F2E1  jr   nz,$F2E3                                       20 00
- F2E3  inc  b                                              04
- F2E4  nop                                                 00
- 
+
+
+
+
+; The Disk Parameter Block ( DPB ) summarizes the attributes of identical groups of mass storage devices.
+
+     F2C7  20 00 04 0F 01 9B 00 3F 00 80 00 10 00 02 00
+
+     F2D6  20 00 05 1F 03 9B 00 7F 00 80 00 20 00 04 00
+
 ;
 ; -----  WBOOT, Warm boot - reload command processor  -----
 ;
@@ -191,7 +192,7 @@
  F332  ld   b,$00                                          06 00
  F334  call $F50F                                          CD 0F F5
  F337  jp   z,$F521                                        CA 21 F5
- F33A  in   a,($E8)                                        DB E8
+ F33A  in   a,($E8)        ; PPI_M, port A                 DB E8
  F33C  ld   l,a                                            6F
  F33D  ld   h,$7F                                          26 7F
  F33F  ld   ($F530),hl                                     22 30 F5
@@ -223,13 +224,13 @@
  F360  call $F38F                                          CD 8F F3
  F363  bit  3,b                                            CB 58
  F365  call nz,$F378                                       C4 78 F3
- F368  in   a,($E9)                                        DB E9
- F36A  or   $02                                            F6 02
- F36C  out  ($E9),a                                        D3 E9
+ F368  in   a,($E9)      ; PPI_M, port B                   DB E9
+ F36A  or   $02          ; key click (bit1, speaker "ON")  F6 02
+ F36C  out  ($E9),a      ; PPI_M, port B                   D3 E9
  F36E  ld   b,$00                                          06 00
  F370  djnz $F370                                          10 FE
- F372  and  $FD                                            E6 FD
- F374  out  ($E9),a                                        D3 E9
+ F372  and  $FD          ; key click (bit1, speaker "OFF") E6 FD
+ F374  out  ($E9),a      ; PPI_M, port B                   D3 E9
  F376  ld   a,c                                            79
  F377  ret                                                 C9
 
@@ -487,11 +488,12 @@
  F4A5  and  $80                                            E6 80
  F4A7  jr   z,$F4A3                                        28 FA
  
- F4A9  in   a,($E9)                                        DB E9
- F4AB  and  $FE                                            E6 FE
+ F4A9  in   a,($E9)      ; PPI_M, port B                   DB E9
+ F4AB  and  $FE          ; PB0 -> PA5                      E6 FE
  F4AD  out  ($E9),a                                        D3 E9
+
  F4AF  ld   a,c                                            79
- F4B0  out  ($E8),a                                        D3 E8
+ F4B0  out  ($E8),a      ; PPI_M, port A                   D3 E8
 ;-----
 
  F4B2  cp   27                                             FE 1B
@@ -520,11 +522,11 @@
  F4D3  ld   a,c                                            79
  F4D4  cp   'R'                                            FE 52
  F4D6  jr   nz,$F521                                       20 49
- F4D8  in   a,($E8)                                        DB E8
+ F4D8  in   a,($E8)        ; PPI_M, port A                 DB E8
  F4DA  ld   b,$00                                          06 00
  F4DC  call $F50F                                          CD 0F F5
  F4DF  jr   z,$F521                                        28 40
- F4E1  in   a,($E8)                                        DB E8
+ F4E1  in   a,($E8)        ; PPI_M, port A                 DB E8
  F4E3  ld   l,a                                            6F
  F4E4  ld   h,$7F                                          26 7F
  F4E6  ld   ($F530),hl                                     22 30 F5
@@ -533,17 +535,17 @@
  F4EF  ret                                                 C9
  
  --- ESC 'Q' ---
- F4F0  in   a,($E8)                                        DB E8
+ F4F0  in   a,($E8)        ; PPI_M, port A                 DB E8
  F4F2  ld   b,$00                                          06 00
  F4F4  call $F50F                                          CD 0F F5
  F4F7  jr   z,$F521                                        28 28
- F4F9  in   a,($E8)                                        DB E8
+ F4F9  in   a,($E8)        ; PPI_M, port A                 DB E8
  F4FB  or   $80                                            F6 80
  F4FD  ld   h,a                                            67
  F4FE  ld   b,$04                                          06 04
  F500  call $F50F                                          CD 0F F5
  F503  jr   z,$F521                                        28 1C
- F505  in   a,($E8)                                        DB E8
+ F505  in   a,($E8)        ; PPI_M, port A                 DB E8
  F507  ld   l,a                                            6F
  F508  ld   ($F530),hl                                     22 30 F5
  F50B  call $F52A         ; reset the ESC flag             CD 2A F5
@@ -624,18 +626,20 @@
  F583  jp   z,$F589                                        CA 89 F5
  F586  jp   $F5A3                                          C3 A3 F5
   
+;--------
  F589  in   a,($EA)    <--                                 DB EA
  F58B  and  $80           |                                E6 80
  F58D  jr   z,$F589     --                                 28 FA
 
- F58F  in   a,($E9)                                        DB E9
- F591  or   $01                                            F6 01
+ F58F  in   a,($E9)      ; PPI_M, port B                   DB E9
+ F591  or   $01          ; PB0 -> PA5                      F6 01
  F593  out  ($E9),a                                        D3 E9
 
  F595  ld   a,c                                            79
- F596  out  ($E8),a                                        D3 E8
+ F596  out  ($E8),a      ; PPI_M, port A                   D3 E8
  F598  ret                                                 C9
 
+;--------
  F599  in   a,($ED)    <--                                 DB ED
  F59B  bit  0,a           |                                CB 47
  F59D  jr   z,$F599     --                                 28 FA
@@ -644,6 +648,7 @@
  F5A0  out  ($EC),a                                        D3 EC
  F5A2  ret                                                 C9
 
+;--------
  F5A3  in   a,($ED)    <--                                 DB ED
  F5A5  and  $85           |                                E6 85
  F5A7  cp   $85           |                                FE 85
@@ -783,7 +788,7 @@
  F636  inc  hl                                             23
  F637  djnz $F631                                          10 F8
  F639  ld   hl,$FE80                                       21 80 FE
- F63C  ld   de,($F9A6)                                     ED 5B A6 F9
+ F63C  ld   de,($F9A6)      ;  DMA address                 ED 5B A6 F9
  F640  ld   bc,$0080                                       01 80 00
  F643  ldir                                                ED B0
  F645  xor  a                                              AF
@@ -893,7 +898,7 @@ F6D4  0A 00
  F711  ld   ($F9B0),a                                      32 B0 F9
  F714  ld   hl,($F9A8)                                     2A A8 F9
  F717  ld   ($F9AE),hl                                     22 AE F9
- F71A  ld   de,($F9A6)                                     ED 5B A6 F9
+ F71A  ld   de,($F9A6)      ;  DMA address                 ED 5B A6 F9
  F71E  ld   hl,$FF00                                       21 00 FF
  F721  ld   bc,$0080                                       01 80 00
  F724  ld   a,($F9AA)                                      3A AA F9
@@ -908,6 +913,7 @@ F6D4  0A 00
  F733  ld   ($F9B1),a                                      32 B1 F9
  F736  ld   ($F9B2),a                                      32 B2 F9
  F739  ret                                                 C9
+ 
  F73A  ld   hl,($F9AB)                                     2A AB F9
  F73D  ld   ($F9AE),hl                                     22 AE F9
  F740  ld   a,($F9AD)                                      3A AD F9
@@ -922,7 +928,7 @@ F6D4  0A 00
  F753  ld   a,($F9B2)                                      3A B2 F9
  F756  dec  a                                              3D
  F757  jr   z,$F781                                        28 28
- F759  ld   hl,($F9A6)                                     2A A6 F9
+ F759  ld   hl,($F9A6)      ;  DMA address                 2A A6 F9
  F75C  ld   de,$FE80                                       11 80 FE
  F75F  ld   bc,$0080                                       01 80 00
  F762  ldir                                                ED B0
@@ -1046,10 +1052,12 @@ F6D4  0A 00
  F835  add  a,a                                            87
  F836  add  a,a                                            87
  F837  ld   c,a                                            4F
- F838  in   a,($E9)                                        DB E9
+ 
+ F838  in   a,($E9)      ; PPI_M, port B                   DB E9
  F83A  and  $CF                                            E6 CF
  F83C  add  a,c                                            81
  F83D  out  ($E9),a                                        D3 E9
+ 
  F83F  ld   a,($F99C)                                      3A 9C F9
  F842  or   a                                              B7
  F843  jr   z,$F852                                        28 0D
@@ -1113,7 +1121,7 @@ F6D4  0A 00
  F8A2  add  hl,bc                                          09
  F8A3  ex   de,hl                                          EB
  F8A4  ldir                                                ED B0
- F8A6  ld   a,($F9A8)                                      3A A8 F9
+ F8A6  ld   a,($F9A8)        ; Disk no.                    3A A8 F9
  F8A9  cp   $05                                            FE 05
  F8AB  jr   z,$F8ED                                        28 40
  F8AD  ld   b,$0A                                          06 0A
@@ -1160,6 +1168,7 @@ F6D4  0A 00
  F8EB  djnz $F8AF                                          10 C2
  F8ED  ld   a,$01                                          3E 01
  F8EF  ret                                                 C9
+
  F8F0  ld   a,($F9AE)                                      3A AE F9
  F8F3  ld   c,a                                            4F
  F8F4  call $F807                                          CD 07 F8
@@ -1196,12 +1205,14 @@ F6D4  0A 00
  F929  push bc                                             C5
  F92A  rra                                                 1F
  F92B  rra                                                 1F
+
  F92C  ld   c,a                                            4F
- F92D  in   a,($E9)                                        DB E9
- F92F  and  $7F                                            E6 7F
+ F92D  in   a,($E9)      ; PPI_M, port B                   DB E9
+ F92F  and  $7F          ; mask out disk side bit          E6 7F
  F931  add  a,c                                            81
  F932  pop  bc                                             C1
  F933  out  ($E9),a                                        D3 E9
+
  F935  ex   (sp),hl                                        E3
  F936  ex   (sp),hl                                        E3
  F937  in   a,($E4)                                        DB E4
@@ -1266,3 +1277,451 @@ F6D4  0A 00
  F99B  defb 1                                              01
  F99C  defb 0                                              00
  F99D  defb 0                                              00
+
+     F99E  00 04 FF FF FF FF FF FF 80 00 00 04 1C FF FF FF   ..ÿÿÿÿÿÿ.....ÿÿÿ
+     F9AE  00 04 1B 00 00 FF FF FF FF FF FF FE 00 00 00 00   .....ÿÿÿÿÿÿþ....
+     F9BE  00 00 00 00 00 00 00 00 00 20 20 23 31 2E 35 0D   .........  #1.5.
+     F9CE  0A 00 30 44 30 30 30 30 30 30 30 30 30 30 31 42   ..0D00000000001B
+
+     F9CE  0A 00 30 44 30 30 30 30 30 30 30 30 30 30 31 42   ..0D00000000001B
+     F9DE  34 31 30 44 30 30 30 30 30 30 30 30 30 30 31 42   410D00000000001B
+     F9EE  34 44 30 44 30 30 30 30 30 30 30 30 30 30 30 38   4D0D000000000008
+     F9FE  30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 43   000000000000000C
+     FA0E  30 30 30 30 30 30 30 30 30
+
+
+     FA17  1B A4 D7 9B 36 C1 DD 80 80 80 80 80 80 80 80 80   .¤×.6ÁÝ.........
+     FA27  80 80 80 80 80 80 80 80 80 80 80 80 80 80 80 80   ................
+
+     FA37  30 30 30 41 30 30 30 30 30 30 30 30 30 30 30 30   000A000000000000
+     FA47  30 30 31 34 30 30 30 30 30 30 30 30 30 30 30 30   0014000000000000
+
+     FA57  30 30 30 45 30 46 30 38 30 39 30 41 30 44 31 42   000E0F08090A0D1B
+     FA67  44 42 45 41 45 36 38 30 32 38 46 41 44 42 45 39   DBEAE68028FADBE9
+
+     FA77  45 36 46 45 44 33 45 39 37 39 44 33 45 38 46 45   E6FED3E979D3E8FE
+     FA87  31 42 32 38 36 32 46 45 32 30 44 38 33 41 32 46   1B2862FE20D83A2F
+
+     FA97  46 35 34 38 0D 0A 3A 33 32 32 32 33 43 30 30 42   F548..:32223C00B
+     FAA7  37 43 38 46 45 30 32 32 38 31 31 33 30 35 44 37   7C8FE022811305D7
+
+     FAB7  39 46 45 35 31 32 38 32 37 46 45 34 38 32 30 35   9FE512827FE48205
+     FAC7  34 33 45 30 32 33 32 32 46 46 35 43 39 37 39 46   43E02322FF5C979F
+
+     FAD7  45 35 32 32 30 34 39 44 42 45 38 30 36 30 30 43   E522049DBE80600C
+     FAE7  44 30 46 46 35 32 38 34 30 44 42 45 38 36 46 32   D0FF52840DBE86F2
+     FAF7  36 37 46 32 32 33 30 46 35 EA 3A D4 F1 C3 01 E7   67F2230F5ê:ÔñÃ.ç
+
+
+
+     FABE  32 37 46 45 34 38 32 30 35 34 33 45 30 32 33 32   27FE4820543E0232
+     FACE  32 46 46 35 43 39 37 39 46 45 35 32 32 30 34 39   2FF5C979FE522049
+     FADE  44 42 45 38 30 36 30 30 43 44 30 46 46 35 32 38   DBE80600CD0FF528
+     FAEE  34 30 44 42 45 38 36 46 32 36 37 46 32 32 33 30   40DBE86F267F2230
+     FAFE  46 35                                             F5
+	 
+ FB00  jp   pe,$D43A                                       EA 3A D4
+ FB03  pop  af                                             F1
+ FB04  jp   $E701                                          C3 01 E7
+ FB07  push bc                                             C5
+ FB08  push af                                             F5
+ FB09  ld   a,($F1C5)                                      3A C5 F1
+ FB0C  cpl                                                 2F
+ FB0D  ld   b,a                                            47
+ FB0E  ld   a,c                                            79
+ FB0F  and  b                                              A0
+ FB10  ld   c,a                                            4F
+ FB11  pop  af                                             F1
+ FB12  and  b                                              A0
+ FB13  sub  c                                              91
+ FB14  and  $1F                                            E6 1F
+ FB16  pop  bc                                             C1
+ FB17  ret                                                 C9
+
+ FB18  ld   a,$FF                                          3E FF
+ FB1A  ld   ($F1D4),a                                      32 D4 F1
+ FB1D  ld   hl,$F1D8                                       21 D8 F1
+ FB20  ld   (hl),c                                         71
+ FB21  ld   hl,($E743)                                     2A 43 E7
+ FB24  ld   ($F1D9),hl                                     22 D9 F1
+ FB27  call $E9FE                                          CD FE E9
+ FB2A  call $E7A1                                          CD A1 E7
+ FB2D  ld   c,$00                                          0E 00
+ FB2F  call $EA05                                          CD 05 EA
+ FB32  call $E9F5                                          CD F5 E9
+ FB35  jp   z,$EB94                                        CA 94 EB
+ FB38  ld   hl,($F1D9)                                     2A D9 F1
+ FB3B  ex   de,hl                                          EB
+ FB3C  ld   a,(de)                                         1A
+ FB3D  cp   $E5                                            FE E5
+ FB3F  jp   z,$EB4A                                        CA 4A EB
+ FB42  push de                                             D5
+ FB43  call $E97F                                          CD 7F E9
+ FB46  pop  de                                             D1
+ FB47  jp   nc,$EB94                                       D2 94 EB
+ FB4A  call $E95E                                          CD 5E E9
+ FB4D  ld   a,($F1D8)                                      3A D8 F1
+ FB50  ld   c,a                                            4F
+ FB51  ld   b,$00                                          06 00
+ FB53  ld   a,c                                            79
+ FB54  or   a                                              B7
+ FB55  jp   z,$EB83                                        CA 83 EB
+ FB58  ld   a,(de)                                         1A
+ FB59  cp   $3F                                            FE 3F
+ FB5B  jp   z,$EB7C                                        CA 7C EB
+ FB5E  ld   a,b                                            78
+ FB5F  cp   $0D                                            FE 0D
+ FB61  jp   z,$EB7C                                        CA 7C EB
+ FB64  cp   $0C                                            FE 0C
+ FB66  ld   a,(de)                                         1A
+ FB67  jp   z,$EB73                                        CA 73 EB
+ FB6A  sub  (hl)                                           96
+ FB6B  and  $7F                                            E6 7F
+ FB6D  jp   nz,$EB2D                                       C2 2D EB
+ FB70  jp   $EB7C                                          C3 7C EB
+ FB73  push bc                                             C5
+ FB74  ld   c,(hl)                                         4E
+ FB75  call $EB07                                          CD 07 EB
+ FB78  pop  bc                                             C1
+ FB79  jp   nz,$EB2D                                       C2 2D EB
+ FB7C  inc  de                                             13
+ FB7D  inc  hl                                             23
+ FB7E  inc  b                                              04
+ FB7F  dec  c                                              0D
+ FB80  jp   $EB53                                          C3 53 EB
+ FB83  ld   a,($F1EA)                                      3A EA F1
+ FB86  and  $03                                            E6 03
+ FB88  ld   ($E745),a                                      32 45 E7
+ FB8B  ld   hl,$F1D4                                       21 D4 F1
+ FB8E  ld   a,(hl)                                         7E
+ FB8F  rla                                                 17
+ FB90  ret  nc                                             D0
+ FB91  xor  a                                              AF
+ FB92  ld   (hl),a                                         77
+ FB93  ret                                                 C9
+
+ FB94  call $E9FE                                          CD FE E9
+ FB97  ld   a,$FF                                          3E FF
+ FB99  jp   $E701                                          C3 01 E7
+ FB9C  call $E954                                          CD 54 E9
+ FB9F  ld   c,$0C                                          0E 0C
+ FBA1  call $EB18                                          CD 18 EB
+ FBA4  call $E9F5                                          CD F5 E9
+ FBA7  ret  z                                              C8
+ FBA8  call $E944                                          CD 44 E9
+ FBAB  call $E95E                                          CD 5E E9
+ FBAE  ld   (hl),$E5                                       36 E5
+ FBB0  ld   c,$00                                          0E 00
+ FBB2  call $EA6B                                          CD 6B EA
+ FBB5  call $E9C6                                          CD C6 E9
+ FBB8  call $EB2D                                          CD 2D EB
+ FBBB  jp   $EBA4                                          C3 A4 EB
+ FBBE  ld   d,b                                            50
+ FBBF  ld   e,c                                            59
+ FBC0  ld   a,c                                            79
+ FBC1  or   b                                              B0
+ FBC2  jp   z,$EBD1                                        CA D1 EB
+ FBC5  dec  bc                                             0B
+ FBC6  push de                                             D5
+ FBC7  push bc                                             C5
+ FBC8  call $EA35                                          CD 35 EA
+ FBCB  rra                                                 1F
+ FBCC  jp   nc,$EBEC                                       D2 EC EB
+ FBCF  pop  bc                                             C1
+ FBD0  pop  de                                             D1
+ FBD1  ld   hl,($F1C6)                                     2A C6 F1
+ FBD4  ld   a,e                                            7B
+ FBD5  sub  l                                              95
+ FBD6  ld   a,d                                            7A
+ FBD7  sbc  a,h                                            9C
+ FBD8  jp   nc,$EBF4                                       D2 F4 EB
+ FBDB  inc  de                                             13
+ FBDC  push bc                                             C5
+ FBDD  push de                                             D5
+ FBDE  ld   b,d                                            42
+ FBDF  ld   c,e                                            4B
+ FBE0  call $EA35                                          CD 35 EA
+ FBE3  rra                                                 1F
+ FBE4  jp   nc,$EBEC                                       D2 EC EB
+ FBE7  pop  de                                             D1
+ FBE8  pop  bc                                             C1
+ FBE9  jp   $EBC0                                          C3 C0 EB
+ FBEC  rla                                                 17
+ FBED  inc  a                                              3C
+ FBEE  call $EA64                                          CD 64 EA
+ FBF1  pop  hl                                             E1
+ FBF2  pop  de                                             D1
+ FBF3  ret                                                 C9
+
+ FBF4  ld   a,c                                            79
+ FBF5  or   b                                              B0
+ FBF6  jp   nz,$EBC0                                       C2 C0 EB
+ FBF9  ld   hl,$0000                                       21 00 00
+ FBFC  ret                                                 C9
+
+ FBFD  ld   c,$00                                          0E 00
+ FBFF  ld   e,$20                                          1E 20
+ FC01  push de                                             D5
+ FC02  ld   b,$00                                          06 00
+ FC04  ld   hl,($E743)                                     2A 43 E7
+ FC07  add  hl,bc                                          09
+ FC08  ex   de,hl                                          EB
+ FC09  call $E95E                                          CD 5E E9
+ FC0C  pop  bc                                             C1
+ FC0D  call $E74F                                          CD 4F E7
+ FC10  call $E7C3                                          CD C3 E7
+ FC13  jp   $E9C6                                          C3 C6 E9
+ FC16  call $E954                                          CD 54 E9
+ FC19  ld   c,$0C                                          0E 0C
+ FC1B  call $EB18                                          CD 18 EB
+ FC1E  ld   hl,($E743)                                     2A 43 E7
+ FC21  ld   a,(hl)                                         7E
+ FC22  ld   de,$0010                                       11 10 00
+ FC25  add  hl,de                                          19
+ FC26  ld   (hl),a                                         77
+ FC27  call $E9F5                                          CD F5 E9
+ FC2A  ret  z                                              C8
+ FC2B  call $E944                                          CD 44 E9
+ FC2E  ld   c,$10                                          0E 10
+ FC30  ld   e,$0C                                          1E 0C
+ FC32  call $EC01                                          CD 01 EC
+ FC35  call $EB2D                                          CD 2D EB
+ FC38  jp   $EC27                                          C3 27 EC
+ FC3B  ld   c,$0C                                          0E 0C
+ FC3D  call $EB18                                          CD 18 EB
+ FC40  call $E9F5                                          CD F5 E9
+ FC43  ret  z                                              C8
+ FC44  ld   c,$00                                          0E 00
+ FC46  ld   e,$0C                                          1E 0C
+ FC48  call $EC01                                          CD 01 EC
+ FC4B  call $EB2D                                          CD 2D EB
+ FC4E  jp   $EC40                                          C3 40 EC
+ FC51  ld   c,$0F                                          0E 0F
+ FC53  call $EB18                                          CD 18 EB
+ FC56  call $E9F5                                          CD F5 E9
+ FC59  ret  z                                              C8
+ FC5A  call $E8A6                                          CD A6 E8
+ FC5D  ld   a,(hl)                                         7E
+ FC5E  push af                                             F5
+ FC5F  push hl                                             E5
+ FC60  call $E95E                                          CD 5E E9
+ FC63  ex   de,hl                                          EB
+ FC64  ld   hl,($E743)                                     2A 43 E7
+ FC67  ld   c,$20                                          0E 20
+ FC69  push de                                             D5
+ FC6A  call $E74F                                          CD 4F E7
+ FC6D  call $E978                                          CD 78 E9
+ FC70  pop  de                                             D1
+ FC71  ld   hl,$000C                                       21 0C 00
+ FC74  add  hl,de                                          19
+ FC75  ld   c,(hl)                                         4E
+ FC76  ld   hl,$000F                                       21 0F 00
+ FC79  add  hl,de                                          19
+ FC7A  ld   b,(hl)                                         46
+ FC7B  pop  hl                                             E1
+ FC7C  pop  af                                             F1
+ FC7D  ld   (hl),a                                         77
+ FC7E  ld   a,c                                            79
+ FC7F  cp   (hl)                                           BE
+ FC80  ld   a,b                                            78
+ FC81  jp   z,$EC8B                                        CA 8B EC
+ FC84  ld   a,$00                                          3E 00
+ FC86  jp   c,$EC8B                                        DA 8B EC
+ FC89  ld   a,$80                                          3E 80
+ FC8B  ld   hl,($E743)                                     2A 43 E7
+ FC8E  ld   de,$000F                                       11 0F 00
+ FC91  add  hl,de                                          19
+ FC92  ld   (hl),a                                         77
+ FC93  ret                                                 C9
+ FC94  ld   a,(hl)                                         7E
+ FC95  inc  hl                                             23
+ FC96  or   (hl)                                           B6
+ FC97  dec  hl                                             2B
+ FC98  ret  nz                                             C0
+ FC99  ld   a,(de)                                         1A
+ FC9A  ld   (hl),a                                         77
+ FC9B  inc  de                                             13
+ FC9C  inc  hl                                             23
+ FC9D  ld   a,(de)                                         1A
+ FC9E  ld   (hl),a                                         77
+ FC9F  dec  de                                             1B
+ FCA0  dec  hl                                             2B
+ FCA1  ret                                                 C9
+ FCA2  xor  a                                              AF
+ FCA3  ld   ($E745),a                                      32 45 E7
+ FCA6  ld   ($F1EA),a                                      32 EA F1
+ FCA9  ld   ($F1EB),a                                      32 EB F1
+ FCAC  call $E91E                                          CD 1E E9
+ FCAF  ret  nz                                             C0
+ FCB0  call $E969                                          CD 69 E9
+ FCB3  and  $80                                            E6 80
+ FCB5  ret  nz                                             C0
+ FCB6  ld   c,$0F                                          0E 0F
+ FCB8  call $EB18                                          CD 18 EB
+ FCBB  call $E9F5                                          CD F5 E9
+ FCBE  ret  z                                              C8
+ FCBF  ld   bc,$0010                                       01 10 00
+ FCC2  call $E95E                                          CD 5E E9
+ FCC5  add  hl,bc                                          09
+ FCC6  ex   de,hl                                          EB
+ FCC7  ld   hl,($E743)                                     2A 43 E7
+ FCCA  add  hl,bc                                          09
+ FCCB  ld   c,$10                                          0E 10
+ FCCD  ld   a,($F1DD)                                      3A DD F1
+ FCD0  or   a                                              B7
+ FCD1  jp   z,$ECE8                                        CA E8 EC
+ FCD4  ld   a,(hl)                                         7E
+ FCD5  or   a                                              B7
+ FCD6  ld   a,(de)                                         1A
+ FCD7  jp   nz,$ECDB                                       C2 DB EC
+ FCDA  ld   (hl),a                                         77
+ FCDB  or   a                                              B7
+ FCDC  jp   nz,$ECE1                                       C2 E1 EC
+ FCDF  ld   a,(hl)                                         7E
+ FCE0  ld   (de),a                                         12
+ FCE1  cp   (hl)                                           BE
+ FCE2  jp   nz,$ED1F                                       C2 1F ED
+ FCE5  jp   $ECFD                                          C3 FD EC
+ FCE8  call $EC94                                          CD 94 EC
+ FCEB  ex   de,hl                                          EB
+ FCEC  call $EC94                                          CD 94 EC
+ FCEF  ex   de,hl                                          EB
+ FCF0  ld   a,(de)                                         1A
+ FCF1  cp   (hl)                                           BE
+ FCF2  jp   nz,$ED1F                                       C2 1F ED
+ FCF5  inc  de                                             13
+ FCF6  inc  hl                                             23
+ FCF7  ld   a,(de)                                         1A
+ FCF8  cp   (hl)                                           BE
+ FCF9  jp   nz,$ED1F                                       C2 1F ED
+ FCFC  dec  c                                              0D
+ FCFD  inc  de                                             13
+ FCFE  inc  hl                                             23
+ FCFF  dec  c                                              0D
+ FD00  jp   nz,$ECCD                                       C2 CD EC
+ FD03  ld   bc,$FFEC                                       01 EC FF
+ FD06  add  hl,bc                                          09
+ FD07  ex   de,hl                                          EB
+ FD08  add  hl,bc                                          09
+ FD09  ld   a,(de)                                         1A
+ FD0A  cp   (hl)                                           BE
+ FD0B  jp   c,$ED17                                        DA 17 ED
+ FD0E  ld   (hl),a                                         77
+ FD0F  ld   bc,$0003                                       01 03 00
+ FD12  add  hl,bc                                          09
+ FD13  ex   de,hl                                          EB
+ FD14  add  hl,bc                                          09
+ FD15  ld   a,(hl)                                         7E
+ FD16  ld   (de),a                                         12
+ FD17  ld   a,$FF                                          3E FF
+ FD19  ld   ($F1D2),a                                      32 D2 F1
+ FD1C  jp   $EC10                                          C3 10 EC
+ FD1F  ld   hl,$E745                                       21 45 E7
+ FD22  dec  (hl)                                           35
+ FD23  ret                                                 C9
+ FD24  call $E954                                          CD 54 E9
+ FD27  ld   hl,($E743)                                     2A 43 E7
+ FD2A  push hl                                             E5
+ FD2B  ld   hl,$F1AC                                       21 AC F1
+ FD2E  ld   ($E743),hl                                     22 43 E7
+ FD31  ld   c,$01                                          0E 01
+ FD33  call $EB18                                          CD 18 EB
+ FD36  call $E9F5                                          CD F5 E9
+ FD39  pop  hl                                             E1
+ FD3A  ld   ($E743),hl                                     22 43 E7
+ FD3D  ret  z                                              C8
+ FD3E  ex   de,hl                                          EB
+ FD3F  ld   hl,$000F                                       21 0F 00
+ FD42  add  hl,de                                          19
+ FD43  ld   c,$11                                          0E 11
+ FD45  xor  a                                              AF
+ FD46  ld   (hl),a                                         77
+ FD47  inc  hl                                             23
+ FD48  dec  c                                              0D
+ FD49  jp   nz,$ED46                                       C2 46 ED
+ FD4C  ld   hl,$000D                                       21 0D 00
+ FD4F  add  hl,de                                          19
+ FD50  ld   (hl),a                                         77
+ FD51  call $E98C                                          CD 8C E9
+ FD54  call $EBFD                                          CD FD EB
+ FD57  jp   $E978                                          C3 78 E9
+ FD5A  xor  a                                              AF
+ FD5B  ld   ($F1D2),a                                      32 D2 F1
+ FD5E  call $ECA2                                          CD A2 EC
+ FD61  call $E9F5                                          CD F5 E9
+ FD64  ret  z                                              C8
+ FD65  ld   hl,($E743)                                     2A 43 E7
+ FD68  ld   bc,$000C                                       01 0C 00
+ FD6B  add  hl,bc                                          09
+ FD6C  ld   a,(hl)                                         7E
+ FD6D  inc  a                                              3C
+ FD6E  and  $1F                                            E6 1F
+ FD70  ld   (hl),a                                         77
+ FD71  jp   z,$ED83                                        CA 83 ED
+ FD74  ld   b,a                                            47
+ FD75  ld   a,($F1C5)                                      3A C5 F1
+ FD78  and  b                                              A0
+ FD79  ld   hl,$F1D2                                       21 D2 F1
+ FD7C  and  (hl)                                           A6
+ FD7D  jp   z,$ED8E                                        CA 8E ED
+ FD80  jp   $EDAC                                          C3 AC ED
+ FD83  ld   bc,$0002                                       01 02 00
+ FD86  add  hl,bc                                          09
+ FD87  inc  (hl)                                           34
+ FD88  ld   a,(hl)                                         7E
+ FD89  and  $0F                                            E6 0F
+ FD8B  jp   z,$EDB6                                        CA B6 ED
+ FD8E  ld   c,$0F                                          0E 0F
+ FD90  call $EB18                                          CD 18 EB
+ FD93  call $E9F5                                          CD F5 E9
+ FD96  jp   nz,$EDAC                                       C2 AC ED
+ FD99  ld   a,($F1D3)                                      3A D3 F1
+ FD9C  inc  a                                              3C
+ FD9D  jp   z,$EDB6                                        CA B6 ED
+ FDA0  call $ED24                                          CD 24 ED
+ FDA3  call $E9F5                                          CD F5 E9
+ FDA6  jp   z,$EDB6                                        CA B6 ED
+ FDA9  jp   $EDAF                                          C3 AF ED
+ FDAC  call $EC5A                                          CD 5A EC
+ FDAF  call $E8BB                                          CD BB E8
+ FDB2  xor  a                                              AF
+ FDB3  jp   $E701                                          C3 01 E7
+ FDB6  call $E705                                          CD 05 E7
+ FDB9  jp   $E978                                          C3 78 E9
+ FDBC  ld   a,$01                                          3E 01
+ FDBE  ld   ($F1D5),a                                      32 D5 F1
+ FDC1  ld   a,$FF                                          3E FF
+ FDC3  ld   ($F1D3),a                                      32 D3 F1
+ FDC6  call $E8BB                                          CD BB E8
+ FDC9  ld   a,($F1E3)                                      3A E3 F1
+ FDCC  ld   hl,$F1E1                                       21 E1 F1
+ FDCF  cp   (hl)                                           BE
+ FDD0  jp   c,$EDE6                                        DA E6 ED
+ FDD3  cp   $80                                            FE 80
+ FDD5  jp   nz,$EDFB                                       C2 FB ED
+ FDD8  call $ED5A                                          CD 5A ED
+ FDDB  xor  a                                              AF
+ FDDC  ld   ($F1E3),a                                      32 E3 F1
+ FDDF  ld   a,($E745)                                      3A 45 E7
+ FDE2  or   a                                              B7
+ FDE3  jp   nz,$EDFB                                       C2 FB ED
+ FDE6  call $E877                                          CD 77 E8
+ FDE9  call $E884                                          CD 84 E8
+ FDEC  jp   z,$EDFB                                        CA FB ED
+ FDEF  call $E88A                                          CD 8A E8
+ FDF2  call $E7D1                                          CD D1 E7
+ FDF5  call $E7B2                                          CD B2 E7
+ FDF8  jp   $E8D2                                          C3 D2 E8
+ FDFB  jp   $E705                                          C3 05 E7
+
+ FDFE  ld   a,$01                                          3E 01
+
+ FE00  push hl                                             E5
+ FE01  push hl                                             E5
+ FE02  push hl                                             E5
+ FE03  push hl                                             E5
+ FE04  push hl                                             E5
+ ...
+ 
+ 
+ 
