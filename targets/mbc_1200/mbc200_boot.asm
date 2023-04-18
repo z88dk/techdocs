@@ -6,25 +6,28 @@ L0000_0:
 
   LD SP,$FF00
   LD A,$FE
-  OUT ($E1),A
+  OUT ($E1),A        ; keyboard
   LD A,$37
-  OUT ($E1),A
+  OUT ($E1),A        ; keyboard
+
   LD A,$6E
-  OUT ($ED),A
+  OUT ($ED),A        ; uart2
   LD A,$37
-  OUT ($ED),A
+  OUT ($ED),A        ; uart2
+
   LD A,$C1
-  OUT ($EB),A
+  OUT ($EB),A        ; PPI_M: issue control word
 
   XOR A
-  OUT ($E9),A
+  OUT ($E9),A        ; PPI, 
   LD A,$27
-  OUT ($E4),A
+  OUT ($E4),A        ; FDC reset
 
   LD B,$00
 L0000_1:
   DJNZ L0000_1
 
+; mb8876 Floppy Disk Controller
 L0000_2:
   IN A,($E4)
   RRA
@@ -32,7 +35,7 @@ L0000_2:
   LD A,$B4
   OUT ($E4),A
 
-  LD B,$00
+  LD B,$00            ; short delay
 L0000_3:
   DJNZ L0000_3
 
@@ -43,7 +46,7 @@ L0000_4:
   LD A,$B4
   OUT ($E4),A
 
-  LD B,$00
+  LD B,$00            ; short delay
 L0000_5:
   DJNZ L0000_5
 
@@ -93,7 +96,9 @@ L0000_14:
   IN A,($E4)
   RRA
   JR NC,L0000_14
-  LD HL,$FF00
+
+  LD HL,$FF00       ; BOOT entry
+
   LD A,$01
   CPL
   OUT ($E6),A
@@ -110,9 +115,9 @@ L0000_16:
   JR C,L0000_17
   RRA
   JR C,L0000_16
-  IN A,($E7)
+  IN A,($E7)        ; get byte
   CPL
-  LD (HL),A
+  LD (HL),A         ; store byte
   INC HL
   JR L0000_16
 
@@ -120,7 +125,7 @@ L0000_17:
   IN A,($E4)
   XOR $FF
   POP BC
-  JP Z,$FF00		; BIOS ready, jump !
+  JP Z,$FF00		; BOOT stub ready, jump !
   DJNZ L0000_7      ; not ready, retry 4 times
 
   LD HL,ERR_MSG
