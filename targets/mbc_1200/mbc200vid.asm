@@ -39,9 +39,9 @@ CRTC_LOOP:
   JR NZ,CRTC_LOOP
 
   CALL DO_CLS
-  LD A,$90
-  OUT ($73),A
-  IN A,($72)
+  LD A,$90         ; Control byte (PA=IN, PB=OUT, PC=OUT)
+  OUT ($73),A      ; PPI_1: issue control word
+  IN A,($72)       ; PPI_1 Port C
   OR $40
   OUT ($72),A
   JP L0078
@@ -429,8 +429,8 @@ L01C1:
   CALL VADDR_BC
   EX DE,HL
   LD B,50
-  IN A,($70)
-  AND $03
+  IN A,($70)       ; PPI_1 Port A
+  AND $03          ; 00000011
   XOR $03
   LD ($3FA4),A
   JR Z,L01DC
@@ -1224,12 +1224,12 @@ BEEP:
   PUSH BC
   LD BC,L00FA
 BEEP_0:
-  IN A,($72)
-  OR $10
+  IN A,($72)       ; PPI_1 Port C
+  OR $10           ; 00010000
   OUT ($72),A
   CALL DELAY_PERIOD
-  IN A,($72)
-  AND $EF
+  IN A,($72)       ; PPI_1 Port C
+  AND $EF          ; 11101111
   OUT ($72),A
   CALL DELAY_PERIOD
   DEC BC
@@ -1752,7 +1752,7 @@ L078D_3:
   CP (HL)
   JR NC,L078D_2
   INC HL
-  IN A,($72)
+  IN A,($72)       ; PPI_1 Port C
   AND $F8
   OR (HL)
   OUT ($72),A
@@ -2185,17 +2185,17 @@ BYTE_ADDR:
 L098D:
   PUSH AF
 L098D_0:
-  IN A,($70)
-  AND $1C
-  XOR $14
+  IN A,($70)       ; PPI_1 Port A
+  AND $1C          ; 00011100  (control input)
+  XOR $14          ; 00010100  (control input)
   JR NZ,L098D_0
   POP AF
   PUSH AF
-  OUT ($71),A
-  IN A,($72)
-  OR $80
-  OUT ($72),A
-  AND $7F
+  OUT ($71),A      ; PPI_1 Port B
+  IN A,($72)       ; PPI_1 Port C
+  OR $80           ; Control output, bit 7
+  OUT ($72),A      ; PPI_1 Port C
+  AND $7F          ; Control output, bit 7
   OUT ($72),A
   POP AF
   RET
@@ -2211,8 +2211,8 @@ GET_BYTE:
   CALL L09ED
 ; This entry point is used by the routine at L09B7.
 GET_BYTE_0:
-  IN A,($70)
-  AND $80
+  IN A,($70)       ; PPI_1 Port A
+  AND $80          ; PA7
   JR Z,L09B7
 ; This entry point is used by the routine at L09B7.
 GET_BYTE_1:
@@ -2223,20 +2223,20 @@ GET_BYTE_1:
 ;
 ; Used by the routine at GET_BYTE.
 L09B7:
-  IN A,($70)
-  AND $20
+  IN A,($70)       ; PPI_1 Port A
+  AND $20          ; PA5
   JR Z,L09B7_0
-  IN A,($70)
-  AND $1C
-  XOR $14
+  IN A,($70)       ; PPI_1 Port A
+  AND $1C          ; 00011100  (control input)
+  XOR $14          ; 00010100  (control input)
   JR NZ,GET_BYTE_1
 L09B7_0:
   CALL L0A52
   JR NZ,L09B7_1
   LD (HL),C
 L09B7_1:
-  IN A,($70)
-  AND $20
+  IN A,($70)       ; PPI_1 Port A
+  AND $20          ; 00100000   PA5
   JR Z,L09D8
   IN A,($D0)
   CALL L098D
@@ -2259,8 +2259,8 @@ SEND_BYTE:
   PUSH BC
   PUSH AF
 SEND_BYTE_0:
-  IN A,($70)
-  AND $C0
+  IN A,($70)       ; PPI_1 Port A
+  AND $C0          ; OBF   (to PC7, PPI_M)
   XOR $80
   JR NZ,SEND_BYTE_0
   POP AF
