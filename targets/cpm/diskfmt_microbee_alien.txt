@@ -1,4 +1,4 @@
-Sides: 1, 2, 4 (2 sides with single sector count between the 2 sides) or 5 (unknown effect)
+Sides: 1, 2, 4 (2 sides with single sector count between the 2 sides) or 5 (different count on boot sector ?)
 Sect0: Sector start number, 0,1 or 3 (unknown effect).
                                                                                       S  S
                                          B                               S            s  i
