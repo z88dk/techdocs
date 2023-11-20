@@ -24,8 +24,8 @@ AMPRO (type 2) DS                        04  05 28 02   ad 68 a9 69 00   04   08
 AMPRO (type 2) SS (96 TPI)               04  05 50 01   ad 68 a9 69 00   02   0800    01 02   0080   c3 00 00 00 a9   69 97 6c 01
 AMPRO (type 2) DS (96 TPI)               04  05 50 02   ad 68 a9 69 00   04   0800    00 04   0100   8b 01 01 02 a9   69 a6 6c 00
 Amstrad CPC 464 SS                       02  09 28 01   0b 68 2c 6a 00   02   0400    00 02   0040   ab 00 00 00 35   6a b5 6c 01
-AMUST Executive (Early) DS (96 TPI)      04  05 50 02   ad 68 a9 69 00   02   0800    00 05   0140   8b 01 01 02 f6   69 c5 6c 01 (skew 2)
-AMUST Executive DS (96 TPI)              04  05 50 02   ad 68 a9 69 00   02   0800    00 05   0140   8b 01 01 02 f1   69 dd 6c 00
+AMUST Executive (Early) DS (96 TPI)      04  05 50 02   ad 68 a9 69 00   02   0800    00 05   0140   8b 01 01 02 f6   69 c5 6c 01
+AMUST Executive DS (96 TPI)              04  05 50 02   ad 68 a9 69 00   02   0800    00 05   0140   8b 01 01 02 f1   69 dd 6c 00 (skew 2)
 Archive DS                               02  09 28 02   0b 68 a9 69 00   02   0800    01 01   0040   af 00 00 02 a9   69 ed 6c 01
 Archive DS (96 TPI)                      04  05 50 02   e3 68 a9 69 00   02   0800    00 05   0140   8b 01 01 02 f6   69 f5 6c 00 (skew 3)
 Associate DS                             02  0a 28 02   41 68 a9 69 00   02   0800    01 02   0080   c3 00 00 04 a9   69 fd 6c 00
