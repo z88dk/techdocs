@@ -1,10 +1,10 @@
 Sides: 1, 2, 4 (2 sides with single sector count between the 2 sides) or 3/5 (different count on boot sector, 1/2 sides)
 Sect0: Sector start number, 0,1 or 3 (unknown effect).
                                                                                       S  S                                     SS
-                                         B                               S            s  i                                     kt
-                                         o                               k            c  d                                     ea
-                                         o                               e            t  e                                     wr
-                                         t   Se Tk Sd                    w?   Extent  0  s   DirSz  (*)                         t?
+                                                                         B            s  i                                     kt
+                                                                         o            c  d                                     ea
+                                                                         oT           t  e                                     wr
+                                             Se Tk Sd                    tk   Extent  0  s   DirSz  (*)                         t?
 =================================================================================================================================
 Abacus DS (96 TPI)                       02  0a 50 02   41 68 a9 69 00   02   0800    00 02   0080   8b 01 01 02 52   6a bd 6b 00
 Actrix AM SS                             02  09 28 01   0b 68 a9 69 00   02   0400    00 02   0040   ab 00 00 00 23   6a c4 6b 00
@@ -24,7 +24,7 @@ AMPRO (type 2) DS                        04  05 28 02   ad 68 a9 69 00   04   08
 AMPRO (type 2) SS (96 TPI)               04  05 50 01   ad 68 a9 69 00   02   0800    01 02   0080   c3 00 00 00 a9   69 97 6c 01
 AMPRO (type 2) DS (96 TPI)               04  05 50 02   ad 68 a9 69 00   04   0800    00 04   0100   8b 01 01 02 a9   69 a6 6c 00
 Amstrad CPC 464 SS                       02  09 28 01   0b 68 2c 6a 00   02   0400    00 02   0040   ab 00 00 00 35   6a b5 6c 01
-AMUST Executive (Early) DS (96 TPI)      04  05 50 02   ad 68 a9 69 00   02   0800    00 05   0140   8b 01 01 02 f6   69 c5 6c 01
+AMUST Executive (Early) DS (96 TPI)      04  05 50 02   ad 68 a9 69 00   02   0800    00 05   0140   8b 01 01 02 f6   69 c5 6c 01 (skew 3)
 AMUST Executive DS (96 TPI)              04  05 50 02   ad 68 a9 69 00   02   0800    00 05   0140   8b 01 01 02 f1   69 dd 6c 00 (skew 2)
 Archive DS                               02  09 28 02   0b 68 a9 69 00   02   0800    01 01   0040   af 00 00 02 a9   69 ed 6c 01
 Archive DS (96 TPI)                      04  05 50 02   e3 68 a9 69 00   02   0800    00 05   0140   8b 01 01 02 f6   69 f5 6c 00 (skew 3)
