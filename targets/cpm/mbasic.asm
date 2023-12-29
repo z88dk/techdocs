@@ -36,6 +36,11 @@ defc DIRTMP  =  BASE+$0080
 ; ren mbasic.bin P3BASIC.COM
 ; z88dk-appmake +cpmdisk -f plus3 -b P3BASIC.COM
 
+; ZX Spectrum - Scorpion ZS
+; z80asm -b -DHAVE_GFX -DZXPLUS3 -DSCORPION -DVT52 -DBIT_PLAY mbasic.asm
+; ren mbasic.bin zxbasic.com
+; z88dk-appmake +cpmdisk -f scorpion --container=raw --extension=.trd -b zxbasic.com
+
 
 
 ; Experimental, rebased CP/M on TRDOS by Kamil Karimov
@@ -1677,7 +1682,7 @@ FRETOP:
 TEMP3:
   DEFW $0000              ; (word) used for garbage collection or by USR function, a.k.a. CUROPR
 TEMP8:
-  DEFW $0000              ; Used for garbage collection
+  DEFW $0000              ; Used for garbage collection and at boot as "CPMFIL"
 ENDFOR:
   DEFW $0000              ; Next address of FOR st.
 DATLIN:
@@ -1872,18 +1877,53 @@ IF ZXPLUS3
 pixelbyte:
 		defb	0		; pivot for data transfer
 
+IF SCORPION
+
+p3_poke:
+		di
+		ex  af,af
+
+		ld	a,$1F
+		ld bc,$7ffd
+
+		out(c),a
+		ex af,af
+		ld (hl),a
+
+		ld	a,$1C
+
+		out(c),a
+		ei
+		ret
+
+p3_peek:
+		di
+
+		ld	a,$1F
+		ld bc,$7ffd
+
+		out(c),a
+		ld a,(hl)
+		ex  af,af
+
+		ld	a,$1C
+
+		out(c),a
+		ex  af,af
+		ei
+		ret
+ELSE
 p3_poke:
 		jp 0
 
 p3_peek:
 		jp 0
-
+ENDIF
 
 ; -- -- -- -- --
 __VPOKE:
   CALL GETWORD
   PUSH DE
-  ;CALL PRODIR             ;DONT ALLOW DIRECT IF PROTECTED FILE
   CALL SYNCHR
   DEFM ","
   CALL GETINT             ; Get integer 0-255
@@ -1896,7 +1936,6 @@ __VPOKE:
 ; -- -- -- -- --
 __VPEEK:
   CALL GETWORD_HL
-  ;CALL PRODIR             ;DONT ALLOW DIRECT IF PROTECTED FILE
   CALL p3_peek
   JP PASSA
 
@@ -2983,7 +3022,7 @@ RESTART:
 
 ; --- START PROC READY ---
 ;
-; Used by the routines at PROMPT, __LIST, __LOAD, EDIT_DONE and _READY.
+; Used by the routines at PROMPT, __LIST, __LOAD, EDIT_DONE and INITSA.
 READY:
 
 IF HAVE_GFX
@@ -4414,7 +4453,7 @@ __RUN:
   CP LINCON           ;LINE NUMBER CONSTANT?
   JR Z,__RUN_0        ;YES
   CP PTRCON           ;LINE POINTER (RATHER UNLIKELY)
-  JP NZ,_RUN_FILE
+  JP NZ,LRUN          ;No line number specified, try to load and run a file
 
 ;CLEAN UP,SET [H,L]=[TXTTAB]-1 AND
 ;RETURN TO NEWSTT
@@ -14742,6 +14781,7 @@ _OUTPRT:
 
 ; Output character to printer
 ;
+; a.k.a. LPTOUT
 ; Used by the routines at OUTDO and FINLPT.
 LPTCHR:
   PUSH AF               ;SAVE BACK AGAIN
@@ -14752,7 +14792,7 @@ LPTCHR:
   DEFB $CD                ; CALL nn
 
 ; Data block at 19587
-SMC_OUTPRT:
+SMC_LPTOUT:
   DEFW $0000              ;PRINTER ROUTINE ADDRESS STORED HERE
 
 ; Routine at 19589
@@ -14858,7 +14898,7 @@ TRYOUT:
   DEFB $CD                ; CALL nn
 
 ; Data block at 19715
-SMC_TTYIN:
+SMC_CONOUT:
   DEFW $0000
 
 ; Routine at 19717
@@ -14906,7 +14946,6 @@ INCHR_PROMPT:
   RET
 
 ; Get input character
-; a.k.a. INCHRI
 ;
 ; Used by the routines at FN_INPUT, L4D05, STALL, FN_INKEY_0, DISPED and NOTDGI.
 INCHRI:
@@ -14916,7 +14955,7 @@ INCHRI:
   DEFB $CD              ; CALL nn
 
 ; Data block at 19780
-SMC_INCHRI:
+SMC_CONIN:
   DEFW $0000            ;CHANGED TO CALL CI
 
 ; Routine at 19782
@@ -15211,7 +15250,7 @@ REALLY:
 
 ; Clear memory, initialize files and reset
 ;
-; Used by the routine at _READY.
+; Used by the routine at INITSA.
 ; THE CODE BELOW SETS THE FILE MODE TO 0 (CLOSED) FOR ALL FCB'S
 NODSKS:
   LD A,(MAXFIL)           ;GET LARGEST FILE #
@@ -18503,10 +18542,11 @@ FILE_OPENOUT:
   XOR A                 ;INTERNAL FILE NUMBER IS ALWAYS ZERO
   JP PRGFIL             ;SCAN FILE NAME AND DISK NUMMER
                         ;AND DO THE RIGHT THING USING MD.KIL AS A FLAG
-; label=_RUN_FILE
-;
-; Used by the routines at ATOH and _READY.
-_RUN_FILE:
+
+
+; Load and run a file, used also at boot time
+; Used by the routines at ATOH and INITSA.
+LRUN:
   DEFB $F6                ; 'OR $AF'  ;SET NON ZERO TO FLAG "RUN" COMMAND
 
 ; 'LOAD' BASIC command
@@ -18715,7 +18755,7 @@ BINPSV:
   LD HL,(TXTTAB)          ;GET START POINT
 BSAVLP:
   CALL DCOMPR             ;REACHED THE END?
-  JR Z,LOAD_END           ;REGET TEXT POINTER AND CLOSE FILE 0
+  JP Z,LOAD_END           ;REGET TEXT POINTER AND CLOSE FILE 0
   LD A,(HL)               ;GET LINE DATA
   INC HL                  ;POINT AT NEXT DATA
   PUSH DE                 ;SAVE LIMIT
@@ -20962,10 +21002,17 @@ GXPOS:     DEFW 0			; Requested X coordinate
 GYPOS:     DEFW 0			; Requested Y coordinate
 
 IF ZXPLUS3
+IF SCORPION
+ATRBYT:    DEFB 56			; Blue PAPER, white INK
+FORCLR:    DEFB 0			; Foreground color
+BAKCLR:    DEFB 7			; Background color
+BDRCLR:    DEFB 7			; Border color
+ELSE
 ATRBYT:    DEFB 8+7			; Blue PAPER, white INK
 FORCLR:    DEFB 7			; Foreground color
 BAKCLR:    DEFB 1			; Background color
 BDRCLR:    DEFB 1			; Border color
+ENDIF
 ELSE
 ATRBYT:    DEFB 0
 FORCLR:    DEFB 0			; Foreground color
@@ -21711,7 +21758,21 @@ _SCALXY_6:
 
 CHGCLR:
 IF ZXPLUS3
-	
+
+IF SCORPION
+
+	ld		hl,$c000+6144
+	ld		de,768
+CHGCLR_SCORPION:
+	ld		a,(ATRBYT)
+	call	p3_poke
+	inc		hl
+	dec		de
+	ld		a,d
+	or		e
+	jr		nz,CHGCLR_SCORPION
+
+ELSE
 	; INK
 	ld a,27
 	CALL OUTDO
@@ -21743,6 +21804,7 @@ foreptr:
 backptr:
 	ld a,(hl)
 	CALL OUTDO
+ENDIF
 
 	; BORDER
 	LD	A,(BDRCLR)
@@ -22319,7 +22381,11 @@ MAPXY:
 
 	ld a,h
 	and $03
+IF SCORPION
+	or $58+$80
+ELSE
 	or $58		; $5800 = color attributes
+ENDIF
 	ld h,a   
 
 	ld (ALOC),hl		   ; Store attribute address
@@ -22367,6 +22433,9 @@ pixeladdress:
 	XOR     L
 	AND     @11111000
 	XOR     L
+IF SCORPION
+	OR      $80
+ENDIF
 	LD      D,A
 	LD      A,H
 	RLCA
@@ -22488,7 +22557,7 @@ IF BIT_PLAY
 
 TMPSOUND:  defw 0
 OCTSAV:    defb 0
-TMPSAV:    defb 0
+TMPSAV:    defb 10
 
 __PLAY:
 ;  DI
@@ -23996,15 +24065,15 @@ ENDIF
 
 ;
 ; Used by the routine at DONCMD.
-_READY:
+INITSA:
   CALL NODSKS
   LD HL,(TXTTAB)
   DEC HL
   LD (HL),$00
-  LD HL,(TEMP8)
-  LD A,(HL)
-  OR A
-  JP NZ,_RUN_FILE
+  LD HL,(TEMP8)         ;POINT TO START OF COMMAND LINE
+  LD A,(HL)             ;GET BYTE POINTED TO
+  OR A                  ;IF ZERO, NO FILE SEEN
+  JP NZ,LRUN            ;TRY TO RUN FILE
   JP READY
 
 
@@ -24015,21 +24084,27 @@ _READY:
 ;ENDIF
 
 ;----------------------------------------------------------------
-; WARNING:  All the code after this position will be destroyed
+;    WARNING:  All the code after 'ENDIO' will be destroyed
 ;----------------------------------------------------------------
 
 
 ; Data block at 24012
-NULL_FILE:
+ENDIO:
   DEFW $0000
 
+
+IF ORIGINAL
+
 ; Data block at 24014
-CPMBOOT_ADDR:
+CHK_TRY:
   DEFB $01
 
 ; Data block at 24015
-PSP_BYTES:
+CHK_RANGE:
   DEFB $05
+
+ENDIF
+
 
 ; Main entry
 ;
@@ -24063,7 +24138,7 @@ INIT:
   INC HL                    
   LD D,(HL)                 ;GET HIGH BYTE
   EX DE,HL                  ;INPUT ADDRESS TO [H,L]
-  LD (SMC_INCHRI),HL        ;SAVE IN CONSOLE INPUT CALL
+  LD (SMC_CONIN),HL         ;SAVE IN CONSOLE INPUT CALL
   EX DE,HL                  ;POINTER BACK TO [H,L]
   INC HL                    ;SKIP "JMP" OPCODE
   INC HL                    ;BUMP POINTER
@@ -24071,7 +24146,7 @@ INIT:
   INC HL
   LD D,(HL)
   EX DE,HL                  ;INTO [H,L]
-  LD (SMC_TTYIN),HL         ;SAVE INTO OUTPUT ROUTINE
+  LD (SMC_CONOUT),HL         ;SAVE INTO OUTPUT ROUTINE
   EX DE,HL                  ;POINTER BACK TO [H,L]
   INC HL                    ;NOW POINT TO PRINTER OUTPUT
   INC HL                    ;ROUTINE ADDRESS
@@ -24079,7 +24154,7 @@ INIT:
   INC HL
   LD D,(HL)
   EX DE,HL                  ;GET ADDRESS INTO [D,E]
-  LD (SMC_OUTPRT),HL        ;SET PRINT ROUTINE ADDRESS
+  LD (SMC_LPTOUT),HL        ;SET PRINT ROUTINE ADDRESS
 
   ;  Check CP/M Version Number
 IF CPMV1
@@ -24110,7 +24185,7 @@ ENDIF
   LD (TEMPPT),HL
   LD HL,PRMSTK            ; INITIALIZE PARAMETER BLOCK CHAIN
   LD (PRMPRV),HL
-  LD HL,($0006)           ; HL=BDOS entry address (=LAST LOC IN MEMORY)
+  LD HL,(CPMENT+1)        ; HL=BDOS entry address (=LAST LOC IN MEMORY)
   LD (MEMSIZ),HL          ; -> USE AS DEFAULT
 
 
@@ -24122,8 +24197,8 @@ ENDIF
 ;
 ; BASIC <FILE NAME>[/M:<TOPMEM>][/F:<FILES>]
 ;
-  LD A,3                ; If the /F option is omitted, the number of files defaults to 3.
-  LD (MAXFIL),A			; HIGHEST FILE NUMBER ALLOWED
+  LD A,3                ; DEFAULT FILES           ; If the /F option is omitted, the number of files defaults to 3.
+  LD (MAXFIL),A			; BY SETTING MAXFIL=3     ; HIGHEST FILE NUMBER ALLOWED
   LD HL,ZEROB           ; POINT AT ZERO BYTE
   LD (TEMP8),HL         ; SO IF RE-INITAILIZE OK
   LD A,(COMAGN)         ; HAVE WE ALREADY READ COMMAND LINE
@@ -24161,26 +24236,26 @@ ENDCMD:
 ; A>MBASIC PRGM/F:2/M:&H9000
 ; Use first 36K of memory, 2 files, and execute PRGM.BAS.
   
-  CP '/'
-  JR Z,INIT_3
-  DEC HL
-  LD (HL),'"'
-  LD (TEMP8),HL
-  INC HL
-INIT_2:
-  CP '/'
-  JR Z,INIT_3
-  CALL CHRGTB
-  OR A
-  JR NZ,INIT_2
-  JR DONCMD
+  CP '/'              ;IS IT A SLASH
+  JR Z,FNDSLH         ;YES
+  DEC HL              ;BACK UP POINTER
+  LD (HL),'"'         ;STORE DOUBLE QUOTE
+  LD (TEMP8),HL       ;SAVE POINTER TO START OF FILE NAME
+  INC HL              ;BUMP POINTER
+ISSLH:
+  CP '/'              ;OPTION?
+  JR Z,FNDSLH         ;YES
+  CALL CHRGTB         ;SKIP OVER CHAR IN FILE NAME
+  OR A                ;SET CC'S
+  JR NZ,ISSLH         ;KEEP LOOKING FOR OPTION
+  JR DONCMD           ;THAT'S IT
 
   
-INIT_3:
-  LD (HL),$00
-  CALL CHRGTB
-INIT_4:
-  CALL MAKUPL
+FNDSLH:
+  LD (HL),$00         ;STORE TERMINATOR OVER "/"
+  CALL CHRGTB         ;GET CHAR AFTER SLASH
+SCANS1:
+  CALL MAKUPL         ; (fix added in 5.22, we accept both /s: and /S:)
   CP 'S'              ; [/S:<maximum record size>]
   JR Z,WASS
 
@@ -24223,7 +24298,7 @@ FOK:
   JR Z,DONCMD
   CALL SYNCHR
   DEFM "/"
-  JR INIT_4
+  JR SCANS1
   
   
 ; /S:<maximum record size> may be added at the end of the command
@@ -24247,19 +24322,28 @@ IF ZXPLUS3
 ; ---------------------------------------------------------------
 pokebyte_code:
 		di
+		ex  af,af
+;IF SCORPION
+;		ld	a,$1F
+;		ld bc,$7ffd
+;ELSE
 		; ..$15 00010101 -> banks 4,5,6,3
 		; ..$11 00010001 -> banks 0,1,2,3 (TPA)
-		ex  af,af
 		ld	a,$15
 		;ld	a,$0D
 		;ld	a,$05
 		ld bc,$1ffd
+;ENDIF
 		out(c),a
 		ex af,af
 		ld (hl),a
+;IF SCORPION
+;		ld	a,$1C
+;ELSE
 		ld	a,$11		; avoid using ($FF01) to be compatible with CP/M 2.2 
 		;ld	a,$09
 		;ld	a,$01
+;ENDIF
 		;ld	a,($FF01)	; saved value
 		out(c),a
 		ei
@@ -24267,18 +24351,27 @@ pokebyte_code:
 		; adjust code size
 peekbyte_code:
 		di
+;IF SCORPION
+;		ld	a,$1F
+;		ld bc,$7ffd
+;ELSE
 		; ..$15 00010101 -> banks 4,5,6,3
 		; ..$11 00010001 -> banks 0,1,2,3 (TPA)
 		ld	a,$15
 		;ld	a,$0D
 		;ld	a,$05
 		ld bc,$1ffd
+;ENDIF
 		out(c),a
 		ld a,(hl)
 		ex  af,af
+;IF SCORPION
+;		ld	a,$1C
+;ELSE
 		ld	a,$11		; avoid using ($FF01) to be compatible with CP/M 2.2 
 		;ld	a,$09
 		;ld	a,$01
+;ENDIF
 		;ld	a,($FF01)	; saved value
 		out(c),a
 		ex  af,af
@@ -24307,14 +24400,14 @@ IF ORIGINAL
   LD A,(DE)
   OR A
   JR Z,DONCMD_3
-  LD A,(PSP_BYTES)
+  LD A,(CHK_RANGE)
   LD B,A
   
 PSP_LOOP:
-  LD A,(CPMBOOT_ADDR)
+  LD A,(CHK_TRY)
   LD C,A
-  LD HL,($0006)         ; HL=BDOS entry address
-  LD L,$00              ; Reduce to the byte boundary to get the TPA size
+  LD HL,(CPMENT+1)      ; HL=BDOS entry address (=LAST LOC IN MEMORY)
+  LD L,$00              ; Cut off the byte boundary
 
 PSP_CHK:
   LD A,(DE)
@@ -24335,50 +24428,63 @@ PSP_DIFFERS:
   RET Z
   JR PSP_LOOP
 
-
 DONCMD_3:
-  DEC HL                ; useless ?  (this is also on the MSX version)
+;  (this is also on the MSX version, probably had to be removed with the whole code block)
+  DEC HL                ; useless ?
+
 ENDIF
   
   LD HL,(MEMSIZ)        ; GET SIZE OF MEMORY
-  DEC HL
 
-; SET UP DEFAULT STRING SPACE
-  LD (MEMSIZ),HL
-  DEC HL
-  PUSH HL
+  DEC HL                ;ALWAYS LEAVE TOP BYTE UNUSED BECAUSE
+                        ;VAL(STRING) MAKES BYTE IN MEMORY
+                        ;BEYOND LAST CHAR OF STRING=0
+
+  LD (MEMSIZ),HL        ;SAVE IN REAL MEMORY SIZE
+  DEC HL                ;ONE LOWER IS STKTOP
+  PUSH HL               ;SAVE IT ON STACK
+  
+;
+; DISK INITIALIZATION ROUTINE
+; SETUP FILE INFO BLOCKS
+; THE NUMBER OF EACH AND INFORMATION FOR GETTING TO POINTERS TO EACH IS STORED.
+; NO LOCATIONS ARE INITIALIZED, THIS IS DONE BY NODSKS, FIRST CLOSING ALL FILES.
+; THE NUMBER OF FILES IS THE FILE POINTER TABLE
+;
+  defc DSKDAT=ENDIO     ;START DATA AFTER ALL CODE
+
   LD A,(MAXFIL)			; HIGHEST FILE NUMBER ALLOWED
-  LD HL,NULL_FILE
+  LD HL,DSKDAT          ;GET START OF MEMORY
   LD (FILPT1),HL
-  LD DE,FILPTR
-  LD (MAXFIL),A			; HIGHEST FILE NUMBER ALLOWED
-  INC A
+  LD DE,FILPTR          ;POINT TO TABLE TO SET UP
+  LD (MAXFIL),A	        ;REMEMBER HOW MANY FILES                ; HIGHEST FILE NUMBER ALLOWED
+  INC A                 ;ALWAYS FILE 0 FOR INTERNAL USE
 
-  LD BC,$00A9				;(FD.SIZ) POINT TO RECORD SIZE
+  LD BC,$00A9           ;(DBLK.C) - SIZE OF A FILE INFO BLOCK PLUS $CODE
 
-DONCMD_4:
-  EX DE,HL
-  LD (HL),E
+LOPFLB:
+  EX DE,HL              ;[H,L] POINT INTO POINTER BLOCK
+  LD (HL),E             ;STORE THE POINTER AT THIS FILE
   INC HL
   LD (HL),D
   INC HL
   EX DE,HL
-  ADD HL,BC
-  PUSH HL
-  LD HL,(MAXREC)
-  LD BC,128+50		; The default record size is 128 bytes.
+  ADD HL,BC             ;[H,L] POINT TO NEXT INFO BLOCK
+  PUSH HL               ;SAVE [H,L]
+  LD HL,(MAXREC)        ;GET MAX RECORD SIZE
+  LD BC,128+50          ;(FNZBLK) GET SIZE OF OTHER STUFF     ; The default record size is 128 bytes.
   ADD HL,BC
   LD B,H
-  LD C,L
-  POP HL
-  DEC A
-  JR NZ,DONCMD_4
-
-  INC HL               ; INCREMENT POINTER
-  LD (TXTTAB),HL       ; SAVE BOTTOM OF MEMORY
-  LD (SAVSTK),HL       ; WE RESTORE STACK WHEN ERRORS
-  POP DE               ; GET  CURRENT MEMSIZ
-  LD A,E               ; CALC TOTAL FREE/8
+  LD C,L                ;RESULT TO [B,C]
+  POP HL                ;RESTORE [H,L]
+  DEC A                 ;ARE THERE MORE?
+  JR NZ,LOPFLB
+;HAVFNS:
+  INC HL                ; INCREMENT POINTER
+  LD (TXTTAB),HL        ; SAVE BOTTOM OF MEMORY
+  LD (SAVSTK),HL        ; WE RESTORE STACK WHEN ERRORS
+  POP DE                ; GET  CURRENT MEMSIZ
+  LD A,E                ; CALC TOTAL FREE/8
   SUB L
   LD L,A
   LD A,D
@@ -24387,7 +24493,7 @@ DONCMD_4:
   JP C,OM_ERR
 
 ; HL=HL/8
-  LD B,$03             ; DIVIDE BY 2 THREE TIMES
+  LD B,$03              ; DIVIDE BY 2 THREE TIMES
 SHFLF3:
   OR A
   LD A,H
@@ -24400,10 +24506,10 @@ SHFLF3:
   JR NZ,SHFLF3
 
   LD A,H                ; SEE HOW MUCH
-  CP $02				; IF LESS THAN 512 USE 1 EIGHTH
+  CP $02			 	; IF LESS THAN 512 USE 1 EIGHTH
   JR C,SMLSTK
 
-  LD HL,$0200			; Force minimum MEM size to 512
+  LD HL,$0200           ; Force minimum MEM size to 512
 
 SMLSTK:
   LD A,E                ; SUBTRACT STACK SIZE FROM TOP MEM
@@ -24415,6 +24521,12 @@ SMLSTK:
   JP C,OM_ERR
 
 IF ZXPLUS3
+
+IF SCORPION
+
+; Nothing to be done
+
+ELSE
 	push de
 	ld de,-34	; let's reserve extra space on stack for the JP routines
 	add hl,de
@@ -24438,6 +24550,8 @@ IF ZXPLUS3
 	ldir
 	pop hl
 	pop de
+ENDIF
+
 ENDIF
 
 
@@ -24480,7 +24594,7 @@ ENDIF
   LD (SMC_PRINTMSG),HL
   CALL OUTDO_CRLF         ; PRINT CARRIAGE RETURN
   LD HL,WARM_BT
-  JP _READY
+  JP INITSA
 
 IF ORIGINAL
 ; Message at 24551
@@ -24507,7 +24621,11 @@ COPYRIGHT_MSG:
   DEFB $0A
   DEFM "["
 IF ZXPLUS3
+IF SCORPION
+  DEFM "ZX Scorpion "
+ELSE
   DEFM "ZX +3 "
+ENDIF
 ENDIF
   DEFM "CP/M Version]"
   DEFB $0D
