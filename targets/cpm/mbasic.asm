@@ -27,7 +27,8 @@ defc DIRTMP  =  BASE+$0080
 
 
 
-; Proof of concept:  ZX Spectrum +3 graphics and Terminal
+; ZX Spectrum +3 graphics and Terminal
+;--------------------------------------
 ; (VPOKE, VPEEK, PSET, PRESET, POINT, CSRLIN, LINE, CLS, COLOR, LOCATE, PRINT @#, DRAW, CIRCLE)
 ; add -DTAPE for LOAD!, LOAD!? (=CLOAD, CLOAD?) and SAVE! (=CSAVE) ...Kansas City Standard, at 1200 bps, MSX style CSAVE protocol.
 ; add -DBIT_PLAY for OUT! (=PLAY) and OUT@ (=SOUND), they're single channel melody commands, Philips VG-5000 style syntax
@@ -36,8 +37,13 @@ defc DIRTMP  =  BASE+$0080
 ; ren mbasic.bin P3BASIC.COM
 ; z88dk-appmake +cpmdisk -f plus3 -b P3BASIC.COM
 
-; ZX Spectrum - Scorpion ZS
-; z80asm -b -DHAVE_GFX -DZXPLUS3 -DSCORPION -DVT52 -DBIT_PLAY mbasic.asm
+
+; ZX Spectrum clones: Scorpion ZS, Kay-1024, Pentagon (expanded)
+;----------------------------------------------------------------
+; Add -DBIOS20 for 512x256 monochrome graphics mode (FK0CPM by Kirill Frolov).
+; Omitting "BIOS20" will build a color BASIC for the Scorpion CP/M
+;
+; z80asm -b -DHAVE_GFX -DZXPLUS3 -DSCORPION -DVT52 -DTAPE -DBIT_PLAY mbasic.asm
 ; ren mbasic.bin zxbasic.com
 ; z88dk-appmake +cpmdisk -f scorpion --container=raw --extension=.trd -b zxbasic.com
 
@@ -1890,7 +1896,11 @@ p3_poke:
 		ex af,af
 		ld (hl),a
 
+IF BIOS20
+		ld	a,$19
+ELSE
 		ld	a,$1C
+ENDIF
 
 		out(c),a
 		ei
@@ -1906,7 +1916,11 @@ p3_peek:
 		ld a,(hl)
 		ex  af,af
 
+IF BIOS20
+		ld	a,$19
+ELSE
 		ld	a,$1C
+ENDIF
 
 		out(c),a
 		ex  af,af
@@ -22113,15 +22127,19 @@ BOXLOP:
   PUSH HL             ;SAVE ADDRESS
   
 IF ZXPLUS3
+IF !BIOS20
   ld hl,(ALOC)		; 'pixeladdress' result for attributes, saved by MAPXY
   push hl
+ENDIF
 ENDIF
   EX DE,HL            ;SET UP FOR NSETCX WITH COUNT
   CALL NSETCX         ;IN [H,L] OF POINTS TO SETC         ; Set horizontal screenpixels
 
 IF ZXPLUS3
+IF !BIOS20
   pop hl
   ld (ALOC),hl		; 'pixeladdress' result for attributes, saved by MAPXY
+ENDIF
 ENDIF
   POP HL              ;GET BACK STARTING C
   POP AF              ;ADDRESS AND BIT MASK
@@ -22333,11 +22351,12 @@ pixmode:
 	pop		hl
 	call	p3_poke
 
+IF !BIOS20
 ; Now update color attribute for the plotted pixel
 	ld		a,(ATRBYT)
 	ld		hl,(ALOC)		; 'pixeladdress' result for attributes, saved by MAPXY
 	call	p3_poke
-	
+ENDIF
 	pop hl
 	pop de
 	pop bc
@@ -22351,6 +22370,16 @@ MAPXY:
 	push de
 	push hl			       ; code string address
 	
+IF BIOS20
+  ; BC=X, DE=Y
+	ld	h,b
+	ld	l,c
+
+	call    pixeladdress
+	ld (CLOC),de                ; store pixel address
+	ld (CMASK),a                ; store pixel position in byte
+
+ELSE
   ; BC=X, DE=Y
 	ld	h,c
 	ld	l,e
@@ -22360,7 +22389,7 @@ MAPXY:
 	ld (CLOC),de                ; store pixel address
 	ld (CMASK),a                ; store pixel position in byte
 	pop     hl
-	
+
 	; Now deal with color attributes position
 	ld	a,l
 	ld  l,h
@@ -22389,6 +22418,8 @@ ENDIF
 	ld h,a   
 
 	ld (ALOC),hl		   ; Store attribute address
+ENDIF
+
 
 	pop hl			       ; code string address
 	pop de
@@ -22399,6 +22430,30 @@ ENDIF
 
 ;------------
 pointxy:
+
+IF BIOS20
+	push	bc
+	push	de
+	push	hl
+
+  ; BC=X, DE=Y
+	ld	h,b
+	ld	l,c
+
+	call    pixeladdress
+
+	ex	de,hl
+	ld e,a
+	call p3_peek
+	and e
+
+	pop	hl
+	pop	de
+	pop	bc
+	ret
+ELSE
+  ; BC=X, DE=Y
+
   ; BC=X, DE=Y
 	ld		h,c
 	ld		l,e
@@ -22418,11 +22473,51 @@ pointxy:
 	pop	de
 	pop	bc
 	ret
-
+ENDIF
 
 
 ;------------
 pixeladdress:
+IF BIOS20
+
+;-----------------------------------------------
+;HL,DE -> X,Y
+	LD      A,E
+	LD      B,A
+	AND     A
+	RRA
+	SCF			; Set Carry Flag
+	RRA
+	AND     A
+	RRA
+	XOR     B
+	AND     @11111000
+	XOR     B
+	OR      $80		; <--  DFILE at $C000 rather than $4000
+	LD      D,A
+	LD      A,l
+
+	bit		3,a
+	jp		z,isfirst
+	set		5,d
+.isfirst
+	rr h
+	rra
+
+	RLCA
+	RLCA
+	RLCA
+
+	XOR     B
+	AND     @11000111
+	XOR     B
+	RLCA
+	RLCA
+	LD      E,A
+	LD      A,L
+;-----------------------------------------------
+ELSE
+;H,L -> X,Y
 	LD		A,L
 	AND     A
 	RRA
@@ -22448,6 +22543,8 @@ ENDIF
 	RLCA
 	LD      E,A
 	LD      A,H
+;-----------------------------------------------
+ENDIF
 	AND     @00000111
 	XOR		@00000111
 
@@ -22471,12 +22568,33 @@ RIGHTC:
    ld hl,(CLOC)	; SCREEN address
    ret nc
 
+IF BIOS20
+   
+   bit 5,h
+   set 5,h
+   jr nz,rsetaddr
+   res 5,h
+   inc l
+   ld a,l
+   and $1f
+   jr nz,rsetaddr
+   dec l
+   ld e,$01
+   set 5,h
+
+rsetaddr:
+   ld (CLOC),hl
+   
+ELSE
+
    inc hl
    ld (CLOC),hl
 
    ld a,(ALOC)	; LSB of ATTR address
    inc a
    ld (ALOC),a
+
+ENDIF
    ret
 
 
@@ -22489,21 +22607,45 @@ LEFTC:
    ld hl,(CLOC)	; SCREEN address
    ret nc
 
+IF BIOS20
+
+   bit 5,h
+   res 5,h
+   jr nz,setaddr
+   set 5,h
+   ld a,l
+   dec l
+   and $1f
+   jr nz,setaddr
+   inc l
+;   ld a,$80
+   res 5,h
+
+setaddr:
+   ld (CLOC),hl
+
+ELSE
+
    dec hl
    ld (CLOC),hl
 
    ld a,(ALOC)	; LSB of ATTR address
    dec a
    ld (ALOC),a
+
+ENDIF
    ret
 
 
 
 ;------------
+
 DOWNC:
    ld hl,(CLOC)
    call zx_pdown
    ld (CLOC),hl
+
+IF !BIOS20
    ret c
 
    push hl
@@ -22516,6 +22658,7 @@ DOWNC:
    ld (ALOC+1),a
 ad_done:
    pop hl
+ENDIF
    ret
 
 
@@ -24575,6 +24718,8 @@ ENDIF
   DEC HL                  ; TXTTAB AND STREND, ADJUST
   PUSH HL                 ; SAVE NUMBER OF BYTES TO PRINT
 IF ZXPLUS3
+IF SCORPION
+ELSE
   LD A,27
   CALL OUTDO  		; Output char to the current device
   LD A,'y'			; disable 80 columns
@@ -24583,6 +24728,7 @@ IF ZXPLUS3
   CALL OUTDO  		; Output char to the current device
   LD A,'e'			; show cursor
   CALL OUTDO  		; Output char to the current device
+ENDIF
 ENDIF
   LD HL,COPYRIGHT_MSG     ; GET HEADING ("BASIC VERSION...")
   CALL PRS                ; PRINT IT
@@ -24622,7 +24768,7 @@ COPYRIGHT_MSG:
   DEFM "["
 IF ZXPLUS3
 IF SCORPION
-  DEFM "ZX Scorpion "
+  DEFM "ZX Spectrum "
 ELSE
   DEFM "ZX +3 "
 ENDIF
