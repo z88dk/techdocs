@@ -22341,7 +22341,9 @@ NSETCX_LP:
   CALL RIGHTC
   POP HL
 
-  DEC L
+  DEC HL
+  LD A,H
+  OR L
   JR NZ,NSETCX_LP
 
   pop af
