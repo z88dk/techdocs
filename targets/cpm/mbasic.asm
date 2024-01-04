@@ -22510,12 +22510,12 @@ IF BIOS20
 	RRA
 	SCF			; Set Carry Flag
 	RRA
-	AND     A
+;	AND     A
+	SCF		; <--  DFILE at $C000 rather than $4000
 	RRA
 	XOR     B
 	AND     @11111000
 	XOR     B
-	OR      $80		; <--  DFILE at $C000 rather than $4000
 	LD      D,A
 	LD      A,L
 
@@ -22594,7 +22594,7 @@ IF BIOS20
    
    bit 5,h
    set 5,h
-   jr nz,rsetaddr
+   jr z,rsetaddr
    res 5,h
    inc l
    ld a,l
