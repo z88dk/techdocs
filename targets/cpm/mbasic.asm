@@ -20112,6 +20112,10 @@ EXIT_TO_SYSTEM:
 IF VT52
 
 __CLS:
+IF BIOS20
+  LD A,12
+  JP OUTDO
+ELSE
   LD A,27
   CALL OUTDO
   LD A,'x'
@@ -20125,7 +20129,7 @@ __CLS:
   CALL OUTDO
   LD A,'H'
   JP OUTDO
-
+ENDIF
 
 __LOCATE:
   LD DE,$0101			; default values: top-left
@@ -21159,12 +21163,20 @@ SCYRE:
   EX DE,HL          ;RETURN Y IN [D,E]
   POP HL            ;GET BACK THE TEXT POINTER                  ; code string address
 
-  
+
 IF ZXPLUS3
+
+IF BIOS20
+  ld a,d
+  and $FE	; 512 pixel max
+  jp nz,FC_ERR
+ELSE
   xor a
   or b
   or d
   jp nz,FC_ERR
+ENDIF
+
   ld a,e
   cp 192
   jp nc,FC_ERR			; y0	out of range
@@ -21175,6 +21187,9 @@ ENDIF
 
 ;---------------------
 __COLOR:
+IF BIOS20
+  JP FC_ERR
+ELSE
   LD BC,FC_ERR
   PUSH BC
   LD DE,(FORCLR)
@@ -21233,7 +21248,7 @@ __COLOR_2:
   CALL CHGCLR
   POP HL
   RET
-
+ENDIF
 
 ;---------------------
 TOTEXT:
@@ -21711,7 +21726,7 @@ ELSE
 
 ;------------------------------------------------------------------------------
 
-
+; ZX Spectrum stuff
 
 ; Used by the routines at SCALXY and _GRPPRT.
 SCALXY:
@@ -21743,7 +21758,11 @@ _SCALXY_3:
   JR _SCALXY_5
 
 _SCALXY_4:
+IF BIOS20
+  LD DE,512
+ELSE
   LD DE,256
+ENDIF
   CALL DCOMPR		; Compare HL with DE.
   JR C,_SCALXY_6
   EX DE,HL
@@ -21768,7 +21787,9 @@ _SCALXY_6:
   RET
 
 
-
+IF BIOS20
+; No color on ZX Spectrum in HRG mode
+ELSE
 
 CHGCLR:
 IF ZXPLUS3
@@ -21834,6 +21855,7 @@ ELSE
 	ret
 ENDIF
 
+ENDIF
 
 ;=====================================================================
 
@@ -22495,7 +22517,7 @@ IF BIOS20
 	XOR     B
 	OR      $80		; <--  DFILE at $C000 rather than $4000
 	LD      D,A
-	LD      A,l
+	LD      A,L
 
 	bit		3,a
 	jp		z,isfirst
@@ -22579,7 +22601,7 @@ IF BIOS20
    and $1f
    jr nz,rsetaddr
    dec l
-   ld e,$01
+;   ld a,$01
    set 5,h
 
 rsetaddr:
@@ -22595,6 +22617,7 @@ ELSE
    ld (ALOC),a
 
 ENDIF
+
    ret
 
 
@@ -22634,6 +22657,7 @@ ELSE
    ld (ALOC),a
 
 ENDIF
+
    ret
 
 
@@ -22646,7 +22670,7 @@ DOWNC:
    ld (CLOC),hl
 
 IF !BIOS20
-   ret c
+   ret c   ; no need to update the ATTR pointer if we're in the same 8px boundary
 
    push hl
    ld a,(ALOC)
