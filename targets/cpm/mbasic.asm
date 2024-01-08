@@ -47,6 +47,19 @@ defc DIRTMP  =  BASE+$0080
 ; ren mbasic.bin zxbasic.com
 ; z88dk-appmake +cpmdisk -f scorpion --container=raw --extension=.trd -b zxbasic.com
 
+; ZX Spectrum QUORUM-128 (CP/J)
+;-------------------------------
+; -DQUORUM is used to alter the Scorpion mode
+; The modified version of the "UnrealSpeccy" emulator (unrl020q) requires disk images in FDI format
+;
+; z80asm -b -DHAVE_GFX -DZXPLUS3 -DSCORPION -DQUORUM -DVT52 -DBIT_PLAY -DTAPE mbasic.asm
+; ren mbasic.bin zxbasic.com
+; z88dk-appmake +cpmdisk -f quorum --container=dsk -b zxbasic.com
+; samdisk zxbasic.dsk zxbasic.fdi
+
+
+; ren mbasic.bin zxbasic.com
+; z88dk-appmake +cpmdisk -f scorpion --container=raw --extension=.trd -b zxbasic.com
 
 
 ; Experimental, rebased CP/M on TRDOS by Kamil Karimov
@@ -1889,6 +1902,12 @@ p3_poke:
 		di
 		ex  af,af
 
+IF QUORUM
+		LD      BC,80FDh
+		LD      A,80h
+		OUT     (C),A	; Enable writing on background RAM
+ENDIF
+
 		ld	a,$1F
 		ld bc,$7ffd
 
@@ -1899,7 +1918,15 @@ p3_poke:
 IF BIOS20
 		ld	a,$19
 ELSE
+IF QUORUM
+		LD      BC,80FDh
+		xor     a
+		OUT     (C),A
+
+		ld	a,$0F
+ELSE
 		ld	a,$1C
+ENDIF
 ENDIF
 
 		out(c),a
@@ -1908,6 +1935,12 @@ ENDIF
 
 p3_peek:
 		di
+
+IF QUORUM
+		LD      BC,80FDh
+		LD      A,80h
+		OUT     (C),A	; Enable writing on background RAM
+ENDIF
 
 		ld	a,$1F
 		ld bc,$7ffd
@@ -1919,7 +1952,15 @@ p3_peek:
 IF BIOS20
 		ld	a,$19
 ELSE
+IF QUORUM
+		LD      BC,80FDh
+		xor     a
+		OUT     (C),A
+
+		ld	a,$0F
+ELSE
 		ld	a,$1C
+ENDIF
 ENDIF
 
 		out(c),a
@@ -20116,6 +20157,15 @@ IF BIOS20
   LD A,12
   JP OUTDO
 ELSE
+
+IF QUORUM
+
+  LD A,27
+  CALL OUTDO
+  LD A,'E'
+  JP OUTDO
+
+ELSE
   LD A,27
   CALL OUTDO
   LD A,'x'
@@ -20129,6 +20179,8 @@ ELSE
   CALL OUTDO
   LD A,'H'
   JP OUTDO
+ENDIF
+  
 ENDIF
 
 __LOCATE:
@@ -21049,9 +21101,18 @@ GRPACY:    DEFW 0			; Y position of the last plotted pixel (GFX cursor Y)
 GXPOS:     DEFW 0			; Requested X coordinate
 GYPOS:     DEFW 0			; Requested Y coordinate
 
+
+IF QUORUM
+defc CPJ_ATRBYT = $EF13
+ATRBYT:    DEFB 56			;
+FORCLR:    DEFB 0			; Foreground color
+BAKCLR:    DEFB 7			; Background color
+BDRCLR:    DEFB 7			; Border color
+ELSE
+
 IF ZXPLUS3
 IF SCORPION
-ATRBYT:    DEFB 56			; Blue PAPER, white INK
+ATRBYT:    DEFB 56			;
 FORCLR:    DEFB 0			; Foreground color
 BAKCLR:    DEFB 7			; Background color
 BDRCLR:    DEFB 7			; Border color
@@ -21066,6 +21127,8 @@ ATRBYT:    DEFB 0
 FORCLR:    DEFB 0			; Foreground color
 BAKCLR:    DEFB 0			; Background color
 BDRCLR:    DEFB 0			; Border color
+ENDIF
+
 ENDIF
 
 
@@ -21824,6 +21887,12 @@ ELSE
 CHGCLR:
 IF ZXPLUS3
 
+
+IF QUORUM
+	ld		a,(ATRBYT)
+	ld		(CPJ_ATRBYT),a
+ELSE
+
 IF SCORPION
 
 	ld		hl,$c000+6144
@@ -21869,6 +21938,7 @@ foreptr:
 backptr:
 	ld a,(hl)
 	CALL OUTDO
+ENDIF
 ENDIF
 
 	; BORDER
@@ -24773,6 +24843,26 @@ ENDIF
   DEC HL                  ; SINCE TWO ZEROS EXIST BETWEEN
   DEC HL                  ; TXTTAB AND STREND, ADJUST
   PUSH HL                 ; SAVE NUMBER OF BYTES TO PRINT
+
+IF QUORUM
+  ld a,(CPJ_ATRBYT)		; Get the current colors defined in CP/J
+  ld (ATRBYT),a
+  push af
+  and 7
+  ld (FORCLR),a
+  pop af
+  rra
+  rra
+  rra
+  and 7
+  ld (BAKCLR),a
+  ld (BDRCLR),a
+  LD A,27
+  CALL OUTDO
+  LD A,'E'
+  CALL OUTDO
+ENDIF
+
 IF ZXPLUS3
 IF SCORPION
 ELSE
