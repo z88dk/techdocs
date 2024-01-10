@@ -38,6 +38,7 @@ defc DIRTMP  =  BASE+$0080
 ; z88dk-appmake +cpmdisk -f plus3 -b P3BASIC.COM
 
 
+
 ; ZX Spectrum clones: Scorpion ZS, Kay-1024, Pentagon (expanded)
 ;----------------------------------------------------------------
 ; Add -DBIOS20 for 512x256 monochrome graphics mode (FK0CPM by Kirill Frolov).
@@ -57,9 +58,14 @@ defc DIRTMP  =  BASE+$0080
 ; z88dk-appmake +cpmdisk -f quorum --container=dsk -b zxbasic.com
 ; samdisk zxbasic.dsk zxbasic.fdi
 
-
+; ZX Spectrum HC-2000 (and possibly HC-91)
+;------------------------------------------
+; -DHC2000 is used to alter the Scorpion mode
+;
+; z80asm -b -DHAVE_GFX -DZXPLUS3 -DSCORPION -DHC2000 -DVT52 -DBIT_PLAY -DTAPE mbasic.asm
 ; ren mbasic.bin zxbasic.com
-; z88dk-appmake +cpmdisk -f scorpion --container=raw --extension=.trd -b zxbasic.com
+; z88dk-appmake +cpmdisk -f hc2000 --container=dsk -b zxbasic.com
+
 
 
 ; Experimental, rebased CP/M on TRDOS by Kamil Karimov
@@ -1902,27 +1908,40 @@ p3_poke:
 		di
 		ex  af,af
 
+
 IF QUORUM
 		LD      BC,80FDh
 		LD      A,80h
 		OUT     (C),A	; Enable writing on background RAM
 ENDIF
 
+IF HC2000
+		ld a,$ee
+		out ($c5),a
+ELSE
 		ld	a,$1F
 		ld bc,$7ffd
-
 		out(c),a
+ENDIF
+
 		ex af,af
 		ld (hl),a
+
+IF HC2000
+		ld a,$ee
+		out ($c7),a
+ELSE
+
 
 IF BIOS20
 		ld	a,$19
 ELSE
 IF QUORUM
-		LD      BC,80FDh
+		LD      B,80h
 		xor     a
 		OUT     (C),A
 
+		LD      B,7Fh
 		ld	a,$0F
 ELSE
 		ld	a,$1C
@@ -1930,6 +1949,8 @@ ENDIF
 ENDIF
 
 		out(c),a
+ENDIF
+
 		ei
 		ret
 
@@ -1942,21 +1963,33 @@ IF QUORUM
 		OUT     (C),A	; Enable writing on background RAM
 ENDIF
 
+IF HC2000
+		ld a,$ee
+		out ($c5),a
+ELSE
 		ld	a,$1F
 		ld bc,$7ffd
-
 		out(c),a
+ENDIF
+
 		ld a,(hl)
 		ex  af,af
+
+IF HC2000
+		ld a,$ee
+		out ($c7),a
+ELSE
+
 
 IF BIOS20
 		ld	a,$19
 ELSE
 IF QUORUM
-		LD      BC,80FDh
+		LD      B,80h
 		xor     a
 		OUT     (C),A
 
+		LD      B,7Fh
 		ld	a,$0F
 ELSE
 		ld	a,$1C
@@ -1964,6 +1997,8 @@ ENDIF
 ENDIF
 
 		out(c),a
+ENDIF
+
 		ex  af,af
 		ei
 		ret
@@ -20153,8 +20188,14 @@ EXIT_TO_SYSTEM:
 IF VT52
 
 __CLS:
+
 IF BIOS20
   LD A,12
+  JP OUTDO
+ELSE
+
+IF HC2000
+  LD A,24
   JP OUTDO
 ELSE
 
@@ -20181,6 +20222,7 @@ ELSE
   JP OUTDO
 ENDIF
   
+ENDIF
 ENDIF
 
 __LOCATE:
@@ -20255,8 +20297,13 @@ NO_V:
   RET
 ELSE
 
+IF HC2000
+  LD A,'A'
+  CALL ESCA
+ELSE
   LD A,'Y'
   CALL ESCA
+ENDIF
   LD A,L
   ADD A,31
   CALL OUTDO
@@ -20277,8 +20324,6 @@ ESCA:
 ENDIF
 
 ENDIF
-
-
 
 
 ; 'RESET' BASIC command
@@ -21887,6 +21932,25 @@ ELSE
 CHGCLR:
 IF ZXPLUS3
 
+IF HC2000
+	; INK
+	ld a,27
+	CALL OUTDO
+	ld a,73
+	CALL OUTDO
+	LD A,(FORCLR)
+	add '0'
+	CALL OUTDO
+
+	; PAPER
+	ld a,27
+	CALL OUTDO
+	ld a,80
+	CALL OUTDO
+	LD A,(BAKCLR)
+	add '0'
+	CALL OUTDO
+ELSE
 
 IF QUORUM
 	ld		a,(ATRBYT)
@@ -21907,6 +21971,7 @@ CHGCLR_SCORPION:
 	jr		nz,CHGCLR_SCORPION
 
 ELSE
+
 	; INK
 	ld a,27
 	CALL OUTDO
@@ -21938,15 +22003,29 @@ foreptr:
 backptr:
 	ld a,(hl)
 	CALL OUTDO
+
+ENDIF
 ENDIF
 ENDIF
 
+
 	; BORDER
+IF HC2000
+	ld a,27
+	CALL OUTDO
+	ld a,81
+	CALL OUTDO
+	LD A,(BDRCLR)
+	add '0'
+	CALL OUTDO
+ELSE
 	LD	A,(BDRCLR)
 	out	($FE),a
+ENDIF
 	
 	ret
 
+; Color conversion table used only on the Spectrum +3
 CLRTBL:
     defb 32,34,40,42,64,66,72,74
     defb 32,35,44,47,80,83,92,95
@@ -24861,6 +24940,13 @@ IF QUORUM
   CALL OUTDO
   LD A,'E'
   CALL OUTDO
+ENDIF
+
+
+IF HC2000
+  ld a,($000c)
+  and 7
+  ld (BDRCLR),a
 ENDIF
 
 IF ZXPLUS3
