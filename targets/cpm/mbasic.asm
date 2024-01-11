@@ -38,7 +38,6 @@ defc DIRTMP  =  BASE+$0080
 ; z88dk-appmake +cpmdisk -f plus3 -b P3BASIC.COM
 
 
-
 ; ZX Spectrum clones: Scorpion ZS, Kay-1024, Pentagon (expanded)
 ;----------------------------------------------------------------
 ; Add -DBIOS20 for 512x256 monochrome graphics mode (FK0CPM by Kirill Frolov).
@@ -47,6 +46,16 @@ defc DIRTMP  =  BASE+$0080
 ; z80asm -b -DHAVE_GFX -DZXPLUS3 -DSCORPION -DVT52 -DTAPE -DBIT_PLAY mbasic.asm
 ; ren mbasic.bin zxbasic.com
 ; z88dk-appmake +cpmdisk -f scorpion --container=raw --extension=.trd -b zxbasic.com
+
+
+; PINIX CP/M on Profi, Profi+ ZX Spectrum clones
+; (and in theory on Scorpion, Pentagon+16k cache, KAY, Spectrum +3 with BetaDisk)
+;---------------------------------------------------------------------------------
+; -DPINIX is used to alter the Scorpion mode
+; z80asm -b -DHAVE_GFX -DZXPLUS3 -DSCORPION -DPINIX -DVT52 -DBIT_PLAY -DTAPE mbasic.asm
+; ren mbasic.bin zxbasic.com
+; z88dk-appmake +cpmdisk -f scorpion --container=raw --extension=.trd -b zxbasic.com
+
 
 ; ZX Spectrum QUORUM-128 (CP/J)
 ;-------------------------------
@@ -57,6 +66,7 @@ defc DIRTMP  =  BASE+$0080
 ; ren mbasic.bin zxbasic.com
 ; z88dk-appmake +cpmdisk -f quorum --container=dsk -b zxbasic.com
 ; samdisk zxbasic.dsk zxbasic.fdi
+
 
 ; ZX Spectrum HC-2000 (and possibly HC-91)
 ;------------------------------------------
@@ -1933,7 +1943,7 @@ IF HC2000
 ELSE
 
 
-IF BIOS20
+IF BIOS20 | PINIX
 		ld	a,$19
 ELSE
 IF QUORUM
@@ -1981,7 +1991,7 @@ IF HC2000
 ELSE
 
 
-IF BIOS20
+IF BIOS20 | PINIX
 		ld	a,$19
 ELSE
 IF QUORUM
@@ -20189,7 +20199,7 @@ IF VT52
 
 __CLS:
 
-IF BIOS20
+IF BIOS20 | PINIX
   LD A,12
   JP OUTDO
 ELSE
@@ -21146,6 +21156,12 @@ GRPACY:    DEFW 0			; Y position of the last plotted pixel (GFX cursor Y)
 GXPOS:     DEFW 0			; Requested X coordinate
 GYPOS:     DEFW 0			; Requested Y coordinate
 
+IF PINIX
+ATRBYT:    DEFB 7			; Blue PAPER, white INK
+FORCLR:    DEFB 7			; Foreground color
+BAKCLR:    DEFB 0			; Background color
+BDRCLR:    DEFB 0			; Border color
+ELSE
 
 IF QUORUM
 defc CPJ_ATRBYT = $EF13
@@ -21175,7 +21191,7 @@ BDRCLR:    DEFB 0			; Border color
 ENDIF
 
 ENDIF
-
+ENDIF
 
 CLOC:      DEFW 0			; Current screen address
 CMASK:     DEFB 0			; Pixel mask for current screen address
@@ -21952,9 +21968,18 @@ IF HC2000
 	CALL OUTDO
 ELSE
 
-IF QUORUM
+IF QUORUM | PINIX
+IF PINIX
+	ld a,27
+	CALL OUTDO
+	ld a,'P'
+	CALL OUTDO
+	ld a,(ATRBYT)
+	CALL OUTDO
+ELSE
 	ld		a,(ATRBYT)
 	ld		(CPJ_ATRBYT),a
+ENDIF
 ELSE
 
 IF SCORPION
