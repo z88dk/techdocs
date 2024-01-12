@@ -40,8 +40,8 @@ defc DIRTMP  =  BASE+$0080
 
 ; ZX Spectrum clones: Scorpion ZS, Kay-1024, Pentagon (expanded)
 ;----------------------------------------------------------------
-; Add -DBIOS20 for 512x256 monochrome graphics mode (FK0CPM by Kirill Frolov).
-; Omitting "BIOS20" will build a color BASIC for the Scorpion CP/M
+; ** Add -DBIOS20 for 512x256 monochrome graphics (FK0CPM by Kirill Frolov). **
+; Omitting "BIOS20" will build a color BASIC for the Scorpion CP/M (MOA '92)
 ;
 ; z80asm -b -DHAVE_GFX -DZXPLUS3 -DSCORPION -DVT52 -DTAPE -DBIT_PLAY mbasic.asm
 ; ren mbasic.bin zxbasic.com
