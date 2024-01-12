@@ -57,6 +57,13 @@ defc DIRTMP  =  BASE+$0080
 ; z88dk-appmake +cpmdisk -f scorpion --container=raw --extension=.trd -b zxbasic.com
 
 
+; KLUG CP/M CP/M on Profi ZX Spectrum clones
+;-------------------------------------------
+; z80asm -b -DHAVE_GFX -DZXPLUS3 -DSCORPION -DPROFI -DVT52 -DBIT_PLAY -DTAPE mbasic.asm
+; ren mbasic.bin zxbasic.com
+; z88dk-appmake +cpmdisk -f quorum --container=dsk -b zxbasic.com
+
+
 ; ZX Spectrum QUORUM-128 (CP/J)
 ;-------------------------------
 ; -DQUORUM is used to alter the Scorpion mode
@@ -1918,13 +1925,17 @@ p3_poke:
 		di
 		ex  af,af
 
-
 IF QUORUM
 		LD      BC,80FDh
 		LD      A,80h
 		OUT     (C),A	; Enable writing on background RAM
 ENDIF
 
+IF PROFI
+		ld	a,$0F
+		ld bc,$7ffd
+		out(c),a
+ELSE
 IF HC2000
 		ld a,$ee
 		out ($c5),a
@@ -1932,6 +1943,7 @@ ELSE
 		ld	a,$1F
 		ld bc,$7ffd
 		out(c),a
+ENDIF
 ENDIF
 
 		ex af,af
@@ -1943,6 +1955,9 @@ IF HC2000
 ELSE
 
 
+IF PROFI
+		ld	a,$0B
+ELSE
 IF BIOS20 | PINIX
 		ld	a,$19
 ELSE
@@ -1955,6 +1970,7 @@ IF QUORUM
 		ld	a,$0F
 ELSE
 		ld	a,$1C
+ENDIF
 ENDIF
 ENDIF
 
@@ -1973,6 +1989,11 @@ IF QUORUM
 		OUT     (C),A	; Enable writing on background RAM
 ENDIF
 
+IF PROFI
+		ld	a,$0F
+		ld bc,$7ffd
+		out(c),a
+ELSE
 IF HC2000
 		ld a,$ee
 		out ($c5),a
@@ -1980,6 +2001,7 @@ ELSE
 		ld	a,$1F
 		ld bc,$7ffd
 		out(c),a
+ENDIF
 ENDIF
 
 		ld a,(hl)
@@ -1990,7 +2012,9 @@ IF HC2000
 		out ($c7),a
 ELSE
 
-
+IF PROFI
+		ld	a,$0B
+ELSE
 IF BIOS20 | PINIX
 		ld	a,$19
 ELSE
@@ -2005,7 +2029,7 @@ ELSE
 		ld	a,$1C
 ENDIF
 ENDIF
-
+ENDIF
 		out(c),a
 ENDIF
 
@@ -21156,7 +21180,7 @@ GRPACY:    DEFW 0			; Y position of the last plotted pixel (GFX cursor Y)
 GXPOS:     DEFW 0			; Requested X coordinate
 GYPOS:     DEFW 0			; Requested Y coordinate
 
-IF PINIX
+IF PROFI | PINIX
 ATRBYT:    DEFB 7			; Blue PAPER, white INK
 FORCLR:    DEFB 7			; Foreground color
 BAKCLR:    DEFB 0			; Background color
