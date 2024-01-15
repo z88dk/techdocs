@@ -75,6 +75,15 @@ defc DIRTMP  =  BASE+$0080
 ; samdisk zxbasic.dsk zxbasic.fdi
 
 
+; ZX Spectrum Dataputer DISKFACE (untested)
+;-------------------------------------------
+; A simple RAWRITE tool should suffice to write the floppy disk image to a real disk.
+;
+; z80asm -b -DHAVE_GFX -DZXPLUS3 -DDISKFACE -DVT52 -DBIT_PLAY -DTAPE mbasic.asm
+; ren mbasic.bin zxbasic.com
+; z88dk-appmake +cpmdisk -f diskface --container=raw --extension=.bin -b zxbasic.com
+
+
 ; ZX Spectrum HC-2000 (and possibly HC-91)
 ;------------------------------------------
 ; -DHC2000 is used to alter the Scorpion mode
@@ -21972,6 +21981,11 @@ ELSE
 CHGCLR:
 IF ZXPLUS3
 
+IF DISKFACE
+	ld		a,(ATRBYT)
+	ld		($F998),a
+ELSE
+
 IF HC2000
 	; INK
 	ld a,27
@@ -22056,7 +22070,7 @@ backptr:
 ENDIF
 ENDIF
 ENDIF
-
+ENDIF
 
 	; BORDER
 IF HC2000
@@ -24720,57 +24734,65 @@ IF ZXPLUS3
 pokebyte_code:
 		di
 		ex  af,af
-;IF SCORPION
-;		ld	a,$1F
-;		ld bc,$7ffd
-;ELSE
+IF DISKFACE
+		call $EFD9
+		nop
+		nop
+		nop
+		nop
+ELSE
 		; ..$15 00010101 -> banks 4,5,6,3
 		; ..$11 00010001 -> banks 0,1,2,3 (TPA)
 		ld	a,$15
 		;ld	a,$0D
 		;ld	a,$05
 		ld bc,$1ffd
-;ENDIF
 		out(c),a
+ENDIF
 		ex af,af
 		ld (hl),a
-;IF SCORPION
-;		ld	a,$1C
-;ELSE
+IF DISKFACE
+		call $EFF3
+		nop
+ELSE
 		ld	a,$11		; avoid using ($FF01) to be compatible with CP/M 2.2 
 		;ld	a,$09
 		;ld	a,$01
-;ENDIF
 		;ld	a,($FF01)	; saved value
 		out(c),a
+ENDIF
 		ei
 		ret
 		; adjust code size
 peekbyte_code:
 		di
-;IF SCORPION
-;		ld	a,$1F
-;		ld bc,$7ffd
-;ELSE
+IF DISKFACE
+		call $EFD9
+		nop
+		nop
+		nop
+		nop
+ELSE
 		; ..$15 00010101 -> banks 4,5,6,3
 		; ..$11 00010001 -> banks 0,1,2,3 (TPA)
 		ld	a,$15
 		;ld	a,$0D
 		;ld	a,$05
 		ld bc,$1ffd
-;ENDIF
 		out(c),a
+ENDIF
 		ld a,(hl)
 		ex  af,af
-;IF SCORPION
-;		ld	a,$1C
-;ELSE
+IF DISKFACE
+		call $EFF3
+		nop
+ELSE
 		ld	a,$11		; avoid using ($FF01) to be compatible with CP/M 2.2 
 		;ld	a,$09
 		;ld	a,$01
-;ENDIF
 		;ld	a,($FF01)	; saved value
 		out(c),a
+ENDIF
 		ex  af,af
 		ei
 		ret
@@ -24974,6 +24996,25 @@ ENDIF
 
 IF QUORUM
   ld a,(CPJ_ATRBYT)		; Get the current colors defined in CP/J
+  ld (ATRBYT),a
+  push af
+  and 7
+  ld (FORCLR),a
+  pop af
+  rra
+  rra
+  rra
+  and 7
+  ld (BAKCLR),a
+  ld (BDRCLR),a
+  LD A,27
+  CALL OUTDO
+  LD A,'E'
+  CALL OUTDO
+ENDIF
+
+IF DISKFACE
+  ld a,($F998)		; Get the current colors defined in DiskFace's CP/M
   ld (ATRBYT),a
   push af
   and 7
