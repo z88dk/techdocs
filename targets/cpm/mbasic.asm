@@ -78,7 +78,7 @@ defc DIRTMP  =  BASE+$0080
 ; ZX Spectrum ELWRO 800 (CP/J)
 ;------------------------------
 ; -DELWRO is used to alter the Scorpion mode
-; TODO: color graphics (requires paging ?) - CLS
+; TODO: color graphics (requires paging ?)
 ;
 ; z80asm -b -DHAVE_GFX -DZXPLUS3 -DSCORPION -DELWRO -DVT52 -DBIT_PLAY -DTAPE mbasic.asm
 ; ren mbasic.bin zxbasic.com
@@ -20280,8 +20280,12 @@ IF HC2000
   JP OUTDO
 ELSE
 
-IF QUORUM
+IF QUORUM | ELWRO
 
+  LD A,27
+  CALL OUTDO
+  LD A,'H'
+  CALL OUTDO
   LD A,27
   CALL OUTDO
   LD A,'E'
