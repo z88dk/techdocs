@@ -78,7 +78,7 @@ defc DIRTMP  =  BASE+$0080
 ; ZX Spectrum ELWRO 800 (CP/J)
 ;------------------------------
 ; -DELWRO is used to alter the Scorpion mode
-; The modified version of the "UnrealSpeccy" emulator (unrl020q) requires disk images in FDI format
+; TODO: color graphics (requires paging ?) - CLS
 ;
 ; z80asm -b -DHAVE_GFX -DZXPLUS3 -DSCORPION -DELWRO -DVT52 -DBIT_PLAY -DTAPE mbasic.asm
 ; ren mbasic.bin zxbasic.com
@@ -1951,8 +1951,8 @@ IF QUORUM
 ENDIF
 
 IF ELWRO
-		LD A,$A9
-		out($f7),a
+;		LD A,$A9
+;		out($f7),a
 ELSE
 IF PROFI
 		ld	a,$0F
@@ -1979,8 +1979,8 @@ IF HC2000
 ELSE
 
 IF ELWRO
-		LD A,$A8
-		out($f7),a
+;		LD A,$A8
+;		out($f7),a
 ELSE
 
 ;-------------------------------
@@ -2022,8 +2022,8 @@ IF QUORUM
 ENDIF
 
 IF ELWRO
-		LD A,$A9
-		out($f7),a
+;		LD A,$A9
+;		out($f7),a
 ELSE
 IF PROFI
 		ld	a,$0F
@@ -2050,8 +2050,8 @@ IF HC2000
 ELSE
 
 IF ELWRO
-		LD A,$A8
-		out($f7),a
+;		LD A,$A8
+;		out($f7),a
 ELSE
 
 ;-------------------------------
@@ -20280,7 +20280,7 @@ IF HC2000
   JP OUTDO
 ELSE
 
-IF QUORUM | ELWRO
+IF QUORUM
 
   LD A,27
   CALL OUTDO
