@@ -75,6 +75,16 @@ defc DIRTMP  =  BASE+$0080
 ; samdisk zxbasic.dsk zxbasic.fdi
 
 
+; ZX Spectrum ELWRO 800 (CP/J)
+;------------------------------
+; -DELWRO is used to alter the Scorpion mode
+; The modified version of the "UnrealSpeccy" emulator (unrl020q) requires disk images in FDI format
+;
+; z80asm -b -DHAVE_GFX -DZXPLUS3 -DSCORPION -DELWRO -DVT52 -DBIT_PLAY -DTAPE mbasic.asm
+; ren mbasic.bin zxbasic.com
+; z88dk-appmake +cpmdisk -f elwro --container=dsk -b zxbasic.com                
+
+
 ; ZX Spectrum Dataputer DISKFACE (untested)
 ;-------------------------------------------
 ; A simple RAWRITE tool should suffice to write the floppy disk image to a real disk.
@@ -1940,6 +1950,10 @@ IF QUORUM
 		OUT     (C),A	; Enable writing on background RAM
 ENDIF
 
+IF ELWRO
+		LD A,$A9
+		out($f7),a
+ELSE
 IF PROFI
 		ld	a,$0F
 		ld bc,$7ffd
@@ -1954,6 +1968,7 @@ ELSE
 		out(c),a
 ENDIF
 ENDIF
+ENDIF
 
 		ex af,af
 		ld (hl),a
@@ -1963,7 +1978,12 @@ IF HC2000
 		out ($c7),a
 ELSE
 
+IF ELWRO
+		LD A,$A8
+		out($f7),a
+ELSE
 
+;-------------------------------
 IF PROFI
 		ld	a,$0B
 ELSE
@@ -1982,9 +2002,12 @@ ELSE
 ENDIF
 ENDIF
 ENDIF
+;-------------------------------
 
 		out(c),a
-ENDIF
+
+ENDIF  ; ELWRO
+ENDIF  ; HC2000
 
 		ei
 		ret
@@ -1998,6 +2021,10 @@ IF QUORUM
 		OUT     (C),A	; Enable writing on background RAM
 ENDIF
 
+IF ELWRO
+		LD A,$A9
+		out($f7),a
+ELSE
 IF PROFI
 		ld	a,$0F
 		ld bc,$7ffd
@@ -2012,6 +2039,7 @@ ELSE
 		out(c),a
 ENDIF
 ENDIF
+ENDIF
 
 		ld a,(hl)
 		ex  af,af
@@ -2021,6 +2049,12 @@ IF HC2000
 		out ($c7),a
 ELSE
 
+IF ELWRO
+		LD A,$A8
+		out($f7),a
+ELSE
+
+;-------------------------------
 IF PROFI
 		ld	a,$0B
 ELSE
@@ -2039,8 +2073,12 @@ ELSE
 ENDIF
 ENDIF
 ENDIF
+;-------------------------------
+
 		out(c),a
-ENDIF
+
+ENDIF  ; ELWRO
+ENDIF  ; HC2000
 
 		ex  af,af
 		ei
@@ -20242,7 +20280,7 @@ IF HC2000
   JP OUTDO
 ELSE
 
-IF QUORUM
+IF QUORUM | ELWRO
 
   LD A,27
   CALL OUTDO
@@ -21196,8 +21234,12 @@ BAKCLR:    DEFB 0			; Background color
 BDRCLR:    DEFB 0			; Border color
 ELSE
 
-IF QUORUM
+IF QUORUM | ELWRO
+IF QUORUM 
 defc CPJ_ATRBYT = $EF13
+ELSE
+defc CPJ_ATRBYT = $D077
+ENDIF
 ATRBYT:    DEFB 56			;
 FORCLR:    DEFB 0			; Foreground color
 BAKCLR:    DEFB 7			; Background color
@@ -22006,7 +22048,7 @@ IF HC2000
 	CALL OUTDO
 ELSE
 
-IF QUORUM | PINIX
+IF QUORUM | PINIX | ELWRO
 IF PINIX
 	ld a,27
 	CALL OUTDO
@@ -22022,7 +22064,11 @@ ELSE
 
 IF SCORPION
 
-	ld		hl,$c000+6144
+IF ELWRO
+	ld		hl,$E000+6144		; This should never happen
+ELSE
+	ld		hl,$C000+6144
+ENDIF
 	ld		de,768
 CHGCLR_SCORPION:
 	ld		a,(ATRBYT)
@@ -22084,6 +22130,9 @@ IF HC2000
 ELSE
 	LD	A,(BDRCLR)
 	out	($FE),a
+IF ELWRO
+	ld ($D078),a
+ENDIF
 ENDIF
 	
 	ret
@@ -22675,6 +22724,9 @@ ELSE
 	ld l,a
 
 	ld a,h
+
+IF !ELWRO
+
 	and $03
 IF SCORPION
 	or $58+$80
@@ -22686,6 +22738,7 @@ ENDIF
 	ld (ALOC),hl		   ; Store attribute address
 ENDIF
 
+ENDIF
 
 	pop hl			       ; code string address
 	pop de
@@ -22795,7 +22848,11 @@ ELSE
 	AND     @11111000
 	XOR     L
 IF SCORPION
+IF ELWRO
+	OR $E0
+ELSE
 	OR      $80
+ENDIF
 ENDIF
 	LD      D,A
 	LD      A,H
@@ -24994,7 +25051,7 @@ ENDIF
   DEC HL                  ; TXTTAB AND STREND, ADJUST
   PUSH HL                 ; SAVE NUMBER OF BYTES TO PRINT
 
-IF QUORUM
+IF QUORUM | ELWRO
   ld a,(CPJ_ATRBYT)		; Get the current colors defined in CP/J
   ld (ATRBYT),a
   push af
@@ -25032,6 +25089,11 @@ IF DISKFACE
   CALL OUTDO
 ENDIF
 
+IF ELWRO
+  ld a,($D078)
+  and 7
+  ld (BDRCLR),a
+ENDIF
 
 IF HC2000
   ld a,($000c)
