@@ -402,7 +402,17 @@ defc TK_BKSLASH  =  $FD	; Token for '\' (Integer division)
 defc LSTOPK      =  TK_BKSLASH+1-TK_PLUS
 
 
-;------------------------------------
+
+
+
+;----------------------------------------------------------------------------------------------------------------
+;----------------------------------------------------------------------------------------------------------------
+
+;----------------------------------------------------------------------------------------------------------------
+;----------------------------------------------------------------------------------------------------------------
+
+
+
 
 ; INIT IS THE INTIALIZATION ROUTINE
 ; IT SETS UP CERTAIN LOCATIONS
@@ -24802,9 +24812,16 @@ IF DISKFACE
 		nop
 		nop
 ELSE
+
+; CP/M 2.2 for the +3 is not working
+; the bank value is a guess based on the BIOS disassembly
+IF P3CPM22
 		; ..$15 00010101 -> banks 4,5,6,3
 		; ..$11 00010001 -> banks 0,1,2,3 (TPA)
+		ld	a,$17
+ELSE
 		ld	a,$15
+ENDIF
 		;ld	a,$0D
 		;ld	a,$05
 		ld bc,$1ffd
@@ -24834,9 +24851,16 @@ IF DISKFACE
 		nop
 		nop
 ELSE
+
+; CP/M 2.2 for the +3 is not working
+; the bank value is a guess based on the BIOS disassembly
+IF P3CPM22
 		; ..$15 00010101 -> banks 4,5,6,3
 		; ..$11 00010001 -> banks 0,1,2,3 (TPA)
+		ld	a,$17
+ELSE
 		ld	a,$15
+ENDIF
 		;ld	a,$0D
 		;ld	a,$05
 		ld bc,$1ffd
