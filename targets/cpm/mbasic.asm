@@ -29,7 +29,9 @@ defc DIRTMP  =  BASE+$0080
 
 ; ZX Spectrum +3 graphics and Terminal
 ;--------------------------------------
-; (VPOKE, VPEEK, PSET, PRESET, POINT, CSRLIN, LINE, CLS, COLOR, LOCATE, PRINT @#, DRAW, CIRCLE)
+; VPOKE, VPEEK  -> direct video memory access.  ZX Spectrum style: 0->6142 (screen), 6143->6911 (attributes)
+; PSET, PRESET, POINT, CSRLIN, LINE, CLS, COLOR, LOCATE, PRINT @#, DRAW, CIRCLE
+;
 ; add -DTAPE for LOAD!, LOAD!? (=CLOAD, CLOAD?) and SAVE! (=CSAVE) ...Kansas City Standard, at 1200 bps, MSX style CSAVE protocol.
 ; add -DBIT_PLAY for OUT! (=PLAY) and OUT@ (=SOUND), they're single channel melody commands, Philips VG-5000 style syntax
 ;
@@ -85,8 +87,8 @@ defc DIRTMP  =  BASE+$0080
 ; z88dk-appmake +cpmdisk -f elwro --container=dsk -b zxbasic.com                
 
 
-; ZX Spectrum Dataputer DISKFACE (untested)
-;-------------------------------------------
+; ZX Spectrum Dataputer DISKFACE 
+;--------------------------------
 ; A simple RAWRITE tool should suffice to write the floppy disk image to a real disk.
 ;
 ; z80asm -b -DHAVE_GFX -DZXPLUS3 -DDISKFACE -DVT52 -DBIT_PLAY -DTAPE mbasic.asm
@@ -2101,10 +2103,32 @@ p3_peek:
 		jp 0
 ENDIF
 
+
 ; -- -- -- -- --
 __VPOKE:
   CALL GETWORD
-  PUSH DE
+  ld b,h	;SAVE TEXT POINTER
+  ld c,l
+
+  LD HL,6911
+  CALL DCOMPR
+  JP C,OMERR
+
+IF SCORPION
+IF ELWRO
+  ld hl,57344
+ELSE
+  ld hl,49152
+ENDIF
+ELSE
+  ld hl,16384
+ENDIF
+  add hl,de
+
+  push hl
+  ld h,b	; RESTORE TEXT POINTER
+  ld l,c
+  
   CALL SYNCHR
   DEFM ","
   CALL GETINT             ; Get integer 0-255
@@ -2114,9 +2138,27 @@ __VPOKE:
   RET
 
 
+
 ; -- -- -- -- --
 __VPEEK:
   CALL GETWORD_HL
+
+  LD DE,6912
+  CALL DCOMPR
+  JP NC,OMERR
+
+
+IF SCORPION
+IF ELWRO
+  ld de,57344
+ELSE
+  ld de,49152
+ENDIF
+ELSE
+  ld de,16384
+ENDIF
+  add hl,de
+
   CALL p3_peek
   JP PASSA
 
@@ -24813,15 +24855,7 @@ IF DISKFACE
 		nop
 ELSE
 
-; CP/M 2.2 for the +3 is not working
-; the bank value is a guess based on the BIOS disassembly
-IF P3CPM22
-		; ..$15 00010101 -> banks 4,5,6,3
-		; ..$11 00010001 -> banks 0,1,2,3 (TPA)
-		ld	a,$17
-ELSE
 		ld	a,$15
-ENDIF
 		;ld	a,$0D
 		;ld	a,$05
 		ld bc,$1ffd
@@ -24852,15 +24886,7 @@ IF DISKFACE
 		nop
 ELSE
 
-; CP/M 2.2 for the +3 is not working
-; the bank value is a guess based on the BIOS disassembly
-IF P3CPM22
-		; ..$15 00010101 -> banks 4,5,6,3
-		; ..$11 00010001 -> banks 0,1,2,3 (TPA)
-		ld	a,$17
-ELSE
 		ld	a,$15
-ENDIF
 		;ld	a,$0D
 		;ld	a,$05
 		ld bc,$1ffd
