@@ -93,7 +93,7 @@ defc DIRTMP  =  BASE+$0080
 ;
 ; z80asm -b -DHAVE_GFX -DZXPLUS3 -DDISKFACE -DVT52 -DBIT_PLAY -DTAPE mbasic.asm
 ; ren mbasic.bin zxbasic.com
-; z88dk-appmake +cpmdisk -f diskface --container=raw --extension=.bin -b zxbasic.com
+; z88dk-appmake +cpmdisk -f diskface --container=raw --extension=.raw -b zxbasic.com
 
 
 ; ZX Spectrum HC-2000 (and possibly HC-91)
