@@ -77,6 +77,17 @@ defc DIRTMP  =  BASE+$0080
 ; samdisk zxbasic.dsk zxbasic.fdi
 
 
+; ZX ASC CP/M on LSY256 memory MOD
+;----------------------------------
+; -DZXASC is used to alter the Scorpion mode
+; A tuned version of the "UnrealSpeccy" emulates an OREL-BK08 with BETADisk and LSY256 MOD
+;
+; z80asm -b -DHAVE_GFX -DZXPLUS3 -DSCORPION -DZXASC -DVT52 -DBIT_PLAY -DTAPE mbasic.asm
+; ren mbasic.bin zxbasic.com
+; z88dk-appmake +cpmdisk -f quorum --container=dsk -b zxbasic.com
+; samdisk zxbasic.dsk zxbasic.fdi
+
+
 ; ZX Spectrum ELWRO 800 (CP/J)
 ;------------------------------
 ; -DELWRO is used to alter the Scorpion mode
@@ -1962,6 +1973,11 @@ IF QUORUM
 		OUT     (C),A	; Enable writing on background RAM
 ENDIF
 
+IF ZXASC
+		ld	a,$07
+		ld bc,$7ffd
+		out(c),a
+ELSE
 IF ELWRO
 ;		LD A,$A9
 ;		out($f7),a
@@ -1981,6 +1997,7 @@ ELSE
 ENDIF
 ENDIF
 ENDIF
+ENDIF
 
 		ex af,af
 		ld (hl),a
@@ -1996,6 +2013,9 @@ IF ELWRO
 ELSE
 
 ;-------------------------------
+IF ZXASC
+		xor	a
+ELSE
 IF PROFI
 		ld	a,$0B
 ELSE
@@ -2011,6 +2031,7 @@ IF QUORUM
 		ld	a,$0F
 ELSE
 		ld	a,$1C
+ENDIF
 ENDIF
 ENDIF
 ENDIF
@@ -2033,6 +2054,11 @@ IF QUORUM
 		OUT     (C),A	; Enable writing on background RAM
 ENDIF
 
+IF ZXASC
+		ld	a,$07
+		ld bc,$7ffd
+		out(c),a
+ELSE
 IF ELWRO
 ;		LD A,$A9
 ;		out($f7),a
@@ -2052,6 +2078,7 @@ ELSE
 ENDIF
 ENDIF
 ENDIF
+ENDIF
 
 		ld a,(hl)
 		ex  af,af
@@ -2067,6 +2094,9 @@ IF ELWRO
 ELSE
 
 ;-------------------------------
+IF ZXASC
+		xor	a
+ELSE
 IF PROFI
 		ld	a,$0B
 ELSE
@@ -2082,6 +2112,7 @@ IF QUORUM
 		ld	a,$0F
 ELSE
 		ld	a,$1C
+ENDIF
 ENDIF
 ENDIF
 ENDIF
@@ -21283,7 +21314,7 @@ GRPACY:    DEFW 0			; Y position of the last plotted pixel (GFX cursor Y)
 GXPOS:     DEFW 0			; Requested X coordinate
 GYPOS:     DEFW 0			; Requested Y coordinate
 
-IF PROFI | PINIX
+IF PROFI | PINIX | ZXASC
 ATRBYT:    DEFB 7			; Blue PAPER, white INK
 FORCLR:    DEFB 7			; Foreground color
 BAKCLR:    DEFB 0			; Background color
@@ -21291,15 +21322,19 @@ BDRCLR:    DEFB 0			; Border color
 ELSE
 
 IF QUORUM | ELWRO
+
 IF QUORUM 
 defc CPJ_ATRBYT = $EF13
-ELSE
+ENDIF
+IF ELWRO
 defc CPJ_ATRBYT = $D077
 ENDIF
+
 ATRBYT:    DEFB 56			;
 FORCLR:    DEFB 0			; Foreground color
 BAKCLR:    DEFB 7			; Background color
 BDRCLR:    DEFB 7			; Border color
+
 ELSE
 
 IF ZXPLUS3
@@ -22189,6 +22224,14 @@ ELSE
 IF ELWRO
 	ld ($D078),a
 ENDIF
+
+IF ZXASC
+	LD	A,(BDRCLR)
+	ld		hl,$FEA6
+	call	p3_poke
+ENDIF
+
+
 ENDIF
 	
 	ret
@@ -25105,6 +25148,7 @@ ENDIF
   DEC HL                  ; TXTTAB AND STREND, ADJUST
   PUSH HL                 ; SAVE NUMBER OF BYTES TO PRINT
 
+
 IF QUORUM | ELWRO
   ld a,(CPJ_ATRBYT)		; Get the current colors defined in CP/J
   ld (ATRBYT),a
@@ -25154,6 +25198,8 @@ IF HC2000
   and 7
   ld (BDRCLR),a
 ENDIF
+
+
 
 IF ZXPLUS3
 IF SCORPION
