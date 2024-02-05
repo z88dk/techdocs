@@ -107,6 +107,22 @@ defc DIRTMP  =  BASE+$0080
 ; z88dk-appmake +cpmdisk -f diskface --container=raw --extension=.raw -b zxbasic.com
 
 
+; ZX Spectrum LEC memory MOD, (CP/M 2.2 on Microdrive)
+;-----------------------------------------------------
+; Use the CPM2TAP tool in {z88dk}/support/zx
+;
+; z80asm -b -DHAVE_GFX -DZXPLUS3 -DZXLEC -DVT52 -DBIT_PLAY -DTAPE mbasic.asm
+; ren mbasic.bin zbasic.com
+; cpm2tap.exe zbasic.com zbasic.tap
+
+
+; ZX Spectrum 80K mod presented in AG Mikrorechentechnik Berlin, December 1987
+;-----------------------------------------------------------------------------
+; Perhaps used on the SPECTRAL or KUB64 clones
+;
+; uncomment the ZXSPECTRAL related sections, see the LEC and DISKFACE for the build.
+
+
 ; ZX Spectrum HC-2000 (and possibly HC-91)
 ;------------------------------------------
 ; -DHC2000 is used to alter the Scorpion mode
@@ -1974,7 +1990,7 @@ IF QUORUM
 ENDIF
 
 IF ZXASC
-		ld	a,$07
+		ld	a,$0F
 		ld bc,$7ffd
 		out(c),a
 ELSE
@@ -2014,7 +2030,7 @@ ELSE
 
 ;-------------------------------
 IF ZXASC
-		xor	a
+		ld a,8
 ELSE
 IF PROFI
 		ld	a,$0B
@@ -2055,7 +2071,7 @@ IF QUORUM
 ENDIF
 
 IF ZXASC
-		ld	a,$07
+		ld	a,$0F
 		ld bc,$7ffd
 		out(c),a
 ELSE
@@ -2095,7 +2111,7 @@ ELSE
 
 ;-------------------------------
 IF ZXASC
-		xor	a
+		ld a,8
 ELSE
 IF PROFI
 		ld	a,$0B
@@ -20353,6 +20369,11 @@ IF VT52
 
 __CLS:
 
+IF ZXLEC
+  LD A,26
+  JP OUTDO
+ELSE
+
 IF BIOS20 | PINIX
   LD A,12
   JP OUTDO
@@ -20390,6 +20411,7 @@ ELSE
   JP OUTDO
 ENDIF
   
+ENDIF
 ENDIF
 ENDIF
 
@@ -21314,8 +21336,8 @@ GRPACY:    DEFW 0			; Y position of the last plotted pixel (GFX cursor Y)
 GXPOS:     DEFW 0			; Requested X coordinate
 GYPOS:     DEFW 0			; Requested Y coordinate
 
-IF PROFI | PINIX | ZXASC
-ATRBYT:    DEFB 7			; Blue PAPER, white INK
+IF PROFI | PINIX | ZXASC | ZXLEC
+ATRBYT:    DEFB 7			; Black PAPER, white INK
 FORCLR:    DEFB 7			; Foreground color
 BAKCLR:    DEFB 0			; Background color
 BDRCLR:    DEFB 0			; Border color
@@ -22114,10 +22136,17 @@ ELSE
 CHGCLR:
 IF ZXPLUS3
 
-IF DISKFACE
-	ld		a,(ATRBYT)
-	ld		($F998),a
-ELSE
+
+;IF ZXLEC
+;	ld hl,23696		; ATTR-T
+;	ld		a,(ATRBYT)
+;	call	p3_poke
+;ELSE
+
+;IF DISKFACE
+;	ld		a,(ATRBYT)
+;	ld		($F998),a
+;ELSE
 
 IF HC2000
 	; INK
@@ -22207,7 +22236,8 @@ backptr:
 ENDIF
 ENDIF
 ENDIF
-ENDIF
+;ENDIF
+;ENDIF
 
 	; BORDER
 IF HC2000
@@ -22230,6 +22260,16 @@ IF ZXASC
 	ld		hl,$FEA6
 	call	p3_poke
 ENDIF
+
+IF ZXLEC
+	LD    A,(BDRCLR)
+	rla
+	rla
+	rla
+	ld    hl,$5C48
+	call  p3_poke
+ENDIF
+
 
 
 ENDIF
@@ -24890,6 +24930,22 @@ IF ZXPLUS3
 pokebyte_code:
 		di
 		ex  af,af
+
+;IF ZXSPECTRAL
+;		LD A,40h ; -> ZXS mode
+;		out ($fd),a
+;		nop
+;		nop
+;		nop
+;ELSE
+IF ZXLEC
+		xor a
+		out ($fd),a
+		nop
+		nop
+		nop
+		nop
+ELSE
 IF DISKFACE
 		call $EFD9
 		nop
@@ -24904,8 +24960,18 @@ ELSE
 		ld bc,$1ffd
 		out(c),a
 ENDIF
+ENDIF
+;ENDIF
 		ex af,af
 		ld (hl),a
+;IF ZXSPECTRAL
+;		LD A,48h ; -> CP/M mode
+;		out ($fd),a
+;ELSE
+IF ZXLEC
+		ld a,$80
+		out ($fd),a
+ELSE
 IF DISKFACE
 		call $EFF3
 		nop
@@ -24916,11 +24982,28 @@ ELSE
 		;ld	a,($FF01)	; saved value
 		out(c),a
 ENDIF
+ENDIF
+;ENDIF
 		ei
 		ret
 		; adjust code size
 peekbyte_code:
 		di
+;IF ZXSPECTRAL
+;		LD A,40h ; -> ZXS mode
+;		out ($fd),a
+;		nop
+;		nop
+;		nop
+;ELSE
+IF ZXLEC
+		xor a
+		out ($fd),a
+		nop
+		nop
+		nop
+		nop
+ELSE
 IF DISKFACE
 		call $EFD9
 		nop
@@ -24935,8 +25018,18 @@ ELSE
 		ld bc,$1ffd
 		out(c),a
 ENDIF
+ENDIF
+;ENDIF
 		ld a,(hl)
 		ex  af,af
+;IF ZXSPECTRAL
+;		LD A,48h ; -> CP/M mode
+;		out ($fd),a
+;ELSE
+IF ZXLEC
+		ld a,$80
+		out ($fd),a
+ELSE
 IF DISKFACE
 		call $EFF3
 		nop
@@ -24947,6 +25040,8 @@ ELSE
 		;ld	a,($FF01)	; saved value
 		out(c),a
 ENDIF
+ENDIF
+;ENDIF
 		ex  af,af
 		ei
 		ret
@@ -25168,24 +25263,49 @@ IF QUORUM | ELWRO
   CALL OUTDO
 ENDIF
 
-IF DISKFACE
-  ld a,($F998)		; Get the current colors defined in DiskFace's CP/M
-  ld (ATRBYT),a
-  push af
-  and 7
-  ld (FORCLR),a
-  pop af
+IF ZXLEC
+  ld hl,$5C48
+  call p3_peek
   rra
   rra
   rra
   and 7
-  ld (BAKCLR),a
   ld (BDRCLR),a
-  LD A,27
-  CALL OUTDO
-  LD A,'E'
-  CALL OUTDO
+
+;  ld hl,23696		; ATTR-T
+;  call p3_peek
+;  push af
+;  and 7
+;  ld (FORCLR),a
+;  pop af
+;  rra
+;  rra
+;  rra
+;  and 7
+;  ld (BAKCLR),a
+ELSE
+
 ENDIF
+
+
+;IF DISKFACE
+;  ld a,($F998)		; Get the current colors defined in DiskFace's CP/M
+;  ld (ATRBYT),a
+;  push af
+;  and 7
+;  ld (FORCLR),a
+;  pop af
+;  rra
+;  rra
+;  rra
+;  and 7
+;  ld (BAKCLR),a
+;  ld (BDRCLR),a
+;  LD A,27
+;  CALL OUTDO
+;  LD A,'E'
+;  CALL OUTDO
+;ENDIF
 
 IF ELWRO
   ld a,($D078)
