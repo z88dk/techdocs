@@ -112,8 +112,8 @@ defc DIRTMP  =  BASE+$0080
 ; Use the CPM2TAP tool in {z88dk}/support/zx
 ;
 ; z80asm -b -DHAVE_GFX -DZXPLUS3 -DZXLEC -DVT52 -DBIT_PLAY -DTAPE mbasic.asm
-; ren mbasic.bin zbasic.com
-; cpm2tap.exe zbasic.com zbasic.tap
+; ren mbasic.bin zxbasic.com
+; z88dk-appmake +zx --lec-cpm -b zxbasic.com --org 256 zxbasic.tap
 
 
 ; ZX Spectrum 80K mod presented in AG Mikrorechentechnik Berlin, December 1987
@@ -20487,12 +20487,17 @@ NO_V:
   RET
 ELSE
 
+IF ZXLEC
+  LD A,'='
+  CALL ESCA
+ELSE
 IF HC2000
   LD A,'A'
   CALL ESCA
 ELSE
   LD A,'Y'
   CALL ESCA
+ENDIF
 ENDIF
   LD A,L
   ADD A,31
@@ -22137,11 +22142,18 @@ CHGCLR:
 IF ZXPLUS3
 
 
-;IF ZXLEC
-;	ld hl,23696		; ATTR-T
-;	ld		a,(ATRBYT)
-;	call	p3_poke
-;ELSE
+IF ZXLEC
+	ld		hl,$4000+6144
+	ld		de,768
+CHGCLR_LEC:
+	ld		a,(ATRBYT)
+	call	p3_poke
+	inc		hl
+	dec		de
+	ld		a,d
+	or		e
+	jr		nz,CHGCLR_LEC
+ELSE
 
 ;IF DISKFACE
 ;	ld		a,(ATRBYT)
@@ -22237,7 +22249,7 @@ ENDIF
 ENDIF
 ENDIF
 ;ENDIF
-;ENDIF
+ENDIF
 
 	; BORDER
 IF HC2000
