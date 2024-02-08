@@ -21341,7 +21341,7 @@ GRPACY:    DEFW 0			; Y position of the last plotted pixel (GFX cursor Y)
 GXPOS:     DEFW 0			; Requested X coordinate
 GYPOS:     DEFW 0			; Requested Y coordinate
 
-IF PROFI | PINIX | ZXASC | ZXLEC
+IF PROFI | PINIX | ZXASC
 ATRBYT:    DEFB 7			; Black PAPER, white INK
 FORCLR:    DEFB 7			; Foreground color
 BAKCLR:    DEFB 0			; Background color
@@ -22143,16 +22143,9 @@ IF ZXPLUS3
 
 
 IF ZXLEC
-	ld		hl,$4000+6144
-	ld		de,768
-CHGCLR_LEC:
 	ld		a,(ATRBYT)
+	ld		hl, $5C8D	; ATTR_P
 	call	p3_poke
-	inc		hl
-	dec		de
-	ld		a,d
-	or		e
-	jr		nz,CHGCLR_LEC
 ELSE
 
 ;IF DISKFACE
@@ -25284,17 +25277,18 @@ IF ZXLEC
   and 7
   ld (BDRCLR),a
 
-;  ld hl,23696		; ATTR-T
-;  call p3_peek
-;  push af
-;  and 7
-;  ld (FORCLR),a
-;  pop af
-;  rra
-;  rra
-;  rra
-;  and 7
-;  ld (BAKCLR),a
+  ld hl, $5C8D		; Get the current colors defined in ATTR_P
+  call p3_peek
+  ld (ATRBYT),a
+  push af
+  and 7
+  ld (FORCLR),a
+  pop af
+  rra
+  rra
+  rra
+  and 7
+  ld (BAKCLR),a
 ELSE
 
 ENDIF
