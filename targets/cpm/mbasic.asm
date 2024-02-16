@@ -116,6 +116,13 @@ defc DIRTMP  =  BASE+$0080
 ; z88dk-appmake +zx --lec-cpm -b zxbasic.com --org 256 zxbasic.tap
 
 
+; ZX Spectrum CS-DISK interface (untested)
+;-----------------------------------------
+;
+; z80asm -b -DHAVE_GFX -DZXPLUS3 -DZXCSDISK -DVT52 -DBIT_PLAY -DTAPE mbasic.asm
+; ren mbasic.bin zxbasic.com
+
+
 ; ZX Spectrum 80K mod presented in AG Mikrorechentechnik Berlin, December 1987
 ;-----------------------------------------------------------------------------
 ; Perhaps used on the SPECTRAL or KUB64 clones
@@ -20369,7 +20376,7 @@ IF VT52
 
 __CLS:
 
-IF ZXLEC
+IF ZXLEC | ZXCSDISK
   LD A,26
   JP OUTDO
 ELSE
@@ -20487,7 +20494,7 @@ NO_V:
   RET
 ELSE
 
-IF ZXLEC
+IF ZXLEC | ZXCSDISK
   LD A,'='
   CALL ESCA
 ELSE
@@ -22142,7 +22149,7 @@ CHGCLR:
 IF ZXPLUS3
 
 
-IF ZXLEC
+IF ZXLEC | ZXCSDISK
 	ld		a,(ATRBYT)
 	ld		hl, $5C8D	; ATTR_P
 	call	p3_poke
@@ -22266,7 +22273,7 @@ IF ZXASC
 	call	p3_poke
 ENDIF
 
-IF ZXLEC
+IF ZXLEC | ZXCSDISK
 	LD    A,(BDRCLR)
 	rla
 	rla
@@ -24936,6 +24943,14 @@ pokebyte_code:
 		di
 		ex  af,af
 
+IF ZXCSDISK
+		xor a
+		out ($7b),a
+		nop
+		nop
+		nop
+		nop
+ELSE
 ;IF ZXSPECTRAL
 ;		LD A,40h ; -> ZXS mode
 ;		out ($fd),a
@@ -24967,8 +24982,14 @@ ELSE
 ENDIF
 ENDIF
 ;ENDIF
+ENDIF
+
 		ex af,af
 		ld (hl),a
+IF ZXCSDISK
+		ld a,$c0
+		out ($7b),a
+ELSE
 ;IF ZXSPECTRAL
 ;		LD A,48h ; -> CP/M mode
 ;		out ($fd),a
@@ -24989,11 +25010,20 @@ ELSE
 ENDIF
 ENDIF
 ;ENDIF
+ENDIF
 		ei
 		ret
 		; adjust code size
 peekbyte_code:
 		di
+IF ZXCSDISK
+		xor a
+		out ($7b),a
+		nop
+		nop
+		nop
+		nop
+ELSE
 ;IF ZXSPECTRAL
 ;		LD A,40h ; -> ZXS mode
 ;		out ($fd),a
@@ -25025,8 +25055,13 @@ ELSE
 ENDIF
 ENDIF
 ;ENDIF
+ENDIF
 		ld a,(hl)
 		ex  af,af
+IF ZXCSDISK
+		ld a,$c0
+		out ($7b),a
+ELSE
 ;IF ZXSPECTRAL
 ;		LD A,48h ; -> CP/M mode
 ;		out ($fd),a
@@ -25047,6 +25082,7 @@ ELSE
 ENDIF
 ENDIF
 ;ENDIF
+ENDIF
 		ex  af,af
 		ei
 		ret
@@ -25268,7 +25304,7 @@ IF QUORUM | ELWRO
   CALL OUTDO
 ENDIF
 
-IF ZXLEC
+IF ZXLEC | ZXCSDISK
   ld hl,$5C48
   call p3_peek
   rra
