@@ -116,8 +116,8 @@ defc DIRTMP  =  BASE+$0080
 ; z88dk-appmake +zx --lec-cpm -b zxbasic.com --org 256 zxbasic.tap
 
 
-; ZX Spectrum CS-DISK interface (untested)
-;-----------------------------------------
+; ZX Spectrum CS-DISK interface CP/M 2.2 (untested)
+;--------------------------------------------------
 ;
 ; z80asm -b -DHAVE_GFX -DZXPLUS3 -DZXCSDISK -DVT52 -DBIT_PLAY -DTAPE mbasic.asm
 ; ren mbasic.bin zxbasic.com
