@@ -1,0 +1,1550 @@
+        TITLE   * QX-10 IPL & INITIAL TEST * 0301   02/19/83
+;  
+;   QQQQQ     XX     XX          11     00000
+;  QQ   QQ     XX   XX          111    00   00
+; QQ     QQ     XX XX            11   00     00 
+; QQ     QQ      XXX     ====    11   00     00
+; QQ  QQ QQ     XX XX            11   00     00 
+;  QQ   QQ     XX   XX           11    00   00 
+;   QQQQQ QQ  XX     XX        111111   00000
+;
+;   IIIIII    PPPPPPPP     LL      
+;     II      PP     PP    LL
+;     II      PP     PP    LL
+;     II      PPPPPPPP     LL
+;     II      PP           LL
+;     II      PP           LL
+;   IIIIII    PP           LLLLLLLL 
+;   
+;   INITIAL   PROGRAM      LOADER.
+;
+;     USING  Z80A (3.9936MHZ)
+;
+;     WRITTEN BY  K.TSUCHIYA
+; 
+; 1982.04.14. 09:10
+;      04.15. 15:00
+;      04.16. 15:35
+;      04.17. 17:00
+;      04.19. 14:35
+;      04.20. 13:00
+;      04.21. 09:54;
+;      04.23. 14:00
+;      04.27. 10:20
+;      04.28. 17:00
+;      04.20. 13:00;
+;      07.28. 1982.  * ADD INITIAL DIAGNOSTIC TEST.   BY Y.U.
+;      08.21. 1982.  * UPDATE.   (ATTR.)              BY Y.U.
+;      09.04. 1982.  * UPDATE.   (MESSAGE)            BY Y.U.
+;      09.09. 1982.  *   *       (RESET DMA)	      BY Y.U.
+;      09.14. 1982.  *   *       (7220)		      BY Y.U.
+;      10.09. 1982.  *   *       (7220-DMA)	      BY Y.U.
+;      10.27. 1982.  *   *       (46818) & MESSAGE.   BY Y.U.
+;      11.27. 1982.  *   *       SUPPORT COLOR DSP.   BY Y.U.  QIP-5
+; 0301 02.19. 1983.  *   *	 QX-10 ONLY,CRT DSP(64K)       QIX0.   BY Y.U.
+;
+        .Z80
+;
+        .PHASE  0
+;
+;
+        PAGE    60
+;
+;************  MACRO DEFINE.   *******************
+;
+DELAY   MACRO            ; 
+        LD      B,5      ; DELAY 0.5 SEC. ROUTINE.
+        LD      DE,-1
+        LD      HL,14814
+        ADD     HL,DE      
+        JR      C,$-1     
+        DJNZ    $-6         
+        ENDM
+;
+;******************************************
+;
+CKOUT   MACRO 
+        LD      C,CLKA   ; CLOCK ADDR.
+        OUT     (C),D    ; ADDR. SET
+        DEC     C        ; CLOCK DATA.
+        OUT     (C),E    ; DATA WRITE
+        ENDM
+;
+;
+;*******************************************
+;
+CKIN    MACRO
+        LD      C,CLKA   ; CLOCK ADDR.
+        OUT     (C),D    ; ADDR. SET
+        DEC     C        ; CLOCK DATA
+        IN      E,(C)    ; DATA READ
+        ENDM
+;
+;CCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+;
+;7220 FIFO EMPTY CHK
+;
+;CCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+EMPTY   MACRO     
+        IN      A,(CRTS)   ; READ STATUS.
+        AND     00000110B 
+        XOR     00000100B  ;FIFO EMPTY CHK
+        JR      NZ,$-6     ;IF NOT EMPTY WAIT
+        ENDM
+; 
+;
+        PAGE
+;
+;***** START THE INITIAL PROGRAM LOADER ****************
+;
+START:  LD      SP,0000H
+        LD      A,MB1 	  ; MEM.BANK-1 SELECT
+        OUT     (MBRG),A
+        IM      0 	  ; USING 8259A
+;
+;
+;------------------------------;
+;        8253 MODE SET
+;------------------------------;
+;
+	LD      A,C0M1 	   ; 1.CH0.MODE1
+        OUT     (CTC1+3),A ; COMAND REG.
+        LD      A,00H 	   ; BUZZER ON TIME
+        OUT     (CTC1),A
+        LD      A,01H
+        OUT     (CTC1),A
+;
+        LD      A,C0M3 	   ; 2.CH0.MODE3
+        OUT     (CTC2+3),A ; COMAND REG.
+        LD      A,00H 	   ; BUZZ FREQ.
+        OUT     (CTC2),A
+        LD      A,00001000B ; 1KHZ
+        OUT     (CTC2),A
+;
+        LD      A,C1M3 	   ; 2.CH1.MODE3
+        OUT     (CTC2+3),A ; COMAND REG.
+        LD      A,80H 	   ; KEY BOARD CLK.
+        OUT     (CTC2+1),A
+        LD      A,06H 	   ; 1200 BPS
+        OUT     (CTC2+1),A
+;
+        LD      A,C2M3 	   ; 2.CH2.MODE3
+        OUT     (CTC2+3),A ; COMAND REG.
+        LD      A,0D4H 	   ; RS232C CLK.
+        OUT     (CTC2+2),A
+        LD      A,00H 	   ; 9600 BPS
+        OUT     (CTC2+2),A
+;
+;------------------------------;
+;        8259 MODE SET
+;------------------------------;
+;
+        LD      A,ICW1
+        OUT     (ICM0),A  ; INITIALIZE -1
+        LD      A,ICW2    ; (MASTER)
+        OUT     (ICM1),A  ; .......... -2
+        LD      A,ICW3
+        OUT     (ICM1),A  ; .......... -3
+        LD      A,ICW4
+        OUT     (ICM1),A  ; .......... -4
+        LD      A,00101111B ; KEYBOARD AND FLOPPY IS ACTIVE
+        OUT     (ICM1),A  ; MASK 
+;
+        LD      A,ICW5
+        OUT     (ICS0),A  ; INITIALIZE -1
+        LD      A,ICW6    ;   (SLAVE)
+        OUT     (ICS1),A  ; .......... -2
+        LD      A,ICW7
+        OUT     (ICS1),A  ; .......... -3
+        LD      A,ICW8
+        OUT     (ICS1),A  ; .......... -4
+        LD      A,11111010B ; PRINTER AND CALENDAR IS ACTIVE.
+        OUT     (ICS1),A  ; MASK (SFT.TMR)
+;
+;------------------------------;
+;        7201 MODE SET
+;------------------------------;
+;
+        LD      HL,SIOTBL ; COMMAND TABLE
+        LD      B,0BH  	  ; ....... LENGTH
+        LD      C,SIAC 	  ; ....... PORT
+        OTIR              ; ....... SET
+;
+;------------------------------;
+;       46818 INITIALIZE
+;------------------------------;
+;
+	LD	DE,CINI1 ; CTRL REG. 1.
+	CKOUT		 ; 32.768KHz, 20 MINS.
+	LD	D,0BH	 ; CTRL REG. 2.
+	LD	E,00AH	 ; SQW,BCD,24H		10/27/82
+	CKOUT		 ;
+        LD      DE,CINI3 ; CTRL REG. 4.
+        CKOUT            ; SET RAM VALID FLAG.
+;                              
+;------------------------------;
+;         8255 MODE SET
+;------------------------------;
+;
+ 	LD      A,PIMD1  ; MODE WORD
+        OUT     (PIOM),A ; A:OUT,B:IN
+        LD      A,0BH 	 ; RESET=1
+        OUT     (PIOM),A
+        LD      A,01H 	 ; STB=1
+        OUT     (PIOM),A
+        LD      A,0AH 	 ; RESET=0
+        OUT     (PIOM),A
+;
+;-------------------------------;
+;	RESET DMA		;
+;-------------------------------;
+;
+	XOR	A	 ;
+	OUT	(DMACL),A; MASTER CLEAR.
+	LD	A,049H	 ; SET DMA MODE.
+	OUT	(DMAMD),A;
+	LD	HL,DMA	 ; SET DATA ADDRESS.
+	LD	A,L	 ;
+	OUT	(042H),A ; L.
+	LD	A,H	 ;
+	OUT	(042H),A ; H.
+	LD	A,1	 ; DATA LENGTH.
+	OUT	(043H),A ; L.
+	XOR	A	 ;
+	OUT	(043H),A ; H.
+	LD	A,060H	 ; COMMAND.
+	OUT	(DMACM),A;
+	LD	A,00DH	 ; DMA MASK RESET.
+	OUT	(DMASK),A;
+;
+	PAGE
+;
+;------------------------------;
+;        7220 MODE SET
+;------------------------------;
+;
+        LD      A,00H       ;C   RESET   
+        OUT     (CRTD),A
+        LD      A,01101111B ;C   MASTER
+        OUT     (CRTD),A
+	IN	A,(2CH)
+	AND	01B	    ; COLOR ?
+	JR	NZ,C7220    ; YES.
+        LD      A,00001110B ;C   SYNC SET
+        OUT     (CRTD),A
+	LD	C,CRTS	    ;
+	LD	B,8	    ;
+	LD	HL,MONODSP  ;
+	OTIR		    ; SET SYNC. PARAMETER.
+        EMPTY               ; EMPTY CHK.
+        LD      A,01001011B ;C   CSRFORM 
+        OUT     (CRTD),A
+        LD      A,00001111B ;P1 L/R=16
+        OUT     (CRTS),A
+        LD      A,01101101B ;P2  BL BD CST
+        OUT     (CRTS),A
+        LD      A,01110000B ;P3  CFI BL
+        OUT     (CRTS),A
+        LD      A,01000110B ;C   ZOOMW
+        OUT     (CRTD),A
+	XOR	A	    ; X1.
+        OUT     (CRTS),A    ;
+        OUT     (CRTZ),A    ; HARDWARE ZOOMMING X 1.
+        EMPTY               ;FIFO EMPTY CHK
+        LD      A,01000111B ;C   PITCHW
+        OUT     (CRTD),A
+        LD      A,80        ;P1  80CHR./LINE
+        OUT     (CRTS),A
+        LD      A,01110000B ;C   SCROLLW
+        OUT     (CRTD),A
+        LD      A,00000000B ;P1  SAD1L
+        OUT     (CRTS),A
+        OUT     (CRTS),A    ; P2.
+        OUT     (CRTS),A    ; P3.
+        LD      A,00011001B ;P4  SLH
+        OUT     (CRTS),A
+	LD	IX,STDSP    ; CLEAR VRAM. (128KB)  02/19/83
+	JP	CLRCRT
+;
+;*  COLOR MODE
+;
+C7220:	LD	A,0EH		; SYNC SET.
+	OUT	(CRTD),A	;
+	LD	C,CRTS		;
+	LD	B,8		;
+	LD	HL,COLODSP	;
+	OTIR			;
+	EMPTY			;
+	LD	A,4BH		; CSRFORM.
+	OUT	(CRTD),A	;
+	XOR	A		;
+	OUT	(CRTS),A	; P1.  L/R = 1. NON DSP.
+	OUT	(CRTS),A	; P2.
+	OUT	(CRTS),A	; P3.
+	LD	A,46H		; ZOOM.
+	OUT	(CRTD),A	;
+	XOR	A		; X 1.
+	OUT	(CRTS),A	;
+	OUT	(CRTZ),A	;
+	EMPTY			;
+	LD	A,47H		; PITCHW.
+	OUT	(CRTD),A	;
+	LD	A,40		;
+	OUT	(CRTS),A	;
+	LD	A,70H		;
+	OUT	(CRTD),A	; SCROLL.
+	XOR	A		;
+	OUT	(CRTS),A	; P1.
+	OUT	(CRTS),A	; P2.
+	OUT	(CRTS),A	; P3.
+	LD	A,25		; P4
+	OUT	(CRTS),A	;
+	LD	A,1		; CLEAR	VRAM.   (BLUE   128KB)	02/19/83 0301
+	LD	HL,CLRD		;
+	JP	COLOCLR		;
+;
+CLRD:	LD	A,4		; CLEAR VRAM.   (RED    128KB)	02/19/83 0301
+	LD	HL,CLGR		;
+	JP	COLOCLR		;
+;
+CLGR:	LD	A,2		; CLEAR VRAM.   (GREEN  128KB)	02/19/83 0301
+	LD	HL,RCOVFL	;
+	JP	COLOCLR		;
+;
+RCOVFL:	LD	DE,0F000H	;
+	LD	HL,COLODSP	;
+	LD	BC,8		;
+	LDIR			;
+	LD	HL,0F000H	;
+	SET	4,(HL)		; SET FLASH LESS MODE.
+	LD	B,8		;
+	LD	C,CRTS		;
+	LD	A,0EH		; SYNC SET.
+	OUT	(CRTD),A	;
+	OTIR			;
+	EMPTY
+	LD	A,47H		; PITCHW.
+	OUT	(CRTD),A	;
+	LD	A,40		;
+	OUT	(CRTS),A	;
+	LD	A,70H		; SCROLL.
+	OUT	(CRTD),A	;
+	XOR	A		;
+	OUT	(CRTS),A	;
+	OUT	(CRTS),A	;
+	OUT	(CRTS),A	;
+	LD	A,25		;
+	OUT	(CRTS),A	;
+STDSP:  LD      A,01101011B ;C  DISP START
+        OUT     (CRTD),A
+;
+	XOR	A	 ; DMA MASTER CLEAR.
+	OUT	(DMACL),A;
+;
+	PAGE
+;
+;*************************************************             
+;*                                               *
+;*      *   * QX-10 DIAGNOSTIC PROCESS.          *       
+;*      *   *                                    *
+;*      *   * INITIAL TEST ROUTINE.              *
+;*      *   * 82.07.28.    BY Y.U.               *  
+;*                                               *
+;*************************************************
+;
+;
+ITEST:  ;***************** LOAD TEST ************************
+        LD      B,0            ;             
+        LD      A,B            ;  
+        OR      A              ;
+        JR      Z,P0010        ;
+PHALT:  JP      PERR           ; ERROR PROCESS.
+        HALT
+;
+P0010:  ADD     A,0D2H         ; 1101 0010B.
+        RLCA                   ; 1010 0101B.
+        JR      NC,PHALT       ; 
+        LD      B,A            ; A = 0A5H.
+        LD      C,B            ;
+        LD      D,C            ;
+        LD      E,D            ;
+        LD      H,E            ;
+        LD      A,H            ;
+        JP      P,PHALT        ; A  MINUSE ?  (0A5H)
+        XOR     0A5H           ; A = 0A5H ?
+        JR      NZ,PHALT       ; NO.
+;                              ; YES. 
+;
+;************************ EXCHANGE TEST. *************************
+        LD      BC,00F1EH
+        LD      DE,02D3CH
+        LD      HL,04B5AH
+        EXX         
+        EXX                   ; A = 000H.
+        EX      DE,HL         ; DE=04B5AH,HL=02D3CH
+        AND     B             ; A = 000H.
+        XOR     C             ; A = 01EH. 
+        OR      D             ; A = 05FH.
+        AND     E             ; A = 05AH.
+        ADD     A,H           ; A = 087H.
+        SUB     L             ; A = 04BH.
+        CP      04BH
+        JR      NZ,PHALT
+;
+;
+;********************** ADD,SUB TEST ***********************
+;
+        XOR     A             ; A = 00.
+        LD      BC,0102H      ; B = 01, C = 02.
+        LD      DE,0304H      ; D = 03, E = 04.
+        LD      HL,0506H      ; H = 05, L = 06.
+        ADD     A,B           ; A = 01H.
+        ADD     A,C           ; A = 03H.
+        ADD     A,D           ; A = 06H.
+        ADD     A,E           ; A = 0AH.
+        ADD     A,H           ; A = 0FH.
+        ADD     A,L           ; A = 15H.
+        CP      015H          ; A = 15 ?
+        JP      NZ,PHALT      ; NO.  ERROR.
+        ADD     HL,BC         ; HL = 0608H.
+        ADD     HL,DE         ; HL = 090CH.
+        ADD     HL,HL         ; HL = 1218H.
+        ADD     A,H           ; A = 27H.
+        ADD     A,L           ; A = 3FH.
+        CP      03FH          ; A = 03FH ?
+        JP      NZ,PHALT      ; NO.  ERROR.
+;
+        LD      IX,P0011      ;
+        LD      BC,1          ;
+        LD      DE,1          ;
+        LD      SP,0          ;
+P0011:  NOP                   ;
+        NOP                   ;
+        XOR     A             ; A = 0.
+        ADD     IX,BC         ; IX = P0011+1.
+        ADD     IX,DE         ; IX = P0011+2.
+        ADD     IX,SP         ; IX = P0011+2.
+        LD      A,(IX+0)      ; A = [XOP   A].
+        CP      0AFH          ; A = [XOP   A] ?
+        JP      NZ,PHALT      ; NO.  ERROR.     
+        LD      IY,P0011      ;
+        ADD     IY,BC         ; IY = P0011+1.
+        ADD     IY,DE         ; IY = P0011+2.
+        ADD     IY,SP         ; IY = P0011+2.
+        LD      A,(IY+0)      ; A = {XOP   A}.
+        CP      0AFH          ; A = {XOP   A} ?
+        JP      NZ,PHALT      ; NO.  ERROR.
+;
+;
+;********************** CPI TEST ****************************
+        LD      A,0           ;
+        LD      HL,P0075
+        LD      BC,3
+        CPI                   ; EXECUTE.
+        JP      NZ,PHALT      ; ERROR.
+;********************* INC AND DEC TEST **********************
+        INC     A             ; A = 1.
+        JP      Z,PHALT
+        DEC     A
+        JP      NZ,PHALT      ; A = 0.
+;********************* DAA,CPL AND NEG TEST ******************
+        LD      A,9           ;
+        ADC     A,1           ;
+        DAA                   ; DECIMAL ADJUST ACC.
+        CP      010H
+        JP      NZ,PHALT
+        CPL                   ; COMPLEMENT ACC.
+        CP      0EFH
+        JP      NZ,PHALT
+        NEG                   ; NEGATE ACC.
+        CP      011H
+        JP      NZ,PHALT      ;
+;********************* CARRY FLAG TEST ***********************
+        SCF                   ; SET CARRY FLAG.
+        JP      NC,PHALT
+        CCF                   ; RESET CARRY FLAG.
+        JP      C,PHALT 
+;
+;*********************** JUMP TEST *********************************
+        LD      HL,P0080      ;
+        LD      IX,P0090
+        LD      IY,P0100
+        JP      (HL)
+        JP      PHALT   
+        HALT
+P0080:  JP      (IX)
+        HALT
+P0090:  JP      (IY)
+        HALT
+P0100:  LD      B,5          ;
+P0110:  DJNZ    P0110        ;
+        XOR     A            ;
+        OR      B            ; B = 0 ?
+        JP      NZ,PHALT     ; NO.  ERROR.
+;*                   
+;*********************************************************
+;*
+;** RESIDENT RAM WRITE/READ TEST AND ZERO CLEAR. *****************************
+;*
+P0140:
+        LD      HL,0F000H    ; SET START ADDRESS. 
+        LD      BC,01000H    ; SET MEMORY BYTE COUNT.
+P0141:  LD      (HL),0FFH    ;
+        INC     HL           ; WRITE 0FFH ALL RAM.
+        DEC     BC           ;
+        LD      A,B          ;
+        OR      C            ; END CHECK. 
+        JR      NZ,P0141     ; REPEAT.
+        LD      BC,00FFFH    ; CHECK MEMORY LENGTH.
+        LD      HL,0FFFFH    ; SET CHECK START ADDRESS.
+        LD      DE,0FFFEH    ;
+MTST1:  LD      A,(DE)       ; READ SOURCE DATA.
+        AND     (HL)         ; CHECK WRITTEN DATA. 
+        JP      Z,MERR       ; ERROR.
+        CP      0FFH         ;
+        JP      NZ,MERR      ;
+        XOR     (HL)         ; A = 0.    
+        LD      (HL),A       ; (HL) = A = 0.
+        LD      A,(HL)       ; CHECK ZERO CLEAR.
+        OR      A            ;
+        JP      NZ,MERR      ; ERROR.
+        DEC     HL           ; DECREMENT ADDRESS.
+        DEC     BC           ;     *     COUNTER.
+        DEC     DE           ;     *     ADDRESS.
+        LD      A,B          ;
+        OR      C            ; MEMORY TEST END ? 
+        JR      NZ,MTST1     ; NO.  REPEAT.
+        LD      A,(HL)       ; CHECK LAST BYTE.
+        XOR     0FFH         ;
+        LD      (HL),A       ; SET LAST BYTE = 00H
+        JP      NZ,MERR      ; ERROR.
+;
+;********************* ROTATE TEST ***************************
+        LD      A,041H        ; A = 041H.
+        RLCA                  ; A = 082H.
+        JP      C,PHALT       ;           CY = 0.
+        RLA                   ; A = 004H.         
+        JP      NC,PHALT      ;           CY = 1.
+        RLA                   ; A = 009H.
+        JP      C,PHALT       ;           CY = 0.
+        RRCA                  ; A = 0084H.
+        JP      NC,PHALT      ;           CY = 1.
+        RRA                   ; A = 0C2H.
+        JP      C,PHALT       ;           CY = 0.
+        LD      IX,0FFFFH     ;
+        LD      (IX+0),A      ;
+        RLC     (IX+0)        ; (IX) = 085H.
+        JP      NC,PHALT      ;           CY = 1.
+        RL      (IX+0)        ; (IX) = 00BH.
+        JP      NC,PHALT      ;           CY = 1.
+        RRC     (IX+0)        ; (IX) = 0085H.
+        JP      NC,PHALT      ;           CY = 1.
+        RR      (IX+0)        ; (IX) = 0C2H.
+        JP      NC,PHALT      ;           CY = 1.
+        SLA     (IX+0)        ; (IX) = 084H.
+        JP      NC,PHALT      ;           CY = 1.
+        SRA     (IX+0)        ; (IX) = 0C2H.
+        JP      C,PHALT       ;           CY = 0.
+        SRL     (IX+0)        ; (IX) = 061H.
+        JP      C,PHALT       ;           CY = 0.
+        LD      HL,0FFFFH     ; HL = IX.  (HL) = 061H.
+        LD      A,0EH         ;
+        RLD                   ; A=006H, (HL)=01EH.
+        JP      Z,PHALT       ;
+        RRD                   ; A=00EH, (HL)=061H.
+        JP      Z,PHALT
+;*********************** BIT TEST ********************************
+        BIT     7,A           ; A = 00EH.
+        JP      NZ,PHALT
+        BIT     3,A           ; 
+        JP      Z,PHALT
+        BIT     6,(HL)        ; (HL)=(IX)=061H.            
+        JP      Z,PHALT
+        BIT     1,(IX+0)      ;
+        JP      NZ,PHALT
+        SET     6,A           ; A=04EH.
+        SET     7,(HL)        ; (HL)=(IX)=0E1H.
+        SET     2,(IX+0)      ; (HL)=(IX)=0E5H.
+        RES     3,A           ; A = 046H.
+        RES     0,(HL)        ; (HL)=(IX)=0E4H.
+        RES     5,(IX+0)      ; (HL)=(IX)=0C4H.  
+        ADD     A,(IX+0)      ; A = 00AH.
+        JP      NC,PHALT      ; 
+        JP      Z,PHALT       ;
+;
+;
+;*********************** LDIR TEST **************************
+P0030:  LD      DE,0F000H     ;             
+        LD      HL,P0040      ;
+        LD      BC,P0070-P0040
+        LDIR                  ;
+        LD      A,2
+P0040:  JR      P0050         ;****
+        HALT                  ;   *
+P0050:  NOP                   ;   *
+        JR      P0060         ;   *
+        HALT                  ;   *
+P0060:  DEC     A             ;   *
+        OR      A             ;   *
+        JP      Z,P0070       ;   *
+        JP      NZ,0F000H     ;   * JUMP 0F000H.
+        HALT                  ;**** 
+;*********************** LDDR TEST **************************
+P0070:  LD      DE,0FC00H     ;
+        LD      HL,P0075
+        LD      BC,P0075-P0073
+        LDDR                  ; EXECUTE.
+        JP      0FBFBH        ; JUMP 0FBFBH.
+;
+P0073:  NOP                   ;****
+        NOP                   ;   *
+        JP      P0075         ;   *      
+        HALT                  ;****        
+;
+P0075:  NOP
+;
+;************************ PUSH AND POP TEST. **************************
+        LD      SP,0           ;
+        LD      IX,0A55AH      ;
+        LD      IY,0A55AH      ;
+        LD      BC,0A55AH      ;
+        LD      DE,0A55AH      ;
+        LD      HL,0A55AH      ;
+        PUSH    AF
+        PUSH    BC
+        PUSH    DE
+        PUSH    HL
+        PUSH    IX
+        PUSH    IY
+        POP     BC             ; BC =IY. 
+        OR      B
+        OR      C              ; A = 0FFH.
+        LD      C,4
+P0020:  POP     DE
+        AND     D
+        OR      E
+        DEC     C       
+        JR      NZ,P0020
+        POP     IX            ; DUMMY POP.
+        LD      B,0FFH
+        XOR     B             ; A = 0FFH ?
+        JP      NZ,PHALT      ; NO.
+;
+;********************** SUBROUTINE CALL TEST ***********************
+        LD      A,3          ;
+        CALL    P0120        ;
+        CALL    NZ,P0130     ;
+        JP      Z,PHALT      ;
+        JR      ENDDIAG      ; END OP. TEST.
+;*********************************************************
+P0120:  AND     A            ; DUMMY SUBROUTINE 2.       *
+        RET                  ;                           *
+;                                                        *
+P0130:  OR      A            ; DUMMY SUBROUTINE 3.       *
+        RET     NZ           ;                           *
+        JP      PHALT        ;                           *
+        HALT                 ; STOPPER.                  *
+; 
+;**************** TEST NORMAL END ******************************
+;
+ENDDIAG:
+        LD      SP,0        ; SET INITIAL STACK POINTER.
+	LD	BC,80*12+33  ; BC = DISPLAY ADDRESS.
+        LD      HL,MSG1      ; NORMAL END MESSAGE.
+	LD	E,(HL)	     ; E = DISPLAY LENGTH.
+	INC	HL	     ;	
+        LD      IX,FDCINT    ; SET RETURN ADDRESS.      
+        JP      WTO	     ; DISPLAY 'INSERT DISKKET'
+;
+	PAGE
+;
+;------------------------------;
+;        FDC INITIALIZE
+;------------------------------;
+;       
+;
+;
+FDCINT:
+        OUT     (FDMT),A
+        CALL    CMCHK    ; FDC READY CHECK
+        LD      A,SPCFY  ; SPECIFY COMMAND
+        OUT     (FDDT),A
+        CALL    CBUSY    ; FDC COMMAND BUSY CHECK
+        LD      A,SPCF1  ; SPECIFY -2
+        OUT     (FDDT),A
+        CALL    CBUSY    ; FDC COMMAND BUSY CHECK
+        LD      A,SPCF2  ; SPECIFY -3
+        OUT     (FDDT),A
+;
+;   FDC PARAM. SET
+;
+        LD      HL,FDPRM
+        LD      A,01     ;  N
+        LD      (HL),A
+ 	INC 	HL
+        LD      A,10H 	 ; EOT
+        LD      (HL),A
+ 	INC 	HL
+        LD      A,0EH 	 ; GPL
+        LD      (HL),A
+ 	INC 	HL
+        LD      A,0FFH   ; DTL
+        LD      (HL),A
+; 
+;   RETRY ADDRESS SET
+;
+        LD      HL,0
+        LD      (ERRAD),HL
+;
+;   RECALIBRATION
+;
+        LD      A,0 	 ; UNIT:0 , HEAD:0
+        LD      (DRIVE),A
+        CALL    CALBRT 	 ; RECALIBRATE COMMAND
+;
+;   SEEK 39 TRACK
+;
+        LD      A,39
+        LD      (TRACK),A
+        CALL    SEEK 	 ; SEEK TO 39 TRACK
+;
+;   SEEK 0 TRACK
+;
+IPL1:   LD      A,0 	 ; UNIT:0 , HEAD:0
+        LD      (DRIVE),A
+        CALL    CALBRT 	 ; SEEK TO 0 TRACK
+        LD      A,(CALFLG)
+ 	AND 	A 	 ; CALIBRATION COMPLEAT ?
+ 	JR 	NZ,IPL1  ; RETRY
+;
+;   READ BOOT PROGRAMME
+;
+	LD	BC,80*12+33 ; ERASE INSERT MESSAGE.     10/26/82 
+	LD	HL,MSG4	  ;				10/26/82
+	LD	E,(HL)	  ;				10/26/82
+	INC	HL	  ;				10/26/82
+	LD	IX,RDBOOT ;				10/26/82
+	JP	WTO	  ;				10/26/82
+;
+RDBOOT: LD      HL,DRIVE ;
+        LD      (HL),0 	 ; UNIT:0 , HEAD:0
+ 	INC 	HL
+        LD      (HL),0 	 ; TRACK:0
+ 	INC 	HL
+        LD      (HL),0 	 ; HEAD:0
+ 	INC 	HL
+        LD      (HL),1 	 ; SECTOR:1
+        LD      A,0CH
+        LD      (LNGTH),A ; SECTOR LENGTH:12
+        LD      HL,RAMTOP
+        LD      (ADDRS),HL ; RAM ADDRESS
+        LD      HL,IPL1 
+        LD      (ERRAD),HL ; ERROR ADDRESS
+;
+        CALL    FDREAD 	 ; READ 0 TRACK 12 SECTOR
+;
+ 	JR 	Z,IPL1   ; ERROR RETRY !
+  	JP  	RAMTOP   ; GO TO BOOT PROG.
+;
+;
+;
+        PAGE
+;
+;******************
+;*  ERROR PRCESS  *
+;******************
+;
+;
+;***** PROCESSOR ERROR *******
+;*
+PERR:	LD      A,014H       ;
+        OUT     (MBRG),A     ; BUZZER ON.
+        LD      HL,MSG2      ;
+        LD      IX,PERR1     ; SET RETURN ADDRESS.
+        JR      DSPMSG       ; DISPLAY ERROR MESSAGE.  
+PERR1:  JR      $            ; GOOD BYE !
+        HALT                 ; SAFETY.
+;
+;
+;****** MEMORY ERROR *********
+;*
+MERR:   LD      HL,MSG3      ; DISPLAY MEMORY ERROR MESSAGE.
+        LD      IX,MERR1     ; SET RETURN ADDRESS.
+        JR      DSPMSG       ; DISPLAY ERROR MESSAGE.
+MERR1:  LD      A,014H       ;
+        OUT     (MBRG),A     ; BUZZER ON.
+        DELAY                ; 1 SEC.
+        LD      A,010H       ;
+        OUT     (MBRG),A     ; BUZZER OFF.
+        DELAY                ; 1 SEC.
+        JR      MERR1        ; GOOD BYE !
+;
+	PAGE
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;      BASIC SUBROUTINES       ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;************** DISPLAY MESSAGE **************
+;
+DSPMSG:
+        LD      E,(HL)      ; E = MESSAGE LENGTH.
+        INC     HL          ; HL = MESSAGE TOP ADDRESS. 
+        LD      BC,0 
+        JP      WTO	    ; EXEC DISPLAY AND RETURN TO CALLER.
+;
+;*****************
+;* CLEAR DISPLAY *
+;*****************
+;*
+CLRCRT:	EMPTY		    	; CLEAR VRAM.	(MONO)	10/26/82
+	LD	A,49H		; CSRW
+	OUT	(CRTD),A
+	XOR	A
+	OUT	(CRTS),A
+	OUT	(CRTS),A
+	LD	B,4		; VRAM SIZE 128K BYTES. 02/19/83 0301
+CLRCRT1:LD	HL,03FFFH	; 32K BYTES.		02/19/83 0301
+	LD	A,4CH		; VECTW C.
+	OUT	(CRTD),A
+	LD	A,2
+	OUT	(CRTS),A
+	LD	A,L
+	OUT	(CRTS),A
+	LD	A,H
+	OUT	(CRTS),A
+	LD	A,4AH		; MASK C
+	OUT	(CRTD),A
+	LD	A,0FFH
+	OUT	(CRTS),A
+	OUT	(CRTS),A
+	LD	A,20H		; WRITE C.
+	OUT	(CRTD),A
+ 	XOR	A
+	OUT	(CRTS),A
+	OUT	(CRTS),A
+	EMPTY
+	DJNZ	CLRCRT1		;			02/19/83 0301
+	JP	(IX)		;
+;
+	PAGE
+;
+;***** COLOR DISPLAY (COLOR 128KB) ************
+;
+COLOCLR:			; CLEAR VRAM.
+	OUT	(2DH),A		; SET COLOR.
+	EMPTY			;
+	LD	A,49H		; CSRW.
+	OUT	(CRTD),A	;
+	XOR	A		;
+	OUT	(CRTS),A	; EAD.    L
+	OUT	(CRTS),A	;         M
+	OUT	(CRTS),A	;	  dAD AND EAD H.
+	LD	A,4AH		; MASK W.
+	OUT	(CRTD),A	;
+	LD	A,0FFH		;
+	OUT	(CRTS),A	;
+	OUT	(CRTS),A	;
+	EMPTY			;
+	LD	A,78H		; TEXTW.
+	OUT	(CRTD),A	;
+	LD	B,8		;
+	LD	A,0FFH		;
+CLR010:	OUT	(CRTS),A	;
+	DJNZ	CLR010		;
+	EMPTY			;
+	LD	A,4CH		; VECTW.
+	OUT	(CRTD),A	;
+	LD	A,10H		; P1.
+	OUT	(CRTS),A	;
+	LD	BC,39		; P2.	  40 COL.		02/19/83 0301
+	LD	A,C		;
+	OUT	(CRTS),A	;
+	LD	A,B		; P3.
+	OUT	(CRTS),A	;
+	LD	BC,1640		; P4.	1640 LINE.		02/19/83 0301
+	LD	A,C		;
+	OUT	(CRTS),A	;
+	LD	A,B		; P5.
+	OUT	(CRTS),A	;
+	LD	A,22H		; WRITE.   (CLEAR)
+	OUT	(CRTD),A	;
+	LD	A,68H		; TEXTE.
+	OUT	(CRTD),A	;
+	LD	A,49H		; CSRW
+	OUT	(CRTD),A	;
+	XOR	A		;
+	OUT	(CRTS),A	;
+	OUT	(CRTS),A	;
+	OUT	(CRTS),A	;
+	EMPTY			;
+	JP	(HL)		; RETURN TO CALLER.
+;
+	PAGE
+; 
+;CCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+;
+; WTO:    WRITE TO OPERATOR.
+;
+; BC:DISPLAY ADDRESS.
+; E :DISPLAY MESSAGE LENGTH.
+; HL:DISPLAY MESSAGE FORMAT.
+;
+;CCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+;
+WTO:
+	IN	A,(2CH)	    ;
+	AND	01B	    ; COLOR ?
+	JR	NZ,WTORTN   ; YES.   RETURN.
+        EMPTY               ; EMPTY CHK.
+WTO010: LD      A,01001001B ;C   CSRW
+        OUT     (CRTD),A
+        LD      A,C         ;P1  EAD LOW
+        OUT     (CRTS),A
+        LD      A,B         ;P2  EAD HIGH
+ 	OUT     (CRTS),A
+        LD      A,01001010B ;C   MASKW
+        OUT     (CRTD),A
+        LD      A,0FFH      ;P1  MASK LOW
+        OUT     (CRTS),A
+        LD      A,0FFH      ;P2  MASK HIGH
+        OUT     (CRTS),A
+        EMPTY               ; EMPTY CHK
+        LD      A,00100000B ;C   CODEW MOD=00
+        OUT     (CRTD),A
+        LD      A,(HL)       ;P1  CODE LOW
+        OUT     (CRTS),A
+        LD      A,000H       ;P2  CODE HIGH   ATTR.
+        OUT     (CRTS),A
+        INC     BC
+        INC     HL
+        EMPTY               ; EMPTY CHK
+        DEC     E
+	JP      NZ,WTO010
+WTORTN:	JP      (IX)        ; RETURN TO CALLER.
+;
+        PAGE
+;
+;==============================;
+; FDD CONTROL SUBROUTINE
+;==============================;
+;
+;------------------------------;
+;   FDC READY CHECK
+;             A:CHANGED
+;------------------------------;
+;
+CMCHK: 	OUT	(FDMT),A ; MOTOR ON.	;			02/19/83 0301
+	IN 	A,(FDDS) ; READ STATUS
+ 	AND 	CBSY 	 ; CB.BIT CHECK
+ 	JR 	NZ,CMCHK
+ 	IN 	A,(FDDS) ; READ AGAIN
+ 	AND 	NSEEK    ; FDC SEEK CHECK
+ 	JR 	NZ,CMCHK
+ 	RET
+;
+;------------------------------;
+; READY CHECK FOR COMMAND WRITE
+;             A:CHANGED
+;------------------------------;
+;
+CBUSY: 	IN 	A,(FDDS) ; WAIT FOR WRITE
+ 	BIT 	RQM,A 	 ; RQM BIT = 1 ?
+  	JR 	Z,CBUSY  ; YES WAIT
+ 	BIT 	DIO,A 	 ; DIO BIT = 0 ?
+ 	JR 	NZ,CBUSY ; YES WAIT
+ 	RET
+;
+;------------------------------;
+;  READY CHECK FOR STATUS READ
+;             A:CHANGED
+;------------------------------;
+;
+SBUSY: 	IN 	A,(FDDS)
+ 	BIT 	RQM,A 	; RQM BIT = 1 ?
+ 	JR 	Z,SBUSY ; YES WAIT  
+ 	BIT 	DIO,A 	; DIO BIT = 1 ?
+ 	JR 	Z,SBUSY ; YES WAIT
+ 	RET
+;
+;------------------------------;
+;   DEVICE READY CHECK
+;             A:CHANGED
+;------------------------------;
+;
+DRDY:   CALL    CMCHK
+        LD      A,SDS 	  ; SENSE DEVICE STATUS
+        OUT     (FDDT),A
+        CALL    CBUSY
+        LD      A,(DRIVE) ; DIRVE NO. SET
+        OUT     (FDDT),A
+        CALL    SBUSY
+ 	IN 	A,(FDDT)  ; READ DEVICE READY ?
+ 	AND  	READY  	  ; A=0:NOT READY
+ 	RET
+;
+;------------------------------;
+;       SEEK COMMAND
+;             USING:DRIVE,
+;                   TRACK
+;                   CALFLG
+;------------------------------;
+;
+SEEK: 	PUSH 	AF
+ 	PUSH 	BC
+ 	DI
+        LD      A,SEEK0 ; SEEK COMMAND
+        LD      (FDCOM),A
+        LD      B,3
+ 	JR 	CALSEK
+;
+;------------------------------;
+;   RECALIBRATION COMMAND
+;             USING:DRIVE
+;                   CALFLG
+;------------------------------;
+;
+CALBRT: PUSH 	AF
+ 	PUSH 	BC
+ 	DI
+        LD      A,RECAL ; RECALIBRATE COMMAND
+        LD      (FDCOM),A
+        LD      B,2
+;
+CALSEK: CALL    COMD 	   ; COMMAND OUT
+ 	EI
+CLSK2:  LD      A,(FDBSY)
+ 	BIT 	6,A 	   ; BUSY ?
+ 	JR 	NZ,CLSK2
+        LD      A,(ST02)   ; STATUS REG.0
+ 	BIT 	6,A 	   ; FUNCTION COMPLEAT ?
+ 	JR 	NZ,CLSK3
+ 	XOR 	A
+CLSK3:  LD      (CALFLG),A ; FLAG SET
+ 	POP 	BC
+ 	POP 	AF
+ 	RET
+;
+;------------------------------;
+;     COMMAND   OUT     ROUTINE
+;             A:CHANGED
+;             B:COMAND LENGTH
+;             USING:FDCOM--
+;                   FDBSY
+;------------------------------;
+;
+COMD:   CALL    DRDY
+ 	JR 	Z,COMD 	; DEVICE READY ?
+        CALL    CMCHK 	; COMMAND EMPTY.  
+ 	PUSH 	HL
+        LD      HL,FDCOM ; COMMAND ADDRESS
+CMD00:  CALL    CBUSY
+        LD      A,(HL)
+        OUT     (FDDT),A ; COMMAND OUT
+ 	INC 	HL 	; NEXT PARAM.
+ 	DJNZ 	CMD00 	; B:COMND LENGTH
+        LD      HL,FDBSY
+ 	SET 	6,(HL) 	; BUSY FLAG SET
+ 	POP 	HL
+ 	RET
+;
+;------------------------------;
+;     BASIC READ ROUTINE
+;             A:CHANGED
+;             USING:FDCOM--
+;                   FDBSY
+;------------------------------;
+;
+FDREAD: DI
+ 	PUSH 	HL
+ 	PUSH 	DE
+ 	PUSH 	BC
+        LD      C,DMMD1 ; BYTE,INC,AUTO,WR,CH0
+        LD      B,DMCM1 ; EXTENDED WRITE
+        CALL    DMASET 	; DMA MODE SET
+        LD      C,RDCMD ; READ COMMAND
+; 	JR 	CMDOUT
+;
+;------------------------------;
+;   COMMAND OUTPUT ROUTINE
+;             A,B,C:CHANGED
+;             USING:FDBSY
+;             Z:ABNORMAL
+;------------------------------;
+;
+CMDOUT: LD      A,C
+        LD      (FDCOM),A ; R/W/COMMAND SET
+        LD      B,9 	  ; 9-BYTE COMMAND
+        CALL    COMD 	  ; COMMAND OUT
+ 	EI
+CMM1:   LD      A,(FDBSY) ; BUSY FLAG CHECK
+ 	BIT 	6,A
+ 	JR 	NZ,CMM1
+        LD      A,(ST02)
+ 	AND 	0C0H 	  ; ERROR CHECK
+ 	CP 	40H 	  ; ABNORMAL TERMINATE ?
+ 	POP 	BC
+ 	POP 	DE
+ 	POP 	HL
+ 	RET
+;
+	PAGE
+;
+;------------------------------;
+;      DMA PARAMETER SET
+;             B:DMA COMMAND
+;             C:DMA MODE
+;------------------------------;
+;
+DMASET: PUSH 	AF
+ 	XOR 	A
+        OUT     (DMACL),A ; DMA CLEAR COMMAND
+        LD      A,C
+        OUT     (DMAMD),A ; DMA MODE SET
+        LD      A,(ADDRS) ; START ADDRESS
+        OUT     (ADCH0),A ; ADDR. LOW
+        LD      A,(ADDRS+1)
+        OUT     (ADCH0),A ; ADDR. HIGH
+        LD      A,0FFH 	  ; A=FF
+        OUT     (CTCH0),A ; BYTE COUNT LOW
+        LD      A,(LNGTH) ; 256 BYTE * N
+ 	DEC 	A
+        OUT     (CTCH0),A ; BYTE COUNT HIGH
+        LD      A,B 	  ; COMMAND
+        OUT     (DMACM),A ; DMA COMMAND SET
+        LD      A,DMMSK   ; ..................
+        OUT     (DMASK),A ; DMA MASK RESET
+ 	POP 	AF
+ 	RET
+;
+        PAGE
+;
+;==============================;
+;     INTERRUPT PROCEDURE
+;==============================;
+;
+;
+;------------------------------;
+;    7201(SIO)  INTERRUPT
+;             RECEIVE ONLY
+;------------------------------;
+;
+SIOIR: PUSH 	AF
+ 	IN 	A,(SIAC)   ; READ STATUS
+        LD      (KBSTS),A
+ 	BIT 	0,A 	   ; RX. AVAIL ?
+ 	JR 	Z,SIOI1    ; NOTHING TO RECEIVE
+        LD      A,01H
+        OUT     (SIAC),A   ; RR1. SELECT
+ 	IN 	A,(SIAC)   ; READ STATUS 2
+        LD      (KBSTS+1),A
+ 	IN 	A,(SIAD)   ; READ DATA
+        LD      (KBDATA),A ; STORE KB BUFFER
+SIOI1:  LD      A,(KBSTS)
+ 	BIT 	2,A 	   ; TX. EMPTY ?
+ 	JR 	NZ,SIOI2   ; TX. FULL
+        LD      A,28H 	   ; RESET TX. INTR.
+        OUT     (SIAC),A
+ 	XOR 	A
+        LD      (KBOBF),A  ; FLAG RESET
+SIOI2:  LD      A,30H 	   ; ERROR RESET
+        OUT     (SIAC),A   ; 
+        LD      A,38H 	   ; END OF INTR.
+        OUT     (SIAC),A
+        LD      A,OCW2 	   ; NORMAL EOI FOR 8259
+        OUT     (ICM0),A
+ 	POP 	AF
+ 	EI
+ 	RETI
+;
+	PAGE
+;
+;------------------------------;
+;   FDC INTERRUPT PROCEDURE
+;------------------------------;
+;
+FDCIR: 	PUSH 	HL
+ 	PUSH 	BC
+ 	PUSH 	AF
+;
+        LD      A,(FDCOM) ; FDD COMMAND CHECK
+ 	OR 	A
+ 	JR 	Z,FDEND
+;
+ 	IN 	A,(FDDS)
+ 	BIT 	NDM,A
+ 	JR 	NZ,FDERR
+ 	BIT 	CB,A
+ 	JR 	NZ,RWEND
+;
+;  SEEK/CALIB  END
+;
+        LD      A,SIS 	  ; SENSE INTR. STATUS
+        OUT     (FDDT),A
+        CALL    SBUSY
+ 	IN 	A,(FDDT)  ; STATUS 0 READ
+        LD      (ST02),A
+        CALL    SBUSY
+ 	IN 	A,(FDDT)  ; TRACK NO. READ
+        LD      (TRAK0),A
+        LD      A,(ST02)
+ 	RLCA
+ 	JR 	C,FDEND   ; DEV.ATTEN
+ 	AND 	01000000B
+ 	JR 	NZ,FDEN1  ; SEEK/RECAL
+;
+;  ERROR RETURN
+;
+FDERR:  LD      A,OCW2 	  ; NORMAL EOI
+        OUT     (ICM0),A
+;
+;
+;
+ 	POP 	AF
+ 	POP 	BC
+ 	POP 	BC
+ 	POP 	HL
+        LD      HL,(ERRAD)
+ 	JP 	(HL)
+;
+;  READ/WRITE END
+;
+RWEND: 	XOR 	A
+        OUT     (DMACL),A ; DMA DISABLE
+ 	CPL 		  ; A=FF
+        OUT     (DMASK),A ; DMA MASK SET
+        LD      B,7
+        LD      HL,ST02   ; STATUS TABLE
+RWEN1:  CALL    SBUSY 	  ; READ CHECK
+ 	IN 	A,(FDDT)
+        LD      (HL),A 	  ; STATUS STORE
+ 	INC 	HL
+ 	DJNZ 	RWEN1 	  ; READ 7 BYTE
+;
+;
+;
+FDEN1:  LD      HL,FDBSY
+ 	RES 	6,(HL)
+;
+;
+;
+FDEND:  LD      A,OCW2 	  ; NORMAL EOI
+        OUT     (ICM0),A
+ 	POP 	AF
+ 	POP 	BC
+ 	POP 	HL
+ 	EI
+ 	RETI
+;
+	PAGE
+;
+;------------------------------;
+;   NOT USING INTERRUPT
+;------------------------------;
+;
+PWDWN	EQU	$
+SOFT1	EQU	$
+SOFT2	EQU	$
+INTX1	EQU	$
+INTX2	EQU	$
+INTX4	EQU	$
+INTX5	EQU	$
+INTX6	EQU	$
+INTX7	EQU	$
+INTX8	EQU	$
+CRTIR	EQU	$
+CLKIR	EQU	$
+PRNIR	EQU	$
+	HALT
+;
+;
+        PAGE
+;*
+;**  MESSAGE DEFINE ***************************************
+;*
+MSG1:   DB      MSG2-MSG1-1
+        DB      'INSERT DISKETTE'	; 10/26/82
+;
+MSG2:   DB      MSG3-MSG2-1
+        DB      'DIAGNOSTIC CODE  0001'
+	DB	'           0.06'	;		02/19/83 0301
+;
+MSG3:   DB      MSG4-MSG3-1
+        DB      'DIAGNOSTIC CODE  0002'
+	DB	'           0.06'	;		02/19/83 0301
+;
+MSG4:	DB	MSG5-MSG4-1		; 10/26/82
+	DB	'               '	; 10/26/82
+MSG5:					; 10/26/82
+;
+DMA:	DB	0	; DMA RESET DATA.
+;
+	REPT	780H-$
+	.XLIST
+	DB	0FFH
+	.LIST
+	ENDM
+;
+	PAGE
+;
+;------------------------------;
+;       INTERRUPT TABLE
+;------------------------------;
+        DS      780H-$
+;
+INTTBL: NOP
+ 	JP 	PWDWN ; POWER DOWN INTR.
+ 	NOP
+ 	JP 	SOFT1 ; SOFT TIMER(FIRST)
+ 	NOP
+ 	JP 	INTX1 ; EXT. INTR. -1
+ 	NOP
+ 	JP 	INTX2 ; EXT. INTR. -2
+ 	NOP
+ 	JP 	SIOIR ; 7201 INTR.
+ 	NOP
+ 	JP 	CRTIR ; 7220 INTR.
+ 	NOP
+ 	JP 	FDCIR ; 765 INTR.
+ 	NOP
+ 	NOP
+ 	NOP
+ 	NOP
+ 	NOP
+ 	JP 	PRNIR ; 8255 INTR.
+ 	NOP
+ 	JP 	INTX4 ; EXT. INTR. -4
+ 	NOP
+ 	JP 	CLKIR ; 46818 INTR.
+ 	NOP
+ 	JP 	INTX5 ; EXT. INTR. -5
+ 	NOP
+ 	JP 	INTX6 ; EXT. INTR. -6
+ 	NOP
+ 	JP 	SOFT2 ; SOFT TIMER(SLOW)
+ 	NOP
+ 	JP 	INTX7 ; EXT. INTR. -7
+ 	NOP
+ 	JP 	INTX8 ; EXT. INTR. -8
+;
+	PAGE
+;
+; SIO COMMAND TABLE
+;
+SIOTBL: DB 	18H 	; CHANNEL RESET
+ 	DB 	14H 	; WR4. RESET EX/SP INT
+ 	DB 	37H 	; X1,ASYNC,1STOP,ENEN
+ 	DB 	03H 	; WR3.
+ 	DB 	0E1H 	; 8BIT,AUTO,RXENB
+ 	DB 	05H 	; WR5.
+ 	DB 	0EAH 	; DTR,RTS=1,8BIT,TXENB
+ 	DB 	02H 	; WR2.
+ 	DB 	00H 	; NON VECT 85
+ 	DB 	01H 	; WR1.
+ 	DB 	10H 	; ALL RX.INT,AFFECT
+;
+;* MONO SYNC. PARAM.
+;
+MONODSP:DB      00010100B ;P1  00CFIDGS
+        DB      78        ;P2  <--C/R->
+        DB      00000010B ;P3  VSL<-HS>
+        DB      00011010B ;P4  <HFP>VSH    10/09/82
+        DB      00010010B ;P5  00<-HBP>!!! 10/09/82
+        DB      00000001B ;P6  00<-VFP>
+        DB      144       ;P7  <--L/F->
+        DB      00010001B ;P8  <-VBP>LF
+;
+;* COLOR SYNC. PARAM.
+;
+COLODSP:DB	06H	; P1.   00CFIDGS
+	DB	38	; P2.	<--C/R-->
+	DB	23H	; P3,	VSL <-HS>
+	DB	11H	; P4.	<HFP>VSH
+	DB	04H	; P5.	00<-HBP>
+	DB	07H	; P6.	00<-VFP>
+	DB	144	; P7.	<--L/F-->
+	DB	65H	; P8.	<-VBP>LF
+;
+;
+;
+PATCH:	DB	0E8H,0E4H,0C9H,0C3H	; PATCH AREA.
+	DB	0C8H,0C9H,040H,0E4H	;   *    *
+	DB	0E2H,0C8H,0C9H,0E8H	;   *    *
+	DB	0C1H,0D4H,0C1H,040H	;   *    *
+;
+	REPT	07FAH-$
+	.XLIST
+	DB	0FFH
+	.LIST
+	ENDM
+;
+SEEKFD:	JP	SEEK	; SEEK PROCESS.
+READFD:	JP	FDREAD	; READ PROCESS.
+;
+        PAGE
+;
+;==============================;
+;         LAVEL TABLE
+;==============================;
+;
+;
+;****** MEMORY BANK SW. ******
+;
+MB1     EQU     10H
+MB2     EQU     20H
+MB3     EQU     40H
+MB4     EQU     80H
+;
+;****** TIMER / COUNTER ******
+;
+C0M1	EQU	00110010B ; MODE 1
+C0M3    EQU     00110110B ; 8253 MODE
+C1M3    EQU     01110110B ; MODE 3
+C2M3    EQU     10110110B
+;
+;***** INTERRUPT CONTROLER *****
+;
+ICW1    EQU     10010101B ; A=780,EDGE,4BYTE,MULTI
+ICW2    EQU     07H 	  ; ADDR. HIGH
+ICW3    EQU     10000000B ; IR7. = SLV
+ICW4    EQU     00000010B ; AEOI,Z80
+ICW5    EQU     10110101B ; A=7C0,EDGE,4BYTE,MULTI
+ICW6    EQU     07H 	  ; ADDR. HIGH
+ICW7    EQU     00000111B ; SLAVE ID=7
+ICW8    EQU     00000010B ; AEOI,Z80
+OCW2    EQU     20H 	  ; NORMAL EOI
+;
+;******* FDD CONTROLER *******
+;
+SPCFY   EQU     03H 	  ; FDD SPECIFY COMMAND
+SPCF1   EQU     8FH 	  ; SRT=15M,HUT=MAX
+SPCF2   EQU     12H 	  ; HLD=35M
+SDS     EQU     04H 	  ; SENSE DEVICE STATUS
+SIS     EQU     08H 	  ; SENSE INTRRUPT STATUS
+RECAL   EQU     07H 	  ; RECALIBRATE COMMAND
+SEEK0   EQU     0FH 	  ; SEEK COMMAND
+RDCMD   EQU     46H 	  ; READ COMMAND
+WRCMD   EQU     45H 	  ; WRITE COMMAND
+CBSY    EQU     00010000B ; FDC BUSY FLAG
+NSEEK   EQU     00001111B ; IN SEEK FLAG
+READY   EQU     00100000B ; READY BIT
+RQM     EQU     7 	  ; REQUEST FOR MASTER
+DIO     EQU     6 	  ; DATA IN/OUT
+NDM     EQU     5 	  ; NON DMA MODE
+CB      EQU     4 	  ; FDC BUSY FLAG
+;
+	PAGE
+;
+;******* DMA CONTROLER ********
+;
+DMMSK   EQU     00001110B ; CH1-3 MASK
+DMMD1   EQU     01000100B ; BYTE,INC,WR,CH0
+DMMD2   EQU     01001000B ; BYTE,INC,RD,CH0
+DMCM1   EQU     01100000B ; DRQ,DAK:NEG,EXT.WRT
+DMCM2   EQU     01100000B ;
+;
+;******** CLOCK COMMAND ********
+;
+CINI1   EQU     0A2EH 	  ; REG.A:2E
+CINI2   EQU     0B0EH 	  ; REG.B:0E
+CINI3   EQU     0D80H 	  ; REG.D:80
+;
+;******* PRINTER COMMAND *******
+;
+PIMD1   EQU     10100010B ; A:OUT,B:IN,C4-5:OUT
+PIEN    EQU     00001101B ; BIT6=1
+;
+;************ OTHER ************
+;
+CRTBUF  EQU     0FD00H
+;
+;
+        PAGE
+;
+;  I/O PORT ADDRESS MAP
+;
+CTC1    EQU     00H ; 8253 -1 CH.0
+CTC2    EQU     04H ; 8253 -2 CH.0
+ICM0    EQU     08H ; 8259 NO.1
+ICM1    EQU     09H
+ICS0    EQU     0CH ; 8259 NO.2
+ICS1    EQU     0DH
+SIAD    EQU     10H ; 7201 A.DATA
+SIBD    EQU     11H ;      B,DATA
+SIAC    EQU     12H ;      A,CMND
+SIBC    EQU     13H ;      B,CMND
+PIOA    EQU     14H ; 8255 A.DATA
+PIOB    EQU     15H ;      B.STATUS
+PIOM    EQU     17H ;      COMMAND
+MBRG    EQU     18H ; MEM.BANK REG.
+PROM    EQU     1CH ; PROM. DISABL
+CMOS    EQU     20H ; CMOS. SELECT
+FDMT    EQU     30H ; FDD. MT. CTRL
+FDDS    EQU     34H ; FDC. STATUS
+FDDT    EQU     35H ;      DATA
+CRTS    EQU     38H ; CRT. STATUS
+CRTD    EQU     39H ;      DATA
+CRTZ    EQU     3AH ;      ZOOM
+CLKD    EQU     3CH ; CLOCK DATA
+CLKA    EQU     3DH ; CLOCK ADDR
+DMACM   EQU     48H ; DMA COMMAND REG
+DMARQ   EQU     49H ;     REQUEST S/R
+DMAMD   EQU     4BH ;     MODE REG
+DMACL   EQU     4DH ;     MASTER RESET
+DMASK   EQU     4FH ;     MASK REG
+ADCH0   EQU     40H ;     CH0 ADDR.
+CTCH0   EQU     41H ;     CH0 COUNT
+;
+;
+;
+;
+;
+        PAGE
+;
+;==============================;
+;                              ;
+;       COMMON RAM AREA        ;
+;                              ;
+;==============================;
+;
+RAMTOP  EQU     0F000H ; RAM TOP ADDR.
+;------------------------------;
+;   LOADER AREA (F000H-FBFFH)  ;
+;------------------------------;
+;
+;;;; 0FC00H ; COMMON TABLE AREA
+;
+FDCOM   EQU     0FC00H  ;1 ; FDD COMMAND
+DRIVE   EQU     0FC01H  ;1 ; DRIVE NO.
+TRACK   EQU     0FC02H  ;1 ; TRACK NO.
+HEAD1   EQU     0FC03H  ;1 ; HEAD SELECT
+SECTR   EQU     0FC04H  ;1 ; SECTOR NO.
+FDPRM   EQU     0FC05H  ;4 ; COMMON PARAMETER
+LNGTH   EQU     0FC09H  ;1 ; SECTOR LENGTH
+ADDRS   EQU     0FC0AH  ;2 ; RAM ADDRESS.
+;
+ST02    EQU     0FC0CH  ;3 ; RESULT STATUS
+TRAK0   EQU     0FC0FH  ;1 ; STATUS TRACK
+HEAD0   EQU     0FC10H  ;1 ; STATUS HEAD
+SECT0   EQU     0FC11H  ;1 ; STATUS SECTOR
+LNGH0   EQU     0FC12H  ;1 ; STATUS N
+;
+FDBSY   EQU     0FC13H  ;1 ; FDD COMND EXEC FLAG
+CALFLG  EQU     0FC14H  ;1 ; CALIB FLAG
+IMASK   EQU     0FC15H  ;1 ; INTRRUPT MASK
+KBSTS   EQU     0FC16H  ;2 ; KEY STATUS
+KBDATA  EQU     0FC18H  ;1 ; KEY DATA
+KBOBF   EQU     0FC19H  ;1 ; TX.BUFF BUSY
+KBPOIN  EQU     0FC1AH  ;1
+KBFULL  EQU     0FC1BH  ;1
+BZBUF   EQU     0FC1CH  ;1
+MBRBUF  EQU     0FC1DH  ;1
+TDRIV   EQU     0FC1EH  ;1
+PRNFLG  EQU     0FC1FH  ;1
+PRNBUF  EQU     0FC20H  ;1
+ERRAD   EQU     0FC21H  ;2 ; JUMP FOR ERROR
+CLRDT   EQU     0FC23H  ;2
+CHARDT  EQU     0FC25H  ;1
+ATTRDT  EQU     0FC26H  ;1
+;
+ 	END
