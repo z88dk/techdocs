@@ -1,0 +1,1975 @@
+	TITLE	* QX-10 63k MF-CP/M BIOS1 M1.3 *
+;
+;
+;
+;
+;     
+;  BASIC I/O SYSTEM FOR QX-10 CP/M V2.2 
+;     
+;
+;
+;
+;	created		QX-10 63k MF-CP/M BIOS1
+;			M1.0	1983. 2. 9   by Yuichi Ushiyama
+;						Chisato Kobayashi
+;			M1.1	      3.10
+;			M1.2	      3.15
+;			M1.3	      4.29
+;
+;
+;
+;
+;
+	.Z80
+	page	60
+;
+;
+	.PHASE	0F600H		;63k !!!!!
+;
+;
+BIOS:
+;
+;
+;................................................
+;.						.
+;.	CP/M SYSTEM FUNDAMENTAL CONSTANTS	.
+;................................................
+;
+;VERS	EQU	22  		;CP/M VERSION 2.2
+;
+CCP	EQU	BIOS-1600H
+BDOS	EQU	CCP+806H	;BDOS ADDRESS
+CPML	EQU	16H		;(BIOS-CCP)/256 ;CP/M SECTORS
+;
+INTTAB	EQU	0FD80H		;
+PRMTAB	EQU	0FE00H		;
+;
+CPFSTR	EQU	0A100H		;programmable function key table
+PRTBUF	EQU	0C300H
+MFBUF1	EQU	0C400H
+MFSIZE	EQU	800H
+MFBUF2	EQU	MFBUF1+MFSIZE
+MFBUF3	EQU	MFBUF2+MFSIZE
+HSTBUF	EQU	0DC00H		;*BIOS2
+;
+;
+;
+;........................................
+;.					.
+;.	CP/M TO HOST DISK CONSTANTS	.
+;........................................
+;
+;
+BLKSIZ	EQU	2048		;CP/M ALLOCATION SIZE
+HSTSIZ	EQU	1024		;HOST DISK SECTOR SIZE	@
+HSTSPT	EQU	8		; 32*256/HSTSIZ ;HOST DISK SECTORS/TRK	@
+HSTBLK	EQU	8		; HSTSIZ/128 ;CP/M SECTRS/HOST BUFFER	@
+CPMSPT	EQU	40H		; HSTBLK*HSTSPT ;CP/M SECTORS/TRACK
+SECMSK	EQU	HSTBLK-1	;SECTOR MASK
+SECSHF	EQU	3		;LOG2(HSTBLK)			@
+;
+;
+;
+;................................................
+;.						.
+;.	BDOS CONSTANTS FOR ENTRY TO WRITE		.
+;................................................
+;
+;
+;WRALL	EQU	0		;WRITE with Allocation
+WRDIR	EQU	1		;WRITE to directory
+WRUAL	EQU	2		;WRITE without Allocation
+;
+;
+;
+;................................
+;.				.
+;.	OTHER CONSTANTS		.
+;................................
+;
+;
+;	CP/M 0 PAGE WORK
+;
+IOBYT	EQU	0003H		;CP/M I/O BYTE
+CDISK	EQU	0004H		;CP/M CURRENT DISK #
+NDISKS	EQU	6		;ON-LINE DISKS
+;
+;
+;	BIOS STACK
+;
+INITSTK	EQU	0
+;
+;
+STARTCOM	EQU	INITSTK-100H	;auto-start command buffer
+CCPCOM		EQU	CCP+07H		;CCP command buffer
+;
+;
+;	CONTROL CHARACTER DEFINITION
+;
+CR	EQU	0DH
+LF	EQU	0AH
+;
+;
+;
+;
+;
+	PAGE
+;
+;	"  BIOS BEGINS HERE !! "
+;
+;
+;	*** JUMP VECTOR FOR INDIVIUAL ROUTINE ***
+;
+;
+	JP	BOOT
+WBOOTE:	JP	WBOOT
+	JP	CONST
+	JP	CONIN
+	JP	CONOUT
+	JP	LIST
+	JP	PUNCH
+	JP	READER
+	JP	HOME
+	JP	SELDSK
+	JP	SETTRK
+	JP	SETSEC
+	JP	SETDMA
+	JP	READ
+	JP	WRITE
+	JP	LISTST
+	JP	SECTRAN
+	JP	PSET
+	JP	HCOPY
+	JP	BEEP
+	JP	RSOPEN
+	JP	RSCLOSE
+	JP	RSINST	
+	JP	RSOUTST	
+	JP	RSIN
+	JP	RSOUT
+	JP	TIMDAT
+	JP	MEMORY		;
+	JP	RSIOX		;
+	JP	LIGHTPEN	;
+	JP	MASKI		;
+	JP	LOADX		;
+	JP	STORX		;
+	JP	LDIRX		;
+	JP	JUMPX		;
+	JP	CALLX		;
+	JP	GETPFK		;
+	JP	PUTPFK		;
+	JP	$
+	JP	LDAXX		;
+	JP	STAXX		;
+;
+;
+;
+	PAGE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;     ;
+; DISK PARAMETER DEFINITION  ;
+;     ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;
+; data table for four drive double density double sided
+; 96 TPI, 5 1/4" diskette
+;
+; disks 6
+; diskdef 0,1,64,0,2048,140,64,64,4
+; diskdef 0,1,64,0,1024,56,32,32,0
+;
+; disk parameter headers
+;
+DPBASE:	
+;
+; disk parameter header for disk 0
+;
+	DW	0000H,0000H	;translate table
+	DW	0000H,0000H	;scratch area
+	DW	DIRBUF,DPBLK	;dir buf, parm block
+	DW	CSV0,ALV0	;check, alloc vectors
+;
+; disk parameter header for disk 1
+;
+	DW	0000H,0000H
+	DW	0000H,0000H
+	DW	DIRBUF,DPBLK
+	DW	CSV1,ALV1
+;
+; disk parameter header for disk 2
+;
+	DW	0000H,0000H
+	DW	0000H,0000H
+	DW	DIRBUF,DPBLK
+	DW	CSV2,ALV2
+;
+; disk parameter header for disk 3
+;
+	DW	0000H,0000H
+	DW	0000H,0000H
+	DW	DIRBUF,DPBLK
+	DW	CSV3,ALV3
+;
+; disk parameter header for disk 4
+;
+	DW	0000H,0000H
+	DW	0000H,0000H
+	DW	DIRBUF,DPBLK4
+	DW	CSV4,ALV4
+;
+; disk parameter header for disk 5
+;
+	DW	0000H,0000H
+	DW	0000H,0000H
+	DW	DIRBUF,DPBLK4
+	DW	CSV5,ALV5
+;
+;
+;
+; disk parameter block for disk 0 - disk 3
+;
+DPBLK:	
+	DW	64		;CP/M sectors/track
+	DB	4		;block shift
+	DB	15		;block mask
+	DB	1		;extent mask
+	DW	139		;disk block size - 1
+	DW	63		;directory max
+	DB	80H		;alloc 0
+	DB	0		;alloc 1
+	DW	16		;directory check size
+	DW	4		;track offset
+;
+; disk parameter blocks for disk 4 and disk 5
+;
+DPBLK4:
+	DW	64		;sectors/track
+	DB	3		;block shift
+	DB	7		;block mask
+	DB	0		;extent mask
+	DW	55		;disk size -1
+	DW	31		;directory max
+	DB	128		;alloc.0
+	DB	0		;alloc.1
+	DW	8		;check size
+	DW	0		;offset
+;
+;
+;
+;
+;
+	SUBTTL	## BIOS2 ENTRY TABLE ##
+	PAGE
+SIGNMSG	EQU	3*0
+MCHRST	EQU	3*1
+GTMCHR	EQU	3*2
+MCOUT	EQU	3*3
+MLIST	EQU	3*4
+PUNCH2	EQU	3*5
+READR2	EQU	3*6
+CALBR2	EQU	3*7
+NSEC2	EQU	3*8
+WTHST2	EQU	3*9
+DMAST2	EQU	3*10
+COMMD2	EQU	3*11
+READ2	EQU	3*12
+WRITE2	EQU	3*13
+RSOPEN2	EQU	3*14
+RSCLOS2	EQU	3*15
+RSINST2	EQU	3*16
+RSOTST2	EQU	3*17
+RSIN2	EQU	3*18
+RSOUT2	EQU	3*19
+PSET2	EQU	3*20
+HCOPY2	EQU	3*21
+TIMDT2	EQU	3*22
+RSIOX2	EQU	3*23
+LPEN2	EQU	3*24
+MASK2	EQU	3*25
+GTPFK2	EQU	3*26
+PTPFK2	EQU	3*27
+;
+GOCPMX	EQU	3*29
+SIOIR2	EQU	3*30
+FDCIR2	EQU	3*31
+;
+LPENI2	EQU	3*33
+INTX21	EQU	3*34
+INTX22	EQU	3*35
+INTX23	EQU	3*36
+INTX24	EQU	3*37
+INTX25	EQU	3*38
+INTX26	EQU	3*39
+INTX27	EQU	3*40
+;
+;
+;
+	SUBTTL	---  BIOS MAIN ROUTINE ---
+	PAGE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;	*** BOOT ***
+;
+;	 cold boot
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;
+BOOT:				; . . . . . . . . . . . . . . . I
+	LD	SP,INITSTK	;				I
+;								I
+	LD	A,10H		;reset memory bank number in RAM
+	LD	(MEMBANK),A	;				I
+;				;reset 8259			I
+	LD	A,95H		;set interrupt vector address ( low INTTAB = 80H )
+	OUT	(8),A		;				I
+	LD	A,high INTTAB	;				I
+	OUT	(9),A		;				I
+	LD	A,80H		;				I
+	OUT	(9),A		;				I
+	LD	A,2		;				I
+	OUT	(9),A		;				I
+	LD	A,2EH		;mask-main [power down][KB][FDD][slave]
+	OUT	(9),A		;				I
+;								I
+	LD	A,0B5H		;level sense			I
+	OUT	(0CH),A		;				I
+	LD	A,high INTTAB	;				I
+	OUT	(0DH),A		;				I
+	LD	A,7		;				I
+	OUT	(0DH),A		;				I
+	LD	A,2		;				I
+	OUT	(0DH),A		;				I
+	LD	A,0FBH		;mask-slave [calender]		I
+	OUT	(0DH),A		;				I
+;								I
+	EI			;GO !  >>>>>>>>>>>>>>>>>>>>>>>>>>
+;
+	XOR	A
+	LD	(CDISK),A	;set current disk # = 0
+	LD	A,10101001B	;CON:=CRT:,LST:=LPT:,PUN:=UP1:,RDR:=UR1
+	LD	(IOBYT),A	;set I/O byte
+;
+	LD	IX,SIGNMSG	;print sign on message
+	CALL	BIOS2		;
+;
+	LD	HL,STARTCOM	;set auto-start command line
+	LD	DE,CCPCOM	;
+	LD	A,(HL)		;character count
+	INC	A		;
+	INC	A		;(char. count)+(command line)+(end mark)
+	LD	C,A		;
+	LD	B,0		;
+	LDIR			;copy to CCP command buffer.
+;
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+PASSKEY:			;				I
+	IN	A,(12H)		;read KB status			I
+	BIT	0,A		;available ?			I
+	JR	Z,BOOTE		;no.				I
+	IN	A,(10H)		;read KB data			I
+	JR	PASSKEY		;continue.			I
+BOOTE:				;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+;
+	LD	C,80H		;read SWITCH status
+	CALL	KBCOM		;
+;
+	JR	GOCPM
+;
+;
+;
+;
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;	*** WBOOT ***
+;
+; WARM BOOT to re-initialize system
+; read CCP, BDOS from disk
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;
+WBOOT:	
+	LD	SP,INITSTK	;set initial stack address
+	LD	A,(HSTWRT)
+	OR	A		;any write pending ?
+	CALL	NZ,WRITEHST
+;
+; read CCP and BDOS
+;
+	XOR	A
+	LD	(DRIVE),A	;DRIVE=0
+	LD	(HEAD),A	;HEAD=0
+	LD	(TRACK),A	;TRACK=0
+	LD	A,9		;
+	LD	(SECTOR),A	;SECTOR=9
+	LD	A,8		;
+	LD	(SECTCT),A	;number of sectors to read
+	LD	HL,CCP
+	LD	(DBADDR),HL
+	CALL	NSECRD		;read CP/M system
+	JP	NZ,WBFAIL	;go to warm boot error routine
+;
+; read remainder of SYSTEM
+;
+	LD	A,1
+	LD	(HEAD),A	;HEAD=1
+	LD	(SECTOR),A	;SECTOR=1
+	LD	A,CPML-8	;
+	LD	(SECTCT),A	;sector count of remainder
+	LD	HL,CCP+8*256	;
+	LD	(DBADDR),HL
+	CALL	NSECRD		;read the remaining of system
+	JP	NZ,WBFAIL	;go to warm boot error routine
+;
+;
+;
+;	initialize and go to CP/M
+;
+GOCPM:
+	LD	A,10H		;
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	(MEMBANK),A	;				I
+	OUT	(18H),A		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+;
+; keyboard initialize and test kb status
+;
+	LD	A,(KBREPT)	;repeat or non repeat
+	OR	A
+	LD	C,0A0H
+	JR	Z,GOCPM1
+	INC	C
+GOCPM1:
+	CALL	KBCOM
+;
+	LD	A,(KBSTRT)	;set repeat start time
+	AND	1FH
+	LD	C,A
+	CALL	KBCOM
+;
+	LD	A,(KBINTVL)	;set key repeat interval
+	AND	1FH
+	OR	20H
+	LD	C,A
+	CALL	KBCOM
+;
+	LD	C,0		;read date & time
+	CALL	TIMDAT
+;
+	LD	IX,GOCPMX	
+	CALL	BIOS2		
+;
+;
+; set parameter 0 PAGE
+;
+	LD	A,0C3H		;set JP instruction
+	LD	(0000H),A
+	LD	HL,WBOOTE
+	LD	(0001H),HL	;JP WBOOTE at 00
+	LD	(0005H),A
+	LD	HL,BDOS
+	LD	(0006H),HL	;JP BDOS at 0005H
+	LD	A,(CDISK)
+	LD	C,A		;current disk # to C
+;
+	JP	CCP		; GO CCP
+;
+;
+;
+;
+;
+KBCOM:
+	IN	A,(12H)
+	BIT	2,A
+	JR	Z,KBCOM
+	LD	A,C
+	OUT	(10H),A
+	RET
+;
+;
+;
+;	WARM BOOT FAIL
+;
+WBFAIL:	
+	LD	HL,WBFMS
+	CALL	PRMSG		;print "CAN NOT WARM BOOT !!"
+	CALL	BUZZON		;buzzer on
+	JR	$		;loop forever
+;
+;
+;
+PRMSG:
+	LD	A,(HL)
+	AND	A		;found 0 ?
+	RET	Z		;yes
+;
+; more to print
+;
+	PUSH	HL
+	LD	C,A
+	CALL	CONOUT
+	POP	HL
+	INC	HL
+	JR	PRMSG
+;
+;
+; WARM BOOT FAIL MESSAGE
+;
+WBFMS:
+	DB	CR,LF
+	DB	'CAN NOT WARM BOOT !!'
+	DB	CR,LF,0
+;
+;
+;
+	SUBTTL	*  CP/M INDIVIDUAL ROUTINE  *
+	PAGE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;     ;
+; CP/M INDIVIDUAL ROUTINE  ;
+;     ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;
+;	SELECT DISK
+;
+SELDSK:	
+	LD	HL,0		;return 0000 if error
+	LD	A,C		;selected disk # at C
+	CP	NDISKS		; too large?
+	RET	NC		;selected disk # is too large
+	LD	(SEKDSK),A	;set seek disk number
+	LD	L,A
+	LD	H,0
+	ADD	HL,HL		;
+	ADD	HL,HL		;
+	ADD	HL,HL		;
+	ADD	HL,HL		;multiplied by 16
+	LD	DE,DPBASE	;base of parameter block
+	ADD	HL,DE
+	RET
+;
+;
+;
+;
+;
+;	HOME THE SELECTED DISK
+;
+HOME:
+	LD	A,(HSTWRT)	;check for pending write
+	OR	A
+	JR	NZ,HOMED
+	LD	(HSTACT),A	;clear host active flag
+HOMED:
+	LD	BC,0
+;JR SETTRK
+;
+;
+;
+;
+;
+;	SET TRACK NUMBER given by BC
+;
+SETTRK:	
+	LD	H,B		;TRACK to seek
+	LD	L,C
+	LD	(SEKTRK),HL
+	RET
+;
+;
+;
+;
+;
+;	SET SECTOR given by C-reg.
+;
+SETSEC:	
+	LD	A,C
+	LD	(SEKSEC),A	;SECTOR to seek
+	RET
+;
+;
+;
+;
+;
+;	SET DMA ADDRESS ( TO READ OR WRITE DISK ) given by BC
+;
+SETDMA:	
+	LD	H,B
+	LD	L,C
+	LD	(DMAADR),HL
+	RET
+;
+;
+;
+;
+;
+; TRANSLATE SECTOR NUMBER BC
+;   DE: translate table
+;   BC: logical sector number
+; on return, physical sector # VIA HL
+;
+SECTRAN:	
+	LD	H,B
+	LD	L,C		;no translate
+	RET
+;
+;
+;
+;
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;	***  READ DISK ROUTINE  ***
+;
+;	read the selected CP/M sector
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;
+READ:	
+	LD	IX,READ2
+	JP	BIOS2		;* execute BIOS2 subroutine
+;
+;
+;
+;
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;	***  WRITE DISK ROUTINE  ***
+;
+;	write the selected CP/M sector
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;
+WRITE:	
+	LD	IX,WRITE2
+	JP	BIOS2
+;
+;
+;
+;
+;
+;
+;
+WRITEHST:
+	LD	IX,WTHST2
+	JP	BIOS2
+;
+;
+;
+;
+;
+	SUBTTL	CONST, CONIN, CONOUT
+	PAGE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;		*** CONST ***
+;
+;	read console status
+;	A=0  if not ready
+;	A=FF if ready
+;	and save character to "KEYF" if ready
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+CONST:
+	LD	IX,MCHRST
+	JP	BIOS2
+;
+;
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;		*** CONIN ***
+;
+;	read the character from console
+;	and put it into Acc
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+CONIN:	
+	LD	IX,GTMCHR
+	JP	BIOS2
+;
+;
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;		*** CONOUT ***
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+CONOUT:
+	LD	IX,MCOUT
+	JP	BIOS2
+;
+;
+;
+;
+;
+	SUBTTL	READER, PUNCH, LIST, LISTST
+	PAGE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;		*** READER ***
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;						
+READER:
+	LD	IX,READR2
+	JP	BIOS2
+;
+;
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;		*** PUNCH ***
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+PUNCH:
+	LD	IX,PUNCH2
+	JP	BIOS2
+;
+;
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;		*** LIST ***			
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+LIST:
+	LD	IX,MLIST
+	JP	BIOS2
+;
+;
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;		*** LISTST ***
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+LISTST:
+	LD	A,(IOBYT)
+	AND	0C0H
+	CP	80H
+	LD	A,0FFH
+	RET	C
+	JP	NZ,RSOUTST	;I/O byte=0c0h then rs232c
+	IN	A,(15H)		;input PRINTER status
+	LD	B,A
+	XOR	A
+	BIT	5,B
+	RET	NZ		;A=0 : printer is not ready 
+	CPL
+	RET			;A=FF: printer is ready
+;
+;
+;
+	subttl	*  FDD ROUTINES  *
+	PAGE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;	FDD ROUTINES
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;
+;	C O N S T A N T S
+;
+; FDC COMMAND
+;
+RECAL	EQU	07		;RECALIBRATE COMMAND
+SEEKC	EQU	0FH		;SEEK COMMAND
+SDS	EQU	04H		;SENSE DRIVE STATUS
+RDCM	EQU	46H		;READ COMMAND
+WRCM	EQU	45H		;WRITE COMMAND
+;
+; FDC STATUS DATA
+;
+CBSY	EQU	00010000B	;FDC BUSY FLAG
+NSEEK	EQU	00001111B	;IN SEEK FLAG
+USX	EQU	00001001B	;UNIT SELECT OFF
+US0	EQU	00001010B	;SELECT DRIVE 00
+US1	EQU	00001100B	;SELECT DRIVE 1
+;READY	EQU	00100000B
+;
+; FDC STATUS BIT
+;
+RQM	EQU	7		;REQUEST FOR MASTER
+DIO	EQU	6		;DATA IN/ OUT
+;
+; RE-TRY COUNT IF OPERATION CAUSE ERROR
+;
+RETRY	EQU	2 		; 2 TIMES
+;
+;
+;
+;................................
+;
+; FDD COMMAND OUT ROUTINES ;
+; SEEK,CALIBRATE,READ,WRITE ;
+;................................
+;
+;
+; CARIBRATION COMMAND
+;
+CALBRT:	
+	LD	IX,CALBR2
+	JP	BIOS2
+;
+;
+;
+; FDD READ COMMAND OUT
+;
+READCM:	
+	PUSH	HL
+	PUSH	DE
+	PUSH	BC
+	LD	BC,6044H	;B=60H, C=44H
+	CALL	DMASET
+	LD	A,RDCM		;set read command
+	JR	RWCMD
+;
+;
+;
+; FDD WRITE COMMAND
+;
+WRITCM:	
+	PUSH	HL
+	PUSH	DE
+	PUSH	BC
+	LD	BC,6048H	;B=60H, C=48H
+	CALL	DMASET
+	LD	A,WRCM		;set write command
+;
+; read/write command out
+;
+RWCMD:
+	LD	(FDCOM),A	;put read/write command
+	LD	HL,FDBSY
+	RES	5,(HL)		;reset error
+	SET	6,(HL)		;set busy read/write
+	CALL	SETPDRV		;set HD,US1,US0 to "RDRIVE"
+	LD	HL,TRACK
+	LD	DE,PTRACK
+	LD	BC,3
+	LDIR
+	LD	B,9		;command byte count 9
+	CALL	COMMD		;command out
+	POP	BC
+	POP	DE
+	POP	HL
+	RET
+;
+;
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; FDD COMMAND OUT
+; on call, B REG. has command byte number
+;	   and all command data is set already
+;	   in FDCOM,PDRIVE,PHEAD, etc.
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+COMMD:	
+	LD	IX,COMMD2
+	JP	BIOS2
+;
+;
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; EXECUTE FDD COMMAND ROUTINES
+; on return, Z=0 if error occured
+;	     Z=1 if successful
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+FDCALB:	
+	CALL	CALBRT		;CALIBRATE COMMAND OUT
+CHKEND:	
+	LD	A,(FDBSY)
+	BIT	2,A
+	JR	NZ,CHKEND	; WAIT UNTIL SEEK/RECAL END
+	BIT	1,A
+	RET
+;
+;
+;
+; EXCUTE READ DISK
+;
+FDREAD:	
+	CALL	READCM		;OUT READ COMMAND
+	JR	FDRSLT
+;
+;
+;
+; EXECUTE WRITE
+;
+FDWRITE:
+	CALL	WRITCM
+;
+; GET READ COMMAND RESULT
+;	Z=1: NORMAL END
+;	Z=0: ABNORMAL END
+;
+FDRSLT:	
+	LD	A,(FDBSY)
+	BIT	6,A		;EXECUTION COMPLETE ?
+	JR	NZ,FDRSLT	;NO, WAIT
+	BIT	5,A		;CHECK NORMAL END
+	RET
+;
+;
+;
+;
+;
+	PAGE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;     ;
+; FDD UTILITY ROUTINES   ;
+;     ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;;;
+;READ,WRITE N SECTORS
+;BUT N SECTORS MUST BE IN SAME HEAD, SAME TRACK
+;PARAMETERS ARE SET ALREADY IN DRIVE,HEAD,SECTOR, ETC.
+;;
+;
+NSECRD:	
+	DB	3EH		;set [ LD A,0AFH ]
+NSECWT:	
+	XOR	A
+	LD	(RWFLG),A	;SET READ/WRITE FLAG  (<>0/=0)
+;
+;
+; enter here, read/write N sectors
+;
+NSECRW:	
+	LD	IX,NSEC2
+	JP	BIOS2
+;
+;
+;
+;
+;
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;     ;
+; FDD ANOTHER SUBROUTINES  ;
+;     ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;;;
+; GET TRACK,HEAD THEN CONSTRUCT HD,US1,US0 BYTE
+; AND PUT IT TO "PDRIVE"
+; US1,US0=00---DRIVE 0
+; US1,US0=01---DRIVE 1
+;;;;
+SETPDRV:	
+	LD	A,(HEAD)
+	AND	1		;
+	RLCA			;SHIFT LEFT 2 TIMES
+	RLCA
+	LD	B,A		;DATA SAVE
+	LD	A,(DRIVE)
+	AND	3		;
+	LD	(CURDRIV),A
+	OR	B		;CREATE HD,US1,US0
+	LD	(PDRIVE),A
+	RET
+;
+;
+;
+;
+;
+; software interval timer 2
+; about 1 milli second
+;
+ST1ML:	
+	PUSH	BC
+	PUSH	AF
+	LD	BC,154
+;
+; soft timer loop
+; this loop takes 26 states i.e. it is 26*1/4
+;   ( about 6.5 micro sec )
+;
+ST8MIC:
+	DEC	BC
+	LD	A,B
+	OR	C
+	JR	NZ,ST8MIC
+	POP	AF
+	POP	BC
+	RET
+;
+;
+;
+;
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;     ;
+; Z-80 DMA parameter set for read/write disk
+; transfer memory to port
+; on call, BC has transfer direction
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+DMASET:	
+	LD	IX,DMAST2
+	JP	BIOS2
+;
+;
+;
+;
+;
+	PAGE
+BEEP:
+	INC	C
+	JR	Z,BUZZON	;buzzer on if C=0FFH
+	LD	A,(MEMBANK)
+	DEC	C
+	JR	Z,BP90		;
+	SET	2,A
+	OUT	(18H),A
+	PUSH	AF
+BP10:
+	LD	B,10
+BP20:
+	CALL	ST1ML		;wait 1ms
+	DEC	B
+	JR	NZ,BP20
+	DEC	C
+	JR	NZ,BP10
+	POP	AF
+BP90:
+	RES	2,A
+	JP	BUZZZ
+;
+;
+BUZZON:	
+	LD	A,(MEMBANK)
+	SET	2,A
+BUZZZ:
+	LD	(MEMBANK),A
+	OUT	(18H),A
+	RET
+;
+;
+;
+;
+;
+	SUBTTL	RS232C
+	PAGE
+;************************
+;*	RS 232 C	*
+;************************
+;
+;
+RSOPEN:				;OPEN MAIN BOARD RS232C
+	LD	IX,RSOPEN2
+	JP	BIOS2	
+;
+;
+RSCLOSE:			;CLOSE MAIN BOARD RS232C
+	LD	IX,RSCLOS2
+	JP	BIOS2	
+;
+;
+RSINST:				;GET INPUT STATUS
+	LD	IX,RSINST2
+	JP	BIOS2	
+;
+;
+RSOUTST:			;GET OUTPUT STATUS
+	LD	IX,RSOTST2
+	JP	BIOS2	
+;
+;
+RSIN:				;read character FROM RS232C
+	LD	IX,RSIN2
+	JP	BIOS2	
+;
+;
+RSOUT:				;output character to RS232C
+	LD	IX,RSOUT2
+	JP	BIOS2	
+;
+;
+;
+RSIOX:				;option RS232C handler
+	LD	IX,RSIOX2
+	JP	BIOS2
+;
+;
+;
+;
+;
+	SUBTTL	PSET, HCOPY, TIME & DATE
+	PAGE
+PSET:
+	LD	IX,PSET2
+	JP	BIOS2
+;
+;
+;
+;
+;
+HCOPY:
+	LD	IX,HCOPY2
+	JP	BIOS2
+;
+;
+;
+;
+;
+TIMDAT:
+	LD	IX,TIMDT2
+	JP	BIOS2
+;
+;
+;
+;
+;
+LIGHTPEN:			;
+	LD	IX,LPEN2
+	JP	BIOS2
+;
+;
+;
+;
+;
+MASKI:				;
+	LD	IX,MASK2
+	JP	BIOS2
+;
+;
+;
+;
+;
+	SUBTTL	###  MEMORY  ###
+	PAGE
+MEMORY:
+	CALL	SMBANK
+	RET	NC		;error return  A: non zero
+	EX	AF,AF'
+	LD	A,(MEMBANK)
+	LD	C,-1
+	BIT	5,A
+	JR	NZ,MEM10	;SYSTEM BANK
+	INC	C		;=0
+	BIT	4,A
+	JR	NZ,MEM10	;MAIN BANK
+	INC	C		;=1
+	BIT	6,A
+	JR	NZ,MEM10	;USER BANK #1 (MFBASIC)
+	INC	C		;=2  USER BANK #2 (OPTION)
+MEM10:
+	EXX
+	AND	0FH
+	LD	C,A
+	EX	AF,AF'
+	OR	C
+	EXX
+	LD	(MEMBANK),A
+	OUT	(18H),A
+	XOR	A		;A=0
+	RET			;normal end
+;
+SMBANK:
+;       on call 			on return
+;	  C:0  MAIN BANK 		  A:10H
+;	   :1  USER BANK #1 (MFBASIC)	   :40H
+;	   :2  USER BANK #2 (OPTION)	   :80H
+;	   :-1 SYSTEM BANK (BIOS)	   :20H
+;
+	LD	A,C
+	INC	A
+	CP	4
+	RET	NC		;parameter error
+	EXX			;
+	LD	E,A
+	LD	D,0
+	LD	HL,BANKTAB
+	ADD	HL,DE
+	LD	A,(HL)
+	EXX			;*
+	SCF
+	RET			;normal end
+;
+BANKTAB:	DB	20H,10H,40H,80H
+;
+;
+;
+	SUBTTL	###  LOADX, STAXX, LDIRX, JUMPX, CALLX  ###
+	PAGE
+;
+;
+SAVSPX:	DW	0
+	DS	2*4
+STACKX:
+;
+;
+;
+;
+;
+LOADX:
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	(SAVSPX),SP	;				I
+	LD	SP,STACKX	;				I
+	CALL	SMBANK		;				I
+	LD	SP,(SAVSPX)	;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RET	NC		;parameter error (A>3)
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	CALL	LDAXX		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RET
+;
+;
+LDAXX:				;...............................I
+	OUT	(18H),A		;				I
+	LD	C,(HL)		;				I
+	LD	A,C		;				I
+;								I
+; option RAM test						I
+;								I
+LDXCHK:				;				I
+	LD	(HL),A		;				I
+	CP	(HL)		;				I
+	LD	A,0		;				I
+	JR	Z,LDXRET	;normal return			I
+	DEC	A		;=0FFH error ( no option RAM )	I
+LDXRET:				;				I
+	EX	AF,AF'		;				I
+	LD	A,(MEMBANK)	;				I
+	OUT	(18H),A		;				I
+	EX	AF,AF'		;				I
+	RET			;...............................I
+;
+;
+;
+;
+;
+STORX:
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	EX	AF,AF'		;				I
+	LD	(SAVSPX),SP	;				I
+	LD	SP,STACKX	;				I
+	CALL	SMBANK		;				I
+	LD	SP,(SAVSPX)	;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RET	NC		;parameter error (A>3)
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	CALL	STAXX		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RET
+;
+;
+STAXX:				;...............................I
+	OUT	(18H),A		;				I
+	EX	AF,AF'		;				I
+	JR	LDXCHK		;...............................I
+;
+;
+;
+;
+;
+LDIRX:
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	(SAVSPX),SP	;				I
+	LD	SP,STACKX	;				I
+	PUSH	BC		;				I
+	PUSH	DE		;				I
+	PUSH	HL		;				I
+	LD	A,(MBANKS)	;				I
+	LD	C,A		;				I
+	CALL	SMBANK		;				I
+	JR	NC,LDIR10	;parameter error (A>3)		I
+	LD	B,A		;				I
+	LD	A,(MBANKD)	;				I
+	LD	C,A		;				I
+	CALL	SMBANK		;				I
+	LD	C,A		;				I
+	EXX			;				I
+LDIR10:				;				I
+	POP	HL		;				I
+	POP	DE		;				I
+	POP	BC		;				I
+	LD	SP,(SAVSPX)	;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RET	NC		;parameter error (A>3)
+;
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+;				;				I
+LDIR20:				;				I
+	EXX			;				I
+	LD	A,B		;				I
+	OUT	(18H),A		;				I
+	EXX			;				I
+	LD	A,(HL)		;				I
+	LD	(HL),A		;check option RAM		I
+	CP	(HL)		;				I
+	JR	NZ,LDIRER	;no option RAM			I
+	EX	AF,AF'		;				I
+	EXX			;				I
+	LD	A,C		;				I
+	OUT	(18H),A		;				I
+	EXX			;				I
+	EX	AF,AF'		;				I
+	EX	DE,HL		;				I
+	LD	(HL),A		;				I
+	CP	(HL)		;check option RAM		I
+	EX	DE,HL		;				I
+	JR	NZ,LDIRER	;no option RAM			I
+;				;				I
+	INC	HL		;				I
+	INC	DE		;				I
+	DEC	BC		;				I
+	LD	A,B		;				I
+	OR	C		;				I
+	JR	NZ,LDIR20	;				I
+	LD	A,(MEMBANK)	;				I
+	OUT	(18H),A		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	XOR	A		;A=0
+	RET
+;
+LDIRER:				;...............................I
+	LD	A,(MEMBANK)	;				I
+	OUT	(18H),A		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RET			;A<>0
+;
+;
+;
+;
+;
+JUMPX:
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	(SAVSPX),SP	;				I
+	LD	SP,STACKX	;				I
+	EX	AF,AF'		;				I
+	PUSH	BC		;				I
+	LD	A,(MBANKD)	;				I
+	LD	C,A		;				I
+	CALL	SMBANK		;				I
+	LD	C,A		;				I
+	LD	A,(MEMBANK)	;				I
+	AND	0FH		;				I
+	OR	C		;				I
+	LD	(MEMBANK),A	;				I
+	OUT	(18H),A		;				I
+	POP	BC		;				I
+	EX	AF,AF'		;				I
+	LD	SP,(SAVSPX)	;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	JP	(IX)
+;
+;
+;
+;
+;
+CALLX:
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	(SAVSPX),SP	;				I
+	LD	SP,STACKX	;				I
+	EX	AF,AF'		;				I
+	PUSH	BC		;				I
+	LD	A,(MBANKD)	;				I
+	LD	C,A		;				I
+	CALL	SMBANK		;				I
+	LD	C,A		;				I
+	IN	A,(30H)		;				I
+	AND	0F0H		;				I
+	LD	B,A		;				I
+	LD	A,(MEMBANK)	;				I
+	AND	0FH		;				I
+	OR	B		;				I
+	LD	(MBANKD),A	;				I
+	AND	0FH		;				I
+	OR	C		;				I
+	LD	(MEMBANK),A	;				I
+	OUT	(18H),A		;				I
+	POP	BC		;				I
+	EX	AF,AF'		;				I
+	LD	SP,(SAVSPX)	;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	LD	IY,RETX
+	PUSH	IY		;push return address
+	JP	(IX)
+RETX:
+	EX	AF,AF'
+	EXX
+	LD	A,(MEMBANK)
+	AND	0FH
+	LD	C,A
+	LD	A,(MBANKD)
+	AND	0F0H
+	OR	C
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	(MEMBANK),A	;				I
+	OUT	(18H),A		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	EXX
+	EX	AF,AF'
+	RET
+;
+;
+;
+;
+;
+	SUBTTL	###  GETPFK, PUTPFK  ###
+	PAGE
+;
+;
+GETPFK:
+	LD	IX,GTPFK2	;
+	JR	BIOS2
+;
+;
+;
+PUTPFK:
+	LD	IX,PTPFK2	;
+	JR	BIOS2
+;
+;
+;
+;
+;
+	SUBTTL	@@@@@  BIOS2  @@@@@
+	PAGE
+BIOS2:
+	EX	AF,AF'		;*
+	EXX			;*
+	LD	(SHELT),SP
+	LD	DE,(SHELT)	;DE=SP
+	LD	HL,(MEMPTR)
+	INC	HL
+	LD	(HL),E		;save low SP
+	INC	HL
+	LD	(HL),D		;save high SP
+	INC	HL
+	IN	A,(30H)		;
+	AND	0F0H		;
+	LD	D,A		;
+	LD	A,(MEMBANK)	;
+	AND	0FH		;
+	OR	D		;
+	LD	(HL),A		;save MEMORY BANK
+	LD	(MEMPTR),HL
+	AND	0FH
+	OR	20H
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	(MEMBANK),A	;				I
+	OUT	(18H),A		;				I
+	LD	SP,STCKXX	;				I
+	LD	HL,RETOS2	;				I
+	PUSH	HL		;stack return address (SHELT)	I
+	EX	AF,AF'		;*				I
+	EXX			;*				I
+	JP	(IX)		;jump to BIOS2 routines.	I
+RETOS2:				;################################
+	EX	AF,AF'		;return form BIOS2 routines.	I
+	EXX			;*				I
+	LD	HL,(MEMPTR)	;				I
+	LD	A,(HL)		;				I
+	DEC	HL		;				I
+	AND	0F0H		;				I
+	LD	B,A		;				I
+	LD	A,(MEMBANK)	;				I
+	AND	0FH		;				I
+	OR	B		;				I
+	LD	(MEMBANK),A	;restore memory bank.		I
+	OUT	(18H),A		;				I
+	LD	D,(HL)		;				I
+	DEC	HL		;				I
+	LD	E,(HL)		;				I
+	DEC	HL		;				I
+	LD	(MEMPTR),HL	;				I
+	LD	(SHELT),DE	;				I
+	LD	SP,(SHELT)	;restore SP			I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	EX	AF,AF'		;*
+	EXX			;*
+	RET
+;
+;
+SHELT:	DW	0
+	DS	2*20
+STCKXX:
+;
+;
+;
+;
+;
+	SUBTTL	INTERRUPT HANDLE ROUTINES
+	PAGE
+;
+;
+BIOS2I:				;...............................I
+	PUSH	AF		;				I
+	PUSH	DE		;				I
+;								I
+	IN	A,(30H)		;	 			I
+	AND	0F0H		;				I
+	LD	(SVIBANK),A	;save memory bank.		I
+	LD	A,(MEMBANK)	;				I
+	AND	0FH		;				I
+	OR	20H		;				I
+	LD	(MEMBANK),A	;set BIOS2 memory bank.		I
+	OUT	(18H),A		;				I
+	LD	(SVSPIR),SP	;save stack pointer		I
+	LD	SP,STCKIR	;				I
+	LD	DE,RET2IR	;				I
+	PUSH	DE		;stack return address		I
+	JP	(HL)		;jump to BIOS2 interrupt routines
+RET2IR:				;return from BIOS2 interrupt routine
+	LD	SP,(SVSPIR)	;restore stack pointer		I
+	LD	A,(SVIBANK)	;				I
+	LD	H,A		;				I
+	LD	A,(MEMBANK)	;				I
+	AND	0FH		;				I
+	OR	H		;				I
+	LD	(MEMBANK),A	;restore memory bank		I
+	OUT	(18H),A		;				I
+;								I
+	POP	DE		;				I
+	POP	AF		;				I
+	POP	HL		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RETI
+;
+;
+SVSPIR:	DW	0		;
+	DS	2*5
+STCKIR:		
+;
+;
+;
+;
+;
+;	7201 INTERRUPT
+;
+SIOIR:				;...............................I
+	LD	HL,SIOIR2	;				I
+	JR	BIOS2I		;...............................I
+;
+;
+;
+;	765 INTERRUPT
+;
+FDCIR:				;...............................I
+	LD	HL,FDCIR2	;				I
+	JR	BIOS2I		;...............................I
+;
+;
+;
+;	LIGHTPEN INTERRUPT
+;
+LPENIR:				;...............................I
+	LD	HL,LPENI2	;				I
+	JR	BIOS2I		;...............................I
+;
+;
+;
+;	OPTION BOARD INTERRUPT
+;
+INTX1:				;...............................I
+	LD	HL,INTX21	;				I
+	JR	BIOS2I		;...............................I
+;
+;
+INTX2:				;...............................I
+	LD	HL,INTX22	;				I
+	JR	BIOS2I		;...............................I
+;
+;
+INTX3:				;...............................I
+	LD	HL,INTX23	;				I
+	JR	BIOS2I		;...............................I
+;
+;
+INTX4:				;...............................I
+	LD	HL,INTX24	;				I
+	JR	BIOS2I		;...............................I
+;
+;
+INTX5:				;...............................I
+	LD	HL,INTX25	;				I
+	JR	BIOS2I		;...............................I
+;
+;
+INTX6:				;...............................I
+	LD	HL,INTX26	;				I
+	JR	BIOS2I		;...............................I
+;
+;
+INTX7:				;...............................I
+	LD	HL,INTX27	;				I
+	JP	BIOS2I		;...............................I
+;
+;
+;
+;
+;
+	PAGE
+;---------------------------------------+
+;	not using interrupt		|	
+;---------------------------------------+
+;
+PRNIR:
+	RET
+;
+;
+;
+SOFT1:	
+SOFT2:
+	RET
+;
+;
+;
+CLKIR:
+	HALT
+;
+;
+;
+;
+;
+PWDWN:
+	XOR	A
+	OUT	(20H),A		;CMOS RAM disable
+	OUT	(4DH),A		;DMA reset
+	HALT
+;
+;
+;
+;
+;
+	SUBTTL	INITIALIZED RAM DATA AREA
+	PAGE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;     ;
+; INITIALIZED RAM DATA AREA	;
+;     ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+	DS	INTTAB-140H-$	;
+;
+;	
+SEKDSK:	DB	0		;seek disk number
+SEKTRK:	DW	0		;seek track number
+SEKSEC:	DB	0		;seek sector number
+;
+HSTDSK:	DB	0		;host disk number
+HSTTRK:	DW	0		;host track number
+HSTSEC:	DB	0		;host sector number
+;
+SEKHST:	DB	0		;sector number of seeked host
+HSTACT:	DB	0		;host active flag
+HSTWRT:	DB	0		;host written flag
+;
+UNACNT:	DB	0		;unallocated records count
+UNADSK:	DB	0		;last unalloc. disk
+UNATRK:	DW	0		;last unalloc. track
+UNASEC:	DB	0		;last unalloc. sector
+;
+ERFLAG:	DB	0		;error reporting
+RSFLAG:	DB	0		;read sector flag
+READOP:	DB	0		;1 during read operation
+WRTYPE:	DB	0		;write operation type
+DMAADR:	DW	0		;last DMA address
+;
+;
+;	*  SCRATCH RAM AREA FOR BDOS USE  *
+;
+DIRBUF:	DS	128		;scratch directory area
+ALV0:	DS	18		;allocation vector 0
+CSV0:	DS	16		;check vector 0
+ALV1:	DS	18		;allocation vector 1
+CSV1:	DS	16		;check vector 1
+ALV2:	DS	18		;allocation vector 2
+CSV2:	DS	16		;check vector 2
+ALV3:	DS	18		;allocation vector 3
+CSV3:	DS	16		;check vector 3
+ALV4:	DS	7
+CSV4:	DS	8
+ALV5:	DS	7
+CSV5:	DS	8
+;
+;
+;
+	SUBTTL	INTERRUPT VECTOR
+	PAGE
+;................................
+;.				.
+;.	INTERRUPT VECTOR	.
+;.				.
+;................................
+;
+	DS	INTTAB-$
+;
+;
+;INTTAB::
+	NOP
+	JP	PWDWN		;power down intr.
+	EI
+	JP	SOFT1		;soft timer(first)
+	PUSH	HL		;
+	JP	INTX1		;ext. intr. #1
+	PUSH	HL		;
+	JP	INTX2		;ext. intr. #2
+	PUSH	HL		;
+	JP	SIOIR		;7201 intr.
+	PUSH	HL		;
+	JP	LPENIR		;7220 intr.  LIGHT PEN
+	PUSH	HL		;
+	JP	FDCIR		;765 intr.
+	NOP
+	NOP
+	NOP
+	NOP
+	EI			;
+	JP	PRNIR		;8255 intr.
+	PUSH	HL		;
+	JP	INTX3		;ext intr. #3
+	NOP
+	JP	CLKIR		;46818 intr.
+	PUSH	HL		;
+	JP	INTX4		;ext. intr. #4
+	PUSH	HL		;
+	JP	INTX5		;ext. intr. #5
+	EI
+	JP	SOFT2		;soft timer(slow)
+	PUSH	HL		;
+	JP	INTX6		;ext. intr. #6
+	PUSH	HL		;
+	JP	INTX7		;ext. intr. #7
+;
+;
+;
+;
+;
+	SUBTTL	*  COMMON DATA AREA  *
+	page
+;................................
+;.				.
+;.	COMMON DATA AREA	.
+;.				.
+;................................
+;
+	DS	PRMTAB-$
+;
+;
+;---------- DATA AREA FOR DISK ROUTINE --------------------------
+;
+;
+;	* LOGICAL DISK PARAMETER *
+;
+RWFLG:		DS	1		;READ/WRITE OPERATION FLAG
+DRIVE:		DS	1		;DRIVE #
+TRACK:		DS	1		;TRACK #
+HEAD:		DS	1		;HEAD #
+SECTOR:		DS	1		;SECTOR #
+SECTCT:		DS	1		;NUMBER OF SECTORS
+DBADDR:		DS	2		;DISK BUFFER ADDRESS
+;
+;	* DISK COMMAND PARAMETER *
+;
+FDCOM:		DS	1		;DISK COMMAND
+PDRIVE:		DS	1		;HD, US1, US0
+PTRACK:		DS	1
+PHEAD:		DS	1		;PHYSICAL HEAD
+PSECTOR:	DS	1
+FDPRM:		DB	01H		;N
+		DB	10H		;EOT
+		DB	0EH		;GPL
+		DB	0FFH		;DTL
+;
+;	* RESULT STATUS *
+;
+FDBSY:		DB	0		;FDD COMMAND RESULT
+ST0:		DB	0,0,0		;FDC RESULT STATUS BYTES
+STRACK:		DB	0		;SENSE TRACK
+SHEAD:		DB	0		;SENSE HEAD
+SSECTOR:	DB	0		;SENSE SECTOR
+SLENGTH:	DB	0		;SENSE SECTOR COUNT
+ST3:		DB	0		;RESULT STATUS REG.3
+ST00:		DB	0		;STS 0
+STRK:		DB	0		;RESULT TRACK #
+;
+;---------------------------------------------------------------
+		DW	FDCALB
+		DW	FDREAD
+;---------------------------------------------------------------
+;---------- DATA FOR INPUT KEY DATA ROUTINE --------------------
+;
+KBDATA:		DB	0		;KEYBORD HARD CODE1
+INTPTR:		DW	KBUF		;KEY PUT POINTER
+KEYPTR:		DW	KBUF		;KEY GET POINTER
+XPFKSTR:	DW	0		;programmable function key pointer
+PFKPTR:		DW	0		;
+		DB	0		;not used.
+;----------------------------------------------------------------
+DFLTPRT:	DW	2		;default printer  MX-80 TYPE2,3
+PRTHRU:		DB	0		;print through flag
+;----------------------------------------------------------------
+CURDRIV:	DB	1		;current drive no.
+;----------------------------------------------------------------
+KBUF:		DS	16		;key data buffer
+KBUFEND:	DB	0FFH		;key data buffer end mark
+PFKCNT:		DB	0		;programmable function key byte count
+;----------------------------------------------------------------
+DFLTFLG:	DB	0		;default MBFLG
+DFLTILCH:	DW	111		;default illegal character CG no.
+BRKFLG:		DB	0		;keyboard break flag
+;----------------------------------------------------------------
+SCRLTIM:	DW	008H		;CRT scrol timer
+;----------------------------------------------------------------
+		DW	COMMD		;entry for COMMD routine
+;----------------------------------------------------------------
+DFLTUP:		DB	1EH		;up arrow hard code
+DFLTDN:		DB	1FH		;down
+DFLTRT:		DB	1CH		;right
+DFLTLT:		DB	1DH		;left
+;----------------------------------------------------------------
+KBREPT:		DB	0FFH		;keyboard repeat control
+KBSTRT:		DB	00EH		;keyboard repeat start time  (650ms)
+KBINTVL:	DB	8		;keyboard repeat interval    ( 70ms)
+;----------------------------------------------------------------
+WIDTH:		DB	80		;CRT WIDTH for BASIC
+;----------------------------------------------------------------
+MBFLG:		DB	0		;non-zero:MFBASIC mode
+;----------------------------------------------------------------
+		DB	0		;not used.
+SWITCH:		DB	0		;keyboard switch status
+		DB	0		;not used.
+XSHFDT:		DB	0		;
+;----------------------------------------------------------------
+PRINTER:	DW	8000H		;?????
+;----------------------------------------------------------------
+CRTPASS:	DB	0		;0ffH=direct display
+;----------------------------------------------------------------
+XCHUP:		DB	1EH		;
+XCHDOWN:	DB	1FH		;
+XCHRIGT:	DB	1CH		;
+XCHLEFT:	DB	1DH		;
+		DB	0		;not used.
+		DB	0CH		;not used.
+		DB	0BH		;not used.
+		DB	0FFH		;not used.
+;----------------------------------------------------------------
+;
+;		uPD7201(NEC)	channel B 
+;
+RSDAT:
+		DB	06H		;bit rate  (300)
+		DB	03H		;bit/character  (8)
+		DB	00H		;parity  (non-parity)
+		DB	01H		;stop bit  (1)
+;
+RSDFOP:		DB	0		;default / option
+;
+;
+;	MAIN BOARD RS232C parameter block
+;
+MRSDATA:
+		DW	MRSBUF		;main board RS232C buffer address
+		DW	MRSSIZ		;main board RS232C buffer size
+BITRATE:	DB	0		;bit rate
+DATACHR:	DB	0		;TX,RX bit/character
+PARITY:		DB	0		;parity
+STOPBIT:	DB	0		;stop bit
+RSV:		DB	0FFH		;reserved
+;
+MRSBUF		EQU	7000H		;main board RS data buffer on OS2
+MRSSIZ		EQU	200H		;main RS data buffer size
+;
+;------------------------------------------------------------------
+XSHIFT:		DW	50H		;KBTAB bias. default=normal
+;------------------------------------------------------------------
+SPOS:		DW	0		;screen starting address
+CSRDSP:		DB	0FFH		;0:no cursor, FF:cursor on
+CRTPOS:		DW	0		;
+HPOS:		DB	0		;CRT horizontal position
+VPOS:		DB	0		;CRT vertical position
+CRFLG:		DB	0		;
+T1ST:		DB	0		;
+TSAVE:		DB	0		;
+ATTR:		DB	0		;character attribute
+COLOR:		DB	7		;CRT color fore:white back:black
+;------------------------------------------------------------------
+KBSTS:		DB	0,0		;keyboard status
+KBOBF:		DB	0		;keyboard overflow flag
+KEYDATA:	DB	0		;key data
+;------------------------------------------------------------------
+;---------- PRMTAB+80H --------------------------------------------
+;------------------------------------------------------------------
+COUNTRY:	DB	0		;language 0 - 7
+MFNO:		DB	0		;MultiFonts style no.
+MFLG:		DB	0		;0:Normal mode, FF:MuliFonts mode
+STYLE:		DB	1		;MF mode style no.
+;------------------------------------------------------------------
+PRTPNT:		DW	PRTBUF+1	;
+KSAVE:		DB	0		;save 1st byte of MF (for LIST)
+LCRFLG:		DB	0		;LIST routine CR flag
+LSP:		DB	1		;left spacing
+RSP:		DB	1		;right spacing
+LPESC:		DB	0		;ESC flag (for LIST)
+MFDOT:		DW	0		;
+MFPT1:		DW	MFBUF1		;
+MFPT2:		DW	MFBUF2		;
+MFPT3:		DW	MFBUF3		;
+PTMAX:		DW	MFBUF1		;
+KETA:		DB	80		;chracters / line
+DOTPL:		DW	960		;dots / line
+PREF:		DB	0FFH
+;------------------------------------------------------------------
+DFLTMF:		DB	0		;MFLG defalut value
+		DB	0		;not used.
+;------------------------------------------------------------------
+GLPBIAS:	DW	-2		;Green Graphic mode Lightpen
+;------------------------------------------------------------------
+LISTERR:	DB	0		;BASIC mode printer error flag
+;-------------------------------------------------------------------
+;---------- PRMTAB+9EH ---------------------------------------------
+;-------------------------------------------------------------------
+MEMPTR:		DW	MEMBUF-1	;for BIOS2 routine
+MEMBUF:		DS	32		;for BIOS2 routine
+;-------------------------------------------------------------------
+		DS	PRMTAB+0D0H-$
+;--------------------------------------------------------------------
+ESCFLG:		DB	0		;ESCape flag (CONOUT)
+FUNCFLG:	DB	0		;Func. key check mode ON(0FFH)/OFF(0)
+;-------------------------------------------------------------------
+MFROM:		DB	0		;MF ROM ON(0FFH)/OFF(0)
+;-------------------------------------------------------------------
+FDSTAT:		DB	0		;FDD status
+;-------------------------------------------------------------------
+BASIC:		DB	0		;MFBASIC FDSTAT check mode
+;-------------------------------------------------------------------
+CPMSW:		DB	1		;1: MF CP/M
+;-------------------------------------------------------------------
+RSLTBUF:	DW	0,0,0,0,0,0,0,0,0,0,0,0
+FDERCNT:	DW	0
+;-------------------------------------------------------------------
+MEMBANK:	DB	10H		;
+MBANKS:		DB	0		;
+MBANKD:		DB	0		;
+SVIBANK:	DB	0		;memory bank before executing interrupt
+;--------------------------------------------------------------------
+CLPBIAS:	DW	-3		;Color Lightpen
+MLPBIAS:	DW	-5		;Green Character mode Lightpen
+;--------------------------------------------------------------------
+;---------- PRMTAB+0F8H ----------------------------------------------
+;---------------------------------------------------------------------
+YMDHMS:		DB	0		;Year
+		DB	0		;Month
+		DB	0		;Day
+		DB	0		;Hour
+		DB	0		;Minute
+		DB	0		;Second
+		DB	0		;Week
+		DB	0		;reseved
+;---------------------------------------------------------------------
+;---------- 0FF00H ---------------------------------------------------
+;
+		DB	0,0		;auto-start command buffer
+;
+;
+;
+;
+;
+;
+;
+	END
