@@ -1,0 +1,3268 @@
+	TITLE	*  QX-10 63k MF-CP/M BIOS5 M1.3  *
+;
+;
+;
+;
+;	created		QX-10 63k MF-CP/M BIOS5
+;			M1.1	1983. 3.11   by Kaoru Nakabayashi
+;						Chisato Kobayashi
+;	updated		M1.2	      3.18
+;	updated		M1.3	      4.29
+;
+;
+;
+;
+	.Z80
+	.PHASE	4000H
+;
+;
+;
+;
+;
+	PAGE	60
+LIST1:
+	XOR	A		
+	LD	(LISTERR),A	;clear BASIC mode printer error
+;
+	LD	A,(PRINTER)
+	BIT	2,A
+	JP	NZ,LPOUT	;MFBASIC BIT ON mode
+;
+	BIT	0,A
+	JR	NZ,MX80@1	;MX-80
+	BIT	1,A
+	JR	NZ,MX80		;MX-80 TYPE 2 and 3
+	BIT	3,A
+	JR	NZ,MX82		;MX-82 and MX-82 TYPE 3
+	BIT	4,A
+	JR	NZ,MX100	;MX-100 and MX-100 TYPE 3
+	BIT	5,A
+	JR	NZ,FX80		;FX-80
+	BIT	6,A
+	JR	NZ,FX100	;FX-100
+	BIT	7,A
+	JR	NZ,OLIVET	;OLIVETTI DY311
+	LD	A,(PRINTER+1)
+	BIT	0,A
+	JR	NZ,RX80		;RX-80
+;
+	JP	LPOUT
+;
+;
+MX80@1:
+OLIVET:
+	LD	A,(LPESC)
+	AND	A
+	JR	Z,LXI50
+;
+;	ESC sequence
+;
+	INC	A
+	LD	(LPESC),A
+	DEC	A
+	DEC	A
+	JR	NZ,LXI90	;80H,81H,82H
+;
+	LD	A,C
+	LD	(LPESCS),A
+	CP	80H
+	RET	Z
+	CP	81H
+	RET	Z
+	CP	82H
+	RET	Z
+	CP	61H		;small A
+	JR	Z,LXI90
+	CP	62H		;small B
+	JR	Z,LXI90
+;
+	PUSH	BC
+	LD	C,ESC
+	CALL	LPOUT
+	POP	BC
+	CALL	LPOUT
+;
+LXI90:
+	XOR	A
+	LD	(LPESC),A
+	LD	(LPESCS),A
+	RET
+;
+LXI50:
+	LD	A,C
+	CP	ESC
+	JP	NZ,LPOUT
+;[ ESC ]
+	LD	A,1
+	LD	(LPESC),A
+	RET
+;
+;
+;
+;
+;
+	PAGE
+MX80:
+MX82:
+MX100:
+FX80:
+FX100:
+RX80:
+;
+LX100:
+	LD	A,(LPESC)
+	AND	A
+	JP	Z,LX200
+;
+;
+;
+;	LIST ESCAPE sequence
+;
+LX110:
+	INC	A
+	LD	(LPESC),A
+	DEC	A
+	DEC	A
+	JR	NZ,LESPAR
+;
+	LD	A,C
+	LD	(LPESCS),A
+	CP	80H		;put any dot spacing
+	RET	Z		;continue
+	CP	81H		;set left space
+	RET	Z
+	CP	82H		;set right space
+	RET	Z
+	CP	61H		;small a
+	JR	Z,LNONPR	;not proportional printing
+	CP	62H		;small b
+	JR	Z,LPROP		;proportional printing
+	CP	90H		;printer head setting
+	RET	Z		;continue
+;
+LXESER:
+	CALL	BUZZPU		;error sequence
+LESEND:
+	XOR	A
+	LD	(LPESC),A
+	LD	(LPESCS),A
+	RET
+;
+;
+LNONPR:
+	LD	A,21H		; LD HL,
+	LD	HL,0FE7FH	;       0FE7FH
+	JR	LEPROP
+;
+LPROP:
+	XOR	A		; NOP
+	LD	HL,0		; NOP, NOP
+LEPROP:
+	LD	(FMMX1),A
+	LD	(FMMX2),A
+	LD	(FMMX1+1),HL
+	LD	(FMMX2+1),HL
+	JR	LESEND
+;
+;
+LESPAR:
+	LD	A,(LPESCS)
+	CP	90H		;
+	JR	Z,LX180
+	SUB	80H
+	JR	Z,LX150
+	DEC	A
+	JR	Z,LX160		;=81H
+	DEC	A
+	JR	Z,LX170		;=82H
+	JR	LESEND		;not supported
+;
+;
+;	put any dot space
+LX150:
+	LD	B,0		;BC: dot count
+	LD	HL,(MFPT1)
+	ADD	HL,BC
+	LD	(MFPT1),HL
+	LD	BC,MFSIZE
+	ADD	HL,BC
+	LD	(MFPT2),HL
+	ADD	HL,BC
+	LD	(MFPT3),HL
+	LD	A,-1
+	LD	(PRTBUF),A
+	CALL	LESEND		;reset LPESC,LPESCS
+	JP	LM800
+;
+;
+LX160:
+	LD	A,C
+	LD	(LSP),A
+	JP	LESEND
+;
+;
+LX170:
+	LD	A,C
+	LD	(RSP),A
+	JP	LESEND
+;
+;
+;
+;	printer head setting
+LX180:
+	LD	A,(LPESC)
+	CP	3
+	JR	NZ,LX182
+	LD	A,C
+	LD	(LESHDL),A
+	RET
+LX182:
+	LD	B,C
+	LD	A,(LESHDL)
+	LD	C,A
+	LD	HL,MFBUF1
+	ADD	HL,BC
+	LD	(MFPT1),HL
+	LD	BC,MFSIZE
+	ADD	HL,BC
+	LD	(MFPT2),HL
+	ADD	HL,BC
+	LD	(MFPT3),HL
+	LD	A,-1
+	LD	(PRTBUF),A
+	CALL	LESEND		;reset LPESC, LPESCS
+	JP	LM800
+;
+;
+;
+;
+;
+LX200:
+	LD	A,(MBFLG)	;MFBASIC flag
+	AND	A
+	LD	A,C
+	JR	NZ,LX210
+	CP	0A0H
+	JR	C,LX210
+	SUB	80H
+LX210:
+	LD	C,A
+;
+; check code CR,LF,ESC,BEL and other < 20H
+;
+	CP	20H
+	JR	NC,LX300
+;
+	CP	07H		;Buzzer
+	JP	Z,LPOUT
+	CP	0AH		;Line Feed
+	JR	Z,LX250
+	CP	0CH		;Form Feed
+	JR	Z,LX260
+	CP	0DH		;Carriage Return
+	JR	Z,LX250
+	CP	1BH		;ESC
+	RET	NZ
+;
+;
+;	[ ESC ]
+LXESC:
+	LD	A,1
+	LD	(LPESC),A	;set ESC flag
+	RET
+;
+;
+;	[ CR, LF ]
+;
+LX250:
+	LD	HL,(PRTPNT)
+	LD	(HL),A
+	CALL	PLINE
+	RET
+;
+;
+;	[ FF ]
+;
+LX260:
+	LD	A,0AH
+	CALL	LX250
+	LD	C,0CH
+	JP	LPOUT
+;
+;
+;
+;
+;
+LX300:
+	LD	A,(PRTBUF)
+	AND	A
+	JR	NZ,LX320
+	LD	A,(KETA)
+	LD	L,A
+	LD	H,0
+	LD	DE,PRTBUF+1
+	ADD	HL,DE
+	LD	DE,(PRTPNT)
+	XOR	A
+	SBC	HL,DE
+	JR	NZ,LX320
+	LD	A,0AH
+	LD	(DE),A
+	PUSH	BC
+	CALL	PL100		;print 1 line
+	POP	BC
+;
+LX320:
+	LD	HL,(MFPT1)
+	LD	(SHELT1),HL
+	LD	A,(PRTBUF)
+	LD	(BIMAGE),A
+	LD	A,C
+	CP	0A0H
+	JR	NC,LX500
+	LD	A,(KSAVE)
+	AND	A
+	JR	NZ,LXMFER
+;
+;
+;	[ Alphanumeric, Graphic ]
+;
+	LD	A,C
+	LD	HL,(PRTPNT)
+	LD	(HL),A
+	INC	HL
+	LD	(PRTPNT),HL
+	CP	7FH
+	JR	C,LX330
+	LD	(PRTBUF),A	;7F-9F
+LX330:
+	CALL	FORMAN
+	JR	LM800
+;
+;
+;
+LXMFER:
+	XOR	A
+	LD	(KSAVE),A
+	LD	HL,(PRTPNT)
+	LD	(HL),'.'
+	INC	HL
+	LD	(HL),C
+	INC	HL
+	LD	(PRTPNT),HL
+	RET
+;
+;
+;
+;
+;
+LX500:
+;
+;	[ Multi Font character ]
+;
+	LD	A,(KSAVE)
+	AND	A
+	LD	A,C
+	JR	NZ,LX600	;MF 2nd byte
+;
+;	MF 1st byte
+;
+	LD	(KSAVE),A
+	RET
+;
+;
+LX600:
+	CALL	FORMMF
+	LD	A,0
+	LD	(KSAVE),A
+;JP	C,LMXXXX	;chara-gene read error
+;
+;
+LM800:
+	LD	HL,(MFPT1)
+	LD	DE,MFBUF1
+	XOR	A
+	SBC	HL,DE
+	RET	C		;(RSP) < 0
+	LD	(MFDOT),HL
+	EX	DE,HL
+	LD	HL,(DOTPL)	;dots per line
+	XOR	A
+	SBC	HL,DE
+	RET	NC
+;				;1 line over
+	LD	A,(BIMAGE)
+	AND	A
+	JR	NZ,LM810
+	LD	HL,(PRTPNT)
+	LD	(HL),0AH
+	CALL	PL500		;all < 7FH
+	JR	LM820
+LM810:				;bit image
+	LD	HL,(SHELT1)
+	CALL	WRIT10		;write till (SHELT1)
+;
+LM820:
+	LD	HL,PRTBUF
+	LD	(HL),-1
+	INC	HL
+	LD	(PRTPNT),HL
+;
+	LD	BC,(SHELT1)
+	LD	DE,MFBUF1
+	LD	HL,(PTMAX)
+	XOR	A
+	SBC	HL,BC
+	PUSH	HL
+	ADD	HL,DE
+	LD	(PTMAX),HL
+;
+	LD	HL,(MFPT1)
+	XOR	A
+	SBC	HL,BC
+	PUSH	HL
+	ADD	HL,DE
+	LD	(MFPT1),HL
+;
+	LD	BC,MFSIZE
+	ADD	HL,BC
+	LD	(MFPT2),HL
+	ADD	HL,BC
+	LD	(MFPT3),HL
+;
+	POP	HL
+	POP	DE
+	CALL	CPHLDE
+	JR	NC,LM840	;HL>=DE
+	EX	DE,HL
+LM840:
+	LD	(MFDOT),HL
+	EX	DE,HL
+	LD	HL,MFSIZE
+	XOR	A
+	SBC	HL,DE
+	LD	(COUNT),HL	;0 count
+;
+;	translate remainder
+;
+	LD	HL,(SHELT1)
+	LD	DE,MFBUF1
+	LD	BC,(MFDOT)
+	LDIR
+	PUSH	DE		;
+;
+	LD	BC,(COUNT)
+	ADD	HL,BC
+	EX	DE,HL
+	ADD	HL,BC
+	EX	DE,HL
+	LD	BC,(MFDOT)
+	LDIR
+;
+	LD	BC,(COUNT)
+	ADD	HL,BC
+	EX	DE,HL
+	ADD	HL,BC
+	EX	DE,HL
+	LD	BC,(MFDOT)
+	LDIR
+;
+	POP	HL
+	LD	BC,(COUNT)	;0 count
+	LD	A,B
+	OR	C
+	RET	Z
+;
+;
+	LD	(HL),0
+	DEC	BC
+	LD	A,B
+	OR	C
+	JR	Z,LM860
+	LD	D,H
+	LD	E,L
+	INC	DE		;DE=HL+1
+	LDIR
+LM860:
+	LD	BC,(MFDOT)
+	ADD	HL,BC
+	LD	BC,(COUNT)
+	LD	(HL),0
+	DEC	BC
+	LD	A,B
+	OR	C
+	JR	Z,LM870
+	LD	D,H
+	LD	E,L
+	INC	DE		;DE=HL+1
+	LDIR
+LM870:
+	LD	BC,(MFDOT)
+	ADD	HL,BC
+	LD	BC,(COUNT)
+	LD	(HL),0
+	DEC	BC
+	LD	A,B
+	OR	C
+	RET	Z
+	LD	D,H
+	LD	E,L
+	INC	DE		;DE=HL+1
+	LDIR
+	RET
+;
+;
+;
+;
+;
+LMXXXX:
+	CALL	BUZZPU
+	CALL	CLRMBF
+	RET
+;
+;
+;
+;
+;
+	PAGE
+PLINE:
+	LD	HL,PRTBUF
+	LD	A,(HL)
+	AND	A
+	JR	NZ,PL200
+;
+	INC	HL
+	LD	A,(HL)
+	CP	0AH
+	JR	NZ,PL100
+	LD	A,(LCRFLG)
+	AND	A
+	JR	Z,PL110
+	XOR	A
+	LD	(LCRFLG),A
+	RET
+;
+;
+;	[  all < 7FH  ]
+;
+PL100:
+	LD	A,(PREF)
+	LD	D,A
+	LD	A,(COUNTRY)
+	CP	D		;compare last country to new country
+	JR	Z,PL110		;=
+	LD	(PREF),A	;save last country
+	LD	C,ESC		;put [ESC],'R',0-7
+	CALL	LPOUT
+	LD	C,'R'
+	CALL	LPOUT
+	LD	A,(COUNTRY)
+	LD	C,A
+	CALL	LPOUT
+PL110:
+	CALL	PL500
+	JR	PLZ
+;
+;
+PL500:
+	LD	HL,PRTBUF
+PL520:
+	INC	HL
+	LD	C,(HL)
+	CALL	LPOUT
+	LD	A,(HL)
+	CP	0DH
+	RET	Z
+	CP	0AH
+	RET	Z
+	JR	PL520
+;
+;
+PL200:
+	CALL	WRITE
+;
+PLZ:
+	CALL	CLRMBF
+	LD	HL,PRTBUF
+	LD	(HL),0
+	INC	HL
+	LD	(PRTPNT),HL
+	RET
+;
+;
+;
+;
+;
+	PAGE
+;	[  Alphanumeric, Graphic  ]
+;
+FORMAN:
+	LD	L,A
+	LD	H,0
+	LD	E,L
+	LD	D,H
+	ADD	HL,HL
+	ADD	HL,DE
+	ADD	HL,HL
+	ADD	HL,HL
+	LD	DE,PRTAB-12*20H
+	ADD	HL,DE		;HL=PRTAB+(C-20H)*12
+	PUSH	HL
+	POP	IY		;HL copied to IY
+;
+	LD	A,(LSP)		;left space
+	LD	E,A
+	LD	D,0
+	LD	HL,(MFPT2)
+	ADD	HL,DE
+	LD	(MFPT2),HL
+	LD	HL,(MFPT3)
+	ADD	HL,DE
+	LD	(MFPT3),HL
+	LD	HL,(MFPT1)
+	ADD	HL,DE
+;
+	LD	B,10
+FMA20:
+	LD	A,(IY)
+	OR	(HL)
+	LD	(HL),A
+	INC	IY
+	INC	HL
+	DJNZ	FMA20
+;
+	EX	DE,HL
+	LD	HL,(PTMAX)	;*
+	XOR	A
+	SBC	HL,DE
+	EX	DE,HL
+	JR	NC,FMA28
+	LD	(PTMAX),HL
+FMA28:
+	LD	A,(RSP)		;right space
+	LD	E,A
+	LD	D,0
+	RLCA
+	JR	NC,FMA30
+	LD	D,-1
+FMA30:
+	ADD	HL,DE
+	LD	(MFPT1),HL
+;
+	LD	BC,10
+	LD	HL,(MFPT2)
+	ADD	HL,BC
+	ADD	HL,DE
+	LD	(MFPT2),HL
+;		
+	LD	A,(IY)
+	OR	(IY+1)
+	JR	Z,FMA50
+;
+	LD	L,(IY)
+	LD	H,(IY+1)
+	LD	IY,(MFPT3)
+	LD	B,10
+FMA40:
+	LD	A,(HL)
+	OR	(IY)
+	LD	(IY),A
+	INC	HL
+	INC	IY
+	DJNZ	FMA40
+FMA50:
+	LD	HL,(MFPT3)
+	ADD	HL,BC		;BC=10
+	ADD	HL,DE		;add right space
+	LD	(MFPT3),HL
+;
+	XOR	A		;reset carry
+	RET
+;
+;
+;
+;
+;
+	PAGE
+;	[  Multi Font  ]
+;
+FORMMF:
+	LD	A,(LSP)		;left space
+	LD	E,A
+	LD	D,0
+	LD	HL,(MFPT1)
+	ADD	HL,DE
+	LD	(MFPT1),HL
+	LD	HL,(MFPT2)
+	ADD	HL,DE
+	LD	(MFPT2),HL
+	LD	HL,(MFPT3)
+	ADD	HL,DE
+	LD	(MFPT3),HL
+;
+	LD	A,(KSAVE)
+	CP	0B0H
+	JR	NC,FMM50
+	LD	A,C
+	SUB	0A0H
+	LD	L,A
+	LD	H,0
+	ADD	HL,HL
+	LD	DE,CKANTAB
+	ADD	HL,DE
+;
+	LD	C,(HL)
+	INC	HL
+	LD	A,(KSAVE)
+	AND	0FH
+	LD	D,A
+	LD	A,(HL)
+	LD	(KSAVE),A
+;
+	LD	A,(KSAVE)
+	CP	0D0H
+	JR	NC,FMM50
+	CP	0B0H
+	JR	NC,FMM30
+	LD	A,0A0H
+	OR	D
+	LD	(KSAVE),A
+	JR	FMM50
+FMM30:
+	LD	A,D
+	ADD	A,A
+	ADD	A,0B1H
+	LD	(KSAVE),A
+FMM50:
+	LD	A,(KSAVE)
+	CP	0F7H
+	JR	NZ,FMM60
+	LD	A,C
+	CP	0EEH
+	JR	NC,FMM60
+	SUB	0A0H
+	JR	NC,FG100	;GAIJI
+;
+;
+;	[  normal 2bytes character  ]
+;
+FMM60:
+	LD	A,(MFROM)
+	INC	A
+	JR	NZ,NOMFROM	;no MF option board
+;
+	CALL	KANCOD
+	LD	C,0C0H
+	CALL	KCGOT
+	LD	C,L
+	CALL	KCGOT
+	LD	C,H
+	CALL	KCGOT
+;
+	CALL	KCGIN		;STATUS
+;
+	LD	A,(KCG)
+	AND	A
+	JR	Z,FMM70
+	LD	HL,0FE7FH
+	JR	FMM80
+FMM70:
+	CALL	KCGIN
+	RES	7,C
+	LD	L,C
+	CALL	KCGIN
+	RES	0,C
+	LD	H,C
+FMMX1:	NOP			;LD HL,0FE7FH if not proportional spacing
+	NOP
+	NOP
+FMM80:
+	LD	(PROP),HL	;propotional
+;
+;1
+	LD	A,0FEH		;SET 7
+	CALL	FMSET
+;2
+	LD	A,0F6H		;SET 6
+	CALL	FMSET
+;3
+	LD	A,0EEH		;SET 5
+	CALL	FMSET
+;4
+	LD	A,0E6H		;SET 4
+	CALL	FMSET
+;5
+	LD	A,0DEH		;SET 3
+	CALL	FMSET
+;6
+	LD	A,0D6H		;SET 2
+	CALL	FMSET
+;7
+	LD	A,0CEH		;SET 1
+	CALL	FMSET
+;8
+	CALL	FMSETB		;
+;#
+	CALL	FMSETC		;restore MFPNT
+	LD	A,-1
+	LD	(PRTBUF),A
+	RET
+;
+;
+;
+NOMFROM:			;no MF option board
+	LD	HL,ILLCHR
+	JR	FG200
+;
+;
+;
+FG100:				;GAIJI
+	LD	L,A
+	LD	H,0
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	LD	DE,GAIJITB
+	ADD	HL,DE		;HL=GAIJITB+A*32
+;
+FG200:
+	LD	DE,GIJBUF
+	LD	BC,32
+	LDIR
+;
+	LD	IY,GIJBUF
+	LD	L,(IY)
+	LD	H,(IY+1)
+FMMX2:	NOP			; LD HL,0FE7FH
+	NOP
+	NOP
+	LD	(PROP),HL
+	INC	IY
+	INC	IY
+;1
+	LD	A,0FEH		;SET 7
+	CALL	FMSETD
+;2
+	LD	A,0F6H		;SET 6
+	CALL	FMSETD
+;3
+	LD	A,0EEH		;SET 5
+	CALL	FMSETD
+;4
+	LD	A,0E6H		;SET 4
+	CALL	FMSETD
+;5
+	LD	A,0DEH		;SET 3
+	CALL	FMSETD
+;6
+	LD	A,0D6H		;SET 2
+	CALL	FMSETD
+;7
+	LD	A,0CEH		;SET 1
+	CALL	FMSETD
+;8
+	CALL	FMSETE		;
+;#
+	CALL	FMSETF		;
+	LD	A,-1
+	LD	(PRTBUF),A
+	XOR	A
+	RET
+;
+;
+;
+;
+;
+	PAGE
+FMSET:
+	LD	(FS1X+1),A
+	LD	(FS2X+1),A
+	LD	(FS3X+1),A
+	LD	(FS4X+1),A
+	LD	(FS5X+1),A
+;
+	LD	HL,(MFPT1)
+	CALL	FMS000
+;
+	LD	HL,(MFPT2)
+;
+FMS000:
+	XOR	A
+	LD	(PPAA),A
+;
+	CALL	KCGIN
+	LD	A,(PROP)
+	RLCA
+	RES	7,C
+	LD	B,7
+FMS10:
+	RLCA
+	JR	NC,FMS20
+	LD	D,A
+	LD	A,(PPAA)
+	AND	A
+	JR	NZ,FMS15
+	LD	A,-1
+	LD	(PPAA),A
+	BIT	7,C
+	JR	Z,FMS12
+FS1X:	SET	7,(HL)
+FMS12:
+	INC	HL
+FMS15:
+	LD	A,D
+	BIT	6,C
+	JR	Z,FMS17
+FS2X:	SET	7,(HL)
+FMS17:
+	INC	HL
+FMS18:
+	RL	C
+	DJNZ	FMS10
+	JR	FMS30
+;
+FMS20:
+	LD	D,A
+	LD	A,(PPAA)
+	AND	A
+	LD	A,D
+	JR	Z,FMS18
+;
+	DEC	B
+	JR	Z,FMS25
+	CALL	FMS70
+	CALL	KCGIN
+	RET
+FMS25:
+	CALL	FMS71
+	CALL	KCGIN
+	SRL	C
+	CALL	FMS71
+	RET
+;
+FMS30:
+	CALL	KCGIN
+	LD	A,(PROP+1)
+	SRL	C
+	LD	B,7
+FMS40:
+	RLCA
+	JR	NC,FMS50
+	LD	D,A
+	LD	A,(PPAA)
+	AND	A
+	JR	NZ,FMS45
+	LD	A,-1
+	LD	(PPAA),A
+	BIT	7,C
+	JR	Z,FMS42
+FS3X:	SET	7,(HL)
+FMS42:
+	INC	HL
+FMS45:
+	LD	A,D
+	BIT	6,C
+	JR	Z,FMS47
+FS4X:	SET	7,(HL)
+FMS47:
+	INC	HL
+	RL	C
+	DJNZ	FMS40
+	LD	B,2
+	JR	FMS90
+;
+FMS50:
+	LD	D,A
+	LD	A,(PPAA)
+	AND	A
+	JR	NZ,FMS60
+	LD	A,D
+	RL	C
+	DJNZ	FMS40
+	XOR	A		;clear carry flag
+	RET
+;
+FMS60:
+	DEC	B
+	JR	Z,FMS80
+;
+FMS70:
+	CALL	FMS71
+FMS71:
+	BIT	6,C
+	JR	Z,FMS72
+FS5X:	SET	7,(HL)
+FMS72:
+	INC	HL
+	RLC	C
+	XOR	A		;clear carry flag
+	RET
+;
+FMS80:
+	CALL	FMS71
+	LD	B,1
+;
+FMS90:
+	INC	HL
+	DJNZ	FMS90
+	XOR	A		;clear carry flag
+	RET
+;
+;
+;
+;
+;
+FMSETB:
+	LD	A,0C6H		;SET 0,(HL)
+	LD	(FS1X+1),A
+	LD	(FS2X+1),A
+	LD	(FS3X+1),A
+	LD	(FS4X+1),A
+	LD	(FS5X+1),A
+;
+	LD	HL,(MFPT1)
+	CALL	FMS000
+;
+	EX	DE,HL
+	LD	HL,(PTMAX)
+	XOR	A
+	SBC	HL,DE
+	EX	DE,HL
+	JR	NC,FMB08
+	LD	(PTMAX),HL
+FMB08:
+	LD	A,(RSP)		;right space
+	LD	C,A
+	LD	B,0
+	RLCA
+	JR	NC,FMB10
+	LD	B,-1
+FMB10:
+	ADD	HL,BC
+	LD	(MFPT1),HL
+;
+	PUSH	BC
+	LD	HL,(MFPT2)
+	CALL	FMS000
+	POP	BC
+	RET	C
+	ADD	HL,BC		;add right space
+	LD	(MFPT2),HL
+	XOR	A
+	RET
+;
+;
+;
+FMSETC:
+	LD	A,0CEH		;SET 1,(HL)
+FMC10:
+	LD	(FS1X+1),A
+	LD	(FS2X+1),A
+	LD	(FS3X+1),A
+	LD	(FS4X+1),A
+	LD	(FS5X+1),A
+	LD	HL,(MFPT3)
+	CALL	FMS000
+;
+	LD	A,(KCG)
+	AND	A
+	JR	Z,FMC20
+	XOR	A
+	LD	(KCG),A
+	LD	A,0C6H		;SET 0,(HL)
+	JR	FMC10
+;
+FMC20:
+	LD	A,(RSP)		;right space
+	LD	C,A
+	LD	B,0
+	RLCA
+	JR	NC,FMC30
+	LD	B,-1
+FMC30:
+	ADD	HL,BC
+	LD	(MFPT3),HL
+	XOR	A		;clear carry flag
+	RET
+;
+;
+;
+;
+;
+	PAGE
+FMSETD:
+	LD	(FS6X+1),A
+	LD	(FS7X+1),A
+	LD	(FS8X+1),A
+	LD	(FS9X+1),A
+	LD	(FSAX+1),A
+;
+	LD	HL,(MFPT1)
+	CALL	FMD000
+;
+	LD	HL,(MFPT2)
+;
+FMD000:
+	XOR	A
+	LD	(PPAA),A
+;
+	LD	C,(IY)
+	INC	IY
+	LD	A,(PROP)
+	RLCA
+	RES	7,C
+	LD	B,7
+FMD10:
+	RLCA
+	JR	NC,FMD20
+	LD	D,A
+	LD	A,(PPAA)
+	AND	A
+	JR	NZ,FMD15
+	LD	A,-1
+	LD	(PPAA),A
+	BIT	7,C
+	JR	Z,FMD12
+FS6X:	SET	7,(HL)
+FMD12:
+	INC	HL
+FMD15:
+	LD	A,D
+	BIT	6,C
+	JR	Z,FMD17
+FS7X:	SET	7,(HL)
+FMD17:
+	INC	HL
+FMD18:
+	RL	C
+	DJNZ	FMD10
+	JR	FMD30
+;
+FMD20:
+	LD	D,A
+	LD	A,(PPAA)
+	AND	A
+	LD	A,D
+	JR	Z,FMD18
+;
+	DEC	B
+	JR	Z,FMD25
+	CALL	FMD70
+	INC	IY
+	RET
+FMD25:
+	CALL	FMD71
+	LD	C,(IY)
+	INC	IY
+	SRL	C
+	CALL	FMD71
+	RET
+;
+FMD30:
+	LD	C,(IY)
+	INC	IY
+	LD	A,(PROP+1)
+	SRL	C
+	LD	B,7
+FMD40:
+	RLCA
+	JR	NC,FMD50
+	LD	D,A
+	LD	A,(PPAA)
+	AND	A
+	JR	NZ,FMD45
+	LD	A,-1
+	LD	(PPAA),A
+	BIT	7,C
+	JR	Z,FMD42
+FS8X:	SET	7,(HL)
+FMD42:
+	INC	HL
+FMD45:
+	LD	A,D
+	BIT	6,C
+	JR	Z,FMD47
+FS9X:	SET	7,(HL)
+FMD47:
+	INC	HL
+	RL	C
+	DJNZ	FMD40
+	LD	B,2
+	JR	FMD90
+;
+FMD50:
+	LD	D,A
+	LD	A,(PPAA)
+	AND	A
+	JR	NZ,FMD60
+	LD	A,D
+	RL	C
+	DJNZ	FMD40
+	RET
+;
+FMD60:
+	DEC	B
+	JR	Z,FMD80
+;
+FMD70:
+	CALL	FMD71
+FMD71:
+	BIT	6,C
+	JR	Z,FMD72
+FSAX:	SET	7,(HL)
+FMD72:
+	INC	HL
+	RLC	C
+	RET
+;
+FMD80:
+	CALL	FMD71
+	LD	B,1
+;
+FMD90:
+	INC	HL
+	DJNZ	FMD90
+	RET
+;
+;
+;
+;
+;
+	PAGE
+FMSETE:
+	LD	A,0C6H		;SET 0,(HL)
+	LD	(FS6X+1),A
+	LD	(FS7X+1),A
+	LD	(FS8X+1),A
+	LD	(FS9X+1),A
+	LD	(FSAX+1),A
+;
+	LD	HL,(MFPT1)
+	CALL	FMD000
+;
+	EX	DE,HL
+	LD	HL,(PTMAX)
+	XOR	A
+	SBC	HL,DE
+	EX	DE,HL
+	JR	NC,FME08
+	LD	(PTMAX),HL
+FME08:
+	LD	A,(RSP)		;right space
+	LD	C,A
+	LD	B,0
+	RLCA
+	JR	NC,FME10
+	LD	B,-1
+FME10:
+	ADD	HL,BC
+	LD	(MFPT1),HL
+	PUSH	BC
+;
+	XOR	A
+	LD	(PPAA),A
+	LD	IY,GIJBUF
+	LD	HL,(MFPT2)
+	LD	A,(PROP)
+	RLCA
+	LD	B,7
+	LD	C,0
+	JR	FME22
+FME20:
+	LD	C,(IY)
+FME22:	INC	IY
+	INC	IY
+	RLCA
+	JR	NC,FME30
+	LD	D,A
+	LD	A,(PPAA)
+	AND	A
+	JR	NZ,FME26
+	LD	A,-1
+	LD	(PPAA),A
+	BIT	7,C
+	JR	Z,FME25
+	SET	0,(HL)
+FME25:
+	INC	HL
+FME26:
+	LD	A,D
+	BIT	7,(IY)
+	JR	Z,FME27
+	SET	0,(HL)
+FME27:
+	INC	HL
+FME28:
+	DJNZ	FME20
+	JR	FME40
+;
+FME30:
+	LD	D,A
+	LD	A,(PPAA)
+	AND	A
+	LD	A,D
+	JR	Z,FME28
+	JR	FME65
+;
+FME40:
+	LD	A,(PROP+1)
+	LD	B,7
+FME42:
+	LD	C,(IY)
+	INC	IY
+	INC	IY
+	RLCA
+	JR	NC,FME50
+	LD	D,A
+	LD	A,(PPAA)
+	AND	A
+	JR	NZ,FME45
+	LD	A,-1
+	LD	(PPAA),A
+	BIT	7,C
+	JR	Z,FME43
+	SET	0,(HL)
+FME43:
+	INC	HL
+FME45:
+	LD	A,D
+	BIT	7,(IY)
+	JR	Z,FME47
+	SET	0,(HL)
+FME47:
+	INC	HL
+	DJNZ	FME42
+	LD	B,2
+	JR	FME75
+;
+FME50:
+	LD	D,A
+	LD	A,(PPAA)
+	AND	A
+	JR	NZ,FME60
+	LD	A,D
+	DJNZ	FME42
+	JR	FME90
+;
+FME60:
+	DEC	B
+	JR	Z,FME70
+FME65:
+	CALL	FMGEE
+	CALL	FMGEE
+	JR	FME90
+;
+FME70:
+	CALL	FMGEE
+	LD	B,1
+FME75:
+	INC	HL
+	DJNZ	FME75
+FME90:
+	POP	BC
+	ADD	HL,BC		;add right space
+	LD	(MFPT2),HL	
+	XOR	A
+	RET
+;
+;
+;
+FMGEE:
+	BIT	7,(IY)
+	JR	Z,FGEE0
+	SET	0,(HL)
+FGEE0:
+	INC	IY
+	INC	IY
+	INC	HL
+	RET
+;
+;
+;
+;
+;
+	PAGE
+FMSETF:
+	XOR	A
+	LD	(PPAA),A
+	LD	IY,GIJBUF
+	INC	IY
+	LD	HL,(MFPT3)
+	LD	A,(PROP)
+	RLCA
+	LD	B,7
+	LD	C,0
+	JR	FMF12
+;
+FMF10:
+	LD	C,(IY)
+FMF12:	INC	IY
+	INC	IY
+	RLCA
+	JR	NC,FMF20
+	LD	D,A
+	LD	A,(PPAA)
+	AND	A
+	JR	NZ,FMF15
+	LD	A,-1
+	LD	(PPAA),A
+	BIT	0,C
+	JR	Z,FMF13
+	SET	1,(HL)
+FMF13:
+	INC	HL
+FMF15:
+	LD	A,D
+	BIT	0,(IY)
+	JR	Z,FMF17
+	SET	1,(HL)
+FMF17:
+	INC	HL
+FMF18:
+	DJNZ	FMF10
+	JR	FMF30
+;
+FMF20:
+	LD	D,A
+	LD	A,(PPAA)
+	AND	A
+	LD	A,D
+	JR	Z,FMF18
+	JR	FMF60
+;
+FMF30:
+	LD	A,(PROP+1)
+	LD	B,7
+FMF32:
+	LD	C,(IY)
+	INC	IY
+	INC	IY
+	RLCA
+	JR	NC,FMF40
+	LD	D,A
+	LD	A,(PPAA)
+	AND	A
+	JR	NZ,FMF35
+	LD	A,-1
+	LD	(PPAA),A
+	BIT	0,C
+	JR	Z,FMF33
+	SET	1,(HL)
+FMF33:
+	INC	HL
+FMF35:
+	LD	A,D
+	BIT	0,(IY)
+	JR	Z,FMF38
+	SET	1,(HL)
+FMF38:
+	INC	HL
+	DJNZ	FMF32
+	LD	B,2
+	JR	FMF80
+;
+FMF40:
+	LD	D,A
+	LD	A,(PPAA)
+	AND	A
+	JR	NZ,FMF50
+	LD	A,D
+	DJNZ	FMF32
+	JR	FMF90
+;
+FMF50:
+	DEC	B
+	JR	Z,FMF70
+FMF60:
+	CALL	FMGFF
+	CALL	FMGFF
+	JR	FMF90
+;
+FMF70:
+	CALL	FMGFF
+	LD	B,1
+FMF80:
+	INC	HL
+	DJNZ	FMF80
+FMF90:
+	LD	A,(RSP)		;right space
+	LD	C,A
+	LD	B,0
+	RLCA
+	JR	NC,FMF92
+	LD	B,-1
+FMF92:
+	ADD	HL,BC
+	LD	(MFPT3),HL
+	XOR	A
+	RET
+;
+;
+;
+FMGFF:
+	BIT	0,(IY)
+	JR	Z,FGFF0
+	SET	1,(HL)
+FGFF0:
+	INC	IY
+	INC	IY
+	INC	HL
+	RET
+;
+;
+;
+;
+;
+KANCOD:
+	LD	A,(TSAVE)
+	PUSH	AF
+	LD	A,(KSAVE)
+	LD	(TSAVE),A
+	CALL	CONVCD
+	POP	AF
+	LD	(TSAVE),A
+	RET
+;
+;
+;
+;
+;
+	PAGE
+;	[  print line buffer  ]
+;
+WRITE:
+	LD	HL,(MFPT1)
+	LD	DE,(PTMAX)
+	CALL	CPHLDE		;HL:DE
+	JR	NC,WRIT10
+	EX	DE,HL		;HL=(PTMAX)
+WRIT10:
+	LD	DE,MFBUF1
+	XOR	A
+	SBC	HL,DE
+	RET	Z
+	LD	(COUNT),HL
+;
+	LD	A,(PRINTER)
+	BIT	5,A
+	JR	NZ,WRITFX
+;
+;
+; MX-80, MX-82, MX100 TYPE 2,3
+;
+	LD	A,ON		;set DISBRK flag
+	LD	(DISBRK),A
+;
+	LD	HL,MFBUF1
+	CALL	WTBUFF
+	LD	C,ESC		;set a line spacing to 1/216
+	CALL	LPOUT
+	LD	C,'J'
+	CALL	LPOUT
+	LD	C,1
+	CALL	LPOUT
+;
+	LD	HL,MFBUF2
+	CALL	WTBUFF
+	LD	C,ESC
+	CALL	LPOUT
+	LD	C,'J'
+	CALL	LPOUT
+	LD	C,1
+	CALL	LPOUT
+;
+	CALL	WTBUFB
+	LD	C,ESC
+	CALL	LPOUT
+	LD	C,'J'
+	CALL	LPOUT
+	LD	C,1
+	CALL	LPOUT
+;
+	CALL	WTBUFC
+	LD	C,ESC
+	CALL	LPOUT
+	LD	C,'J'
+	CALL	LPOUT
+	LD	C,33
+	CALL	LPOUT
+;
+	XOR	A		;clear DISBRK flag
+	LD	(DISBRK),A	;		  
+;
+	DEC	A		;A=-1
+	LD	(LCRFLG),A
+	RET
+;
+;
+;
+; FX-80
+;
+WRITFX:
+	LD	A,ON		;set DISBRK flag
+	LD	(DISBRK),A	;		
+;
+	LD	DE,MFBUF1
+	CALL	WTBFX1
+	LD	C,ESC		;set a line spacing to 1/216
+	CALL	LPOUT
+	LD	C,'J'
+	CALL	LPOUT
+	LD	C,1
+	CALL	LPOUT
+;
+	LD	DE,MFBUF2
+	CALL	WTBFX2
+	LD	C,ESC
+	CALL	LPOUT
+	LD	C,'J'
+	CALL	LPOUT
+	LD	C,35
+	CALL	LPOUT
+;
+	XOR	A		;clear DISBRK flag
+	LD	(DISBRK),A	;		  
+;
+	DEC	A		;A=-1
+	LD	(LCRFLG),A
+	RET
+;
+;
+;
+;
+;
+CLRMBF:
+	LD	HL,MFBUF2
+	LD	(MFPT2),HL
+	LD	HL,MFBUF3
+	LD	(MFPT3),HL
+	LD	HL,MFBUF1
+	LD	(MFPT1),HL
+	LD	(PTMAX),HL
+	LD	(HL),0
+	LD	DE,MFBUF1+1
+	LD	BC,MFSIZE*3-1
+	LDIR
+	LD	(MFDOT),BC	;=0000
+	RET
+;
+;
+;
+;
+;
+WTBUFF:
+	LD	D,H
+	LD	E,L
+	LD	BC,(COUNT)
+WT10:
+	LD	A,B
+	OR	C
+	RET	Z
+	LD	A,(DE)
+	AND	A
+	JR	NZ,WT20
+	INC	DE
+	DEC	BC
+	JR	WT10
+;
+WT20:
+	LD	C,ESC		;dual-density bit image mode setting
+	CALL	LPOUT
+	LD	C,'L'
+	CALL	LPOUT
+	LD	DE,(COUNT)
+	LD	C,E
+	CALL	LPOUT
+	LD	C,D
+	CALL	LPOUT
+;
+WT30:
+	LD	A,D
+	OR	E
+	JR	Z,WT50
+	LD	C,(HL)
+	CALL	LPOUT
+	INC	HL
+	DEC	DE
+	JR	WT30
+;
+WT50:
+	LD	C,0DH
+	CALL	LPOUT
+	RET
+;
+;
+;
+WTBUFB:
+	LD	A,4EH		;BIT 1,(HL)
+	JR	WTBC
+;
+WTBUFC:
+	LD	A,46H		;BIT 0,(HL)
+WTBC:
+	LD	(WTB1Y+1),A
+	LD	(WTB2Y+1),A
+	LD	HL,MFBUF3
+	LD	BC,(COUNT)
+WTBC10:
+	LD	A,B
+	OR	C
+	RET	Z
+WTB1Y:	BIT	1,(HL)
+	JR	NZ,WTBC20
+	INC	HL
+	DEC	BC
+	JR	WTBC10
+WTBC20:
+	LD	C,ESC
+	CALL	LPOUT
+	LD	C,'L'
+	CALL	LPOUT
+	LD	DE,(COUNT)
+	LD	C,E
+	CALL	LPOUT
+	LD	C,D
+	CALL	LPOUT
+;
+	LD	HL,MFBUF3
+WTBC30:
+	LD	A,D
+	OR	E
+	JR	Z,WTBC50
+	LD	C,0
+WTB2Y:	BIT	1,(HL)
+	JR	Z,WTBC40
+	SET	0,C
+WTBC40:
+	CALL	LPOUT
+	INC	HL
+	DEC	DE
+	JR	WTBC30
+WTBC50:
+	LD	C,0DH
+	CALL	LPOUT
+	RET
+;
+;
+;
+;
+;
+WTBFX1:
+	LD	A,4EH		;BIT 1,(HL)
+	DB	21H		;skip next instruction
+;
+WTBFX2:
+	LD	A,46H		;BIT 0,(HL)
+	LD	(WTBF1Y+1),A
+	LD	(WTBF2Y+1),A
+;
+	LD	H,D
+	LD	L,E
+	LD	BC,(COUNT)
+WTF10:
+	LD	A,B
+	OR	C
+	JR	Z,WTF20
+	LD	A,(HL)
+	AND	A
+	JR	NZ,WTF50
+	INC	HL
+	DEC	BC
+	JR	WTF10
+;
+WTF20:
+	LD	HL,MFBUF3
+	LD	BC,(COUNT)
+WTF22:
+	LD	A,B
+	OR	C
+	RET	Z
+WTBF1Y:	BIT	1,(HL)
+	JR	NZ,WTF50
+	INC	HL
+	DEC	BC
+	JR	WTF22
+;
+WTF50:
+	LD	C,ESC		;9-pin bit image mode setting
+	CALL	LPOUT
+	LD	C,5EH
+	CALL	LPOUT
+	LD	C,1		;dual-density mode
+	CALL	LPOUT
+	LD	A,(COUNT)
+	LD	C,A
+	CALL	LPOUT
+	LD	A,(COUNT+1)
+	LD	C,A
+	CALL	LPOUT
+;
+	LD	HL,MFBUF3
+	LD	BC,(COUNT)
+WTF60:
+	LD	A,B
+	OR	C
+	JR	Z,WTF70
+	PUSH	BC
+	LD	A,(DE)
+	LD	C,A
+	CALL	LPOUT
+	LD	C,0
+WTBF2Y:	BIT	1,(HL)
+	JR	Z,WTF65
+	LD	C,80H
+WTF65:
+	CALL	LPOUT
+	INC	DE
+	INC	HL
+	POP	BC
+	DEC	BC
+	JR	WTF60
+;
+WTF70:
+	LD	C,0DH
+	CALL	LPOUT
+	RET
+;
+;
+;
+;
+;
+ON	EQU	0FFH
+;
+LF	EQU	0AH
+CR	EQU	0DH
+ESC	EQU	1BH
+DELCHR	EQU	7FH
+;
+PROP:	DW	0FFFFH
+PPAA:	DB	0
+COUNT:	DW	0
+;
+SHELT1:	DW	MFBUF1
+LPESCS:	DB	0
+LESHDL:	DB	0
+BIMAGE:	DB	0
+DISBRK:	DB	0
+;
+GIJBUF:	DS	32
+;
+;
+;
+;
+	SUBTTL	--- LPOUT ---
+	PAGE
+;
+LPTDT	EQU	14H		;W:data
+LPTST	EQU	15H		;R:status
+LPTCMD	EQU	17H		;W:command
+;
+LPTERR	EQU	08H		;if error
+;
+;
+LPTCT1:	DB	0
+LPTCT2:	DB	0
+LPTCT3:	DB	0
+SHELT3:	DW	0
+;
+;
+;
+;
+LPOUT: 
+	LD	A,(LISTERR)	;BASIC Device I/O error.
+	AND	A		;
+	RET	NZ		;
+	LD	A,(PRTHRU)
+	AND	A
+	RET	NZ
+;
+	IN	A,(LPTST)	;printer ready ?
+	BIT	5,A
+	JR	NZ,LPTBSY	;no.
+;
+LPTRDY:
+	LD	A,C
+	OUT	(LPTDT),A	;out data
+	XOR	A
+	OUT	(LPTCMD),A	;STROBE
+	INC	A
+	OUT	(LPTCMD),A
+	LD	A,0DH		;PIO enable
+	OUT	(LPTCMD),A
+	RET
+;
+;
+;
+LPTBSY:				;printer not ready
+	XOR	A
+	LD	(LPTCT1),A
+	LD	(LPTCT2),A
+	LD	(LPTCT3),A
+;
+LB10:
+	LD	A,(DISBRK)	;check DISBRK flag
+	AND	A		;		  
+	JR	NZ,LB12		;		  
+;
+	LD	A,(BRKFLG)	;Break ?
+	AND	A
+	JR	NZ,LB40		;yes.
+;
+LB12:
+	IN	A,(LPTST)
+	BIT	5,A
+	JR	Z,LPTRDY
+	AND	LPTERR		;error ?
+	JR	Z,LB20		;yes, error.
+;
+; no error
+	IN	A,(LPTST)
+	BIT	5,A
+	JR	Z,LPTRDY	;now, printer is ready
+	IN	A,(LPTST)
+	BIT	5,A
+	JR	Z,LPTRDY
+	IN	A,(LPTST)
+	BIT	5,A
+	JR	Z,LPTRDY
+	IN	A,(LPTST)
+	BIT	5,A
+	JR	Z,LPTRDY
+	IN	A,(LPTST)
+	BIT	5,A
+	JR	Z,LPTRDY
+;
+	LD	A,(LPTCT1)
+	INC	A
+	LD	(LPTCT1),A
+	JR	NZ,LB10
+	LD	A,(LPTCT2)
+	INC	A
+	LD	(LPTCT2),A
+	JR	NZ,LB10
+	LD	A,(LPTCT3)
+	INC	A
+	LD	(LPTCT3),A
+	CP	3
+	JR	NZ,LB10
+LB20:
+	PUSH	HL
+	LD	HL,(INTPTR)
+	LD	(SHELT3),HL	;save KB input pointer
+	POP	HL
+LB30:
+	LD	A,(DISBRK)	;
+	AND	A		;
+	JR	NZ,LB50		;
+;
+	LD	A,(BRKFLG)
+	AND	A
+	JR	Z,LB50
+;
+; BREAK
+;
+LB40:				;
+	LD	A,(BASIC)	;BASIC mode ?
+	AND	A		;	
+	JP	NZ,LB91		;yes.	
+	LD	A,1
+	LD	(PRTHRU),A	;non ZERO  if BREAK
+LB45:				;
+	XOR	A		;
+	LD	(KSAVE),A	;clear MultiFonts 1st byte
+	LD	(LCRFLG),A	;clear CR flag
+	LD	(LPESC),A	;clear ESC sequence flag
+	DEC	A		;A=-1	
+	LD	(PREF),A	;set last country code
+	PUSH	HL		;		
+	PUSH	DE		;		
+	PUSH	BC		;		
+	CALL	PLZ		;clear PRTBUF,MFBUF1-3,MFDOT and set pointers
+	LD	HL,MFBUF1	;		
+	LD	(SHELT1),HL	;		
+	POP	BC		;		
+	POP	DE		;		
+	POP	HL		;		
+	RET
+;
+;
+LB50:
+	IN	A,(LPTST)
+	BIT	5,A
+	JP	Z,LPTRDY
+;
+	CALL	TIMER
+	JP	NC,LPTRDY
+	CALL	TIMER
+	JP	NC,LPTRDY
+	CALL	TIMER
+	JP	NC,LPTRDY
+;
+	IN	A,(LPTST)
+	BIT	5,A
+	JP	Z,LPTRDY
+;
+	LD	A,(BASIC)	;BASIC mode ?
+	AND	A		;	
+	JR	NZ,LB90		;yes.	
+;
+;
+	CALL	BUZZON
+	CALL	TIMER
+	CALL	BUZZOFF
+	JP	NC,LPTRDY
+;
+	IN	A,(LPTST)
+	BIT	5,A
+	JP	Z,LPTRDY
+;
+	PUSH	HL
+	PUSH	DE
+	LD	HL,(SHELT3)
+	LD	DE,(INTPTR)
+	CALL	CPHLDE
+	POP	DE
+	POP	HL
+	JR	Z,LB30		;no key
+;
+LB70:				;wait 
+	IN	A,(LPTST)
+	BIT	5,A
+	JP	Z,LPTRDY
+;
+	CALL	TIMER
+	JP	NC,LPTRDY
+	LD	A,(DISBRK)	
+	AND	A		
+	JR	NZ,LB70		
+;
+	LD	A,(BRKFLG)
+	AND	A
+	JR	Z,LB70
+	LD	(PRTHRU),A	;non ZERO if BREAK
+	JP	LB45	
+;
+;
+;
+LB90:				;BASIC mode printer error
+	IN	A,(LPTST)	;			 
+	BIT	5,A		;			 
+LB91:				;			 
+	JP	Z,LPTRDY	;			 
+	OR	1		;			 
+	LD	(LISTERR),A	;			 
+	JP	LB45		;			 
+;
+;
+;
+;
+;
+BUZZON:
+	LD	A,(MEMBANK)
+	SET	2,A
+	LD	(MEMBANK),A
+	OUT	(18H),A
+	RET
+;
+;
+BUZZOFF:
+	LD	A,(MEMBANK)
+	RES	2,A
+	LD	(MEMBANK),A
+	OUT	(18H),A
+	RET
+;
+;
+;
+TIMER:
+	PUSH	AF
+	PUSH	HL
+	LD	HL,8000H
+TIM10:
+	IN	A,(LPTST)
+	BIT	5,A
+	JR	Z,TIM90
+	DEC	HL
+	LD	A,H
+	OR	L
+	JR	NZ,TIM10
+	POP	HL
+	POP	AF
+	SCF
+	RET
+TIM90:
+	POP	HL
+	POP	AF
+	XOR	A		;=0, non carry
+	RET
+;
+;
+;
+CPHLDE:
+	LD	A,H
+	CP	D
+	RET	NZ
+	LD	A,L
+	CP	E
+	RET
+;
+;
+;
+;
+;
+;m
+	rept	4d00h-$
+	.XLIST
+	db	0e5h
+	.LIST
+	endm
+;m
+;
+;
+;
+	SUBTTL	*** PSET ***
+	PAGE
+;
+; start at 4d00h
+;
+;
+;	.........................................
+;	.					.
+;	.   HL: VRAM position  0 - 31999	.
+;	.    B: data				.
+;	.    C: 1(AND), 2(OR), 3(XOR)		.
+;	.    E: color				.
+;	.........................................
+;
+;
+PSET:				; . . . . . . . . . . . . . . . I
+	LD	(SAVSPC),SP	;				I
+	LD	SP,STACKC	;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+;
+;
+	PUSH	HL		;keep HL
+	PUSH	BC		;keep BC
+;
+	LD	A,C
+	LD	(FUNC),A
+;
+	LD	A,B		;
+	LD	(WTDAT),A
+;
+	SRL	H		;HL/2
+	RR	L
+	LD	A,0
+	JR	NC,EVEN
+	DEC	A		;0FFH
+EVEN:
+	LD	(EOFLAG),A	;even/odd flag set
+;
+	LD	BC,(SPOS)	;begin address of VRAM
+	ADD	HL,BC
+	LD	(CURPOS),HL
+;
+	CALL	COLCHK		;
+;
+	IN	A,(2CH)
+	RRCA
+	JR	C,PSETCOL	;color CRT
+;
+;
+;	G R E E N   C R T
+;
+	CALL	PREAD
+	CALL	PFUNC
+	JR	NZ,PSETERR
+	CALL	PWRITE
+	LD	A,(VRAMDAT)
+PSETY:
+	POP	BC
+	POP	HL
+	LD	C,A
+PSETZ:
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	SP,(SAVSPC)	;				I
+	RET			; . . . . . . . . . . . . . . . I
+;
+;
+PSETERR:
+	POP	BC
+	POP	HL
+	JR	PSETZ
+;
+;
+;
+;	C O L O R   C R T
+;
+PSETCOL:
+	LD	A,E
+	LD	(INCOL),A
+;
+	IN	A,(XCRTS)
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,0DH		;dummy <START>
+	OUT	(XCRTC),A
+	IN	A,(XCRTS)
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,1		;Blue
+	OUT	(2DH),A
+	CALL	PREAD
+	LD	A,(INCOL)
+	RRCA
+	JR	NC,PCOLG
+	CALL	PFUNC
+	JR	NZ,PSETERR
+	CALL	PWRITE
+PCOLG:
+	LD	A,(VRAMDAT)
+	LD	(VBDAT),A
+;
+	IN	A,(xCRTS)
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,0DH		;dummy <START>
+	OUT	(XCRTC),A
+	IN	A,(XCRTS)
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,2		;Green
+	OUT	(2DH),A
+	CALL	PREAD
+	LD	A,(INCOL)
+	RRCA
+	RRCA
+	RRCA
+	JR	NC,PCOLR
+	CALL	PFUNC
+	JP	NZ,PSETERR
+	CALL	PWRITE
+PCOLR:
+	LD	A,(VRAMDAT)
+	LD	(VGDAT),A
+;
+	IN	A,(XCRTS)
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,0DH		;dummy <START>
+	OUT	(xCRTC),A
+	IN	A,(xCRTS)
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,4		;Red
+	OUT	(2DH),A
+	CALL	PREAD
+	LD	A,(INCOL)
+	RRCA
+	RRCA
+	JR	NC,PCOLE
+	CALL	PFUNC
+	JP	NZ,PSETERR
+	CALL	PWRITE
+PCOLE:
+	LD	A,(VRAMDAT)
+	LD	(VRDAT),A
+;
+	LD	A,(VBDAT)
+	LD	E,A
+	LD	A,(VGDAT)
+	LD	D,A
+	LD	A,(VRDAT)
+	JP	PSETY
+;
+;
+;
+;
+;
+; read VRAM data
+;
+PREAD:
+	LD	HL,(CURPOS)
+	LD	C,0		;P3=0
+	CALL	CRSW		;<CRSW>
+	LD	C,1
+	CALL	VECTW		;<VECTW> DIR=2, read 1 byte, 0
+	CALL	MASK		;<MASK>
+;
+	IN	A,(XCRTS)	;status for <READ>
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,(EOFLAG)
+	INC	A
+	JR	NZ,PRDLOW
+;
+	LD	A,0B8H		;odd
+	OUT	(XCRTC),A	;<READ> higher 8 bit
+	JR	PRDST
+PRDLOW:
+	LD	A,0B0H		;even
+	OUT	(XCRTC),A	;<READ> lower 8 bit
+PRDST:
+	IN	A,(XCRTS)	;status for READ data
+	AND	1
+	JR	Z,PRDST
+	IN	A,(XCRTD)	;read VRAM data
+	LD	(VRAMDAT),A
+	RET
+;
+;
+;
+;
+;
+PFUNC:
+	LD	A,(WTDAT)
+	LD	H,A		;H=B
+	LD	A,(VRAMDAT)	;L=VRAM data
+	LD	L,A
+;
+	LD	A,(FUNC)
+	DEC	A		;
+	JR	Z,PFC10		;1: AND
+	DEC	A
+	JR	Z,PFC20		;2: OR
+	DEC	A
+	RET	NZ		;error return
+;
+	LD	A,H		;3: XOR
+	XOR	L
+	JR	PFC30
+PFC10:
+	LD	A,H		;AND
+	AND	L
+	JR	PFC30
+PFC20:
+	LD	A,H		;OR
+	OR	L
+PFC30:
+	LD	(VRAMDAT),A
+	XOR	A
+	RET
+;
+;
+;
+; write VRAM data
+;
+PWRITE:
+	CALL	MASK		;<MASK>
+;
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,20H		;<<WRITE>> [replace]
+	OUT	(XCRTC),A
+;
+	IN	A,(xCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,7FH		;<<TEXTW>> 1byte
+	OUT	(XCRTC),A
+	LD	A,(VRAMDAT)	;write VRAM data
+	OUT	(xCRTP),A
+;
+	LD	C,70H
+	LD	A,(EOFLAG)
+	INC	A
+	JR	NZ,PWT10
+	LD	C,0F0H		;
+PWT10:
+	LD	HL,(CURPOS)
+	CALL	CRSW		;<CRSW>
+;
+	IN	A,(xCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,4CH		;<<VECTW>>
+	OUT	(XCRTC),A
+	LD	A,16H		;
+	OUT	(XCRTP),A
+	LD	A,0
+	OUT	(xCRTP),A
+	LD	A,0
+EXVCT2:	OR	40H		; or [NOP][NOP]
+	OUT	(XCRTP),A
+	LD	A,8
+	OUT	(xCRTP),A	
+	XOR	A		;=0
+	OUT	(XCRTP),A
+;	
+	IN	A,(xCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,68H		;<<TEXTE>>
+	OUT	(XCRTC),A	;
+	RET
+;
+;
+;
+;
+;
+VRAMDAT:	DS	1	;VRAM data
+EOFLAG:		DS	1	;even/odd flag
+;
+FUNC:	DB	0		;
+WTDAT:	DB	0		;
+INCOL:	DB	0		;
+VBDAT:	DB	0		;
+VGDAT:	DB	0		;
+VRDAT:	DB	0		;
+;
+;
+SAVSPC:	DW	0
+	DS	2*20
+STACKC:
+;
+;
+;
+;
+;
+;m
+	rept	5000h-$
+	.XLIST
+	db	0e5h
+	.LIST
+	endm
+;m
+;
+;
+;
+;
+;
+	SUBTTL	*** HCOPY ***
+	PAGE
+; must be address 5000H
+;
+;
+;
+HCOPY:				; . . . . . . . . . . . . . . . I
+	LD	(SAVSPD),SP	;				I
+	LD	SP,STACKD	;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	PUSH	AF
+	PUSH	BC
+	PUSH	DE
+	PUSH	HL
+	PUSH	IX
+	PUSH	IY
+;
+;
+	LD	A,(CSRDSP)
+	PUSH	AF
+	AND	A
+	JR	Z,HCPY10
+;
+; cursor off
+;
+	LD	C,ESC
+	CALL	CONOT2
+	LD	C,'2'
+	CALL	CONOT2
+	EI
+;
+HCPY10:
+	LD	(SHELT2),SP	;
+;
+	XOR	A		;clear BASIC mode printer error flag
+	LD	(LISTERR),A	;				
+;
+	LD	A,(MBFLG)
+	AND	A		;MFBASIC mode ?
+	JP	NZ,HCOPYG	;graphic
+	LD	A,(MFLG)
+	AND	A		;MF mode ?
+	JP	NZ,HCOPYG	;yes.
+	IN	A,(2CH)		;
+	RRCA
+	JP	C,HCOPYG	;color CRT
+;
+;
+;
+;
+;
+;	C H A R A C T E R   M O D E
+;
+;
+	LD	C,0AH		;line feed
+	CALL	LPOUT
+	LD	C,ESC		;set amount of line spacing
+	CALL	LPOUT
+	LD	C,'A'
+	CALL	LPOUT
+	LD	C,8		;8/72 inch
+	CALL	LPOUT
+;
+	LD	B,25		;number of lines
+	LD	HL,(SPOS)	;start address of VRAM
+	LD	(CURBASE),HL
+;
+SCD100:
+	PUSH	BC
+	LD	HL,(CURBASE)
+	LD	(CURPOS),HL
+	LD	HL,LINEBUF
+	LD	(LINEPTR),HL
+;
+;
+	LD	B,80
+	LD	C,0
+SCD50:
+	PUSH	BC
+;
+	LD	HL,(CURPOS)
+	CALL	CRSW		;<CRSW>
+	LD	C,1
+	CALL	VECTW		;<VECTW> DIR=2, 1, 0
+	CALL	MASK		;<MASK>
+	IN	A,(XCRTS)
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,0B0H		;<READ>
+	OUT	(XCRTC),A
+	IN	A,(XCRTS)
+	AND	1
+	JR	Z,$-4
+	IN	A,(XCRTD)	;read 1 byte
+	CP	20H		
+	JR	C,BLKMAKE	
+	CP	80H		
+	JR	C,SCD51		
+BLKMAKE:
+	LD	A,' '	
+SCD51:			
+	LD	HL,(LINEPTR)
+	LD	(HL),A
+	INC	HL
+	LD	(LINEPTR),HL
+;
+	POP	BC
+	DEC	B
+	JR	Z,SCD70
+	LD	HL,(CURPOS)
+	INC	HL
+	LD	(CURPOS),HL
+	LD	C,0
+	JR	SCD50
+;
+; 1 line over
+;
+SCD70:
+	LD	B,80
+	LD	HL,(LINEPTR)
+SCD71:
+	DEC	HL		;cut blank
+	LD	A,(HL)
+	CP	' '
+	JR	NZ,SCD72
+	DJNZ	SCD71
+SCD72:
+	LD	A,B
+	JR	Z,SCD74		;no string in line
+;
+; print 1 line
+;
+	LD	HL,LINEBUF
+SCD73:
+	PUSH	BC
+	PUSH	HL
+	LD	C,(HL)
+	CALL	LPOUT
+	POP	HL
+	POP	BC
+	INC	HL
+	DJNZ	SCD73
+;
+SCD74:
+	LD	A,(BRKFLG)	;
+	AND	A		;Break ?
+	JP	NZ,HCBREAK	;Yes.
+;
+	LD	C,0AH
+	CALL	LPOUT
+	LD	HL,(CURBASE)
+	LD	DE,80
+	ADD	HL,DE
+	LD	(CURBASE),HL
+;
+;
+	POP	BC
+	DEC	B
+	JP	NZ,SCD100
+;
+	JR	HC990
+;
+;
+;
+;
+	PAGE
+;
+;
+;	G R A P H I C   M O D E
+;
+;
+HCOPYG:
+	LD	A,(PRINTER)
+	BIT	0,A
+	JR	NZ,HC80@1	;MX-80
+	BIT	1,A
+	JR	NZ,HC80		;MX-80 TYPE 2 and 3
+	BIT	3,A
+	JR	NZ,HC82		;MX-82 and MX-82 TYPE 3
+	BIT	4,A
+	JR	NZ,HC100	;MX-100 and MX-100 TYPE 3
+	BIT	5,A
+	JR	NZ,HCFX80	;FX-80
+	BIT	6,A
+	JR	NZ,HCFX100	;FX-100
+	BIT	7,A
+	JR	NZ,HCOLVT	;OLIVETTI DY311
+	LD	A,(PRINTER+1)
+	BIT	0,A
+	JR	NZ,HCRX80	;RX-80
+;
+;
+HC990:
+	LD	A,ON		;set DISBRK flag 
+	LD	(DISBRK),A	;		 
+	LD	C,CR		;
+	CALL	LPOUT		;
+	LD	C,ESC		;set a line spacing to 6 lines per inch
+	CALL	LPOUT		;
+	LD	C,'2'		;
+	CALL	LPOUT		;
+	LD	C,LF
+	CALL	LPOUT
+	XOR	A		;clear DISBRK flag
+	LD	(DISBRK),A	;		  
+;
+	POP	AF
+	LD	(CSRDSP),A
+	AND	A
+	JR	Z,HC999
+;
+; cursor on
+;
+	LD	C,ESC
+	CALL	CONOT2
+	LD	C,'3'
+	CALL	CONOT2
+	EI	
+	LD	A,(MBFLG)	;MFBASIC flag
+	LD	B,A
+	LD	A,(MFLG)	;MF flag
+	OR	B
+	JR	NZ,HC998
+	IN	A,(2CH)
+	RRCA			;Green CRT ?
+	JR	NC,HC999	;Yes. and not MFBASIC mode, MF mode
+HC998:
+	CALL	DYCUSR
+;
+HC999:
+	POP	IY
+	POP	IX
+	POP	HL
+	POP	DE
+	POP	BC
+	POP	AF
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	SP,(SAVSPD)	;				I
+	RET			; . . . . . . . . . . . . . . . I
+;
+;
+HCBREAK:			;BREAK
+	LD	SP,(SHELT2)	;return stack level
+	JR	HC990
+;
+HC80@1:
+HCOLVT:
+	JR	HC990
+;
+;
+;
+;
+;
+HC80:
+HC82:
+HC100:
+HCFX80:
+HCFX100:
+HCRX80:
+	CALL	COLCHK		;
+	LD	C,0AH
+	CALL	LPOUT
+	LD	C,ESC		;set amount of line spacing
+	CALL	LPOUT
+	LD	C,'A'
+	CALL	LPOUT
+	LD	C,8		;8/72 inch
+	CALL	LPOUT
+;
+	LD	A,50		;50 X 8 dot = 400 dot (Y)
+	LD	(CRT400),A
+;
+;
+	LD	HL,(SPOS)	;start address of VRAM
+	LD	(CURBASE),HL
+;
+;
+LINE400:
+	LD	HL,(CURBASE)	;VRAM address
+	LD	(CURPOS),HL
+;
+	XOR	A		;initialize
+	LD	(N1),A
+	LD	(NN),A
+;
+	LD	A,80		;80 X 8 dot = 640 dot (X)
+	LD	(CRT640),A
+;
+;
+L00:
+	CALL	LINE640		;search of VRAM data
+;
+	LD	B,8
+	LD	HL,DOTPIN
+L10:
+	LD	A,(HL)
+	CP	0
+	JR	NZ,L20
+	INC	HL
+	DJNZ	L10
+;
+	LD	HL,N1		;not exist dot
+	INC	(HL)
+	JR	L30
+L20:
+	LD	A,(N1)		;exist dot
+	INC	A
+	LD	(N1),A
+	LD	(NN),A
+L30:
+	LD	A,(CRT640)
+	DEC	A
+	JR	Z,L40
+	LD	(CRT640),A
+	BIT	0,A
+	JR	NZ,L00
+	LD	HL,(CURPOS)
+	INC	HL
+	LD	(CURPOS),HL
+	JR	L00
+L40:
+	LD	A,(NN)
+	BIT	0,A
+	JR	Z,L50
+	INC	A
+	LD	(NN),A
+L50:
+	LD	L,A		;make dual density bit image mode parameter
+	LD	H,0		;B:parameter#1, C:parameter2
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL		;HL=HL*8
+	LD	(XX),HL
+	LD	DE,512
+	AND	A
+	SBC	HL,DE
+	LD	C,L
+	LD	B,2
+	JR	NC,L60
+	LD	HL,(XX)
+	LD	DE,256
+	AND	A		;clear carry
+	SBC	HL,DE
+	LD	C,L
+	LD	B,1
+	JR	NC,L60
+	LD	HL,(XX)
+	LD	A,L
+	CP	0
+	JP	Z,LINEOVER	;1 line over
+	LD	C,L
+	LD	B,0
+L60:
+	LD	A,ON		;set DISBRK flag
+	LD	(DISBRK),A	;		
+;
+	PUSH	BC
+;
+	LD	A,(PRINTER)	;
+	AND	1AH		;
+	JR	Z,L70		;FX-80,FX-100,RX-80
+;
+; MX-80, MX-82, MX-100
+;
+	LD	C,ESC		;dual density bit image mode
+	CALL	LPOUT
+	LD	C,'L'
+	CALL	LPOUT
+	POP	BC
+	LD	H,B
+	LD	L,C
+	SRL	H
+	RR	L
+	ADD	HL,BC		;HL=BC*3/2
+	LD	B,H
+	LD	C,L
+	CALL	LPOUT
+	LD	C,B
+	CALL	LPOUT
+	JR	L80
+;
+; FX-80, FX-100, RX-80
+;
+L70:				;
+	LD	C,ESC		;
+	CALL	LPOUT		;
+	LD	C,'*'		;bit image CRT mode
+	CALL	LPOUT		;
+	LD	C,4		;
+	CALL	LPOUT		;
+	POP	BC
+	CALL	LPOUT
+	LD	C,B
+	CALL	LPOUT
+;
+L80:
+	LD	A,(NN)		;NN X 8 =< 640 dot
+	LD	(CRT640),A
+	LD	HL,(CURBASE)
+	LD	(CURPOS),HL
+LINEPRINT:
+	CALL	LINE640
+	CALL	DOT
+	LD	A,(CRT640)
+	DEC	A
+	JR	Z,LINEOVER
+	LD	(CRT640),A
+	BIT	0,A
+	JR	NZ,LINEPRINT
+	LD	HL,(CURPOS)	;countup VRAM address
+	INC	HL
+	LD	(CURPOS),HL
+	JR	LINEPRINT
+;
+; 1 line over
+;
+LINEOVER:
+	LD	C,LF
+	CALL	LPOUT
+	XOR	A		;clear DISBRK flag
+	LD	(DISBRK),A	;		  
+;
+	LD	A,(BRKFLG)	;
+	AND	A		;Break ?
+	JP	NZ,HCBREAK	;Yes.
+;
+	LD	HL,(CURBASE)
+	LD	DE,320
+	ADD	HL,DE
+	LD	(CURBASE),HL
+;
+	LD	A,(CRT400)
+	DEC	A
+	LD	(CRT400),A
+	JP	NZ,LINE400
+;
+	JP	HC990
+;
+;
+;
+;
+;
+	PAGE
+;
+;
+LINE640:
+	LD	HL,(CURPOS)	;HL: EAD
+	LD	IX,DOTPIN	;IX=memory
+	LD	B,8
+LINE650:			;
+	LD	(IX+0),0
+	IN	A,(2CH)
+	RRCA
+	JR	C,LINE655	;Color CRT
+;
+; Green CRT
+;
+	CALL	READIN		;
+	JP	LINE660		;
+;
+;
+; Color CRT
+;
+LINE655:			
+	IN	A,(XCRTS)
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,0DH		;dummy <START>
+	OUT	(XCRTC),A
+	IN	A,(XCRTS)
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,1		;Blue
+	OUT	(2DH),A
+	CALL	READIN
+	LD	(BDATA),A	
+;
+	IN	A,(XCRTS)
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,0DH		;dummy <START>
+	OUT	(XCRTC),A
+	IN	A,(XCRTS)
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,2		;Green
+	OUT	(2DH),A
+	CALL	READIN
+	LD	(GDATA),A	
+;
+	IN	A,(XCRTS)
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,0DH		;dummy <START>
+	OUT	(XCRTC),A
+	IN	A,(XCRTS)
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,4		;Red
+	OUT	(2DH),A
+	CALL	READIN
+	EXX			;
+	LD	D,A		;RDATA
+	LD	A,(COLOR)	;
+	RRCA			;
+	RRCA			;
+	RRCA			;
+	RRCA			;
+	AND	7		;
+	LD	C,A		;C:back ground color
+	LD	A,(BDATA)	;
+	LD	H,A		;
+	LD	A,(GDATA)	;
+	LD	L,A		;
+	LD	E,0		;
+	LD	B,8		;
+LINE656:			;
+	XOR	A		;
+	RLC	L		;rotate left circular ( Green data )
+	RLA			;rotate left
+	RLC	D		;( Red data )
+	RLA			;
+	RLC	H		;( Blue data )
+	RLA			;
+	CP	C		;= background color ?
+	JR	Z,LINE657	;0 if so
+	SCF			;set carry flag
+LINE657:			;
+	RL	E		;
+	DJNZ	LINE656		;
+	LD	A,E		;
+	EXX			;
+;				 
+LINE660:			;
+	LD	(IX+0),A	;
+	INC	IX
+	LD	DE,40		;next line VRAM address
+	ADD	HL,DE
+	DEC	B
+	JP	NZ,LINE650
+	RET
+;
+;
+;
+READIN:
+	LD	C,0		;P3 dAD = 0
+	CALL	CRSW		;<CRSW>
+	LD	C,1
+	CALL	VECTW		;<VECTW> DIR=2, read 1 byte, P3=0
+	CALL	MASK		;<MASK>
+;
+	IN	A,(XCRTS)	;status for <READ>
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,(CRT640)
+	BIT	0,A
+	JR	Z,READLOW
+	LD	A,0B8H		;even
+	OUT	(XCRTC),A	;<READ> higher 8 bit
+	JR	READST
+READLOW:
+	LD	A,0B0H		;odd
+	OUT	(XCRTC),A	;<READ> lower 8 bit
+;
+READST:
+	IN	A,(XCRTS)	;status for READ data
+	AND	1
+	JR	Z,READST
+;
+	IN	A,(XCRTD)	;read VRAM data
+	RET			
+;
+;
+;
+DOT:
+	LD	A,(PRINTER)	
+	AND	1AH		
+	JR	NZ,DOTMX80	;MX-80, MX-82, MX-100
+;
+	LD	B,8		;print dot 8 X 8
+DOTLOP:
+	PUSH	BC
+;
+	LD	HL,DOTPIN
+	LD	B,8
+DLOP:
+	LD	A,(HL)
+	RRCA
+	LD	(HL),A
+	RL	C
+	INC	HL
+	DJNZ	DLOP
+	CALL	LPOUT
+;
+	POP	BC
+	DJNZ	DOTLOP
+	RET
+;
+;
+;
+DOTMX80:			;MX-80, MX-82  2dots --> 3dots
+	LD	B,4
+DOTL81:
+	PUSH	BC
+;
+	LD	HL,DOTPIN
+	LD	B,8
+DOTL82:
+	LD	A,(HL)
+	RRCA
+	LD	(HL),A
+	RL	C
+	INC	HL
+	DJNZ	DOTL82
+	CALL	LPOUT
+;
+	LD	HL,DOTPIN
+	LD	B,8
+DOTL83:
+	LD	A,(HL)
+	RRCA
+	LD	(HL),A
+	RL	C
+	INC	HL
+	DJNZ	DOTL83
+	CALL	LPOUT
+;
+	LD	C,0
+	CALL	LPOUT
+;
+	POP	BC
+	DJNZ	DOTL81
+	RET
+;
+;
+;
+;
+;
+	PAGE
+COLCHK:				;COLOR CHECK
+	LD	HL,40F6H	;[ OR 40H ]
+	IN	A,(2CH)
+	RRCA
+	JR	NC,CLCH10	;Green CRT
+	LD	HL,0		;[NOP][NOP]
+CLCH10:
+	LD	(EXVCT1),HL
+	LD	(EXVCT2),HL	;
+	RET
+;
+;
+;
+CRSW:
+	IN	A,(XCRTS)
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,49H
+	OUT	(XCRTC),A
+	LD	A,L
+	OUT	(XCRTP),A
+	LD	A,H
+	OUT	(XCRTP),A
+	LD	A,C
+	OUT	(XCRTP),A
+	RET
+;
+;
+VECTW:
+	IN	A,(XCRTS)	;status for <VECTW>
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,4CH		;<VECTW>
+	OUT	(XCRTC),A
+	LD	A,02H		;P1 DIR = 2
+	OUT	(XCRTP),A
+	LD	A,C		;P2 read C byte
+	OUT	(XCRTP),A
+	LD	A,0		;P3
+EXVCT1:	NOP			;  or [ OR 40H ]
+	NOP
+	OUT	(XCRTP),A
+	RET
+;
+;
+MASK:
+	IN	A,(XCRTS)
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,4AH
+	OUT	(XCRTC),A
+	LD	A,0FFH
+	OUT	(XCRTP),A
+	OUT	(XCRTP),A
+	RET
+;
+;
+;
+ILLCHR:				;Number sign
+	DB	1EH,78H
+	DB	1EH,78H
+	DB	1EH,78H
+	DB	9EH,79H
+	DB	9EH,79H
+	DB	9EH,79H
+	DB	9EH,79H
+	DB	1EH,78H
+	DB	1EH,78H
+	DB	9EH,79H
+	DB	9EH,79H
+	DB	9EH,79H
+	DB	9EH,79H
+	DB	1EH,78H
+	DB	1EH,78H
+	DB	1EH,78H
+;
+;
+XCRTS	EQU	38H		;R status
+XCRTD	EQU	39H		;R data
+XCRTP	EQU	38H		;W parameter
+XCRTC	EQU	39H		;W command
+;
+;
+CURBASE:	DW	0
+CURPOS:		DW	0
+CRT400:		DS	1
+CRT640:		DS	1
+XX:		DW	0
+NN:		DB	0
+N1:		DB	0
+LINEPTR:	DS	2	;buffer pointer
+LINEBUF:	DS	80	;1 line buffer
+DOTPIN:		DS	16
+SHELT2:		DW	0	;save stack
+BDATA:		DB	0	;Blue VRAM data
+GDATA:		DB	0	;Green VRAM data
+;
+SAVSPD:		DW	0
+		DS	2*20
+STACKD:
+;
+;
+;
+	SUBTTL
+	PAGE
+;
+;	Interface to BIOS2
+;
+DYCUSR	EQU	3*41		
+CONOT1	EQU	3*42		
+BUZZPU	EQU	3*43		
+KCGIN	EQU	3*44		
+KCGOT	EQU	3*45		
+CONVCD	EQU	3*46		
+CONOT2	EQU	0E9AH
+;
+;
+;
+;	G L O B A L   E Q U A T E S
+;
+;	
+PRTAB	EQU	9100H
+CKANTAB	EQU	9800H
+ANTAB	EQU	9900H
+GAIJITB	EQU	0A300H
+;
+PRMTAB	EQU	0FE00H
+INTPTR	EQU	PRMTAB+21H		;KB input pointer
+PRTHRU	EQU	PRMTAB+2CH		;
+BRKFLG	EQU	PRMTAB+43H		;keyboard break flag
+MBFLG	EQU	PRMTAB+50H		;MF BASIC flag
+PRINTER	EQU	PRMTAB+55H
+SPOS	EQU	PRMTAB+70H		;screen starting address
+CSRDSP	EQU	PRMTAB+72H		;cursor on/off
+HPOS	EQU	PRMTAB+75H		;
+VPOS	EQU	PRMTAB+76H		;
+TSAVE	EQU	PRMTAB+79H
+COLOR	EQU	PRMTAB+7BH		;
+COUNTRY	EQU	PRMTAB+80H
+MFLG	EQU	PRMTAB+82H		;MultiFonts flag
+PRTPNT	EQU	PRMTAB+84H
+KSAVE	EQU	PRMTAB+86H
+LCRFLG	EQU	PRMTAB+87H
+LSP	EQU	PRMTAB+88H
+RSP	EQU	PRMTAB+89H
+LPESC	EQU	PRMTAB+8AH
+MFDOT	EQU	PRMTAB+8BH
+MFPT1	EQU	PRMTAB+8DH
+MFPT2	EQU	PRMTAB+8FH
+MFPT3	EQU	PRMTAB+91H
+PTMAX	EQU	PRMTAB+93H
+KETA	EQU	PRMTAB+95H
+DOTPL	EQU	PRMTAB+96H
+PREF	EQU	PRMTAB+98H
+KCG	EQU	PRMTAB+9AH
+LISTERR	EQU	PRMTAB+9DH		
+MFROM	EQU	PRMTAB+0D2H		;MF option board
+BASIC	EQU	PRMTAB+0D4H		
+MEMBANK	EQU	PRMTAB+0F0H
+;
+;
+PRTBUF	EQU	0C300H
+MFSIZE	EQU	800H
+MFBUF1	EQU	0C400H
+MFBUF2	EQU	MFBUF1+MFSIZE
+MFBUF3	EQU	MFBUF1+MFSIZE*2
+;
+;
+;
+;
+;
+;
+;
+	END
