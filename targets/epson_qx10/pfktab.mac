@@ -1,0 +1,67 @@
+	TITLE	*  Programmable Function Key Table  *
+;
+;
+;
+;
+;
+;	created  for QX-10 63k MF-CP/M
+;			  1983. 1.13  by Chisato Kobayashi
+;
+;
+;
+;
+;
+	.Z80
+	.PHASE	0
+;
+;
+CR	EQU	0DH
+LF	EQU	0AH
+X	EQU	0FFH
+;
+;
+;
+CPFSTR:
+	DB	4,'DIR ',x,x,x,x,x,x,x,x,x,x,x
+	DB	5,'TYPE ',x,x,x,x,x,x,x,x,x,x
+	DB	5,'LOAD ',x,x,x,x,x,x,x,x,x,x
+	DB	5,'STAT ',x,x,x,x,x,x,x,x,x,x
+	DB	4,'DDT ',x,x,x,x,x,x,x,x,x,x,x
+	DB	3,'PIP',x,x,x,x,x,x,x,x,x,x,x,x
+	DB	5,'DUMP ',x,x,x,x,x,x,x,x,x,x
+	DB	5,'SAVE ',x,x,x,x,x,x,x,x,x,x
+	DB	7,'SUBMIT ',x,x,x,x,x,x,x,x
+	DB	8,'MFBASIC ',x,x,x,x,x,x,x
+	DB	0,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x
+	DB	0,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x
+	DB	0,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x
+	DB	0,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x
+	DB	0,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x
+	DB	0,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x
+;
+;
+;basic
+	DB	6,'FILES ',x,x,x,x,x,x,x,x,x
+	DB	5,'LIST ',x,x,x,x,x,x,x,x,x,x
+	DB	6,'LOAD "',x,x,x,x,x,x,x,x,x
+	DB	5,'AUTO ',x,x,x,x,x,x,x,x,x,x
+	DB	5,'EDIT ',x,x,x,x,x,x,x,x,x,x
+	DB	6,'INPUT ',x,x,x,x,x,x,x,x,x
+	DB	6,'PRINT ',x,x,x,x,x,x,x,x,x
+	DB	6,'SAVE "',x,x,x,x,x,x,x,x,x
+	DB	4,'RUN',CR,x,x,x,x,x,x,x,x,x,x,x
+	DB	6,'SYSTEM',x,x,x,x,x,x,x,x,x
+	DB	0,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x
+	DB	0,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x
+	DB	0,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x
+	DB	0,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x
+	DB	0,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x
+	DB	0,x,x,x,x,x,x,x,x,x,x,x,x,x,x,x
+;
+;
+;
+;
+;
+;
+;
+	end
