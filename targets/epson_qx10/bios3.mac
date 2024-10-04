@@ -1,0 +1,5504 @@
+	TITLE	* QX-10 63k MF-CP/M BIOS3 M1.3 *
+;
+;
+;     
+;  < CONSOLE OUT > FOR QX-10 CP/M V2.2 
+;     
+;
+;	created		QX-10 63k MF-CP/M BIOS3
+;			M1.0	1983. 2. 9   by Chisato Kobayashi
+;	updated		M1.1          3.11
+;	updated		M1.2	      3.18
+;	updated		M1.3	      4.29
+;
+;				
+;
+;
+;
+	.Z80
+	.phase	0E00H
+;
+;
+;
+;
+;
+	PUBLIC	CONOUT,CONOT1,CONOT2
+	PUBLIC	CONVCD,KCGIN,KCGOT
+	PUBLIC	CLS,DYCUSR
+	PUBLIC	LEDOFF
+;
+;	<  BIOS2 SIMBOLS  >
+;
+	EXTRN	LIST1
+	EXTRN	BUZZPU,ST1ML
+;
+;	<  BIOS4 SIMBOLS  >
+;
+	EXTRN	RSOUT
+;
+;
+;
+;
+;
+	PAGE	60
+;................................................
+;.						.
+;.	CP/M SYSTEM FUNDAMENTAL CONSTANTS	.
+;................................................
+;
+BIOS	EQU	0F600H		;63k
+PRMTAB	EQU	0FE00H		;parameter table
+;
+KBTAB	EQU	8E00H
+CGTAB	EQU	9080H
+PRTAB	EQU	9100H
+CKANTAB	EQU	9800H
+ANTAB	EQU	9900H
+CPFSTR	EQU	0A100H
+GAIJITB	EQU	0A300H
+;
+;................................
+;.				.
+;.	OTHER CONSTANTS		.
+;................................
+;
+;	CP/M 0 PAGE WORK
+;
+IOBYT	EQU	0003H		;CP/M I/O BYTE
+;
+;	CONTROL CHARACTER DEFINITION
+;
+CR	EQU	0DH
+LF	EQU	0AH
+ESC	EQU	1BH
+BRKCHR	EQU	09H		;BREAK key hard code
+;
+ON	EQU	0FFH
+OFF	EQU	0
+;
+;
+;
+;	interface to BIOS1
+;
+LDAXX	EQU	BIOS+3*39
+;
+;
+;	interface to BIOS5
+;
+HCOPY	EQU	5000H		;SCREEN DUMP ROUTINE
+;
+;
+;
+;
+;
+	SUBTTL	* CONOUT *
+	PAGE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;	*** CONOUT ***
+;
+; OUTPUT CHARACTER IN C REG. TO CONSOLE ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+CONOUT:				; . . . . . . . . . . . . . . . I
+	LD	B,C		;				I
+	LD	HL,IOBYT	;				I
+	LD	A,10H		;select main bank		I
+	DI			;###############################I
+	CALL	LDAXX		;				I
+	LD	A,C		; LD A,(IOBYT)			I
+	LD	C,B		;				I
+	AND	3		;				I
+	CP	3		;				I
+	JP	Z,RSOUT		;				I
+	CP	1		;				I
+	JP	NZ,LIST1	;				I
+;								I
+;								I
+CONOT1: 			;				I
+	LD	(SAVSP3),SP	;				I
+	LD	SP,STACK3	;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	CALL	CONOT2
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	SP,(SAVSP3)	;				I
+	RET			; . . . . . . . . . . . . . . . I
+;
+	DS	96
+STACK3:
+SAVSP3:	DW	0
+;
+;
+XCRTS	EQU	38H		;R:status
+XCRTD	EQU	39H		;R:data
+XCRTC	EQU	39H		;W:command
+XCRTP	EQU	38H		;W:parameter
+;
+LEDSTS	EQU	12H		;R:LED status
+LEDCOM	EQU	10H		;W:LED command
+;
+;
+OLDMB:	DB	0		;previous MFBASIC flag
+OLDMF:	DB	0		;previous MF flag
+;
+;
+;
+;
+;
+CLS:
+	PUSH	BC
+	LD	C,ESC
+	CALL	CONOT2
+	LD	C,'*'
+	CALL	CONOT2
+	POP	BC
+	RET
+;		
+;
+;
+;
+;
+CONOT2:
+	LD	A,(OLDMB)
+	LD	H,A
+	LD	A,(MBFLG)
+	LD	(OLDMB),A
+	AND	A
+	JR	Z,COT20
+	CP	H
+	CALL	NZ,CLS
+	JP	TYPE		;MFBASIC mode
+;
+; non-MFBASIC mode
+;
+COT20:
+	LD	A,(OLDMF)
+	LD	L,A
+	LD	A,(MFLG)
+	LD	(OLDMF),A
+	AND	A
+	JR	Z,COT30
+	CP	L
+	CALL	NZ,CLS
+	JP	TQ00		;non-MFBASIC, MF mode
+;
+; non-MFBASIC, non-MF mode
+;
+COT30:
+	LD	A,H
+	OR	L
+	CALL	NZ,CLS
+;
+	IN	A,(2CH)
+	RRCA
+	JP	C,TR00		;color CRT
+;
+;
+;
+;
+;
+;	<><><> non-MFBASIC, non-MF mode
+;
+;	G R E E N   C R T
+;
+TP00:
+	LD	A,(CRTPASS)	;pass through all code
+	INC	A
+	JP	Z,COUT
+;	
+	LD	A,(ESCFLG)
+	OR	A
+	JP	Z,TP000
+	INC	A
+	LD	(ESCFLG),A
+	DEC	A
+	DEC	A
+	JP	NZ,XSCPAR
+;
+	LD	A,C
+	LD	(ESCSTS),A
+	LD	HL,XSCTAB
+	LD	IX,XSCJMP
+	CALL	CPJMP
+	JR	C,XSCERR
+	JP	(HL)
+;
+XSCTAB:
+	DB	'%()*'
+	DB	'012345'
+	DB	'6789'
+	DB	'='
+	DB	'CLPTY'
+	DB	7BH,7DH
+	DB	0A0H,0A1H,0B0H,0B1H
+	DB	0
+;
+XSCJMP:
+	DW	XSCROM		;%:set CRTPASS
+	DW	XSCEND		;(:pass through
+	DW	XSCEND		;):pass through
+	DW	XSCCLR		;*:clear screen
+	DW	XSCREV		;0:reverse on
+	DW	XSCNRM		;1:reverse off
+	DW	XSCERC		;2:cursor off
+	DW	XSCDIC		;3:cursor on
+	DW	XSCEND		;4:pass through
+	DW	XSCEND		;5:pass through
+	DW	XSCHIL		;6:highlight on
+	DW	XSCHAF		;7:highlight off
+	DW	XSCBLK		;8:blink on
+	DW	XSCNBL		;9:blink off
+	DW	XCONEND		;=:set cursor position
+	DW	XCONEND		;C:international character set
+	DW	XCONEND		;L:color
+	DW	XSCHC		;P:hard copy
+	DW	XSCEL		;T:erase to the end of line
+	DW	XSCES		;Y:erase to the end of screen
+	DW	XSCSCR		;7BH:secret on
+	DW	XSCNSC		;7DH:secret off
+	DW	XSCSLD		;0A0H:LED on
+	DW	XSCRLD		;0A1H:LED off
+	DW	XSCSFC		;0B0H:set FUNCFLG
+	DW	XSCRFC		;0B1H:reset FUNCFLG
+;
+; not support esc sequence
+;
+XSCERR:
+	CALL	BUZZPU
+	XOR	A
+	LD	(ESCFLG),A
+	LD	(ESCSTS),A
+	JP	TP000
+;
+;
+;
+;	[ cursor off ]
+XSCERC:
+	call	crsroff
+	XOR	A
+	LD	(CSRDSP),A
+	jr	xscend
+;
+;
+;	[ cursor on ]
+XSCDIC:
+	call	crsron
+	LD	A,0FFH
+	LD	(CSRDSP),A
+	jr	xscend
+;
+;
+;
+CRSROFF:
+	LD	B,0FH
+	DB	21H		;skip next instruction (LD HL,nn)
+CRSRON:
+	LD	B,8FH
+;
+	IN	A,(2CH)
+	RRCA
+	JR	NC,CURSOR	;green CRT
+	LD	B,0		;color CRT
+CURSOR:
+	IN	A,(XCRTS)
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,4BH
+	OUT	(39H),A
+	LD	A,B
+	out	(38h),a
+	ld	a,0c0h
+	out	(38h),a
+	ld	a,70h
+	out	(38h),a
+	RET
+;
+;
+;
+;	[ reverse on ]
+XSCREV:
+	ld	hl,attr
+	set	3,(hl)
+	jr	xscend
+;
+;
+;	[ reverse off ]
+XSCNRM:
+	ld	hl,attr
+	res	3,(hl)
+	jr	xscend
+;
+;
+;	[ highlight on ]
+XSCHIL:
+	ld	hl,attr
+	set	2,(hl)
+	jr	xscend
+;
+;
+;	[ highlight off ]
+XSCHAF:
+	ld	hl,attr
+	res	2,(hl)
+	jr	xscend
+;
+;
+;	[ blink on ]
+XSCBLK:
+	ld	hl,attr
+	set	7,(hl)
+	jr	xscend
+;
+;
+;	[ blink off ]
+XSCNBL:
+	ld	hl,attr
+	res	7,(hl)
+	jr	xscend
+;
+;
+;	[ secret on ]
+XSCSCR:
+	ld	hl,attr
+	set	6,(hl)
+	jr	xscend
+;
+;
+;	[ secret off ]
+XSCNSC:
+	ld	hl,attr
+	res	6,(hl)
+;;;jr	xscend
+;
+;
+;
+;
+XSCEND:
+	XOR	A
+	LD	(ESCFLG),A
+	LD	(ESCSTS),A
+	JP	XCONEND
+;
+;
+;
+XSCCLR:
+	call	clear
+	JR	XSCEND
+;
+;
+;
+	CALL	HCOPY
+	JR	XSCEND
+;
+;
+;
+XSCPAR:
+	LD	A,(ESCSTS)
+	CP	'='		
+	JR	Z,XSCDC		;set cursor position
+	CP	'C'
+	JP	Z,XSCNC		;change character set
+	CP	'L'		;
+	JP	Z,XSCOL		;
+	JR	XSCEND		;not supported
+;
+;
+;
+;	[ set cursor position ]
+;
+XSCDC:
+	LD	A,(ESCFLG)
+	CP	3
+	JR	NZ,XSCDC1
+	LD	A,C
+	LD	(ESCDCY),A
+	JP	XCONEND		;continue
+;
+XSCDC1:
+	LD	A,C
+	SUB	20H
+	CP	80
+	JP	NC,XSCEND	;error return
+	LD	C,A
+	LD	A,(ESCDCY)
+	SUB	20H
+	CP	25
+	JP	NC,XSCEND	;error return
+	INC	A
+	LD	(VPOS),A
+	LD	A,C
+	INC	A
+	LD	(HPOS),A
+	CALL	XCALCUSR
+	XOR	A		;clear CRFLG
+	LD	(CRFLG),A	;
+	JP	XSCEND
+;
+;
+; calculate crtpos
+;
+XCALCUSR:
+	LD	HL,(SPOS)
+	LD	BC,80
+	LD	A,(VPOS)
+XCA00:
+	DEC	A
+	JR	Z,XCA10
+	ADD	HL,BC
+	JR	XCA00
+XCA10:
+	LD	A,(HPOS)
+	DEC	A
+	LD	C,A
+	ADD	HL,BC
+	LD	(CRTPOS),HL
+	RET
+;
+;
+;
+;	[ erase to the end of line ]
+XSCEL:
+	ld	a,(hpos)
+	sub	80
+	jR	z,xscEL80
+	neg
+	ld	l,a
+	ld	h,0
+	call	clrscrn
+	jp	xscend
+XSCEL80:
+	LD	HL,(CRTPOS)
+	LD	C,0
+	CALL	CSRW		;<CSRW>
+	CALL	MASKFF		;<MASK>
+	CALL	CRTWTE		;<WRITE>-replace
+	LD	A,20H
+	OUT	(XCRTP),A
+	LD	A,(ATTR)
+	AND	0DFH
+	OUT	(XCRTP),A
+	JP	XSCEND
+;
+;
+;
+;	[ erase to the end of screen ]
+XSCES:
+	ld	hl,0
+	ld	a,(vpos)
+	sub	25
+	jr	z,xsces2
+	neg
+	ld	bc,80
+XSCES1:
+	add	hl,bc
+	dec	a
+	jr	nz,xsces1
+XSCES2:
+	ld	a,(hpos)
+	sub	80
+	neg
+	ld	c,a
+	ld	b,0
+	add	hl,bc
+	call	clrscrn
+	JP	XSCEND
+;
+;
+;
+XSCOL:	
+	LD	A,(ESCFLG)
+	CP	3
+	JP	NZ,RSCOL1
+	LD	A,C
+	LD	(ECOLOR),A
+	JP	XCONEND
+;
+;
+;
+;	[ set CRTPASS flag ]
+;
+XSCROM:
+	LD	A,-1
+	LD	(CRTPASS),A
+	JP	XSCEND
+;
+;
+;
+;	[ Internaional character set ]
+;
+XSCNC:
+	LD	A,C
+	LD	C,0
+	CP	'U'
+	JR	Z,FOREIGN	;US ASCII
+	INC	C
+	CP	'F'
+	JR	Z,FOREIGN	;FRENCH
+	INC	C
+	CP	'G'
+	JR	Z,FOREIGN	;GERMANY
+	INC	C
+	CP	'E'
+	JR	Z,FOREIGN	;ENGLISH
+	INC	C
+	CP	'D'
+	JR	Z,FOREIGN	;DANISH
+	INC	C
+	CP	'W'
+	JR	Z,FOREIGN	;SWEDISH
+	INC	C
+	CP	'I'
+	JR	Z,FOREIGN	;ITALIAN
+	INC	C
+	CP	'S'
+	JR	Z,FOREIGN	;SPANISH
+;
+; error return
+;
+	LD	C,0
+	JR	XRQESC
+;
+;
+FOREIGN:
+	LD	A,C
+	LD	(COUNTRY),A
+	CALL CHANGE		;
+	LD	C,-1		;normal return
+XRQESC:
+	LD	A,(MBFLG)
+	AND	A
+	JP	NZ,ESCEND	;MFBASIC mode
+	LD	A,(MFLG)
+	AND	A
+	JP	NZ,QSCEND	;non-MFBASIC, MF mode
+	IN	A,(2CH)		;
+	RRCA	
+	JP	C,RSCEND
+	JP	XSCEND
+;
+;
+;
+;	[ INS LED on ]
+XSCSLD:				;
+	CALL	LEDON
+	JP	XSCEND
+;
+;	[ INS LED off ]
+XSCRLD:				;
+	CALL	LEDOFF
+	JP	XSCEND
+;
+;
+LEDON:
+	LD	D,45H
+	DB	21H		;skip next instruction
+LEDOFF:
+	LD	D,44H
+LED:
+	IN	A,(LEDSTS)
+	BIT	2,A
+	JR	Z,LED
+	LD	A,D
+	OUT	(LEDCOM),A
+	RET
+;
+;
+;
+;	[ set FUNCFLG ]
+XSCSFC:				;
+	LD	A,-1
+	DB	0FEH		;skip next instruction
+;
+;	[ reset FUNCFLG ]
+XSCRFC:				;
+	XOR	A
+	LD	(FUNCFLG),A
+	JP	XSCEND
+;
+;
+;
+;
+;
+TP000:
+	LD	A,C
+	CP	0A0H
+	JP	NC,TP70
+	CP	20H
+	JP	NC,COUT
+	CP	1CH
+	JP	NC,TPCUSR
+;
+	LD	HL,TPCTRL
+	LD	IX,TPCTJP
+	CALL	CPJMP
+	JP	C,TP80
+	JP	(HL)
+;
+TPCTRL:
+	DB	5,7,8,9
+	DB	0AH,0BH,0CH,0DH
+	DB	1AH,1BH
+	DB	0
+;
+TPCTJP:
+	DW	XSCEL		;erase to the end of line
+	DW	TP40		;bell
+	DW	TP50		;back space
+	DW	TPTAB		;tabulation
+	DW	TP20		;LF
+	DW	TPHOME		;home
+	DW	XSCCLR		;clear screen
+	DW	TP10		;CR
+	DW	XSCES		;erase to the end of screen
+	DW	XSCESC		;ESC
+;
+;
+;
+;	[ ESCAPE ]
+XSCESC:
+	LD	A,1
+	LD	(ESCFLG),A
+	JP	XCONEND
+;
+;
+;
+;	[ Tabulation ]
+TPTAB:
+	ld	hl,(crtpos)
+	ld	a,(hpos)
+	dec	a
+	and	7
+	sub	8
+	neg
+	ld	b,a
+	push	bc
+	ld	l,a
+	ld	h,0
+	call	clrscrn
+	pop	bc
+	ld	c,b
+	ld	b,0
+	call	advpos
+	jp	xconend
+;
+;
+;
+;	[ HOME ]
+TPHOME:
+	ld	hl,(spos)
+	ld	(crtpos),hl
+	ld	a,1
+	ld	(hpos),a
+	ld	(vpos),a
+	XOR	A		;clear CRFLG 
+	LD	(CRFLG),A	;
+	jp	xconend
+;
+;
+;
+;
+;		move cursor
+;
+TPCUSR:
+	jr	z,tprigt
+	cp	1eh
+	jr	c,tpleft
+	jr	z,tpup
+;
+;
+;	down
+TPDOWN:
+	ld	a,(vpos)
+	inc	a
+	ld	(vpos),a
+	cp	26
+	jr	c,tpcalc
+	ld	a,1
+	ld	(vpos),a
+	jr	tpcalc
+;
+;
+;	left
+TPLEFT:
+	LD	A,(HPOS)
+	DEC	A
+	LD	(HPOS),A
+	JR	NZ,TPCALC
+	LD	A,80
+	LD	(HPOS),A
+;JR	TPUP
+;
+;	up
+TPUP:
+	LD	A,(VPOS)
+	DEC	A
+	LD	(VPOS),A
+	JR	NZ,TPCALC
+	LD	A,25
+	LD	(VPOS),A
+	JR	TPCALC
+;
+;
+;	right
+TPRIGT:
+	ld	a,(hpos)
+	inc	a
+	ld	(hpos),a
+	cp	81
+	jr	c,tpcalc
+	ld	a,1
+	ld	(hpos),a
+	jr	tpdown
+;
+;
+;
+;	[ CR ]
+TP10:
+	LD	A,(HPOS)
+	DEC	A
+	JR	Z,TP15
+	XOR	A
+	LD	(CRFLG),A
+	INC	A		;=1
+	LD	(HPOS),A
+	JR	TPCALC
+TP15:
+	LD	A,(CRFLG)
+	AND	A
+	JP	Z,XCONEND
+	XOR	A
+	LD	(CRFLG),A
+	JR	TPUP
+;
+;
+;
+;	[ LF ]
+TP20:
+	LD	C,80
+	CALL	ADVPOS
+	XOR	A		;clear CRFLG
+	LD	(CRFLG),A
+	JP	XCONEND
+;
+;
+;
+;	[ bell ]
+TP40:
+	CALL	BUZZPU
+	JP	XCONEND
+;
+;
+;
+;	[ back space ]
+TP50:
+	LD	A,(HPOS)
+	DEC	A
+	JR	NZ,TP60
+	LD	A,(VPOS)
+	DEC	A
+	JP	Z,XCONEND
+	LD	(VPOS),A
+	LD	A,80
+TP60:
+	LD	(HPOS),A
+TPCALC:
+	CALL	XCALCUSR
+	JP	XCONEND
+;
+;
+;
+;	0A0H---0FFH
+TP70:
+	SUB	80H
+	LD	C,A
+	DB	21H		;jump next instruction;
+;
+;	illegal character
+TP80:
+	LD	C,'.'
+;
+;
+COUT:
+	PUSH	BC
+	LD	HL,(CRTPOS)
+	LD	C,0
+	CALL	CSRW		;<CSRW>
+	POP	BC
+	CALL	MASKFF		;<MASK>
+	CALL	CRTWTE		;<WRITE>-replace
+	LD	A,(CRTPASS)
+	INC	A
+	JR	Z,CO18		;access CGROM directly
+;
+	LD	HL,CGTAB	;
+CO15:
+	LD	A,(HL)
+	INC	HL
+	AND	A
+	JR	Z,CO18
+	CP	C
+	JR	Z,CO17
+	INC	HL
+	JR	CO15
+CO17:
+	LD	A,(HL)
+	DB	06H		;skip next instruction (LD B,)
+CO18:
+	LD	A,C
+	OUT	(XCRTP),A
+	LD	A,(ATTR)	;
+	AND	0DFH		;
+	OUT	(XCRTP),A
+;
+	XOR	A		;
+	LD	(CRTPASS),A
+	LD	C,1
+	CALL	ADVPOS
+;
+XCONEND:
+	LD	HL,(CRTPOS)
+	DEC	HL
+	LD	C,0
+	CALL	CSRW		;<CSRW> 
+	IN	A,(XCRTS)	;empty check
+	AND	6
+	XOR	4
+	JR	NZ,$-6
+	LD	A,23H		;<WRITE> -set
+	OUT	(XCRTC),A
+	LD	A,20H
+	OUT	(XCRTP),A
+	XOR	A
+	OUT	(XCRTP),A
+	RET
+;
+;
+;
+ADVPOS:
+	ld	a,(hpos)
+	add	a,c
+	ld	(hpos),a
+	SUB	81
+	jp	c,xcalcusr
+;
+	INC	A
+	ld	(hpos),a
+	LD	A,-1		;CRFLG on
+	LD	(CRFLG),A
+	ld	a,(vpos)
+	inc	a
+	ld	(vpos),a
+	cp	26
+	jp	c,xcalcusr
+;
+	CALL	XCALCUSR	;move cursor to the next line
+	CALL	XCONEND		;cursor on
+	LD	HL,80		;clear 1 line
+	CALL	CLRSCRN		;
+	LD	A,(VPOS)
+	DEC	A
+	LD	(VPOS),A	;=25
+	LD	HL,(SPOS)
+	LD	DE,80
+	ADD	HL,DE
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	(SPOS),HL	;				I
+	CALL	SCRLCHR		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	LD	HL,(SCRLTIM)
+SCWAIT:
+	DEC	HL
+	LD	A,H
+	OR	L
+	RET	Z
+	CALL	ST1ML
+	JR	SCWAIT
+;
+;
+;
+;
+;
+CPJMP:
+	LD	A,(HL)
+	INC	HL
+	CP	1
+	RET	C
+	CP	C
+	JR	NZ,CPJP10
+	LD	L,(IX)
+	LD	H,(IX+1)
+	RET
+CPJP10:
+	INC	IX
+	INC	IX
+	JR	CPJMP
+;
+;
+;
+;
+;
+	PAGE
+;	<><><> non-MFBASIC, non-MF mode <><><>
+;
+;	C O L O R   C R T
+;
+;
+TR00:
+	CALL	COLCHK
+	LD	A,16
+	LD	(YY),A
+;
+	LD	A,(CSRDSP)
+	AND	A
+	CALL	NZ,DYCUSR	;clear cursor
+;
+	LD	A,(ESCFLG)
+	OR	A
+	JP	Z,TR000
+	INC	A
+	LD	(ESCFLG),A
+	DEC	A
+	DEC	A
+	JP	NZ,RSCPAR
+;
+	LD	A,C
+	LD	(ESCSTS),A
+	LD	HL,RSCTAB
+	LD	IX,RSCJMP
+	CALL	CPJMP
+	JR	C,RSCERR
+	JP	(HL)
+;
+RSCTAB:
+	DB	'()*'
+	DB	'012345'
+	DB	'='
+	DB	'CLPTY'
+	DB	7BH,7DH
+	DB	0A0H,0A1H,0B0H,0B1H
+	DB	0
+;
+RSCJMP:
+	DW	RSCEND		;(:pass through
+	DW	RSCEND		;):pass through
+	DW	RSCCLR		;*:clear screen
+	DW	RSCREV		;0:reverse on
+	DW	RSCNRM		;1:reverse off
+	DW	RSCERC		;2:cursor off
+	DW	RSCDIC		;3:cursor on
+	DW	RSCUDL		;4:underline on
+	DW	RSCEUL		;5:underline off
+	DW	RCONEND		;=:set cursor position
+	DW	RCONEND		;C:international character set
+	DW	RCONEND		;L:color
+	DW	RSCHC		;P:hard copy
+	DW	RSCEL		;T:erase to the end of line
+	DW	RSCES		;Y:erase to the end of screen
+	DW	RSCSCR		;7BH:secret on
+	DW	RSCNSC		;7DH:secret off
+	DW	RSCSLD		;0A0H:LED on
+	DW	RSCRLD		;0A1H:LED off
+	DW	RSCSFC		;0B0H:set FUNCFLG
+	DW	RSCRFC		;0B1H:reset FUNCFLG
+;
+; not supported esc sequence
+;
+RSCERR:
+	CALL	BUZZPU
+	XOR	A
+	LD	(ESCFLG),A
+	LD	(ESCSTS),A
+	JP	TR000
+;
+;
+;
+;	[ cursor on ]
+RSCDIC:
+	LD	A,0FFH		;cursor on
+	DB	0FEH		;skip next instruction
+;
+;	[ cursor off ]
+RSCERC:
+	XOR	A
+	LD	(CSRDSP),A
+	JR	RSCEND
+;
+;
+;	[ reverse on ]
+RSCREV:
+	LD	HL,ATTR
+	SET	3,(HL)
+	LD	HL,0F0FH	;[RRCA][RRCA]
+	CALL	RREVSET		;
+	JR	RSCEND
+;
+;	[ reverse off ]
+RSCNRM:
+	LD	HL,ATTR
+	RES	3,(HL)
+	LD	HL,0		;[NOP][NOP]
+	CALL	RREVSET		;
+	JR	RSCEND
+;
+RREVSET:			
+	LD	(TRREV1),HL
+	LD	(TRREV1+2),HL
+	RET
+;
+;
+;	[ secret on ]
+RSCSCR:
+	LD	HL,ATTR
+	SET	6,(HL)
+	LD	A,0AFH		;[ XOR A ]
+	CALL	SCRSET
+	JR	RSCEND
+;
+;	[ secret off ]
+RSCNSC:
+	LD	HL,ATTR
+	RES	6,(HL)
+	XOR	A		;[ NOP ]
+	CALL	SCRSET
+	JR	RSCEND
+;
+;
+;	[ underline on ]
+RSCUDL:
+	LD	HL,ATTR
+	SET	5,(HL)
+	LD	HL,0FF3EH	;[ LD A,0FFH ]
+	CALL	UDLSET
+	JR	RSCEND
+;
+;	[ underline off ]
+RSCEUL:
+	LD	HL,ATTR
+	RES	5,(HL)
+	LD	HL,0		;[NOP],[NOP]
+	CALL	UDLSET
+;JR	RSCEND
+;
+;
+;
+RSCEND:
+	XOR	A
+	LD	(ESCFLG),A
+	LD	(ESCSTS),A
+	JP	RCONEND
+;
+;
+;
+RSCCLR:
+	CALL	CLR2		;***
+	JR	RSCEND
+;
+;
+;
+	CALL	HCOPY
+	JR	RSCEND
+;
+;
+;
+RSCPAR:
+	LD	A,(ESCSTS)
+	CP	'='
+	JR	Z,RSCDC
+	CP	'C'
+	JP	Z,XSCNC		;international character
+	CP	'L'		
+	JP	Z,RSCOL		;change color
+	JR	RSCEND
+;
+;
+;	[ set cursor position ]
+RSCDC:
+	LD	A,(ESCFLG)
+	CP	3
+	JR	NZ,RSCDC1
+	LD	A,C
+	LD	(ESCDCY),A
+	JP	RCONEND
+RSCDC1:
+	LD	A,(ESCDCY)
+	SUB	20H
+	CP	25
+	JP	NC,RSCEND	;error return
+	INC	A
+	LD	(VPOS),A
+	LD	A,C
+	SUB	20H
+	CP	80
+	JP	NC,RSCEND	;error return
+	INC	A
+	LD	(HPOS),A
+	CALL	RCALCUSR	;calculate CRTPOS
+	XOR	A		;clear CRFLG
+	LD	(CRFLG),A	;
+	JP	RSCEND
+;
+;
+;
+;	[ erase to the end of screen ]
+RSCES:
+	LD	A,(VPOS)
+	SUB	25
+	JR	Z,RSCEL
+	NEG
+	LD	L,A
+	LD	H,0
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	LD	B,H
+	LD	C,L		;BC=(25-(VPOS))*16
+	LD	A,(HPOS)
+	LD	D,A
+	LD	A,(VPOS)
+	LD	E,A
+	PUSH	DE		;save HPOS, VPOS
+	LD	HL,(CRTPOS)
+	PUSH	HL		;save CRTPOS
+	LD	A,1
+	LD	(HPOS),A
+	INC	E
+	LD	A,E
+	LD	(VPOS),A
+	CALL	RCALCUSR
+	LD	DE,640/8	;(bytes)
+	CALL	CLRLINE
+	POP	HL
+	LD	(CRTPOS),HL	;restore CRTPOS
+	POP	DE
+	LD	A,D
+	LD	(HPOS),A	;restore HPOS
+	LD	A,E
+	LD	(VPOS),A	;restore VPOS
+	CALL	RCALCUSR
+;
+;	[ erase to the end of line ]
+RSCEL:
+	CALL	ERAEL
+	JP	RSCEND
+;
+;
+;
+;	[ change CRT color ]
+RSCOL:			
+	LD	A,(ESCFLG)
+	CP	3
+	JR	NZ,RSCOL1
+	LD	A,C
+	LD	(ECOLOR),A
+	JP	RCONEND		;continue
+RSCOL1:
+	LD	A,C
+	SUB	'0'
+	CP	8
+	JP	NC,XRQESC	;error return
+	LD	C,A
+	LD	A,(ECOLOR)
+	SUB	'0'
+	JR	NZ,RSCOL2	;background color
+;
+; foreground color
+;
+	IN	A,(2CH)	
+	RRCA
+	JR	C,RSCOL3	;color CRT
+	LD	A,C
+	AND	A
+	JR	Z,RSCOL3
+	LD	C,7
+RSCOL3:
+	LD	A,(COLOR)
+	AND	0F0H
+	OR	C
+	LD	(COLOR),A
+	JP	XRQESC		;normal return
+;
+; background color
+;
+RSCOL2:
+	CP	2
+	JP	NC,XRQESC	;error return
+	LD	A,C
+	RRCA
+	RRCA
+	RRCA
+	RRCA
+	LD	C,A
+	IN	A,(2CH)
+	RRCA
+	JR	C,RSCOL4	;color CRT
+	LD	C,0		;always 0 ( Green CRT )
+RSCOL4:
+	LD	A,(COLOR)
+	AND	0FH
+	OR	C
+	LD	(COLOR),A
+	JP	XRQESC		;normal return
+;
+;
+;
+;	[ INS LED on ]
+RSCSLD:
+	CALL	LEDON
+	JP	RSCEND
+;
+;	[ INS LED off ]
+RSCRLD:
+	CALL	LEDOFF
+	JP	RSCEND
+;
+;
+;
+;	[ set FUNCFLG ]
+RSCSFC:
+	LD	A,-1
+	DB	0FEH		;skip next instruction
+;
+;	[ reset FUNCFLG ]
+RSCRFC:
+	XOR	A
+	LD	(FUNCFLG),A
+	JP	RSCEND
+;
+;
+;
+;
+;
+	PAGE
+TR000:
+	LD	A,C
+	CP	0A0H
+	JP	NC,TR70
+	CP	20H
+	JP	NC,TR300
+;
+	CP	1CH
+	JP	NC,TRCUSR
+	LD	HL,TRCTRL
+	LD	IX,TRCTJP
+	CALL	CPJMP
+	JP	C,TR80
+	JP	(HL)
+;
+TRCTRL:
+	DB	5,7,8,9
+	DB	0AH,0BH,0CH,0DH
+	DB	1AH,1BH
+	DB	0
+;
+TRCTJP:
+	DW	RSCEL		;erase to the end of line
+	DW	TR40		;bell
+	DW	TR50		;back space
+	DW	TRTAB		;tab
+	DW	TR20		;line feed
+	DW	TRHOME		;home position
+	DW	RSCCLR		;clear screen
+	DW	TR10		;carriage return
+	DW	RSCES		;erase to the end of screen
+	DW	RSCESC		;escape
+;
+;
+;
+;	[ ESC ]
+RSCESC:
+	LD	A,1
+	LD	(ESCFLG),A
+	JP	RCONEND
+;
+;
+;
+;	[ Tabulation ]
+TRTAB:
+	LD	A,(HPOS)
+	DEC	A
+	AND	7
+	SUB	8
+	NEG
+	LD	C,A
+	PUSH	BC
+	LD	E,A
+	LD	D,0		;(bytes)
+	LD	BC,16
+	CALL	CLRLINE
+	POP	BC
+	LD	B,0
+	CALL	ADVPSR
+	JP	RCONEND
+;
+;
+;
+;	[ HOME ]
+TRHOME:
+	ld	hl,(spos)
+	ld	(crtpos),hl
+	ld	a,1
+	ld	(hpos),a
+	ld	(vpos),a
+	XOR	A		;clear CRFLG
+	LD	(CRFLG),A	;
+	JP	RCONEND
+;
+;
+;
+;		move cursor
+;
+TRCUSR:
+	JR	Z,TRRIGT
+	cp	1eh
+	jr	c,TRLEFT
+	jr	z,TRUP
+;
+;	down
+TRDOWN:
+	ld	a,(vpos)
+	inc	a
+	ld	(vpos),a
+	CP	26
+	JR	C,TRCALC
+	ld	a,1
+	ld	(vpos),a
+	jr	TRCALC
+;
+;	left
+TRLEFT:
+	LD	A,(HPOS)
+	DEC	A
+	LD	(HPOS),A
+	JR	NZ,TRCALC
+	LD	A,80
+	LD	(HPOS),A
+;JR	TRUP
+;
+;	up
+TRUP:
+	LD	A,(VPOS)
+	DEC	A
+	LD	(VPOS),A
+	JR	NZ,TRCALC
+	LD	A,25
+	LD	(VPOS),A
+	JR	TRCALC
+;
+;	right
+TRRIGT:
+	ld	a,(hpos)
+	INC	A
+	LD	(HPOS),A
+	CP	81
+	JR	C,TRCALC
+	LD	A,1
+	LD	(HPOS),A
+	JR	TRDOWN
+;
+;
+;
+;	[ CR ]
+TR10:
+	LD	A,(HPOS)
+	DEC	A
+	JR	Z,TR15
+	XOR	A
+	LD	(CRFLG),A
+	INC	A		;=1
+	LD	(HPOS),A
+	JR	TRCALC
+TR15:
+	LD	A,(CRFLG)
+	AND	A
+	JP	Z,RCONEND
+	XOR	A
+	LD	(CRFLG),A
+	JR	TRUP
+;
+TRCALC:
+	CALL	RCALCUSR
+	JP	RCONEND
+;
+;
+;
+;	[ LF ]
+TR20:
+	LD	C,80
+	CALL	ADVPSR		;
+	XOR	A		;clear CRFLG
+	LD	(CRFLG),A
+	JP	RCONEND
+;
+;
+;
+;	[ bell ]
+TR40:
+	CALL	BUZZPU
+	JP	RCONEND
+;
+;
+;
+;	[ back space ]
+TR50:
+	LD	A,(HPOS)
+	DEC	A
+	JR	NZ,TRBS10
+	LD	A,(VPOS)
+	DEC	A
+	JP	Z,RCONEND
+	LD	(VPOS),A
+	LD	A,80
+TRBS10:
+	LD	(HPOS),A
+	CALL	RCALCUSR
+	JP	RCONEND
+;
+;
+;
+;
+;	0A0H---0FFH
+TR70:
+	SUB	80H
+	LD	C,A
+	DB	21H		;jump next instruction;
+;
+;	illegal character
+TR80:
+	LD	C,'.'	
+;
+;
+TR300:
+	LD	H,0
+	LD	L,C
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	LD	DE,ANTAB-16*20H
+	ADD	HL,DE		;HL=ANTAB+(C-20H)*16
+	LD	DE,CGPAT
+	LD	B,16
+TR310:
+	LD	A,(HL)
+	LD	(DE),A
+	INC	HL
+	INC	DE
+	INC	DE
+	DJNZ	TR310
+	CALL	BLUE		;*** Blue ***
+	LD	A,(COLOR)
+	CALL	TR1COL
+	CALL	RED		;*** Red ***
+	LD	A,(COLOR)
+	RRCA
+	CALL	TR1COL
+	CALL	GREEN		;*** Green ***
+	LD	A,(COLOR)
+	RRCA
+	RRCA
+	CALL	TR1COL
+	LD	C,1
+	CALL	ADVPSR
+;
+RCONEND:
+	LD	A,(CSRDSP)
+	AND	A
+	CALL	NZ,DYCUSR	;cursor on
+	RET
+;
+;
+;
+TR1COL:
+TRREV1:	NOP			; or [RRCA] if reverse
+	NOP			; or [RRCA] if reverse
+	NOP			; or [RRCA] if reverse
+	NOP			; or [RRCA] if reverse
+	LD	C,A
+	AND	1
+	LD	B,A
+	LD	A,C
+	RRCA
+	RRCA
+	RRCA
+	AND	02H
+	OR	B
+	LD	(POSNEG),A	;0:no data/1:fore/2:back/3:fore,back
+TR2COL:
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+;1				;				I
+	CALL	CRTWTE		;				I
+	LD	HL,CGPAT+14	;				I
+	CALL	TEXTW1		;				I
+	LD	C,70H		;				I
+	LD	A,(HPOS)	;				I
+	RRCA			;				I
+	JR	C,TR315		;				I
+	LD	C,0F0H		;				I
+TR315:				;				I
+	PUSH	BC		;				I
+	LD	HL,(CRTPOS)	;				I
+	PUSH	HL		;				I
+	CALL	CSRW		;@@@				I
+	CALL	VECTW1		;16,07,04			I
+	CALL	TEXTE		;				I
+;2								I
+	CALL	CRTWTE		;				I
+	LD	HL,CGPAT+30	;				I
+	CALL	TEXTW3		;				I
+	POP	HL		;				I
+	LD	DE,40*8		;				I
+	ADD	HL,DE		;				I
+	POP	BC		;				I
+	CALL	CSRW		;				I
+	CALL	VECTW1		;16,07,04			I
+	CALL	TEXTE		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RET
+;
+;
+;
+;
+;
+ADVPSR:
+	LD	A,(hPOS)
+	ADD	A,C
+	LD	(HPOS),A
+	SUB	81
+	JP	C,RCALCUSR
+	INC	A
+	LD	(HPOS),A
+	LD	A,-1		;CRFLG on
+	LD	(CRFLG),A
+	LD	A,(VPOS)
+	INC	A
+	LD	(VPOS),A
+	CP	26
+	JP	C,RCALCUSR
+;
+;	scroll
+;
+	DEC	A
+	LD	(VPOS),A	;=25
+	LD	HL,(SPOS)
+	LD	DE,40*16
+	ADD	HL,DE
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	(SPOS),HL	;				I
+	CALL	SCRLGRP		;<SCROLL>			I
+	LD	DE,40*16*24	;				I
+	ADD	HL,DE		;				I
+	LD	(CRTPOS),HL	;				I
+	LD	A,(HPOS)	;				I
+	EX	AF,AF'		;save HPOS			I
+	LD	A,1		;				I
+	LD	(HPOS),A	;				I
+	LD	BC,16		;				I
+	LD	DE,640/8	;(bytes)			I
+	CALL	CLRLINE		;				I
+	EX	AF,AF'		;				I
+	LD	(HPOS),A	;restore HPOS			I
+	CALL	RCALCUSR	;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RET
+;
+;
+;
+;
+;
+	PAGE
+;	<><><> non-MFBASIC, MF mode <><><>
+;
+;
+TQ00:
+	CALL	COLCHK		;
+	LD	A,20		;
+	LD	(YY),A		;
+;
+	LD	A,(CSRDSP)
+	AND	A
+	CALL	NZ,DYCUSR	;clear cursor
+;
+	LD	A,(ESCFLG)
+	OR	A
+	JP	Z,TQ000
+	INC	A
+	LD	(ESCFLG),A
+	DEC	A
+	DEC	A
+	JP	NZ,QSCPAR
+;
+	LD	A,C
+	LD	(ESCSTS),A
+	LD	HL,QSCTAB
+	LD	IX,QSCJMP
+	CALL	CPJMP
+	JR	C,QSCERR
+	JP	(HL)
+;
+QSCTAB:
+	DB	'()*'
+	DB	'012345'
+	DB	'='
+	DB	'CLPTY'
+	DB	7BH,7DH
+	DB	0A0H,0A1H,0B0H,0B1H
+	DB	0
+;
+QSCJMP:
+	DW	QSCEND		;(:pass through
+	DW	QSCEND		;):pass through
+	DW	QSCCLR		;*:clear screen
+	DW	QSCREV		;0:reverse on
+	DW	QSCNRM		;1:reverse off
+	DW	QSCERC		;2:cursor off
+	DW	QSCDIC		;3:cursor on
+	DW	QSCUDL		;4:underline on
+	DW	QSCEUL		;5:underline off
+	DW	QCONEND		;=:set cursor position
+	DW	QCONEND		;C:international character set
+	DW	QCONEND		;L:color
+	DW	QSCHC		;P:hard copy
+	DW	QSCEL		;T:erase to the end of line
+	DW	QSCES		;Y:erase to the end of screen
+	DW	QSCSCR		;7BH:secret on
+	DW	QSCNSC		;7DH:secret off
+	DW	QSCSLD		;0A0H:LED on
+	DW	QSCRLD		;0A1H:LED off
+	DW	QSCSFC		;0B0H:set FUNCFLG
+	DW	QSCRFC		;0B1H:reset FUNCFLG
+;
+; not supported ESC sequence
+;
+QSCERR:
+	CALL	BUZZPU
+	XOR	A
+	LD	(ESCFLG),A
+	LD	(ESCSTS),A
+	JP	TQ000
+;
+;
+;
+;	[ cursor on ]
+QSCDIC:
+	LD	A,0FFH		;cursor on
+	DB	0FEH		;skip next instruction
+;
+;	[ cursor off ]
+QSCERC:
+	XOR	A
+	LD	(CSRDSP),A
+	JR	QSCEND
+;
+;
+;	[ reverse on ]
+QSCREV:
+	LD	HL,ATTR
+	SET	3,(HL)
+	LD	HL,0F0FH	;[RRCA][RRCA]
+	CALL	QREVSET		
+	JR	QSCEND
+;
+;	[ reverse off ]
+QSCNRM:
+	LD	HL,ATTR
+	RES	3,(HL)
+	LD	HL,0		;[NOP][NOP]
+	CALL	QREVSET		
+	JR	QSCEND
+;
+;
+;	[ secret on ]
+QSCSCR:
+	LD	HL,ATTR
+	SET	6,(HL)
+	LD	A,0AFH		;[XOR A]
+	CALL	SCRSET
+	JR	QSCEND
+;
+;	[ secret off ]
+QSCNSC:
+	LD	HL,ATTR
+	RES	6,(HL)
+	XOR	A		;[NOP]
+	CALL	SCRSET
+	JR	QSCEND
+;
+;
+;	[ underline on ]
+QSCUDL:
+	LD	HL,ATTR
+	SET	5,(HL)
+	LD	HL,0FF3EH	;[LD A,0FFH]
+	CALL	UDLSET
+	JR	QSCEND
+;
+;	[ underline off ]
+QSCEUL:
+	LD	HL,ATTR
+	RES	5,(HL)
+	LD	HL,0		;[NOP],[NOP]
+	CALL	UDLSET
+;JR	QSCEND
+;
+;
+;
+;
+QSCEND:
+	XOR	A
+	LD	(ESCFLG),A
+	LD	(ESCSTS),A
+	JP	QCONEND
+;
+;
+;
+QSCCLR:
+	CALL	CLR2		;***
+	JR	QSCEND
+;
+;
+;
+	CALL	HCOPY
+	JR	QSCEND
+;
+;
+;
+QSCPAR:
+	LD	A,(ESCSTS)
+	CP	'='
+	JR	Z,QSCDC
+	CP	'C'
+	JP	Z,XSCNC		;international character
+	CP	'L'	
+	JP	Z,QSCOL		;change color
+	JR	QSCEND
+;
+;
+;	[ set cursor position ]
+;
+QSCDC:
+	LD	A,(ESCFLG)
+	CP	3
+	JR	NZ,QSCDC1
+	LD	A,C
+	LD	(ESCDCY),A
+	JP	QCONEND
+QSCDC1:
+	LD	A,(ESCDCY)
+	SUB	20H
+	CP	20
+	JP	NC,QSCEND	;error return
+	INC	A
+	LD	(VPOS),A
+	LD	A,C
+	SUB	20H
+	ADD	A,A
+	CP	80
+	JP	NC,QSCEND	;error return
+	INC	A
+	LD	(HPOS),A
+	CALL	ECALCUSR	;calculate CRTPOS
+	XOR	A		;clear CRFLG
+	LD	(CRFLG),A	;
+	JP	QSCEND
+;
+;
+;
+;	[ erase to the end of line ]
+QSCEL:
+	CALL	ERAEL
+	JP	QSCEND
+;
+;
+;	[ erase to the end of screen ]
+QSCES:
+	CALL	ERAES
+	JP	QSCEND
+;
+;
+;
+;	[ change CRT color ]
+QSCOL:
+	LD	A,(ESCFLG)
+	CP	3
+	JP	NZ,RSCOL1
+	LD	A,C
+	LD	(ECOLOR),A
+	JP	QCONEND		;continue
+;
+;
+;
+;	[ INS LED on ]
+QSCSLD:
+	CALL	LEDON
+	JP	QSCEND
+;
+;	[ INS LED off ]
+QSCRLD:
+	CALL	LEDOFF
+	JP	QSCEND
+;
+;
+;
+;	[ set FUNCFLG ]
+QSCSFC:
+	LD	A,-1
+	DB	0FEH		;skip next instruction
+;
+;	[ reset FUNCFLG ]
+QSCRFC:
+	XOR	A
+	LD	(FUNCFLG),A
+	JP	QSCEND
+;
+;
+;
+;
+;
+	PAGE
+TQ000:
+	LD	A,C
+	CP	0A0H
+	JP	NC,TQ70
+	CP	20H
+	JP	NC,TQ300
+;
+	CP	1CH
+	JP	NC,TQCUSR
+	LD	HL,TQCTRL
+	LD	IX,TQCTJP
+	CALL	CPJMP
+	JP	C,TQ80
+	JP	(HL)
+;
+TQCTRL:
+	DB	5,7,8,9
+	DB	0AH,0BH,0CH,0DH
+	DB	1AH,1BH
+	DB	0
+;
+TQCTJP:
+	DW	QSCEL		;erase to the end of line
+	DW	TQ40		;bell
+	DW	TQ50		;back space
+	DW	TQTAB		;tab
+	DW	TQ20		;line feed
+	DW	TQHOME		;home position
+	DW	QSCCLR		;clear screen
+	DW	TQ10		;carriage return
+	DW	QSCES		;erase to the end of screen
+	DW	QSCESC		;escape
+;
+;
+;
+;	[ ESC ]
+QSCESC:
+	LD	A,1
+	LD	(ESCFLG),A
+	JP	QCONEND
+;
+;
+;
+;	[ Tabulation ]
+TQTAB:
+	LD	A,(HPOS)
+	DEC	A
+	AND	15
+	SUB	16
+	NEG
+	LD	C,A
+	PUSH	BC
+	LD	E,A		;(bytes)
+	LD	D,0
+	LD	BC,20
+	CALL	CLRLINE
+	POP	BC
+	LD	B,0
+	CALL	ADVANCE
+	JP	QCONEND
+;
+;
+;
+;	[ HOME ]
+TQHOME:
+	ld	hl,(spos)
+	ld	(crtpos),hl
+	ld	a,1
+	ld	(hpos),a
+	ld	(vpos),a
+	XOR	A		;clear CRFLG
+	LD	(CRFLG),A	
+	JP	QCONEND
+;
+;
+;
+;		move cursor
+;
+TQCUSR:
+	jr	z,TQRIGT
+	cp	1eh
+	jr	c,TQLEFT
+	jr	z,TQUP
+;
+;
+;	down
+TQDOWN:
+	ld	a,(vpos)
+	inc	a
+	ld	(vpos),a
+	CP	21
+	JR	C,TQCALC
+	ld	a,1
+	ld	(vpos),a
+	jr	TQCALC
+;
+;
+;	left
+TQLEFT:
+	LD	A,(HPOS)
+	DEC	A
+	JR	NZ,TQLEF2
+	LD	A,79
+	JR	TQLEF3
+TQLEF2:
+	DEC	A
+	LD	(HPOS),A
+	JR	NZ,TQCALC
+	LD	A,80
+TQLEF3:
+	LD	(HPOS),A
+;JR	TQUP
+;
+;	up
+TQUP:
+	LD	A,(VPOS)
+	DEC	A
+	LD	(VPOS),A
+	JR	NZ,TQCALC
+	LD	A,20
+	LD	(VPOS),A
+	JR	TQCALC
+;
+;
+;	right
+TQRIGT:
+	ld	a,(hpos)
+	inc	a
+	CP	81
+	JR	C,TQRIG2
+	LD	A,2
+	JR	TQRIG3
+TQRIG2:
+	INC	A
+	LD	(HPOS),A
+	CP	81
+	JR	C,TQCALC
+	LD	A,1
+TQRIG3:
+	LD	(HPOS),A
+	JR	TQDOWN
+;
+;
+;
+;	[ CR ]
+TQ10:
+	LD	A,(HPOS)
+	DEC	A
+	JR	Z,TQ15
+	XOR	A
+	LD	(CRFLG),A
+	INC	A		;=1
+	LD	(HPOS),A
+	JR	TQCALC
+TQ15:
+	LD	A,(CRFLG)
+	AND	A
+	JP	Z,QCONEND
+	XOR	A
+	LD	(CRFLG),A
+	JR	TQUP
+;
+TQCALC:
+	CALL	ECALCUSR
+	JP	QCONEND
+;
+;
+;
+;	[ LF ]
+TQ20:
+	LD	C,80
+	CALL	ADVANCE
+	XOR	A		;clear CRFLG
+	LD	(CRFLG),A
+	JP	QCONEND
+;
+;
+;
+;	[ bell ]
+TQ40:
+	CALL	BUZZPU
+	JP	QCONEND
+;
+;
+;
+;	[ back space ]
+TQ50:
+	CALL	TYBS
+	CALL	TYBS
+	JP	QCONEND
+;
+;
+;
+;
+;
+;	0A0H---0FFH
+TQ70:
+	SUB	80H
+	LD	C,A
+	DB	21H		;jump next instruction;
+;
+;
+;	illegal character
+TQ80:
+	LD	C,'.'
+;
+TQ300:
+	LD	H,0
+	LD	L,C
+	LD	DE,CKANTAB-2*20H
+	ADD	HL,HL
+	ADD	HL,DE		;HL=CKANTAB+(C-20H)*2
+	LD	C,(HL)
+	INC	HL
+	LD	A,(HL)
+	LD	(TSAVE),A
+	LD	HL,(CRTPOS)
+	LD	(TSCPOS),HL
+	LD	A,(HPOS)
+	LD	(TSHPOS),A
+	PUSH	BC
+	LD	C,1
+	CALL	ADVANCE
+	POP	BC
+	XOR	A
+	LD	(TBAI),A
+;
+	LD	A,(TSAVE)
+	CP	0F7H
+	JR	Z,TQ700		;GAIJI
+TQ500:
+	CP	0D0H
+	JR	NC,TQ520	;KANJI
+	CP	0B0H
+	JR	NC,TQ530	;
+;
+	LD	A,(MFNO)
+	OR	0A0H
+	LD	(TSAVE),A
+TQ520:
+	CALL	CONVCD
+	CALL	TY600
+	JR	QCONEND
+;
+TQ530:
+	LD	A,(MFNO)
+	ADD	A,A
+	ADD	A,0B1H
+	LD	(TSAVE),A
+	JR	TQ520
+;
+;
+TQ700:
+	LD	A,C		;must be F7A0 - F7ED
+	CP	0EEH
+	JR	NC,TQ520
+	SUB	0A0H
+	JR	C,TQ520
+	CALL	TY800
+;
+QCONEND:
+	LD	A,(CSRDSP)
+	AND	A
+	CALL	NZ,DYCUSR	;display cursor
+	RET
+;
+;
+;
+;
+;
+	PAGE
+;	<><><>  MFBASIC mode  <><><>
+;
+;
+TYPE:
+	CALL	COLCHK		;
+	LD	A,20		;
+	LD	(YY),A
+;
+	LD	A,(CSRDSP)
+	AND	A
+	CALL	NZ,DYCUSR	;clear cursor
+;
+	LD	A,(ESCFLG)
+	OR	A
+	JP	Z,TY000
+	INC	A
+	LD	(ESCFLG),A
+	DEC	A
+	DEC	A
+	JP	NZ,ESCPAR
+;
+	LD	A,C
+	LD	(ESCSTS),A
+	LD	HL,ESCTAB
+	LD	IX,ESCJMP
+	CALL	CPJMP
+	JR	C,ESCERR
+	JP	(HL)
+;
+ESCTAB:
+	DB	'()*'
+	DB	'012345'
+	DB	'<=>'
+	DB	'CFLPTY'
+	DB	7BH,7DH
+	DB	81H,82H
+	DB	90H,91H
+	DB	0A0H,0A1H,0B0H,0B1H	;
+	DB	0
+;
+ESCJMP:
+	DW	ESCEND		;(:pass through
+	DW	ESCEND		;):pass through
+	DW	ESCCLR		;*:clear screen
+	DW	ESCREV		;0:reverse on
+	DW	ESCNRM		;1:reverse off
+	DW	ESCERC		;2:cursor off
+	DW	ESCDIC		;3:cursor on
+	DW	ESCUDL		;4:underline on
+	DW	ESCEUL		;5:underline off
+	DW	ESCPSC		;<:push cursor position
+	DW	ECONEND		;=:set cursor position
+	DW	ESCPOC		;>:pop cursor position
+	DW	ECONEND		;C:international character set
+	DW	ECONEND		;F:change font
+	DW	ECONEND		;L:color
+	DW	ESCHC		;P:hard copy
+	DW	ESCEL		;T:erase to the end of line
+	DW	ESCES		;Y:erase to the end of screen
+	DW	ESCSCR		;7BH:secret on
+	DW	ESCNSC		;7DH:secret off
+	DW	ECONEND		;81H:STYLE$ (1->2)
+	DW	ECONEND		;82H:STYLE$ (2->1)
+	DW	ECONEND		;90H:partial scroll ( up )
+	DW	ECONEND		;91H:partial scroll (down)
+	DW	ESCSLD		;0A0H:LED on
+	DW	ESCRLD		;0A1H:LED off
+	DW	ESCSFC		;0B0H:set FUNCFLG
+	DW	ESCRFC		;0B1H:reset FUNCFLG
+;
+; not supported ESC sequence
+;
+ESCERR:
+	CALL	BUZZPU
+	XOR	A
+	LD	(ESCFLG),A
+	LD	(ESCSTS),A
+	JP	TY000
+;
+;
+;
+;	[ cursor on ]
+ESCDIC:
+	LD	A,0FFH		;cursor on
+	DB	0FEH		;skip next instruction
+;
+;	[ cursor off ]
+ESCERC:
+	XOR	A		;cursor off
+	LD	(CSRDSP),A
+	JR	ESCEND
+;
+;
+;
+;	[ reverse on ]
+ESCREV:
+	LD	HL,ATTR
+	SET	3,(HL)
+	LD	HL,0F0FH	;[RRCA][RRCA]
+	CALL	EREVSET		
+	JR	ESCEND
+;
+;	[ reverse off ]
+ESCNRM:
+	LD	HL,ATTR
+	RES	3,(HL)
+	LD	HL,0		;[NOP][NOP]
+	CALL	EREVSET	
+	JR	ESCEND
+;
+EREVSET:			;
+	LD	(TYREV1),HL	;
+	LD	(TYREV1+2),HL	;
+	LD	(TYREV2),HL	;
+	LD	(TYREV2+2),HL	;
+QREVSET:			;
+	LD	(TYREV3),HL	;
+	LD	(TYREV3+2),HL	;
+	LD	(TYREV4),HL	;
+	LD	(TYREV4+2),HL	;
+	RET
+;
+;
+;	[ secret on ]
+ESCSCR:
+	LD	HL,ATTR
+	SET	6,(HL)
+	LD	A,0AFH		;[XOR A]
+	CALL	SCRSET
+	JR	ESCEND
+;
+;	[ secret off ]
+ESCNSC:
+	LD	HL,ATTR
+	RES	6,(HL)
+	XOR	A		;[NOP]
+	CALL	SCRSET
+	JR	ESCEND
+;
+SCRSET:
+	LD	(TXTSC1),A
+	LD	(TXTSC2),A
+	RET
+;
+;
+;	[ underline on ]
+ESCUDL:
+	LD	HL,ATTR
+	SET	5,(HL)
+	LD	HL,0FF3EH	;[LD A,0FFH]
+	CALL	UDLSET
+	JR	ESCEND
+;
+;	[ underline off ]
+ESCEUL:
+	LD	HL,ATTR
+	RES	5,(HL)
+	LD	HL,0		;[NOP][NOP]
+	CALL	UDLSET
+	JR	ESCEND
+;
+UDLSET:
+	LD	(TXTUL1),HL
+	RET
+;
+;
+;
+;
+;
+ESCCLR:
+	CALL	CLR2
+;
+ESCEND:
+	XOR	A
+	LD	(ESCFLG),A
+	LD	(ESCSTS),A
+	JP	ECONEND
+;
+;
+;
+;
+;
+;
+	CALL	HCOPY
+	JR	ESCEND
+;
+;
+;
+ESCPAR:
+	LD	A,(ESCSTS)
+	CP	'='
+	JR	Z,ESCDC
+	CP	'C'
+	JP	Z,XSCNC		;international character
+	CP	'F'
+	JP	Z,ESCMF		;change font
+	CP	'L'
+	JP	Z,ESCOL		;change CRT color
+	CP	81H
+	JP	Z,ESCCK		;style$ (1->2)
+	CP	82H
+	JP	Z,ESCKC		;style$ (2->1)
+	CP	90H
+	JP	Z,ESCSC		;partial scroll up
+	CP	91H
+	JP	Z,ESCSC		;partial scroll down
+	JR	ESCEND
+;
+;
+;
+;	[ set cursor position ]
+ESCDC:
+	LD	A,(ESCFLG)
+	CP	3
+	JR	NZ,ESCDC1
+	LD	A,C
+	LD	(ESCDCY),A
+	JP	ECONEND
+;
+ESCDC1:
+	LD	A,(ESCDCY)
+	SUB	20H
+	CP	20
+	JP	NC,ESCEND	;error return
+	INC	A
+	LD	(VPOS),A
+	LD	A,C
+	SUB	20H
+	LD	B,A
+	LD	A,(WIDTH)
+	CP	41
+	LD	A,B
+	JR	NC,ESCDC4
+	ADD	A,A
+ESCDC4:
+	CP	80
+	JP	NC,ESCEND	;error return
+	INC	A
+	LD	(HPOS),A
+	CALL	ECALCUSR
+	XOR	A		;clear CRFLG
+	LD	(CRFLG),A	;
+	JP	ESCEND
+;
+;				;calculate crtpos
+;
+ECALCUSR:
+	LD	DE,40*20
+	JR	CALCUSR
+;
+RCALCUSR:
+	LD	DE,40*16
+;
+CALCUSR:
+	LD	HL,(SPOS)
+	LD	A,(VPOS)
+ECA10:
+	DEC	A
+	JR	Z,ECA20
+	ADD	HL,DE
+	JR	ECA10
+ECA20:
+	LD	A,(HPOS)
+	DEC	A
+	SRL	A
+	LD	E,A
+	LD	D,0
+	ADD	HL,DE
+	LD	(CRTPOS),HL	;CRTPOS=(SPOS)+40*20*((VPOS)-1)+((HPOS)-1)/2
+	RET			;                (16)
+;
+;
+;
+;	[ erase to the end of line ]
+ESCEL:
+	CALL	ERAEL
+	JP	ESCEND
+;
+;
+;
+;	[ erase to the end of screen ]
+ESCES:
+	CALL	ERAES
+	JP	ESCEND
+;
+;
+ERAES:
+	LD	A,(VPOS)
+	SUB	20
+	JR	Z,ERAEL
+	NEG
+	LD	L,A
+	LD	H,0
+	LD	D,H
+	LD	E,L
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,DE
+	ADD	HL,HL
+	ADD	HL,HL
+	LD	B,H
+	LD	C,L		;BC=((VPOS)-20)*20
+;
+	LD	A,(HPOS)
+	LD	D,A
+	LD	A,(VPOS)
+	LD	E,A
+	PUSH	DE
+	LD	HL,(CRTPOS)
+	PUSH	HL
+	LD	A,1
+	LD	(HPOS),A
+	INC	E
+	LD	A,E
+	LD	(VPOS),A
+	CALL	ECALCUSR
+;
+	LD	DE,640/8	;(bytes)
+	CALL	CLRLINE
+;
+	POP	HL
+	LD	(CRTPOS),HL
+	POP	DE
+	LD	A,D
+	LD	(HPOS),A
+	LD	A,E
+	LD	(VPOS),A
+	CALL	ECALCUSR
+;
+ERAEL:
+	LD	A,(HPOS)
+	DEC	A
+	SUB	80
+	RET	Z
+	NEG
+	LD	E,A
+	LD	D,0		;DE=(80-(HPOS)) bytes
+	LD	A,(YY)		;16 or 20
+	LD	C,A
+	LD	B,0
+	CALL	CLRLINE
+	RET
+;
+;
+;
+;	[ push cursor position ]
+ESCPSC:
+	LD	A,(PCLVL)
+	CP	8
+	JP	NC,ESCPCX
+	INC	A
+	LD	(PCLVL),A
+	LD	HL,(PCPTR)
+	LD	DE,CRTPOS
+	LD	BC,PUSHSIZ
+	ADD	HL,BC
+	LD	(PCPTR),HL
+	EX	DE,HL
+	LD	BC,PUSHSIZ-4
+	LDIR			;save CRTPOS - TSAVE
+	EX	DE,HL
+	LD	A,(WIDTH)
+	LD	(HL),A		;save WIDTH
+	INC	HL		;
+	LD	DE,(TSCPOS)	;
+	LD	(HL),E		;save TSCPOS
+	INC	HL		;	
+	LD	(HL),D		;	
+	INC	HL		;	
+	LD	A,(TSHPOS)	;	
+	LD	(HL),A		;save TSHPOS
+;				;
+	LD	A,80		;
+	LD	(WIDTH),A	;set width 80
+	XOR	A
+	LD	(T1ST),A	;clear MF 1st byte
+	LD	(ATTR),A	;clear ATTRibute
+	CALL	SCRSET		;SECRET off
+	LD	HL,0		;
+	CALL	EREVSET		;REVERSE off
+	CALL	UDLSET		;UNDERLINE off
+	JP	ESCEND
+;
+;
+;	[ pop cursor position ]
+ESCPOC:
+	LD	A,(PCLVL)
+	AND	A
+	JR	Z,ESCPCX
+	DEC	A
+	LD	(PCLVL),A
+	LD	HL,(PCPTR)
+	LD	DE,CRTPOS
+	LD	BC,PUSHSIZ-4
+	LDIR			;restore CRTPOS - TSAVE
+	LD	A,(HL)		
+	LD	(WIDTH),A	;restore width
+	INC	HL		;	
+	LD	E,(HL)		;	
+	INC	HL		;	
+	LD	D,(HL)		;	
+	LD	(TSCPOS),DE	;restore TSCPOS
+	INC	HL		;	
+	LD	A,(HL)		;	
+	LD	(TSHPOS),A	;restore TSHPOS	
+;					
+	LD	HL,(PCPTR)
+	LD	BC,-PUSHSIZ
+	ADD	HL,BC
+	LD	(PCPTR),HL
+	LD	A,(ATTR)
+	LD	B,A
+	LD	HL,0		;[NOP][NOP]
+	BIT	3,B		;reverse ?
+	JR	Z,ESCPC10	;no.
+	LD	HL,0F0FH	;[RRCA][RRCA]
+ESCPC10:			;
+	CALL	EREVSET		;
+	XOR	A		;[NOP]
+	BIT	6,B		;secret ?
+	JR	Z,ESCPC20	;no.
+	LD	A,0AFH		;[ XOR A ]
+ESCPC20:			;
+	CALL	SCRSET		;
+	LD	H,0		;[NOP][NOP]
+	BIT	5,B		;underline ?
+	JR	Z,ESCPC30	;no.
+	LD	HL,0FF3EH	;[ LD A,0FFH ]
+ESCPC30:			;
+	CALL	UDLSET		;
+	JP	ESCEND
+;
+ESCPCX:
+	CALL	BUZZPU
+	JP	ESCEND
+;
+;
+;
+;	ESC + 81H + CHR1 + "N"
+;	1 byte -> 2 bytes converter
+;
+ESCCK:
+	LD	A,(ESCFLG)
+	CP	3
+	JR	NZ,ESCCK1
+	LD	A,C
+	LD	(ESCCH1),A
+	JP	ECONEND	
+ESCCK1:
+	CALL	ESCST0
+	JR	C,ESCCK9	;not hexadecimal no.
+	LD	(ESCMFN),A	;0 - 0FH
+	LD	A,(ESCCH1)
+	CP	20H		;must be 20H - 9FH
+	JR	C,ESCCK9
+	CP	0A0H
+	JR	NC,ESCCK9
+;
+	LD	H,0
+	LD	L,A
+	ADD	HL,HL
+	LD	BC,CKANTAB-2*20H
+	ADD	HL,BC		;HL=CKANTAB+(A-20H)*2
+	LD	C,(HL)
+	INC	HL
+	LD	B,(HL)
+;
+	LD	A,B
+	CP	0D0H
+	JP	NC,ESCEND
+	CP	0B0H
+	LD	A,(ESCMFN)
+	JR	NC,ESCCK5
+	OR	0A0H
+	LD	B,A
+	JP	ESCEND
+ESCCK5:
+	ADD	A,A
+	ADD	A,0B1H
+	LD	B,A
+	JP	ESCEND
+;
+ESCCK9:				;error return
+	LD	BC,0
+	JP	ESCEND
+;
+;
+;
+;	ESC + 82H + CHR1 + CHR2
+;	2 bytes -> 1 byte conveter
+;
+ESCKC:
+	LD	A,(ESCFLG)
+	CP	3
+	JR	NZ,ESCKC1
+	LD	A,C
+	LD	(ESCCH1),A
+	JP	ECONEND
+ESCKC1:
+	LD	A,(ESCCH1)
+	LD	B,A
+	CP	0D0H
+	JR	NC,ESCKC5
+	CP	0B0H
+	JR	C,ESCKC2
+	BIT	0,A
+	JR	Z,ESCKC3
+	LD	B,0B3H
+	JR	ESCKC5
+ESCKC2:
+	LD	A,C
+	SUB	80H
+	LD	C,A
+	JR	ESCKCZ
+ESCKC3:
+	LD	A,C
+	SUB	80H
+	LD	C,A
+	LD	H,0
+	LD	L,A
+	ADD	HL,HL
+	LD	DE,CKANTAB-2*20H
+	ADD	HL,DE
+	INC	HL
+	LD	A,(HL)
+	CP	0B0H
+	JR	C,ESCKCZ
+	LD	C,0
+	JR	ESCKCZ
+ESCKC5:
+	LD	D,80H
+	LD	HL,CKANTAB+100H
+ESCKC6:
+	DEC	HL
+	LD	A,(HL)
+	DEC	HL
+	CP	B
+	JR	NZ,ESCKC7
+	LD	A,(HL)
+	CP	C
+	JR	NZ,ESCKC7
+	DEC	D
+	LD	A,20H
+	ADD	A,D
+	LD	D,A
+	JR	ESCKCX
+ESCKC7:
+	DEC	D
+	JR	NZ,ESCKC6
+ESCKCX:
+	LD	C,D
+ESCKCZ:
+	LD	B,0
+	JP	ESCEND
+;
+;
+;
+;	ESC + "F" + "N"
+;	CHANGE FONT
+;
+ESCMF:
+	CALL	ESCST0
+	JR	C,ESCMF9
+	LD	(STYLE),A
+	LD	C,-1		;normal return
+	JP	ESCEND
+ESCMF9:
+	LD	C,0		;error return
+	JP	ESCEND
+;
+ESCST0:
+	LD	A,C
+	CP	'0'
+	RET	C		; < '0'
+	CP	'9'+1
+	JR	C,ESCST1	; '0' - '9'
+	CP	'A'
+	RET	C		; ':' - '@'
+	CP	'F'+1
+	CCF
+	RET	C		; > 'F'
+	SUB	'A'-'9'-1
+ESCST1:				;'0'-'9','A'-'F'
+	SUB	'0'		;non carry
+	RET
+;
+;
+;
+;	[ change CRT color ]
+ESCOL:
+	LD	A,(ESCFLG)
+	CP	3
+	JP	NZ,RSCOL1
+	LD	A,C
+	LD	(ECOLOR),A
+	JP	ECONEND		;continue
+;
+;
+;
+;	[ INS LED on ]
+ESCSLD:
+	CALL	LEDON
+	JP	ESCEND
+;
+;	[ INS LED off ]
+ESCRLD:
+	CALL	LEDOFF
+	JP	ESCEND
+;
+;
+;
+;	[ set FUNCFLG ]
+ESCSFC:
+	LD	A,-1
+	DB	0FEH		;skip next instruction
+;
+;	[ reset FUNCFLG ]
+ESCRFC:
+	XOR	A
+	LD	(FUNCFLG),A
+	JP	ESCEND
+;
+;
+;
+;
+;
+;	ESC + 90H + n + m     PARTIAL SCROLL UP
+;	ESC + 91H + n + m       *       *    DOWN
+;
+;	    n: 0 - 19
+;	    m: 1 - 20
+;	    n+m: 1 - 20
+;
+ESCSC:
+	LD	D,A		;90H or 91H
+	LD	A,(ESCFLG)
+	CP	3
+	JR	NZ,ESCSC0
+	LD	A,C
+	LD	(ESCSCN),A
+	JP	ECONEND		;continue
+;
+;
+ESCSC0:
+	LD	A,C
+	DEC	A
+	LD	(ESCSCM),A	;m-1
+	INC	A
+	JP	Z,ESCEND	;error (m=0)
+	CP	21
+	JP	NC,ESCEND	;error (m>20)
+;
+	LD	A,(ESCSCN)
+	LD	B,A
+	CP	20
+	JP	NC,ESCEND	;error (n>19)
+	ADD	A,C
+	CP	21
+	JP	NC,ESCEND	;error (n+m>20)
+	DEC	A
+	LD	E,A		;n+m-1
+;
+ESCSC1:
+	LD	HL,(SPOS)
+	LD	A,D
+	CP	91H		;scroll down ?
+	JR	Z,ESCSC4	;yes.
+;
+	LD	DE,40*20
+	INC	B
+	DEC	B
+	JR	Z,ESCSC3
+ESCSC2:
+	ADD	HL,DE
+	DJNZ	ESCSC2
+ESCSC3:				;HL=(SPOS)+40*20*n
+	DEC	C		;m
+	JR	Z,ESCSCY	;erase 1 line
+;
+; scroll up m-1 lines
+;
+	PUSH	HL
+	ADD	HL,DE
+	LD	DE,40*20
+	JR	ESCSC69
+ESCSCY:
+	LD	(VRAMH),HL
+	JR	ESCSCZ
+;
+; scroll down m-1 lines
+;
+ESCSC4:
+	LD	B,E		;n+m-1
+	LD	DE,40*20
+	INC	B
+	DEC	B
+	JR	Z,ESCSC6
+ESCSC5:
+	ADD	HL,DE
+	DJNZ	ESCSC5
+ESCSC6:				;HL=(SPOS)+40*20*(n+m-1)
+	DEC	C		;m
+	JR	Z,ESCSCY	;erase 1 line
+	PUSH	HL
+	XOR	A		;reset carry flag
+	SBC	HL,DE		;HL=(SPOS)+40*20*(n+m-2)
+	LD	DE,-40*20
+ESCSC69:
+	LD	(SCSTEP),DE
+	POP	DE		;DE=HL+40*20
+ESCSC7:
+	LD	(VRAMH),HL	;			   
+	LD	(VRAMD),DE	;			
+	CALL	SVLINE		;save 1 line to VRAM20	
+	LD	HL,(VRAMD)	;			
+	CALL	LDLINE		;load 1 line from VRAM20
+	LD	A,(ESCSCM)	;			
+	DEC	A		;count down m		
+	JR	Z,ESCSCZ	;			
+	LD	(ESCSCM),A	;			
+	LD	BC,(SCSTEP)	;			
+	LD	HL,(VRAMD)	;			
+	ADD	HL,BC		;			
+	EX	DE,HL		;			
+	LD	HL,(VRAMH)	;			
+	ADD	HL,BC		;			
+	JR	ESCSC7		;continue		
+;
+;
+ESCSCZ:
+; clear 1 line and return
+;
+	LD	HL,(CRTPOS)
+	PUSH	HL
+	LD	A,(HPOS)
+	PUSH	AF
+	LD	HL,(VRAMH)
+	LD	(CRTPOS),HL
+	LD	A,1
+	LD	(HPOS),A
+	LD	BC,20
+	LD	DE,640/8	;(bytes)
+	CALL	CLRLINE
+;
+	POP	AF
+	LD	(HPOS),A
+	POP	HL
+	LD	(CRTPOS),HL
+;
+	JP	ESCEND		;over
+;
+;
+;
+;
+;
+	PAGE
+TY000:
+	LD	A,(WIDTH)
+	LD	B,A
+TY200:
+	LD	A,C
+	CP	20H
+	JP	NC,TY300
+;
+	CP	1CH
+	JP	NC,TYCUSR	;move cursor
+	LD	HL,TYCTRL
+	LD	IX,TYCTJP
+	CALL	CPJMP
+	JP	C,TY80
+	JP	(HL)
+;
+TYCTRL:
+	DB	5,7,8,9
+	DB	0AH,0BH,0CH,0DH
+	DB	1AH,1BH
+	DB	0
+;
+TYCTJP:
+	DW	ESCEL		;erase to the end of line
+	DW	TY40		;bell
+	DW	TY50		;back space
+	DW	TYTAB		;tab
+	DW	TY20		;line feed
+	DW	TYHOME		;home
+	DW	ESCCLR		;cls
+	DW	TY10		;carriage return
+	DW	ESCES		;erase to the end of screen
+	DW	ESCESC		;ESC
+;
+;
+;
+;	[ ESC ]
+ESCESC:
+	LD	A,1
+	LD	(ESCFLG),A
+	JP	ECONEND
+;
+;
+;
+;	[ Tabulation ]
+TYTAB:
+	LD	HL,(CRTPOS)
+	LD	A,(HPOS)
+	DEC	A
+	LD	B,A
+	LD	A,(WIDTH)
+	CP	41
+	LD	A,B
+	JR	NC,TYTAB1
+	AND	15
+	SUB	16
+	JR	TYTAB2
+TYTAB1:
+	AND	7
+	SUB	8
+TYTAB2:
+	NEG
+	LD	C,A
+	PUSH	BC
+	LD	E,A		;(bytes) 
+	LD	D,0		;        
+	LD	BC,20
+	CALL	CLRLINE
+	POP	BC
+	LD	B,0
+	CALL	ADVANCE
+	JP	ECONEND
+;
+;
+;
+;	[ HOME ]
+TYHOME:
+	ld	hl,(spos)
+	ld	(crtpos),hl
+	ld	a,1
+	ld	(hpos),a
+	ld	(vpos),a
+	XOR	A		;clear CRFLG
+	LD	(CRFLG),A	;
+	JP	ECONEND
+;
+;
+;
+;	move cursor
+;
+TYCUSR:
+	JR	Z,TYRIGT
+	cp	1eh
+	JR	C,TYLEFT
+	JR	Z,TYUP
+;
+;	down
+TYDOWN:
+	ld	a,(vpos)
+	inc	a
+	ld	(vpos),a
+	cp	21		;#QX-10#
+	JR	C,TYCALC
+	ld	a,1
+	ld	(vpos),a
+	JR	TYCALC
+;
+;	left
+TYLEFT:
+	LD	A,(HPOS)
+	DEC	A
+	LD	C,A
+	LD	A,B		;B=(WIDTH)
+	CP	41
+	LD	A,C
+	JR	NC,TYLF10	;width 80
+	DEC	A
+TYLF10:
+	LD	(HPOS),A
+	AND	A
+	JR	Z,TYLF20
+	CP	80
+	JR	C,TYCALC
+TYLF20:
+	ADD	A,80
+	LD	(HPOS),A
+;JR	TYUP
+;
+;	up
+TYUP:
+	LD	A,(VPOS)
+	DEC	A
+	LD	(VPOS),A
+	JR	NZ,TYCALC
+	LD	A,20		;#QX-10#
+	LD	(VPOS),A
+	JR	TYCALC
+;
+;	right
+TYRIGT:
+	ld	a,(hpos)
+	inc	a
+	LD	C,A
+	LD	A,B		;B=(WIDTH)
+	CP	41
+	LD	A,C
+	JR	NC,TYRT10	;width 80
+	INC	A
+TYRT10:
+	ld	(hpos),a
+	SUB	81
+	JR	C,TYCALC
+	INC	A
+	ld	(hpos),a
+	JR	TYDOWN
+;
+;
+;
+TYCALC:
+	CALL	ECALCUSR
+	JP	ECONEND
+;
+;
+;
+;	[ CR ]
+TY10:
+	LD	A,(HPOS)
+	DEC	A
+	JR	Z,TY15
+	XOR	A
+	LD	(CRFLG),A
+	INC	A		;=1
+	LD	(HPOS),A
+	JR	TYCALC
+TY15:
+	LD	A,(CRFLG)
+	AND	A
+	JP	Z,ECONEND
+	XOR	A
+	LD	(CRFLG),A
+	JR	TYUP
+;
+;
+;
+;	[ LF ]
+TY20:
+	LD	C,80
+	CALL	ADVANCE
+	XOR	A		;clear CRFLG
+	LD	(CRFLG),A
+	JP	ECONEND
+;
+;
+;
+;	[ bell ]
+TY40:
+	CALL	BUZZPU
+	JP	ECONEND
+;
+;
+;
+;	[ back space ]
+TY50:
+	CALL	TYBS
+	LD	A,(WIDTH)
+	CP	41
+	CALL	C,TYBS
+	JP	ECONEND
+;
+;
+TYBS:
+	LD	A,(HPOS)
+	DEC	A
+	JR	NZ,TYBS10
+	LD	A,(VPOS)
+	DEC	A
+	RET	Z		;home position
+	LD	(VPOS),A
+	LD	A,80
+TYBS10:
+	LD	(HPOS),A
+	CALL	ECALCUSR
+	RET
+;
+;
+;
+;	illegal character
+TY80:
+	LD	C,'.'
+;
+TY300:
+	LD	A,C
+	CP	0A0H
+	JP	NC,TY350
+	LD	A,(T1ST)
+	AND	A
+	LD	A,0
+	LD	(T1ST),A	;always reset
+	CALL	NZ,BUZZPU
+	LD	A,B		;width
+	CP	41
+	JP	C,TY380		;
+;
+; normal alphanumeric, graphic
+;
+	LD	H,0
+	LD	L,C
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	LD	DE,ANTAB-16*20H
+	ADD	HL,DE		;HL=ANTAB+(C-20H)*16
+;
+	XOR	A
+	LD	DE,CGPAT
+	LD	(DE),A
+	INC	DE
+	INC	DE
+	LD	(DE),A
+	INC	DE
+	INC	DE
+	LD	(DE),A
+	INC	DE
+	INC	DE
+	LD	B,16
+TY310:
+	LD	A,(HL)
+	LD	(DE),A
+	INC	HL
+	INC	DE
+	INC	DE
+	DJNZ	TY310
+	LD	A,B		;=0
+	LD	(DE),A
+;
+	IN	A,(2CH)
+	RRCA
+	JR	C,TY3105	;color CRT
+;
+; Green CRT
+;
+	LD	C,0
+	LD	A,(COLOR)
+TYREV1:	NOP			; or [RRCA] if reverse 
+	NOP			; or [RRCA] if reverse
+	NOP			; or [RRCA] if reverse
+	NOP			; or [RRCA] if reverse
+;
+	LD	B,A
+	AND	70H
+	JR	Z,TY3102
+	LD	C,2
+TY3102:
+	LD	A,B
+	AND	7
+	JR	Z,TY3103
+	INC	C
+TY3103:
+	LD	A,C
+	LD	(POSNEG),A
+	CALL	TY32COL
+	JR	TY320
+;
+; color CRT
+;
+TY3105:
+	CALL	BLUE		;*** Blue ***
+	LD	A,(COLOR)
+	CALL	TY31COL
+	CALL	RED		;*** Red ***
+	LD	A,(COLOR)
+	RRCA
+	CALL	TY31COL
+	CALL	GREEN		;*** Green ***
+	LD	A,(COLOR)
+	RRCA
+	RRCA
+	CALL	TY31COL
+TY320:
+	LD	BC,1
+	CALL	ADVANCE
+	JP	ECONEND
+;
+;
+;
+TY31COL:
+TYREV2:	NOP			; or [RRCA] if reverse
+	NOP			; or [RRCA] if reverse
+	NOP			; or [RRCA] if reverse
+	NOP			; or [RRCA] if reverse
+;
+	LD	C,A
+	AND	1
+	LD	B,A
+	LD	A,C
+	RRCA
+	RRCA
+	RRCA
+	AND	02H
+	OR	B
+	LD	(POSNEG),A
+;
+TY32COL:
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+;1				;				I
+	CALL	CRTWTE		;				I
+	LD	HL,CGPAT+14	;				I
+	CALL	TEXTW1		;				I
+	LD	C,70H		;				I
+	LD	A,(HPOS)	;				I
+	RRCA			;				I
+	JR	C,TY315		;				I
+	LD	C,0F0H		;				I
+TY315:				;				I
+	PUSH	BC		;				I
+	LD	HL,(CRTPOS)	;				I
+	PUSH	HL		;				I
+	CALL	CSRW		;@@@				I
+	CALL	VECTW1		;16,07,04			I
+	CALL	TEXTE		;				I
+;2								I
+	CALL	CRTWTE		;				I
+	LD	HL,CGPAT+30	;				I
+	CALL	TEXTW1		;				I
+	POP	HL		;				I
+	LD	DE,40*8		;				I
+	ADD	HL,DE		;				I
+	POP	BC		;				I
+	PUSH	BC		;				I
+	PUSH	HL		;				I
+	CALL	CSRW		;@@@				I
+	CALL	VECTW1		;16,07,40			I
+	CALL	TEXTE		;				I
+;3								I
+	CALL	CRTWTE		;				I
+	LD	HL,CGPAT+38	;				I
+	CALL	TEXTW2		;				I
+	POP	HL		;				I
+	LD	DE,40*8		;				I
+	ADD	HL,DE		;				I
+	POP	BC		;				I
+	CALL	CSRW		;@@@				I
+	CALL	VECTW2		;16,03,40,08,00			I
+	CALL	TEXTE		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RET
+;
+;
+;
+;
+;
+TY350:
+	LD	A,(T1ST)
+	AND	A
+	LD	A,0
+	LD	(T1ST),A	;always reset
+	JR	NZ,TY360	;MultiFonts 2nd byte
+;
+; MultiFonts 1st byte
+;
+	LD	A,C
+	LD	(TSAVE),A
+	LD	HL,(CRTPOS)
+	LD	(TSCPOS),HL
+	LD	A,(HPOS)
+	LD	(TSHPOS),A
+	LD	A,B
+	LD	C,1
+	CP	41
+	JR	NC,TY355
+	CALL	ADVANCE
+	LD	C,1
+TY355:
+	CALL	ADVANCE
+	LD	A,0FFH
+	LD	(T1ST),A
+	JP	ECONEND
+;
+;
+;	MultiFonts 2nd byte
+;
+TY360:
+	LD	A,(TSAVE)
+	CP	0B0H
+	JP	NC,TY400
+	LD	A,C
+	SUB	0A0H
+	LD	L,A
+	LD	H,0
+	ADD	HL,HL
+	LD	DE,CKANTAB
+	ADD	HL,DE
+	LD	C,(HL)
+	INC	HL
+	LD	A,(TSAVE)
+	AND	0FH
+	LD	D,A
+	LD	A,(HL)
+	LD	(TSAVE),A
+	CP	0D0H
+	JR	NC,TY400
+	CP	0B0H
+	JR	NC,TY365
+	LD	A,0A0H
+	OR	D
+	LD	(TSAVE),A
+	JR	TY400
+TY365:
+	LD	A,D
+	ADD	A,A
+	ADD	A,0B1H
+	LD	(TSAVE),A
+	JR	TY400
+;
+;
+;
+;	width 40 alphanumeric, graphic
+;
+TY380:
+	LD	H,0
+	LD	L,C
+	LD	DE,CKANTAB-2*20H
+	ADD	HL,HL
+	ADD	HL,DE		;HL=CKANTAB+(C-20H)*2
+	LD	C,(HL)
+	INC	HL
+	LD	A,(HL)
+	CP	0D0H
+	JR	NC,TY385
+	CP	0B0H
+	JR	NC,TY382
+	LD	A,(STYLE)
+	OR	0A0H
+	JR	TY385
+TY382:
+	LD	A,(STYLE)
+	ADD	A,A
+	ADD	A,0B1H
+TY385:
+	LD	(TSAVE),A
+	LD	HL,(CRTPOS)
+	LD	(TSCPOS),HL
+	LD	A,(HPOS)
+	LD	(TSHPOS),A
+	PUSH	BC
+	LD	C,1
+	CALL	ADVANCE
+	POP	BC
+	LD	B,80
+;
+;
+TY400:
+	LD	A,B		;width
+	CP	41
+	LD	A,0
+	JR	NC,TY420
+	DEC	A		;=0FFH
+TY420:
+	LD	(TBAI),A
+	LD	A,(TSAVE)
+	CP	0F6H		;GAIJI ?
+	JR	NC,TY700	;yes
+;
+;
+;	normal MultiFonts, KANJI
+;
+TY500:
+	CALL	CONVCD
+	CALL	TY600
+	JR	ECONEND
+;
+;
+;
+;	*****  GAIJI  *****
+;
+TY700:
+	LD	A,(TSAVE)
+	CP	0F7H
+	JR	NZ,TY500
+	LD	A,C
+	CP	0EEH
+	JR	NC,TY500
+	SUB	0A0H
+	JR	C,TY500
+	CALL	TY800
+;JR	ECONEND
+;
+;
+;
+;
+;
+ECONEND:
+	LD	A,(CSRDSP)
+	AND	A
+	CALL	NZ,DYCUSR	;display cursor
+	RET
+;
+;
+;
+;
+;
+	PAGE
+TY600:
+	LD	DE,CGPAT	;clear CGPAT
+	LD	B,40
+	XOR	A
+TY605:
+	LD	(DE),A
+	INC	DE
+	DJNZ	TY605
+;
+	LD	A,(MFROM)	
+	AND	A		
+	JP	Z,TYMFER	;no MF ROM
+;
+	OUT	(0F9H),A	;A=0
+	OUT	(0FBH),A
+	DEC	A		;A=0FFH
+	OUT	(0FDH),A
+	OUT	(0FFH),A
+	IN	A,(KCGST)
+;
+	LD	C,0C0H
+	CALL	KCGOT
+	LD	C,L		;Low(CG code)
+	CALL	KCGOT
+	LD	C,H		;High(CG code)
+	CALL	KCGOT
+;
+	CALL	KCGIN		;read status
+	LD	A,C
+	AND	0C0H
+	XOR	40H
+	JP	NZ,TY690	;invalid CG code
+	LD	A,C
+	AND	8
+	LD	(TUP),A
+	LD	A,C
+	AND	4
+	LD	(TRIGHT),A
+	LD	A,C
+	AND	2
+	LD	(TLEFT),A
+	LD	A,C
+	AND	1
+	LD	(TDOWN),A
+;
+	LD	HL,CGPAT+2
+	LD	B,36
+	LD	A,(KANJI)
+	AND	A
+	JR	NZ,TY610	;KANJI
+;
+; MultiFonts
+;
+	CALL	KCGIN		;proportion #1
+	CALL	KCGIN		;proportion #2
+	INC	HL
+	INC	HL
+	DEC	B
+	DEC	B
+;
+TY610:
+	CALL	KCGIN
+	LD	(HL),C		;store CG data to CGPAT
+	INC	HL
+	DJNZ	TY610
+;
+	IN	A,(KCGST)
+;
+TY6100:
+	LD	A,(TUP)
+	AND	A
+	JR	Z,TY620
+;				;extend upward
+	LD	HL,CGPAT+2
+	LD	DE,CGPAT
+	LD	A,(KANJI)
+	AND	A
+	JR	NZ,TY615	;if KANJI CG, jp TY615
+	INC	HL
+	INC	HL
+	LD	A,(HL)
+	LD	(DE),A
+	INC	HL
+	INC	DE
+	LD	A,(HL)
+	LD	(DE),A
+	DEC	HL
+	INC	DE
+TY615:
+	LD	A,(HL)
+	LD	(DE),A
+	INC	HL
+	INC	DE
+	LD	A,(HL)
+	LD	(DE),A
+;
+TY620:
+	LD	A,(TDOWN)
+	AND	A
+	JR	Z,TY630
+;				;extend downward
+	LD	HL,CGPAT+36
+	LD	DE,CGPAT+38
+	LD	A,(HL)
+	LD	(DE),A
+	INC	HL
+	INC	DE
+	LD	A,(HL)
+	LD	(DE),A
+;
+TY630:
+	LD	A,(TLEFT)
+	AND	A
+	JR	Z,TY640
+;				;extend to the left
+	LD	HL,CGPAT
+	LD	B,20
+TY635:
+	BIT	6,(HL)
+	JR	Z,TY637
+	SET	7,(HL)
+TY637:
+	INC	HL
+	INC	HL
+	DJNZ	TY635
+;
+TY640:
+	LD	A,(TRIGHT)
+	AND	A
+	JR	Z,TY670
+;				;extend to the right
+	LD	HL,CGPAT+1
+	LD	B,20
+TY645:
+	BIT	1,(HL)
+	JR	Z,TY647
+	SET	0,(HL)
+TY647:
+	INC	HL
+	INC	HL
+	DJNZ	TY645
+;
+;
+TY670:
+	LD	A,(TBAI)
+	AND	A
+	JR	Z,TY650
+;
+; Double width
+;
+	LD	HL,CGPAT+1
+	LD	DE,CGPAT2
+	LD	B,20
+TY672:
+	LD	A,(HL)
+	LD	(DE),A
+	INC	HL
+	INC	HL
+	INC	DE
+	INC	DE
+	DJNZ	TY672
+;
+	LD	HL,CGPAT
+	LD	DE,CGPAT
+	LD	C,40
+TY674:
+	LD	A,(DE)
+	LD	B,4
+TY676:
+	RLCA
+	RL	(HL)
+	RRCA
+	RL	(HL)
+	RLCA
+	DJNZ	TY676
+	INC	HL
+	LD	B,4
+TY678:
+	RLCA
+	RL	(HL)
+	RRCA
+	RL	(HL)
+	RLCA
+	DJNZ	TY678
+	INC	HL
+	INC	DE
+	INC	DE
+	DEC	C
+	JR	NZ,TY674
+;
+;
+TY650:
+	IN	A,(2CH)
+	RRCA
+	JR	C,TY6505	;color CRT
+;
+; Green CRT
+;
+	LD	C,0
+	LD	A,(COLOR)
+TYREV3:	NOP			; or [RRCA] if reverse
+	NOP			; or [RRCA] if reverse
+	NOP			; or [RRCA] if reverse
+	NOP			; or [RRCA] if reverse
+	LD	B,A
+	AND	70H
+	JR	Z,TY6502
+	LD	C,2
+TY6502:
+	LD	A,B
+	AND	7
+	JR	Z,TY6503
+	INC	C
+TY6503:
+	LD	A,C
+	LD	(POSNEG),A
+	CALL	TY62COL
+	JR	TY660
+;
+; Color CRT
+;
+TY6505:
+	CALL	BLUE		;*** Blue ***
+	LD	A,(COLOR)
+	CALL	TY61COL
+	CALL	RED		;*** Red ***
+	LD	A,(COLOR)
+	RRCA
+	CALL	TY61COL
+	CALL	GREEN		;*** Green ***
+	LD	A,(COLOR)
+	RRCA
+	RRCA
+	CALL	TY61COL
+;
+TY660:
+	LD	A,(TBAI)
+	AND	A
+	JR	NZ,TY680
+	LD	C,1
+	CALL	ADVANCE
+	RET
+;
+;
+; Double width
+;
+TY680:
+	XOR	A
+	LD	(TBAI),A
+	LD	HL,CGPAT2
+	LD	DE,CGPAT
+	LD	BC,40
+	LDIR
+	LD	HL,(CRTPOS)
+	LD	(TSCPOS),HL
+	LD	A,(HPOS)
+	LD	(TSHPOS),A
+	LD	BC,1
+	CALL	ADVANCE
+	JP	TY650
+;
+;
+TY690:
+	CALL	BUZZPU
+	JR	TY660
+;
+;
+;
+;
+;
+TY61COL:
+TYREV4:	NOP			; or [RRCA] if reverse
+	NOP			; or [RRCA] if reverse
+	NOP			; or [RRCA] if reverse
+	NOP			; or [RRCA] if reverse
+;
+	LD	C,A
+	AND	1
+	LD	B,A
+	LD	A,C
+	RRCA
+	RRCA
+	RRCA
+	AND	02H
+	OR	B
+	LD	(POSNEG),A
+;
+TY62COL:
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+;1								I
+	CALL	CRTWTE		;				I
+	LD	HL,CGPAT+14	;				I
+	CALL	TEXTW1		;				I
+	LD	C,70H		;				I
+	LD	A,(TSHPOS)	;**				I
+	RRCA			;				I
+	JR	C,TY652		;				I
+	LD	C,0F0H		;				I
+TY652:				;				I
+	PUSH	BC		;				I
+	LD	HL,(TSCPOS)	;**				I
+	PUSH	HL		;				I
+	CALL	CSRW		;@@@				I
+	CALL	VECTW1		;16,07,40			I
+	CALL	TEXTE		;				I
+;2								I
+	CALL	CRTWTE		;				I
+	LD	HL,CGPAT+15	;				I
+	CALL	TEXTW1		;				I
+	POP	HL		;				I
+	POP	BC		;				I
+	PUSH	BC		;				I
+	PUSH	HL		;				I
+	LD	A,C		;				I
+	XOR	80H		;				I
+	LD	C,A		;				I
+	CP	80H		;				I
+	JR	NC,TY654	;				I
+	INC	HL		;				I
+	LD	A,(TSHPOS)	;				I
+	CP	80		;				I
+	JR	C,TY654		;				I
+	LD	DE,40*20-40	;				I
+	ADD	HL,DE		;				I
+TY654:				;				I
+	CALL	CSRW		;@@@				I
+	CALL	VECTW1		;				I
+	CALL	TEXTE		;				I
+;3								I
+	CALL	CRTWTE		;				I
+	LD	HL,CGPAT+30	;				I
+	CALL	TEXTW1		;				I
+	POP	HL		;				I
+	LD	DE,40*8		;				I
+	ADD	HL,DE		;				I
+	POP	BC		;				I
+	PUSH	BC		;				I
+	PUSH	HL		;				I
+	CALL	CSRW		;@@@				I
+	CALL	VECTW1		;				I
+	CALL	TEXTE		;				I
+;4								I
+	CALL	CRTWTE		;				I
+	LD	HL,CGPAT+31	;				I
+	CALL	TEXTW1		;				I
+	POP	HL		;				I
+	POP	BC		;				I
+	PUSH	BC		;				I
+	PUSH	HL		;				I
+	LD	A,C		;				I
+	XOR	80H		;				I
+	LD	C,A		;				I
+	CP	80H		;				I
+	JR	NC,TY656	;				I
+	INC	HL		;				I
+	LD	A,(TSHPOS)	;				I
+	CP	80		;				I
+	JR	C,TY656		;				I
+	LD	DE,40*20-40	;				I
+	ADD	HL,DE		;				I
+TY656:				;				I
+	CALL	CSRW		;@@@				I
+	CALL	VECTW1		;				I
+	CALL	TEXTE		;				I
+;5								I
+	CALL	CRTWTE		;				I
+	LD	HL,CGPAT+38	;				I
+	CALL	TEXTW2		;				I
+	POP	HL		;				I
+	LD	DE,40*8		;				I
+	ADD	HL,DE		;HL=(CRTPOS)/2+40*16		I
+	POP	BC		;				I
+	PUSH	BC		;				I
+	PUSH	HL		;				I
+	CALL	CSRW		;@@@				I
+	CALL	VECTW2		;				I
+	CALL	TEXTE		;				I
+;6								I
+	CALL	CRTWTE		;				I
+	LD	HL,CGPAT+39	;				I
+	CALL	TEXTW2		;				I
+	POP	HL		;HL=(CRTPOS)/2*40*16		I
+	POP	BC		;				I
+	LD	A,C		;				I
+	XOR	80H		;				I
+	LD	C,A		;				I
+	CP	80H		;				I
+	JR	NC,TY658	;				I
+	INC	HL		;				I
+	LD	A,(TSHPOS)	;				I
+	CP	80		;				I
+	JR	C,TY658		;				I
+	LD	DE,40*20-40	;				I
+	ADD	HL,DE		;				I
+TY658:				;				I
+	CALL	CSRW		;@@@				I
+	CALL	VECTW2		;				I
+	CALL	TEXTE		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RET
+;
+;
+;
+TYMFER:				;NO MF ROM
+	CALL	BUZZPU
+	LD	HL,ILLCHR	;illegal character
+	LD	DE,CGPAT
+	LD	BC,40
+	LDIR
+	JP	TY670
+;
+;
+;
+;
+;
+	PAGE
+COLCHK:			
+	LD	HL,40F6H	;[ OR 40H ]
+	IN	A,(2CH)
+	RRCA
+	JR	NC,CLCH10	;Green CRT
+	LD	HL,0		;[NOP],[NOP]  (Color CRT)
+CLCH10:
+	LD	(EXVCT1),HL
+	LD	(EXVCT2),HL
+	LD	(EXVCT3),HL
+	LD	(EXVCT4),HL
+	LD	(EXSCRL),HL
+	LD	(SL20VCT),HL
+	RET
+;
+;
+;
+BLUE:
+	LD	A,1
+	JR	SETCOL
+RED:
+	LD	A,4
+	JR	SETCOL
+GREEN:
+	LD	A,2
+SETCOL:
+	PUSH	AF		;save color no.
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,0DH		;dummy <START>
+	OUT	(XCRTC),A	;
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	POP	AF		;return color no.
+	OUT	(2DH),A		;
+	RET
+;
+;
+CRTWTE:
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,20H		;<<WRITE>> - replace
+	OUT	(XCRTC),A
+	RET
+;
+;
+TEXTW1:
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	B,8
+	LD	A,78H		;<<TEXTW>>
+	OUT	(XCRTC),A
+TXTW10:
+	CALL	TXFORM	
+	OUT	(XCRTP),A
+	DEC	HL
+	DEC	HL
+	DJNZ	TXTW10		;loop (B) times
+	RET
+;
+;
+;	for MFBASIC mode underline
+TEXTW2:
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,7CH		;<<TEXTW>>
+	OUT	(XCRTC),A
+	CALL	TXFORM
+	OUT	(XCRTP),A
+	DEC	HL
+	DEC	HL
+	CALL	TXFORM2	
+	OUT	(XCRTP),A
+	DEC	HL
+	DEC	HL
+	LD	B,2
+	JR	TXTW10
+;
+;
+;	for non-MFBASIC mode underline
+TEXTW3:
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	B,2		;
+	LD	A,78H		;<<TEXTW>>
+	OUT	(XCRTC),A	;
+	CALL	TXTW10		;
+	CALL	TXFORM2		;
+	OUT	(XCRTP),A	;
+	DEC	HL		;
+	DEC	HL		;
+	LD	B,5		;
+	JR	TXTW10		;
+;
+;
+TXFORM:
+	LD	A,(POSNEG)
+	LD	C,A
+	LD	A,(HL)
+TXTSC1:	NOP			; or[ XOR A ] if secret
+	INC	C
+	DEC	C
+	JR	NZ,TXFM10
+	XOR	A		;blank
+	RET
+TXFM10:
+	DEC	C
+	RET	Z		;fore.
+	CPL			;
+	DEC	C
+	RET	Z		;back.
+	LD	A,0FFH
+	RET			;fore. and back.
+;
+;
+TXFORM2:
+	LD	A,(POSNEG)
+	LD	C,A
+	LD	A,(HL)
+TXTUL1:	NOP			; or [ LD A,0FFH ] if underline
+	NOP			;SECRET > UNDERLINE
+TXTSC2:	NOP			; or [ XOR A ] if secret
+	INC	C
+	DEC	C
+	JR	NZ,TXFM20
+	XOR	A		;blank
+	RET
+TXFM20:
+	DEC	C
+	RET	Z		;fore.
+	CPL
+	DEC	C
+	RET	Z		;back.
+	LD	A,0FFH
+	RET			;fore. and back.
+;
+;
+CSRW:
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,49H		;<<CUSRW>>
+	OUT	(XCRTC),A
+	LD	A,L
+	OUT	(XCRTP),A
+	LD	A,H
+	OUT	(XCRTP),A
+	LD	A,C		;@@@
+	OUT	(XCRTP),A
+	RET
+;
+;
+VECTW1:
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,4CH		;<<VECTW>>
+	OUT	(XCRTC),A
+	LD	A,16H
+	OUT	(XCRTP),A
+	LD	A,07H
+	OUT	(XCRTP),A
+	LD	A,0
+EXVCT1:	OR	40H		;or [NOP][NOP]
+	OUT	(XCRTP),A
+	RET
+;
+;
+VECTW2:
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,4CH		;<<VECTW>>
+	OUT	(XCRTC),A
+	LD	A,16H
+	OUT	(XCRTP),A
+	LD	A,03H
+	OUT	(XCRTP),A
+	LD	A,0		;
+EXVCT2:	OR	40H		;or [NOP][NOP]
+	OUT	(XCRTP),A
+	LD	A,08H
+	OUT	(XCRTP),A
+	XOR	A
+	OUT	(XCRTP),A
+	RET
+;
+;
+TEXTE:
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,68H		;<<TEXTE>>
+	OUT	(XCRTC),A
+	RET
+;
+;
+MASKFF:
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,4AH		;<<MASK>>
+	OUT	(XCRTC),A
+	LD	A,0FFH
+	OUT	(XCRTP),A
+	OUT	(XCRTP),A
+	RET
+;
+;
+;
+;
+;
+	PAGE
+;
+;	display  GAIJI  subroutine
+;
+TY800:
+	LD	L,A
+	LD	H,0
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	LD	DE,GAIJITB
+	ADD	HL,DE		;HL=GAIJITB+A*32
+;
+	LD	DE,CGPAT
+	XOR	A
+	LD	B,4
+TY810:
+	LD	(DE),A
+	INC	DE
+	DJNZ	TY810
+;
+	LD	A,(HL)
+	AND	80H
+	LD	(TUP),A
+	INC	HL
+	LD	A,(HL)
+	AND	1
+	LD	(TRIGHT),A
+	INC	HL
+;
+	LD	BC,28
+	LDIR
+;
+	LD	A,(HL)
+	LD	(DE),A
+	AND	80H
+	LD	(TLEFT),A
+	INC	HL
+	INC	DE
+	LD	A,(HL)
+	LD	(DE),A
+	AND	1
+	LD	(TDOWN),A
+;
+	LD	DE,CGPAT+2
+	LD	C,80H
+	CALL	GABABIT
+	LD	A,H
+	LD	H,L
+	LD	L,A		;H<->L
+	LD	(CGPAT+34),HL
+	LD	DE,CGPAT+3
+	LD	C,1
+	CALL	GABABIT
+	LD	A,H
+	LD	H,L
+	LD	L,A		;H<->L
+	LD	(CGPAT+36),HL
+;
+	XOR	A
+	LD	HL,CGPAT+4
+	LD	B,17
+TY820:
+	RES	7,(HL)
+	INC	HL
+	RES	0,(HL)
+	INC	HL
+	DJNZ	TY820
+;
+	LD	(HL),A		;=0
+	INC	HL
+	LD	(HL),A		;=0
+;
+	LD	(KANJI),A
+	JP	TY6100
+;
+;
+;
+;
+;
+GABABIT:
+	LD	HL,0
+	LD	B,16
+GA10:
+	LD	A,(DE)
+	INC	DE
+	INC	DE
+	ADD	HL,HL
+	AND	C
+	JR	Z,GA20
+	INC	HL
+GA20:
+	DJNZ	GA10
+	RET
+;
+;
+;
+;
+;
+	PAGE
+DYCUSR:
+	PUSH	BC
+	LD	C,70H
+	LD	A,(HPOS)
+	RRCA
+	JR	C,CUSR10
+	LD	C,0F0H
+CUSR10:
+	LD	HL,(CRTPOS)
+	LD	DE,40*18
+	LD	A,(YY)
+	CP	20
+	JR	Z,CUSR20	;
+	LD	DE,40*14
+CUSR20:
+	ADD	HL,DE		;CURSOR position
+;
+	IN	A,(2CH)
+	RRCA
+	JR	C,CUSR30	;Color CRT
+;
+; Green CRT
+;
+	CALL	CUSR1COL
+	POP	BC
+	RET
+;
+; Color CRT
+;
+CUSR30:
+	LD	A,(COLOR)
+	LD	B,1		;--- Blue ---
+	CALL	CUSRCHK
+	LD	A,(COLOR)
+	RRCA
+	LD	B,4		;--- Red ---
+	CALL	CUSRCHK
+	LD	A,(COLOR)
+	RRCA
+	RRCA
+	LD	B,2		;--- Green ---
+	CALL	CUSRCHK
+	POP	BC
+	RET
+;
+;
+CUSRCHK:
+	LD	D,A
+	AND	1
+	LD	E,A
+	LD	A,D
+	RRCA
+	RRCA
+	RRCA
+	RRCA
+	AND	1
+	XOR	E
+	RET	Z
+;
+	LD	A,B		;color
+	CALL	SETCOL		;
+	CALL	CUSR1COL
+	RET
+;
+;
+;
+CUSR1COL:
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	CALL	MASKFF		;<MASK>				I
+	IN	A,(XCRTS)	;empty check			I
+	AND	6		;				I
+	XOR	4		;				I
+	JR	NZ,$-6		;				I
+	LD	A,21H		;<<WRITE>> - complement		I
+	OUT	(XCRTC),A	;				I
+	IN	A,(XCRTS)	;empty check			I
+	AND	6		;				I
+	XOR	4		;				I
+	JR	NZ,$-6		;				I
+	LD	A,7EH		;<<TEXTW>> - 2			I
+	OUT	(XCRTC),A	;				I
+	LD	A,0FFH		;				I
+	OUT	(XCRTP),A	;				I
+	OUT	(XCRTP),A	;				I
+	CALL	CSRW		;<CUSRW>			I
+	IN	A,(XCRTS)	;empty check			I
+	AND	6		;				I
+	XOR	4		;				I
+	JR	NZ,$-6		;				I
+	LD	A,4CH		;<<VECTW>>			I
+	OUT	(XCRTC),A	;				I
+	LD	A,16H		;				I
+	OUT	(XCRTP),A	;				I
+	LD	A,01		;				I
+	OUT	(XCRTP),A	;				I
+	LD	A,0		;				I
+EXVCT3:	OR	40H		;or [NOP][NOP]			I
+	OUT	(XCRTP),A	;				I
+	LD	A,08		;				I
+	OUT	(XCRTP),A	;				I
+	XOR	A		;				I
+	OUT	(XCRTP),A	;				I
+	CALL	TEXTE		;<TEXTE>			I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RET
+;
+;
+;
+	PAGE
+CONVCD:
+	XOR	A
+	LD	(KANJI),A	;reset KANJI-CG flag
+;
+	LD	A,(TSAVE)
+	CP	0D0H
+	JR	NC,CV50		;KANJI
+	CP	0B0H
+	JR	NC,CV20
+;
+;
+;	[ A0A0 - AFFF ]
+;
+	SUB	0A0H
+	LD	L,A
+	LD	A,C
+	SUB	0A0H
+	LD	C,A
+	JR	CV30
+;
+;
+;	[ B0A0 - CFDF ]
+CV20:
+	LD	B,A
+	LD	A,C
+	SUB	0A0H
+	BIT	0,B
+	JR	Z,CV22
+	CP	0E0H-0A0H
+	JR	NC,CV90
+	ADD	A,96
+CV22:
+	LD	C,A
+	LD	A,B
+	SUB	0B0H
+	SRL	A
+	LD	L,A
+CV30:
+	LD	H,0
+	LD	D,H
+	LD	E,L		;DE=HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,DE
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL		;HL=HL*160
+	LD	DE,512
+	ADD	HL,DE
+	LD	B,0
+	ADD	HL,BC
+	RET
+;
+;
+;	KANJI CG
+CV50:
+	CP	0D6H
+	JR	NC,CV90
+	SUB	0D0H
+	LD	L,A
+	LD	H,0
+	LD	D,H
+	LD	E,L		;DE=HL
+	ADD	HL,DE
+	ADD	HL,DE
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL		;HL=HL*96
+	LD	A,C
+	SUB	0A0H
+	JR	C,CV90
+	LD	C,A
+	LD	B,0
+	ADD	HL,BC
+	LD	DE,512
+	CALL	CPHLDE
+	JR	NC,CV90
+	LD	A,-1
+	LD	(KANJI),A
+	RET
+;
+;
+CV90:
+	LD	HL,(DFLTILCH)
+	RET
+;
+;
+;
+;
+;
+CPHLDE:				;HL:DE
+	LD	A,H
+	CP	D
+	RET	NZ
+	LD	A,L
+	CP	E
+	RET
+;
+;
+;
+;
+;
+	PAGE
+ADVANCE:
+	LD	A,(HPOS)
+	ADD	A,C
+	LD	(HPOS),A
+	SUB	81
+	JP	C,ECALCUSR
+;
+	INC	A
+	LD	(HPOS),A
+	LD	A,-1		;CRFLG on
+	LD	(CRFLG),A
+	LD	A,(VPOS)
+	INC	A
+	LD	(VPOS),A
+	CP	21
+	JP	C,ECALCUSR
+;
+;
+;	scroll
+;
+	LD	HL,(SPOS)
+	LD	DE,40*20	;
+	ADD	HL,DE
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	(SPOS),HL	;				I
+	CALL	SCRLGRP		;<SCROLL>			I
+	LD	DE,40*20*19	;#QX-10#			I
+	ADD	HL,DE		;				I
+	LD	(CRTPOS),HL	;				I
+	LD	A,(HPOS)	;				I
+	EX	AF,AF'		;save HPOS			I
+	LD	A,1		;				I
+	LD	(HPOS),A	;				I
+	LD	BC,20		;				I
+	LD	DE,640/8	;(bytes)			I
+	CALL	CLRLINE		;				I
+	EX	AF,AF'		;				I
+	LD	(HPOS),A	;restore HPOS			I
+	LD	A,20		;#QX-10#			I
+	LD	(VPOS),A	;				I
+	CALL	ECALCUSR	;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RET
+;
+;
+;
+;
+;
+	PAGE
+TUP:	DB	0
+TRIGHT:	DB	0
+TLEFT:	DB	0
+TDOWN:	DB	0
+;
+TBAI:	DB	0		;Double width flag
+;
+ESCSTS:	DB	0		;ESC status
+ESCDCY:	DB	0		;
+ECOLOR:	DB	0		;
+ESCCH1:	DB	0		;
+ESCMFN:	DB	0		;MultiFonts no.
+ESCSCN:	DB	0		;partial scroll start line
+ESCSCM:	DB	0		;partial scroll line count
+SCSTEP:	DW	0		;scroll step
+VRAMH:	DW	0		;save HL ( ESCSC routine )
+VRAMD:	DW	0		;save DE ( ESCSC routine )
+;
+CGPAT:	DS	40		;CG buffer
+CGPAT2:	DS	40		;CG buffer #2
+KANJI:	DB	0
+;
+TSCPOS:	DW	0		;save SPOS
+TSHPOS:	DB	0		;save HPOS
+;	
+YY:	DB	16		;vertical size
+POSNEG:	DB	1		;0:no data/1:fore/2:back/3:fore,back
+;
+;
+PUSHSIZ	EQU	13		;CRTPOS-COLOR,WIDTH,TSCPOS,TSHPOS
+PCLVL:	DB	0		;push cursor level
+PCPTR:	DW	PCSTK-PUSHSIZ	;PCSTK pointer
+PCSTK:	DS	PUSHSIZ*8	;
+;
+;
+;
+;
+;
+	PAGE
+;
+;
+KCGDT	EQU	0FCH		;#QX-10#
+KCGST	EQU	0FDH		;#QX-10#
+;
+KCGIBF	EQU	1
+KCGERR	EQU	2
+KCGOBF	EQU	80H
+;
+;
+;
+KCGIN:
+	IN	A,(KCGST)
+	LD	C,A
+	AND	KCGOBF
+	JR	Z,KI10
+	IN	A,(KCGDT)
+	LD	C,A
+	RET
+KI10:
+	LD	A,C
+	AND	KCGERR
+	JR	Z,KCGIN
+	RET
+;
+;
+KCGOT:
+	IN	A,(KCGST)
+	AND	KCGIBF
+	JR	NZ,KO10
+	LD	A,C
+	OUT	(KCGDT),A
+	RET
+KO10:
+	IN	A,(KCGST)
+	AND	KCGERR+KCGOBF
+	JR	Z,KCGOT
+	AND	KCGOBF
+	JR	Z,KCGOT
+	IN	A,(KCGDT)
+	JR	KCGOT
+;
+;
+;
+;
+;
+	SUBTTL	*  CLEAR SCREEN  *
+	PAGE
+CLEAR:
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+;								I
+	XOR	A		;clear CRFLG			I
+	LD	(CRFLG),A	;				I
+	INC	A		;=1				I
+	LD	(HPOS),A	;				I
+	LD	(VPOS),A	;				I
+;								I
+	LD	A,0CH		;<<STOP>>			I
+	OUT	(XCRTC),A	;				I
+	CALL	SYNC		;<SYNC>				I
+	CALL	PITCH		;<PITCH>			I
+;								I
+	LD	HL,0		;				I
+	LD	(CRTPOS),HL	;				I
+	LD	(SPOS),HL	;				I
+	CALL	SCRLCHR		;				I
+;								I
+	LD	HL,0		;				I
+	LD	C,0		;				I
+	CALL	CSRW		;<CSRW>				I
+;								I
+	LD	B,4		;				I
+CL20:				;				I
+	LD	HL,3FFFH	;				I
+	CALL	CLRSCRN		;				I
+	DJNZ	CL20		;				I
+;								I
+	LD	HL,0		;				I
+	CALL	SCRLCHR		;<SCROLL>			I
+	LD	A,0DH		;<<START>>			I
+	OUT	(XCRTC),A	;				I
+;								I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RET
+;
+;
+;
+;
+;
+CLRSCRN:
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	IN	A,(XCRTS)	;empty check			I	
+	AND	6		;				I
+	XOR	4		;				I
+	JR	NZ,$-6		;				I
+	LD	A,4CH		;<<VECTW>>			I
+	OUT	(XCRTC),A	;				I
+	LD	A,2		;				I
+	OUT	(XCRTP),A	;				I
+	LD	A,L		;				I
+	OUT	(XCRTP),A	;				I
+	LD	A,H		;				I
+	OUT	(XCRTP),A	;				I
+;								I
+	CALL	MASKFF		;<MASK>				I
+;								I
+	IN	A,(XCRTS)	;empty check			I
+	AND	6		;				I
+	XOR	4		;				I
+	JR	NZ,$-6		;				I
+	LD	A,20H		;<<WRITE>> -replace		I
+	OUT	(XCRTC),A	;				I
+	XOR	A		;				I
+	OUT	(XCRTP),A	;				I
+	OUT	(XCRTP),A	;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RET
+;
+;
+;
+;
+;
+SCRLCHR:
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,70H		;<<SCROLL>>
+	OUT	(XCRTC),A
+	LD	A,L
+	OUT	(XCRTP),A
+	LD	A,H
+	OUT	(XCRTP),A
+	XOR	A
+	OUT	(xCRTP),A
+	LD	A,25
+	OUT	(XCRTP),A
+	RET
+
+;
+;
+;
+;
+;
+	PAGE
+CLR2:
+	PUSH	BC
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	XOR	A		;clear CRFLG			I
+	LD	(CRFLG),A	;				I
+	INC	A		;=1				I
+	LD	(HPOS),A	;				I
+	LD	(VPOS),A	;				I
+	LD	A,0CH		;<<STOP>>			I
+	OUT	(XCRTC),A	;				I
+	CALL	SYNC		;<SYNC>				I
+	CALL	PITCH		;<PITCH>			I
+	LD	HL,0		;				I
+	LD	(CRTPOS),HL	;				I
+	LD	(SPOS),HL	;				I
+	CALL	SCRLGRP		;				I
+	LD	BC,410*4	;clear 64K VRAM			I
+	LD	DE,640/8	;(bytes)			I
+	CALL	CLRLINE		;				I
+	IN	A,(XCRTS)	;empty check			I
+	AND	6		;				I
+	XOR	4		;				I
+	JR	NZ,$-6		;				I
+	LD	A,0DH		;<<START>>			I
+	OUT	(XCRTC),A	;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	POP	BC
+	RET
+;
+;
+;
+;
+;
+CLRLINE:
+	IN	A,(2CH)
+	RRCA
+	JR	C,CLRL30	;Color CRT
+;
+; Green CRT
+;
+	XOR	A		;always 00
+	LD	(POSNEG),A
+	CALL	CLRL60
+	JR	CLRL80
+;
+; Color CRT
+;
+CLRL30:
+	PUSH	DE		;
+	CALL	PITCH		;dummy
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,2		;--- Green ---
+	OUT	(2DH),A
+	LD	A,(COLOR)
+	CALL	CLRL50
+	POP	DE		;
+	PUSH	DE		;
+	CALL	PITCH		;dummy
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,4		;--- Red ---
+	OUT	(2DH),A
+	LD	A,(COLOR)
+	RLCA
+	CALL	CLRL50
+	POP	DE		;
+	CALL	PITCH		;dummy
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,1		;--- Blue ---
+	OUT	(2DH),A
+	LD	A,(COLOR)
+	RLCA
+	RLCA
+	CALL	CLRL50
+;
+CLRL80:
+	LD	HL,(CRTPOS)
+	LD	C,0	
+	LD	A,(HPOS)
+	RRCA		
+	JR	C,CLRL90
+	LD	C,80H	
+CLRL90:
+	CALL	CSRW
+	RET
+;
+;
+;
+CLRL50:
+	RLCA
+	RLCA
+	LD	A,0
+	JR	NC,CLRL55
+	DEC	A		;=0FFH
+CLRL55:
+	LD	(POSNEG),A
+;
+CLRL60:
+	LD	HL,(CRTPOS)
+	SRL	D		;DE=DE/2 (words)
+	RR	E	
+	JR	NC,CLRL70
+;
+; clear high byte and point next word
+;
+	EXX			;use sub-registers
+	LD	HL,CGPAT	;clear CGPAT by (POSNEG)
+	LD	A,(POSNEG)
+	PUSH	AF		;save POSNEG
+	LD	(HL),A
+	LD	DE,CGPAT+1
+	LD	BC,40-1
+	LDIR
+	LD	A,1
+	LD	(POSNEG),A	;:fore.
+	LD	A,(MBFLG)	;Pick MFBASIC flag.
+	LD	C,A		;save it.	
+	LD	A,(MFLG)	;Pick MFONT flag.
+	OR	C		;		
+	JR	NZ,CLRL62	;MFBASIC mode or MFONT mode
+	CALL	TR2COL		;color non-MFBASIC,non-MF mode
+	JR	CLRL65		
+CLRL62:				
+	CALL	TY32COL		
+CLRL65:				
+	POP	AF
+	LD	(POSNEG),A	;return (POSNEG) value
+	EXX			;return registers
+	INC	HL		;next word
+	LD	A,D
+	OR	E
+	RET	Z
+;
+CLRL70:
+	DEC	DE		;###
+	CALL	CRTWTE		;<WRITE> [replace]
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,78H		;<<TEXTW>>
+	OUT	(XCRTC),A
+	LD	A,(POSNEG)
+	OUT	(XCRTP),A
+	OUT	(XCRTP),A
+	OUT	(XCRTP),A
+	OUT	(XCRTP),A
+	OUT	(XCRTP),A
+	OUT	(XCRTP),A
+	OUT	(XCRTP),A
+	OUT	(XCRTP),A
+	PUSH	BC
+	LD	C,0
+	CALL	CSRW		;<CUSRW>
+	POP	BC
+	CALL	MASKFF		;<MASK> FF,FF
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,4CH		;<<VECTW>> BC X DE
+	OUT	(XCRTC),A
+	LD	A,10H
+	OUT	(XCRTP),A
+	LD	A,E
+	OUT	(XCRTP),A
+	LD	A,D
+EXVCT4:	OR	40H		;or [NOP][NOP]
+	OUT	(XCRTP),A
+	LD	A,C
+	OUT	(XCRTP),A
+	LD	A,B
+	OUT	(XCRTP),A
+	CALL	TEXTE		;<TEXTE>
+	RET
+;
+;
+;
+;
+;
+SCRLGRP:
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,70H		;<<SCROLL>>
+	OUT	(XCRTC),A
+	LD	A,L
+	OUT	(XCRTP),A
+	LD	A,H
+	OUT	(XCRTP),A
+	LD	A,0F0H
+	OUT	(XCRTP),A
+	LD	A,3FH
+EXSCRL:	OR	40H		;or [NOP][NOP]
+	OUT	(XCRTP),A
+	RET
+;
+;
+;
+;
+;
+	SUBTTL
+	PAGE
+SYNC:				
+	EXX			
+	LD	HL,SYGREEN	;parameter for Green CRT
+	IN	A,(2CH)		;
+	RRCA
+	JR	NC,SYNCE	;
+	LD	HL,SYCOLOR	;parameter for Green CRT
+SYNCE:
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,0EH		;<<SYNC>>
+	OUT	(XCRTC),A
+	LD	C,XCRTP
+	LD	B,8
+	OTIR			;OUT P1 - P8
+	EXX			;
+	RET
+;
+;
+SYGREEN:
+	DB	14H
+	DB	4EH		;C/R
+	DB	02H
+	DB	1AH
+	DB	12H
+	DB	01H
+	DB	90H
+	DB	11H
+;
+SYCOLOR:
+	DB	16H
+	DB	26H		;C/R
+	DB	23H
+	DB	11H
+	DB	04H
+	DB	07H
+	DB	90H
+	DB	65H
+;
+;
+;
+PITCH:		
+	IN	A,(2CH)
+	RRCA
+	JR	C,PITCHC
+;
+; Green CRT
+;
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,47H		;<<PITCH>>
+	OUT	(XCRTC),A
+	LD	A,80
+	OUT	(XCRTP),A
+	RET
+;
+; Color CRT
+;
+PITCHC:
+	IN	A,(XCRTS)	;empty check
+	AND	6		;
+	XOR	4		;
+	JR	NZ,$-6		;
+	LD	A,47H		;<<PITCH>>
+	OUT	(XCRTC),A
+	LD	A,40		;
+	OUT	(XCRTP),A
+	RET
+;
+;
+;
+;
+;
+	PAGE
+;
+;	SAVE 1 LINE VRAM DATA
+;
+SVLINE:
+	LD	DE,VRAMRED
+	IN	A,(2CH)
+	RRCA
+	JR	NC,SAVE1L	;Green CRT
+;
+	PUSH	HL
+	CALL	RED		;***** RED *****
+	CALL	SAVE1L		;
+	POP	HL
+	PUSH	HL
+	CALL	GREEN		;***** GREEN *****
+	LD	DE,VRAMGRN
+	CALL	SAVE1L
+	POP	HL
+	CALL	BLUE		;***** BLUE *****
+	LD	DE,VRAMBLU
+SAVE1L:
+	LD	B,20		;loop 20 times
+SLRD40W:
+	PUSH	BC
+	LD	C,0
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	CALL	CSRW		;<CUSRW> L,H,0			I
+	LD	A,4CH		;<<VECTW>>			I
+	OUT	(XCRTC),A	;				I
+	LD	A,2		; DIR=2				I
+	OUT	(XCRTP),A	;				I
+	LD	A,40		;words				I
+	OUT	(XCRTP),A	;				I
+	XOR	A		;				I
+SL20VCT:			;				I
+	OR	40H		;or [NOP][NOP] with color CRT	I
+	OUT	(XCRTP),A	;				I
+	CALL	MASKFF		;<MASK> FF,FF			I
+	LD	A,0A0H		;<<READ>>			I
+	OUT	(XCRTC),A	;				I
+	LD	B,80		;loop 80 times			I
+SLRD1B:				;				I
+	IN	A,(XCRTS)	;ready check			I
+	AND	1		;				I
+	JR	Z,SLRD1B	;				I
+	IN	A,(XCRTD)	;read 1 byte			I
+	LD	(DE),A		;save it.			I
+	INC	DE		;				I
+	DJNZ	SLRD1B		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	LD	BC,40
+	ADD	HL,BC
+	POP	BC
+	DJNZ	SLRD40W
+	RET
+;
+;
+;
+;	write 1 line
+;
+LDLINE:
+	PUSH	HL		;push write address.
+	EX	DE,HL
+	LD	HL,(CRTPOS)	;
+	PUSH	HL		;save CRTPOS
+	LD	(CRTPOS),DE
+	LD	A,(HPOS)	;
+	PUSH	AF		;save HPOS
+	LD	A,1
+	LD	(HPOS),A	;set 1 to HPOS
+	LD	A,(COLOR)
+	PUSH	AF		;save COLOR
+	LD	A,7
+	LD	(COLOR),A	;set COLOR fore:white, back:black
+	LD	BC,20
+	LD	DE,80
+	CALL	CLRLINE		;clear 1 line
+	POP	AF
+	LD	(COLOR),A	;restore COLOR
+	POP	AF
+	LD	(HPOS),A	;restore HPOS
+	POP	HL
+	LD	(CRTPOS),HL	;restore CRTPOS
+	POP	HL		;pop write address.
+;
+	LD	DE,VRAMRED
+	IN	A,(2CH)
+	RRCA
+	JR	NC,LOAD1L	;Green CRT
+;
+	PUSH	HL
+	CALL	RED		;***** RED *****
+	CALL	LOAD1L		;
+	POP	HL
+	PUSH	HL
+	CALL	GREEN		;***** GREEN *****
+	LD	DE,VRAMGRN
+	CALL	LOAD1L
+	POP	HL
+	CALL	BLUE		;***** BLUE *****
+	LD	DE,VRAMBLU
+;
+LOAD1L:
+	DI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	IN	A,(XCRTS)	;empty check			I
+	AND	6		;				I
+	XOR	4		;				I
+	JR	NZ,$-6		;				I
+	LD	A,20H		;<<WRITE>> -replace		I
+	OUT	(XCRTC),A	;				I
+	LD	A,4CH		;<<VECTW>>			I
+	OUT	(XCRTC),A	;				I
+	LD	A,2		; DIR=2				I
+	OUT	(XCRTP),A	;				I
+	LD	A,78H		;<<TEXTW>> FF,FF		I
+	OUT	(XCRTC),A	;				I
+	LD	A,0FFH		;				I
+	OUT	(XCRTP),A	;				I
+	OUT	(XCRTP),A	;				I
+;								I
+	LD	BC,40*20	;loop 40*20 times		I
+LLWT1W:				;write 1 word			I
+	IN	A,(XCRTS)	;empty check			I
+	AND	6		;				I
+	XOR	4		;				I
+	JR	NZ,$-6		;				I
+	LD	A,49H		;<<CUSRW>> L,H,0		I
+	OUT	(XCRTC),A	;				I
+	LD	A,L		;				I
+	OUT	(XCRTP),A	;				I
+	LD	A,H		;				I
+	OUT	(XCRTP),A	;				I
+	XOR	A		;				I
+	OUT	(XCRTP),A	;				I
+	LD	A,4AH		;<<MASK>> data1, data2		I
+	OUT	(XCRTC),A	;				I
+	LD	A,(DE)		;				I
+	OUT	(XCRTP),A	;				I
+	INC	DE		;				I
+	LD	A,(DE)		;				I
+	OUT	(XCRTP),A	;				I
+	INC	DE		;				I
+	LD	A,6CH		;<<VECTE>>			I
+	OUT	(XCRTC),A	;				I
+;								I
+	INC	HL		;increment write address	I
+	DEC	BC		;loop count down		I
+	LD	A,B		;				I
+	OR	C		;				I
+	JR	NZ,LLWT1W	;if BC <> 0 then countinue	I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RET
+;
+;
+;
+VRAMRED	EQU	5800H		;DS 640H
+VRAMGRN	EQU	VRAMRED+640H	;
+VRAMBLU	EQU	VRAMGRN+640H	;
+;
+;
+;
+;
+;
+	SUBTTL	'CHANGE KBTAB, CGTAB, PRTAB, CKANTAB, ANTAB'
+	PAGE
+EXTAB	EQU	7600H
+KBTAB0	EQU	7A00H
+PRTAB0	EQU	7C00H
+CKAN0	EQU	8300H
+ANTAB0	EQU	8500H
+;
+;
+CHANGE:
+	LD	A,(COUNTRY)
+	AND	A
+	JR	NZ,EX100
+;
+;
+;	[ US ASCII ]
+;
+	LD	HL,ANTAB0
+	LD	DE,ANTAB
+	LD	BC,16*60H
+	LDIR
+	LD	HL,CKAN0
+	LD	DE,CKANTAB
+	LD	BC,2*60H
+	LDIR
+	LD	HL,PRTAB0
+	LD	DE,PRTAB
+	LD	BC,12*60H
+	LDIR
+	LD	HL,KBTAB0
+	LD	DE,KBTAB
+	LD	BC,50H*5+30H
+	LDIR
+	XOR	A
+	LD	(CGTAB),A
+	RET
+;
+;
+;
+;
+;
+EX100:
+	DEC	A
+	ADD	A,A
+	LD	E,A
+	LD	D,0
+	LD	HL,EXTAB
+	ADD	HL,DE
+	LD	E,(HL)
+	INC	HL
+	LD	D,(HL)
+	LD	(VECTTB),DE
+	LD	HL,12+56
+	ADD	HL,DE
+	LD	(VECTDT),HL
+;
+	LD	IY,(VECTDT)
+	LD	HL,ANTAB0
+	LD	IX,ANTAB
+	CALL	CH100
+;
+	LD	IY,(VECTDT)
+	LD	HL,CKAN0
+	LD	IX,CKANTAB
+	CALL	CH200
+;
+	LD	IY,(VECTDT)
+	LD	HL,PRTAB0
+	LD	IX,PRTAB
+	CALL	CH300
+;
+	LD	HL,KBTAB0
+	LD	IX,KBTAB
+	CALL	CH400
+;
+	CALL	CH500
+;
+	RET
+;
+;
+;
+;
+;
+CH100:
+	LD	DE,(VECTTB)
+	LD	B,12
+CH110:
+	PUSH	BC
+	LD	B,8
+	LD	A,(DE)
+	LD	C,A
+CH120:
+	RLC	C
+	PUSH	BC
+	LD	B,16
+	JR	NC,CH150
+;
+	PUSH	HL
+	PUSH	DE
+;
+	LD	A,(IY)
+	INC	IY
+	ADD	A,80H-20H
+	LD	L,A
+	LD	H,0
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	LD	DE,ANTAB0
+	ADD	HL,DE		;HL=ANTAB0+(A+60H)*2
+CH130:
+	LD	A,(HL)
+	LD	(IX),A
+	INC	HL
+	INC	IX
+	DJNZ	CH130
+	POP	DE
+	POP	HL
+	LD	BC,16
+	ADD	HL,BC
+	JR	CH160
+CH150:
+	LD	A,(HL)
+	LD	(IX),A
+	INC	HL
+	INC	IX
+	DJNZ	CH150
+CH160:
+	POP	BC
+	DJNZ	CH120
+;
+	INC	DE
+	POP	BC
+	DJNZ	CH110
+	RET
+;
+;
+;
+CH200:
+	LD	DE,(VECTTB)
+	LD	B,12
+CH210:
+	PUSH	BC
+	LD	B,8
+	LD	A,(DE)
+	LD	C,A
+CH220:
+	RLC	C
+	JR	NC,CH250
+;
+	PUSH	HL
+	PUSH	DE
+;
+	LD	A,(IY)
+	INC	IY
+	ADD	A,80H-20H
+	LD	L,A
+	LD	H,0
+	ADD	HL,HL
+	LD	DE,CKAN0
+	ADD	HL,DE		;HL=CKAN0+(A+60H)*2
+;
+	LD	A,(HL)
+	LD	(IX),A
+	INC	HL
+	INC	IX
+	LD	A,(HL)
+	LD	(IX),A
+	INC	HL
+	INC	IX
+;
+	POP	DE
+	POP	HL
+	INC	HL
+	INC	HL
+	JR	CH260
+;
+CH250:
+	LD	A,(HL)
+	LD	(IX),A
+	INC	HL
+	INC	IX
+	LD	A,(HL)
+	LD	(IX),A
+	INC	HL
+	INC	IX
+CH260:
+	DJNZ	CH220
+;
+	INC	DE
+	POP	BC
+	DJNZ	CH210
+	RET
+;
+;
+;
+CH300:
+	LD	DE,(VECTTB)
+	LD	B,12
+CH310:
+	PUSH	BC
+	LD	B,8
+	LD	A,(DE)
+	LD	C,A
+CH320:
+	RLC	C
+	PUSH	BC
+	LD	B,12
+	JR	NC,CH350
+;
+	PUSH	HL
+	PUSH	DE
+;
+	LD	A,(IY)
+	INC	IY
+	ADD	A,80H-20H
+	LD	L,A
+	LD	H,0
+	LD	D,H
+	LD	E,L
+	ADD	HL,HL
+	ADD	HL,DE
+	ADD	HL,HL
+	ADD	HL,HL
+	LD	DE,PRTAB0	
+	ADD	HL,DE		;HL=PRTAB0+(A+60H)*12
+CH330:
+	LD	A,(HL)
+	LD	(IX),A
+	INC	HL
+	INC	IX
+	DJNZ	CH330
+	POP	DE
+	POP	HL
+	LD	BC,12
+	ADD	HL,BC
+	JR	CH360
+CH350:
+	LD	A,(HL)
+	LD	(IX),A
+	INC	HL
+	INC	IX
+	DJNZ	CH350
+CH360:
+	POP	BC
+	DJNZ	CH320
+;
+	INC	DE
+	POP	BC
+	DJNZ	CH310
+	RET
+;
+;
+;
+CH400:
+	LD	B,56
+CH410:
+	PUSH	BC
+	LD	B,8
+	LD	A,(DE)
+	LD	C,A
+CH420:
+	RLC	C
+	JR	NC,CH430
+	LD	A,(IY)
+	INC	IY
+	DB	0FEH		;skip next instruction (CP 7EH)
+CH430:
+	LD	A,(HL)
+CH440:
+	LD	(IX),A
+	INC	HL
+	INC	IX
+	DJNZ	CH420
+;
+	INC	DE
+	POP	BC
+	DJNZ	CH410
+	RET
+;
+;
+;
+CH500:
+	PUSH	IY
+	POP	HL		;HL=IY
+	LD	DE,CGTAB
+CH510:
+	LD	A,(HL)
+	LD	(DE),A
+	AND	A
+	RET	Z
+	INC	HL
+	INC	DE
+	JR	CH510
+;
+;
+;
+;
+;
+VECTTB:	DW	0
+VECTDT:	DW	0
+;
+;
+ILLCHR:			
+	DB	0,0
+	DB	0,0
+	DB	3EH,7CH
+	DB	3EH,7CH
+	DB	3EH,7CH
+	DB	3EH,7CH
+	DB	3EH,7CH
+	DB	3EH,7CH
+	DB	3EH,7CH
+	DB	3EH,7CH
+	DB	3EH,7CH
+	DB	3EH,7CH
+	DB	3EH,7CH
+	DB	3EH,7CH
+	DB	3EH,7CH
+	DB	3EH,7CH
+	DB	3EH,7CH
+	DB	0,0
+	DB	0,0
+	DB	0,0
+;
+;
+;
+;
+;
+	SUBTTL	COMMON DATA AREA
+	page
+;	+--------------------------------+
+;	|+------------------------------+|
+;	||	COMMON DATA AREA	||
+;	|+------------------------------+|
+;	+--------------------------------+
+;
+;
+DFLTILCH	EQU	PRMTAB+41H
+SCRLTIM		EQU	PRMTAB+44H
+DFLTUP		EQU	PRMTAB+48H
+DFLTDN		EQU	PRMTAB+49H
+DFLTRT		EQU	PRMTAB+4AH
+DFLTLT		EQU	PRMTAB+4BH
+KBREPT		EQU	PRMTAB+4CH		;keyboard repeat control
+KBSTRT		EQU	PRMTAB+4DH		;repeat start time
+KBINTVL		EQU	PRMTAB+4EH		;repeat interval
+WIDTH		EQU	PRMTAB+4FH
+MBFLG		EQU	PRMTAB+50H		;MFBASIC flag
+SWITCH		EQU	PRMTAB+52H
+XSHFDT		EQU	PRMTAB+54H
+PRINTER		EQU	PRMTAB+55H		;2 bytes
+CRTPASS		EQU	PRMTAB+57H		;0FFH=direct display
+XCHUP		EQU	PRMTAB+58H
+XCHDOWN		EQU	PRMTAB+59H
+XCHRIGT		EQU	PRMTAB+5AH
+XCHLEFT		EQU	PRMTAB+5BH
+XSHIFT		EQU	PRMTAB+6EH
+SPOS		EQU	PRMTAB+70H
+CSRDSP		EQU	PRMTAB+72H
+CRTPOS		EQU	PRMTAB+73H
+HPOS		EQU	PRMTAB+75H
+VPOS		EQU	PRMTAB+76H
+CRFLG		EQU	PRMTAB+77H
+T1ST		EQU	PRMTAB+78H
+TSAVE		EQU	PRMTAB+79H
+ATTR		EQU	PRMTAB+7AH		;character attribute
+COLOR		EQU	PRMTAB+7BH		;CRT color
+COUNTRY		EQU	PRMTAB+80H
+MFNO		EQU	PRMTAB+81H
+MFLG		EQU	PRMTAB+82H
+STYLE		EQU	PRMTAB+83H
+MEMPTR		EQU	PRMTAB+9EH
+MEMBUF		EQU	PRMTAB+0A0H
+ESCFLG		EQU	PRMTAB+0D0H		;consol ESC flag
+FUNCFLG		EQU	PRMTAB+0D1H		;Func. key check mode ON(0FFH)/OFF(0)
+MFROM		EQU	PRMTAB+0D2H		;MF ROM check flag
+MEMBANK		EQU	PRMTAB+0F0H
+MBANKS		EQU	PRMTAB+0F1H
+MBANKD		EQU	PRMTAB+0F2H
+SVIBANK		EQU	PRMTAB+0F3H		;memory bank calls interrupt
+;
+;
+;
+;
+;
+	SUBTTL
+	PAGE
+XSCHC:
+	XOR	A
+	LD	(ESCFLG),A
+	CALL	HCOPY
+	JP	XCONEND
+RSCHC:
+	XOR	A
+	LD	(ESCFLG),A
+	CALL	HCOPY
+	JP	RCONEND
+QSCHC:
+	XOR	A
+	LD	(ESCFLG),A
+	CALL	HCOPY
+	JP	QCONEND
+ESCHC:
+	XOR	A
+	LD	(ESCFLG),A
+	CALL	HCOPY
+	JP	ECONEND
+;
+;
+;
+;
+;
+;m
+	rept	3000h-$
+	.XLIST
+	db	0e5h
+	.LIST
+	endm
+;m
+;
+;
+;
+;
+;
+	END
