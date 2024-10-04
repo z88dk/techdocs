@@ -1,0 +1,2322 @@
+	TITLE	* QX-10 63k MF-CP/M BIOS4 M1.3 *
+;
+;
+;     
+;  BASIC I/O SYSTEM FOR QX-10 CP/M V2.2 
+;  ( RS 232 C , LIGHTPEN , MASKI )
+;     
+;
+;	created		QX-10 63k MF-CP/M BIOS4
+;			M1.1	1983. 3.10   by Yuicji Ushiyama
+;						Chisato Kobayashi
+;	updated		M1.2	      3.18
+;	updated		M1.3	      4.29
+;
+;
+;
+;
+	.PHASE	3000H
+	.Z80
+;
+;
+	PUBLIC	RSIOX,RSOPEN,RSCLOSE,RSINST,RSOUTST,RSIN,RSOUT,ORSI40
+	PUBLIC	MASKI
+	PUBLIC	LIGHTPEN
+	PUBLIC	LPENIR
+	PUBLIC	INTX1,INTX2,INTX3,INTX4,INTX5,INTX6,INTX7
+	PUBLIC	MRSP,STS
+	EXTRN	SRMBANK,ST50ML
+	EXTRN	SVSPIR,STCKIR
+	EXTRN	OINT1,OINT2,OINT3,OINT4,OINT5,OINT6,OINT7
+;
+;
+;
+;
+;
+	PAGE	60
+;................................................
+;.						.
+;.	CP/M SYSTEM FUNDAMENTAL CONSTANTS	.
+;................................................
+;
+BIOS	EQU	0F600H		;63k
+PRMTAB	EQU	0FE00H		;
+;
+;
+;
+;	interface to BIOS1
+;
+LOADX	EQU	BIOS+3*31
+STORX	EQU	BIOS+3*32
+LDIRX	EQU	BIOS+3*33
+;
+LDAXX	EQU	BIOS+3*39
+STAXX	EQU	BIOS+3*40
+;
+;
+;	CONTROL CHARACTER DEFINITION
+;
+CR	EQU	0DH
+SO	EQU	0EH
+SI	EQU	0FH
+LF	EQU	0AH
+ESC	EQU	1BH
+;
+;
+;
+;
+;
+	SUBTTL	RS 232 C CONTROLER.  V01/L01
+	PAGE
+;
+;
+RSOPEN:				; . . . . . . . . . . . . . . . I
+	LD	HL,MRSBUF	;main RS buffer address		I
+	LD	(MRSDATA),HL	;				I
+	LD	HL,MRSSIZE	;main RS buffer size		I
+	LD	(MRSDATA+2),HL	;				I
+	LD	HL,RSDAT	;				I
+	LD	DE,MRSDATA+4	;				I
+	LD	BC,4		;				I
+	LDIR			;				I
+	LD	A,0FFH		;				I
+	LD	(RSV),A		;				I
+	LD	B,10H		;				I
+	LD	HL,MRSDATA	;				I
+	JR	RSIOXM		; . . .	. . . . . . . . . . . . I
+;
+;
+RSCLOSE:			; . . . . . . . . . . . . . . . I
+	LD	B,20H		;				I
+	DB	011H		;skip next instruction  . . . . I
+;
+RSINST:				; . . . . . . . . . . . . . . . I
+	LD	B,30H		;				I
+	DB	011H		;skip next instruction  . . . . I
+;
+RSOUTST:			; . . . . . . . . . . . . . . . I
+	LD	B,40H		;				I
+	DB	011H		;skip next instruction  . . . . I
+;
+RSIN:				; . . . . . . . . . . . . . . . I
+	LD	B,50H		;				I
+RSIOM:				;				I
+	PUSH	BC		;				I
+	LD	B,0F0H		;				I
+	CALL	RSIOXM		;				I
+	CALL	Z,RSOPEN	;				I
+	POP	BC		;				I
+RSIOM0:				;				I
+	LD	HL,MRSDATA	;set RSIOX parameter		I
+;								I
+RSIOXM:				;				I
+	LD	(SVSPRS),SP	;				I
+	LD	SP,STCKRS	;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	XOR	A		;
+	LD	(RSDFOP),A	;default RS buffer
+	LD	(MBANKD),A	;parameter block memory bank
+	LD	A,20H		;
+	LD	(RSXBANK),A	;buffer memory bank
+	JR	RSIOXX		;
+;
+;
+RSOUT:				; . . . . . . . . . . . . . . . I
+	PUSH	BC		;				I
+RSOUT1:				;				I
+	CALL	RSOUTST		;				I
+	JR	NZ,RSOUT1	;Busy.				I
+	POP	BC		;				I
+	LD	B,60H		;				I
+	JR	RSIOM0		;EXECUTE RSOUT.			I
+;
+;
+;
+;
+	PAGE
+;*
+;******************************
+;*  RS 232 C CONTROL ROUTINE  *
+;******************************
+;
+;
+RSIOX:				; . . . . . . . . . . . . . . . I
+	LD	(SVSPRS),SP	;				I
+	LD	SP,STCKRS	;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+;
+	LD	A,-1		;use option buffer
+	LD	(RSDFOP),A	;
+;
+	PUSH	BC		;
+	PUSH	HL		;
+	LD	HL,(MEMPTR)
+	LD	A,(HL)		;memory bank on call
+	LD	(RSXBANK),A	;buffer memory bank
+	CALL	SRMBANK		;set memory bank no. to C
+	LD	A,C
+	LD	(MBANKD),A	;save destination memory bank
+	POP	HL		;
+	POP	BC		;restore input parameter
+;
+;
+;
+RSIOXX:
+	LD	(SAVEHL),HL	;
+;
+	LD	A,B		; CHECK FUNCTION.
+	AND	0F0H		;
+	CP	0F0H		; SENS ?
+	JP	Z,SENS		; YES.
+	RRCA			;
+	RRCA			;
+	RRCA			; FUNCTION CODE / 8.
+	DEC	A		;
+	DEC	A		; A = B/16*2-2.
+	CP	90H/8		; PARAMETER ERROR ?
+	JR	C,RSIOX00	; NO.
+;
+; parameter error
+;
+PERR:
+	LD	A,4		;
+	JP	RTN		; ERROR RETURN.
+;
+;
+;
+RSIOX00:
+	PUSH	HL		;
+	LD	HL,RSJMP	; MAKE JUMP ADDRESS.
+	LD	D,0		;
+	LD	E,A		;
+	ADD	HL,DE		;
+	LD	E,(HL)		;
+	INC	HL		;
+	LD	D,(HL)		;
+	EX	DE,HL		;
+	EX	(SP),HL		;
+	RET			; EXECUTE RSIOX FUNCTION.
+;
+;
+;
+RSJMP:				; RS 232 C FUNCTION JUMP TABLE.
+	DW	OPEN		;
+	DW	CLOSE		;
+	DW	INSTS		;
+	DW	OUTSTS		;
+	DW	GET		;
+	DW	PUT		;
+	DW	CTLIN		;
+	DW	SETCTL		;
+	DW	ERSTS		;
+;
+;
+;
+;
+;
+	PAGE
+;***************************
+OPEN:	   ; RS 232 C OPEN *
+;***************************
+;
+	CALL	ISET		; SET IX.  (IX = CONTROL TABLE)
+	JP	NC,PERR		;
+	AND	A		;
+	JP	Z,OPN020	; MAIN RS OPEN.
+	LD	A,(IX+FLAG)	;
+	AND	A		; MULTI OPEN ?
+	JR	Z,OPN010	; NO.
+	LD	A,2		; SET MULTI OPEN CODE.
+	JP	RTN		; ERROR RETURN.
+;
+OPN010:
+	CALL	RSCHK		;check status.
+	LD	A,0FEH		;
+	CP	(IX+FLAG)	;opened ?
+	LD	A,1		;set parameter code (error)
+	JP	NZ,RTN		;No. return. ( no option board )
+;
+OPN020:
+;
+	LD	A,(MBANKD)
+	PUSH	AF		;save memory bank on call
+	LD	(MBANKS),A
+	LD	A,-1		;system bank
+	LD	(MBANKD),A
+	LD	HL,(SAVEHL)
+	LD	DE,SVPARA
+	LD	BC,9
+	CALL	LDIRX		;move RSIOX parameter to SVPARA
+	POP	AF
+	LD	(MBANKD),A	;restore memory bank on call
+;
+	XOR	A		;
+	LD	(IX+SISO),A	;clear GET SI/SO status
+	LD	(IX+LOCNT+0),A	;clear LOC.
+	LD	(IX+LOCNT+1),A	;
+	DEC	A		;A=-1
+	LD	(IX+STS),A	;set PUT SI/SO status
+;
+	LD	IY,SVPARA
+;
+	LD	L,(IY+BADR)	;
+	LD	H,(IY+BADR+1)	; HL = BUFFER ADDR.
+	LD	C,(IY+BSIZ)	;
+	LD	B,(IY+BSIZ+1)	; BC = BUFFER SIZE.
+	LD	(IX+GETP),L	; SET GET POINTER.
+	LD	(IX+GETP+1),H	;
+	LD	(IX+PUTP),L	; set PUT pointer.
+	LD	(IX+PUTP+1),H	;
+	LD	(IX+BUFA),L	; set BUFFER ADDRESS.
+	LD	(IX+BUFA+1),H	;
+	LD	(IX+BUFS),C	; set BUFFER SIZE.
+	LD	(IX+BUFS+1),B	;
+	LD	A,(IY+BR)	; SET BIT RATE.
+	CP	10H		; CHECK PARAMETER.
+	JP	NC,PERR		; PARAMETER ERROR.
+	LD	E,A		; KEEP BIT RATE.
+	XOR	A		;
+	CP	(IX+ID)		; MAIN BOARD ?
+	JR	NZ,OPN043	; NO.
+	LD	A,E		;
+	CP	0FH		; 19200 BPS ?
+	JP	Z,PERR		; YES.  PARAMETER ERROR.
+;
+OPN043:
+	RLC	E		;
+	XOR	A		;
+	LD	D,A		;DE=(bit rate parameter)/2
+	CP	(IX+ID)		; MAIN BOARD ?
+	JR	NZ,OPN045	; NO.
+	LD	HL,RATEM	;main board bit rate table
+	JR	OPN047		;
+;
+OPN045:
+	LD	HL,RATEO	;option board bit rate table
+OPN047:
+	ADD	HL,DE		;
+	LD	E,(HL)		; BPS L.
+	INC	HL		;
+	LD	D,(HL)		; BPS H.
+	LD	(CLKRT),DE	; SET BPS.
+	LD	A,(IY+SB)	; SET STOP BIT.
+	AND	03H		;
+	RLCA			;
+	RLCA			;
+	OR	(IY+PRT)	; add parity.
+	AND	0FH		;
+	OR	40H		;clock rate = X 16.
+	LD	(WR4D),A	;set WR4 data.
+;
+	LD	A,(IY+DCHR)	;make bit/character.
+	AND	03H
+	LD	B,A		;keep.
+	LD	C,A		;
+	INC	C		;shift count
+	LD	A,0FH		;
+OPN046:				;
+	RLCA			;
+	DEC	C		;
+	JR	NZ,OPN046	;
+	OR	0FH		;
+	LD	(IX+CHRMSK),A	;
+	LD	A,B		;
+	CP	2		;7bit/char ?
+	LD	A,(IY+SPARAM)	;
+	JR	Z,OPN049	;7bit/char.
+	OR	0CH		;not SHIFT IN/OUT.
+	JR	OPN050		;
+OPN049:				;
+	OR	08H		;not KANJI SHIFT
+OPN050:				;
+	AND	1CH		;clear other flag.
+	XOR	1CH		;reverse flag.
+	LD	(IX+SKX),A	;store SI/SO,KANJI SHIFT, X-ON/X-OFF
+	BIT	XXON,A		;X-ON ?
+	JR	Z,OPN0505	;No.
+	LD	E,(IX+BUFS+0)	;Get buffer size.
+	LD	D,(IX+BUFS+1)	;
+	LD	HL,-16		;Check buffer size.
+	ADD	HL,DE		;
+	JR	C,OPN0501	;Buffer size > 16.
+	RES	XXON,(IX+SKX)	;Buffer size < 17.
+	JR	OPN0505		;Not X-ON/X-OFF mode.
+;
+OPN0501:			;
+	LD	L,E		;Copy buffer size.
+	LD	H,D		;HL=DE
+	SRL	D		;(Buffer size)/4.
+	RR	E		;
+	SRL	D		;
+	RR	E		;
+	LD	(IX+XOFFS+0),E	;Set X-OFF size.
+	LD	(IX+XOFFS+1),D	;
+	OR	A		; CY off.
+	SBC	HL,DE		;(Buffer size)-(Buffer size)/4.
+	LD	(IX+XONS+0),L	;Set X-ON size.
+	LD	(IX+XONS+1),H	;
+OPN0505:			;
+	LD	A,B		;restore bit/char.
+	OR	A		; CLEAR CY.
+	RRA			; CHANGE C BIT0,BIT1
+	JR	NC,OPN051	; BIT 0 ON ?
+	OR	2		; YES. SET BIT 1
+OPN051:
+	LD	(IX+BITPC),A	; KEEP. BIT/CHAR.
+	RRCA			;
+	RRCA			;
+	LD	B,A		; KEEP.
+	RRCA			;
+	LD	C,A		; KEEP.
+	LD	A,(IY+SPARAM)	;
+	AND	011B		; RTS,DTR.
+	BIT	0,A		; SET DTR ?
+	JR	Z,OPN053	; NO.
+	OR	80H		; SET DTR.
+	AND	82H		;
+OPN053:
+	OR	08H		; DTR,TX ENABLE AND RTS.
+	OR	C		; SET TX BIT/CHAR.
+	LD	(WR5D),A	;
+	LD	A,(IY+SPARAM)	; GET AUTO ENABLE
+	AND	20H		; SET DTR,TX BIT/CHAR,TX E,RTS.
+	OR	B		; SET RX BIT/CHAR
+	OR	01H		; AUTO ENABLE, RX ENABLE.
+	LD	(WR3D),A	; SET RX BIT/CHAR,AUTO E,RX E.
+	LD	HL,RSDATA	;
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	A,(IX+ID)	;				I
+	CP	0		; MAIN BOARD RS ?		I
+	JR	NZ,OPN060	; NO.				I
+	LD	A,0B6H		;				I
+	JR	OPN080		;				I
+;								I
+OPN060:				;				I
+	BIT	0,A		;				I
+	JR	Z,OPN070	; CHANNEL B.			I
+	LD	A,036H		; CHANNEL A.			I
+	JR	OPN080		;				I
+;								I
+OPN070:				;				I
+	LD	A,076H		;				I
+OPN080:				;				I
+	LD	C,(IX+RSCOUNT)	;				I
+	OUT	(C),A		; SET TIMER COUNTER MODE.	I
+	LD	C,(IX+RSCOUNT+1)	;			I
+	LD	A,(HL)		;				I
+	OUT	(C),A		; BIT RATE L.			I
+	INC	HL		;				I
+	LD	A,(HL)		;				I
+	OUT	(C),A		; BIT RATE H.			I
+	LD	C,(IX+RSCREG)	;				I
+	INC	HL		;				I
+	LD	A,(HL)		;				I
+	OUT	(C),A		; CHANNEL RESET.		I
+	XOR	A		;				I
+	CP	(IX+ID)		; MAIN BOARD ?			I
+	JR	NZ,OPN090	; NO.				I
+	LD	HL,WR2B		;				I
+	JR	OPN100		;				I
+;								I
+OPN090:				;				I
+	LD	A,C		;				I
+	AND	0F0H		;				I
+	OR	005H		;				I
+	LD	C,A		;				I
+	INC	HL		;				I
+	LD	A,(HL)		;				I
+	OUT	(C),A		; WR2 CHANNEL A SELECT.		I
+	INC	HL		;				I
+	LD	A,(HL)		;				I
+	OUT	(C),A		; WRITE DATA.			I
+	INC	C		;				I
+	INC	C		;				I
+	INC	HL		;				I
+OPN100:				;				I
+	LD	A,(HL)		;				I
+	OUT	(C),A		; WR2 CHANNEL B.		I
+	INC	HL		;				I
+	LD	A,(HL)		;				I
+	OUT	(C),A		;				I
+	LD	C,(IX+RSCREG)	;				I
+	LD	B,8		;				I
+	INC	HL		;				I
+	OTIR			;				I
+	LD	(IX+FLAG),1	;set open flag.			I
+;								I
+OPN120:				;				I
+	PUSH	IX		;				I
+	POP	HL		; COPY IX.			I
+	LD	DE,FLAG		; SET RETURN INFORMATION.	I
+	ADD	HL,DE		;	 |			I
+	LD	A,-1		;	 |			I
+	LD	(MBANKS),A	;	 |			I
+	LD	DE,(SAVEHL)	;	 |			I
+	LD	BC,9		;	 |			I
+	CALL	LDIRX		;	 v			I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	XOR	A		;clear return code.
+;
+RTN:
+	AND	A		;set return code.
+	LD	HL,(SAVEHL)	;restore parameter address
+	JP	RSOVER		;RET  return to caller
+;
+;
+;
+;
+;
+	PAGE
+;*
+;***********************************
+ORSINT:		; INTRRUPT HANDLER *
+;***********************************
+;*
+	LD	(SVSPIR),SP	; . . . . . . . . . . . . . . . I
+	LD	SP,STCKIR	;				I
+	PUSH	BC		;				I
+	PUSH	IX		;				I
+	PUSH	IY		;				I
+	EX	AF,AF'		;				I
+	EXX			;				I
+	PUSH	AF		;				I
+	PUSH	BC		;				I
+	PUSH	DE		;				I
+	PUSH	HL		;				I
+;				;				I
+ORSI05:				;				I
+	LD	IX,O1A		;				I
+ORSI10:				;				I
+	BIT	OPENF,(IX+FLAG)	;Opened ?			I
+	JR	Z,ORSI20	; NO.				I
+ORSI15:				;				I
+	LD	C,(IX+RSCREG)	;				I
+	LD	A,01H		;select RR1.			I
+	OUT	(C),A		;				I
+	IN	A,(C)		;read RR1.			I
+	AND	70H		;set error status.		I
+	OR	(IX+FLAG)	;				I
+	LD	(IX+FLAG),A	;set error code.		I
+	IN	A,(C)		;				I
+	AND	RXCA		; RX CHAR AVAILABLE ?		I
+	JR	Z,ORSI20	; NO. 7201 RCV BUFFER EMPTY	I
+	CALL	ORSI40		; GET DATA			I
+ORSI20:				;				I
+	LD	C,(IX+RSCREG)	;				I
+	LD	A,028H		; RESET TX INT.			I
+	OUT	(C),A		;				I
+	LD	A,030H		; ERROR RESET.			I
+	OUT	(C),A		;				I
+	LD	C,(IX+RSCOUNT)	; CLEAR INTERRUPT.		I
+	INC	C		;				I
+	IN	A,(C)		;				I
+	BIT	0,(IX+ID)	;BOTH CHANNEL CHECK END ?	I
+	JR	NZ,ORSI30	; NO.  CHECK CHANNEL B.		I
+	LD	A,(IX+RSCREG)	; A=I/O PORT ADDR.		I
+	AND	0F0H		;				I
+	OR	005H		; CHANNEL A CONTROL I/O PORT.	I
+	LD	C,A		;				I
+	LD	A,038H		; END OF INTERRUPT.		I
+	OUT	(C),A		;				I
+ORSI30:				;				I
+	LD	A,4		;				I
+	CP	(IX+ID)		; ALL CHANNEL CHECK END ?	I
+	JR	Z,ORSRTN	; YES.				I
+	LD	BC,O1B-O1A	; NEXT TABLE ADDRESS.		I
+	ADD	IX,BC		;				I
+	JR	ORSI10		; CONTINUE.			I
+;				;				I
+ORSRTN:				;				I
+	LD	HL,O1AFLG	;OPTION 1/channel A.		I
+	BIT	OPENF,(HL)	;opened ?			I
+	JR	Z,ORSRTN1	;no.				I
+;								I
+	LD	C,0A5H		;C = control reg. port		I
+	IN	B,(C)		;read RR0.			I
+	LD	A,B		;keep.				I
+ORSRTN1:			;				I
+	LD	HL,O1BFLG	;OPTION 1/channel B.		I
+	BIT	OPENF,(HL)	;opened ?			I
+	JR	Z,ORSRTN2	;no.				I
+;								I
+	LD	C,0A7H		;C = control reg. port.		I
+	IN	B,(C)		;read RR0.			I
+	OR	B		;keep.				I
+ORSRTN2:			;				I
+	LD	HL,O2AFLG	;OPTION 2/channel A.		I
+	BIT	OPENF,(HL)	;opened ?			I
+	JR	Z,ORSRTN3	;no.				I
+;								I
+	LD	C,0C5H		;C = control reg. port.		I
+	IN	B,(C)		;read RR0.			I
+	OR	B		;keep.				I
+ORSRTN3:			;				I
+	LD	HL,O2BFLG	;OPTION 2/channel B.		I
+	BIT	OPENF,(HL)	;opened ?			I
+	JR	Z,ORSRTN4	;no.				I
+;								I
+	LD	C,0C7H		;C = control reg. port.		I
+	IN	B,(C)		;read RR0.			I
+	OR	B		;keep.				I
+ORSRTN4:			;				I
+	AND	RXCA		;data available ?		I
+	JP	NZ,ORSI05	;yes. get next data.		I
+	LD	A,20H		;NORMAL EOI			I
+	OUT	(08H),A		;MASTER				I
+	OUT	(0CH),A		;SLAVE 8259.			I
+	POP	HL		;				I
+	POP	DE		;				I
+	POP	BC		;				I
+	POP	AF		;				I
+	EXX			;				I
+	EX	AF,AF'		;				I
+	POP	IY		;				I
+	POP	IX		;				I
+	POP	BC		;				I
+	LD	SP,(SVSPIR)	;				I
+	RET			; . . . . . . . . . . . . . . . I
+;
+;
+ORSI40:				; . . . . . . . . . . . . . . . I
+	PUSH	BC		;				I
+	CALL	CTL00		; READ CONTROL LINE.		I
+	POP	BC		;				I
+	AND	88H		;				I
+	OR	(IX+FLAG)	;				I
+	LD	(IX+FLAG),A	; SET CONTROL LINE FLAG.	I
+	XOR	A		;				I
+	CP	(IX+ID)		;main board ?			I
+	JR	NZ,ORSI50	;no.				I
+	DEC	C		;				I
+ORSI50:				;				I
+	DEC	C		; C = DATA REG.			I
+	IN	B,(C)		;read received data.		I
+	LD	A,(IX+CHRMSK)	;received data mask.		I
+	AND	B		;mask data bit			I
+	BIT	XXON,(IX+SKX)	;X-ON ?				I
+	JR	Z,ORSI54	;No.				I
+ORSI51:				;				I
+	CP	CTRLS		;CTRL-S ?			I
+	JR	NZ,ORSI52	;No.				I
+	SET	RCTRLS,(IX+SKX) ;Set received CTRL-S Flag	I
+	RET			;Return.			I
+;								I
+ORSI52:				;				I
+	CP	CTRLQ		;CTRL-Q ?			I
+	JR	NZ,ORSI54	;No.				I
+	RES	RCTRLQ,(IX+SKX) ;Reset CTRL-S FLAG.		I
+	RET			;Return.			I
+;				;				I
+ORSI54:				;				I
+	BIT	RSFULL,(IX+FLAG);buffer full ?			I
+	JR	Z,ORSI55	;no.				I
+	SET	BFOVER,(IX+FLAG);buffer overflow.		I
+	RET			;				I
+;								I
+ORSI55:				;				I
+	LD	L,(IX+PUTP)	;				I
+	LD	H,(IX+PUTP+1)	; HL = PUT POINTER.		I
+	PUSH	HL		;				I
+	INC	HL		;				I
+	PUSH	HL		;				I
+	EX	DE,HL		;				I
+	LD	C,(IX+BUFA)	;				I
+	LD	B,(IX+BUFA+1)	; BC = BUFFER TOP ADDRESS.	I
+	LD	L,(IX+BUFS)	;				I
+	LD	H,(IX+BUFS+1)	; HL = BUFFER SIZE.		I
+	ADD	HL,BC		; HL = BUFFER END ADDR + 1.	I
+	EX	DE,HL		; DE = BUFFER END ADDR + 1.	I
+	OR	A		; CY OFF.			I
+	SBC	HL,DE		; BUFFER END ?			I
+	POP	HL		;				I
+	JR	NZ,ORSI60	; NO.				I
+	LD	L,C		;				I
+	LD	H,B		; HL = BUFFER TOP ADDRESS.	I
+ORSI60:				;				I
+	PUSH	HL		;				I
+	LD	E,(IX+GETP)	;				I
+	LD	D,(IX+GETP+1)	;				I
+	OR	A		; CLEAR CY.			I
+	SBC	HL,DE		; BUFFER FULL ?			I
+	POP	HL		;				I
+	JR	NZ,ORSI70	; NO.				I
+	SET	RSFULL,(IX+FLAG); BUFFER FULL.  		I
+ORSI70:				;				I
+	LD	(IX+PUTP),L	; RESTORE PUT POINTER.		I
+	LD	(IX+PUTP+1),H	;				I
+;				;				I
+	POP	HL		;store address			I
+	PUSH	AF		;Save received data.		I
+	EX	AF,AF'		;A'<- data			I
+	LD	A,(RSXBANK)	;				I
+	CALL	STAXX		;put received data		I
+;				;				I
+	POP	AF		;Get received data.		I
+	LD	L,(IX+LOCNT+0)	;Get LOC.			I
+	LD	H,(IX+LOCNT+1)	;				I
+	BIT	SHIFT,(IX+SKX)	;Check shift mode.		I
+	JR	Z,ORSI74	;Non shift mode.		I
+	CP	SO		;SHIFT OUT Code ?		I
+	JR	Z,ORSI76	;Yes.				I
+	CP	SI		;SHIFT IN Code ?		I
+	JR	Z,ORSI76	;Yes.				I
+ORSI74:				;				I
+	INC	HL		;Increment LOC.			I
+ORSI76: 			;				I
+	LD	(IX+LOCNT+0),L	;Save LOC.			I
+	LD	(IX+LOCNT+1),H	;				I
+OSRI78:				;				I
+	BIT	XXON,(IX+SKX)	;X-ON ?				I
+	RET	Z 		;No. RETUREN.			I
+	CALL	LOC		;Check LOC.			I
+	LD	L,(IX+XONS+0)	;				I
+	LD	H,(IX+XONS+1)	;				I
+	OR	A		;CY Off.			I
+	SBC	HL,BC		;(Buffer size - Buffer size/4)-LOC
+	RET	NC		;				I
+ORSI80:				;				I
+	CALL	WRSTS		;Check PUT buffer.		I
+	JR	Z,ORSI80	;PUT buffer full.		I
+	LD	C,(IX+RSDREG)	;Get DATA Reg.			I
+	LD	A,CTRLS		;				I
+	OUT	(C),A		;put CTRL-S			I
+	SET	SCTRLS,(IX+SKX) ;Set Control S SEND flag.	I
+ORSI90:				;				I
+	RET			; RETURN. . . . . . . . . . . . I
+;
+;
+;
+;
+;
+	PAGE
+;*********************************
+CLOSE:		; CLOSE ROUTINE  *
+;*********************************
+;*
+	CALL	ISET		; SET IX.  (IX = CONTROL BLOCK ADDR)
+	JP	NC,PERR		;
+	LD	C,(IX+RSCREG)	;
+	LD	A,001H		;
+	OUT	(C),A		; SELECT RR1.
+	IN	A,(C)		; READ RR1.
+	AND	001H		; ALL SENT ?
+	JR	NZ,CLS020	; YES.
+;
+	LD	B,9		;
+CLS010:	CALL	ST50ML		; WAIT 450 ML.
+	DJNZ	CLS010		;
+;
+CLS020:
+	CALL	ST50ML		;
+	LD	A,018H		; CHANNEL RESET.
+	OUT	(C),A		;
+	XOR	A		;
+	LD	(IX+FLAG),A	; CLEAR CONTROL FLAG.
+	JP	RSOVER		;RET  return.
+;
+;
+;
+;
+;
+	PAGE
+;*************************************
+INSTS:		; READ INPUT STATUS  *
+;*************************************
+;*
+	CALL	ISET		; SET IX.
+	JP	NC,PERR		;
+	JR	Z,INST80	; Not Opened.
+INST10:
+	PUSH	IX		;
+	POP	HL		;IX copied to HL
+	LD	DE,FLAG		;
+	ADD	HL,DE		; SET RETURN INFORMATION.
+;
+INST20:
+	XOR	A		;normal return
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	C,(IX+LOCNT+0)	;Set LOC.			I
+	LD	B,(IX+LOCNT+1)	;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	CP	C		;Check LOC.
+	JR	NZ,INST30	;LOC <> 0.
+	CP	B		;LOC = 0 ?
+	JR	Z,INST90	;Yes.
+INST30:				;
+	DEC	A		;
+RSRTN:
+	LD	E,A		; KEEP RETURN CODE.
+	XOR	A		; Z FLAG = 1.
+	LD	A,E		; RESTORE REG A.
+	PUSH	AF		;save return code
+	PUSH	BC		;save received data bytes
+	LD	A,-1		;system bank
+	LD	(MBANKS),A
+	LD	DE,(SAVEHL)
+	LD	BC,9
+	CALL	LDIRX		;
+	POP	BC		;restore received data count
+	POP	AF		;restore return code
+	LD	HL,(SAVEHL)
+	JP	RSOVER
+;
+; not opened
+;
+INST80:
+	LD	A,3		; SET RETURN CODE.
+	AND	A		;Zflag = 0
+INST90:
+	LD	BC,0		;LOC=0
+	LD	HL,(SAVEHL)
+	JP	RSOVER		;error return
+;
+;
+;
+	PAGE
+;**************************************
+OUTSTS:		; READ OUTPUT SATUSE  *
+;**************************************
+;*
+	CALL	ISET		; SET IX.
+	JP	NC,PERR		;
+	JR	Z,INST80	; Not Opened.
+;
+OUTS010:
+	XOR	A		;
+	BIT	XXON,(IX+SKX)	;X-ON ?
+	JR	Z,OUTS020	;No.
+	BIT	RCTRLS,(IX+SKX) ;Received CTRL-S ?
+	JR	Z,OUTS020	;No.
+	OR	A		;Z flag=1,A=0
+	JR	INST90		;
+;				;
+OUTS020:			;
+	PUSH	IX		;
+	POP	HL		; COPY IX.
+	LD	DE,FLAG		;
+	ADD	HL,DE		; SET RETURN INFORMATION.
+	CALL	WRSTS		;
+	JR	Z,INST90	;Zflag=1, A=0
+;
+; normal return
+;
+OUTS030:			;
+	DEC	A		;
+	JR 	RSRTN		; RETURN TO CALLER.
+;
+;
+;
+;
+;
+	PAGE
+;****************************
+GET:		; GET DATA  *
+;****************************
+;*
+	CALL	ISET		; SET IX.
+	JP	NC,PERR		;
+	JR	Z,INST80	; Not Opened.
+;
+GET10:
+	XOR	A		;
+	CALL	RDSTS		; READY ?
+	JR	Z,GET10		; NO.
+	DI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	LD	L,(IX+GETP)	;				I
+	LD	H,(IX+GETP+1)	; HL = GET ADDRESS.		I
+	LD	A,(RSDFOP)	;				I
+	INC	A		;				I
+	JR	Z,GET15		; option buffer			I
+	LD	A,(HL)		; default buffer		I
+	JR	GET16		;				I
+GET15:				;				I
+	LD	A,(RSXBANK)	;				I
+	CALL	LDAXX		;				I
+	LD	A,C		;get data			I
+GET16:				;				I
+	INC	HL		;				I
+	PUSH	HL		; CHECK NEXT GET ADDRESS.	I
+	EX	DE,HL		;				I
+	LD	C,(IX+BUFA)	;				I
+	LD	B,(IX+BUFA+1)	; BC = BUFFER ADDRESS.		I
+	LD	L,(IX+BUFS)	;				I
+	LD	H,(IX+BUFS+1)	; HL = BUFFER SIZE.		I
+	ADD	HL,BC		;				I
+	EX	DE,HL		; DE = BUFFER END ADDRESS + 1.	I
+	OR	A		; RESET CY.			I
+	SBC	HL,DE		;				I
+	POP	HL		;				I
+	JR	NZ,GET20	;				I
+	LD	L,C		;				I
+	LD	H,B		; HL = BUFFER TOP ADDRESS.	I
+GET20:				;				I
+	LD	(IX+GETP),L	; KEEP NEXT GET ADDRESS.	I
+	LD	(IX+GETP+1),H	;				I
+	RES	RSFULL,(IX+FLAG);reset buffer full		I
+	BIT	XXON,(IX+SKX)	;X-ON ?				I
+	JR	Z,GET40		;No ?				I
+	BIT	SCTRLS,(IX+SKX) ;Send CTRL-S ?			I
+	JR	Z,GET40		;No.				I
+	CALL	LOC		;Check LOC.			I
+	LD	L,(IX+XOFFS+0)	;Get X-OFF Size.			I
+	LD	H,(IX+XOFFS+1)	;				I
+	OR	A		;CY Off.			I
+	SBC	HL,BC		;LOC-(Buffer size)/4		I
+	JR	C,GET40		;				I
+GET30:				;				I
+	CALL	WRSTS		;Check PUT Buffer.		I
+	JR	Z,GET30		;Buffer busy.			I
+	LD	C,(IX+RSDREG)	;Get DATA Reg.			I
+	LD	B,CTRLQ		;				I
+	OUT	(C),B		;Put CTRL-Q.			I
+	RES	SCTRLS,(IX+SKX) ;Reset CTRL-S send flag		I
+GET40:				;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+;
+	LD	C,A
+	LD	A,(IX+CHRMSK)	;Received data mask.
+	AND	C
+	LD	C,A
+;
+	LD	A,(IX+SKX)
+	AND	04H		;#QX-10#
+	JR	Z,GET800	;not SI/SO mode.
+;
+;
+;
+;	SI/SO mode
+;
+GET300:
+	LD	A,C
+	CP	SO
+	JR	Z,GETSO		;SO
+	CP	SI
+	JR	Z,GETSI		;SI
+	CP	20H		;
+	JR	C,GET800	;
+	CP	7FH		;
+	JR	Z,GET800	;
+	JR	GET700		;
+;
+;
+;	[  SI  ]
+GETSI:
+	XOR	A
+	LD	(IX+SISO),A	;set SI mode.
+	JP	GET10		;wait for next code.
+;
+;
+;	[  SO  ]
+GETSO:
+	LD	A,80H
+	LD	(IX+SISO),A	;set SO mode.
+	JP	GET10		;wait for next code.
+;
+;
+GET700:
+	LD	A,(IX+SISO)
+	OR	C
+	DB	0FEH		;skip next instruction.
+;
+GET800:
+	LD	A,C
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	L,(IX+LOCNT+0)	;				I
+	LD	H,(IX+LOCNT+1)	;				I
+	DEC	HL		;LOC-1				I
+	LD	(IX+LOCNT+0),L	;Set LOC.			I
+	LD	(IX+LOCNT+1),H	; *   *				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	PUSH	IX
+	POP	HL		;copy IX
+	LD	DE,FLAG
+	ADD	HL,DE		;set return parameter.
+	JP	RSRTN		;return.
+;
+;
+;
+;
+;
+	PAGE
+;****************************
+PUT:		; PUT DATA  *
+;****************************
+;*
+	CALL	ISET		; SET IX.
+	JP	NC,PERR		;
+	JP	Z,INST80	; Not opened.
+;
+	LD	A,C
+	CP	LF
+	JP	Z,PUTLF		;line feed.
+	CP	CR
+	JP	Z,PUTCR		;carriage return.
+;
+	LD	A,(IX+SKX)	;
+	AND	04H		;#QX-10#
+	JR	Z,PUT700	;not SI/SO mode.
+;
+;	
+;	SI/SO check mode
+;
+PUT100:
+	LD	A,C
+	CP	80H
+	JR	NC,PUT200	;
+;
+;	[  00 - 7F  ]
+;
+PUT150:
+	LD	A,(IX+STS)
+	AND	A
+	JR	Z,PUT700
+	XOR	A
+	LD	(IX+STS),A	;(STS)=0
+	PUSH	BC
+	LD	A,SI
+	CALL	PUTSET		;set SI mode.
+	POP	BC
+	JR	PUT700
+;
+;	[  80 - FF  ]
+;
+PUT200:
+	LD	A,(IX+CHRMSK)	;received data mask
+	AND	C		;
+	LD	C,A		;
+	CP	20H		;
+	JR	C,PUT150	;
+	LD	A,(IX+STS)
+	DEC	A
+	JR	Z,PUT700
+	LD	A,1
+	LD	(IX+STS),A	;(STS)=1
+	PUSH	BC
+	LD	A,SO
+	CALL	PUTSET		;set SO mode.
+	POP	BC
+;
+PUT700:
+	LD	A,C
+	CALL	PUTSET
+;
+PUT900:
+	PUSH	IX
+	POP	HL		;copy IX
+	LD	DE,FLAG
+	ADD	HL,DE
+	JP	RSRTN		;return.
+;
+;
+;
+;	[  CR , LF  ]
+;
+PUTLF:
+PUTCR:
+	LD	A,-1
+	LD	(IX+STS),A
+	BIT	SHIFT,(IX+SKX)
+	JR	Z,PUT700
+	PUSH	BC
+	LD	A,SI
+	CALL	PUTSET		;set SI mode.
+	POP	BC
+	JR	PUT700
+;
+;
+;
+;
+;
+PUTSET:
+	CALL	WRSTS		;check device.
+	JR	Z,PUTSET	;device busy.
+	LD	C,(IX+RSDREG)	;
+	OUT	(C),A
+	CALL	CTL00		;
+	AND	88H		;select DSR,DCD.
+	OR	(IX+FLAG)
+	LD	(IX+FLAG),A	;set control line flag
+	RET
+;
+;
+;
+;
+;
+	PAGE
+;*************************************
+CTLIN:		; READ CONTROL LINE  *
+;*************************************
+;
+	CALL	ISET		; SET IX.
+	JP	NC,PERR		;
+	JR	Z,CTL90		; Not opened.
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	CALL	CTL00		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	JP	RSOVER		;
+;
+;
+;
+CTL00:
+	XOR	A		;
+	CP	(IX+ID)		; MAIN RS ?
+	JR	NZ,CTL10	; NO.
+	IN	A,(015H)	; READ MAIN RS DSR.
+	RRCA			;
+	AND	080H		;
+	JR	CTL50		;
+;
+CTL10:
+	LD	C,(IX+RSCOUNT)	;
+	INC	C		; C = ID CHECK PORT.
+	IN	A,(C)		; READ DSR,RING.
+	AND	0E0H		; READ DSR (CH.A,CH.B),RINGG.
+	BIT	0,(IX+ID)	; CHANNEL A ?
+	JR	Z,CTL40		;NO.  CHANNEL B.
+	OR	A		; CY OFF.
+	RLA			; DSR (CH. A) ON ?
+	JR	NC,CTL20	; NO.
+	OR	080H		; YES.  DSR (CH. A) ON.
+	JR	CTL30		; NEXT.
+;
+CTL20:
+	AND	040H		; DSR OFF. (CH. A)
+CTL30:
+	JR	CTL50		;
+;
+CTL40:
+	AND	060H		; CHANNEL B.
+	RLCA			;
+CTL50:
+	LD	B,A		; KEEP DSR & RING.
+	LD	C,(IX+RSCREG)	;
+	IN	A,(C)		; READ RR0.
+	AND	028H		; SELECT CTS,DCD.
+	OR	B		; SET RETURN INFORMATION.
+	LD	B,A		; KEEP.
+	LD	A,10H		; RESET E/S I.
+	OUT	(C),A		;
+	LD	A,B		; RESTOR.
+;
+;  RETURN.
+;
+	LD	E,A
+	XOR	A		;Zflag=1
+	LD	A,E
+	RET			;
+;
+;
+CTL90:
+	LD	A,3
+	AND	A		;Zflag=0
+	JP	RSOVER
+;
+;
+;
+;
+;
+	PAGE
+;************************************
+SETCTL:		; SET CONTROL LINE  *
+;************************************
+;*
+	CALL	ISET		; SET IX.
+	JP	NC,PERR		;
+	JR	Z,CTL90		;Not opened.
+;
+	LD	A,(IX+BITPC)	; GET BIT/CHAR.
+	AND	03H		;
+	RRCA			;
+	RRCA			;
+	LD	D,A		; KEEP BIT/CHAR.
+	RRCA			;
+	LD	E,A		; KEEP BIT/CHAR.
+	LD	A,C		; GET CONTROL DATA.
+	LD	C,(IX+RSCREG)	; GET CONTROL REG.
+	AND	03H		; RTS.DTR ONLY.
+	BIT	0,A		; SET DTR ?
+	JR	Z,SETC010	; NO.
+;
+	AND	02H		; CLEAR DTR DATA.
+	OR	80H		; SET DTR BIT.
+SETC010:
+	OR	E		; SET BIT/CHAR.
+	OR	08H		; TX ENABLE.
+	LD	E,05H		;
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	OUT	(C),E		; SELECT WR5.			I
+	OUT	(C),A		; SET WR5.  (DTR OR RTS)	I
+	LD	A,B		;				I
+	AND	020H		; AUTO ENABLE ONLY.		I
+	OR	D		; SET BIT/CHAR.			I
+	OR	01H		; RX ENABLE.			I
+	LD	E,03H		;				I
+	OUT	(C),E		; SELECT WR3.			I
+	OUT	(C),A		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	LD	E,A		;
+	XOR	A		;Zflag=1
+	LD	A,E
+	JR	RSOVER
+;
+;
+;
+;
+;
+	PAGE
+;*************************************
+ERSTS:		; READ ERROR STATUS  *
+;*************************************
+;
+	CALL	ISET		; SET IX.
+	JP	NC,PERR		;
+	LD	A,(IX+FLAG)	;
+	JR	Z,CTL90		;NOT OPENed.
+;
+	LD	E,A		;keep.
+	AND	03H		;keep open flag & buffer full flag.
+	LD	(IX+fLAG),A	;clear error flag.
+	LD	A,E		;restore.
+	AND	0FCH		; CLEAR OPEN,GET.
+	LD	E,A		;
+	XOR	A		;Zflag=1
+	LD	A,E
+	JR	RSOVER
+;
+;
+;
+;
+;
+	PAGE
+;***********************************
+SENS:		; SENSE RS STATUS  *
+;***********************************
+;
+;
+	CALL	ISET		;
+	JP	NC,PERR		;
+	XOR	A		;
+	CP	(IX+ID)		; MAIN BOARD RS ?
+	JR	NZ,SENS10	; NO.
+	CP	(IX+FLAG)	; OPEND ?
+	JR	Z,RSOVER	;Zflag=1
+;
+;
+SENS10:
+	INC	A		; A = 1.
+	AND	(IX+FLAG)	; MULTI OPEN ?
+	JR	NZ,SNSRTN	; YES.   ERROR RETURN.
+	CALL	RSCHK		;
+	XOR	A		;
+	CP	(IX+FLAG)	; OPTION BOARD CONNECTED ?
+	LD	(IX+FLAG),A	; CLEAR OPEN FLAG.
+	JR	NZ,SNSRT1	; YES.
+	INC	A		; A = 1.   OPTION NOTHING.
+	JR	SNSRT1		; RETURN.
+;
+SNSRTN:
+	LD	A,2		;set busy
+SNSRT1:
+	AND	A		;Zflag=0
+;JR	RSOVER
+;
+;
+RSOVER:
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	SP,(SVSPRS)	;				I
+	RET			; . . . . . . . . . . . . . . . I
+;
+;
+;
+;
+;
+SAVEHL:	DW	0
+SVPARA:	DS	9
+;
+SVSPRS:	DW	0
+;
+;
+;
+;
+;
+	PAGE
+;*******************************************************
+ISET:		; SET IX.  (IX=CONTROL BLOCK ADDRESS)  *
+;*******************************************************
+;*
+	LD	A,B		;
+	AND	00FH		;
+	CP	5		;
+	RET	NC		;
+	PUSH	HL		;
+	RLCA			;
+	LD	HL,RTBL		;
+	LD	D,0		;
+	LD	E,A		;
+	ADD	HL,DE		; GET CONTROL TABLE.
+	LD	E,(HL)		;
+	INC	HL		;
+	LD	D,(HL)		;
+	PUSH	DE		;
+	POP	IX		;
+	POP	HL		;
+	SCF			;
+	BIT	OPENF,(IX+FLAG)	;Opened ?
+	RET			;
+;
+;
+;
+;
+;
+;***********************************
+RSCHK:		; CHECK RS STATUS  *
+;***********************************
+;
+	LD	B,0		;
+	LD	C,(IX+1)
+	INC	C
+	CALL	MASKI		;
+	EI			;
+	LD	C,0
+	JR	NZ,OPN30
+	LD	C,0FEH		;set normal open ID.
+OPN30:
+	LD	(IX+FLAG),C
+	RET
+;
+;
+;
+;
+;
+;***********************************
+WRSTS:		; CHECK PUT STATUS *
+;***********************************
+;*
+	LD	C,(IX+RSCREG)	;
+	IN	B,(C)		; READ RR0.
+	BIT	2,B		; TRANSMIT BUFFER EMPTY ?
+	RET			;
+;
+;
+;
+;
+;
+;***********************************
+RDSTS:		; CHECK GET STATUS *
+;***********************************
+;*
+	PUSH	DE		;
+	PUSH	HL		;
+	BIT	RSFULL,(IX+FLAG);buffer full ?
+	JR	NZ,RDSTS01	;yes.
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	L,(IX+PUTP)	;				I
+	LD	H,(IX+PUTP+1)	; HL = PUT POINTER.		I
+	LD	E,(IX+GETP)	;				I
+	LD	D,(IX+GETP+1)	; DE = GET POINTER.		I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	OR	A		; CY OFF.
+	SBC	HL,DE		;
+RDSTS01:
+	POP	HL		;
+	POP	DE		;
+	RET			;
+;
+;
+;
+;
+;
+;**************************************
+LOC:		; SET CHARACTER COUNT *
+;**************************************
+;
+	PUSH	DE		;
+	PUSH	HL		;
+	BIT	RSFULL,(IX+FLAG);buffer full ?
+	JR	Z,LOC10		;no.
+	LD	L,(IX+BUFS)	;set LOC.
+	LD	H,(IX+BUFS+1)	;
+	JR	LOCRTN		;return.
+LOC10:
+	LD	L,(IX+PUTP)	;
+	LD	H,(IX+PUTP+1)	; HL = PUT POINTER.
+	LD	E,(IX+GETP)	;
+	LD	D,(IX+GETP+1)	; DE = GET POINTER.
+	OR	A		; CY OFF.
+	SBC	HL,DE		; PUT POINTER - GET POINTER.
+	JR	NC,LOCRTN	; RETURN.
+	LD	L,(IX+PUTP)	;
+	LD	H,(IX+PUTP+1)	; HL = PUT POINTER.
+	EX	DE,HL		;
+	OR	A		; CY OFF.
+	SBC	HL,DE		; GET POINTER - PUT POINTER.
+	EX	DE,HL		;
+	LD	L,(IX+BUFS)	;
+	LD	H,(IX+BUFS+1)	; HL BUFFER SIZE.
+	OR	A		;
+	SBC	HL,DE		;
+LOCRTN:
+	PUSH	HL		;
+	POP	BC		;
+	POP	HL		;
+	POP	DE		;
+	RET			;
+;
+;
+;
+;
+;
+	PAGE
+;
+;*
+;********************************
+;*  RS 232 C  DATA AREA ASSING. *
+;********************************
+;*
+RSDATA:
+CLKRT:	DW	0		;CLOCK RATE.
+D7201:	DB	018H		;CHANNEL RESET.
+	DB	002H		;WR2 A.
+	DB	000H		;NON VECT 85 mode.
+WR2B:	DB	002H		;WR2 B.
+	DB	000H		;INT VECTOR.
+	DB	004H		;WR4.
+WR4D:	DB	000H		;USER SELECT.  STOP BIT,PARITY.
+	DB	001H		;WR1.
+	DB	010H		;ALL CHARACTER INT.
+	DB	005H		;WR5.
+WR5D:	DB	000H		;USER SELECT.  TX BIT RATE.
+	DB	003H		;WR3.
+WR3D:	DB	000H		;USER SELECT.  RX BIT RATE.
+;
+RATEM:	DW	09C0H		;   50.
+	DW	0680H		;   75.
+	DW	046FH		;  110.
+	DW	039CH		;  135.
+	DW	0340H		;  150.
+	DW	0270H		;  200.
+	DW	01A0H		;  300.
+	DW	0138H		;  400.
+	DW	00D0H		;  600.
+	DW	008BH		;  900.
+	DW	0068H		; 1200.
+	DW	0045H		; 1800.
+	DW	0034H		; 2400.
+	DW	001AH		; 4800.
+	DW	000DH		; 9600.
+;
+RATEO:	DW	0780H		;   50.
+	DW	0500H		;   75.
+	DW	0369H		;  110.
+	DW	02C7H		;  135.
+	DW	0280H		;  150.
+	DW	01E0H		;  200.
+	DW	0140H		;  300.
+	DW	00F0H		;  400.
+	DW	00A0H		;  600.
+	DW	006BH		;  900.
+	DW	0050H		; 1200.
+	DW	0035H		; 1800.
+	DW	0028H		; 2400.
+	DW	0014H		; 4800.
+	DW	000AH		; 9600.
+	DW	0005H		;19200.
+;
+;
+MRSP:	DB	000H		;ID.
+	DB	007H		;
+	DB	006H		;
+	DB	011H		;
+	DB	013H		;
+MRSFLG:	DB	000H		;MAIN RS CTRL FLAG.
+MGETP:	DW	0		;MAIN RS GET POINTER.
+MPUTP:	DW	0		;MAIN RS PUT POINTER.
+MBUFA:	DW	0		;MAIN RS BUFFER ADDRESS.
+MBUFS:	DW	0		;MAIN RS BUFFER SIZE.
+	DB	0		;KEEP BIT/CHR.
+	DB	0		;SI/SO, KSHIFT, X-ON/X-OFF
+	DW	0		;X-ON  BUFFER SIZE.
+	DW	0		;X-OFF BUFFER SIZE.
+	DB	0		;received data mask.
+	DB	0		;GET SISO
+	DB	-1		;PUT STS
+	DW	0		;LOC. 
+;
+O1A:		DB	1	;ID.
+		DB	0ABH	;
+		DB	0A8H	;
+		DB	0A4H	;
+		DB	0A5H	;
+O1AFLG:		DB	000H	;
+O1AGETP:	DW	0	;
+O1APUTP:	DW	0	;
+O1ABFA:		DW	0	;
+O1ABFS:		DW	0	;
+		DB	0	;KEEP BIT/CHAR.
+		DB	0	;SI/SO, KSHIFT, X-ON/X-OFF
+		DW	0	;X-ON  BUFFER SIZE.
+		DW	0	;X-OFF BUFFER SIZE.
+		DB	0	;received data mask.
+		DB	0	;GET SISO
+		DB	-1	;PUT STS
+		DW	0	;LOC.
+;
+O1B:		DB	2	; ID.
+		DB	0ABH	;
+		DB	0A9H	;
+		DB	0A6H	;
+		DB	0A7H	;
+O1BFLG:		DB	000H	;
+O1BGETP:	DW	0	;
+O1BPUTP:	DW	0	;
+O1BBFA:		DW	0	;
+O1BBFS:		DW	0	;
+		DB	0	;KEEP BIT/CHAR.
+		DB	0	;SI/SO, KSHIFT, X-ON/X-OFF
+		DW	0	;X-ON  BUFFER SIZE.
+		DW	0	;X-OFF BUFFER SIZE.
+		DB	0	;received data mask.
+		DB	0	;GET SISO
+		DB	-1	;PUT STS
+		DW	0	;LOC.
+;
+O2A:		DB	3	; ID.
+		DB	0CBH	;
+		DB	0C8H	;
+		DB	0C4H	;
+		DB	0C5H	;
+O2AFLG:		DB	000H	;
+O2AGETP:	DW	0	;
+O2APUTP:	DW	0	;
+O2ABFA:		DW	0	;
+O2ABFS:		DW	0	;
+		DB	0	;KEEP BIT/CHAR.
+		DB	0	;SI/SO, KSHIFT, X-ON/X-OFF
+		DW	0	;X-ON  BUFFER SIZE.
+		DW	0	;X-OFF BUFFER SIZE.
+		DB	0	;received data mask.
+		DB	0	;GET SISO
+		DB	-1	;PUT STS
+		DW	0	;LOC.
+;
+O2B:		DB	4	; ID.
+		DB	0CBH	;
+		DB	0C9H	;
+		DB	0C6H	;
+		DB	0C7H	;
+O2BFLG:		DB	000H	;
+O2BGETP:	DW	0	;
+O2BPUTP:	DW	0	;
+O2BBFA:		DW	0	;
+O2BBFS:		DW	0	;
+		DB	0	;KEEP BIT/CHAR.
+		DB	0	;SI/SO, KSHIFT, X-ON/X-OFF
+		DW	0	;X-ON  BUFFER SIZE.
+		DW	0	;X-OFF BUFFER SIZE.
+		DB	0	;received data mask.
+		DB	0	;GET SISO
+		DB	-1	;PUT STS
+		DW	0	;LOC.
+;
+RTBL:	DW	MRSP		;CONTROL BLOCK ADDRESS TABLE.
+	DW	O1A
+	DW	O1B
+	DW	O2A
+	DW	O2B
+;
+INTD:	DS	1		;ID CHECK AREA.
+;
+	DS	32		;STACK AREA.
+STCKRS:
+;
+ID	EQU	0		;ID,
+RSCOUNT	EQU	1		;8253-5. 
+RSDREG	EQU	3		;7201 DATA REG.
+RSCREG	EQU	4		;7201 CONTROL REG.
+FLAG	EQU	5		;CONTROL FLAG.
+GETP	EQU	6		;GET POINTER.
+PUTP	EQU	8		;PUT POINTER.
+BUFA	EQU	10		;BUFFER ADDRESS.
+BUFS	EQU	12		;BUFFER SIZE.
+BITPC	EQU	14		;BIT/CHAR.
+SKX	EQU	15		;SI/SO, KSHIFT, X-ON/X-OFF
+XONS	EQU	16		;X-ON  SIZE.
+XOFFS	EQU	18		;X-OFF SIZE.
+CHRMSK	EQU	20		;Received data mask
+SISO	EQU	21		;GET SI/SO status
+STS	EQU	22		;PUT SI/SO status
+LOCNT	EQU	23		;LOC.
+;
+BADR	EQU	0		;BUFFER ADDRESS.
+BSIZ	EQU	2		;BUFFER SIZE.
+BR	EQU	4		;BIT RATE.
+DCHR	EQU	5		;TX,RX BIT/CHAR.
+PRT	EQU	6		;PARITY.
+SB	EQU	7		;STOP BIT.
+SPARAM	EQU	8		;CONTRL BIT SELECT.
+;
+RXCA	EQU	1		;RR0 RX CHAR AVAILABLE.
+OPENF	EQU	0		;OPEN FLAG.
+INTPND	EQU	2		;
+;
+RSFULL	EQU	1		;buffer full
+BFOVER	EQU	2		;buffer overflow
+;
+GESC	EQU	0		;Get ESC code flag.
+GESCE	EQU	1		;Get ESC code + 24H OR 28H.
+SHIFT	EQU	2		;special parameter SI/SO    bit
+XXON	EQU	4		;special parameter X-ON/X-OFF bit
+;
+SCTRLS	EQU	6		;Send CTRL-S.
+RCTRLS	EQU	7		;Receive CTRL-S.
+RCTRLQ	EQU	7		;Receive CTRL-Q.
+;
+CTRLS	EQU	013H		;CTRL-S.
+CTRLQ	EQU	011H		;CTRL-Q.
+;
+MRSBUF	EQU	7000H		;RS data default buffer
+MRSSIZE	EQU	200H		;MRSBUF size
+;
+;
+RSXBANK:	DB	20H	;RS buffer memory bank
+;
+;
+;
+;
+;
+	SUBTTL	MASK SET/MASK RESET
+	PAGE
+;
+;
+INTX1:
+INTX2:
+INTX3:
+INTX4:
+INTX5:
+INTX6:
+INTX7:
+;
+IGPIB:
+IOPCAL:
+IADDA:
+IKANJI1:
+IKANJI2:
+IMFONT:
+	LD	A,20H		;normal EOI			I
+	OUT	(8),A		;MASTER				I
+	OUT	(0CH),A		;SLAVE				I
+	RET			; . . . . . . . . . . . . . . . I
+;
+;
+;
+;
+;
+	PAGE
+;********************************
+;	MASK SET/MASK RESET	*
+;********************************
+;
+MASKI:
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	(SVSPMSK),SP	;				I
+	LD	SP,STCKMSK	;				I
+;
+	PUSH	BC		;				I
+	PUSH	DE		;				I
+	PUSH	HL		;				I
+;
+	LD	A,B		;				I
+	AND	A		; MASK SET ?			I
+	JP	NZ,MASKST	; YES.				I
+	LD	A,C		;				I
+	CP	0AH		;software timer fast ?		I
+	JP	Z,SFTFRM	;yes.				I
+	CP	0BH		;software timer slow ?		I
+	JP	Z,SFTSRM	;yes.				I
+	CP	3BH		; LIGHTPEN ?			I
+	JP	Z,LPRSMSK	; YES.				I
+	LD	D,C		; KEEP ID.			I
+	LD	BC,OPTBLE-OPTBL ;				I
+	LD	HL,OPTBL	; CHECK PARAMETER.  (OPTION ID)	I
+	CPIR			;				I
+	JP	NZ,MIPERR	; PARAMETER ERROR.		I
+	LD	C,D		; RECOVERY OPTION ID.		I
+;
+;*
+;******     MASK RESET.   (ENABLE)  ******
+;*
+;				;MASK RESET PROCESS		I
+	LD	HL,(OINT1+1)	; KEEP CURRENT INT ADDR.	I
+	LD	(S1),HL		;				I
+	LD	HL,(OINT2+1)	;				I
+	LD	(S2),HL		;				I
+	LD	HL,(OINT3+1)	;				I
+	LD	(S3),HL		;				I
+	LD	HL,(OINT4+1)	;				I
+	LD	(S4),HL		;				I
+	LD	HL,(OINT5+1)	;				I
+	LD	(S5),HL		;				I
+	LD	HL,(OINT6+1)	;				I
+	LD	(S6),HL		;				I
+	LD	HL,(OINT7+1)	;				I
+	LD	(S7),HL		;				I
+	LD	HL,OPINT1	; SET INT PROCESS ADDR.		I
+	LD	(OINT1+1),HL	;				I
+	LD	HL,OPINT2	;				I
+	LD	(OINT2+1),HL	;				I
+	LD	HL,OPINT3	;				I
+	LD	(OINT3+1),HL	;				I
+	LD	HL,OPINT4	;				I
+	LD	(OINT4+1),HL	;				I
+	LD	HL,OPINT5	;				I
+	LD	(OINT5+1),HL	;				I
+	LD	HL,OPINT6	;				I
+	LD	(OINT6+1),HL	;				I
+	LD	HL,OPINT7	;				I
+	LD	(OINT7+1),HL	;				I
+	IN	A,(09H)		; KEEP CURRENT MASK.  (MASTER)	I
+	LD	(SAVEM),A	;				I
+	AND	0F3H		; RESET OPTION MASK.		I
+	OUT	(09H),A		;				I
+	IN	A,(0DH)		; (SLAVE)			I
+	LD	(SAVES),A	;				I
+	AND	25H		; RESET OPTION MASK		I
+	OUT	(0DH),A		;				I
+	XOR	A		; CLEAR INT DATA.		I
+	LD	(MINTD),A	;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	OUT	(C),A		; CHECK INTERRUPT LEVEL.
+	LD	B,A		; B = 0FFH
+OPEN020:			;
+	LD	A,(MINTD)	; CHECK INT CODE.
+	OR	A		;
+	JR	NZ,OPEN030	; INT DETECTED.
+	DJNZ	OPEN020		;
+	JP	OPEN033		;
+OPEN030:
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	A,C		;				I
+	LD	B,OPTBLE-OPTBL	;				I
+	LD	E,0		;				I
+	LD	D,E		;				I
+	LD	HL,OPTBL	;				I
+OPEN031:			;				I
+	CP	(HL)		;				I
+	JR	Z,OPEN032	;				I
+	INC	E		;				I
+	INC	HL		;				I
+	DJNZ	OPEN031		;				I
+OPEN032:			;				I
+	RLC	E		;				I
+	LD	HL,INHADD	;interrupt handler address	I
+	ADD	HL,DE		;				I
+	LD	E,(HL)		;				I
+	INC	HL		;				I
+	LD	D,(HL)		;				I
+	LD	A,(MINTD)	;				I
+	DEC	A		;				I
+	RLCA			;				I
+	LD	B,C		;keep I/O port ->B		I
+	LD	C,A		;				I
+	LD	A,B		;keep I/O port ->A		I
+	LD	B,0		;				I
+	LD	HL,S1		;				I
+	ADD	HL,BC		;				I
+	LD	(HL),E		;				I
+	INC	HL		;				I
+	LD	(HL),D		;				I
+	LD	C,A		;recovery I/O port		I
+OPEN033:			;				I
+	LD	HL,(S1)		; RECOVERY INT TABLE.		I
+	IN	A,(C)		; CLEAR INT.			I
+	LD	(OINT1+1),HL	;				I
+	LD	HL,(S2)		;				I
+	LD	(OINT2+1),HL	;				I
+	LD	HL,(S3)		;				I
+	LD	(OINT3+1),HL	;				I
+	LD	HL,(S4)		;				I
+	LD	(OINT4+1),HL	;				I
+	LD	HL,(S5)		;				I
+	LD	(OINT5+1),HL	;				I
+	LD	HL,(S6)		;				I
+	LD	(OINT6+1),HL	;				I
+	LD	HL,(S7)		;				I
+	LD	(OINT7+1),HL	;				I
+	LD	A,(SAVEM)	; RECOVERY MASK.  (MASTER)	I
+	OUT	(09H),A		;				I
+	LD	A,(SAVES)	; RECOVERY MASK.  (SLAVE)	I
+	OUT	(0DH),A		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	LD	A,(MINTD)	; SET RETURN CODE.
+	LD	B,A		; KEEP INT LEVEL.
+	OR	A		;
+	JR	Z,NOOP		; NON OPTION.
+OPEN035:
+	XOR	A		;
+OPEN040:
+	OR	A		;
+	LD	A,B		;
+;
+	POP	HL		;
+	POP	DE		;
+	POP	BC		;
+;
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	SP,(SVSPMSK)	;				I
+	RET			; RETURN			I
+;
+;
+;
+NOOP:
+	LD	A,1
+	DB	21H		;skip next instruction
+MIPERR:
+	LD	A,4
+ERR:
+	LD	B,A
+	JR	OPEN040
+;
+;
+;
+INHADD:	DW	IGPIB
+	DW	IOPCAL
+	DW	IADDA
+	DW	ORSINT
+	DW	ORSINT
+	DW	IKANJI1
+	DW	IKANJI2
+	DW	IMFONT
+;
+;
+;
+;
+;
+	PAGE
+;************************************************
+;	ENABLE (MASK RESET) LIGHTPEN		*
+;************************************************
+;
+LPRSMSK:
+	OUT	(3BH),A		;CLEAR LIGHTPEN INTERRUPT.	I
+	IN	A,(09H)		;READ CURRENT MASK.		I
+	AND	LPRSMS		;ENABLE LIGHTPEN.		I
+	OUT	(09H),A		;				I
+	OUT	(3BH),A		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	LD	B,20H		;SET RERURN CODE.
+	JP	OPEN035 	;RETURN.
+;
+;
+;
+;
+;
+;************************************************
+;	ENABLE SOFTWARE TIMER INT.		*
+;************************************************
+;
+SFTFRM:				;				I
+	LD	B,SFT1RM	;software timer fast		I
+	LD	C,09H		;				I
+	JR	ESFT		;				I
+;
+SFTSRM:				;				I
+	LD	B,SFT2RM	;software timer slow.		I
+	LD	C,0DH		;				I
+ESFT:				;				I
+	IN	A,(C)		;read current mask.		I
+	AND	B		;				I
+	OUT	(C),A		;enable software timer.		I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	LD	B,C		;set return code.
+	JR	OPEN035		;normal return.
+;
+;
+;
+;
+;
+	PAGE
+;****************************************
+;	MASK SET (DISABLE)		*
+;****************************************
+;
+MASKST:
+	CP	09H		;software timer fast ?		I
+	JP	Z,SFTFSM	;yes.				I
+	CP	0DH		;software timer slow ?		I
+	JP	Z,SFTSSM	;yes.				I
+	CP	20H		;LIGHTPEN ?			I
+	JP	Z,LPMSK		;YES.				I
+	CP	0FFH		;ALL MASK ?			I
+	JP	Z,ALLMSK	;YES.				I
+	CP	8		;CHECK PARAMETER.		I
+	JP	NC,MIPERR	;PARAMETER ERROR.		I
+	CP	2		;INT L ?			I
+	JR	NC,MST01	;YES.				I
+	LD	C,09H		;MASTER.			I
+	JR	MST02		;				I
+;
+MST01:
+	LD	C,0DH		;SLAVE.				I
+MST02:				;				I
+	LD	HL,MASKBIT	;				I
+	LD	D,0		;				I
+	DEC	A		;				I
+	LD	E,A		;				I
+	ADD	HL,DE		;				I
+	LD	A,(HL)		;GET MASK.			I
+	XOR	0FFH		;				I
+	LD	B,A		;				I
+	IN	A,(C)		;READ CURRENT MASK.		I
+	OR	B		;				I
+	OUT	(C),A		;SET MASK.  (DISABLE)		I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	JP	OPEN035		;0
+;
+;
+;
+;****************************************
+;	MASK LIGHTPEN.  (DISABLE)	*
+;****************************************
+;
+LPMSK:				;				I
+	IN	A,(9H)		; READ CURRENT MASK.		I
+	OR	LPMASK		;				I
+	OUT	(09H),A		; DISABLE LIGHTPEN.		I
+	OUT	(3BH),A		; CLEAR INTERRUPT MASK.		I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	JP	OPEN035		; RETURN.
+;
+;
+;
+;
+;
+;****************************************
+;	DISABLE SOFTWARE TIMER INT.	*
+;****************************************
+;
+SFTFSM:				;software timer fast.		I
+	LD	B,SFT1SM	;				I
+	JR	DSFT		;				I
+;				
+SFTSSM:				;software timer slow.		I
+	LD	B,SFT2SM	;				I
+DSFT:				;				I
+	LD	C,A		;				I
+	IN	A,(C)		;				I
+	OR	B		;				I
+	OUT	(C),A		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	JP	OPEN035		;normal return
+;
+;
+;
+;****************************************
+;	MASK ALL OPTIONS.  (DISABLE)	*
+;****************************************
+;
+ALLMSK:				;				I
+	IN	A,(09H)		; READ CURRENT MASK. (MASTER)	I
+	OR	2CH		; OPTION ALL MASK.		I
+	OUT	(09H),A		;				I
+	IN	A,(0DH)		; READ CURRENT MASK. (SLAVE)	I
+	OR	0DAH		; OPTION ALL MASK.		I
+	OUT	(0DH),A		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	JP	OPEN035		; RETURN.	 
+;
+;
+;
+;
+;
+	PAGE
+;
+;*
+OPINT1:
+	LD	E,0		; MASTER OPTION INT. #1
+	DB	021H		; SKIP NEXT.
+;
+OPINT2:
+	LD	E,1		; MASTER OPTION INT. #2
+	DB	021H		; SKIP NEXT.
+;
+OPINT3:
+	LD	E,2		; SLAVE OPTION INT. #3
+	DB	021H		; SKIP NEXT.
+;
+OPINT4:
+	LD	E,3		; SLAVE OPTION INT. #4.
+	DB	021H		; SKIP NEXT.
+;
+OPINT5:
+	LD	E,4		; SLAVE OPTION INT. #5
+	DB	021H		; SKIP NEXT.
+;
+OPINT6:
+	LD	E,5		; SLAVE OPTION INT. #6
+	DB	021H		; SKIP NEXT.
+;
+OPINT7:
+	LD	E,6		; SLAVE OPTION INT. #7
+;
+OINT010:
+	LD	A,E		;
+	CP	2		; INT L ?
+	JR	NC,OINT020	; YES.
+	LD	A,(SAVEM)	; ORIGINAL MASK.  (MASTER)
+	JR	OINT030		;
+;
+OINT020:
+	LD	A,(SAVES)	; ORIGINAL MASK.  (SLAVE)
+OINT030:
+	LD	D,0		;
+	LD	HL,MASKBIT	;
+	ADD	HL,DE		;
+	LD	B,(HL)		; GET MASK.
+	AND	B		; TARGET MASK OFF.
+	LD	B,A		; KEEP.
+	LD	A,E		; CHECK LEVEL.
+	CP	2		; MASTER ?
+	LD	A,B		;
+	JR	NC,OINT040	; NO.
+	LD	(SAVEM),A	; SET NEW MASK.  (MASTER)
+	JR	OINT050		;
+;
+OINT040:
+	LD	(SAVES),A	; SET NEW MASK.  (SLAVE)
+OINT050:
+	LD	A,20H		;normal EOI
+	OUT	(8),A		;MASTER
+	OUT	(0CH),A		; SLAVE.
+	LD	A,E		;
+	INC	A		;
+	LD	(MINTD),A	; SET INT NUMBER.
+	RET
+;
+;
+;
+;
+;
+S1:	DW	0		;INT ADDR SAVE AREA.
+S2:	DW	0		;
+S3:	DW	0		;
+S4:	DW	0		;
+S5:	DW	0		;
+S6:	DW	0		;
+S7:	DW	0		;
+;
+;
+OPTBL:	DB	091H		;GPIB  (IEEE)
+	DB	098H		;OPTICAL
+	DB	0A3H		;A/D D/A
+	DB	0ACH		;RS 232 C
+	DB	0CCH		;RS 232 C
+	DB	0F9H		;KANJI 1.
+	DB	0FBH		;KANJI 2.
+	DB	0FDH		;MultiFonts.
+OPTBLE	EQU	$
+;
+MASKBIT:DB	11111011B	; OPTION INT #1.  (MASTER)
+	DB	11110111B	; OPTION INT #2.  (MASTER)
+	DB	11111101B	; OPTION INT #3.  (SLAVE)
+	DB	11110111B	; OPTION INT #4.  (SLAVE)
+	DB	11101111B	; OPTION INT #5.  (SLAVE)
+	DB	10111111B	; OPTION INT #6.  (SLAVE)
+	DB	01111111B	; OPTION INT #7.  (SLAVE)
+;
+SAVEM:	DS	1		;CURRENT MASK SAVE AREA.  (MASTER)
+SAVES:	DS	1		;CURRENT MASK SAVE AREA   (SLAVE)
+;
+MINTD:	DS	1		;ID CHECK AREA.
+;
+;
+SVSPMSK:	DW	0
+		DS	2*20
+STCKMSK:
+;
+;
+;
+;
+;
+	SUBTTL	***  LIGHT PEN  ***
+	PAGE
+;
+LIGHTPEN:							I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+;
+	DEC	C		;C = FUNCTION CODE.
+	RLC	C		;FUNCTION X 2.
+	LD	A,C		;CHECK PARAMETER.
+	CP	8		;
+	JR	NC,LPERR	;PARAMETER ERROR.
+	LD	B,0		;
+	LD	HL,LPJTBL
+	ADD	HL,BC		;
+	LD	E,(HL)		;
+	INC	HL		;
+	LD	D,(HL)		;
+	EX	DE,HL		;
+	JP	(HL)		;EXECUTE FUNCTION.
+;
+LPJTBL:	DW	LPENBL		;ENABLE LIGHTPEN.
+	DW	LPCHK		;CHECK INPUT.
+	DW	LPRD		;READ DATA.
+	DW	LPDSBL		;DISABLE LIGHTPEN.
+;
+;
+;
+;
+;
+;****************************
+LPENBL:	; ENABLE LIGHTPEN.  *
+;****************************
+;
+	XOR	A		;
+	LD	(INT),A		;clear LightPen flag
+	LD	BC,3BH		;LIGHTPEN ID.
+	CALL	MASKI		;MASK RESET.  (ENABLE)<<<<<<<<<<I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+;
+LPNOMAL:
+	LD	L,0		;normal return
+;
+LPENRTN:
+	LD	H,A		;KEEP RETURN CODE.
+	LD	A,L		;
+	AND	A		;SET CONDITION CODE.
+	LD	A,H		;RESTORE RETURN CODE.
+	DI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RET			;RETURN.			I
+;
+LPERR:
+	LD	A,1		;PARAMETER ERROR.
+	LD	L,A		;L=1.
+	JR	LPENRTN		;RETURN.
+;
+;
+;
+;
+;
+;*******************************
+LPCHK:	; CHECK LIGHTPEN INT.  *
+;*******************************
+;
+	LD	A,(INT)		; CHECK INT.
+	JR	LPNOMAL		;RETURN.
+;
+;
+;
+;
+;
+;***************************************
+LPRD:	; READ LIGHTPEN INT. ADDRESS.  *
+;***************************************
+;
+	LD	A,(INT)		; CHECK INT.
+	AND	A		;
+	JR	Z,LPNOMAL	; NO DATA.
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	BC,(KPLPAD)	; SET X.			I
+	LD	DE,(LPAD)	;				I
+	LD	H,A		;				I
+	XOR	A		;				I
+	OUT	(3BH),A		; CLEAR AND ENABLE LIGHTPEN INT.I
+	LD	(INT),A		; CLEAR INTERRUPT FLAG.		I
+	LD	A,H		; RECOVERY A.			I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	JR	LPNOMAL		; RETURN.
+;
+;
+;
+;
+;
+;****************************
+LPDSBL:	; DISABLE LIGHTPEN  *
+;****************************
+;
+	XOR	A		;
+	LD	(INT),A		;clear LightPen flag
+	LD	B,20H		; LIGHTPEN DISABL.
+	CALL	MASKI		;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	JR	LPNOMAL		; RETURN.
+;
+;
+;
+;
+;
+	SUBTTL	LIGHTPEN INTERRUPT HANDLER
+	PAGE
+;*****************************************
+;*	LIGHTPEN INTERRUPT HANDLER.	 *
+;*****************************************
+;
+LPENIR:				; . . . . . . . . . . . . . . . I
+	LD	(SVSPIR),SP	;				I
+	LD	SP,STCKIR	;  				I
+	PUSH	BC		;				I
+	PUSH	IX		;				I
+	PUSH	IY		;				I
+;				;				I
+	XOR	A		;				I
+	LD	(INT),A		;				I
+	IN	A,(38H)		;				I
+	AND	80H		; LIGHT PEN DETECTED ?		I
+	JP	Z,ILPENBL	; NO.				I
+	LD	A,0C0H		;				I
+	LD	C,39H		;				I
+	OUT	(C),A		;				I
+LPI010:				;				I
+	IN	A,(C)		; DUMMY.			I
+	IN	A,(C)		;				I
+	IN	A,(C)		;				I
+	CALL	ST50ML		; WAIT 50 MILL SEC.		I
+	IN	A,(38H)		;				I
+	AND	80H		;				I
+	JR	Z,ILPENBL	;				I
+	LD	A,0C0H		;				I
+	OUT	(C),A		; LIGHT PEN COMMAND.		I
+	LD	B,255		;				I
+LPI020:				;				I
+	IN	A,(38H)		; READ STATUS.			I
+	AND	01B		; DATA READY ?			I
+	JR	NZ,LPI030	; YES.				I
+	DJNZ	LPI020		;				I
+	JR	ILPENBL		;				I
+;				;				I
+LPI030:				;				I
+	IN	L,(C)		; READ ADDRESS.  (L)		I
+	IN	H,(C)		; READ ADDRESS   (H)		I
+	IN	A,(C)		; READ ADDRESS   (A) DUMMY.	I
+	IN	A,(2CH)		;				I
+	AND	01B		;				I
+	JR	NZ,LPI040	;COLOR.				I
+	LD	A,(MBFLG)	;PICK MFBASIC flag		I
+	OR	A		;				I
+	JR	NZ,LPI035	;MONO. graphic mode.		I
+	LD	A,(MFLG)	;pick MF flag #QX-10#		I
+	AND	A		;				I
+	JR	NZ,LPI035	;MONO. graphic mode.		I
+	LD	DE,(MLPBIAS)	;MONO. character mode.		I
+	JR	LPI050		;				I
+;								I
+LPI035:				;				I
+	LD	DE,(GLPBIAS)	;MONO. graphic mode.		I
+	JR	LPI050		;				I
+;								I
+LPI040:				;				I
+	LD	DE,(CLPBIAS)	;COLOR.				I
+LPI050:				;				I
+	ADD	HL,DE		;				I
+	LD	DE,(SPOS)	;current display top address.	I
+	OR	A		;clear carry flag		I
+	SBC	HL,DE		;				I
+	LD	DE,0		;				I
+	IN	A,(2CH)		;MONO or COLOR			I
+	AND	1		;pick color flag		I
+	LD	C,A		;keep.				I
+	LD	A,(MBFLG)	;pick MFBASIC flag		I
+	OR	C		;				I
+	LD	C,A		;				I
+	LD	A,(MFLG)	;pick MultiFonts flag		I
+	OR	C		;				I
+	LD	BC,80		;				I
+	JR	Z,LPI070	;character mode.		I
+	LD	BC,40		;graphic mode.			I
+LPI070:				;				I
+	LD	(KPLPAD),HL	;keep AMARI.			I
+	OR	A		;				I
+	SBC	HL,BC		;HL-40 or HL-80			I
+	JR	C,LPI080	;				I
+	INC	DE		;				I
+	JR	LPI070		;				I
+;								I
+LPI080:				;				I
+;								I
+	LD	(LPAD),DE	; SET ADDRESS.			I
+	LD	A,0FFH		;				I
+	LD	(INT),A		; SET LIGHT PEN DETECTED FLAG.	I
+LPIRTN:				;				I
+	POP	IY		;				I
+	POP	IX		;				I
+	POP	BC		;	 			I
+	LD	SP,(SVSPIR)	;				I
+	LD	A,20H		;normal EOI			I
+	OUT	(8),A		;MASTER				I
+	RET			; . . . . . . . . . . . . . . . I
+;
+;
+ILPENBL:
+	OUT	(3BH),A		;				I
+	JR	LPIRTN		;				I
+;
+;
+;
+;
+;
+INT:	DB	0
+LPAD:	DW	0
+KPLPAD:	DW	0		;
+;
+;
+LPRSMS	EQU	11011111B	; ENABLE LIGHTPEN.
+LPMASK	EQU	00100000B	; DISABLE LIGHTPEN.
+SFT1RM	EQU	11111101B	;enable software timer fast.
+SFT2RM	EQU	11011111B	;enable software timer slow.
+SFT1SM	EQU	00000010B	;disable software timer fast.
+SFT2SM	EQU	00100000B	;disable software timer slow.
+;
+;
+;
+;
+;
+	SUBTTL	@  COMMON DATA AREA  @
+	page
+;	+--------------------------------+
+;	|+------------------------------+|
+;	||	COMMON DATA AREA	||
+;	|+------------------------------+|
+;	+--------------------------------+
+;
+;
+MBFLG	EQU	PRMTAB+50H
+;
+XRSCLSF	EQU	PRMTAB+5FH
+RSDAT	EQU	PRMTAB+60H
+CBRAT	EQU	PRMTAB+60H		;BIT RATE.
+CDTCH	EQU	PRMTAB+61H		;BIT/CHAR.
+CPRT	EQU	PRMTAB+62H		;PARITY.
+CSTB	EQU	PRMTAB+63H		;STOP BIT.
+RSDFOP	EQU	PRMTAB+64H		;RS data buffer default(0)/option(FF)
+MRSDATA	EQU	PRMTAB+65H		;RS232C main buffer address.
+BITRATE	EQU	MRSDATA+4		;BIT RATE
+DATACHR	EQU	MRSDATA+5		;TX,RX BIT/CHARACTER.
+PARITY	EQU	MRSDATA+6		;PARITY.
+STOPBIT	EQU	MRSDATA+7		;STOP BIT
+RSV	EQU	MRSDATA+8		;reserved
+;
+;
+SPOS	EQU	PRMTAB+70H
+;
+MFLG	EQU	PRMTAB+82H		;
+;
+GLPBIAS	EQU	PRMTAB+9BH		;Green Graphic mode Lightpen
+;
+MEMPTR	EQU	PRMTAB+9EH
+MEMBUF	EQU	PRMTAB+0A0H
+;
+;
+MEMBANK	EQU	PRMTAB+0F0H
+MBANKS	EQU	PRMTAB+0F1H
+MBANKD	EQU	PRMTAB+0F2H
+SVIBANK	EQU	PRMTAB+0F3H		;memory bank calls interrupt
+;
+CLPBIAS	EQU	PRMTAB+0F4H		;COLOR Lightpen
+MLPBIAS	EQU	PRMTAB+0F6H		;GREEN Character mode Lightpen
+;
+;
+;
+;
+;
+;
+;
+	END
