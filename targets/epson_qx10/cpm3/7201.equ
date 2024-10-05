@@ -1,0 +1,36 @@
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+; 'EPSON QX-10 CPM3 BIOS Hardware equates'
+;
+;		===================================
+;		QX-10  7201 (MAIN) SERIAL I/O (SIO)
+;		===================================
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+;       Nov 1983 - Device equate files created
+;
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+
+;=====================================;
+; 7201 (MAIN) SERIAL I/O (SIO) DEVICE ;
+; Channel A - Keyboard (1200 baud)    ;
+; Channel B - RS-232C                 ;
+;=====================================;
+
+sio$ad	equ	sio+00b		;SIO keyboard data (port A)
+sio$bd	equ	sio+01b		;SIO rs232 data (port B)
+sio$ac	equ	sio+10b		;SIO write: keyboard command (port A)
+sio$bc	equ	sio+11b		;SIO write: rs232 command (port B)
+sio$as	equ	sio+10b		;SIO read: keyboard status(port A)
+sio$bs	equ	sio+11b		;SIO read: rs232 status (port B)
+
+;----------------------------------------------------------------------
+
