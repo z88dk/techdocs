@@ -1,0 +1,206 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS initialise physical devices
+
+	name	('BIOS3A9')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; ALPHA Aug 8,83
+; BETA+ Jan 5,84
+; REV-A Apr 30,84
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+;-----------------------
+; CP/M 3 CBIOS externals
+;-----------------------
+
+; initialization
+
+	public	?init			; general initialization and signon
+	public	?sysint			; perform any one time initialisation
+	public	?dinit			; initialise disc routines
+
+; variables in system data page
+
+	extrn	@covec,@civec,@aovec	; I/O redirection vectors
+	extrn	@aivec,@lovec		;  "       "        "
+
+; user defined character I/O routines
+
+	extrn	?cinit			; (re) initialize device in <C>
+	extrn	@cinit			; vector of cold boot init routines
+	extrn	@ctbl			; physical character device table
+
+; disk communication data items
+
+	extrn	@dtbl			; table of pointers to XDPH's
+
+; clock support
+
+	extrn	?time			; signal time operation
+	extrn	?tinit			; initialise timer interrupts
+
+;----------------------------------------------------------------
+
+	cseg
+
+bit0	equ	1 shl 0
+bit1	equ	1 shl 1
+bit2	equ	1 shl 2
+bit3	equ	1 shl 3
+bit4	equ	1 shl 4
+bit5	equ	1 shl 5
+bit6	equ	1 shl 6
+bit7	equ	1 shl 7
+
+
+;30nov	maclib	CBIOS.EQU	; QX-10 Hardware definition
+
+
+;---------------------------------------------------------------------
+
+	dseg		; init done from banked memory
+
+;---------------------------------------------------------------------
+; ?sysint
+; Entry:	-none-
+; Returns:	-none-
+; Function:	Initialise general interrupt vectors and clock
+;---------------------------------------------------------------------
+
+?sysint:
+
+;-------------------;
+; set up BDOS clock ;
+;-------------------;
+	call	?tinit
+
+	ret
+
+;---------------------------------------------------------------------
+; ?init
+; Entry:	-none-
+; Returns:	-none-
+; Function:	Initialise physical character i/o devices
+;---------------------------------------------------------------------
+
+?init:
+
+; Assign logical device to physical devices
+; DEVICE expects bit 0 to correspond to leftmost bit
+keyboard	equ	(1 shl 15)
+screen		equ	(1 shl 14)
+printer		equ	(1 shl 13)
+comms		equ	(1 shl 12)
+
+	ld	hl,keyboard
+	ld	(@civec),hl	; (console) keyboard input
+
+	ld	hl,screen
+	ld	(@covec),hl	; (console) crt output
+
+	ld	hl,printer
+	ld	(@lovec),hl	; list output
+
+	ld	hl,comms
+	ld	(@aivec),hl	; auxiliary input
+	ld	(@aovec),hl	; auxiliary output
+
+
+; ====================================================
+; Initialise the SIO device to default settings
+; ====================================================
+	dseg
+; action required
+
+	ld	hl,@cinit
+c$next:
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	inc	hl
+	ld	a,e
+	or	d
+	jr	z,c$done
+	push	hl
+	ex	de,hl
+	call	jphl
+	pop	hl
+	jr	c$next
+jphl:	jp	(hl)
+c$done:
+
+;-----------------------------;
+; Initialise physical devices ;
+;-----------------------------;
+
+; Initialise each device to setting in i/o vectors
+
+	ld	bc,16 shl 8	; B = 16, C = 0
+c$init$loop:
+	push	bc
+	call	?cinit	; initialise device <C>
+	pop	bc
+	inc	c
+	djnz	c$init$loop
+	ret
+
+;------------------------------------------------------------------------
+; ?DINIT
+; Entry:	-none-
+; Returns:	-none-
+; Function:	Perform COLD BOOT Initialises of each drive
+;------------------------------------------------------------------------
+	dseg
+
+?dinit:
+	ld	b,16		; maximum of 16 devices
+	ld	hl,@dtbl	; table of disc devices
+d$init$loop:
+	push	bc
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	inc	hl
+	push	hl
+	ld	a,d
+	or	e
+	call	nz,d$init	; device assigned
+	pop	hl
+	pop	bc
+	djnz	d$init$loop
+	ret
+
+;------------------------------------------------------------------------
+; d$init
+; Entry:	<DE> -> DPH for logical drive
+; Returns:	-none-
+; Function:	Perform COLD BOOT Initialises at offset -4 from DPH
+;		preserving <DE> for initialising routine
+;------------------------------------------------------------------------
+d$init:	ld	hl,-4		; offset to COLD BOOT init routine
+	add	hl,de
+	ld	a,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,a
+	jp	(hl)		; and do it with <DE> -> DPH
+
+;----------------------------------------------------------------------------
+
+
+	end
+
