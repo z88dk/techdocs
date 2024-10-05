@@ -1,0 +1,22 @@
+; Erase any BAK files to make room
+erase cbios3a4.bak
+erase cbios3a5.bak
+erase nec765.bak
+erase mdisk.bak
+erase cbios3a6.bak
+erase cbios3a8.bak
+erase cbios3a9.bak
+; MICROSOFT assembly
+a:m80 cbios3a4,=cbios3a4
+a:m80 cbios3a5,=cbios3a5
+a:m80 nec765,=nec765
+a:m80 mdisk,=mdisk
+a:m80 cbios3a6,=cbios3a6
+a:m80 cbios3a8,=cbios3a8
+a:m80 cbios3a9,=cbios3a9
+; lib disc driver modules
+a:lib cbios3a5=cbios3a5(bios3a),nec765,mdisk
+;-----------------------------
+; Ready to copy to GENCPM disc
+; viz    pip a:=cbios*.rel
+;-----------------------------
