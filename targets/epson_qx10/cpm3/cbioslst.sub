@@ -1,0 +1,21 @@
+; SETUP printer to 132 cols
+a:fx80 2
+; MICROSOFT assembly
+;a:m80 cbios3a0,lst:=cbios3a0
+;a:m80 cbios3a1,lst:=cbios3a1
+a:m80 7201,lst:=7201
+a:m80 keytable,lst:=keytable
+a:m80 pfntable,lst:=pfntable
+a:m80 cmos,lst:=cmos
+a:m80 8255,lst:=8255
+a:m80 lpen,lst:=lpen
+; concatenate character driver rel files
+;a:lib cbios3a2=7201,keytable,pfntable,cmos,8255,lpen
+; SETUP printer to 80 cols
+;a:fx80 3
+; ANDREWs modules
+a:m80 ,lst:=cbios3a3
+; concatenate console driver rel files
+; a:lib cbios3a3=cbios3a3(bios3a),conout,grahooks,graph,font,fonta,list,hardcopy,translat
+; now ready to transferrred  REL files to main CP/M PLUS BIOS disc
+;viz   a:pip a:=b:cbios3a*.rel
