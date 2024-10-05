@@ -1,0 +1,93 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS nec disc drivers
+
+	name	('TESTWAIT')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; A	Jun 83 - Based on Xerox version C
+; ALPHA Aug 8,83
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+;-----------------------------------------------------------------------
+; MOTORON
+; Unchanged:	<HL>, <DE>, <BC>
+; Destroyed:	<AF>
+; Function:	Turns on motor and allows 1 sec max to come up to speed
+;		DOMOTOR is a flag set by result of previous disc
+;		activity. If >0 then disc error, and trk is set to
+;		-1 to force a recalibrate.
+;-----------------------------------------------------------------------
+motor	equ	1100b shl 2	;Motor timer
+bit5	equ	00100000b
+motoron:
+	ld	hl,5
+wait:	ld	bc,0		; wait max 2 Sec min. for drive to reach speed
+pause:	push	hl		;t11	
+	call	NECsense	; estimated T325 to complete
+	pop	hl		;t11
+	and	bit5		; see if ready
+	jr	nz,speedok
+speedok:
+	dec	bc		;t6
+	ld	a,b		;t4	
+	or	c		;t4
+	jr	nz,pause	;t12/t7
+	dec	hl		;t6
+	ld	a,h		;t4	
+	or	l		;t4
+	jr	nz,wait		;t12/t7
+	nop
+	nop
+	nop
+	jp	0
+
+sds.u:	db	0		; head/unit number
+NECsense:			; (takes min of T103 for 2 byte command)
+	out	(motor),a	; keep motor going
+NECwc:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECwc	; wait till ready
+	jp	m,NECsr		; ERROR: NEC waiting for RESULT phase
+	ld	a,00000100b	; sense command
+	ld	(command),a	; save for testing
+	out	(35h),a
+NECwu:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECwu	; wait till ready
+	jp	m,NECsr		; ERROR: NEC waiting for RESULT phase
+	ld	a,(sds.u)	; head/unit number
+	out	(35h),a
+NECsr:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECsr	; wait till ready
+	ret	p		; NEC waiting for COMMAND phase
+	in	a,(35h)		; read ST3
+	ld	(result),a	; and save
+	ret			; return ST3 in <A>
+
+command:	db	0	; save last command executed
+result:				; save result byte(s)
+NECst0:	db	-1		; 1st result byte - ST0 (except sense returns ST3)
+NECst1:	db	-1		; 2nd result byte - ST1 for read/write commands
+NECst2:	db	-1		; 3rd result byte - ST0 for rd/wr commands
+NECc:	db	-1		; 4th result byte - Cylinder for rd/wr commands
+NECh:	db	-1		; 5th result byte - Head/side for rd/wr commands
+NECr:	db	-1		; 6th result byte - Record/Sector for rd/wr commands
+NECn:	db	-1		; 7th result byte - Sector size for rd/wr commands
+
+
+	end
