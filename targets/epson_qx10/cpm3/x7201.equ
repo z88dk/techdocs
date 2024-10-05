@@ -1,0 +1,75 @@
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+; 'EPSON QX-10 CPM3 BIOS Hardware equates'
+;
+;		=================================================
+;		QX-10  (OPTIONAL) 7201 EXPANSION SERIAL I/O (SIO)
+;		=================================================
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+;       Nov 1983 - Device equate files created
+;
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+
+;================================;
+; 7201 EXPANSION SERIAL I/O (SIO);
+; Card 1 Channel A - 0A4h        ;
+;        Channel B - 0A6h        ;
+; Card 2 Channel A - 0C4h        ;
+;        Channel B - 0C6h        ;
+;================================;
+
+;--------------------------------------------------;
+; 1st Optional serial port addresss - address 0a?h ;
+;--------------------------------------------------;
+
+x1sio$ad	equ	0a4h	; SIO rs232 data (port A)
+x1sio$as	equ	0a5h	; SIO read status (port A)
+x1sio$ac	equ	0a5h	; SIO write command (port A)
+
+x1sio$bd	equ	0a6h	; SIO rs232 data (port B)
+x1sio$bs	equ	0a7h	; SIO read status (port B)
+x1sio$bc	equ	0a7h	; SIO write command (port B)
+
+x1ctc$t0	equ	0a8h	; CTC write count to timer 0
+x1ctc$c0	equ	0a8h	; CTC read counter 0
+x1ctc$t1	equ	0a9h	; CTC write count to timer 1
+x1ctc$c1	equ	0a9h	; CTC read counter 1
+x1ctc$t2	equ	0aah	; CTC write count to timer 2
+x1ctc$c2	equ	0aah	; CTC read counter 1
+x1ctc$cw	equ	0abh	; CTC write control word
+
+x1id		equ	0ach	; expansion card id (RD/WR)
+
+
+;--------------------------------------------------;
+; 2nd Optional serial port addresss - address 0c?h ;
+;--------------------------------------------------;
+
+x2sio$ad	equ	0c4h	; SIO rs232 data (port A)
+x2sio$as	equ	0c5h	; SIO read status (port A)
+x2sio$ac	equ	0c5h	; SIO write command (port A)
+
+x2sio$bd	equ	0c6h	; SIO rs232 data (port B)
+x2sio$bs	equ	0c7h	; SIO read status (port B)
+x2sio$bc	equ	0c7h	; SIO write command (port B)
+
+x2ctc$t0	equ	0c8h	; CTC write count to timer 0
+x2ctc$c0	equ	0c8h	; CTC read counter 0
+x2ctc$t1	equ	0c9h	; CTC write count to timer 1
+x2ctc$c1	equ	0c9h	; CTC read counter 1
+x2ctc$t2	equ	0cah	; CTC write count to timer 2
+x2ctc$c2	equ	0cah	; CTC read counter 1
+x2ctc$cw	equ	0cbh	; CTC write control word
+
+x2id		equ	0cch	; expansion card id (RD/WR)
+
+;----------------------------------------------------------------------
