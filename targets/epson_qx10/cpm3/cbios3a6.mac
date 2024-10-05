@@ -1,0 +1,934 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS memory and system functions
+
+	name	('BIOS3A6')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; ALPHA Aug 8,83
+; BETA  Dec 5,83
+; BETA+ Jan 5,84
+;       Feb 23,84 XMOVE made available for direct bios calls
+; REV-A Apr 30,84
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+;----------------------
+; CP/M 3 BIOS FUNCTIONS
+;----------------------
+
+;MEMORY SELECTS AND MOVES
+	public	move,xmove,selmem
+
+;CLOCK SUPPORT
+	public	time			; signal time operation
+
+;----------------------------
+; EPSON 820-II BIOS FUNCTIONS
+;----------------------------
+
+; memory control
+
+	public	@cbnk,@sbnk,@tbnk	; current, system and tpa bank number
+	public	?xmove,?move,@xbc	; select move bank & block move
+	public	?tpabnk,?sysbnk		; select TPA or SYStem bank
+	public	?bank			; select bank in <A>
+	public	@bnkno			; table of epson bank numbers (0-3)
+	public	?gosys		; Use system bank and local SP, (preserve <HL>)
+	public	?retsys		; return to callers bank and SP, (preserve <A>)
+	public	?goint			; conditional switch to system bank
+	public	?reti			; conditional restore of callers bank
+
+;CLOCK SUPPORT
+	public	?time			; signal time operation
+	public	?tinit			; initialise timer interrupts
+
+
+;-------------------------------------------
+; PUBLIC SYMBOLS IN EPSON QX-10 CP/M 3 BIOS
+;-------------------------------------------
+
+; variables in system data page
+
+	extrn	@mxtpa			; addr of system entry point
+	extrn	@hour,@sec,@date		; clock & date	
+
+; common memory
+
+	extrn	@cpage			; base page of common memory
+
+
+;--------------------------------------------------------------------------
+
+bit0	equ	1 shl 0
+bit1	equ	1 shl 1
+bit5	equ	1 shl 5
+bit6	equ	1 shl 6
+bit7	equ	1 shl 7
+
+false	equ	0
+true	equ	not false
+
+interrupt	equ	true
+
+	maclib	CBIOS.EQU	; QX-10 Hardware definition
+	maclib	46818.EQU	; 46818 CLOCK ports
+
+	page
+
+;-----------------------------------------------------------------------------
+;
+;	Memory and Bank routines
+;
+; move		Memory move for large memory copy
+; xmove		Set banks for following MOVE function
+; selmem	Select alternative bank of memory (and save in @cbnk)
+; setbnk	Select bank for DMA operation
+;
+;       Time routine
+; ?time		Support date/time clock
+;
+;	Local BIOS routines
+; ?tpabnk		; Select TPA bank
+; ?sysbnk		; Select SYS bank
+; ?bank			; Select bank specified in <A>
+;
+; @tbnk			; tpa bank number (in unbanked = 0)
+; @sbnk			; system bank number (in unbanked = 0)
+; @cbnk			; current bank number (in unbanked = 0)
+;-----------------------------------------------------------------------------
+
+;-----------------------------------------------------------------------------
+; MOVE	(25)	Fast Z80 block memory move
+; Input		hl = Destination address (not cf Z80)
+;		de = Source address
+;		bc = Number of bytes to move (cf Z80)
+; Returns	hl = hl + BC
+;		de = de + bc
+;-----------------------------------------------------------------------------
+
+	cseg		; MUST be in common
+
+@xbc:	dw	-1		; save bank for moves (-1 = not activated)
+
+move:	ld	a,(@xbc)
+	inc	a
+	jp	nz,?xmove	; bank to bank copy
+?move:	ld	a,b
+	or	c
+	ret	z		; should never happen
+	ex	de,hl
+	ldir
+	ex	de,hl
+	ret
+
+;-----------------------------------------------------------------------------
+; XMOVE	 (29)	Select memory banks for subsequent MOVE
+; Input		b  = Destination bank
+;		c  = Source bank
+; Returns	none
+; Function:	XMOVE is provided for banked systems that support
+;		memory to memory DMA transfers over the entire
+;		extended address range.
+;		XMOVE should set up memory banks for the next MOVE.
+; If XMOVE is not implemented then the first instruction must be a RET.
+;-----------------------------------------------------------------------------
+
+	cseg	; in common for direct BIOS calls
+xmove:
+	ld	(@xbc),bc	; save banks
+	ret
+
+;-----------------------------------------------------------------------------
+; XMOVE
+; Input		hl = Destination address (not cf Z80)
+;		de = Source address
+;		bc = Number of bytes to move (cf Z80)
+;		@xbc 	- Source bank
+;		@xbc+1	- Destination bank
+; Returns	hl = hl + BC
+;		de = de + bc
+;	Must return in system bank and reset XMOVE flag
+; BDOS limits XMOV to a maximum of 128 bytes, but this implimentation
+; has no such limit.
+;-----------------------------------------------------------------------------
+
+	cseg		; must be in common for bank switching
+
+?xmove:
+	ld	a,(@cbnk)	; current bank
+	push	af		; and save
+
+	ex	de,hl
+	call	xldir
+
+	pop	af
+	call	?bank		; return to callers bank
+	ld	a,-1		; de-activated value
+	ld	(@xbc),a	; set flag for completion
+	ret
+
+;----------------;
+; copy <C> bytes ;
+;----------------;
+xldir:
+	push	BC
+	ld	b,0
+	ld	a,c
+	or	a
+	call	nz,copysrce	; copy partial page of data
+	pop	bc
+	ld	c,0
+	ld	a,b
+	or	a
+	ret	z
+;--------------------;
+; copy <B>*256 bytes ;
+;--------------------;
+nxtsrce:
+	push	bc
+	ld	b,1
+	call	copysrce	; copy whole pages of data
+	pop	bc
+	djnz	nxtsrce
+	xor	a
+	ret
+
+;--------------------------------------------------;
+; copy max of 256 bytes from source to destination ;
+;--------------------------------------------------;
+
+copysrce:		; return with HL and DE incremented by BC
+	push	de
+	ld	a,(@xbc)	; source bank number (<C>)
+	call	?bank		; select bank
+	ld	de,cbuff	; use common buffer
+	push	bc
+	ldir			; copy into common buffer
+	pop	bc
+	pop	de
+
+	push	hl		; <HL> = <HL> + <BC>
+	ld	a,(@xbc+1)	; destination bank number
+	call	?bank		; select bank
+	ld	hl,cbuff
+	ldir			; copy from common buffer into dest. bank
+				; <DE> = <DE> + <BC>
+	pop	hl		; recover <HL> = <HL> + <BC>
+
+	ret			; returns (in destination bank)
+
+
+;-----------------------------------------------------------------------------
+; SELMEM  (27)	Select memory bank
+; Input		a  = Bank to be selected
+; Returns	ALL REGISTERS OTHER THAN <A> MUST BE PRESERVED
+;
+; EPSON QX-10 supports up to 5 banks:
+; Bank 0 - System Bank (0000h - DFFFh) (EPSON CP/M - tpa bank)
+; Bank 1 - TPA Bank    (0000h - DFFFh) (EPSON CP/M - system bank)
+; Bank 2 - M: ram disk (0000h - DFFFh) (EPSON CP/M - MFBASIC/F:) 
+; Bank 3 - Optional M: (0000h - DFFFh) (EPSON CP/M - Optional E:)
+; CMOS   - 2k          (8000h - 8800h)
+; 	(NOTE when CMOS selected DRAM is usuable below 8000h)
+; Common - 4k minimum  (F000h - FFFFh) (normally E000h-FFFFh)
+; 	(NOTE common size can be changed by jumper J4
+; PROM   - 2k          (0000h - 0800h)
+;
+; DRAM bank is selected by high nibble of out (18h)
+; DRAM in use can be read from high nibble of in (30h)
+;
+; PROM is selected/disabled by set/clear bit 0 of out (1ch)
+; CMOS is selected/disabled by set/clear bit 0 of out (20h)
+;
+;-----------------------------------------------------------------------------
+
+	cseg		; MUST be in common
+
+selmem:
+	cp	2
+	ret	nc		; only banks 0 an 1 allowed
+?bank:
+	ld	(@cbnk),a	; remember as current bank
+	push	hl		; preserve <HL>
+	ld	hl,@bnkno	; table of physical bank bit number
+	add	a,l
+	ld	l,a
+	ld	a,0
+	adc	a,h
+	ld	h,a
+	ld	a,(hl)		; move selected bank (in high nibble)
+	pop	hl		; <HL> restored, <BC> & <DE> unchanged
+
+	out	(setbnk),a	; CHANGE BANK <A> is destroyed
+	ret
+
+;|=====================|
+;|bank switch utilities|
+;|=====================|
+
+;|---------------------|
+;|switch to system bank|
+;|  (<HL> preserved)   |
+;|---------------------|
+
+?sysbnk:
+	ld	a,1	; Select SYSTEM bank (default is unbanked system)
+@sbnk	equ	$-1	; system bank (1 = banked, 0 = unbanked)
+	jr	?bank
+
+;|------------------|
+;|switch to TPA bank|
+;| (<A> destroyed)  |
+;|------------------|
+
+?tpabnk:
+	ld	a,0	; Select TPA bank (default is unbanked system)
+@tbnk	equ	$-1	; tpa bank (0 = banked, 0 = unbanked)
+	jr	?bank
+
+@bnkno:	db	00010000b	; bank 0 (initialised in cold boot)
+	db	00100000b	; bank 1 (initialised in cold boot)
+	db	01000000b	; bank 2
+	db	10000000b	; bank 3
+;(note: 00000000b turns off ALL banks)
+
+@cbnk:	db	0	; current bank (0 = banked tpa, 1 = banked system)
+cbnk:	db	0	; save callers memory bank
+
+
+;|======================================|
+;|system bank and stack select utilities|
+;|for use by direct bios call functions |
+;|======================================|
+
+; ------------------------------------------ ;
+; **********NON INTERRUPT ROUTINES********** ;
+;     ?GOSYS          and         ?RETSYS    ;
+; ------------------------------------------ ;
+; ?GOSYS - switch to stack at COMMONSP       ;
+;          switch to system bank and         ;
+;          save callers bank in CBNK         ;
+;   (<A>, <DE> destroyed, <HL> preserved)    ;
+; ------------------------------------------ ;
+
+?gosys:			; must preserve (<HL>)
+	pop	de		; recover return address
+	ld	(commonsp),sp
+	ld	sp,commonsp	; use local stack
+	push	de		; and move return address
+
+	ld	a,(@cbnk)	; current bank
+	ld	(cbnk),a	; and save
+	or	a		; test for bank 0 (system bank)
+	ret	z		; Do nothing if same
+	jr	?sysbnk		; switch banks if different (<HL> preserved)
+
+; ------------------------------------------ ;
+; ?RETSYS - return to callers bank in CBNK   ;
+; (jump)    return to callers stack          ;
+;           (<A> preserved, <HL> destroyed)  ;
+; ------------------------------------------ ;
+?retsys:
+	push	af
+	ld	a,(cbnk)	; callers bank
+	or	a		; test for bank 0 (system bank)
+	call	nz,?bank	; switch banks if different
+	pop	af		; (<A> preserved)
+
+	ld	sp,(commonsp)	; recover callers stack
+	ret			; and return to caller
+
+;--------------------------------------------;
+; ************INTERRUPT ROUTINES************ ;
+;     ?GOINT          and         ?RETI      ;
+;For use by interrupt routines outside common;
+; ------------------------------------------ ;
+; ?GOINT - assumes stack set to INTSP        ;
+; (call)   saves all registers on stack      ;
+;          save callers bank on stack        ;
+;          selects system bank if in TPA     ;
+;          returns to interrupt processing   ;
+;--------------------------------------------;
+?goint:
+	ex	(sp),hl		; <HL> now on stack
+	push	de
+	push	bc
+	push	af
+	in	a,(getbnk)	; read current bank
+	and	11110000b	; mask memory banks
+	push	af		; and save
+	ld	a,(@bnkno)	; table of banks - system bank no
+	out	(setbnk),a	; use system bank
+	jp	(hl)		; and return
+
+; ------------------------------------------ ;
+; ?RETI  - recovers callers bank from stack  ;
+; (jump)   recovers all registers from stack ;
+;          recovers callers stack from INTSP ;
+;          enables interrupts and returns to ;
+;          pre-interrupt processing thereby  ;
+;          concludes interrupt processing    ;
+; ------------------------------------------ ;
+?reti:
+	pop	af		; recover callers bank
+	out	(setbnk),a	; use callers bank
+	pop	af
+	pop	bc
+	pop	de
+	pop	hl
+	ld	sp,(intsp)
+	ei
+	ret
+
+	page
+
+;-----------------------------------------------------------------------------
+; TIME	 (26)	Clock support function
+; Input		<C> Set/Get Time Flag
+; Returns	none
+; Preserve:	Registers <HL> and <DE> must be preserved
+; Function:	TIME is called to indicate to the BIOS either:
+;		<C> = 00h/ BDOS is to read the time and date fields in the SCB
+;		<C> = FFh/ BDOS has set time and date fields in the SCB
+;		If the time and date fields are maintained by interrupts, then
+;		there is no need to do anything.
+;		Else BIOS should access its own (hardware) clock
+;-----------------------------------------------------------------------------
+
+	dseg		; time should only be accessed by BDOS
+
+weekday:	db	0
+ddmmyy:
+dd:	db	0
+mm:	db	0
+yy:	db	0
+month:	dw	0,31,59,90,120,151,181,212,243,273,304,334,365
+bin_bcd:	db	0
+
+time:
+?time:
+	push	hl
+	push	de		; BDOS requires these to be preserved
+	call	time1
+	pop	de
+	pop	hl
+	ret
+time1:
+	di
+	ld	a,0bh		; read current mode
+	out	(clk$c),a
+	in	a,(clk$d)
+	ei
+	and	100b		; mask BIN-not BCD bit
+	ld	(bin_bcd),a	; and save mode used
+
+;------------------------------------;
+; Test for read or write C-MOS clock ;
+;------------------------------------;
+	ld	a,c
+	or	a		; test for WRITE (<A> > 0) or READ (<A> = 0)
+
+if	(not interrupt)
+	jp	z,rdtime	; manually update BDOS from C-MOS clock
+else
+	ret	z		; interrupts already updated BDOS clock
+endif
+
+;------------------------------------;
+; Update C-MOS clock with BDOS clock ;
+;------------------------------------;
+
+wrtime:	ld	bc,@hour	; address of @hour,@min,@sec
+	ld	a,04h		; access hour
+	call	wrbcdclk
+
+	inc	bc		; -> @min
+	ld	a,02h		; access min
+	call	wrbcdclk	; update
+
+	inc	bc		; -> @sec
+	ld	a,00h		; access seconds
+	call	wrbcdclk	; update
+
+;-----------------------;
+; set day of week (1-7) ;
+;-----------------------;
+
+	ld	hl,(@date)	; BDOS days
+; calculate mod(hl,7)
+
+	ld	c,7
+	call	divide		; <HL> = <HL> /<C>, <A> = remainder
+
+; adjust day of week (0-6) into week day (1-7)
+	or	a
+	jr	nz,setdow
+	ld	a,7
+setdow:
+	ld	bc,weekday
+	ld	(bc),a
+	ld	a,06h		; access Day-of-week (1-7)
+	call	wrbcdclk	; update
+
+;--------------------------------------------------------------;
+; convert date with day 1 = jan 1st 1978 into day month & year ;
+;--------------------------------------------------------------;
+
+	ld	hl,(@date)	; BDOS days
+; now subtract 365 or 366 for each year after 1978
+	ld	bc,1978
+dmy1:	ld	de,-365
+	ld	a,c
+	and	011b		; check if divisible by 4
+	jr	nz,dmy2
+	dec	de		; yes so year has 365 days
+dmy2:	add	hl,de
+	jr	nc,dmy3		; result less than 0
+	inc	bc
+	jr	dmy1
+dmy3:	or	a
+	sbc	hl,de		; subtracty 1 year so <HL> > 0
+	ex	de,hl		; <DE> -> days remaining in year
+
+	push	de
+	ld	hl,-1900
+	add	hl,bc		; <HL> = years > 1900
+	ld	de,-100		; but if <HL> > 99, subtract 100
+dmy4:	ld	a,h
+	or	a
+	jr	nz,dmy5
+	ld	a,l
+	cp	100		; check range
+	jr	c,dmy6
+dmy5:	add	hl,de		; adjust by 100
+	jr	dmy4
+dmy6:	ld	(yy),a		; save year
+	pop	de
+; on entry <BC> = absolute year, <DE> days remaining in year
+	ld	hl,month+12*2-1
+	ld	b,12
+	ld	a,c
+	and	11b		; test  if current year is a leap year
+	jr	nz,dmy7
+	dec	de		; so decrement days to allow for Feb 29th
+dmy7:	ld	a,(hl)
+	dec	hl
+	cp	d		; test (days to months) with <DE>
+	jr	c,dmy9		; have month
+	jr	nz,dmy8
+	ld	a,(hl)
+	cp	e
+	jr	c,dmy9
+	jr	z,dmy9
+dmy8:	dec	b		; decrement month
+	dec	hl		; decrement days in month pointer
+	ld	a,b
+	cp	2		; are we into FEB
+	jr	nz,dmy7
+	ld	a,c
+	and	11b		; are we in leap year
+	jr	nz,dmy7
+	inc	de		; YES so correct days adjustment
+	jp	dmy7
+dmy9:	ld	a,b
+	ld	(mm),a		; save month
+	ld	a,e
+	sub	(hl)		; p.s. who cares about <D> - (hl+1)
+	ld	(dd),a		; save day
+
+	ld	bc,ddmmyy	; address of day, month & year
+	ld	a,07h		; access day (1-31)
+	call	wrbinclk	; update
+
+	inc	bc		; -> mm
+	ld	a,08h		; access month (1-12)
+	call	wrbinclk	; update
+
+	inc	bc		; -> yy
+	ld	a,09h		; access year (0-99)
+	call	wrbinclk	; update
+
+	ret
+
+;--------------------------------------------------------;
+; divide - divide <HL> by <C>, with MOD(<HL>,<C>) in <A> ;
+;--------------------------------------------------------;
+divide:
+	ld	a,0		; Set MOD to 0
+	ld	b,16		; shift 16 bits
+; now shift bits of <HL> into <A> and test if <A> => 7 for each bit
+; if <A> => 7 then <HL> = <HL> + 1, <A> = <A> -7.
+div.1:	add	a,a
+	add	hl,hl
+	adc	a,0		; add carry to <A>
+	cp	c		; test MOD >= <C>
+	jp	c,div.3
+	inc	hl
+	sub	c
+div.3:	dec	b
+	jp	nz,div.1	; repeat for each bit
+; shifted 16 bits, and <A> contains remainder of divide by 7
+	ret			; returns <HL>=<HL>/7, <A> = remainder
+
+
+;-------;
+wrbinclk:			; Convert BIN number in (BC) to clk mode in <E>
+;-------;
+	push	af
+	ld	a,(bc)
+	ld	e,a
+
+	ld	a,(bin_bcd)
+	or	a
+	ld	a,e
+	call	z,bintobcd	; CLOCK requires BCD data
+	ld	e,a
+	pop	af
+	jp	wrclk
+
+;-------;
+wrbcdclk:			; Convert BCD number in (BC) to clk mode in <E>
+;-------;
+
+	push	af
+	ld	a,(bc)
+	ld	e,a
+
+	ld	a,(bin_bcd)
+	or	a
+	ld	a,e
+	call	nz,bcdtobin	; CLOCK requires BIN data
+	ld	e,a
+	pop	af		; and fall into wrclk
+
+;------------------------------------------------------------
+wrclk:				; write hr, min, sec, or date
+;------------------------------------------------------------
+	push	af		; but first check device not busy
+wrwait:	ei			; briefly allow interrupts
+	ld	a,0ah		; as during update it may not work
+	di			; in an update
+	out	(clk$c),a
+	in	a,(clk$d)	; T11
+	or	a		; T4 test update bit
+	jp	m,wrwait	; T10 wait till update finished
+	pop	af		; T10 and we have 244 usec to read device
+
+	out	(clk$c),a	; T11
+	ld	a,e		; T4 Update
+	out	(clk$d),a	; T11 total = T61 or 15 u sec
+	ei			; breach again
+	ret
+
+;------------------------------------;
+; BINTOBCD                           ;
+; Entry:	<A> = Binary byte    ;
+; Returns:	<A> = BCD number     ;
+; Destroys:	<DE>,<HL>            ;
+;------------------------------------;
+
+bintobcd:
+	cp	10
+	ret	c		; as less than 10, also BCD
+	ld	de,-10
+	ld	l,a
+	xor	a
+	ld	h,a
+tobcd1:	add	hl,de
+	jr	nc,tobcd2
+	add	a,10h
+	jr	tobcd1
+tobcd2:	ld	de,10
+	add	hl,de
+	add	a,l
+	ret
+
+;------------------------------------;
+; BCDTOBIN                           ;
+; Entry:	<A> = BCD number     ;
+; Returns:	<A> = Binary byte    ;
+; Destroys:	<DE>                 ;
+;------------------------------------;
+
+bcdtobin:
+	ld	e,a
+	and	0f0h		; mask high BCD byte
+	jr	z,tobin2	; as less than 10, also BIN
+	rrca
+	rrca
+	rrca
+	rrca			; shift into low nibble
+	ld	d,a
+	xor	a
+tobin1:	add	a,10
+	dec	d
+	jr	nz,tobin1
+	ld	d,a		; save high nibble x 10
+	ld	a,e
+	and	0fh		; mask low nibble
+	add	a,d
+	ld	e,a
+tobin2: ld	a,e
+	ret
+
+;------------------------------------;
+; Update BDOS clock with C-MOS clock ;
+; (used by cold boot intialization)  ;
+;------------------------------------;
+rdtime:
+	ld	bc,@hour	; address of @hour,@min,@sec
+	ld	a,04h		; access hour
+	call	rdclkbcd	; convert <A> in CLK mode into BCD in (BC)
+
+	inc	bc		; -> @min
+	ld	a,02h		; access min
+	call	rdclkbcd	; convert <A> in CLK mode into BCD in (BC)
+
+	inc	bc		; -> @sec
+	ld	a,00h		; access seconds
+	call	rdclkbcd	; convert <A> in CLK mode into BCD in (BC)
+
+	ld	bc,ddmmyy	; address of day, month & year
+	ld	a,07h		; access day (1-31)
+	call	rdclkbin	; convert <A> in CLK mode into BIN in (BC)
+
+	inc	bc		; -> mm
+	ld	a,08h		; access month (1-12)
+	call	rdclkbin	; convert <A> in CLK mode into BIN in (BC)
+
+	inc	bc		; -> yy
+	ld	a,09h		; access year (0-99)
+	call	rdclkbin	; convert <A> in CLK mode into BIN in (BC)
+
+;--------------------------------------------------------------;
+; convert day month & year into date with day 1 = jan 1st 1978 ;
+;--------------------------------------------------------------;
+
+	ld	hl,ddmmyy
+	xor	a
+	ld	d,a
+	ld	e,(hl)		; <DE> = Day (1-31)
+	inc	hl
+	ld	b,a
+	ld	c,(hl)		; <BC> = Month (1-12)
+	dec	c		; Month (0-11)
+	inc	hl
+	ld	a,(hl)		; Year (0-99)
+	inc	hl		; HL -> month
+	add	hl,bc
+	add	hl,bc		; Word wide
+	ld	c,(hl)
+	inc	hl
+	ld	b,(hl)		; <BC> = days to start of month
+	ex	de,hl		; <HL> = Day (1-31)
+	add	hl,bc		; <HL> = days in year excluding leap day
+
+; now add 365 or 366 for each year after 1978
+
+	ld	de,365
+	sub	78		; subtract 78 from year
+	jr	nc,tod0		; test years 0-77
+	add	a,100		; if yes assume 0 = 2000, thus add 100
+tod0:	ld	bc,1978		; <C> is set to low bits of 1978
+	ld	b,a
+	or	a
+	jr	z,tod3		; actually 1978
+tod1:	add	hl,de		; add 365 for each year
+	ld	a,c
+	and	011b		; check if divisible by 4
+	jr	nz,tod2
+	inc	hl		; yes so add further 1 year
+tod2:	inc	c		; increment low byte of base year
+	djnz	tod1
+tod3:	ld	a,c
+	and	011b		; see if current year is a leap year
+	jr	nz,tod4
+	ld	a,(mm)
+	cp	3		; is it jan or feb
+	jr	c,tod4
+	inc	hl		; -nos- so add in FEB 29th
+tod4:	ld	(@date),hl
+	ret
+
+;------------------------------------------------------------------
+; RDCLKBCD  - read clock and convert into BCD
+; Entry:	<A> = 00 read seconds
+; 		<A> = 02 read minutes
+; 		<A> = 04 read hours
+; Returns:	(BC) -> clock data in BCD
+; Preserves:	<BC>
+; Function:	Calls RDCLK to return in <A> hrs, min or sec
+;		and converts <A> in clock mode into BCD in (BC)
+;--------------------------------------------------------------------
+
+rdclkbcd:
+	call	rdclk		; read hr, min, sec, or date (specified by <A>)
+
+	ld	e,a		; <A> is clock data
+	ld	a,(bin_bcd)
+	or	a
+	ld	a,e
+	call	nz,bintobcd	; CLOCK supplies BIN data
+	ld	(bc),a
+	ret
+
+;------------------------------------------------------------------
+; RDCLKBIN  - read clock and convert into BINARY
+; Entry:	<A> = 07 read day (1-31)
+; 		<A> = 08 read month (1-12)
+; 		<A> = 09 read year (0-99)
+; Returns:	(BC) -> clock data in BINARY
+; Preserves:	<BC>, <HL>
+; Function:	Calls RDCLK to return in <A> day, month or year
+;		and converts <A> in clock mode into BINARY in (BC)
+;--------------------------------------------------------------------
+
+rdclkbin:
+	call	rdclk		; read hr, min, sec, or date (specified by <A>)
+
+	ld	e,a		; <A> is clock data
+
+	ld	a,(bin_bcd)	; Clock mode
+	or	a
+	ld	a,e
+	call	z,bcdtobin	; CLOCK supplies BCD data
+	ld	(bc),a
+	ret
+
+;----;
+rdclk:				; read hr, min, sec, or date
+;----;
+	push	af		; but first check device not busy
+rdwait:	ei			; (briefly allow interrupts)
+	ld	a,0ah		; as during update it may not work
+	di			; as during update the data is
+	out	(clk$c),a	; suspect.
+	in	a,(clk$d)
+	or	a		; test update bit
+	jp	m,rdwait	; wait till update finished
+	pop	af
+	out	(clk$c),a
+	in	a,(clk$d)
+	ei			; breath again
+	ret
+
+;-----------------------------------------------------------------------------
+; TIMINT
+; Interrupt called procedure to update CP/M clock
+; Uses local stack and only registers <AF> and <HL> used & saved
+;-----------------------------------------------------------------------------
+
+	cseg			; MUST BE IN COMMON for interrupts
+
+timint:
+	ld	(INTsp),sp
+	ld	sp,INTsp
+	push	af
+	push	hl
+	ld	a,0ch		; select clock interrupt status register
+	out	(clk$c),a
+	in	a,(clk$d)	; read clock interrupt status
+	ld	h,10010000b	; mask interrupt and 1 second update bit
+	and	h
+	cp	h
+	call	z,second	; second interrupt so do it
+	pop	hl
+	pop	af
+	ld	sp,(INTsp)
+	ei
+	ret
+
+;-----------------------------------------------------------------------------
+; SECOND
+; Interrupt called procedure to update CP/M clock
+; Must maintain registers <BCDE>
+; and RET back to interrupt handler
+;-----------------------------------------------------------------------------
+second:		; update CP/M 3 clock each second
+	and	a		; clear carry flag
+	ld	hl,@sec
+	call	tick60		; update @sec
+	ret	c
+	dec	hl
+	call	tick60		; update @min
+	ret	c
+	dec	hl
+
+	ld	a,(hl)
+	inc	a
+	daa
+	cp	24h
+	call	tick		; update @hour
+	ret	c
+	ld	hl,(@date)
+	inc	hl
+	ld	(@date),hl	; update @date
+	ret
+
+tick60:	ld	a,(hl)		; increment BCD byte
+	inc	a
+	daa
+	cp	60h
+tick:	ld	(hl),a
+	ret	c
+	ld	(hl),0
+	ret
+
+;-----------------------------------------------------------------------------
+; TINIT
+; Initialising procedure to use 1 second update interrupt
+; Called from COLD BOOT
+; and RET back to interrupt handler
+;-----------------------------------------------------------------------------
+	dseg
+?TINIT:
+	di
+	ld	hl,intjp	; instruction for interrupt vector
+	ld	de,int818	; address of clock interrupt vector
+	ld	bc,4
+	ldir			; copy jump instruction into interrupt vector
+
+;---------------------------------------------------------;
+; currently enabling interrupts is causing CONOUT to blow ;
+;---------------------------------------------------------;
+
+if	(not interrupt)
+	jr	cantdo
+endif
+	ld	a,0bh		; select clock mode register
+	out	(clk$c),a
+	in	a,(clk$d)	; read clock mode
+	ld	b,a
+	ld	a,0bh		; select clock mode register
+	out	(clk$c),a
+	ld	a,b
+	and	not 01110000b	; remove interrupt mode
+	or	00010000b	; enable update interrupts
+	out	(clk$d),a	; update clock mode
+
+if	(not interrupt)
+cantdo:				; remove when interrupts work
+endif
+	call	rdtime		; initialise BDOS clock to CMOS clock
+	ret			; all ok now (NB rdtime enables interrupts)
+
+intjp:	jp	timint		; interrupt vector jump
+	nop			; as up to 4 bytes allowed
+
+;-----------------------------------------------------------------------------
+
+	end
+
