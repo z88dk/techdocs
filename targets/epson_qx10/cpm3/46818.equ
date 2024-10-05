@@ -1,0 +1,29 @@
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+; 'EPSON QX-10 CPM3 BIOS Hardware equates'
+;
+;		================================
+;		QX-10  46818 CLOCK WITH CALENDER
+;		================================
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+;       Nov 1983 - Device equate files created
+;
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+;==================================;
+; 46818 CLOCK WITH CALENDER DEVICE ;
+;==================================;
+
+clk$c	equ	clock or 1	; clock command (write only)
+clk$d	equ	clock		; clock data (read/write)
+
+;----------------------------------------------------------------------
+
