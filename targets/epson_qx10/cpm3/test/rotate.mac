@@ -1,0 +1,9 @@
+	.z80
+; Programs interrupt device for automatic priority rotation
+ocw2	equ	010000000b	; rotate in automatic EOI mode
+
+	ld	a,ocw2
+	out	(08h),a
+	ret
+
+	end
