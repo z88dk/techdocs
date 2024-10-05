@@ -1,0 +1,12 @@
+; set printer to 132 columns
+a:fx80 2
+; MICROSOFT assembly
+a:m80 cbios,lst:=cbios
+a:m80 cbios3a4,lst:=cbios3a4
+a:m80 cbios3a5,lst:=cbios3a5
+a:m80 mdisk,lst:=mdisk
+a:m80 nec765,lst:=nec765
+a:m80 cbios3a6,lst:=cbios3a6
+a:m80 cbios3a8,lst:=cbios3a8
+a:m80 cbios3a9,lst:=cbios3a9
+a:pip lst:=eof:[p]
