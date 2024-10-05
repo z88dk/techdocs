@@ -1,0 +1,221 @@
+.comment	"
+
+     The  QX-10 screen is the primary console device.  Because of 
+     the  fundemental hardware design,  the console is driven  in 
+     two  modes,  Graphics and character mode.  Graphics mode  is 
+     equivalent to MFONT and MFBASIC modes and,  in  QX+,  allows 
+     the  mix of characters,  multifont characters and  graphics. 
+     Character mode offers a conventional fast character-oriented 
+     screen  that allows mixed enhancements.  In normal use,  the 
+     character mode is best, but the graphics mode makes graphics 
+     and  enhanced  characters to be used together  on  the  same 
+     screen. Additionally, in both modes, the screen can be split 
+     into separate areas of character or graphics mode: each area 
+     can  be  seperately  scrolled  unless it is  specified  as  a 
+graphics screen.  By using this feature,  split-screens 
+     can  be made to allow for,  for example,  inspection of  two 
+     files on the screen at once. 
+
+
+     Character mode is fast and implements the main Televideo 950 
+     codes.  The  graphics mode enables two character  sizes  and 
+     allows  redefinition of all the font characters  dynamically 
+     by   the   sequence-<ESC>   <!>  <char  to   be   redefined> 
+     <Byte1>.........<Byte16>  the Big Font consists of 16  by  8 
+     pixels,  giving the standard 80 by 25 character positions on 
+     the screen. 
+
+     Disadvantages of the graphics mode include
+          1) Downgrade in character update speed
+          2) Loss of blink and highlighting modes
+          3) Loss of some terminal ESC features
+
+     Advantages include
+          1)  ability to mix graphics and characters anywhere  on 
+          the screen
+          2) Multifont characters mixed with normal ones
+          3)  Ability  to redefine any character font to  promote 
+          advanced graphics
+
+	The  character  rate  in graphics  mode  can  be  speeded 
+     considerably  if  the cursor is switched off  whenever  more 
+     than  one  character is sent to the screen.  It  should,  of 
+     course, be switched back on when keyboard input is required. 
+     An escape sequence makes this automatic if desired
+
+These are the implemented control and escape codes 
+								
+;The following are ESC sequence routines
+esc A	-	change to little characters (only in graphics mode)
+ESC B 	-	change to big characters (only in graphics mode)
+ESC C 	-	Change cursor to square  (character mode only)
+ESC D	-	Change cursor to line (character mode only)
+ESC E 	-	Line Insert (character mode only)
+ESC G 	-	change to graphics mode
+ESC H 	-	change to character mode
+ESC J 	-	Start inverse
+ESC K 	-	End inverse
+ESC L 	-	define colours (or start Underline) (only in graphics mode)
+ESC M 	-	End underline			
+ESC P 	-	Hardcopy 
+ESC Q 	-	Character insert (character mode only)			
+ESC R 	-	Line Delete (character mode only)				
+ESC T 	-	Erase to end of line
+ESC U 	-	switch to the upper screen
+ESC V 	-	switch to the lower screen
+ESC W 	-	Character delete (character mode only)
+ESC Y 	-	Erase to end of screen			
+ESC Z 	-	Clear screen			
+ESC ? 	-	Read cursor			
+ESC ^ 	-	Start Blink field (character mode only)				
+ESC _ 	-	Start blank field (character mode only)
+ESC q 	-	End Blank/Blink field (character mode only)				
+ESC + 	-	Clear Screen
+ESC = 	-	Load cursor(XY addressing)
+ESC ) 	-	Half intensity (character mode only)
+ESC ( 	-	Full intensity (character mode only)
+ESC ! 	-	define graphic character
+ESC [ 	-	Switch off the cursor
+ESC ] 	-	Restore the cursor
+ESC / 	-	Switch to multifont characters (only in graphics mode)
+ESC \ 	-	Switch from multifont characters (only in graphics mode)
+ESC # 	-	Select Multifont style
+ESC % 	-	Send next character direct
+ESC 0 	-        reverse video on 
+ESC 1 	-        reverse video off		
+ESC 2 	-        Cursor off       
+ESC 3 	-        Cursor on
+ESC 4 	-        Underline        
+ESC 5 	-        Underline off    
+ESC 6 	-        Highlight (character mode only)        
+ESC 7 	-        Highlight off (character mode only)    
+ESC 8 	-        Blink  (character mode only)           
+ESC 9 	-        Blink off  (character mode only)       
+ESC & 	-	 Change cursor to square (character mode only) 
+ESC ' 	-	 Change cursor to line   (character mode only)
+ESC , 	-	 Does a Split Screen
+ESC -   -        Do graphics primitive
+
+
+Control Characters
+
+Cntl G -	Beep
+Cntl H -	Cursor left
+Cntl I -	Tab
+Cntl J -	Cursor down
+Cntl K -	Cursor up
+Cntl L -	Cursor right
+Cntl M -	Carriage return
+Cnrl Z -	Clear Screen
+Cntl ~ -	Cursor Home
+Cntl ^ -	Cursor Home
+Cntl _ -	New line
+
+     As  the  escape  sequence/control code  processor  is  table 
+     driven,  these  Control  codes and escape sequences  can  be 
+     changed  so that a different terminal can be emulated.  This 
+     can only be done by the configuration program and cannot  be 
+     dynamically changed.
+
+     Font definition can be done at any time though it only comes 
+     into  effect  when  in graphics mode.  As  an  example,  the 
+     following  sequence of bytes will,  if sent to the  console, 
+     redefine 'e' to e-acute
+
+	db	1bh,'!'	;signal that a redefinition sequence follows
+	db	'e'	;we are redefining e
+			;the rest is a mirror-image bit array
+
+DB 00000000B 
+DB 01100000B 
+DB 00011000B 
+DB 00000110B 
+DB 00011100B 
+DB 00100010B 
+DB 00011001B 
+DB 00000111B 
+DB 00000001B 
+DB 00000001B 
+DB 01000010B 
+DB 00111100B 
+DB 00000000B 
+DB 00000000B 
+DB 00000000B 
+DB 00000000B             
+           
+          The   'define split-screen' escape sequence  allows  the 
+     user  to  mix graphics and character mode on the same screen.  
+     The lead in 'ESC  ,'  is followed by a character  designating 
+     whether  the  first screen is a character or graphics  split-
+     screen.   The  next byte specifies the line of split. This is 
+     followed by a character designating whether the second screen 
+     is  a character or graphics split-screen.  Two  split-screens 
+     can  be defined. typical sequences might be as follows:-
+
+DB         1bH,','  ;lead-in string
+DB         'G'      ;a graphics screen
+DB         12       ;from line 0 to line 12
+DB         'C'      ;a character screen from line 12 to the end
+
+
+
+          If  the  cursor moves off  a  split-screen,   only  that 
+     split-screen  scrolls.  Within  a split-screen,   the  escape 
+     sequences for that  particular mode are in force.
+
+     The   two  escape  sequences  that  control  the  multifonts 
+     characters  are usable at any time and the  style  selection 
+     may  be done from the keyboard using keys SF1-SF4.  Only  in 
+     graphics mode do the selections come into force.
+
+     Graphics can be accessed by means of the escape sequence ESC 
+     1.  the  following character after this lead-in selects  the 
+     graphics operation, and parameters follow as integers in the 
+     Intel format of low-byte first.  The graphics primitives are 
+     as follows:-
+
+0 -- point the graphics cursor to the coordinate contained in the 
+     following sequence <low X> <high X> <low Y> <High Y>
+1 -- 
+2  -- Draw  a line from the first coordinate pair to  the  second 
+     using the specified line mask.  This uses the sequence  <low 
+     X>  <high X> <low Y> <High Y> <low X> <high X> <low Y> <High 
+     Y> <low mask> <high mask>
+3  -- write out the marker as defined,  in the defined size.  The 
+     marker is written at  <low X> <high X> <low Y> <High Y>
+4  -- draw  a Bar (box).  The sequence  <low X> <high X> <low  Y> 
+     <High Y> defines to low left,  followed by  <low X> <high X> 
+     <low Y> <High Y> defining the top right of the bar. Bar fill 
+     is defined by a separate sequence.
+5  -- Draw  an arc as defined by the sequence <start  Angle  low> 
+     <start  angle  high>   <  end Angle low>  <end  angle  high> 
+     <Radius low> <radius high>.  the arc cenre is at the current 
+     cursor position. 
+6 --  Draw  a pie slice as defined by the sequence  <start  Angle 
+     low>  <start angle high>  < end Angle low> <end angle  high> 
+     <Radius low> <radius high>.  the arc cenre is at the current 
+     cursor position. 
+7  -- draw a Circle at the current cursor position.  Size defined 
+     by the sequence <radius low> <radius high>
+8  -- write  pixel at current cursor location  according  to  the 
+     current writing mode.
+9 -- Set the current writing mode <mode code>.
+A -- Set the current linestyle <line style>
+B -- Set the current marker size <Marker size code>
+C -- Set the current marker type <marker type code>
+D -- Set the text size <text size code>
+E -- Set the text direction
+F -- set the Bar, circle or pie slice fill style
+
+     All  operations are affected by the writing mode.  this mode 
+     can  be  to set,  reset,  complement or  OR  the  individual 
+     pixels.  The  linestyle  is similarly defined in  all  cases 
+     except  simple line drawing by the linestyle setting  escape 
+     sequence.  In the case of simple line drawing, the linestyle 
+     is defined for each line by a mask,  thereby simplifying the 
+     users   polygon   fill   algorithm.   The   programmer   has 
+     responsibility  to ensure that the figure he specifies falls 
+     within a graphics split-screen. 
+"
+
+
