@@ -1,0 +1,81 @@
+
+;----------------------------------------------------------------------------
+;HL points to Dotpin byte
+	lxi	h,dotpin
+	mvi	b,8	;eight bytes in dotpin read
+col.dotpin.loop:
+	push	b	;save the count for each VRAM byte
+;HL points to the dotpin array 
+	push	h
+	mvi	a,10000000B	;initialise our mask for setting printbuffer 
+	sta	bitmask	;bitmask
+	mvi	b,8
+..col.byte.loop:
+	push	b	;save the count of the outer loop
+	lxi	d,16	;offset to next buffer
+	mvi	b,3
+	push	h	;save the pointer
+
+..col.bit.loop:
+	mov	a,m
+	rrc
+	mov	m,a	;test and rotate bit in memory
+	ralr	c
+	dad	d
+	djnz	..col.bit.loop
+;c now contains 00000XXXB where x are set for red green and blue 
+;we now interpret which planes need a corresponding bit set
+	mov	a,c
+	ani	00000111B
+	lxi	h,lookup.table
+	call	addhl
+	mov	a,m
+;a now has similar flags to decide whether the bit should be set
+;we now set the bit in whichever array needs it
+	lhld	buffer.pointer
+	xchg
+	lxi	h,bitmask
+	mvi	b,4		;we have three planes
+..set.buffer:
+	rar
+	jrnc	..not.set
+	push	psw
+	ldax	d
+	ora	m	;set the bit
+	stax	d		
+	pop	psw
+..not.set:	;if there was no carry
+	inx	d	;to next plane
+	djnz	..set.buffer
+;that bit has now been set
+	mov	a,m		
+	rrc		;rotate the bitmask
+	mov	m,a
+	pop	h
+	inx	h
+	pop	b
+	djnz	col.byte.loop
+	lhld	buffer.pointer
+	inx	h
+	inx	h
+	inx	h	;point to next print position
+	inx	h
+	shld	buffer.pointer
+	pop	h	;restore the dotpin array pointer
+	inx	h	;and increment it
+	pop	b
+	djnz	col.dotpin.loop
+	ret
+
+lookup.table:	;this needs to be altered in order to change the colour
+;mapping.
+
+	db	0	;=0 on screen white on black
+	db	1	;=1 blue on screen
+	db	3	;=2 green on screen
+	db	6	;=3 cyan on screen
+	db	4	;=4 red on screen
+	db	5	;=5 majenta on screen
+	db	2	;=6 yellow on screen
+	db	8	;=7 white on screen
+	
