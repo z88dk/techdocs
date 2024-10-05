@@ -1,0 +1,3229 @@
+
+
+
+title	"Console Driver for the ubiquitous PD7220 display chip---A.R.M.C."
+subttl	"A.Clarke, Sept 1983"
+NAME ('CONOUT')
+dseg			;it goes in the system bank
+
+;***************************************************************
+;***************************************************************
+;********	     Conout Driver for the QX+		********
+;***************************************************************
+;***************************************************************
+;********   Version 2.0     A.R.M.Clarke Sept 14 1983	********
+;***************************************************************
+.comment	"
+History
+Sept 14th   Created the module using V1 as inspiration
+Oct 6th     Added colour features
+Nov24th DPL Adds bell
+NOV25th DPL Adds system control block parameters @COROW & @COCOL
+            which must be added to SCB.ASM module.
+Dec 19th    General revision and smarten-up.
+Dec 29th    Byte-saving exercise
+Jun 7th 84  DPL corrects to ARMC's instructions
+
+"
+;*** D.P-L's EXTERNALS ***
+
+	extrn	@COROW	; System Control Block - Console page length
+	extrn	@COCOL	; System Control Block - Console Width (base 0)
+
+;*** Entry points ***
+entry   Conuc		;conver char in A to upper case
+entry	WamI		;Where am I?	returns X in HL, Y in DE--for GSX
+entry	Move.the.cursor	;
+entry	Ihome		;home the cursor
+entry	Do.Slow.Orders	;send an array of orders to the 7220 chip
+entry	inpar		;get one parameter from the 7220
+entry	curoff		;switch the cursor off
+entry	curon		;switch the cursor on
+entry	get.a.line	;get a line of characters into the Handy.Buffer
+entry	new.line	;perform a carriage return/linefeed sequence
+entry	where.are.we	;yields the dot and exec word address
+entry	putcur		;places the cursor
+entry	tochip		;sends the command in A to the 7220
+entry	til.FIFO.not.full	;hang about til things are ready
+entry	do.orders	;contained in HL.
+entry	arrange.colour	;sort the colour thing for Pram
+entry	cmp16		;integer compare
+entry	dsub		;integer subtract
+entry	point		;XY point routine
+entry	zap.mask.register	;do just that
+entry	tochip		;send command in A
+entry	outchl		;send parameters in (HL) to 7220
+entry	are.we.monochrome	;are we?
+entry	BCminus		;BC=-BC
+entry	order.it	;the order in (HL)
+entry	HL.Negate		;negate HL
+entry	ADDHL		;add A to HL
+entry	shift.right	;adopt right wing politics
+entry	spit.it.out	;spit out character addressed by (HL)
+entry	switch.colour.plane
+entry	place	
+
+;*** Public Variables ***
+
+public	Handy.Buffer	;pointer to a generally useful temporary buffer
+public	current.screen	;Contains the start address of VRAM
+public	line.of.split	;where the screen is split
+public	upper.one	;boolean to register which screen is used
+public	toggle.cursor	;cursor displayed if true, not there if false
+public	Graphics.Mode	;Graphics mode if true, otherwise character mode false
+public	Cursor.column	;current 'column' for the cursor
+public	Character	;the present character sent to conout
+public	our.Ead.address	;the Ead at the start of graphic character draw
+public	Our.Dot.Address	;the dot address at the start of graphic char draw
+public	colour		;the current colour index and selected colour plane
+public	mask.graphics	;00 or 40 
+public	p1.curs		;the cursor position
+public	p3.curs		;ditto
+public	previous.dad	;
+public	no.of.lines	;on the current screen (nov26 & SCB.@COROW)
+public	whither.wanderest	;vector for current conout routine
+public	simple.output	;the default conout routine
+
+;*** Various Fonts ***
+
+ext	font8x8		;our small graphic characters
+ext	font		;our large graphic characters
+;both in external modules
+
+
+include CONEQUS
+;the equates and macros
+
+debugging	equ	false
+
+;*** Module Entry Point ***
+;---------------------------
+;this is the only legal entry from CP/M to the console module
+
+;----------------------------------------------------------------------------
+TYO::
+;The module entry point. Sends the byte in C to the VDU screen
+;By default, it mimics the televideo terminal for the 7220 chip
+;character passed in C
+	mov	a,c
+;put character in A for attention
+	LHLD	whither.wanderest	;defaults to simple.output
+	PCHL				;go to the relevant sevice routine
+;in normal circumstances, this will be either
+;simple.output		the simple character output
+;to.Escape.Sequence	to send the escape code
+;or the current data collection routine
+
+simple.output:	;when not doing an escape sequence or a data collection	
+	CPI	' '			;is it a control character
+	JC	a.control.char.perhaps	;if so, then look it up
+	Call	Translate.Character##	;do any character translation
+	sta	character		;save character input
+
+naked:	Call	Write.character		;send out the character, move cursor
+;increment the cursor position pointer and do any wrap-round
+
+
+	lxi	h,Cursor.Column
+	inr	m
+	lda	no.of.columns
+	cmp	m
+	rnc	;job done if not at the end of the line
+	lxi	d,Cursor.Row
+	xchg
+;HL points to the row and DE to the column
+	lda	no.of.lines
+	dcr	a
+	cmp	m
+	rnc	;if the idiot types another letter, then scroll (should wrap!)
+	inr	m	;increment the row
+	xchg
+	xra	a
+	mov	m,a	;and zero the column
+	jmp	move.the.cursor
+
+
+
+;*** Physical Driver routines ***
+;Lets get Physical
+
+
+;----------------------------------------------------------------------------
+Until.FIFO.Empty:	;hang on the status register of the 7220 until
+;it is ready to communicate
+
+	in	g.status	;get the status
+	ani	Fifo.Empty	;wait until FIFO empty
+;	Is the 7220 ready to receive an order?
+	jrz	Until.FIFO.Empty
+	ret
+
+;----------------------------------------------------------------------------
+til.FIFO.Not.Full:	;wait until there is room in the FIFO
+	in	g.Status
+	ani	FIFO.Full
+	jrnz	til.FIFO.Not.Full
+	ret
+
+;----------------------------------------------------------------------------
+switch.colour.plane:	;switch to colour in B. preserves B
+	in	g.status
+	ani	im.drawing 
+	jrnz	switch.colour.plane
+	mov	a,b
+	ani	00000111B
+	out	colour.plane
+	ret
+	
+;----------------------------------------------------------------------------
+are.we.monochrome::	;finds out what hardware is present
+	in	video.board.type
+;0 for monochrome, 1 for colour
+	cma	
+	rar		;rotate into carry
+	sbb	a	;0FFH if monochrome, 0 if colour
+	ret	
+
+;----------------------------------------------------------------------------
+TOCHIP:	;send command byte in A to the GDC chip 
+	Push	PSW
+	call	til.FIFO.Not.Full
+	Pop	PSW
+	OUT	g.command
+	RET
+
+;----------------------------------------------------------------------------
+arrange.colour:	;"colour" contains the colour index of the form:
+; bit 7....bit6....bit5....bit4....bit3....bit2....bit1....bit0
+;	         |	RED	|	GREEN	|	BLUE
+;		 |back		 back		 back
+;		 |	  fore		  fore		  fore
+;		 |	
+;		 |       
+;					...bitA....bit9....bit8
+		       			;present colour 
+		       			;monochrome=000  
+                                        ;      blue=001         
+	                                ;     green=010 
+                                        ;     red = 100
+ 
+
+
+;if we are black n white, then the colour is always in the low two bits
+;and is 00 if secret, 01 if ordinary, or 10 if reverse video
+	push	B
+	xchg	;save the graphics character pointer
+	lhld	colour
+	mov	a,h	;get the present colour
+	ani	00000111B	;are we monochrome?
+	mov	b,a
+	mov	a,l		;get the back/foeground codes
+	jrz	..we.dunnit	;nothing to do if monochrome
+	call	switch.colour.plane	;plane in B
+	mov	a,l		;get the back/foeground codes
+	dcr	b		;decrement plane vector
+	jrz	..we.dunnit	;cos it was blue
+	rar
+	rar
+	dcr	b		;decrement plane vector
+	jrz	..we.dunnit	;cos it was red
+	rar
+	rar
+..we.dunnit:
+	ani	00000011B	;A has index into opcode array
+	lxi	h,table.of.opcodes
+	call	addHL
+	mov	a,m
+	xchg		;preserve HL and C
+	pop	b
+	ret
+;return with the relevant opcode in A
+
+table.of.opcodes:	;disassemble this if you can!
+	xra	a	;if no foreground or background, clears A
+	nop		;set foreground only, does nothing
+	cma		;if background only, complements A
+	sbb	a	;set all bits if both fore and back ground	
+
+;----------------------------------------------------------------------------
+out.a.graphics.char:	;to the 7220 PRam. This routine is different as
+;it outputs the 8x8 graphics characters in such a way that the Dad and Ead
+;increments properly even if zooming etc is occurring
+	mvi	a,23h		;inx	h
+	sta	..zap		;modify the common code
+	jmpr	out.character	;common code
+;----------------------------------------------------------------------------
+out.a.big.graphics.char:
+;send out the graphics character pointed to by HL consisting of C bytes 
+;simulating some highlighting
+	mvi	a,2bh
+	sta	..zap
+out.character:
+	call	arrange.colour
+	sta	self.modifying.code	;store the relevant opcode
+	call	until.FIFO.Empty
+	mov	b,c		;count in B
+..do.loop:
+	mov	a,m
+	stc		;in case we have to set all bits
+self.modifying.code:	;not good policy
+	nop		;do your foulest
+	OUT	g.parameter
+..zap:	dcx	h	;we are reading westwards and upwards( was inx	h)
+	djnz	..do.loop
+	RET
+
+;----------------------------------------------------------------------------
+order.it:	;Sends an order addressed by HL to the 7220 chip. The order is
+;in the format <Count> <Command> <Parameter-1>............ <Parameter-n>
+;The routine takes care of polling the chip etc
+	mov	b,m		;get count of parameter+command bytes
+	inx	h
+	mov	a,m		;get the command byte
+	call	tochip
+	inx	h
+	dcr	b
+	rz	;is it a simple command, if so job done
+	call	Until.FIFO.Empty
+	mvi	c,G.Parameter
+	outir	;blast it out at top speed, since the FIFO was empty
+	ret
+
+;----------------------------------------------------------------------------
+order.slowly:	;because of a very nasty bug in the QX 10 software that
+;stops screen memory being read when the orders are sent using OUTI or
+;OUTIR ( it seems to make the 7220 go into DMA mode).
+
+	mov	c,m	;get count of parameter+command bytes
+	inx	h
+	mov	a,m
+	call	tochip
+	inx	h
+	dcr	c
+	rz	;is it a simple command, if so job done
+;and fall through
+	
+;----------------------------------------------------------------------------
+OutCHL:	;outputs the parameter byte array pointed to by HL consisting of
+;C bytes
+	call	til.FIFO.Not.Full
+	mov	a,m
+	OUT	g.parameter
+	INX	H
+	DCR	C
+	JNZ	OUTCHL	;
+	RET
+
+;----------------------------------------------------------------------------
+inpar:	;read a parameter in. into A register
+	in	g.status
+	ani	data.ready or im.drawing
+	xri	data.ready
+	jrnz	inpar
+	in	g.data
+	ret
+
+;-----------------------------------------------------------------------------
+Do.Orders:	;Do an array of orders. The first byte is the number of orders
+;in the array
+
+	mov	e,m	;E contains order count heading the array
+	inx	h	;point to count byte of first order
+..loop2:
+	call	Order.it;and do each order in turn
+	dcr	e
+	jrnz	..loop2
+	ret
+
+;----------------------------------------------------------------------------
+Do.Slow.Orders:	;because of hardware bugs in the QX 10
+;Do an array of orders. The first byte is the number of orders
+;in the array
+
+	mov	e,m	;E contains order count heading the array
+	inx	h	;point to count byte of first order
+..loop99:
+	call	Order.slowly	;and do each order in turn
+	dcr	e
+	jrnz	..loop99
+	ret
+
+
+;-----------------------------------------------------------------------------
+Zap.mask.register:	;sets the mask register to 1111111111111111
+;If this is done after moving the cursor by .CURS, then it ensures that
+;the cursor is automatically incremented automatically
+
+	lxi	h,..mask.order
+	jmp	order.it
+
+..mask.order:	;Mask register loading command
+	DB	3
+	DB	.Mask	;sets the mask register
+	DW	0FFFFH
+
+
+
+
+;*** Screen Blanking and 7220 screen initialisation commands ***
+;---------------------------------------------------------------
+
+;-----------------------------------------------------------------------------				
+Clear.the.screen:	;clears the screen and resets everything
+	call	are.we.monochrome
+	jrnz	..we.are.monochrome
+;the SYNC and PITCH parameters are different for colour
+	sta	mask.graphics	;for we are in graphics mode
+	cma
+	sta	graphics.mode
+	lxi	h,40*16
+	shld	words.per.line
+	lxi	h,colour.sync	
+	lxi	D,monochrome.sync
+	lxi	b,8		;all our SYNC commands are different
+	ldir
+	mvi	a,colour.pitch	;and even our pitch
+	sta	monochrome.pitch
+	xra	a
+	sta	not.a.cursor	;so that we should switch off the cursor
+..we.are.monochrome:	;skip the preceding code if we are monochrome
+	lxi	h,..Zap.everything
+	call	do.orders	;resync the chip etc
+	call	zap.mask.register
+;initialises and clears the screens. Homes the cursor.
+	mvi	a,.2.start
+	call	ToChip
+	xra	a
+	sta	one.there	;no graphics cursor there
+	dcr	a
+	sta	toggle.cursor
+	call	do.country##
+	call	blank.everything
+	lxi	h,blank.only
+	shld	action
+	pchl
+		
+..zap.everything:
+	DB	4	;five elements in the order array
+;*Stop*
+	DB	1
+	DB	.stop
+;*Zoom*
+	db	2
+	db	.zoom
+	db	0	;zoom factor of zero
+;*Sync*
+	DB	9	;nine bytes in this order
+	DB	.sync
+	monochrome.sync:
+;eight parameters follow
+	DB	D.Refresh OR F.Access or CG.Mixed OR IS.Noninterlaced
+	DB	Actv.words	;per line
+	DW	(Hz.Sync.Width-1) OR Vt.Sync.Width SHL 5 OR (Hz.Front.porch.width-1) SHL 10
+	DB	(Hz.Back.Porch.width-1)
+	DB	Vt.Front.Porch.width
+	DW	Actv.Lines OR Vt.Back.Porch.Width SHL 10
+
+;*Pitch*
+	DB	2	;two bytes in this order
+	DB	.pitch
+	monochrome.pitch:
+	DB	pitch	;no.of word addresses in display memory in Hz Direction
+
+
+colour.sync:
+;these are the colour bytes	
+	db	06h	;take out flash if you want higher speed
+	db	26h	;I cannot stand it myself
+	db	23h
+	db	11h
+	db	04h
+	db	07h
+	db	90h
+	db	65h
+
+	
+
+;----------------------------------------------------------------------------
+blank.split.screen:	;clears the current screen
+	lda	no.of.lines		;in the current screen
+;A=no. of lines to do.
+	ana	a
+	rz				;return if nothing to do
+	mov	b,a			;no. of lines to do in B
+	lhld	words.per.line
+	xchg
+	lxi	h,0
+..calc.words:
+	dad	d
+	djnz	..calc.words		;words.to.do=words.per.line*lines
+;HL=words.to.do
+	push	h			;save words to do
+
+;get our start address for the current screen
+	lhld	current.screen		;get the pointer to current screen 
+	mov	e,m
+	inx	h
+	mov	d,m			;get the start address into DE
+	pop	h			;restore words to do
+
+;start address in DE, words to do in HL
+	jmp	blank.words
+
+;----------------------------------------------------------------------------
+blank.line::	;clears a line A to spaces
+	MOV	H,A		; PUT ROW IN <H>,
+	MVI	L,0		;   & SET COLUMN TO 0
+	Call	calc.position	; POSITION CURSOR TO BEG OF LINE
+	lda	no.of.columns
+	mov	c,a
+	mvi	b,0		;BC=Columns
+	;and fall through
+;----------------------------------------------------------------------------
+Clear.To.Spaces: ;Clears[BC] bytes to spaces, HL -logical Start address 
+	push	b
+	push	h
+	lhld	current.screen
+	mov	e,m
+	inx	h
+	mov	d,m
+	pop	h
+	dad	d	;HL has the literal VRAM address
+	pop	d	;no of Vram words to blank
+;clear de characters from cursor address (HL contains Vram address adjusted)
+	dcx	d
+	xchg
+	jmp	blank.words	
+
+;----------------------------------------------------------------------------
+Blank.a.Line:	;from the start addressed by HL
+	xchg			;start address in DE
+	lhld	words.per.line
+	dcx	h
+	jmp	blank.words
+
+;----------------------------------------------------------------------------
+blank.everything:	;in graphics or in character mode
+;firstly,ensure that we blank the right amount of memory
+	lxi	h,3FFFH 		;bytes to do
+	lxi	d,starting.address	;from where
+
+;----------------------------------------------------------------------------
+blank.words:	;blank HL words from address in DE.
+	lda	mask.graphics
+	ora	H		;this will be the high byte of DC
+	mov	H,a		;graphics drawing flag for mixed/char mode
+..store.parameters:
+	shld	..DC.blanking
+	xchg
+	shld	..where.to.start
+;if we are monochrome, then we blank the only plane
+	call	are.we.monochrome
+	mvi	a,@reset		;in anticipation of a monochrome affair
+	jrnz	blank.the.plane
+;so, we have to blank all planes
+	lxi	h,colour
+	mov	c,m		;get the colour index
+	mvi	b,1		;start with Blue
+..next.plane:
+	mov	a,b
+	ani	11111000B	;have we done all colours	
+	rnz			;job done if we have shifted the bit into Bit3
+	call	switch.colour.plane	;to one in B
+	mov	a,b
+	add	a		;shift bit in B	
+	mov	b,a		;select the next colour
+	mov	a,c		;rotate the colour index
+	rar	
+	rar		;background in carry bit
+;if the background bit is set, then we set the screen
+	mov	c,a
+	mvi	a,1		;to make the right operation, set bit0
+	ral			;set is 11, reset is 10
+	push	b		;save our colour and index
+	call	blank.the.plane	
+	pop	b		;restore our colour and index
+	jmp	..next.plane
+
+;----------------------------------------------------------------------------
+blank.the.plane:	;clears ..DC.BLANKING bytes from the Ead in ..WHERE.
+;TO.START. A register contains the required operation (set or reset)
+;the code in A should be 0=replace, 1=complement, 2=reset, 3=set
+
+	mvi	b,.Wdat or @LHWord Shl 3
+	ora	b
+	sta	..operation	
+	lxi	h,..blanking.code
+	jmp	do.orders
+
+..blanking.code:	db	5
+;the following code clears a plane in graphics mode
+;*Curs
+	db	4	;set the cursor to the beginning
+	db	.Curs						
+..where.to.start:
+	dw	Starting.address
+	db	Hi.Starting.address
+;*Mask*
+	db	3
+	db	.mask
+	dw	0FFFFH	;Zap the mask register after a Curs
+;*FigS
+	db	04H	;bytes in this order
+	db	.FigS	;Figure drawing parameters specify
+	db	is.wdat Shl 3 or eastwards
+..DC.Blanking:
+	dw	3fffH	;DC=3FFF, Graphics Drawing flag set
+;*WDat*					
+	db	3
+..operation:
+	db	.Wdat or @Reset or @LHWord Shl 3
+	db	0FFH	;Data byte. These are dummy, only the low byte is used
+	db	0FFH	;Second data byte
+;*Wdat*
+	db	1
+	db	.wdat or @Replace or @LHWord	;set writing mode to replace
+
+
+;*** Simple Utilities ***
+;-------------------------
+
+;-----------------------------------------------------------------------------
+Shift.Right:	;shift HL right by C times				
+	inr	c
+..loop:	dcr	c
+	rz
+	mov	a,h
+	ora	a
+	rar
+	mov	h,a
+	mov	a,l
+	rar
+	mov	l,a
+	jmp	..loop
+
+;-----------------------------------------------------------------------------
+mul.by.40:	;fast multiply HL by 40
+	dad	h
+	dad	h
+	dad	h
+	mov	e,l
+	mov	d,h
+	dad	h
+	dad	h
+	dad	d
+	ret
+
+;-----------------------------------------------------------------------------
+HL.Negate:	;HL=-HL
+	mov	a,l
+	cma
+	mov	l,a
+	mov	a,h
+	cma
+	mov	h,a
+	inx	h
+	ret
+
+
+;-----------------------------------------------------------------------------
+BCminus:	;BC=-BC
+	mov	a,c
+	cma
+	mov	c,a
+	mov	a,b
+	cma
+	mov	b,a
+	inx	b	;twos complement
+	ret
+		
+;----------------------------------------------------------------------------
+divide:
+	dad	d
+	inr	c
+	jrc	divide
+	dcr	c
+	ret
+
+;----------------------------------------------------------------------------
+CMP16:	;Compare DE with HL, with Zero and Carry flags set
+	mov	a,h
+	sub	d
+	rnz
+	mov	a,l
+	sub	e
+	ret
+
+;----------------------------------------------------------------------------
+Move:	;intelligent move routine
+	call	cmp16
+	jrc	..up
+	ldir
+	ret
+..up:	dad	b
+	xchg
+	dad	b
+	dcx	h
+	dcx	d
+	xchg
+	lddr
+	ret
+
+
+;----------------------------------------------------------------------------
+DSub:	;The equivalent of DAD
+	mov	a,l
+	sub	e
+	mov	l,a
+	mov	a,h
+	sbb	d
+	mov	h,a
+	rnz
+	inr	l
+	dcr	l
+	ret
+; Who's never heard of Z80 instructions
+; call dsub can be replaced by
+;	.z80
+;	and	a
+;	sbc	hl,de
+;	.8080
+
+;----------------------------------------------------------------------------
+AddHL:	;adds A to HL
+	add	l
+	mov	l,a
+	rnc
+	inr	h
+	ret
+
+
+;----------------------------------------------------------------------------
+EIGHTYXA:	;Quick and dirty HL=A*80 only valid if screen width is 80
+	mov	l,a
+	mvi	h,0
+	dad	h	;*2
+	dad	h	;*4
+	dad	h	;*8
+	dad	h	;*16
+	mov	e,l
+	mov	d,h
+	dad	h	;*32
+	dad	H	;*64
+	dad	d	;*64+*16=*80
+	ret
+
+
+;-----------------------------------------------------------------------------
+Normalise:	;HL=400-HL
+;necessary as XYcoordinates relate to bottom left corner, not top left
+;as in the chip
+;070684	xchg
+;070684	lxi	h,399	;due to origin differences
+;070684	call	dsub
+
+;070684 Corrected to A.R.M.C's verbal instructions by D.P-L
+	.z80
+	ex	de,hl
+	ld	a,(upper.one)
+	and	a
+	ld	hl,(line.of.split)
+	ld	h,0
+	jr	nz,..dpl
+	ld	a,25
+	sub	l
+	ld	l,a
+..dpl:	add	hl,hl
+	add	hl,hl
+	add	hl,hl
+	add	hl,hl
+	dec	hl
+	call	dsub
+	ret
+	.8080
+
+
+
+;*** Character output routines ***
+;---------------------------------
+
+;----------------------------------------------------------------------------
+Write.character:	;blast out the character as stored in the byte
+;variable CHARACTER with the attribute as stored in the bit array (byte)
+;attribute.bitmap, scrolling if there is an attempt to write to the 81st
+;column. the cursor is moved to the next character position
+	lxi	h,no.of.columns
+	LDA	Cursor.Column
+	cmp	m		;do a CR/LF sequence if attempt to write
+	CZ	new.line	;past the legal no. of columns
+	lda	graphics.mode
+	ana	a		;if in graphics mode, do it graphically
+	jnz	Char.Out	;output it to the graphics driver
+	mvi	a,.Wdat OR @LHWord OR @Replace	;replace with following Word
+	call	tochip
+	lxi	h,..char.order	;otherwise do it simply in character mode
+	mvi	c,2
+	call	outchl
+	RET
+
+..char.order:	;arrays for character output
+character:		db	00	;Character to be output 
+attribute.bitmap:	db	00	;The attribute bitmap for this char.
+
+
+
+;----------------------------------------------------------------------------
+Char.Out:	;The graphics equivalent of Write.character. It outputs the
+;byte in CHARACTER as a graphics character according to a table at font8x8
+;or Font according to the current setting. The nos below 32 are reserved
+;so that nothing is printed for these. If the cursor toggle is set, then it
+;updates the cursor to the next character position. It always increments the
+;graphics cursor position to the next character position
+	call	where.are.we	;we ask the chip
+;we establish where we actually are and remember the address for later
+	sta	our.dot.address
+;A=DAd	DE=Ead
+	xchg
+	shld	our.Ead.address
+	lda	toggle.cursor	;do we want a visible cursor?
+	ana	a
+	jz	no.cursor	;no need to do cursor movement
+	lda	one.there	;if nothing there, then there
+	ana	a		;is no need to change its position
+	jz	no.cursor	;so leap onwards
+	
+;find out where we were and rub out the old cursor
+	lhld	lastead
+	lda	lastdad
+	call	write.cursor	;to wipe the previous cursor
+
+no.cursor:
+;The cursor has been erased, if necessary.
+;now we write the character and point correctly to the next
+;character position. Our present position is held in OUR.DOT.ADDRESS and
+;OUR.Ead.ADDRESS.
+	lda	is.it.multifont	;switch for multifont
+	ana	a
+	jnz	Do.Multifont		;we opt out of the shared routines
+
+	lxi	h,char.job.done
+	push	h			;so RET picks up termination routine
+
+	call	are.we.monochrome	;0FFH if monochrome
+	mvi	a,0			;do not disturbe the flags
+	sta	colour+1		;signal monochrome by default
+	jrnz	..do.the.appropriate.routine	;if so, just do it once
+	sta	..1			;reset the graphics bit
+	sta	..2			;on the character commands
+	sta	..3			;and the cursor
+	inr	a			;to set the Bit0 (blue)
+;our colour character loop
+..once.more:
+	call	..colour.char.routine
+	mvi	a,00000010B
+	call	..colour.char.routine
+	mvi	a,00000100B
+..colour.char.routine:
+	sta	colour+1
+..do.the.appropriate.routine:
+	lhld	char.routine	;according to the current character type
+	pchl
+
+
+do.8.by.8:
+	lda	our.dot.address
+	lhld	our.Ead.address	;where are we supposed to be?
+	lxi	d,7*40		;move down five raster lines
+	dad	d
+	call	putcur		;place the cursor there
+	lda	character
+	mov	c,a
+	call	untranslate.character##
+	cpi	9fh		;allow no more
+	jrc	..legal		;bad character
+	mvi	a,' '
+..legal:
+	SUI	" "
+	MVI	H,0
+	MOV	L,A		;HL is the character
+	lxi	D,Font8x8
+	DAD	H	;*2
+	DAD	H	;*4
+	DAD	H	;*8
+	DAD	D	;add to the base of the array
+	mvi	a,20h		;make it replace
+	call	tochip
+	lxi	d,gra.char.order
+;DE=our our order table pointer, HL=the character pointer
+	jmp	spit.it.out
+
+char.job.done:	;our common termination routine
+	lhld	our.ead.address
+	lda	our.dot.address
+	adi	8		;move one char. position
+	mov	b,a		;dad in B
+	cpi	10H
+;do we need to increment the Ead?
+	jrC	..on.forwards
+	inx	h
+	ani	0fh
+	mov	b,a
+..on.forwards:
+;we need to put a cursor on the screen
+	lda	toggle.cursor
+	ana	a		;is the cursor switched on
+	mov	a,b
+	sta	lastdad	;remember where we are putting it
+	shld	lastead
+	jz	putcur		;just move the Graphic Cursor and exit
+	push	h
+	push	psw
+	call	write.cursor	;ready for the next character
+	pop	psw
+	pop	h
+	call	putcur
+	mvi	a,0ffh
+	sta	one.there	;we are displaying a cursor
+	ret
+
+
+;----------------------------------------------------------------------------
+spit.half.big.char:	;;put into Vram the 8 by 8 array pointed to by HL
+;using the 7220 order table pointed to by DE; updating HL and preserving
+;DE.
+	MVI	A,.PRam+8	;PRam+8
+	Call	TOCHIP		;Fill the parameter ram
+	MVI	C,8		;output the 8 by 8 bit pixel pattern
+	Call	out.a.big.graphics.char	;to the VRam
+	push	h
+	lxi	h,..half.big.orders
+	call	do.orders
+	pop	h
+	ret
+
+..half.big.orders:		;for our bigger characters	
+	db	2		;orders in the sequence
+	db	4		;
+	db	.figs
+	DB	westwards or is.Gcharacter shl 3
+	db	7H
+..2:	db	bit6
+	db	1
+	db	.GChrD
+
+
+
+
+
+;----------------------------------------------------------------------------
+spit.it.out:	;put into Vram the 8 by 8 array pointed to by HL
+;using the 7220 order table pointed to by DE; updating HL and preserving
+;DE.
+	push	d		;save our pointer to the order table
+	MVI	A,.PRam+8	;PRam+8
+	Call	TOCHIP		;Fill the parameter ram
+	MVI	C,8		;output the 8 by 8 bit pixel pattern
+	Call	out.a.graphics.char	;to the VRam
+	xchg			;save the character pointer in DE
+	pop	h		;figS parameters in HL
+	push	h		;save order table
+;de contains the updated bit-array pointer
+	MVI	A,.FigS		;FigS
+	Call	TOCHIP		;output FigS Command
+	MVI	C,03H		;no. of items in the order array
+	Call	OUTCHL	
+	MVI	A,.GChrD	;graphic character draw
+	Call	TOCHIP		;do the the .GChrD command
+	xchg			;character pointer in HL
+	pop	D		;restore order table
+	ret
+
+
+
+do.16.by.8:	;send out a 16 by 8 character
+	lda	our.Dot.Address
+	lhld	our.Ead.Address
+	lxi	d,2*40
+	dad	d
+	adi	7		
+	mov	b,a
+	ani	0f0H		;is there a nibble overflow?
+	mov	a,b
+	jz	..no.inc	;no overflow
+	inx	h
+	ani	0fH		;strip off overflow
+..no.inc:
+	call	putcur		;put the graphic cursor in the right place
+	lda	character
+	cpi	0DbH		;we only have DA characters
+	jrc	..good.char	;it was smaller than DB
+	mvi	a," "
+..good.char:
+	sui	" "
+	mov	l,a
+	mvi	h,0
+	lxi	D,font##
+	DAD	H	;*2
+	DAD	H	;*4
+	DAD	H	;*8
+	dad	h	;*16
+	DAD	D		;add to the base of the array (point to next)
+	lxi	d,07H
+	dad	d
+	mvi	a,.WDat
+	call	tochip
+	call	spit.half.big.char	;actually send out the pattern
+	lxi	b,16
+	dad	b
+	jmp	spit.half.big.char	;in two halves
+
+
+gra.char.order:		;for our little characters
+	DB	10H	;southwards
+	db	7H
+..1:	db	bit6
+
+
+;----------------------------------------------------------------------------
+Do.Multifont:	;Send out a Multifont character by the current rules
+	call	MFOut##
+	lda	our.dot.address
+	mov	b,a
+	lhld	our.ead.address
+	jmp	..on.forwards	;to the cursor drawing bit
+
+
+
+
+;*** Cursor Positioning routines ***
+;---------------------------------------
+
+
+;----------------------------------------------------------------------------
+calc.position:	;compute logical address within the VRAM. Row in H and
+;column in L
+	Push	PSW
+	Push	H
+	MOV	A,H
+	call	eightyXA	; HL - RELATIVE ADDRESS OF ROW
+	XCHG
+	Pop	H
+	MVI	H,0		; L - COLUMN
+	DAD	D		; HL - ROW * 80 + COLUMN
+	Pop	PSW
+	RET
+
+;----------------------------------------------------------------------------
+move.the.cursor:	;to the position in Cursor.Column and Cursor.Row
+	lda	graphics.mode
+	ana	a
+	jnz	dopoint	;we do it differently in graphics mode
+	LHLD	Cursor.Column		;L = CURRENT COLUMN
+				;H = CURRENT ROW
+;----------------------------------------------------------------------------
+put.cursor.there:	;in row H and column L
+	Call	calc.position		;CALCULATE CURSOR POSITION
+
+;and fall through
+
+;----------------------------------------------------------------------------
+set.the.cursor:	;HL contains the uncorrected VRAM address, DE is saved,
+;on exit, HL contains the corrected literal VRAM address
+;corrected VRAM address is also in Real.Cursor.ad
+	push	d
+	push	h
+	LHLD	current.screen
+	mov	e,m
+	inx	h
+	mov	d,m
+	pop	h
+;add in the start address
+	dad	d
+	pop	d
+;----------------------------------------------------------------------------
+place.cursor:	;sets the cursor to the literal VRAM address
+	xra	a
+	push	h
+	call	putcur
+	call	zap.mask.register	;as the preceding order will mangle it
+	pop	h
+	ret
+
+
+;----------------------------------------------------------------------------
+WamI:	;inquire the cursor location
+	lda	cursor.column
+	mov	l,a
+	lda	cursor.row
+	mov	e,a
+	xra	a
+	mov	h,a
+	mov	d,a
+;Row in DE, Column in HL
+	ret
+
+
+;----------------------------------------------------------------------------
+write.cursor:	;writes the cursor at the Dad in A and the Ead in HL
+
+	lxi	d,16*40	;move down 12 raster lines
+	dad	d
+	call	putcur	;move the cursor.there
+	mvi	a,21H	;write complement
+	call	tochip
+	mvi	b,1
+	call	switch.colour.plane
+	mvi	a,01111000b	;pram+8
+	call	tochip
+	lxi	h,eff.eff
+	mvi	c,2
+	call	outCHL
+	mvi	a,.FigS	;figS
+	call	tochip
+	lxi	h,box.cursor
+	mvi	c,11
+	call	outCHL
+	mvi	a,01101100B
+	call	tochip	;draw figure
+	ret
+
+;----------------------------------------------------------------------------
+where.are.we:	;on exit DE=Ead and A=DAd
+	mvi	a,11100000B	;Curd
+	call	tochip
+	call	inpar
+	mov	l,a
+	call	inpar
+	mov	h,a
+	call	inpar	;high Ead
+	call	inpar	;dAD low
+	mov	e,a
+	call	inpar	;dAd high
+	mov	d,a
+;calculate dot address within the word
+;HL=EAd  DE=DAd bitmap
+
+	xchg
+	mvi	b,16
+..loop9:
+	dad	h
+	jrnc	..on5
+	dcr	b
+	mov	a,b
+	ret
+..on5:	dcr	b
+	jrnz	..loop9
+	xra	a
+	ret
+
+
+;----------------------------------------------------------------------------
+dopoint:	;point the graphics cursor to the position defined by
+;Cursor.Column and Cursor.Row, and display the Pseudocursor at that point
+	call	point.the.graphics.cursor
+;and fall through in order to display it
+
+;----------------------------------------------------------------------------
+curdis:	;display the graphics cursor at its
+;current location and wipes out the previous
+;one on the screen
+
+	;find out where we were
+	lda	toggle.cursor
+	ana	a
+	rz	;if we are not displaying the cursor nothing to do
+	lhld	lastead
+	lda	lastdad
+	push	h
+	push	psw
+	;find out where we are
+	call	where.are.we
+;A=DAd	DE=Ead
+	sta	lastdad
+	xchg
+	shld	lastead
+	pop	psw
+	pop	h
+	mov	c,a	;save Dad
+	lda	one.there
+	ana	a
+	mov	a,c
+	cnz	write.cursor	;to wipe the previous cursor
+	lhld	lastead
+	lda	lastdad
+	push	h
+	push	psw
+	call	write.cursor
+	pop	psw
+	pop	h
+	call	putcur
+	mvi	a,0ffh
+	sta	one.there	;we are displaying a cursor
+	sta	toggle.cursor
+	ret
+
+lastead:	dw	00
+lastdad:	db	00
+one.there:	db	00
+
+eff.eff:
+	db	0ffh
+	db	0ffh
+
+box.cursor:
+	db	01000010B	;draw rectangle eastwards
+	db	00000011b
+..3:	db	01000000b
+b.width1:
+	dw	7	;pixels eastward
+	dw	15	;northwards
+	dw	-1
+b.width2:
+	dw	7
+
+;----------------------------------------------------------------------------
+Big.Cursor:
+	lxi	h,15
+..alter.the.order:
+	shld	current.cursor.size
+	ret
+
+;----------------------------------------------------------------------------
+Little.Cursor:
+	lxi	h,7
+	jmp	..alter.the.order
+
+
+;---------------------------------------------------------------------------
+Place:	;the cursor at the XY location (HL)=X, (DE)=Y
+
+
+
+	shld	..tempX
+	xchg
+	shld	..tempY
+	lxi	h,..tempX
+	jmp	point
+
+;-----------------------------------------------------------------------------
+Point:	;To the coordinate specified by Y and X in graphics mode
+;sets the cursor (invisible) to the position specified by the
+;coordinates pointed to by HL. Each one is a word integer, so that the XY
+;coordinate is four bytes long
+;we need to calculate the EAD (Execute Address) from the coordinates
+;(placing it in the order within P1 and P2)
+;and The Dot address Shl 4 (in the top nibble of P3 ).
+; 		* Needed for graphics only *
+	mov	e,m
+	inx	h
+	mov	d,m	;DE contains X
+	inx	h
+	mov	a,e
+	ani	bit0 or bit1 or bit2 or bit3	;sixteen bits in the word
+	sta	previous.Dad
+	add	a
+	add	a
+	add	a
+	add	a
+	sta	p3.Curs	;in their ultimate place
+	mvi	c,4	;divide by 16
+	xchg
+	call	Shift.Right	;shift right four times HL
+;giving the number of words in the row in HL
+	mov	a,h
+	ani	0FH
+	mov	h,a
+	xchg		;DE has Words in the final row
+;HL points to the Y parameter
+	push	d	;save DE
+	mov	e,m
+	inx	H
+	mov	d,m
+	xchg
+	call	normalise
+	call	mul.by.40
+	pop	d
+	dad	d
+	xchg
+	push	d		;save our Ead
+	lhld	current.screen
+	mov	e,m
+	inx	h
+	mov	d,m		;get the current start address
+;compensate for scrolling
+	pop	h		;restore our Ead
+	dad	d
+..do.actual.movement:
+	shld	p1.Curs		;and store the Ead
+	lxi	h,..position.it
+	jmp	order.it
+..position.it:
+	db	4	;four bytes in this order
+	db	.curs
+real.cursor.ad:
+p1.curs:db	00	;Low address
+	db	00	;middle address
+p3.Curs:db	00	;High address and bit position
+
+Previous.Dad:	db	000	;recorded for circle calculation
+
+;----------------------------------------------------------------------------
+point.the.graphics.cursor:	;to the coordinates representing the cursor
+;column and cursor line
+
+;firstly is the graphics cursor calculation code
+;it is:-
+;E ad =  X(cursor.column)/2 + Y(Cursor.line)*Words.per.line
+;D ad =  X(cursor.column) mod 2 * 8
+
+	xra	a
+	mov	b,a	;ready for word conversions
+
+	lhld	cursor.column	;H=row, L=column
+	mov	e,h		;E=row
+	mov	h,a		;zero out H so HL=column
+;HL=column no., E=row
+	lda	is.it.multifont
+	ana	a
+	jz	..no.its.not
+	dad	h	;lets make things simple by doubling cursor column
+..no.its.not:
+	mov	a,l
+	ana	a	;clear carry
+	rar		;two characters per word in 80 column mode
+	mov	c,a
+	sbb	a	;set	a=0FFH if carry is set
+	ani	08h	;to convert to a dot address
+	push	psw
+;TOS= dot address, BC=column value, DE=	row, HL=column
+	mov	a,e	;A=row number	
+	lhld	words.per.line
+	xchg
+	lxi	h,0	
+	ana	a
+	jz	..tis.done
+..once.again.please:
+	dad	d	;add in words.per.line, (row) times.
+	dcr	a
+	jrnz	..once.again.please
+..tis.done:
+	dad	b	;add in the column value
+	push	h	;save our Ead	
+	lhld	current.screen
+	mov	e,m
+	inx	h
+	mov	d,m		;get the current start address
+;compensate for scrolling
+	pop	h
+	dad	d
+	xchg
+	lhld	compensation
+	dad	d
+	pop	psw
+;----------------------------------------------------------------------------
+putcur:	;HL contains the Ead, A contains the Dad
+;moves the cursor to the position
+	sta	previous.Dad
+	add	a
+	add	a
+	add	a
+	add	a
+	sta	p3.curs
+	jmp	..do.actual.movement	;position cursor
+
+
+
+
+;*** Memory transfer routines ***
+;--------------------------------
+
+
+;----------------------------------------------------------------------------
+get.a.line:	;read a VRAM line into our handy buffer. 
+;GDC cursor points to start of line). Save all registers.
+
+
+	push	h
+	push	b
+	lxi	h,..read.line
+	call	order.it
+	LXI     H,Handy.Buffer			;BUFFER ADDRESS
+	mvi	a,.rdat or @LHWord or @Complement	;read from VRAM
+	call	ToChip
+	lda	no.of.columns
+	mov	b,a				;NUMBER OF BYTES
+get.a.line1:
+	call	inpar
+	mov	m,a
+	inx	h
+	call	inpar
+	mov	m,a
+	inx	h
+	djnz	get.a.line1
+;Z80 I/O opcodes do not work in this loop
+;now we	restore the chip to some sort of order
+	mvi	A,.wdat
+	out	g.command	;clear the buffer
+	lxi	h,..write.line	;reset the Fig registers
+	call	order.it
+	pop	b
+	pop	h
+	ret
+
+..Read.line:
+;*FigS*
+	db	4	;bytes in this order
+	db	.FigS	;specify count and direction
+	db	eastwards
+	db	columns*2
+	db	00
+
+;----------------------------------------------------------------------------
+put.a.line:	;writes a line from our handy buffer into VRAM (GD cursor
+;points to start of line). Save all registers. DMA might be better
+
+	push	h
+	push	b
+	call	zap.mask.register
+	lxi	h,..write.line
+	call	order.slowly
+	LXI     H,Handy.Buffer			;BUFFER ADDRESS
+	mvi	a,.Wdat or @LHWord or @replace	;write to VRAM
+	call	ToChip
+	lda	no.of.columns
+	add	a
+	mov	c,a	;columns*2
+	call	outchl	;we just put them out
+	pop	b
+	pop	h
+	ret
+
+..Write.line:
+
+;*FigS*
+	db	4	;bytes in this order
+	db	.FigS	;specify count and direction
+	db	eastwards
+	db	000
+	db	00
+
+
+
+
+
+
+
+;
+;*** Cursor Management routines ***
+;-----------------------------------
+
+;
+;----------------------------------------------------------------------------
+curoff::	;switch the cursor off. This will switch the cursor off
+;in both graphics and character mode
+
+
+	lxi	h,..off.cursor	;tell the 7220 to switch off the cursor
+	call	order.it
+	lxi	h,one.there
+	mov	b,m
+	xra	a
+	mov	m,a		;;remember that theres nothing there
+	sta	toggle.cursor	;remember what we have done
+
+	lda	graphics.mode
+	ana	a
+	rz			;job done if not in graphics mode
+	mov	a,b
+	ana	a		;have we a graphics cursor around
+	rz			;no graphics cursor to erase
+	lhld	lastead
+	lda	lastdad
+   	call	write.cursor	;complement the cursor
+	call	point.the.graphics.cursor
+	;to point to the right place
+	ret
+
+..off.cursor:
+	db	2
+	db	.Cchar	
+not.a.cursor:
+	db	lines.per.cursor
+
+
+;
+;----------------------------------------------------------------------------
+CURON::	;switch the cursor on with the defined characteristics
+
+	xra	a
+	dcr	a
+	sta	toggle.cursor	;in case we are in graphics mode
+	push	b
+	push	h
+	lxi	h,..on.cursor
+	call	are.we.monochrome	;different in graphics mode
+	jrnz	..not.colr		;yes so jump
+	lxi	h,..not.cursor		;different order if graphic
+..not.colr:
+	call	order.it
+	pop	h
+	pop	b
+	lda	graphics.mode
+	ana	a
+	rz	;job done if in character mode
+	lhld	current.cursor.size
+	shld	b.Width1
+	shld	b.Width2
+	call	dopoint	;point to the right place in the graphics screen
+	call	curdis	;display the graphics cursor
+	ret
+ucursor	equ	curs.top.line or blink shl 5 or blink.rate shl 6 or curs.bottom.line shl 11
+..on.cursor:
+	db	4
+	db	.Cchar	
+	db	lines.per.cursor or bit7	;display cursor if bit 7
+..cursor.type:
+	dw	ucursor	;28nov83
+
+..not.cursor:	;the 7220 gets upset if this is not right
+	db	4
+	db	.Cchar	
+	db	00	;not display cursor
+	dw	0000H	;no cursor at all
+
+;----------------------------------------------------------------------------
+square:	lxi	h,070C0H	;do a square cursor
+	shld	..cursor.type
+	jmp	..show.cursor
+
+;----------------------------------------------------------------------------
+flat:	lxi	h,ucursor	;do an underline cursor 28nov83
+	shld	..cursor.type
+..show.cursor:
+	lda	toggle.cursor
+..backwards:
+	ana	a	;are we currently displaying a cursor
+	rz		;if not, then there is no more more to do
+	jmp	curon	;otherwise let the 7220 know what we have decided
+
+
+;----------------------------------------------------------------------------
+clear.split.screen:	;clears the screen and "homes" the cursor
+	lhld	action
+	pchl
+action:	dw	clear.the.screen	;so that we resync once only!
+blank.only:
+	lda	toggle.cursor	;28nov
+	push	psw		;28nov
+	call	curoff
+	call 	blank.split.screen	;physically rub out the memory
+;and reset the current screen parameter block with a virgin copy of itself
+	call	initialise.screen
+	call	ihome
+	pop	psw		;28nov
+	jmp	..backwards	;28nov
+	
+;----------------------------------------------------------------------------
+imitate.scroll:	;so NEC says you can have two screens in mixed mode? How
+;about scrolling?
+
+	lda	graphics.mode
+	ana	a
+	rnz		;not possible in graphics mode as this would
+;corrupt the other screen! Imitating scroll is too slow without DMA
+	mvi	a,0	;from line zero
+	call	scroll.up
+	jmp	move.the.cursor
+	
+	
+;----------------------------------------------------------------------------
+SCROLL:	;down one line doing the whole split of the screen
+	lda	line.of.split
+	cpi	25
+	jc	imitate.scroll
+	lhld	current.screen
+	push	h	;save pointer to the current screen
+	mov	e,m	
+	inx	h
+	mov	d,m
+	push	d	;save start address
+	xchg		;to get address of start line in HL
+	call	blank.a.line
+	pop	d	;restore start address into DE
+	lhld	words.per.line
+	DAD	D	;to increment to next line
+	xchg		;new start address in DE
+	pop	h	;restore pointer
+	mov	m,e
+	inx	h
+	mov	m,d	;and replace the new start address
+	mov	a,m
+	jmp	..tell.the.7220	;
+initialise.screen:
+	lhld	current.screen
+	mov	e,l
+	mov	d,h
+	lxi	b,offset.to.virgin.block/2
+	dad	b
+	dad	b
+	call	move
+	
+..tell.the.7220:
+	lxi	h,..scroll.order
+	call	order.it
+	ret
+
+if debugging
+de.windows:	db	2+(2*offset.to.virgin.block)
+endif
+
+..scroll.order:
+			db	9	;Bytes in this order
+			db	.pram
+
+;these two screen arrays are changed dynamically by the scrolling and are
+;referenced for cursor positioning, usually through the CURRENT.SCREEN
+;pointer. These arrays are sent to the 7220 by ..TELL.THE.7220
+
+First.Window.Address:
+	DW	Starting.address	;display window 1
+	DB	0	;window length-low nibble shl 4
+	DB	19h     ;window length-high byte or non.image shl 6
+
+Second.window.address:
+	DW	07D0H	;display window 2
+	DB	0	;Window Length
+	DB	0	;window length-high byte or non.image shl 6
+
+offset.to.virgin.block equ $-first.window.address
+
+;these are set to contain the split screen information but default to being
+;just one window in character mode
+
+;			*** the first window ***
+
+SAD.1:	DW	starting.address	;starting address of display
+	DB	0		;window length-low nibble shl 4
+Len.1.High:
+	DB	19h     	;window length-high byte or non.image shl 6
+
+;			*** the second window ***
+
+SAD.2:	DW	07d0H		;starting address of display
+	DB	0		;window length-low nibble shl 4
+Len.2.High:
+	DB	19h     	;window length-high byte or non.image shl 6
+
+
+;*** a great deal of code was pruned from here. RIP ***
+
+if debugging
+endif
+
+
+
+
+
+conuc:	;converts byte in A to upper case (with q being exception)
+	cpi	"q"	;a televideo escape code
+	jz	.subst
+	cpi	7bh
+	rnc
+	cpi	61h
+	rc
+	ani	5fh
+	ret
+.subst:	
+	mvi	a,((end.action.table-action.table)/2)
+	ret
+
+;-----------------------------------------------------------------------------
+Do.Escape.Sequence:	;Process an escape sequence
+
+	lxi	h,simple.output
+	shld	whither.wanderest	;next char probably treated normally
+	;to shut the door behind me
+	Call	Conuc		;convert to upper case
+;and fall through
+;----------------------------------------------------------------------------
+a.control.char.perhaps:	;search for the character in the lookup table
+
+;and fall through
+;----------------------------------------------------------------------------
+Function::	;this does the A'th routine in the action table. If that
+;table entry is null (not yet implemented or reserved) then it returns
+;without doing anything at all and HL=0
+	cpi	((end.action.table-action.table)/2)+1
+	rnc	
+	dcr	a		;A is the index into the function array
+	rm			;must have been a null
+	add	a
+	lxi	h,Action.table
+	call	addhl
+	mov	e,m
+	inx	h
+	mov	d,m		;get the pointer
+	xchg
+	mov	a,h
+	ora	l		;was it zero?
+	rz			;if so, then nothing more to do
+	pchl
+
+
+
+;This is the end of the module
+
+.comment	"
+
+	The idea of this table is to allow the user the flexibility to
+change as many of the QX+ switches as possible and to control all
+character I/O through the console ESC sequences. The typing of an ESC
+at the keyboard, or the sending of a 'control' character, allows access
+to console, list, CMOS, RS232, sound and keyboard features. The features
+are managed from one large table that is accessed by means of a
+'computed GOTO'.
+
+-----------------------------------------------------------------------------
+
+
+"
+
+
+Action.table::
+DW	000			;01H-Cntrl A - 	
+DW	000			;02h-Cntrl B -
+DW	000			;03H-Cntrl C - 	
+DW	000			;04H-Cntrl D -
+DW	Clear.to.eol		;05H-Cntrl E - 	
+DW	squeak##		;06H-Cntrl F -  Sound a note
+DW	BELL			;07H-Cntrl G -	Beep					
+DW	backspace		;08H-Cntrl H -	Cursor left			
+DW	TAB			;09H-Cntrl I -	Tab					
+DW	line.feed		;0AH-Cntrl J -	Cursor down				
+DW	up.cursor		;0BH-Cntrl K -	Cursor up				
+DW	right.cursor		;0CH-Cntrl L -	Cursor right				
+DW	Carriage.ret		;0DH-Cntrl M -	Carriage Return
+DW	000			;0EH-Cntrl N - 	
+DW	000			;0FH-Cntrl O -
+DW	000			;10H-Cntrl P - 	
+DW	000			;11H-Cntrl Q -
+DW	000			;12H-Cntrl R - 	
+DW	000			;13H-Cntrl S -
+DW	000			;14H-Cntrl T - 	
+DW	000			;15H-Cntrl U -
+DW	000			;16H-Cntrl V - 	
+DW	000			;17H-Cntrl W -
+DW	000			;18H-Cntrl X - 	
+DW	000			;19H-Cntrl Y -
+DW	clear.split.screen	;1AH-Cntrl Z -	Clear Screen				
+DW	EscSeq			;1BH-Cntrl [ -	Escape sequence 			
+DW	Home.The.Cursor		;1CH-Cntrl \ -
+DW	000			;1DH-Cntrl ] - 	
+DW	Home.The.Cursor 	;1EH-Cntrl ^ -
+DW	new.line		;1FH-Cntrl _ -	New line				
+								
+;The following are ESC sequence routines
+				;ESC <space>    Alter System Parameter
+dw	000
+DW	define			;ESC ! -	define graphic character
+Dw	put.function.key##	;ESC " -	Read function Key
+Dw	Do.Style     		;ESC # -	Select Multifont style
+Dw	get.function.key##	;ESC $ -	Write to function key
+Dw	Send.Direct		;ESC % -	Send next character direct
+Dw	square			;ESC & -	Change cursor to square 
+Dw	flat			;ESC ' -	Change cursor to line  
+DW	FULLINT			;ESC ( -	Full intensity
+DW	HALFINT			;ESC ) -	Half intensity
+DW	clear.split.screen	;Esc *		clear screen
+DW	clear.split.screen	;ESC + -	Clear Screen
+Dw	do.a.split		;ESC , -	Does a Split Screen
+Dw	music##			;ESC - -	Music
+dw	do.graphics##		;ESC . -	Do graphics routine
+Dw	Multifont		;ESC / -	Switch to multifont characters
+Dw	InvSet			;ESC 0 -        reverse video on 
+Dw      InvRes          	;ESC 1 -        reverse video off		
+Dw      curoff          	;ESC 2 -        Cursor off       
+Dw      Curon           	;ESC 3 -        Cursor on
+Dw      000            		;ESC 4 -        Underline        
+Dw      000            		;ESC 5 -        Underline off    
+Dw      FullInt         	;ESC 6 -        Highlight        
+Dw      Halfint         	;ESC 7 -        Highlight off    
+Dw      Blinkset           	;ESC 8 -        Blink            
+Dw      BlinkBlankReset 	;ESC 9 -        Blink off        
+Dw	.yes.proportional##	;ESC : -	Proportional multifont printing
+Dw	.No.Proportional##	;ESC ; -	Non-proportional MF printing
+Dw	.multifont##		;esc < -	Switch to multifont printing
+DW	Poscur			;ESC = -	Load cursor(XY addressing)
+Dw	.Not.Multifont##	;ESC > -	Switch to native mode printing
+DW	read.cursor		;ESC ? -	Read cursor
+dw	to.20.line.mode		;ESC @ -        switch to 20 line autoswitch
+dw	do.little.chars		;esc A -	change to little characters
+dw	do.big.chars		;ESC B -	change to big characters
+DW	select.character.set	;ESC C -	Change cursor to square 
+DW	flat 	 		;ESC D -	Change cursor to line
+DW	line.insert		;ESC E -	Line Insert
+dw	black.background	;ESC F -	
+DW	into.graphics		;ESC G -	change to graphics mode
+dw	exit.graphics		;ESC H -	change to character mode
+dw	white.background	;esc I
+DW	Invset			;ESC J -	Start inverse
+DW	Invres			;ESC K -	End inverse
+DW	define.colour		;ESC L -	define colours (or start Underline)
+DW	priviliged		;ESC M -	End underline
+DW	inquire.printer		;ESC N -	inquire printer type
+dw	set.printer		;ESC O -	set printer type
+DW	Scrnd##			;ESC P -	Hardcopy (in external module)
+DW	insert			;ESC Q -	Character insert
+DW	line.delete		;ESC R -	Line Delete	
+DW	unmake.screen.prop	;ESC S -	Exit screen proportional
+DW	Clear.to.eol		;ESC T -	Erase to end of line
+DW	upper.screen		;ESC U -	switch to the upper screen
+DW	lower.screen		;ESC V -	switch to the lower screen
+DW	rubout			;ESC W -	Character delete
+dw	make.screen.prop	;ESC X -	Enter screen proportional
+DW	erase.to.end		;ESC Y -	Erase to end of screen	
+DW	clear.split.screen	;ESC Z -	Clear screen		
+DW	curoff			;ESC [ -	Switch off the cursor
+Dw	Not.Multifont		;ESC \ -	Switch from multifont characters
+dw	curon			;ESC ] -	Restore the cursor
+DW	blinkset		;ESC ^ -	Start Blink field
+DW	Blankset		;ESC _ -	Start blank field
+dw	not.20.line.mode	;ESC ` -        disable 20 line autoswitch
+DW	BlinkBlankreset		;ESC q -	End Blank/Blink field	
+
+end.action.table:
+dw	000	;I'm just superstitious
+
+;        U
+;	/o\
+;	_O/	<---- a bug.
+;	_O/
+;	 ^
+
+;----------------------------------------------------------------------------
+ESCSEQ: 
+	lxi	h,Do.Escape.Sequence
+	shld	whither.wanderest	;next character is escape parameter
+null:	ret
+
+;----------------------------------------------------------------------------
+priviliged:	;process a priviliged call
+;0=go to flashless mode
+;1=go to flash mode
+;3=cursor blue
+;4=cursor white
+	lxi	h,do.priviliged
+	mvi	c,1	;get one parameter
+	jmp	fetch.byte.params
+do.priviliged:
+	ani	00000001B
+	lxi	d,monochrome.sync
+	jrnz	do.flash
+
+;	add	a	;as a word parameter
+;	lxi	h,privilige.table
+;	call	addhl
+;	mov	e,m
+;	inx	h
+;	mov	d,m
+;	xchg
+;	pchl
+
+;privilige.table:
+;	dw	do.flashless
+;	dw	do.flash
+;	dw	do.cursor.blue
+;	dw	do.cursor.white
+;	dw	do.nothing	;reserved for expansion
+;	dw	do.nothing
+;	dw	do.nothing
+
+do.flashless:
+	ldax	d
+	ori	f.access
+	stax	d
+	jmpr	..flash.type
+
+do.flash:
+	ldax	d
+	ani	not f.access
+	stax	d
+..flash.type:
+	sta	..sync.type
+	lxi	h,flash.order
+	jmp	order.it
+
+flash.order:	
+	db	2
+	db	.Sync OR 01H	;do not blank
+..sync.type:
+	db	d.refresh OR F.Access OR Cg.Mixed OR Is.Noninterlaced
+
+;----------------------------------------------------------------------------
+send.direct:	;send the following character directly
+	lxi	h,get.naked.char
+	shld	whither.wanderest
+	ret
+
+get.naked.char:
+	sta	character
+	lxi	h,simple.output
+	shld	whither.wanderest	;next character probably treated normally
+	;to shut the door behind me
+	jmp	naked
+
+
+;----------------------------------------------------------------------------
+make.screen.prop:
+	call	invres		;cannot do inverse
+	mvi	a,.wdat or @set
+	sta	write.type##
+	xra	a
+	dcr	a
+..back:	sta	screen.proportional##
+	ret
+
+
+;----------------------------------------------------------------------------
+unmake.screen.prop:
+	mvi	a,.wdat or @replace
+	sta	write.type##
+	xra	a
+	jmpr	..back
+
+;----------------------------------------------------------------------------
+select.character.set:	;set the current country. The convention is as per QX
+	lxi	h,do.nationalisation
+	shld	whither.wanderest
+	ret
+do.nationalisation:
+	lxi	h,simple.output
+	shld	whither.wanderest
+	call	set.country##
+;we should do the keyboard tables too
+	ret
+	
+
+;----------------------------------------------------------------------------
+black.background:	;on the jx colour screendump
+	mvi	a,0
+	mvi	b,8
+..back.a.bit.dear:
+	sta	.all.planes##
+	mov	a,b
+	sta	.no.planes##
+	ret
+
+White.background:	;on the colour JX
+	mvi	a,8
+	mvi	b,0
+	jmp	..back.a.bit.dear
+
+;----------------------------------------------------------------------------
+read.cursor:	;address into the keyboard FIFO (Y+32,X+32)
+	lhld	cursor.column	;and go there
+	mov	a,h		;get the row
+	push	h
+	adi	' '
+	call	kbdfifo##	;put it in the keyboard fifo
+	pop	h
+	mov	a,l
+	adi	' '
+	jmp	kbdfifo##	;and the column
+
+;----------------------------------------------------------------------------
+inquire.printer:	;ESC N -	inquire printer type
+	lda	printer##
+	ani	00000111B
+	adi	'0'			;make it ASCII
+	jmp	kbdfifo##	
+
+;----------------------------------------------------------------------------
+set.printer:		;ESC O -	set printer type
+	lxi	h,do.set.printer
+	mvi	c,1
+	jmp	fetch.byte.params
+do.set.printer:
+	ani	00000111B
+	sta	printer##
+	ret
+
+;----------------------------------------------------------------------------
+define.colour:	;define background and foreground characters
+	lxi	h,get.foreback.byte
+	shld	whither.wanderest
+	ret
+
+get.foreback.byte:
+	lxi	h,foreground.character
+	cpi	"0"
+	jrz	..go.on
+	lxi	h,background.character
+..go.on:
+	shld	whither.wanderest
+	ret
+
+foreground.character:
+;0=black,1=blue,2=red,3=violet,4=green,5=light.blue,6=yellow,7=white
+;foreground bits are first in each 2bit field
+	call	set.colour.bits
+	mvi	b,11101010B	;blend in bits set to zero
+change.colour:
+	lda	colour
+	xra	l
+	ana	b
+	xra	l
+	sta	colour
+	lxi	h,simple.output
+	shld	whither.wanderest
+;nov28	call	are.we.monochrome
+;nov28	rz
+;nov28	mvi	a,00000001B
+;nov28	sta	colour
+	ret
+
+background.character:
+;0=black,1=blue,2=red,3=violet,4=green,5=light.blue,6=yellow,7=white
+;background bits are second in each 2bit field
+	call	set.colour.bits
+	dad	h	;to shift to background
+	mvi	b,11010101B	;mask for blending
+	jmp	change.colour
+
+colour.table:
+	db	0	;black
+	db	1	;blue
+	db	4	;red
+	db	5	;violet
+	db	2	;green
+	db	3	;cyan
+	db	6	;yellow
+	db	7	;white
+
+
+set.colour.bits:	;sets the bits in L according to the byte in A
+;Bit 0 A -> Bit 0 L
+;Bit 1 A -> Bit 2 L
+;Bit 2 A -> Bit 4 L
+	ani	00000111b
+	lxi	h,colour.table
+	call	addhl
+	mov	a,m
+	rrc				;nov28
+	rrc				;nov28
+	rrc				;nov28
+	mvi	l,0
+	mvi	b,3
+..colour.set.loop:
+	dad	h
+;nov28	rar				;shift colour bit into carry
+	ral				;shift colour bit into carry
+	dadc	h			;to shift with the colour bit
+	djnz	..colour.set.loop
+	call	are.we.monochrome	;nov28
+	rz				;nov28
+;if monochrome then only bit zero is to be wiggled
+	mov	a,l			;nov28
+	ana	a			;nov28 any bits set
+	rz				;nov28
+	mvi	l,1			;nov28
+	ret
+
+
+
+	
+;----------------------------------------------------------------------------	
+POSCUR:	;cursor addressing routine
+	lxi	h,process.YX
+	mvi	c,2		;two bytes to get
+	jmp	fetch.byte.params
+process.YX:
+;HL points to the data
+	mov	a,m		; GET DATA
+	SUI	' '		; SUBTRACT OFFSET
+	xchg
+	lxi	h,no.of.lines
+	cmp	m
+	rnc			;return if out of range
+	xchg
+	mov	c,a		; SAVE ROW NUMBER
+	inx	h		;point to the X coordinate
+	MOV	A,m		; GET DATA
+	SUI	' '		; SUBTRACT OFFSET
+	lxi	h,no.of.columns
+	cmp	m
+	rNC			;return IF OUT OF RANGE
+	mov	l,a		;save converted column
+	mov	h,c		;and converted row
+	shld	cursor.column	;and go there
+	Call	 move.the.cursor;
+	ret		
+
+;----------------------------------------------------------------------------
+remember:	;the contents of the current control block
+	lda	upper.one
+	inr	a
+
+;----------------------------------------------------------------------------
+save.old.block:	;save our current control block into either the upper or lower
+;control block depending on the zero flag. Returns a pointer to the current 
+;control block in HL
+	lda	attribute.bitmap
+	sta	attribute	;remember the attributes
+	lxi	d,lower.control.block
+	lxi	h,upper.control.block
+	jrnz	..hoppity.hoppity
+	xchg
+..hoppity.hoppity:		;Christopher Robin goes hoppity.....
+	push	h
+;save the contents of the current control block
+	lxi	h,control.block
+	lxi	b,length.control.block
+	call	move
+	pop	h
+	ret
+
+;----------------------------------------------------------------------------
+upper.screen:	;switch to the upper screen
+	lda	line.of.split
+	ana	a
+	rz	;prevent switching into nonexistent screen
+	lxi	h,upper.one
+	mov	a,m
+	ana	a
+	rnz	;nothing to do
+	dcr	a
+	mov	m,a		;we are non zero
+;zero set if we switch to lower screen
+..common.code:	;a byte-saving exercise
+	call	save.old.block
+	lda	toggle.cursor
+	push	h
+	push	psw
+	call	curoff		;and switch off the cursor
+	pop	psw
+	sta	toggle.cursor	;remember previous status
+;and read in the new control block
+	pop	h
+	lxi	d,control.block
+	lxi	b,length.control.block
+	call	move
+;now we restore our environment
+	lda	no.of.columns	;NOV26
+	dcr	a		;NOV26 (adjust to base 0)
+	sta	@COCOL		;NOV26 Update SCB
+	lda	no.of.lines	;is the current line no. legal?
+	sta	@COROW		;NOV26 Update SCB
+	dcr	a
+	lxi	h,cursor.row
+	cmp	m
+	jrnc	.row.ok
+	mov	m,a
+.row.ok:
+	lda	attribute
+	sta	attribute.bitmap	;remember the attributes
+	call	move.the.cursor
+	lda	toggle.cursor
+	ana	a
+	cnz	curon	;if there was a cursor before
+	lda	graphics.mode
+	ana	a
+	rnz		;job done if in graphics mode
+	lxi	h,..write.line
+	call 	order.it	;to set the direction
+	ret
+
+;----------------------------------------------------------------------------
+lower.screen:	;switch to the upper screen
+	lda	line.of.split
+	cpi	25
+	rz	;prevent switching into nonexistent screen
+	lxi	h,upper.one
+	mov	a,m
+	ana	a
+	rz	;nothing to do as we are in the lower screen already
+	xra	a	;we must set zero
+	mov	m,a
+;zero set
+	jmpr	..common.code
+
+control.block::
+
+;the following are the parameters that are affected by mode
+no.of.lines:		db		25	;no.of.lines
+mask.graphics:		db		040H	;graphics mask
+graphics.mode:		db		000	;what mode we are in
+words.per.line::	dw		80	;words per line
+
+len.mode.params equ $-control.block	;length of this part of the block
+
+twenty.line.mode:	db		000	;are we in 20 line mode
+char.routine:		dw		do.16.by.8
+current.screen::	dw		first.window.address
+no.of.columns:		dw		80	;no.of.columns
+compensation:		dw		-40	;compensation factor
+what.we.were.in:	db		000	;we were in character mode
+is.it.multifont:	dw		000	;are we multifonting
+cursor.column:		db		000	;current cursor column
+cursor.row:		db		000	;current cursor row
+colour:			Db	00010101B	;start in black and white
+			db	000		;our current colour byte
+do.we.change.to.20:	db	0FFH		;do we do 20 line multifonts
+current.bar.height:	dw	0010H		;bar height for ERA eol
+current.cursor.size:	dw	7		;current cursor size
+toggle.cursor:		db	0ffH		;is the cursor on
+attribute:		db	000		;current attributes
+
+length.control.block	Equ	$-control.block
+
+upper.control.block:
+no.1.of.lines:
+	db		25	;no.of.lines
+mask.1.graphics:
+;the following are the parameters that are affected by mode
+	db		040H	;graphics mask
+mode.1.graphics:
+	db		000	;what mode we are in
+words.1.per.line:
+	dw		80	;words per line
+
+line.1.mode:
+	db		000	;are we in 20 line mode
+	dw		do.16.by.8
+	dw		first.window.address
+	dw		80	;no.of.columns
+	dw		-40	;compensation factor
+	db		000	;we were in character mode
+	dw		000	;are we multifonting
+	db		000	;current cursor column
+	db		000	;current cursor row
+	Db	00010101B	;start in black and white
+			db	000		;our current colour byte
+	db	0FFH		;do we do 20 line multifonts
+	dw	0010H		;bar height for ERA eol
+	dw	7		;current cursor size
+	db	0ffH		;is the cursor on
+	db	000		;current attributes
+
+lower.control.block:
+no.2.of.lines:
+	db		25	;no.of.lines
+mask.2.graphics:
+;the following are the parameters that are affected by mode
+	db		040H	;graphics mask
+mode.2.graphics:
+	db		000	;what mode we are in
+words.2.per.line:
+	dw		80	;words per line
+Line.2.mode:
+	db		000	;are we in 20 line mode
+	dw		do.16.by.8
+	dw		second.window.address
+	dw		80	;no.of.columns
+	dw		-40	;compensation factor
+	db		000	;we were in character mode
+	dw		000	;are we multifonting
+		db		000	;current cursor column
+	db		000	;current cursor row
+	Db	00010101B	;start in black and white
+			db	000		;our current colour byte
+	db	0FFH		;do we do 20 line multifonts
+	dw	0010H		;bar height for ERA eol
+	dw	7		;current cursor size
+	db	0ffH		;is the cursor on
+	db	000		;current attributes
+
+if ($-control.block) ne (length.control.block*3)
+.printx "control blocks error"
+endif
+
+
+;----------------------------------------------------------------------------
+Tab:	;move to the next tabstop (8 positions)
+	lda	no.of.columns
+	mov	b,a		;no. of columns in b
+	lxi	h,cursor.column
+	mov	a,m
+	ori	00000111B
+	inr	a
+	cmp	b	
+	rnc			;cannot tab past the end
+	mov	m,a		;job done now we are at the eighth position
+	call	move.the.cursor
+	ret
+	
+;----------------------------------------------------------------------------
+Halfint:	;set to half intensity
+	lxi	h,attribute.bitmap	;GET ATTRIBUTE BYTE
+	res	2,m			;reset highlight
+	ret
+
+;----------------------------------------------------------------------------	
+Fullint:	;set to full intensity
+	lxi	h,attribute.bitmap	;GET ATTRIBUTE BYTE
+	setb	2,m			;set highlight
+	ret
+
+;----------------------------------------------------------------------------
+blinkset:	;set the characters to blinking
+	lxi	h,attribute.bitmap	;GET ATTRIBUTE BYTE
+	setb	7,m
+	ret	
+
+;----------------------------------------------------------------------------
+Blankset:	;set to secret mode
+	lxi	h,attribute.bitmap	;GET ATTRIBUTE BYTE
+	setb	6,m			;set blink
+	ret
+
+;----------------------------------------------------------------------------
+BlinkBlankReset:	;reset both blinking and blanking
+	lxi	h,attribute.bitmap	;GET ATTRIBUTE BYTE
+	mov	a,m
+	Ani	3fh		;reset blink and blank
+	mov	m,a
+	ret
+
+;----------------------------------------------------------------------------
+INVSET:	;set inverse video bit
+;firstly, disallow proportional multifont inverse mode
+	lda	is.it.multifont
+	ana	a
+	jrz	..go.over
+	lda	screen.proportional##
+	ana	a
+	rnz		;proportional does not support inverse
+..go.over:
+	lxi	h,attribute.bitmap		;GET ATTRIBUTE BYTE
+	mov	b,m
+	setb	3,m			;SET Inverse video
+	mov	a,b
+	ani	@reverse
+	rnz	;return if it was formerly set
+;we therefore need to flip the colour index	
+;-----------------------------------------------------------------------------
+flip.colour.index:	;switch foreground into back and vica versa
+	lxi	h,colour
+	mvi	b,00101010B
+	mov	a,m
+	add	a		;shift the foreground
+	ana	b
+	mov	c,a		;save new background
+	mov	a,m
+	ana	b		;get old background
+	rrc			;shift right
+	ora	c
+	mov	m,a
+	ret
+
+
+;----------------------------------------------------------------------------
+INVRES:	;reset inverse video
+	lxi	h,attribute.bitmap		;get the attribute bitmap 
+	mov	a,m
+	mov	b,a	;save its former status
+	ani	0f7h	;god, m80 does not have unary not
+;we have reset the half-intensity flag
+	mov	m,a
+	mov	a,b
+	ani	@reverse
+	rz	;return if it was formerly reset
+	jmp	flip.colour.index
+
+
+;----------------------------------------------------------------------------
+BELL:	;ring dat bell
+; this Z80 code is DPL's (well done uncle David!)
+;a beep must not have a wait loop
+	.z80
+;set the frequency of the buzz to 1 KH
+;assume the IPL's buzzer 'on-time'
+	xor	a
+	out	(04h),a		; set timer constant to 1000b
+	ld	a,16		;set to 1 KH
+	out	(04),a
+;now we set off the speaker timer trigger
+	in	a,(30h)		; read DRAM bits
+	and	not	1111b	; and remove FDD bits
+	or	1		; this will set the speaker timer trigger
+	out	(18h),a		; (and reselect the DRAM)
+	.8080
+
+	ret
+
+
+;----------------------------------------------------------------------------
+line.insert:	;insert a line at the cursor position and the rest of the
+;screen moves down one line
+	lda	graphics.mode
+	ana	a
+	LDA	Cursor.Row	; GET ROW NUMBER
+	cz	scroll.down	;call if not graphics 
+	ret
+
+
+
+
+;----------------------------------------------------------------------------
+line.delete:	   ;cursor stays where it was and the screen scrolls up one
+	lda	graphics.mode
+	ana	a
+	rnz			;not implemented in graphics mode
+	LDA	Cursor.Row	; GET ROW NUMBER
+	Call	scroll.up	; SCROLL SCREEN UP
+	xra	a
+	sta	cursor.column
+	call	move.the.cursor
+	ret
+
+
+;----------------------------------------------------------------------------
+insert:	;inserts a character at the cursor position, the line moves one up
+;and the last character falls of the end
+	lda	graphics.mode
+	ana	a
+	rnz			;not implemented in graphics mode
+	call	get.current.line	
+;HL points to character in buffer under cursor
+;BC has the number of columns to the end of the line
+	push	h
+	mov	e,l
+	mov	d,h
+	inx	d		;increment one word
+	inx	d
+	call	move		;heave it up
+	pop	h
+	mvi	m," "		;insert the character
+	inx	h
+	lda	attribute.bitmap
+	mov	m,a
+
+put.current.line:	;that has just been gotten
+	lhld	real.cursor.ad	;remember where we last put it
+	call	place.cursor
+	call	put.a.line
+	call	move.the.cursor	;to where it was before
+	ret
+..put.blank:
+	pop	h	;to go down a subroutine level
+	mvi	a," "
+	sta	character
+	call	write.character
+	jmp	backspace
+
+get.current.line:	;and point to the cursor.character
+;returns HL points to character in buffer under cursor
+;BC has the number of columns to the end of the line
+	LDA	Cursor.Column	; GET NUMBER OF COL POSITIONS TO MOVE
+	MOV	C,A
+	lda	no.of.columns
+	dcr	a		;A=Columns-1
+	SUB	C
+	JZ	..put.blank	;if none to do, then replace with blank
+	add	a		;as we move words
+	mvi	b,0
+	MOV	C,A		; SAVE IN [C] AS COUNT
+;columns in BC
+	push	b		;save the no. to do
+;now get the line
+	lda	cursor.row
+	mov	h,a
+	mvi	l,0
+	call	put.cursor.there	;H=row,L=column
+	call	get.a.line	;into the handy buffer
+	lda	cursor.column
+	add	a		;AARGH! bugfix May 84
+	lxi	h,handy.buffer
+	call	addhl	;from this address
+	pop	b
+;returns HL points to character in buffer under cursor
+;BC has the number of columns to the end of the line
+	ret
+
+;----------------------------------------------------------------------------
+rubout:	;Rubs out the character under the cursor and moves the rest of the
+;line back one
+	lda	graphics.mode
+	ana	a
+	rnz			;not implemented in graphics mode
+	call	get.current.line	
+;HL points to character in buffer under cursor
+;BC has the number of columns to the end of the line
+	mov	e,l
+	mov	d,h
+	inx	h
+	inx	h
+	call	move		;heave it down
+	lxi	h,handy.buffer+(columns*2)-4
+	mvi	m," "		;insert the character
+	inx	h
+	lda	attribute.bitmap
+	mov	m,a
+	jmp	put.current.line
+
+;----------------------------------------------------------------------------
+to.20.line.mode:	;set things so that we switch to 20 line 
+	xra	a
+	dcr	a
+..above:
+	sta	do.we.change.to.20
+	ret
+
+not.20.line.mode:	;do not do so
+	xra	a
+	jmpr	..above
+
+;----------------------------------------------------------------------------
+define:	;character font for a particular char.
+	lxi	h,get.font
+	mvi	c,17	;parameters in all
+	jmp	fetch.byte.params##
+
+get.font:
+	mov	a,m
+	push	h	;save pointer to the data
+	cpi	0DBH
+	jrc	..not.silly
+	mvi	a,0DAH	;press up against our end stop
+..not.silly:
+	sui	" "	;no graphics for control codes
+	mov	l,a
+	mvi	h,0
+	lxi	d,font
+	dad	h
+	dad	h	;*4
+	dad	h
+	dad	h	;*16
+	dad	d	;add to base of array
+;HL points to the font to redefine
+	xchg
+	pop	H	;restore pointer to data
+	inx	h	;HL=data,DE=font
+	lxi	b,16
+	jmp	move	;and put it in place	
+
+;----------------------------------------------------------------------------
+right.cursor:	;non-destructive forward space
+	lxi	h,cursor.column
+	inr	m
+	lda	no.of.columns
+	dcr	a		;A=Columns-1
+	cmp	m		;is there any overflow
+	JnC	move.the.cursor
+;and fall through to do a newline
+
+;----------------------------------------------------------------------------
+new.line:	;carriage return and line feed
+	xra	a
+	sta	cursor.column
+;and fall through
+
+;----------------------------------------------------------------------------
+line.feed:	;do a line feed
+	lxi	h,Cursor.Row	; GET CURRENT ROW NUMBER
+	lda	no.of.lines
+	dcr	a
+	jz	just.scroll	;nov28
+	dcr	a		;total lines-2
+	cmp	m
+	jrnc	no.scroll	;
+	inr	a
+	mov	m,a
+	jmp	just.scroll
+
+no.scroll:
+	inr	m
+	jmp	move.the.cursor	; UPDATE CUR CURSOR POSITION
+
+
+;----------------------------------------------------------------------------
+backspace:	;backspaces the cursor
+	LDA	Cursor.Column	; GET COLUMN NUMBER
+	dcr	a		; BUMP DOWN COLUMN
+	jp	..backspace1		; NOT PAST COLUMN 0
+	lxi	h,Cursor.Row	; so we go to the previous line
+	DCR	m		;
+	Jp	..backspace2		;
+	xra	a
+	mov	m,a		;
+	JMP	..backspace1
+..backspace2:
+	lda	no.of.columns
+	dcr	a		;A=columns-1
+..backspace1:
+	STA	Cursor.Column	; SAVE NEW COLUMN
+	jmp	move.the.cursor	;   & WRITE THE NEW POSITION
+
+;----------------------------------------------------------------------------
+up.cursor:	;moves the cursor up one line
+	lxi	h,cursor.row
+	dcr	m
+	Jp	move.the.cursor
+	inr	m		;ignore command and return
+	ret
+
+;----------------------------------------------------------------------------
+Home.The.Cursor:	;moves the cursor to the top left of current screen
+IHOME:
+	LXI	H,0
+	SHLD	Cursor.Column	;zero row and column
+	jmp	move.the.cursor	;move the cursor to the new position
+	RET
+
+;----------------------------------------------------------------------------
+do.big.chars:		;set the graphics mode to do big characters
+	lxi	h,do.16.by.8
+	shld	char.routine
+	ret
+
+;----------------------------------------------------------------------------
+do.little.chars:	;set the graphics mode to do little characters
+	lxi	h,do.8.by.8
+	shld	char.routine
+	ret
+
+;----------------------------------------------------------------------------
+Multifont:	;set things to Multifont Mode (I do'nt like modes)
+;change the cursor to a big square one
+	lda	graphics.mode
+	sta	what.we.were.in
+	ana	a
+	cz	into.graphics		;we must be in graphics mode
+	lda	is.it.multifont
+	ana	a
+	rnz				;nowt to do if multifont already
+	lda	toggle.cursor
+	ana	a			;have we a cursor?
+	push	psw
+	call	curoff			;if we had, we switch off the cursor
+	call	big.cursor
+	pop	psw
+	cnz	curon			;if cursor was on, then restore it
+
+	mvi	a,40			;columns
+	sta	no.of.columns		;switch to correct no. of columns
+	dcr	a		;nov26 (adjust to base 0)
+	sta	@COCOL		;nov26
+	lda	do.we.change.to.20
+	ana	a
+	cnz	change.to.20.lines
+	xra	a
+	dcr	a
+	sta	is.it.multifont
+	call	remember
+	ret
+	
+
+;---------------------------------------------------------------------------
+Not.Multifont:	;exit from multifonts and put things to rights
+	lda	is.it.multifont
+	ana	a
+	rz				;nowt to do if multifont already
+	xra	a
+	sta	is.it.multifont
+	mvi	a,80
+	sta	no.of.columns
+	dcr	a		;nov26 (adjust to base 0)
+	sta	@COCOL		;nov26
+	lda	toggle.cursor
+	ana	a	;have we a cursor?
+	push	psw
+	cnz	curoff	;if we had, we switch off the cursor
+;now we change to our nice little square cursor
+	call	little.cursor
+	pop	psw
+	cnz	curon	;if cursor was on, then restore it
+	call	change.to.25.lines
+	call	remember
+	lda	what.we.were.in
+	ana	a		;were we formerly in char. mode?
+	cz	exit.graphics	;if so then leave
+	ret
+
+;----------------------------------------------------------------------------
+Do.Style:	;set the style
+	lxi	h,get.style
+	shld	whither.wanderest	;open the door
+	ret
+
+get.style:
+	mov	a,c
+	ani	00011111b	;in case it was ascii
+	adi	3		;convert to the internal code
+	cpi	19		;codes above 15 become lower ones
+	jrc	..not.extras
+	sui	16+3		;
+..not.extras:
+	sta	style##
+	lxi	h,simple.output	;shut the door
+	shld	whither.wanderest
+	ret
+
+;----------------------------------------------------------------------------
+Change.to.20.lines:	;changes to 20 lines for multifonts
+	lxi	h,twenty.line.mode
+	mov	a,m
+	ana	a
+	rnz	;return if we are in 20 line mode already
+	dcr	a
+	mov	m,a			;prevent reentry
+convert.to.20:
+	lxi	h,40*20			;7220 address words per line
+	shld	words.per.line
+	lxi	h,40*2			;the compensation value (nov28 was *3)
+	shld	compensation
+	lda	no.of.lines		;how many are there at present
+	call	divide.it	;A=ABS(0.8*A)
+	sta	no.of.lines
+	sta	@COROW		;NOV26 SCB page length
+	lxi	h,0014H
+..common.exit:
+	shld	current.bar.height
+	jmp	clear.split.screen
+
+divide.it:	;lines=0.8*no.of.lines
+	cpi	2	;is it less than two?
+	rc
+	mov	c,a
+	mvi	b,0			
+;no of lines=ABS(0.8*no.of.lines)
+;no of lines=no of lines-(round.up(no.of.lines/5)
+	dcr	a
+..little.divide.loop:
+	inr	b
+	sui	5
+	jrnc	..little.divide.loop	;to find subtraction factor	
+	mov	a,c
+	sub	b
+	ret
+
+;----------------------------------------------------------------------------
+fix.lines: ;HL points to the no.of.lines, 
+	mov	a,m
+	call	divide.it
+	mov	m,a
+  	ret
+
+;----------------------------------------------------------------------------
+Change.to.25.lines:	;changes to 25 lines for normal work
+	lda	twenty.line.mode
+	ana	a
+	rz
+	lxi	h,40*16			;7220 address words per line
+	shld	words.per.line
+	lxi	h,-40			;the compensation value
+	shld	compensation
+	lda	upper.one		;are we in the upper screen?
+	ana	a
+	lda	line.of.split	
+	jrnz	..we.do.nothing
+	mov	b,a
+	mvi	a,25
+	sub	b
+..we.do.nothing:
+	sta	no.of.lines
+	sta	@COROW		;NOV26 SCB page length
+	xra	a
+	sta	twenty.line.mode	;we are not in twenty line mode
+	lxi	h,0010H			;our bar height
+	jmp	..common.exit
+
+
+;----------------------------------------------------------------------------
+interpret.mode.code:	;converts a G or C into a Mask.Graphics in B
+;returns true if graphics.mode in a
+	call	are.we.monochrome
+	mvi	b,0	;anticipate a graphics mask of 0
+	inr	a	;00 if monochrome, 1 if colour
+	jrnz	..yes.graphics		;mask is always 00 if colour
+	mov	a,c
+	add	a
+	add	a
+	add	a
+	add	a
+	ani	040H	;distinguish between a 0X3H and 0X7H
+	mov	b,a	;preserve graphics mask
+	rz
+..yes.graphics:
+	xra	a
+	dcr	a
+	ret
+
+set.the.words.per.line:	;in HL according to mode flag in A
+	lxi	h,40*16
+	ana	a
+	rnz		;it was graphics
+	lxi	h,80
+	ret
+
+;----------------------------------------------------------------------------
+do.a.split:
+;we want some values dear, so go back and get them
+	lxi	h,split.0
+	shld	whither.wanderest
+	ret
+split.0:	;back already, dear?
+;the first byte is the mode of the first screen
+	call	interpret.mode.code
+	sta	mode.1.graphics
+	call	set.the.words.per.line
+	shld	words.1.per.line
+	mov	a,b
+	sta	mask.1.graphics
+	lxi	h,split.1
+	shld	whither.wanderest
+	ret
+split.1:
+;the second byte is the line.of.split
+	lxi	h,split.2
+	shld	whither.wanderest
+	cpi	25	;max no. of physical lines
+	jrc	..good
+	mvi	a,25
+..good:
+	sta	line.of.split
+	ret
+
+split.2:
+;the third byte is the mode of the second screen
+	lxi	h,simple.output
+	shld	whither.wanderest
+	call	interpret.mode.code
+	sta	mode.2.graphics
+	call	set.the.words.per.line
+	shld	words.2.per.line
+	mov	a,b
+	sta	mask.2.graphics
+
+;drop right through
+
+;----------------------------------------------------------------------------
+reset.split::	;we enter with MASK.2.GRAPHICS and MASK.1.GRAPHICS both
+;set up and we use the value in LINE.OF.SPLIT 
+;now we have all the info to set up the screens
+	mvi	a,80
+	sta	no.of.columns
+	xra	a
+	sta	sad.1+2
+	sta	sad.2+2
+	lxi	h,mask.1.graphics
+	lda	line.of.split
+	sta	no.1.of.lines
+	ora	m		;insert the mask
+	sta	LEN.1.high	;and insert the masked value
+;we now have the length of screen one set
+	lxi	h,line.of.split
+	mov	c,m		;save this	
+;and then set the length of screen 2
+	mvi	a,25		;max physical lines
+	sub	c
+	sta	no.2.of.lines
+	lxi	h,mask.2.graphics
+	ora	m		;insert the mask
+	sta	LEN.2.high	
+	mov	a,c	;restore the line.of.split
+	inr	a
+	call	eightyxA
+	lda	mode.1.graphics
+	ana	a
+	jrz	not.times.eight		;if monochrome and bit not set
+	;we multiply graphics lines by 8*80, not 80
+	dad	h	;*2
+	dad	h	;*4
+	dad	h	;*8
+	lxi	d,-(8*40)	;just do not ask
+	dad	d
+not.times.eight:
+	shld	SAD.2		;and set the second start address
+	lxi	h,0
+	shld	sad.1		;zero out the first start address
+
+;now we must convert to multifont lines for no.of.lines in both screens
+	lxi	h,mode.1.graphics
+	lda	line.1.mode
+	ana	M		;only if graphics mode and 20 line mode
+	lxi	h,no.1.of.lines
+	cnz	fix.lines
+	lxi	h,mode.2.graphics
+	lda	line.2.mode
+	ana	m
+	lxi	h,no.2.of.lines
+	cnz	fix.lines
+
+;and now we switch into the current screen parameters in the control block
+	lxi	h,upper.control.block
+	lda	upper.one
+	ana	a
+	jrnz	..store.params
+	lxi	h,lower.control.block
+..store.params:
+	lxi	d,control.block
+	lxi	b,len.mode.params
+	ldir			;update the current screen parameters
+	lxi	D,first.window.address	;march 1984
+	lxi	H,sad.1
+	lxi	b,offset.to.virgin.block
+	ldir			;copy the new 7220 data
+	lda	no.of.columns	;NOV26
+	dcr	a		;nov26 (adjust to base 0)
+	sta	@COCOL		;NOV26 Update SCB
+	lda	no.of.lines	;NOV26
+	sta	@COROW		;NOV26 Update SCB
+
+	call	clear.the.screen
+	call	curoff
+	call	curon	;ensure that cursor is proper size
+	ret
+	
+
+
+;----------------------------------------------------------------------------
+Exit.graphics:	;exit graphics mode
+	call	are.we.monochrome
+	rz	;return if not monochrome (no colour character mode)
+	lda	graphics.mode
+	ana	a
+	rz	;nothing to do if we are already a character screen
+
+	mvi	a,80
+	sta	no.of.columns
+	dcr	a		;nov26 (adjust to base 0)
+	sta	@COCOL		;nov26
+	mvi	c,"C"
+
+..problematical:
+	lda	upper.one
+	ana	a
+	jrnz	..do.upper.one
+	call	interpret.mode.code
+	sta	mode.2.graphics
+	call	set.the.words.per.line
+	shld	words.2.per.line
+	mov	a,b
+	sta	mask.2.graphics
+	jmp	reset.split
+
+..do.upper.one:
+	call	interpret.mode.code
+	sta	mode.1.graphics
+	call	set.the.words.per.line
+	shld	words.1.per.line
+	mov	a,b
+	sta	mask.1.graphics
+	jmp	reset.split
+
+;----------------------------------------------------------------------------
+into.graphics:	;enter graphics mode
+	lda	graphics.mode
+	ana	a
+	rnz	;nothing to do if we are already a graphics screen
+	mvi	c,"G"
+	jmp	..problematical
+
+
+
+;----------------------------------------------------------------------------
+erase.to.end:	;erases to the end of the screen
+	call	clear.to.eol	;we always erase to the end of line
+	lda	cursor.row	;get current cursor row
+	mov	c,a		;C=current row
+	lda	no.of.lines	;how many are there?
+	dcr	a		;0 to X-1
+	sub	c		;(rows-1)-current.row
+	rz			; IF 0, JUST CLEAR CURRENT ROW
+;A=no.of lines to do, C=current row
+;B is the count
+	mov	b,a
+	lhld	words.per.line
+	push	h
+	lhld	current.screen
+	mov	e,m	
+	inx	h
+	mov	d,m
+	xchg		;HL is the start of the screen
+	pop	d	;restore words per line
+	inr	c
+..once.again:	;Start.address + (line.no * (words per line))
+ 	dad	d
+	dcr	c
+	jrnz	..once.again		
+;B=lines to do
+..blank.loop:
+	push	h	;save start address of line
+	push	d	;save words per line
+	push	b	;save the count
+	call	blank.a.line
+	pop	b
+	pop	d
+	pop	h
+	dad	d
+	djnz	..blank.loop
+;everything is blanked now
+	call	move.the.cursor
+	ret
+
+
+;----------------------------------------------------------------------------
+clear.to.EOL:	 ;clears to the end of the line in character mode
+	LDA	Cursor.Column	; GET CURRENT COLUMN NUMBER
+	MOV	B,A		; CURSOR TO [B]
+	lda	no.of.columns	;how many do we have 
+	SUB	B		;A=columns to do
+	RZ			; DONE IF NO BYTES TO CLEAR
+	MVI	B,0		;
+	MOV	C,A		; NUMBER OF BYTES TO CLEAR IN [BC]
+	lda	graphics.mode
+	ana	a
+	jrnz	eraeol.graphically	;because we do it differently
+;BC=no. of character positions to do
+	Push	B		;save no of bytes to do
+	lhld	cursor.column
+	Call	calc.position	; HL logical VRAM address
+	Pop	B		; BC - # OF BYTES TO CLEAR
+	Call	Clear.To.Spaces	; CLEAR TO SPACES
+	jmp	move.the.cursor
+
+ERAEOL.Graphically:	;clear BC character positions graphically
+
+	lda	toggle.cursor
+	push	psw
+	push	b
+	call	curoff		;switch off the cursor
+	pop	b
+	call	era.eol
+	call	move.the.cursor	;to redisplay it correctly
+	pop	psw
+	jmp	..backwards	;redisplay if A is true
+
+
+
+;----------------------------------------------------------------------------
+
+Era.EOL:	;erase to the end of the character line in graphics mode
+;BC contains the number of character positions to do
+;Each character position is 8 or 16 pixels long
+;= (40/no.of.columns)*16 pixels
+	lhld	current.bar.height
+	shld	bar.height
+	shld	bar.height+2	;as we could be erasing in 20 line mode
+	push	b
+	call	where.are.we
+	lda	is.it.multifont
+	ana	a
+	xchg
+	lxi	d,-40		;for multifonts
+	jrnz	..no.fiddle
+	lxi	d,80		;down a raster line
+..no.fiddle:
+	dad	d
+	shld	our.ead.address
+	sta	our.dot.address
+	call	are.we.monochrome
+	pop	b
+	inr	a		;0ffh=0,00=01
+	jrz	..do.eol	;we are monochrome
+	mov	l,c
+	mov	h,b
+	shld	curpos
+	mvi	a,1		;blue
+	call	..repeat.eol
+	mvi	a,2
+	call	..repeat.eol
+	mvi	a,4
+..repeat.eol:
+	lhld	curpos		;our temporary memory register
+	mov	b,h
+	mov	c,l
+;and fall through to write a very big character!
+..do.eol:
+	sta	colour+1
+	push	b
+	lhld	our.Ead.address
+	lda	our.dot.address
+	call	putcur
+	pop	h
+	dad	h	;*2
+	dad	h	;*4
+	dad	h	;*8
+	lda	is.it.multifont
+	ana	a
+	jrz	fill.box
+	dad	h	;*16 if multifont
+;HL contains the no of pixels in the horizontal direction
+fill.box:
+	dcx	h	;the no. in the perpendicular direction
+	lda	mask.graphics		;set the graphics bit
+	ora	h
+	mov	h,a
+	shld	eol.DC
+	lxi	h,font8x8
+	MVI	A,78H	;PRam+8
+	Call	TOCHIP	;Fill the parameter ram
+	MVI	C,8	;output the 8 by 8 bit pixel pattern
+	Call	Out.a.Graphics.Char	;to the VRam
+	LXI	H,eraeol.order		;figS parameters
+	jmp	do.orders
+
+eraeol.order:	db	3	;orders altogether
+	db	1	;byte in the order
+	db	.wdat OR @LHWord OR @Replace
+	db	8	;bytes in the following order
+	db	.figs
+	DB	10H
+eol.DC:	dW	4007	
+bar.height:
+	dw	0010H
+	dW	0010H
+	db	01	;bytes in this order
+	db	.GChrD
+
+
+
+
+;----------------------------------------------------------------------------
+carriage.ret:	;move the cursor to the beginning of the current line
+	XRA	A		; ZERO
+	STA	Cursor.Column	; CURRENT COLUMN
+	jmp	move.the.cursor	; WRITE CURSOR POSITION
+
+
+;----------------------------------------------------------------------------
+scroll.up:	;scroll up one line from row A
+	ana	a
+	mov	e,a		;save first line of scroll
+	jrnz	..necessary
+	lda	line.of.split
+	cpi	25
+	jrnc	just.scroll
+..necessary:
+	call	curoff
+	mov	b,e		;restore line of start to B
+	lda	no.of.lines
+	dcr	a		; FIND NUMBER OF TABLE ENTRIES TO MOVE	
+	SUB	B		; CALC # OF LINES TO ACTUALLY SCROLL
+	JrZ	zap.bottom.line	; IF NON TO MOVE JUMP
+	MOV	C,A		; NUMBER OF ROWS TO MOVE IN [C] 
+scroll.loop:
+	Call	move.up.row	; AND MOVE ROW UP
+	INR	B
+	DCR	C
+	JrNZ	scroll.loop
+;
+zap.bottom.line:
+	lda	no.of.lines	; CLEAR THE BOTTOM LINE
+	dcr	a
+	Call	blank.line
+	call	curon
+	XRA	A
+	STA	Cursor.Column	; X - POS = 0
+	Call	move.the.cursor
+	RET
+
+just.scroll:
+	lda	toggle.cursor
+	push	psw
+	Call	curoff
+	Call	SCROLL		;SCROLL WHOLE SCREEN
+	pop	psw
+	ana	a
+	cnz	CURON
+	Call	move.the.cursor
+	RET
+
+
+;----------------------------------------------------------------------------
+scroll.down:	;from row no. in A
+
+	Push	PSW		; SAVE ENTRY ROW
+	MOV	c,A		; STARTING ROW TO [c]
+	lda	no.of.Lines	; FIND NUMBER OF TABLE ENTRIES TO MOVE
+	dcr	a
+	mov	b,a
+	SUB	c		; CALC # OF LINES TO ACTUALLY SCROLL
+	mov	c,a
+	dcr	a
+	jm	..Scr.Dwn2	; IF NONE TO MOVE JUMP
+	dcr	b		;B=no.of.Lines-2. START AT ROW BEFORE FIRST
+	push	b
+	Call	curoff		;CURSOR OFF
+	pop	b
+..Scr.Dwn1:
+	Call	move.down.row	; AND MOVE ROW UP
+	DCR	B
+	DCR	C
+	JrNZ	..Scr.Dwn1
+	Call	CURON		;CURSOR ON
+;
+..Scr.Dwn2:
+	Pop	PSW		; GET ROW THAT ENTERED WITH
+	Call	blank.line	; AND CLEAR IT
+	XRA	A
+	STA	Cursor.Column	; X - POS = 0
+	jmp	move.the.cursor
+
+
+
+;----------------------------------------------------------------------------
+move.down.row:	;from row in B to row in B+1
+	Push	B		;
+	MOV	A,B		; ROW NUMBER TO [A]
+	call	EightyXA	; HL - ROW B * 80
+	XCHG	
+	lhld	no.of.columns
+	DAD	D		; HL = ROW B+1	 DE = ROW B
+	XCHG
+	jmp	do.row.move
+
+
+;----------------------------------------------------------------------------
+move.up.row:	;from B+1 to B
+	Push	B		;
+	MOV	A,B		; ROW NUMBER TO [H]
+	call	EightyXA
+	XCHG
+	lhld	no.of.columns
+	DAD	D		; HL = ROW B+1	 DE = ROW B
+do.row.move:
+	di
+	Call	set.the.cursor		;SET CURSOR
+	XCHG
+	Call	get.a.line		;get line into the handy buffer
+	Call	set.the.cursor		;to the destination
+	Call	put.a.line		;and put it into VRAM
+	ei
+	Pop	B		
+	RET
+
+
+
+;*** Variables ***
+
+;we use these temporaries for all intra-routine use
+temp1::
+CURPOS: 		
+..tempX:	db	000
+temp2::		db	000
+..TempY:
+temp3::		db	000		;Cursor temporary
+temp4::		db	000
+
+temp5::		db	000
+ypos:
+temp6::		db	000
+
+		dw	000		;buffer underflow
+
+Handy.Buffer:		DS	2+Columns*2	;line buffer
+whither.wanderest:	DW	simple.output	;ADDRESS POINTER
+
+our.dot.address:	db	000	;our character dot address in graphics
+our.Ead.address:	dw	000	;our character Word address in graphics
+
+line.of.split:		db	25	;our current line of split screen
+upper.one:		db	0ffH	;are we using the upper screen?
+
+proend::
+;*** At last, the end ***
+
+	END
+
