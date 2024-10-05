@@ -1,0 +1,478 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS i/o redirection
+
+	name	('BIOS3A1')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; ALPHA Aug 8,83
+; BETA  Dec 5,83
+; BETA+ Jan 5,84
+; REV-A Apr 30,84
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+	cseg		;GENCPM puts CSEG code in resident common memory
+
+;====================================
+; user defined character I/O routines
+;====================================
+
+	public	?ci,?cist	; each take device in <B>
+	public	?co,?cost	; each take device in <B>
+	public	?baud		; set baud rate for device in <B>
+	public	@cpm3b		; CP/M 3 baud rate table
+	public	@cinit		; table of cold boot init routines
+	public	?setsio		; configur serial sio device in <B>
+
+	public	@ctbl		; physical character device table
+	public	?cmsk		; mask valid character devices
+	public	?nochar		; return number of character devices
+
+
+;---------------------------------------------------------------------
+; PUBLIC SYMBOLS IN EPSON QX-10 CPM3 BIOS
+;---------------------------------------------------------------------
+
+;Character device initialisation (Cold Boot)	
+
+	extrn	initsio		; initialise main SIO
+	extrn	initx1sio	; initialise 1st optional SIO board
+	extrn	initx2sio	; initialise 2nd optional SIO board
+	extrn	initlpen	; initialise light pen device
+
+
+;KEYBOARD - Main board serial port (1200 baud)
+
+	extrn	kbdst,kbdin
+	extrn	key$baud,key$set	; set up baud & SIO
+
+;CRT
+	extrn	crtout,crtsot
+
+;list - Centronics parallel port
+
+	extrn	pio$out,pio$sot
+
+;Main Serial SIO
+
+	extrn	ser1in,ser1out			; Main Serial char I/O
+	extrn	ser1sin,ser1sot			; Main Serial char I/O status
+	extrn	ser1baud,ser1set
+
+;CMOS character FIFO
+
+	extrn	cmosin,cmosout			; CMOS character FIFO buffer
+	extrn	cmossin,cmossot			; CMOS character FIFO buffer
+
+;1st Option Serial SIO-A & SIO-B
+
+	extrn	ser2in,ser2out			; Option Serial char I/O
+	extrn	ser2sin,ser2sot			; Option Serial char I/O status
+	extrn	ser2baud,ser2set
+	extrn	ser3in,ser3out			; Option Serial char I/O
+	extrn	ser3sin,ser3sot			; Option Serial char I/O status
+	extrn	ser3baud,ser3set
+
+;2nd Option Serial SIO-A & SIO-B
+
+	extrn	ser4in,ser4out			; Option Serial char I/O
+	extrn	ser4sin,ser4sot			; Option Serial char I/O status
+	extrn	ser4baud,ser4set
+	extrn	ser5in,ser5out			; Option Serial char I/O
+	extrn	ser5sin,ser5sot			; Option Serial char I/O status
+	extrn	ser5baud,ser5set
+
+;LIGHT PEN input FIFO
+
+	extrn	lpenin,lpensin			; L.PEN character FIFO buffer
+
+;and additional character devices must define----------------------------
+;	extrn	--in	; Character input
+;	extrn	--out	; Character output
+;	extrn	--sin	; Character input status
+;	extrn	--sot	; character output status
+;	extrn	--baud	; set baud rate (serial i/o only)
+;	extrn	--set	; configur character device driver	
+; in addition for cold boot initialisation define
+;	extrn	--init	; initialise character device driver	
+; and add this entry point to the @cinit table
+;------------------------------------------------------------------------
+
+;---------------------------------------------------------------------
+;
+;	Various equates
+;
+;---------------------------------------------------------------------
+
+;************************************;
+;* EQUATES for MODE byte bit fields *;
+;************************************;
+
+mb$input	equ	00000001b	; device may do input
+mb$output	equ	00000010b	; device may do output
+mb$in$out	equ	mb$input + mb$output
+mb$softbaud	equ	00000100b	; software selectable baud rate
+mb$serial	equ	00001000b	; device may use protocol
+mb$xonxoff	equ	00010000b	; XON/XOFF protocol enabled
+
+baud$none	equ	0	; no baud rate associated with device
+baud$50		equ	1	; 50 baud
+baud$75		equ	2	; 75 baud
+baud$110	equ	3	; 110 baud
+baud$134	equ	4	; 134 baud
+baud$150	equ	5	; 150 baud
+baud$300	equ	6	; 300 baud
+baud$600	equ	7	; 600 baud
+baud$1200	equ	8	; 1,200 baud
+baud$1800	equ	9	; 1,800 baud
+baud$2400	equ	10	; 2,400 baud
+baud$3600	equ	11	; 3,600 baud
+baud$4800	equ	12	; 4,800 baud
+baud$7200	equ	13	; 7,200 baud
+baud$9600	equ	14	; 9,600 baud
+baud$19200	equ	15	; 19,200 baud
+
+;--------------------------------------------------------------------------
+	page
+
+;	====
+	dseg		; system bank already selected before call
+;	====
+
+;---------------------------------------------------------------------
+; BIOS character device routines
+;
+;	?ci	; return character input from device in <B>
+;	?co	; send character output from device in <B>
+;	?cist	; return character input status from device in <B>
+;	?cost	; return character output status from device in <B>
+;
+;	?cinit	; (re) initialize device in <C>
+;	@ctbl	; physical character device table
+;
+;---------------------------------------------------------------------
+
+;----------------------------------------------------------
+?ci:		; return character input from device in <B>
+;----------------------------------------------------------
+	call	cio$tbl		; select one of following (preserve <B>)
+	dw	kbdin		;keyboard character input
+	dw	null$input	; - cannot input from CRT device -
+	dw	null$input	; - cannot input from list device -
+	dw	ser1in		; Main Serial I/O char input
+	dw	cmosin		; CMOS character FIFO buffer
+	dw	ser2in		; Option Serial I/O char input
+	dw	ser3in		; Option Serial I/O char input
+	dw	ser4in		; Option Serial I/O char input
+	dw	ser5in		; Option Serial I/O char input
+	dw	lpenin		; L.PEN character FIFO buffer
+;additional character devices must define--------------------------------
+;	dw	--in		; Character input
+;------------------------------------------------------------------------
+
+
+
+null$input:
+	ld	a,1ah		; return a ctl-Z for invalid device
+	ret
+
+;---------------------------------------------------------
+?co:		; send character output from device in <B>
+;---------------------------------------------------------
+	ld	a,c		; as list output requires character in <A>
+	call	cio$tbl		; select one of following (preserve <B>)
+	dw	null$output	; - cannot output to keyboard device -
+	dw	crtout		;CRT character output
+	dw	pio$out		;Centronics parallel output driver
+	dw	ser1out		; Main Serial I/O char output
+	dw	cmosout		; CMOS character FIFO buffer
+	dw	ser2out		; Option Serial I/O char output
+	dw	ser3out		; Option Serial I/O char output
+	dw	ser4out		; Option Serial I/O char output
+	dw	ser5out		; Option Serial I/O char output
+	dw	null$output	; - cannot output to light pen device -
+;additional character devices must define--------------------------------
+;	dw	--out		; Character output
+;------------------------------------------------------------------------
+
+
+null$output:
+	ret
+
+;-----------------------------------------------------------------
+?cist:		; return character input status from device in <B>
+;-----------------------------------------------------------------
+	call	cio$tbl		; select one of following (preserve <B>)
+	dw	kbdst		;keyboard status
+	dw	null$status	; - cannot input from CRT device -
+	dw	null$status	; - cannot input from list device -
+	dw	ser1sin		; Main Serial I/O char input status
+	dw	cmossin		; CMOS character FIFO buffer
+	dw	ser2sin		; Option Serial I/O char input status
+	dw	ser3sin		; Option Serial I/O char input status
+	dw	ser4sin		; Option Serial I/O char input status
+	dw	ser5sin		; Option Serial I/O char input status
+	dw	lpensin		; L.PEN character FIFO buffer
+;additional character devices must define--------------------------------
+;	dw	--sin		; Character input status
+;------------------------------------------------------------------------
+
+
+null$status:
+	xor	a		; return a FALSE status
+	ret
+
+;------------------------------------------------------------------
+?cost:		; return character output status from device in <B>
+;------------------------------------------------------------------
+	call	cio$tbl		; select one of following (preserve <B>)
+	dw	null$status	; - cannot output to keyboard device -
+	dw	crtsot		; CRT ouput status
+	dw	pio$sot		; Centonics parallel port
+	dw	ser1sot		; Main Serial I/O char output status
+	dw	cmossot		; CMOS character FIFO buffer
+	dw	ser2sot		; Option Serial I/O char output status
+	dw	ser3sot		; Option Serial I/O char output status
+	dw	ser4sot		; Option Serial I/O char output status
+	dw	ser5sot		; Option Serial I/O char output status
+	dw	null$status	; - cannot output to light pen device -
+;additional character devices must define--------------------------------
+;	dw	--sot		; character output status
+;------------------------------------------------------------------------
+
+
+	cseg		; must be in common for direct BIOS calls 
+
+;------------------------------------------------
+@ctbl:		; physical character device table
+;------------------------------------------------
+
+	db	'KEYB  '	; device 0, KEYBOARD
+	db	mb$input + mb$serial
+	db	baud$none
+;
+	db	'CRT   '	; device 1, CRT
+	db	mb$output	; later make mb$in$out
+	db	baud$none
+;
+	db	'PRINT '	; device 2, Centronix PRINTER port
+	db	mb$in$out
+	db	baud$none
+;
+	db	'RS232 '	; device 3, Stnd RS232 connector
+	db	mb$in$out + mb$serial + mb$softbaud
+	db	baud$9600
+;
+	db	'CMOS  '	; device 4, CMOS memory
+	db	mb$in$out
+	db	baud$none
+;
+	db	'RS232A'	; device 5, 1st Optional RS232 channel A
+	db	mb$in$out + mb$serial + mb$softbaud
+	db	baud$9600
+;
+	db	'RS232B'	; device 6, 1st Optional RS232 channel B
+	db	mb$in$out + mb$serial + mb$softbaud
+	db	baud$9600
+
+;
+	db	'RS232C'	; device 7, 1st Optional RS232 channel A
+	db	mb$in$out + mb$serial + mb$softbaud
+	db	baud$9600
+;
+	db	'RS232D'	; device 8, 1st Optional RS232 channel B
+	db	mb$in$out + mb$serial + mb$softbaud
+	db	baud$9600
+
+;
+	db	'LPEN  '	; device 9, Light pen device
+	db	mb$input
+	db	baud$none
+;
+
+max$devices	equ	($-@ctbl)/8	; 9 devices on standard EPXON QX-10
+    	db	0		; used by DEVICE to indicate last device used
+
+; prepare for additional devices --------------------------------------
+;
+;	db	'------'	; device 9
+;	db	mb$in$out + mb$serial + mb$softbaud + mb$xonxoff
+;	db	baud$9600
+;
+;-----------------------------------------------------------------------
+
+;-------------------------------;
+; Character io driver utilities ;
+;-------------------------------;
+
+	if	max$devices gt 0 and max$devices lt 8
+mask	defl	0
+	rept	max$devices
+mask	defl	080h or (mask shr 1)
+	endm
+	else
+	if	max$devices eq 8
+mask	defl	0
+	else
+	if	max$devices gt 8 and max$devices lt 13
+mask	defl	0
+	rept	max$devices-8
+mask	defl	080h or (mask shr 1)
+	endm
+	endif
+	endif
+	endif
+
+;----------------------------------------------;
+; ?nochar - return number of character devices ;
+;----------------------------------------------;
+
+	cseg		; must be in common for direct BIOS I/O
+?nochar:
+	ld	a,max$devices
+	ret
+
+;--------------------------------------;
+; ?cmsk - mask valid character devices ;
+;--------------------------------------;
+
+	dseg		; as system bank already selected
+?cmsk:
+	if	max$devices lt 9
+	if	max$devices lt 8
+	ld	a,h
+	and	mask	; mask out unused devices
+	ld	h,a
+	endif
+	ld	l,0
+	else
+	ld	a,l
+	and	mask	; mask out unused devices
+	ld	l,a
+	endif
+	ret
+
+	page
+
+;---------------------------------------------------------------------
+; ?baud
+; Entry:	<B> = device number
+;		<C> = baud rate number
+; Returns:	-none-	
+; Function:	Set the device <B> to the baud rate given in <C>
+;---------------------------------------------------------------------
+
+	dseg
+?baud:	ld	a,c		; = baud rate
+	or	a		; l test for baud rate > 0
+	jr	z,null$baud	;  baud rate not assigned
+	cp	16		; 2 test for baud rate < 16
+	jr	nc,null$baud	;  baud rate out of range
+samebaud:
+	call	cio$tbl		; select one of following (preserve <B>)
+	dw	key$baud	; KEYBOARD - always 1200 baud
+	dw	null$baud	; CRT - no baud rate
+	dw	null$baud	; Centronics parallel port - no baud rate
+	dw	ser1baud	; Main Serial I/O baud rate
+	dw	null$baud	; CMOS FIFO  - no baud rate
+	dw	ser2baud	; Option Serial I/O baud rate
+	dw	ser3baud	; Option Serial I/O baud rate
+	dw	ser4baud	; Option Serial I/O baud rate
+	dw	ser5baud	; Option Serial I/O baud rate
+	dw	null$baud	; Light pen - no baud rate
+;additional character devices must define--------------------------------
+;	dw	--baud		; set baud rate (serial i/o only)
+;------------------------------------------------------------------------
+
+
+null$baud:
+	ret
+
+
+;-----------------------------------------------------------------------------
+; CPM3 BAUD RATE TABLE
+@cpm3b:
+;		0	1	2	3	4	5	6	7
+	dw	0,	50,	75,	110,	135,	150,	300,	600
+;		8	9	10	11	12	13	14	15
+	dw	1200,	1800,	2400,	3600,	4800,	7200,	9600,	19200
+;-----------------------------------------------------------------------------
+
+	page
+
+;---------------------------------------------------------------------
+; @cinit
+; Table of routines to perform cold boot initialisation
+; The table must be terminated with a 0
+; Function:	This table is used by the cold boot procedure
+;		to initialise the character devices.
+;---------------------------------------------------------------------
+
+@cinit:			; table of cold boot init routines
+	dw	initsio		; initialise main SIO
+	dw	initx1sio	; initialise 1st optional SIO board
+	dw	initx2sio	; initialise 2nd optional SIO board
+	dw	initlpen	; initialise light pen device
+
+	dw	00		; Terminator of table
+
+
+;---------------------------------------------------------------------
+; ?setsio
+; Entry:	<B> = device number
+; Returns:	-none-	
+; Function:	Configur the SIO device in <B> to default settings
+;---------------------------------------------------------------------
+
+?setsio:
+	call	cio$tbl		; and jump to selected device module
+	dw	key$set		; KEYBOARD  main board SIO-A
+	dw	null$sio	; CRT - no sio
+	dw	null$sio	; Centronics parallel port - no sio
+	dw	ser1set		; Main Serial SIO-B
+	dw	null$sio	; CMOS - no sio
+	dw	ser2set		; Option Serial SIO-A
+	dw	ser3set		; Option Serial SIO-B
+	dw	ser4set		; Option Serial SIO-A
+	dw	ser5set		; Option Serial SIO-B
+	dw	null$sio	; Light Pen - no sio
+;additional character devices must define--------------------------------
+;	dw	--set		; configur character device driver	
+;------------------------------------------------------------------------
+
+
+null$sio:
+	ret
+
+;---------------------------------------------------------------------
+; utility
+; device is in <B> and module should preserve <BC>
+;---------------------------------------------------------------------
+cio$tbl:		; <sp> -> table, <de> -> entry number
+	ld	e,b
+	ld	d,0
+	pop	hl		; stack pointed to table
+	add	hl,de
+	add	hl,de
+	ld	e,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,e
+	jp	(hl)		;pchl
+
+;---------------------------------------------------------------------
+
+	end
