@@ -1,0 +1,2520 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS NEC disc drivers
+
+	name	('NEC765')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; ALPHA Aug 8,83
+; BETA+ Jan 5,84
+;       Feb 16,84 400k disc format added
+;       Feb 23,84 minor alterations
+;	Apr 19,84 delay added to motor-on
+; REV-A Apr 30,84
+;	May  6,84 added 3.5in as drive C/D (configure option)
+;	May 20,84 added 3.5in head load
+;	May 23,84 added extended DPB format byte
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+; The Floppy Disc Interrupts are not used on the QX-10 because
+; the READY status remains true for a short duration after the
+; motor on signal has been removed.
+;------------------------------------------------------------------
+
+;-------------------------------
+; disk parameter headers (DPH's)
+;-------------------------------
+
+	public	dph0			; A: QX-10 NEC 765 floppy drives
+	public	dph1			; B: QX-10 NEC 765 floppy drives
+	public	dph2			; C: Optional Epson 3.5" floppy drives
+	public	dph3			; D: Optional Epson 3.5" floppy drives
+
+;-----------------------
+; CP/M 3 CBIOS externals
+;-----------------------
+
+; disk communication data items
+
+	extrn	@dtbl			; table of pointers to XDPH's
+	extrn	@adrv,@trk,@sect,@scnt	; parameters for disk I/O
+	extrn	@dma,@dbnk		;    "       "    "    "
+
+	extrn	@retries		; Number of retries remaining
+	extrn	@rdwr			; disc READ or WRITE flag
+	extrn	@wrdc			; BDOS write deblocking codes
+
+; memory control
+
+	extrn	@cbnk,@sbnk,@tbnk	; current, system and tpa bank number
+	extrn	?xmove,?move,@xbc	; select move bank & block move
+	extrn	?tpabnk,?sysbnk		; select TPA or SYS bank
+	extrn	?bank			; select bank in <A>
+	extrn	@bnkno			; table of epson bank numbers (0-3)
+	extrn	?goint			; conditional switch to system bank
+	extrn	?reti			; conditional restore of callers bank
+
+; general utility routines
+
+	extrn	?pmsg			; print message @<SP>
+	extrn	?pdec			; print 16 bit number in <HL>
+	extrn	?idle			; called whenever waiting on hardware
+	extrn	?abort			; abort process and warm boot
+
+; common memory
+
+	extrn	@cpage			; -> base page of common memory
+
+; External names for BIOS entry points defined in CBIOS.MAC
+
+	extrn	?boot,?wboot
+	extrn	?home,?sldsk,?sttrk,?stsec,?stdma,?read,?write
+	extrn	?sctrn
+	extrn	?dvtbl,?drtbl
+	extrn	?mltio,?flush,?mov,?tim,?bnksl,?stbnk,?xmov
+
+; External names for BIOS entry points which use COMMONSP
+
+	extrn	?const,?conin,?cono,?conos
+
+; External names in BDOS System Control Block
+
+	extrn	@CMBA		; Common memory base address
+
+;------------------------------------------------------------------------
+; Conditional parameters
+; ======================
+
+false	equ	0
+true	equ	not false
+
+eight	equ	false		; Not using 8 in diskettes
+five	equ	true		; Using 5 in diskettes
+three	equ	true		; Using 3.5 in diskettes
+
+interrupt	equ	false	; set true if NEC interrupts required
+
+;------------------------------------------------------------------------
+
+	cseg
+
+bit0	equ	1 shl 0
+bit1	equ	1 shl 1
+bit2	equ	1 shl 2
+bit3	equ	1 shl 3
+bit4	equ	1 shl 4
+bit5	equ	1 shl 5
+bit6	equ	1 shl 6
+bit7	equ	1 shl 7
+
+	maclib	CBIOS.EQU	; QX-10 hardware ports and equates
+
+
+;------------------------------------------------------------------------
+	page
+
+;		===============
+;		DISC DATA AREAS
+;		===============
+
+;--------------------------------------------------------------
+;
+; CP/M disc parameters
+;
+;--------------------------------------------------------------
+
+;-----------------------------------------------------------
+; dph for drives A:, B:, C: & D:
+; NB: if GENCPM sets up CSV  then DRM must be defined in DPB
+;     if GENCPM sets up ALV  then DSM must be defined in DPB
+;     if GENCPM sets up BCBs then PSH must be defined in DPB
+;     if GENCPM sets up HASH then DRM must be defined in DPB
+; dph's must be initialised to largest possible configuration
+;
+; Extended DPH parameters:
+;    -10	1 word	Address of ERROR PROCESSING routine
+;     -8	1 word	Address of DISC RD/WR routine
+;     -6	1 word	Address of DISC SELECT routine
+;     -4	1 word	Address of COLD BOOT INIT routine
+;     -2	1 byte	Physical device unit number
+;     -1	1 byte	Physical format or type of disc selected
+;-----------------------------------------------------------------
+
+	dseg		; may be in system bank
+
+gencpm	equ	0fffeh		; Flag set for GENCPM to allocate data
+;------------------------------------------------------------------------
+; physical data
+; dph -1 Format Byte:
+;		bit 0 = 1 for double sided drives
+;		bit 1 } Sector 00b = 128, 01b = 256 (00b is single density)
+;		bit 2 } Size   10b = 512, 11b = 1024 bytes
+;		bit 3 = 1 for either 8in or 3.5in discs
+;		bit 4 = 1 for cylinder format
+;		bit 5 = 1 for S800 drive which is ignorant of side select
+;		bit 6 = 1 for double density drives (not used)
+;		bit 7 = 1 to use skew table
+; dph -2 = physical device unit number
+; dph -3 = address of COLD BOOT INIT routine
+; dph -5 = address of select driver (initialised at cold boot) 
+; dph -7 = address of rd/wr driver (initialised at cold boot) 
+; dph -9 = address of error routine
+;------------------------------------------------------------------------
+
+;--
+;A:
+;--
+	dw	NECerr		; address of error routine
+	dw	NEC765		; address of disc rd/wr driver
+	dw	selNEC765	; address of disc select driver
+	dw	NECinit		; address of disc init driver
+	db	0		; Physical device unit number (left 5 in)
+	db	0		; Physical selected device format
+dph0:	dw	0		; XLT
+	ds	9		; scratch area (72 bits of zero)
+	db	0		; Media Flag (Gate opened)
+	dw	dpbmax		; disk parameter block - used by GENCPM
+	dw	gencpm		; CSV - allocated by GENCPM
+	dw	gencpm		; ALV - allocated by GENCPM
+	dw	gencpm		; DIRBCB0 - allocated by GENCPM
+	dw	gencpm		; DTABCB0 - allocated by GENCPM
+	dw	gencpm		; HASH0 - allocated by GENCPM
+	db	0		; HBANK0 - allocated by GENCPM
+	
+;--
+;B:
+;--
+	dw	NECerr		; address of error routine
+	dw	NEC765		; address of disc rd/wr driver
+	dw	selNEC765	; address of disc select driver
+	dw	NECinit		; address of disc init driver
+	db	1		; Physical device unit number (right 5in)
+	db	0		; Physical selected device format
+dph1:	dw	0		; XLT
+	ds	9		; scratch area
+	db	0		; Media Flag (gate opened)
+	dw	dpbmax		; disk parameter block - used by GENCPM
+	dw	gencpm		; CSV - allocated by GENCPM
+	dw	gencpm		; ALV - allocated by GENCPM
+	dw	gencpm		; DIRBCB1 - allocated by GENCPM
+	dw	gencpm		; DTABCB1 - allocated by GENCPM
+	dw	gencpm		; HASH1 - allocated by GENCPM
+	db	0		; HBANK1 - allocated by GENCPM
+	
+;--
+;C:
+;--
+	dw	NECerr		; address of error routine
+	dw	NEC765		; address of disc rd/wr driver
+	dw	selNEC765	; address of disc select driver
+	dw	NECinit		; address of disc init driver
+	db	0		; Physical device unit number (left 5in)
+;******	db	2		; Physical device unit number (left 3in unit)
+	db	0		; Physical selected device format
+dph2:	dw	0		; XLT
+	ds	9		; scratch area
+	db	0		; Media Flag (gate opened)
+	dw	dpbmax		; disk parameter block - used by GENCPM
+	dw	gencpm		; CSV - allocated by GENCPM
+	dw	gencpm		; ALV - allocated by GENCPM
+	dw	gencpm		; DIRBCB2 - allocated by GENCPM
+	dw	gencpm		; DTABCB2 - allocated by GENCPM
+	dw	gencpm		; HASH2 - allocated by GENCPM
+	db	0		; HBANK2 - allocated by GENCPM
+
+;--
+;D:
+;--
+	dw	NECerr		; address of error routine
+	dw	NEC765		; address of disc rd/wr driver
+	dw	selNEC765	; address of disc select driver
+	dw	NECinit		; address of disc init driver
+	db	1		; Physical device unit number (right 5in)
+;******	db	3		; Physical device unit number (right 3in unit)
+	db	0		; Physical selected device format
+dph3:	dw	0		; XLT
+	ds	9		; scratch area
+	db	0		; Media Flag (gate opened)
+	dw	dpbmax		; disk parameter block - used by GENCPM
+	dw	gencpm		; CSV - allocated by GENCPM
+	dw	gencpm		; ALV - allocated by GENCPM
+	dw	gencpm		; DIRBCB3 - allocated by GENCPM
+	dw	gencpm		; DTABCB3 - allocated by GENCPM
+	dw	gencpm		; HASH3 - allocated by GENCPM
+	db	0		; HBANK3 - allocated by GENCPM
+
+	dseg
+;---------------------------------------------;
+; ========== Disk Parameter Blocks ========== ;
+;                                             ;
+; table of floppy disc parameter blocks       ;
+; indexed: bit0=side, bit1&2=size, bit3=8/5   ;
+;   or by: bit0=side, bit1&2=size, bit3=3.5/5 ;
+;---------------------------------------------;
+dpbtble:
+if	five		; If using 5 in drives
+	dw	dpb5sssdsr	; ss sd sr 5" (128 bytes)
+	dw	dpbunused	; ds sd sr 5" (128 bytes)
+	dw	dpbunused	; ss dd sr 5" (256 bytes)
+	dw	dpb5epson	; ds dd sr 5" (EPSON - 256 bytes)
+	dw	dpb5ssibm	; ss dd dr 5" (IBM s/side 512 bytes)
+	dw	dpb5dsibm	; ds dd dr 5" (IBM d/side 512 bytes)
+	dw	dpbunused	; ss dd sr 5" (1024 bytes)
+	dw	dpb5xepson	; ds dd sr 5" (EPSON+ - 1024 bytes)
+else
+	dw	dpbunused	; ss sd sr 5" (128 bytes)
+	dw	dpbunused	; ds sd sr 5" (128 bytes)
+	dw	dpbunused	; ss dd sr 5" (256 bytes)
+	dw	dpbunused	; ds dd sr 5" (EPSON - 256 bytes)
+	dw	dpbunused	; ss dd dr 5" (IBM s/side 512 bytes)
+	dw	dpbunused	; ds dd dr 5" (IBM d/side 512 bytes)
+	dw	dpbunused	; ss dd sr 5" (1024 bytes)
+	dw	dpbunused	; ds dd sr 5" (EPSON+ - 1024 bytes)
+endif
+if	three		; If using 3.5 in drives
+	dw	dpbunused	; ss sd sr 3.5" (128 bytes)
+	dw	dpbunused	; ds sd sr 3.5" (128 bytes)
+	dw	dpbunused	; ss dd sr 3.5" (256 bytes)
+	dw	dpb3epson	; ds dd sr 3.5" (EPSON - 256 bytes)
+	dw	dpb3ssibm	; ss dd dr 3.5" (IBM s/side 512 bytes)
+	dw	dpb3dsibm	; ds dd dr 3.5" (IBM d/side 512 bytes)
+	dw	dpbunused	; ss dd sr 3.5" (1024 bytes)
+	dw	dpb3xepson	; ds dd sr 3.5" (EPSON+ - 1024 bytes)
+else
+	dw	dpbunused	; ss sd sr 3.5" (128 bytes)
+	dw	dpbunused	; ds sd sr 3.5" (128 bytes)
+	dw	dpbunused	; ss dd sr 3.5" (256 bytes)
+	dw	dpbunused	; ds dd sr 3.5" (EPSON - 256 bytes)
+	dw	dpbunused	; ss dd dr 3.5" (IBM s/side 512 bytes)
+	dw	dpbunused	; ds dd dr 3.5" (IBM d/side 512 bytes)
+	dw	dpbunused	; ss dd sr 3.5" (1024 bytes)
+	dw	dpbunused	; ds dd sr 3.5" (EPSON+ - 1024 bytes)
+endif
+if	eight		; If using 8 in drives
+	dw	dpb8sssd	; ss sd sr 8" 128 bytes (IBM 3270)
+	dw	dpb8dssd	; ds sd sr 8" 128 bytes
+	dw	dpb8ssdd	; ss dd sr 8" 256 bytes (IBM system 34)
+	dw	dpb8dsdd	; ds dd sr 8" 256 bytes
+	dw	dpbunused	; ss dd dr 8" 512 bytes (not used)
+	dw	dpbunused	; ds dd dr 8" 512 bytes (not used)
+	dw	dpbunused	; ss dd dr 8" 1024 bytes (not used)
+	dw	dpbunused	; ds dd dr 8" 1024 bytes (not used)
+else
+	dw	dpbunused	; ss sd sr 8" 128 bytes (IBM 3270)
+	dw	dpbunused	; ds sd sr 8" 128 bytes
+	dw	dpbunused	; ss dd sr 8" 256 bytes (IBM system 34)
+	dw	dpbunused	; ds dd sr 8" 256 bytes
+	dw	dpbunused	; ss dd dr 8" 512 bytes (not used)
+	dw	dpbunused	; ds dd dr 8" 512 bytes (not used)
+	dw	dpbunused	; ss dd dr 8" 1024 bytes (not used)
+	dw	dpbunused	; ds dd dr 8" 1024 bytes (not used)
+endif
+
+	cseg		; must be in common
+
+;-----------------------------------------------------------------
+; Disk Parameter Blocks
+;
+; Extended DPB parameters (in brackets NEC parameter):
+;     -7        1 byte  Format byte (sets cylinder mode, 3.5in etc)
+;     -6	1 byte	(N) 128 byte sectors
+;     -5	1 byte  (EOT) Top sector number on track
+;     -4	1 byte	(GPL) Gap length
+;     -3	1 word	(DTL) Size of physical sector
+;     -1	1 byte	Physical blocking shift factor (0=*1, 1=*2, 2=*4 etc)
+; Blocking factor:
+; 1. This is used to block physical sectors together into one
+;    physical BIOS sector as described by PSH and PHM.
+; 2. Thus PSH-BLOCKING = real shift factor.
+; 3. The suggested optimum size of this physical BIOS sector
+;    is the size of the datablock (1k,2k,etc), however in order to
+;    minimise LRU buffer space, a 1k size is used.
+;-----------------------------------------------------------------
+
+dpbunused	equ	0	; no DPB assigned (23may84)
+
+
+;--------------------------------------------------------;
+; DPBMAX  - This dpb is constructed with the maximum     ;
+; value for each field of all the possible dpb's.        ;
+;                                                        ;
+; if GENCPM sets up CSV  then CKS must be defined in DPB ;
+; if GENCPM sets up ALV  then DSM must be defined in DPB ;
+; if GENCPM sets up BCBs then PSH must be defined in DPB ;
+; if GENCPM sets up HASH then DRM must be defined in DPB ;
+;--------------------------------------------------------;
+
+dpbmax:				; Contains maximum value for GENCPM
+ 	dw	0		; SPT
+	db	0,0		; BSH,BLM
+	db	0		; EXM
+if	eight		; Using 8 in diskettes
+	dw	247-1		; DSM (8in DS-DD)
+	dw	128-1		; DRM (8in DS-DD)
+	db	0,0		; AL0, AL1
+	dw	32		; CKS (8in DS-DD)
+else
+	dw	200-1		; DSM (5in EPSON+)
+	dw	128-1		; DRM (5in EPSON+)
+	db	0,0		; AL0, AL1
+	dw	32		; CKS (5in EPSON+)
+endif
+	dw	0		; OFF
+	db	3,7		; PSH, PHM (1K blocksize)
+
+
+;==========================================;
+; DPB for each implemented diskette format ;	
+;==========================================;
+
+if	five		; Using 5in diskettes
+
+	db	bit7		; Format structure 23may84
+	db	0		; (N) 128 byte sectors
+	db	18		; (EOT) top sector number on track
+	db	07h		; (GPL) gap length
+	dw	128		; (DTL) physical sector size
+	db	0		; Blocking shift factor (0=*1)
+;-----------------------------------------------------------------
+dpb5sssdsr:			; 5 IN SINGLE SIDED SINGLE DENSITY
+;-----------------------------------------------------------------
+	dw	18		; sectors per track
+	db	3,7		; block mask
+	db	0		; ex mask
+	dw	83-1		; max block number
+	dw	32-1		; max dir entries-1
+	db	080h,0		; alloc1/2
+	dw	8		; checksize
+	dw	3		; track offset
+	db	0,0		; deblock mask
+
+	db	bit4		; Format structure 23may84 - cylinder mode
+	db	1		; (N) 256 byte sectors
+	db	16		; (EOT) top sector number on track
+	db	0eh		; (GPL) gap length
+	dw	256		; (DTL) physical sector size
+	db	2		; Blocking shift factor (256 * 4)
+;-----------------------------------------------------------------
+dpb5epson:			; 5 IN DOUBLE SIDED DOUBLE DENSITY
+;-----------------------------------------------------------------
+	dw	16*2		; sectors per track
+	db	4,15		; block mask (2k)
+	db	1		; ex mask
+	dw	140-1		; max block number
+	dw	64-1		; max dir entries-1
+	db	080h,0		; alloc1/2
+	dw	16		; checksize
+	dw	4*2		; track offset (both sides)
+	db	3,7		; deblock mask (1k)
+
+;------------------------------------------------------------------------
+; EPSON high capacity disc
+; Has no system tracks and uses 5 sectors of 1k bytes each
+;------------------------------------------------------------------------
+	db	bit4		; Format structure 23may84 - cylinder mode
+	db	3		; (N) 1024 byte sectors
+	db	5		; (EOT) top sector number on track
+	db	35h		; (GPL) gap length (IBM 2D)
+	dw	1024		; (DTL) physical sector size
+	db	0		; Blocking shift factor (1024 * 1)
+;----------------------------------------------------------------------
+dpb5xepson:			; 5 IN DOUBLE SIDED DOUBLE DENSITY 400k
+;----------------------------------------------------------------------
+	dw	5*8		; sectors per track
+	db	4,15		; block mask (2k)
+	db	1		; ex mask
+	dw	200-1		; max block number
+	dw	128-1		; max dir entries-1
+	db	0c0h,0		; alloc1/2
+	dw	32		; checksize
+	dw	0		; track offset
+	db	3,7		; deblock mask (1k)
+
+;------------------------------------------------------------------------
+; IBM compatible formats - IBM PC (8 sectors per track)
+; (NOTE Under MSDOS IBM has changed the sectors per track
+;  from 8 to 9 for MSDOS II and alternatives are shown in brackets)
+;------------------------------------------------------------------------
+	db	0		; Format structure 23may84
+	db	2		; (N) 512 byte sectors
+	db	8		; (EOT) {9} top sector number on track
+	db	2ah		; (GPL) gap length
+	dw	512		; (DTL) physical sector size
+	db	1		; {0} Blocking shift factor (512 * 2)
+;------------------------------------------------------------------------
+dpb5ssibm:			; 5 IN SINGLE SIDED DOUBLE DENSITY IBM PC
+;------------------------------------------------------------------------
+	dw	32		;{36} logical sectors per track
+	db	3,7		; block mask (1k)
+	db	0		; ex mask
+	dw	156-1		;{175-1} max block number
+	dw	64-1		; max dir entries-1
+	db	0c0h,0		; alloc1/2
+	dw	16		; checksize
+	dw	1		; track offset
+	db	3,7		;{2,3} deblock mask (1k) {512}
+
+	db	0		; Format structure 23may84
+	db	2		; (N) 512 byte sectors
+	db	8		; (EOT) {9} top sector number on track
+	db	2ah		; (GPL) gap length
+	dw	512		; (DTL) physical sector size
+	db	1		; {0} Blocking shift factor (512 * 2)
+;------------------------------------------------------------------------
+dpb5dsibm:			; 5 IN DOUBLE SIDED DOUBLE DENSITY IBM PC
+;------------------------------------------------------------------------
+	dw	32		;{36} logical sectors per track
+	db	4,15		; block mask (2k)
+	db	1		; ex mask
+	dw	158-1		;{177-1} max block number
+	dw	64-1		; max dir entries-1
+	db	080h,0		; alloc1/2
+	dw	16		; checksize
+	dw	1		; track offset
+	db	3,7		;{2,3} deblock mask (1k) {512}
+endif
+
+if	three		; Using 3.5in diskettes
+
+	db	bit4 or bit3	; Format structure 23may84 - cylinder mode
+	db	1		; (N) 256 byte sectors
+	db	16		; (EOT) top sector number on track
+	db	0eh		; (GPL) gap length
+	dw	256		; (DTL) physical sector size
+	db	2		; Blocking shift factor (256 * 4)
+;-------------------------------------------------------------------
+dpb3epson:			; 3.5 IN DOUBLE SIDED DOUBLE DENSITY
+;-------------------------------------------------------------------
+	dw	16*2		; sectors per track
+	db	5,31		; block mask (4k)
+	db	1		; ex mask
+	dw	152-1		; max block number
+	dw	128-1		; max dir entries-1
+	db	080h,0		; alloc1/2
+	dw	32		; checksize
+	dw	4*2		; track offset (both sides)
+	db	3,7		; deblock mask (1k)
+
+;------------------------------------------------------------------------
+; EPSON high capacity disc
+; Has no system tracks and uses 5 sectors of 1k bytes each
+;------------------------------------------------------------------------
+	db	bit4 or bit3	; Format structure 23may84 - cylinder mode
+	db	3		; (N) 1024 byte sectors
+	db	5		; (EOT) top sector number on track
+	db	35h		; (GPL) gap length (IBM 2D)
+	dw	1024		; (DTL) physical sector size
+	db	0		; Blocking shift factor (1024 * 1)
+;------------------------------------------------------------------------
+dpb3xepson:			; 3.5 IN DOUBLE SIDED DOUBLE DENSITY 400k
+;------------------------------------------------------------------------
+	dw	5*8		; sectors per track
+	db	5,31		; block mask (4k)
+	db	1		; ex mask
+	dw	200-1		; max block number
+	dw	128-1		; max dir entries-1
+	db	080h,0		; alloc1/2
+	dw	32		; checksize
+	dw	0		; track offset
+	db	3,7		; deblock mask (1k)
+
+;------------------------------------------------------------------------
+; IBM 8 sector size
+;------------------------------------------------------------------------
+	db	bit3		; Format structure 23may84
+	db	2		; (N) 512 byte sectors
+	db	8		; (EOT) top sector number on track
+	db	2ah		; (GPL) gap length
+	dw	512		; (DTL) physical sector size
+	db	1		; Blocking shift factor (512 * 2)
+;-----------------------------------------------------------------------
+dpb3ssibm:			; 3.5 IN SINGLE SIDED DOUBLE DENSITY IBM
+;-----------------------------------------------------------------------
+	dw	32		; logical sectors per track
+	db	4,15		; block mask (2k)
+	db	0		; ex mask
+	dw	158-1		; max block number
+	dw	128-1		; max dir entries-1
+	db	0c0h,0		; alloc1/2
+	dw	32		; checksize
+	dw	1		; track offset
+	db	3,7		; deblock mask (1k)
+
+	db	bit3		; Format structure 23may84
+	db	2		; (N) 512 byte sectors
+	db	8		; (EOT) top sector number on track
+	db	2ah		; (GPL) gap length
+	dw	512		; (DTL) physical sector size
+	db	1		; Blocking shift factor (512 * 2)
+;-----------------------------------------------------------------------
+dpb3dsibm:			; 3.5 IN DOUBLE SIDED DOUBLE DENSITY IBM
+;-----------------------------------------------------------------------
+	dw	32		; logical sectors per track
+	db	5,31		; block mask (4k)
+	db	1		; ex mask
+	dw	159-1		; max block number
+	dw	128-1		; max dir entries-1
+	db	080h,0		; alloc1/2
+	dw	32		; checksize
+	dw	1		; track offset
+	db	3,7		; deblock mask (1k)
+endif
+
+if	eight		; Using 8 in diskettes
+
+	db	bit3 or bit7	; Format structure 23may84
+	db	0		; (N) 128 byte sectors
+	db	1ah		; (EOT) top sector number on track
+	db	07		; (GPL) gap length (IBM3740)
+	dw	128		; (DTL) physical sector size
+	db	0		; Blocking shift factor (0=*1)
+;-----------------------------------------------------------------
+dpb8sssd:			; 8 IN SINGLE SIDED SINGLE DENSITY
+;-----------------------------------------------------------------
+	dw	26		; sectors per track
+	db	3,7		; block mask
+	db	0		; ex mask
+	dw	243-1		; max block number
+	dw	64-1		; max dir entries-1
+	db	0c0h,0		; alloc1/2
+	dw	16		; checksize
+	dw	2		; track offset
+	db	0,0		; deblock mask
+
+	db	bit3		; Format structure 23may84
+	db	0		; (N) 128 byte sectors
+	db	1ah		; (EOT) top sector number on track
+	db	07		; (GPL) gap length (IBM3740)
+	dw	128		; (DTL) physical sector size
+	db	0		; Blocking shift factor (0=*1)
+;-----------------------------------------------------------------
+dpb8dssd:			; 8 IN DOUBLE SIDED SINGLE DENSITY
+;-----------------------------------------------------------------
+	dw	26		; sectors per track
+	db	4,15		; block mask
+	db	1		; ex mask
+	dw	247-1		; max block number
+	dw	128-1		; max dir entries-1
+	db	0c0h,0		; alloc1/2
+	dw	32		; checksize
+	dw	2		; track offset
+	db	0,0		; deblock mask
+
+	db	bit3 or bit6	; Format structure 23may84
+	db	1		; (N) 256 byte sectors
+	db	1ah		; (EOT) top sector number on track
+	db	0eh		; (GPL) gap length (IBM 34)
+	dw	256		; (DTL) physical sector size
+	db	0		; Blocking shift factor (0=*1)
+;-----------------------------------------------------------------
+dpb8ssdd:			; 8 IN SINGLE SIDED DOUBLE DENSITY
+;-----------------------------------------------------------------
+	dw	2*26		; sectors per track
+	db	4,15		; block mask
+	db	1		; ex mask
+	dw	243-1		; max block number
+	dw	128-1		; max dir entries-1
+	db	0c0h,0		; alloc1/2
+	dw	32		; checksize
+	dw	2		; track offset
+	db	1,1		; deblock mask
+
+	db	bit3 or bit6	; Format structure 23may84
+	db	1		; (N) 256 byte sectors
+	db	1ah		; (EOT) top sector number on track
+	db	0eh		; (GPL) gap length (IBM 34)
+	dw	256		; (DTL) physical sector size
+	db	0		; Blocking shift factor (0=*1)
+;-----------------------------------------------------------------
+dpb8dsdd:			; 8 IN DOUBLE SIDED DOUBLE DENSITY
+;-----------------------------------------------------------------
+	dw	2*26		; sectors per track
+	db	5,31		; block mask
+	db	3		; ex mask
+	dw	247-1		; max block number
+	dw	128-1		; max dir entries-1
+	db	0c0h,0		; alloc1/2
+	dw	32		; checksize
+	dw	2		; track offset
+	db	1,1		; deblock mask
+endif
+
+;-------------;
+; skew tables ;
+;-------------;
+	dseg		; As only used by banked functions
+
+if	eight		; Using 8 in diskettes
+xlt8sd:	db	01,07,13,19,25	; 8 inch single density/single side
+	db	05,11,17,23
+	db	03,09,15,21
+	db	02,08,14,20,26
+	db	06,12,18,24
+	db	04,10,16,22
+endif
+
+if	five		; Using 5 in diskettes
+xlt5sd:
+;820	db	01,06,11,16	; 5.25 inch single density/single side
+;820	db	03,08,13,18
+;820	db	05,10,15
+;820	db	02,07,12,17
+;820	db	04,09,14	; 18 sectors per track
+	db	01,03,05,07	; 5.25 inch single density/single side
+	db	09,11,13,15,17
+	db	02,04,06,08,10
+	db	12,14,16,18	; 18 sectors per track
+endif	
+;---------------------------------------------------------------------------
+	page
+
+; =============================================
+; COLD BOOT INIT drivers for nec765 controllers
+; =============================================
+
+;-----------------------------------------------------------------------
+; nec765 cold boot init
+; Input:	<DE> -> dph
+; Returns:	<A> = 0
+; Functions:	Set up interrupt jump for NEC processing
+;		Initialise NEC device with specify
+;		(NB this is repeatedly called for all floppy devices)
+;-----------------------------------------------------------------------
+
+	dseg		; As only used by banked functions
+;-----------------------------;
+; Initialise interrupt vector ;
+;-----------------------------;
+NECinit:
+	di			; just in case
+if	not interrupt
+	ld	hl,NECspec	; hide this code in interrupt vector
+	ld	(intfdc+2),hl	; for use by NEC765A and HEAD
+
+	ld	hl,0c9fbh	; 'ei' 'ret' instruction
+	ld	(intfdc),hl
+else
+	ld	a,0c3h		; 'jp' instruction
+	ld	(intfdc),a
+	ld	hl,NECintr
+	ld	(intfdc+1),hl	; set up branch in interrupt vector
+endif
+	ret
+	
+;------------------------------------;
+; Specify NEC765                     ;
+; Input:  <HL> -> SRT HLD parameters ;
+; IMPORTANT: This code and specify   ;
+; data areas must be kept together   ;
+; for use by the NEC765a utilities   ;
+;------------------------------------;
+	cseg			; must be in CSEG for NEC765a utility
+NECspec:
+	ld	(specify),hl
+	call	NECcmnd
+	db	3		; length of command
+	db	00000011b	; SPECIFY command
+specify:
+	db	0		; fill as required 
+	db	0		; with SPECIFY3 or SPECIFY5	
+	ret
+
+;-----------------------------------------;
+; EPSON SD-321 Disk Drive Specification   ;
+; Interface:     Industry standard 5.25in ;
+; Motor start:	 0.5 Second               ;
+; Access time:   15ms per track           ;
+; Settling time: 15ms                     ;
+; Head load:     - no head load mechanism ;
+;-----------------------------------------;
+specify5:
+;IPL	db	10001111b	; SRT=15m, HUT=max
+;IPL	db	00010010b	; HLD=35m, DMA (SD-320 requires 35mSec)
+	db	10101111b	; SRT=12m, HUT=max
+	db	00000110b	; HLD=12m, DMA
+
+;-----------------------------------------;
+; EPSON SMD-140 Disk Drive Specification  ;
+; Interface:     Industry standard 5.25in ;
+; Motor start:	 1 Second (or 0.5 > 12/84);
+; Access time:    3ms per track           ;
+; Settling time: 15ms                     ;
+; Head load:     - no head load mechanism ;
+;-----------------------------------------;
+specify3:
+	db	11101111b	; SRT=04m, HUT=max
+	db	00000110b	; HLD=12m, DMA
+
+
+	page
+
+if	interrupt
+	cseg		; must start in common
+
+;-----------------------------------------------------------------------
+; nec765 interrupt processing (not used on QX-10)
+; Functions:	Set and Clear interrupt enable for NEC device
+;-----------------------------------------------------------------------
+
+Setint:
+	in	a,(int$a or 1)	; OCW1 - Read the IMR
+	and	not bit6	; Remove NEC interrupt mask
+	out	(int$a or 1),a
+	ret
+
+Clrint:
+	in	a,(int$a or 1)	; OCW1 - Read the IMR
+	or	bit6		; Impose NEC interrupt mask
+	out	(int$a or 1),a
+	ret
+
+;-----------------------------------------------------------------------
+; nec765 interrupt processing
+; Functions:	Set up ST0TBLE with result
+;-----------------------------------------------------------------------
+
+NECintr:
+	ld	(INTsp),sp
+	ld	sp,INTsp
+	push	af
+	call	NECint	; (MUST preserve <BC>, <DE> & <HL>)
+
+; -----------------------------------------;
+; recover registers and conclude interrupt ;
+; -----------------------------------------;
+
+	pop	af
+	ld	sp,(INTsp)
+	ei
+	ret			; and return
+
+endif
+
+;------------------------------------;
+; ======== nec765 interrupts ======= ;
+; test for cause of NEC765 interrupt ;
+; NB Must preserve <BC>, <DE> & <HL> ;
+;------------------------------------;
+
+	dseg
+NECint:
+
+	push	hl		; preserve <HL>
+Necint1:
+	in	a,(34h)		; floppy status register
+	bit	7,a		; Test RQM
+	jr	z,NECint1	; wait till ready
+	cp	11010000b	; test for DMA READ/WRITE PHASE
+	jr	z,NECrPH	; then must be ready for result PHASE
+
+;------------------------;
+; sense interrupt status ;
+; and fill result bytes  ;
+;------------------------;
+	bit	6,a		; Test DIO
+	jr	nz,NECs02	; ERROR: NEC waiting for RESULT phase
+	ld	a,00001000b	; sense command
+	out	(35h),a
+NECs01:	in	a,(34h)		; floppy status register
+	bit	7,a		; Test RQM
+	jr	z,NECs01	; wait till ready
+	bit	6,a		; Test DIO
+	jr	z,NECr04	; ERROR: NEC waiting for COMMAND phase
+NECs02:	ld	hl,SISRES	; save Sense Interrupt result byte(s)
+	jr	NECrslt		; read result byte
+
+;----------------------------------;
+; Completion of READ/WRITE command ;
+;----------------------------------;
+NECrPH:
+	ld	hl,RESULT	; Read/write result bytes(s)
+
+; --------------------------------------
+; read First NEC results bytes
+; Entry:	<HL> -> result data area
+; Returns:	<A>  =  ST0
+; Preserves:	<HL>
+; --------------------------------------
+NECrslt:
+;010684	ld	(tmpHL),hl	; save result area
+	in	a,(35h)		; read first result byte
+;----------------------;
+; test for SEEK result ;
+;----------------------;
+	bit	5,a		; test SEEK COMPLETION bit
+	jr	z,NECr01
+	ld	(SKrslt),a	; -yes- save result
+; ----------------------------------
+; update drive status table with ST0
+; ----------------------------------
+NECr01:	push	hl		;01jun84 save result area
+	push	af		; save result (ST0) for the moment
+	and	11b		; drive number
+	add	a,a		; *2
+	ld	hl,ST0tble
+	add	a,l
+	ld	l,a
+	ld	a,0
+	adc	a,h
+	ld	h,a
+	pop	af
+	ld	(hl),a		; and save result
+; ------------------------
+; test for drive not ready
+; ------------------------
+	bit	3,a		; (NB during SENSE ID should by-pass)
+	jr	z,NECr02	; -ready-
+	push	af
+	inc	hl
+	ld	a,(hl)		; set track to zero
+	add	a,1
+	sbc	a,a		; unless track set to -1
+	ld	(hl),a
+	pop	af		; recover result
+; ----------------------
+; save first result byte
+; ----------------------
+NECr02:	pop	hl		;01jun84 recover result area
+;010684	ld	hl,(tmpHL)	; result area
+	ld	(hl),a		; save ST0
+	inc	hl		; move to next result byte
+; --------------------------------------
+; read any more NEC results bytes
+; Entry:	<HL> -> result data area
+; Destroys:	<HL>, <AF>
+; --------------------------------------
+
+NECr03:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECr03	; wait till ready
+	jp	p,NECr04	; NEC now in COMMAND phase, assume all is done
+	in	a,(35h)
+	ld	(hl),a
+	inc	hl
+	jr	NECr03
+;----------------------------;
+; Completion of RESULT phase ;
+; test for another interrupt ;
+;----------------------------;
+NECr04:	pop	hl		; recover <HL> on entry
+
+;--------------------------------------------------------------
+; test FDC interrupt status and read result if interrupt raised
+; Unchanged:	<DE>, <BC>
+; Preserved:	<HL>
+; Destroyed:	<AF>
+;--------------------------------------------------------------
+tstintr:
+	in	a,(motor)	; Motor and other status
+	and	bit0		; test if FDC raised interrupt line
+	ret	z		; -no- so return
+	jr	NECint		; -yes- so sense next interrupt results
+
+;010684tmpHL:	dw	0		; temporarily save result pointer
+
+; -------------------------
+; command and results bytes
+; -------------------------
+	cseg		; must be in common as floppyio may be in any bank
+
+command:	db	0	; save last command executed
+
+if	(not interrupt)
+	dseg		; 02jun84
+endif
+
+result:				; save READ/WRITE result byte(s)
+NECst0:	db	-1		; 1st result byte - ST0
+NECst1:	db	-1		; 2nd result byte - ST1
+NECst2:	db	-1		; 3rd result byte - ST2
+NECc:	db	-1		; 4th result byte - Cylinder
+NECh:	db	-1		; 5th result byte - Head/side
+NECr:	db	-1		; 6th result byte - Record/Sector
+NECn:	db	-1		; 7th result byte - Sector size
+
+SISRES:				; save Sense Interrupt result byte(s)
+SISst0:	db	-1		; 1st result byte - ST0
+NECpcn:	db	-1		; 2nd result byte - Cylinder number (seek cmnd)
+
+SKrslt:	db	0		; SEEK result ST0 byte
+
+;010684Save$N:	db	0		; save 7th result byte - Sector size
+
+;---------------------------------------;
+; ST0 - NEC 765 Status Register 0       ;
+; Bits 0 & 1 - Unit number at interrupt ;
+; Bit  2     - Head number at interrupt ;
+; Bit  3     - FDD is or was NOT READY  ;
+; Bit  4     - FDD faulty               ;
+; Bit  5     - SEEK completed           ;
+; Bits 7 & 6 = 00 - Normal termination  ;
+;            = 01 - Abnormal termination;
+;            = 10 - Invalid command     ;
+;            = 11 - FDD ready changed   ;
+;---------------------------------------;
+
+ST0tble:
+	db	bit3,-1		; ST0 and cylinder for drive 0
+	db	bit3,-1		; ST0 and cylinder for drive 1
+	db	bit3,-1		; ST0 and cylinder for drive 2 (3.5 in)
+	db	bit3,-1		; ST0 and cylinder for drive 3 (3.5 in)
+
+;----------------------------------------------------;
+	page
+
+;               ==============
+;               nec765 DRIVERS
+;               ==============
+
+	dseg
+
+;--------------------------------------------------------------------
+; nec765 controller
+; Inputs:	<DE> -> dph
+; 		<DE>-1 = disc format
+; 		<DE>-2 = physical unit
+; Returns:	<A> = 0 if no error, else <A> = disk error status
+;
+;--------------------------------------------------------------------
+
+NEC765:
+	call	NECunit		; return <HL>->dph, <DE>->track
+	ret	m		; Drive NOT READY or outside range
+
+	dec	hl
+	ld	b,(hl)		; fetch diskette type into B
+	inc	hl
+
+	call	seek		; seek track in @trk using <B>, <HL>=dph & <DE>
+	ret	nz		; something is wrong
+
+; ---------------------------------------------
+; set up NEC disc read/write command parameters
+; ---------------------------------------------
+
+	ld	de,12
+	add	hl,de		; <hl> -> dpb
+	ld	c,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,c		; <HL> = dpb
+
+	dec	hl
+	ld	b,(hl)		; save blocking shift factor
+
+if	eight		; Using 8 in drives
+	ld	a,(format)
+	and	0110b		; get density bit (128 bytes can only be 8" SD)
+	jr	z,sdFL
+endif
+
+	dec	hl
+	ld	d,(hl)		; save high sector size	
+	dec	hl		; <HL> -> low byte of sector size
+	ld	e,(hl)		; save sector size in <DE>
+	ld	a,b		; <A> = blocking shift factor
+	push	de
+	ld	de,FLOPsd	; -> end of floppy command string
+	ld	bc,4
+	lddr			; set up N, EOT, GTL and DTL in reverse order
+	pop	de		; recover <DE>
+
+	ld	hl,FLOPcom
+	ld	(hl),044h	; double density command
+
+; --------------------------
+; single density 8" floppies
+; --------------------------
+if	eight		; Using 8 in drives
+
+	jr	setFL
+
+	db	0	; N
+	db	1ah	; EOT
+	db	07h	; GPL
+sdcmnd:	db	128	; DTL
+
+sdFL:	ld	a,b		; <A> = blocking shift factor
+	ld	hl,sdcmnd	; Single density 8in NEC command
+	ld	de,FLOPsd	; -> end of floppy command string
+	ld	bc,4
+	lddr			; set up N, EOT, GTL and DTL in reverse order
+
+	ld	hl,FLOPcom
+	ld	(hl),004h	; single density command
+
+	ld	de,128		; sector size for DMA transfer	
+setFL:
+
+endif
+
+; --------------------------------------------------
+; adjust <A>=@SECT & <DE> for blocking factor in <A>
+; --------------------------------------------------
+
+	ld	b,a		; <B>=blocking factor (0,1,2,3..
+	or	a
+	ld	a,(@sect)	; get (low) sector
+	jr	z,blocked	; no blocking
+	ex	de,hl
+block:	add	a,a		; block sector number (base 0)
+	add	hl,hl		; block sector sie
+	djnz	block	
+	ex	de,hl		; <HL> -> FLOPcom, <DE> = transfer bytes
+
+; -------------------------------------------
+; <A> & <DE> are adjusted for blocking factor
+; -------------------------------------------
+blocked:
+
+	inc	a		; adjust to base 1	
+	ld	(FLOPsec),a
+;
+	ld	a,(@rdwr)	; write=0, read>0
+	sub	1
+	sbc	a,a		; if <A>=0 then <A>=0FFH else <A>=0
+	inc	a
+	inc	a		; <A>=1 (write), =2 (read)
+;-----	ld	hl,FLOPcom	; 01jun84
+	add	a,(hl)		; <HL> -> FLOPcom
+	ld	(hl),a		; make disc i/o command
+
+floppdma:
+	call	FLdma		; set up DMA - length in <DE>
+
+flopprd:
+	ld	hl,NECst0	; NEC status ST0
+	ld	(hl),bit3	; initialise to NOT READY
+
+	call	floppyio	; do floppyio in common memory
+
+	ei			; in case interrupts were disabled
+	ld	a,1111b		; Set chn 0, 1, 2, & 3 (bits 4-7 dont care)
+	out	(dma1$Am),a
+
+if	interrupt
+
+; ---------------------------------
+; wait for result phase to complete
+; ---------------------------------
+	ld	b,0
+BSYwt:	in	a,(34h)		; floppy status register
+	and	bit4		; test BUSY flag
+	jr	z,NECtst	; which is cleared when 1st result byte read
+	djnz	BSYwt		; test max of 256 times
+
+; Perhaps Interrupt did not fire
+
+	call	NECrPH		; so do it directly
+
+endif
+
+;------------------------------------------------------------------------
+; NECTST - READ, WRITE and READ ID result
+;
+; Function:	Test for errors from result bytes
+;		where status register 0 contains
+; 		<A> = STATUS REGISTER 0 AND 11011000b
+;		bit 7 - Invalid command or drive went not ready
+;		bit 6 - Abnormal termination or drive went not ready
+;		bit 4 - Equipment check error
+;		bit 3 - Not ready
+;
+; Returns:	<A> = 0 if no error, or set 
+;		bit 7 - Drive not ready
+;		bit 6 - Drive write protected
+;		bit 4 - Posibble media change
+;		bit 2 - Drive ready status changed
+;		bit 1 - track/sector id error	
+;      		bit 0 -	Fatal error
+; Destroys:	<HL>
+;------------------------------------------------------------------------
+
+NECtst:
+
+if	(not interrupt)
+
+	call	NECint		; read result bytes
+
+endif
+
+	ld	hl,NECst0	; NEC status ST0
+	ld	a,(hl)
+	and	11011000b	; test for error, not ready or fault
+	ret	z
+
+; ------------------------- ;
+; NEC REPORTS ERROR OCCURED ;
+;  Set appropriate bits in  ;
+;  error status byte from   ;
+;     NEC status bytes.     ;
+;-----------------------------------------------------------------------
+; NEC STATUS REGISTER 0
+; On entry <A> = STATUS REGISTER 0 AND 11011000b
+;		bit 7 - Invalid command or drive went not ready
+;		bit 6 - Abnormal termination or drive went not ready
+;		bit 4 - Equipment check error
+;		bit 3 - Not ready
+;		bit 2 - Change in ready status
+;-----------------------------------------------------------------------
+
+	bit	3,a		; 'Not Ready'
+	jr	nz,sbit2	; report as change in ready status
+
+;------	bit	4,a		; 'Fault'
+;------	jr	nz,sbit0	; QX10 does not provide Fault signal
+
+	and	11000000b	; test for change in ready signal
+	cp	11000000b
+	jr	z,sbit2		; report as change in ready status
+
+	cp 	01000000b	; Command not successfully completed
+	jr	nz,sbit0	; -no- so must be software/hardware fault
+
+	inc	hl
+	ld	a,(hl)		; NEC status ST1
+
+; ---------------------
+; NEC STATUS REGISTER 1
+; ---------------------
+	bit	5,a		; (DE) CRC error in ID or DATA
+	jr	nz,sbit4	; (may be change in density)
+
+	bit	0,a		; (MA) Missing ID address mark
+	jr	nz,sbit4
+
+	bit	7,a		; (EN) End of cylinder (program error)
+	jr	nz,sbit0
+
+	bit	4,a		; ORUN error (program error)
+	jr	nz,sbit0
+
+	bit	2,a		; (ND) No sector or ID error
+	jr	nz,sbit4
+
+	bit	1,a		; (NW) Write protect
+	jr	nz,sbit6
+
+	inc	hl
+	ld	a,(hl)		; NEC status ST2
+
+; ---------------------
+; NEC STATUS REGISTER 2
+; ---------------------
+
+;-----	bit	5,a		; (DD) DATA CRC error
+;-----	jr	nz,sbit0
+
+	bit	4,a		; (WC) Wrong cylinder
+	jr	nz,sbit4
+
+;-----	bit	1,a		; (BC) Bad cylinder
+;-----	jr	nz,sbit1
+
+;-----	bit	0,a		; (MD) Missing data address mark
+;-----	jr	nz,sbit1
+
+	jr	sbit0		; any other error is fatal
+
+;-----------------------------------
+; error return codes
+;	bit 7 - Drive not ready
+;	bit 6 - Drive write protected
+;	bit 4 - Posibble media change
+;	bit 2 - Drive change ready state
+;	bit 1 - track/sector id error	
+;       bit 0 -	Fatal error
+;------------------------------------
+
+sbit7:	ld	a,bit7		; return 'INSERT DISKETTE'
+	or	a
+	ret
+
+sbit6:	ld	a,bit6		; return 'WRITE PROTECT'
+	or	a
+	ret
+
+sbit4:	ld	a,bit4		; return 'POSSIBLE MEDIA CHANGE'
+	or	a
+	ret
+
+sbit2:	ld	a,bit2		; return 'READY STATUS CHANGED'
+	or	a
+	ret
+
+sbit1:	ld	a,bit1		; return 'ID ERROR'
+	or	a
+	ret
+
+sbit0:	ld	a,bit0		; return 'FATAL ERROR'
+	or	a
+	ret
+
+; ================================ ;
+; set up DMA device for floppy i/o ;
+; ================================ ;
+
+writeDMA	equ	01001000b ; write dma mode Chn 0 single mode
+readDMA		equ	01000100b ; read dma mode Chn 0 single mode
+
+dma1$b0	equ	dma$1 or 0000b	; Channel 0 Base address
+dma1$w0	equ	dma$1 or 0001b	; Channel 0 Word address
+dma1$b1	equ	dma$1 or 0010b	; Channel 1 Base address
+dma1$w1	equ	dma$1 or 0011b	; Channel 1 Word address
+dma1$b2	equ	dma$1 or 0100b	; Channel 2 Base address
+dma1$w2	equ	dma$1 or 0101b	; Channel 2 Word address
+dma1$b3	equ	dma$1 or 0110b	; Channel 3 Base address
+dma1$w3	equ	dma$1 or 0111b	; Channel 3 Word address
+dma1$c	equ	dma$1 or 1000b	; DMA command (w/o)
+dma1$St	equ	dma$1 or 1000b	; Status register (r/o)
+dma1$Rq	equ	dma$1 or 1001b	; Status register (r/o)
+dma1$Sm	equ	dma$1 or 1010b	; Single mask register (w/o)
+dma1$Md	equ	dma$1 or 1011b	; Set mode (w/o)
+dma1$Pt	equ	dma$1 or 1100b	; Clear byte pointer (w/o)
+dma1$Tr	equ	dma$1 or 1101b	; Temporary register (r/o)
+dma1$Mc	equ	dma$1 or 1101b	; Master clear (reset) (w/o)
+dma1$x	equ	dma$1 or 1110b	; not assigned
+dma1$Am	equ	dma$1 or 1111b	; All mask register (w/o)
+
+;-----------------------------------------------------------------
+; FLDMA
+; Entry:	<DE> - length of single sector transfer
+;		@SCNT - number of sectors to transfer (may = 0)
+;		@DMA - address of start of transfer
+;		@RDWR - set to 0 for write, >0 for read
+; Function:	Program DMA chip for transfer
+;-----------------------------------------------------------------
+
+FLdma:
+
+; ---------------------------------- ;
+; adjust length of transfer by @SCNT ;
+; ---------------------------------- ;
+	ld	a,(@scnt)	; number of physical sectors
+	or	a		; test for single sector
+	jr	z,havesize
+	ld	hl,0
+upsize:	add	hl,de		; increment for each count
+	dec	a
+	jr	nz,upsize
+	ex	de,hl		; <DE> = length in bytes of transfer
+havesize:
+
+; ----------------------------- ;
+; send parameters to DMA device ;
+; ----------------------------- ;
+	ld	hl,(@dma)	; fetch DMA address
+
+	ld	c,writeDMA
+	ld	a,(@rdwr)
+	or	a
+	jr	z,FLdma1
+	ld	c,readDMA
+FLdma1:				; <DE> = size, <HL> ->DMA, <C> = command
+	ld	b,01100000b	; Extended write, DREQ low, DACK low
+
+	xor	a
+	out	(dma1$Mc),a	; clear (reset) dma
+
+	ld	a,c
+	out	(dma1$Md),a	; dma mode set
+
+	ld	a,l
+	out	(dma1$b0),a	; LOW dma address
+	ld	a,h
+	out	(dma1$b0),a	; HIGH dma address
+	dec	de		; decrement length of transfer
+	ld	a,e
+	out	(dma1$w0),a	; LOW sector length -1
+	ld	a,d
+	out	(dma1$w0),a	; HIGH sector length -1
+
+	ld	a,b
+	out	(dma1$c),a	; command
+
+	ld	a,00001110b	; Clr chn0, Set chn1, chn2, chn3
+	out	(dma1$Am),a
+
+	ret
+
+;------------------------------------------------------------
+; NECunit
+; Entry:	<DE> -> dph
+; Returns:	<HL> -> dph
+;		<DE> -> head position
+;		<F> = Minus if physical drive outside range
+;Functions:	Set up physical unit in each NEC command
+;		Turn motor on and wait if not already on
+;-------------------------------------------------------------
+
+NECunit:
+if	interrupt
+	call	SetINT		; enable NEC interrupts
+endif
+
+	call	tstintr		; test for NEC raising interrupt
+
+	ld	h,d
+	ld	l,e		; <HL> -> dph
+	dec	hl
+	dec	hl
+	ld	a,(hl)		; physical drive
+	cp	4
+	jr	nc,notready	; drive outside range so return
+
+	ld	(rc.u),a	; set unit number for calibrate
+	call	setunit		; Set unit number to <A>, (head = 0)
+
+;--------------------------------------------------------
+; calculate address of ST0 status byte for physical drive
+;--------------------------------------------------------
+
+	ld	c,a
+	ld	b,0		;(<BC> = physical disc unit to select)
+; calculate address of status byte and track byte for physical drive
+	ld	hl,ST0tble
+	add	hl,bc
+	add	hl,bc		; *2
+	ex	de,hl		; <DE> -> Status byte for drive <C>
+				; <HL> -> DPH
+
+;------------------------------------------------------------
+; Test drive ready status
+; 1/ Test READY status
+; 2/ Test MOTOR ON status
+; If either 1/ or 2/ then turn motor on and
+;	i/ wait half second
+;      ii/ test for READY for maximum of further half second
+; NOTE: The floppy drive can produce an incorrect READY status
+; following the time out of the MOTOR ON such that the READY
+; line may remain true even though the speed is not correct.
+; consequently errors can arise through sector write at the wrong
+; speed. The forced half second wait should overcome this.
+;------------------------------------------------------------
+
+;------------------
+; test READY status
+;------------------
+	ld	a,(de)
+	inc	de		; <DE> -> cylinder byte for drive <C>
+	and	bit3		; test NOT READY status
+	jr	nz,motoron	; -NOT READY- so turn motor on
+
+;------------------
+; test motor status
+;------------------
+	in	a,(motor)	; Motor and other status
+	and	bit1		; test NOT MOTOR ON
+	jr	z,gomotor	; Motor is still actually on
+; Motor has stopped, but floppy disc has not yet gone NOT READY
+
+;-----------------------------------------------------------------------
+; MOTORON
+; Unchanged:	<HL>, <DE>
+; Destroyed:	<AF>, <BC>
+; Function:	Turns on motor and waits 1/2 sec then
+;		tests READY STATUS for a maximum of a further
+;		1/2 sec until motor comes up to speed
+;		(note although spec says 1/2 sec - seems to need more)
+;-----------------------------------------------------------------------
+
+motoron:		; (Note early 3.5in spec says 1 sec required)
+;-------------
+; Wait 1/2 sec
+;-------------
+
+	ld	bc,48780	; delay * T41
+wt500:	xor	a
+	out	(motor),a	; and keep motor going
+	dec	bc
+	ld	a,b
+	or	c
+	jr	nz,wt500
+
+;---------------------
+; test for max 1/2 sec
+;---------------------
+	ld	bc,3277		; wait for drive to reach speed
+pause:	call	NECsense	; returns <A> = ST3
+	and	bit5		; see if ready
+	jr	nz,uptospeed
+	dec	bc
+	ld	a,b
+	or	c
+	jr	nz,pause	; time =<BC>*153uSec
+
+;---------------------------------------------------;
+; Drive not ready - cause 'INSERT DISKETTE' message ;
+;---------------------------------------------------;
+notready:
+	ld	a,bit7		; Set NOT READY bit as nodiskette
+	or	a
+	ld	hl,0		; and set HL = 0
+	ret
+
+;------------
+; Drive ready
+;------------
+uptospeed:
+gomotor:		; On entry <HL> -> dph
+	xor	a
+	out	(motor),a	; and keep motor going
+
+; return with status A = 0
+	ret			; return with <HL> -> dph, <DE> -> track
+
+;--------------------------------------------
+; assign unit/head in <A> to all NEC commands
+;--------------------------------------------
+setunit:
+	ld	(sk.u),a	; set unit number for seek
+	ld	(FLOP.u),a	; set unit number for floppy i/o
+	ld	(id.u),a	; set unit number for ID read
+	ld	(sds.u),a	; set unit number for sense drive status
+	ret
+
+;-----------------------------------------------------------------------
+; SEEK		seek track in @trk for disc type in <B>
+;
+; Input:	@trk =  Track to seek
+;		<B> disc type (=(<HL>-1)
+;		<HL> -> dph
+;		<DE> -> head position in ST0tble
+; Returns:	<A> disk error status if error, =0 if none
+;			bit 6 - Drive write protected
+;			bit 4 - Posibble media change
+;			bit 2 - Drive ready status changed
+;			bit 1 - track/sector id error	
+;       		bit 0 -	Fatal error
+;		<HL> & <DE> unchanged		
+;		format = format of track seeked (8in only)
+; Function:	Sets required density and seeks track in <C>
+;-----------------------------------------------------------------------
+
+;-----------------------------------------------------------------------
+; dph -1 Format Byte:
+;		bit 0 = 1 for double sided drives
+;		bit 1 } Sector 00b = 128, 01b = 256 (00b is single density)
+;		bit 2 } Size   10b = 512, 11b = 1024 bytes
+;		bit 3 = 1 for 8in or 3.5in discs
+;		bit 4 = 1 for cylinder format
+;		bit 5 = 1 for S800 drive which is ignorant of side select
+;		bit 6 = 1 for double density drives (not used)
+; for example:
+; 		ibmss	------	0100b
+; 		ibmds	------	0101b
+; 		epson	------	0011b
+; 		epsonx -----	0111b
+;-----------------------------------------------------------------------
+
+if	eight		; Using 8 in drives
+format:	db	-1		; Bit0 = sides, Bit1&2 = size, Bit3 = 1 8in
+endif
+
+;====
+seek:
+;====
+	ld	a,(@trk)
+	ld	c,a		; save in C
+
+; --------------
+; Select density
+; --------------
+
+if	eight		; using 8 inch drive
+;  according to bit 1 in <B> unless on track zero of 8"(<C>)
+	bit	3,b		; test 8/5.25 bit
+	jr	z,getdens
+	ld	a,c		; Track to seek
+	or	a
+	jr	nz,getdens
+; track 0 (8") is always single density
+	ld	a,b
+	and	not 0110b	; Force single density (128 byte sectors)
+	jr	setdens
+getdens:
+	ld	a,b
+setdens:
+	ld	(format),a	; remember for floppyIO
+
+endif
+
+;------------
+; select side
+;------------
+
+; test if cylinder mode (Epson 5.25 or 3.5)
+	bit	4,b
+	jr	z,tstside
+;----------------------------------
+; cylinder mode (Epson 5.25 or 3.5)
+;----------------------------------
+	ld	a,c
+	and	a
+	rra			; move side into carry
+	ld	c,a		; and update track
+	jr	c,flip		; select 2nd side
+	jr	noflip		; select 1st side
+
+;-----------------------------------------
+; IBM PC up one side, down other side mode
+;-----------------------------------------
+tstside:			; test if S800 drive (single sided) in use
+	bit	5,b		; test for S800 drive (bit2)
+	jr	nz,noflip	; in which case cannot understand side 2
+
+	bit	3,b		; test for (8 or 3.5)/5.25
+if	eight
+	ld	b,77		; (77 tracks per side on 8 in)
+endif
+if	three
+	ld	b,80		; (80 tracks per side on 3.5 in)
+endif
+	jr	nz,tsttrk
+	ld	b,40		; (40 tracks on 48 t.p.i. 5.25 in)
+tsttrk:	ld	a,c
+	cp	b		; number of tracks per side on diskette
+	jr	c,noflip
+	ld	a,b
+	add	a,a		; total tracks over 2 sides
+	dec	a		; adjust to base 0
+	sub	c		; deduct required track
+	ld	c,a		; and update track number
+flip:
+	ld	a,(sk.u)
+	or	100b		; set head number
+	call	setunit		; Set unit number and head to <A>
+	ld	a,1		; Set side one
+	jr	selside
+noflip:
+if	eight		; Using 8 in drives
+	ld	a,(format)
+	and	not bit0	; Force first side
+	ld	(format),a	; remember for floppyIO
+endif
+	xor	a		; set side 0
+selside:
+;010684	ld	a,(FLOP.u)	; head/unit number
+;010684	and	100b		; mask head bit
+;010684	rra
+;010684	rra
+	ld	(FLOPsid),a	; set up floppy command - side
+
+	ld	a,c		; set up floppy command
+	ld	(FLOPtrk),a	; cylinder number
+	ld	a,(de)		; current track position
+	cp	c		; has track changed ?
+	jr	z,seekdone	; -no- so conclude seek
+	inc	a		; check if track set to -1 after seek error
+	jr	nz,seektrk
+	call	recal		; (destroys <B>) (<DE> -> head position)
+	ret	nz		; cannot even seek trk 0
+
+; ---------------------
+; SEEK TRACK IN <C> & 
+; <DE> -> head position
+; ---------------------
+seektrk:
+	ld	a,c		; test for track 0
+	ld	(skNCN),a
+	ld	(de),a		; update track number
+	or	a
+	jr	z,recal		; seek track 0 (<DE> -> head position)
+
+	call	tstSTEP		; test for correct STEP rate
+
+if	interrupt
+	call	ClrINT		; disable interrupts
+endif
+
+	push	hl
+	call	NECcmnd		;(destroys <HL>, <AF>, <B>)
+	db	3		; length of command
+	db	00001111b	; seek command
+sk.u:	db	000b		; hd/unit
+skNCN:	db	0		; cylinder (track) number
+	pop	hl
+
+; -------------------------- ;  
+; Complete SEEK              ;
+; and return disc error code ;
+; must preserve <C> <DE> <HL>;
+; -------------------------- ;
+if	interrupt
+seekrdy:
+	call	SetINT		; enable interrupts
+seekwt:	in	a,(34h)		; floppy status register
+	bit	7,a		; test RQM bit
+	jr	z,seekwt	; wait till ready for CPU
+	and	11111b		; test SEEK BUSY flags
+	jr	nz,seekwt	; which is cleared when all seeks completed
+
+else
+
+seekrdy:
+	call	tstintr		; read result when ready
+
+seekwt:	in	a,(34h)		; floppy status register
+	bit	7,a		; test RQM bit
+	jr	z,seekwt	; wait till ready for CPU
+	and	11111b		; test SEEK/BUSY flags
+	jr	nz,seekrdy	; which is cleared when results phase done
+
+endif
+
+	ld	a,(SKrslt)	; returns <A> = ST0
+	xor	bit5		; clear seek done bit
+
+	ld	(SKrslt),a
+	and	11111000b	; remove hd,unit
+	ret	z		; all OK - return <A> = 0
+
+	jr	seekerr		; error - return <A> = 1 or 80h
+
+; ------------------------------------------------
+; RECALIBRATE/SEEK TRACK 0 (<DE> -> head position)
+; NOTE: The NEC765 sends up to 77 head pulses, and
+; this can produce errors with the 3.5 in drive as
+; this has 80 tracks.
+; ------------------------------------------------
+recal:	ld	a,-1
+	ld	(de),a		; set last track to -1
+
+	call	tstSTEP		; test for correct STEP rate 17may84
+
+rptrecal:
+
+if	interrupt
+	call	ClrINT		; disable interrupts
+endif
+	push	hl
+	call	NECcmnd		;(destroys <HL>, <AF>, <B>)
+	db	2		; length of command
+	db	00000111b	; recalibrate command
+rc.u:	db	00000000b	; unit number (head = 0)
+	pop	hl
+
+; -------------------------- ;  
+; Complete RECAL             ;
+; and return disc error code ;
+; must preserve <C> <DE> <HL>;
+; -------------------------- ;
+if	interrupt
+	call	SetINT		; enable interrupts
+rclwt:	in	a,(34h)		; floppy status register
+	bit	7,a		; test RQM bit
+	jr	z,rclwt		; wait till ready for CPU
+	and	11111b		; test SEEK BUSY flags
+	jr	nz,rclwt	; which is cleared when all seeks completed
+
+else
+tstrcl:
+	call	tstintr		; read result when ready
+
+rclwt:	in	a,(34h)		; floppy status register
+	bit	7,a		; test RQM bit
+	jr	z,rclwt		; wait till ready for CPU
+	and	11111b		; test SEEK/BUSY flags
+	jr	nz,tstrcl	; which is cleared when results phase done
+
+endif
+
+	ld	a,(SKrslt)	; returns <A> = ST0
+	xor	bit5		; clear seek done bit
+
+	ld	(SKrslt),a
+	and	11111000b	; remove hd,unit
+	ret	z		; all OK
+
+;------------------------------------------;
+; Test for failure to raise track 0 signal ;
+; NEC765 sets bit 4 of ST0 if not track 0  ;
+; If <DE> > 0 then try again               ;
+;------------------------------------------;
+
+	ex	de,hl
+	inc	(hl)		; test if <HL> = -1
+	ld	(hl),0		; and set <HL> = 0
+	ex	de,hl
+	jr	nz,seekerr	; -no- so already retried
+	bit	4,a		; test Equipment Check
+	jr	nz,rptrecal	; -yes- so try again
+
+
+;-------------------------------------------------------------------------
+; SEEK error codes
+;
+; Entry:	<A> = STATUS REGISTER 0 AND 11011000b
+;		bit 7 - Invalid command or drive went not ready
+;		bit 6 - Abnormal termination or drive went not ready
+;		bit 4 - Equipment check error
+;		bit 3 - Not ready
+;
+; Function:	Test for errors
+;
+; Returns:	<A> = 0 if no error, or set 
+;		bit 7 - Drive not ready
+;		bit 6 - Drive write protected
+;		bit 4 - Posibble media change
+;		bit 2 - Drive ready status changed
+;		bit 1 - track/sector id error	
+;      		bit 0 -	Fatal error
+;--------------------------------------------------------------------------
+seekerr:
+	ex	de,hl
+	ld	(hl),-1		; seek error set track number to -1
+	ex	de,hl		; (force recalibrate )
+
+	cp	bit6 or bit7	; test device going not ready
+	jp	z,sbit2		; flag "READY STATUS CHANGED"
+	bit	3,a		; test bit 3 - device NOT READY
+	jp	nz,sbit2	; flag "READY STATUS CHANGED"
+	bit	4,a		; test fatal hardware error
+	jp	nz,sbit0	; flag "FATAL ERROR"
+	jp	sbit1		; flag "track/sector or ID ERROR"
+
+seekdone:
+	xor	a		; return <A> = 0 as ok
+	ret	
+
+
+;---------------------------------------------------------------------;
+; tstSTEP                                                             ;
+; test for correct STEP rate                                          ;
+; Preserved:	<HL>                                                  ;
+; Destroyed:	<AF>, <B>                                             ;
+; Function:	Reset step rate if change between 5.25 and 3.5 device ;
+;---------------------------------------------------------------------;
+tstSTEP:
+
+	push	hl
+	ld	a,(rc.u)
+	ld	hl,(specify5)
+	and	010b		; test for drives 2 and 3
+	jr	z,cmpSTEP	; -no- specify 5.25 in step rate
+	ld	hl,(specify3)	; -yes- specify 3.5 in step rate
+cmpSTEP:
+	ld	a,(specify)
+	cp	l
+	call	nz,NECspec	; change step rate
+	pop	hl
+	ret	
+
+	page
+
+;                =====================================
+;                Select drivers for nec765 controllers
+;                =====================================
+
+
+;-----------------------------------------------------------------------
+; nec765 controller
+; Input:	<DE> -> dph
+;		<DE>-1 = format mode
+; 		<DE>-2 = physical unit
+;		@rdwr = -1 for disk select
+;			0 or 1 for media change detect
+; Returns:	<A> = 0, <HL> -> dph if select completed
+;		<A> = WDstatus if failed
+;		<HL> -> dph
+;
+; After <DE> moved to <HL>, <HL> is maintained during routine
+; and <DE> is set to drive track table for SEEK and RECAL
+;-----------------------------------------------------------------------
+
+selNEC765:
+	call	NECunit		; return <DE>-> track, <HL> -> dph
+	ret	m		; drive outside range or not ready so return
+
+; set up format mode
+	dec	hl
+	ld	(hl),00b	; init to ss, sd, not 800, 5.25", side mode
+	inc	hl
+
+; -----------------------------
+; test for 3.5 in (unit 2 or 3)
+; -----------------------------
+
+if	three
+	ld	a,(rc.u)	; fetch recal unit number
+	and	bit1		; test unit 2 or 3
+	jr	z,not35
+	dec	hl
+	set	3,(hl)		; set 8"/3.5" bit
+	inc	hl
+not35:
+
+endif
+
+; ----------------------
+; check if drive working
+; ----------------------
+
+	call	recal		; go to track 0 (and test SEEK ERROR bit)
+	ret	nz		; return with A set to error return
+
+; -----------------------
+; test for double density
+; -----------------------
+
+if	eight		; Using 8 in drives
+	call	d$dens		;set double density (a is not used)
+endif
+	ld	c,2
+	call	seektrk		; seek track 2 (<DE> -> head position)
+	ret	nz		; seek error
+
+if	eight		; Using 8 in drives
+	jr	sides
+notddens:
+	call	s$dens		; set single density
+	ld	c,2		; (<DE> -> head position)
+	call	seektrk		; and seek track in single density
+	ret	nz		; error: cannot seek either single/double dens
+endif
+; ---------------------
+; test for double sided
+; ---------------------
+sides:
+	ld	c,2		; 2 retries
+tstdble:
+	push	hl
+	call	IDside2		; read sector ID on second side
+	pop	hl
+	jr	z,tstside2	; good read
+	ld	a,(NECst1)	; check status register 1 01jun84
+	and	bit5		; CRC error 01jun84
+	jr	z,setside	; -no- cannot read so assume SS floppy
+ 	dec	c		; test for retries on CRC error
+	jr	nz,tstdble	; -yes-
+	xor	a		; set NOT DS bit
+	jr	setside		; cannot read so assume SS floppy
+
+; read address and check side 2 in address
+tstside2:
+	ld	a,(NECh)
+	cp	1		; test for side 2
+	jr	z,tstID		; -yes-
+; Must be S800 which treats side 2 as side 1
+	ld	a,bit5		; S800 flag
+	jr	setside
+tstID:
+	ld	a,(NECn)	; save sector size
+;010684	ld	(save$N),a
+	ld	c,a		;010684
+	ld	a,bit0		; set double side flag
+setside:
+	dec	hl
+	or	(hl)		; set side or S800 flag
+	ld	(hl),a		; and save
+	inc	hl
+	push	hl
+	call	IDside1		; read sector id on first side
+	pop	hl
+	ret	nz		
+	dec	hl
+	bit	0,(hl)		; test side bit
+	inc	hl
+	jr	z,tstbyt
+; --------------------------------
+; compare sector size on each side
+; --------------------------------
+;010684	push	hl
+;010684	ld	hl,save$N
+	ld	a,(NECn)	; test sector size
+;010684	cp	(hl)		; compare with second side
+	cp	c		; compare with second side
+;010684	pop	hl
+	jr	z,tstbyt	; -same-
+	dec	hl		; not same so assume single sided
+	res	0,(hl)		; set single side
+	inc	hl
+; ----------------
+; test sector size
+; ----------------
+tstbyt:	ld	a,(NECc)	; cylinder number (correct SS error)
+	ld	(de),a		; update our track record
+
+	ld	a,(NECn)	; test number of data bytes
+	or	a		; MF 128 byte records
+	jp	z,sbit1		; - currently not allowed -
+	and	011b		; MFM: 1 = 256, 2 = 512, 3 = 1024 bytes
+				; FM:  0 = 128, 1 = 256, 2 = 512 bytes
+	rlca			; move to bits 1 & 2
+	dec	hl
+	or	(hl)		; set sector size bits 1 & 2
+	ld	(hl),a
+	inc	hl
+; -------------------
+; assign suitable dpb
+; -------------------
+	and	1111b		; bit 0 = sides, bit 1&2 = size, bit3 = 3.5/5
+	ld	c,a
+	ld	b,0
+	ex	de,hl		; <DE> -> dph
+
+	ld	hl,dpbtble
+	add	hl,bc
+	add	hl,bc		; (hl) -> selected DPB
+
+	ld	c,(hl)
+	inc	hl
+	ld	b,(hl)		; <BC> -> selected DPB
+
+; ---------------
+; check valid dpb
+; ---------------
+	ld	a,b
+	or	c
+	jr	z,selerr	; dpb = 0, so select error
+
+	ld	hl,-7
+	add	hl,bc		; <HL> -> format byte
+	ld	a,(hl)		; <A> = format byte
+	and	not 1111b	; (just in case)
+
+	ex	de,hl		; <DE> -> dpb format
+
+	dec	hl
+	or	(hl)		; set additional format bits
+	ld	(hl),a
+	inc	hl
+
+; ----------------------------
+; test type of select function
+; ----------------------------
+tstMF:
+	ld	a,(@rdwr)	; test if DISK SELECT or MF test
+	inc	a
+	jp	nz,retsel	; Media test - dont update DPH/DPB
+
+;-----------------------
+; construct dph with dpb
+; Entry:  <HL> -> dph
+;	  <DE> -> dpb-7	
+;         <BC> -> dpb
+;-----------------------
+
+	push	hl		; save dph
+	ld	a,(de)		; DPB format
+	ld	d,b
+	ld	e,c		; dpb
+
+; ---------------------------
+; Determine translate address
+; ---------------------------
+	ld	bc,0		; default is no translate
+				; (no translate table on EPSON QX-10)
+	rla			; test sector skew flag in format byte
+	jr	nc,setxlt
+
+if	eight		; Using 8 in drives
+; 128 bytes (single density) single side uses translate
+	dec	hl
+	bit	3,(hl)		; test 8in/5.25in (bit4 of pio)
+	inc	hl
+
+	ld	bc,xlt8sd	; 8 in translate table
+	jr	nz,setxlt
+endif
+if	five		; Using 5 in drives
+	ld	bc,xlt5sd	; 5.25 translate table
+endif
+
+setxlt:
+	ld	(hl),c		;store translate address
+	inc	hl
+	ld	(hl),b
+	inc	hl
+; ---------------
+; fill with zeros
+; ---------------
+	xor	a
+	ld	b,10
+nxtzro:	ld	(hl),a
+	inc	hl
+	djnz	nxtzro		; set 9 zeroes and MF to 00
+; ------------------
+; assign dpb in <de>
+; ------------------
+	ld	(hl),e
+	inc	hl
+	ld	(hl),d		; copy address of DPB into dph
+
+	pop	hl		; recover dph
+;-----;
+retsel:				; successfully conclude select, <HL> -> dph
+;-----;
+	xor	a		; return with <A> = 0
+	ret
+
+;-----;
+selerr:				; PERMANENT Select Error - cannot read disc
+;-----;
+	xor	a		; A = 0 to avoid retry
+	ld	l,a
+	ld	h,l		; return Unable to select
+	ret			; return with <A> = 0
+
+; -----------------
+; NEC command files
+; -----------------
+
+IDside1:			; Eelect first side of unit id.u
+	ld	hl,id.u
+	res	2,(hl)		; Select head 0
+	jr	NECid		; read ID (double density mode only)
+
+IDside2:			; select second side of unit  id.u
+	ld	hl,id.u
+	set	2,(hl)		; Select head 1
+
+; -------------------
+; Read next sector ID
+; id.u -> head/unit
+; -------------------
+NECid:
+if	interrupt
+	call	ClrINT		; disable interrupts
+endif
+	call	NECcmnd		; Read next ID (destroys <HL>, <AF>, <B>)
+	db	2		; length of command
+	db	01001010b	; READ ID - MFM Mode, No Skip
+id.u:	db	0
+if	interrupt
+	call	SetINT		; enable interrupts
+waitid:	in	a,(34h)		; Floppy status register
+	bit	7,a		; wait for RQM
+	jr	z,waitid
+	and	bit4		; test FDC Busy flag
+	jr	nz,waitid
+endif
+	jp	NECtst		; read and test result
+
+; ------------------
+; Sense drive status
+; sds.u -> Head/unit
+; ------------------
+sds.u:	db	0		; head/unit number
+NECsense:
+	out	(motor),a	; keep motor going
+if	interrupt
+	call	ClrINT		; disable interrupts
+endif
+NECwc:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECwc	; wait till ready
+	jp	m,NECsr		; ERROR: NEC waiting for RESULT phase
+	ld	a,00000100b	; sense command
+	ld	(command),a	; save for testing
+	out	(35h),a
+NECwu:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECwu	; wait till ready
+	jp	m,NECsr		; ERROR: NEC waiting for RESULT phase
+	ld	a,(sds.u)	; head/unit number
+	out	(35h),a
+NECsr:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECsr	; wait till ready
+
+if	interrupt
+
+	jp	p,NECsnd	; NEC waiting for COMMAND phase
+	in	a,(35h)		; read ST3
+NECsnd:
+	push	af
+	call	SetINT		; enable interrupts
+	pop	af
+	ret			; return ST3 in <A>
+
+else
+
+	ret	p		; NEC waiting for COMMAND phase
+	in	a,(35h)		; read ST3
+	ret			; return ST3 in <A>
+
+endif
+
+	page
+
+;-----------------------------------------------------------------------
+; nec765 Floppy disc read/write
+;-----------------------------------------------------------------------
+	cseg		; must be in COMMON
+floppyio:
+	ld	a,(@dbnk)
+	or	a		; test if system bank
+	jr	z,flio1		; -yes-
+	call	?bank		; select data bank if not system
+	di			; in case interrupts change bank during DMA
+flio1:
+if	interrupt
+	call	ClrINT		; disable interrupts
+endif
+	call	NECcmnd		; (destroys <HL>, <AF>, <B>)
+		db	9	; length of command
+FLOPcom:	db	-1	; read or write sector
+FLOP.u:		db	-1	; Head, unit
+FLOPtrk:	db	-1	; (C) Cylinder no (0-255)
+FLOPsid:	db	-1	; (H) Head address (0 or 1)
+FLOPsec:	db	-1	; (R) Sector number (1-255)
+FLOPden:	db	-1	; (N) Code for bytes/sector (0,1,2 or 3)
+FLOPspt:	db	-1	; (EOT) Sectors per track
+FLOPgap:	db	-1	; (GPL) gap length
+FLOPsd:		db	128	; (DTL) Sector size when FLOPden = 0
+
+;----------------------------------------------
+; wait for NEC to complete READ/WRITE execution
+;----------------------------------------------
+FDwait:	in	a,(34h)		; floppy status register
+	bit	7,a		; wait for RQM
+	jr	z,FDwait	; wait till ready for result phase
+
+	xor	a
+	out	(dma1$Mc),a	; clear (reset) dma
+
+;----------------------------------------------
+; Allow interrupts for Result phase to complete
+;----------------------------------------------
+if	interrupt
+	call	SetINT		; enable interrupts
+endif
+
+; -------------------------------------------------------------
+; dma io completed or terminated, revert to system bank and return
+; ----------------------------------------------------------------
+	ld	a,(@dbnk)
+	or	a		; test if system bank
+	ret	z		; -yes-
+	jp	?sysbnk
+
+;-----------------------------------------------------------------------
+; NECcmnd
+; Entry:	<SP> -> command bytes terminated by 0FFH and ret ptr
+;		First command byte is count of bytes for transmission
+; Destroyed:	<HL>, <AF>, <B> 
+; floppy command routine must be in common
+;-----------------------------------------------------------------------
+NECcmnd:
+	out	(motor),a	; keep motor going
+	pop	hl
+	ld	b,(hl)		; count of bytes to send
+	inc	hl
+	ld	a,(hl)		; for testing
+	ld	(command),a	; save for testing
+NECwr:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECwr	; wait till ready
+	jp	m,NECphs	; ERROR: NEC waiting for RESULT phase
+	ld	a,(hl)
+	out	(35h),a
+NECphs:	inc	hl
+	djnz	NECwr		; decrement <B> till done, then return
+
+	jp	(hl)		; done command
+
+	dseg
+;-----------------------------------------------------------------------
+	page
+;-----------------------------------------------------------------------
+; Disc Driver Error
+;
+; Input: 	<A> =  error status byte
+;			bit 7 - Drive not ready
+;			bit 6 - Drive write protected
+;			bit 4 - Posibble media change
+;			bit 2 - Drive ready status changed
+;			bit 1 - track/sector id error	
+;       		bit 0 -	Fatal error
+;
+; Returns:	<A> = 0		Ignore error
+;		<A> = -1	Retry
+;		<A> > 1		Return to BIOS for error condition
+;
+; Function:	The error routine can take one of 4 actions depending on
+;		the value of the error status
+;	1.	= 7 - Request user to insert diskette and test for disc ready
+;	2.	= 6 - Return setting READ ONLY error flag for BDOS
+;	3.	If @RETRIES > 0 then return decrementing retry count
+;	4.	all others - Display error message and
+;			request RETRY, IGNORE, or ACCEPT
+;		RETRY  - returns with <A> = -1, <HL> = 0
+;		IGNORE - returns with <A> = 0, <HL> = 0
+;			 so BDOS unaware of error
+;		ACCEPT - returns with <A> = 1, <HL> = 0
+;			 and inform BDOS of BAD SECTOR
+;
+;----------------------------------------------------------------------------
+
+
+NECerr:			; <A> -> disc error status byte
+
+;--------------------------------------------------------------------
+; Set track byte for drive to -1 to force recalibrate on next access
+; Returns:	<A> and <HL>
+; Destroyed:	<BC> & <DE>
+;--------------------------------------------------------------------
+
+	ld	hl,(rc.u)	; unit number for recalibrate
+	ld	h,0		;(<HL> = physical disc unit to select)
+	add	hl,hl		; *2
+
+	ld	bc,ST0tble
+	add	hl,bc		; <HL> -> ST0 for drive
+	inc	hl		; <HL> -> cylinder position for drive
+
+	ld	(hl),-1		;force a head recalibrate
+
+; --------------------- ;
+; test for fatal errors ;
+; --------------------- ;
+
+	ld	b,a		; save error code
+	and	bit7 or bit6
+	jp	nz,DDerrPERM	; no point retrying
+
+; ---------------- ;
+; test for retries ;
+; ---------------- ;
+
+	ld	hl,@retries
+	dec	(hl)
+	ld	a,-1
+	ret	nz		; retries allowed
+
+; ------------------ ;
+; display error code ;
+; ------------------ ;
+
+lf	equ	0ah
+cr	equ	0dh
+bell	equ	07h
+esc	equ	27
+inslin	equ	('E' shl 8) + esc
+dellin	equ	('R' shl 8) + esc
+up	equ	11
+
+	ld	hl,DDerrB
+	ld	a,b
+	rra
+	rra
+	rra
+	rra
+	call	Mhex
+	ld	a,b
+	call	Mhex		; display disc error code
+
+;----------------------------------------------;
+; Prepare status report should it be requested ;
+;----------------------------------------------;
+
+	ld	hl,fdccmd
+	ld	a,(command)	; recent command
+	call	addbyte
+
+	ld	hl,fdcst
+	in	a,(34h)		; floppy disc status
+	call	addbyte
+
+	ld	hl,fdcrst
+	ld	de,result	; read/write status
+	ld	b,7
+	call	addbytes
+
+	ld	hl,fdcsis
+	ld	de,sisres	; Sense Interrupt status
+	ld	b,2
+	call	addbytes
+
+;-----------------------;
+; Prepare error message ;
+;-----------------------;
+
+	ld	a,(@adrv)
+	add	a,'A'
+	ld	(DDerrD),a	; set up drive
+
+; ------------------------ ;
+; message depends on @RDWR ;
+; ------------------------ ;
+
+	ld	a,(@rdwr)	; Write A=0, Read A=1, Select A=-1
+	inc	a		; test for =-1 
+	jr	nz,DDerr4
+	call	pmsgi
+	db	'Select',0
+	jr	DDerr6
+
+DDerr4:	dec	a		; test for =0
+	jr	nz,DDerr5	;if not write request
+	call	pmsgi
+	db	'Write',0
+	jr	DDerr6
+
+DDerr5:	call	pmsgi		;must be read request
+	db	'Read',0
+
+DDerr6:	call	?pmsg		;display following text terminated by '0'
+	db	' Err (Code '
+DDerrB:	db	'00h)  '
+DDerrD:	db	'd: '
+	db	'A(ccept), '	; i.e. return to BDOS with 'BAD SECTOR'
+	db	'I(gnore), '	; i.e. return to BDOS with 'NO ERROR'
+	db	'R(etry) '	; i.e. try again
+	db	0
+	call	?conin		;read character from console
+	push	af
+	call	?pmsg		;display following text terminated by '0'
+	db	cr
+	dw	dellin
+	db	up,0
+	ld	h,a		;zero dph for accepted or ignored select errors
+	ld	l,a
+	pop	af
+	and	5fh		;ignore parity, case
+	cp	3
+	jp	z,?wboot	;if warm start requested
+	sub	'S'
+	jr	z,DDstat	; Display disk status bytes
+	sub	'I'-'S'
+	ret	z		;if user ignored error, don't tell BDOS
+	sub	'A'-'I'
+	jp	nz,DDretry
+	ld	a,1		; BIOS error return
+	ret
+
+;----------------------------------
+DDstat:	; Display disk status bytes
+;----------------------------------
+
+	call ?pmsg
+	db	cr,lf,'NECcmnd: '
+fdccmd:	db	'00, Status: '
+fdcst:	db	'00, Rd/Wr: '
+fdcrst:	db	'00 00 00 00 00 00 00, Seek: '
+fdcsis:	db	'00 00',cr,lf
+	db	0
+ 
+	jp	DDerr6		; redisplay code
+
+;-------------------------------------------
+addbyte:	; convert A into Hex at (hl)
+;-------------------------------------------
+	ld	c,a
+	rra
+	rra
+	rra
+	rra
+	call	Mhex
+	ld	a,c
+	call	Mhex
+	ret
+
+;---------------------------------------------------------
+addbytes:	; convert B bytes at (de) into Hex at (hl)
+;---------------------------------------------------------
+	ld	a,(de)
+	call	addbyte
+	inc	hl
+	inc	de
+	djnz	addbytes
+	ret
+
+;---------------------------------------------------------------
+Mhex:		; convert A into Hex ascii byte at (hl), HL=HL+1
+;---------------------------------------------------------------
+	and	0fh
+	add	a,90h
+	daa
+	adc	a,'0'+10h
+	daa
+	ld	(hl),a
+	inc	hl
+	ret
+
+; ----------------------- ;
+; ERROR PRECLUDES RETRIES ;
+; ----------------------- ;
+
+DDerrPERM:		; either not ready or write protect
+	bit	7,a
+	jr	nz,nodisc
+	ld	a,2		; read only disc
+	ret
+
+; -------------- ;
+; DISC NOT READY ;
+; -------------- ;
+
+nodisc:
+	ld	a,(@adrv)
+	add	a,'A'
+	ld	(nr$dr),a	; set up drive
+	call	pmsgi
+	db	'DRIVE '
+nr$dr:	db	'A: INSERT DISKETTE or hit (CTRL/C)'
+	db	0
+insert:			; wait for disk to be inserted or CTRL-C to happen
+if	(not interrupt)
+	call	tstintr		; if interrupt raised read result
+endif
+	call	NECsense	; sense drive status return <A>=ST3
+	and	bit5		; test READY signal
+	jr	nz,action	; disc is now ready
+
+	call	?const		; see if aborting
+	or	a
+	jr	z,insert	; no character entered - so repeat
+
+	call	?conin		; read character
+	cp	03h		; [CTRL-C]
+	jr	nz,insert	; ignore any other character	
+
+	jp	?abort		; Warm boot exit
+
+; ----------------- ;
+; DISC is NOW ready ;
+; - so remove text  ;
+;  and set retries  ;
+;    and return     ;
+; ----------------- ;
+
+action:
+	call	?pmsg		;display following text terminated by '0'
+	db	cr
+	dw	dellin
+	db	up,0
+
+DDretry:			; retry requested or disc inserted
+	ld	hl,@retries
+	ld	(hl),3		; try 3 more times
+	ld	a,-1		; set 'RETRY' return
+	ret
+
+;--------------------------------------;
+;pmsgi:	Insert message on current line ;
+;--------------------------------------;
+
+pmsgi:	call	?pmsg		;display following text terminated by '0'
+	db	cr,lf
+	dw	inslin
+	db	0
+	jp	?pmsg		;guess what happens now
+
+
+;-----------------------------------------------------------------------
+
+	end
+
