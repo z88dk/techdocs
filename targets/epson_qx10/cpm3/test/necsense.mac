@@ -1,0 +1,378 @@
+	title	'NECSENSE - display drive status'
+	.z80	
+
+	PAGE	60
+
+;=======================================;
+; QX-10 Utility to display drive status ;
+;=======================================;
+
+VERS	EQU	00	; Pre-release
+
+;----------------;
+; Useful equates ;
+;----------------;
+
+BOOT	EQU	0	;Reboot to SYSTEM
+WBOOT	EQU	1	;address of warm boot
+BDOS	EQU	5	;BDOS entry point
+
+LF	EQU	0AH	;linefeed
+CR	EQU	0DH	;carriage return
+
+CI	EQU	6	;console input
+CO	EQU	9	;console output
+
+bit0	equ	1 shl 0
+bit1	equ	1 shl 1
+bit2	equ	1 shl 2
+bit3	equ	1 shl 3
+bit4	equ	1 shl 4
+bit5	equ	1 shl 5
+bit6	equ	1 shl 6
+bit7	equ	1 shl 7
+
+
+	maclib	NEC765A.INC
+
+;---------------------------------------------------------------------------;
+	page
+
+	cseg
+
+	jp	START
+
+;----------;
+; Messages ;
+;----------;
+
+	DB	'COPYRIGHT  1984, MML Systems Ltd',1ah
+
+SIGNON:
+	DB	'QX-10+ NEC SENSE DRIVE STATUS   ver '
+	db	vers/10+'0','.',vers mod 10+'0' 
+	db	cr,lf,0
+
+askdest:
+	db	cr,lf,'----- Enter Drive Name to test (A/B/C/D) ?'
+	db	' ( or RETURN to reboot ) ',0
+
+askhead:
+	db	cr,lf,'-------- Enter Head number to test (0/1) ?'
+	db	' ( or RETURN to reboot ) ',0
+
+sr3msg:
+	db	cr,lf,'-------- Status Register 3 -----------'
+	db	cr,lf,'7 - Fault -----------------(FT)----> '
+sr3.ft:	db	' '
+	db	cr,lf,'6 - Write protect ---------(WP)----> '
+sr3.wp:	db	' '
+	db	cr,lf,'5 - Ready -----------------(RY)----> '
+sr3.ry:	db	' '
+	db	cr,lf,'4 - Track 0 ---------------(T0)----> '
+sr3.t0:	db	' '
+	db	cr,lf,'3 - Two Side --------------(TS)----> '
+sr3.ts:	db	' '
+	db	cr,lf,'2 - Head Address ----------(HD)----> '
+sr3.hd:	db	' '
+	db	cr,lf,'1 - Unit Select 1 ---------(US 1)--> '
+sr3.u1:	db	' '
+	db	cr,lf,'0 - Unit Select 0 ---------(US 0)--> '
+sr3.u0:	db	' '
+	db	0
+
+drver:
+	db	cr,lf,'? Invalid drive name ( use A, B, C or D )',0
+
+hder:
+	db	cr,lf,'? Invalid head number ( select 0 or 1)',0
+
+;----------------------------------------;
+; NEC parameter block (filled by NECnpb) ;
+;----------------------------------------;
+npb:
+npb_f_N:	ds	1	; format parameters
+npb_f_SC:	ds	1
+npb_f_GPL:	ds	1
+npb_f_D:	ds	1
+npb_rw_N:	ds	1	; read/write parameters
+npb_rw_EOT:	ds	1
+npb_rw_GPL:	ds	1
+npb_rw_DTL:	ds	1
+		ds	1	; high byte of sector length
+npb_cyl:	ds	2
+npb_sides:	ds	1
+npb_strk:	ds	2
+
+;
+dest:	db	0		; destination drive
+head:	db	0		; head number
+tpadsk:	db	0		; drive tpa loaded from
+
+;
+BIOSPB:	ds	8		; Bios parameter block
+
+
+	page
+
+	subttl  'DIRECT BIOS SUBROUTINES'
+CONIN:
+	LD	DE,CI		;console input
+	CALL	dir_bios
+	CP	'A' OR 20H
+	RET	C
+	CP	('Z' OR 20H)+1
+	RET	NC
+	AND	5FH		;small alph -> large alph
+	RET
+;
+conout:
+	ld	de,co
+	jr	dir_bios
+;
+;
+dir_bios:
+	LD	hl,(WBOOT)	;entry BIOS
+	ADD	hl,DE
+	JP	(hl)		; direct BIOS call
+
+	page
+	subttl  'BDOS CHARACTER SUBROUTINES'
+
+;------;
+lineout:
+;------;
+	push	hl
+	ld	a,cr
+	call	putchar
+	ld	a,lf
+	call	putchar
+	pop	hl
+;-----;
+strout:
+;-----;
+	ld	a,(hl)
+	or	a
+	ret	z
+;
+;
+	push	hl
+	call	putchar
+	pop	hl
+	inc	hl
+	jr	strout
+
+;------;
+putchar:
+;------;
+	ld	e,a
+	ld	c,2
+	call	bdos		;conout
+	ret
+
+;-----------------------------------------
+; fetch character and conver to upper case
+;-----------------------------------------
+getchar:
+	ld	c,1		;conin
+	call	bdos
+	cp	'a'
+	ret	c
+	cp	'z'+1
+	ret	nc
+	and	5fh		; remove case bits
+	ret
+
+;-----------------------------------------;
+; Program not loaded under CP/M3 on Epson ;
+;-----------------------------------------;
+notcpm3:
+	ld	hl,cpm3msg
+	call	lineout
+
+	ld	c,0
+	jp	bdos		; and terminate program
+
+cpm3msg:
+	db	cr,lf,'NECSENSE - Requires CP/M + on Epson QX-10',0
+
+;---------------------------------------------------------------------------;
+
+
+	subttl  'N E C S E N S E     main'
+	page
+start:
+	ld	c,12		; BDOS return version number
+	call	bdos
+	cp	031h
+	jr	nz,notcpm3
+	ld	a,h
+	or	a
+	jr	nz,notcpm3
+
+	ld	hl,(0006h)
+	ld	sp,hl		; use top of memory as stack
+
+	ld	c,50		; BDOS Direct BIOS calls
+	ld	de,BIOSPB
+	ld	a,30		; Customised BIOS entry point
+	ld	(de),a		; requires no other registers
+	call	BDOS
+	cp	'A'		; Epson BIOS returned version
+	jr	nz,notcpm3
+
+	ld	a,(0050h)	; drive from which TPA was loaded
+	dec	a
+	cp	-1		; test for default drive
+	jr	nz,settpa
+	ld	c,25		; return current disk
+	call	bdos
+settpa:	ld	(tpadsk),a
+
+	call	NECinit		; initialise disc driver routines
+
+	ld	a,01b
+	ld	(nec.adrv),a	; default is B: drive
+
+	ld	a,1
+	ld	(nec.scnt),a	; default is single sector transfer
+
+	ld	hl,080h
+	ld	(nec.dma),hl	; default DMA address for data transfers
+
+	ld	hl,0000h
+	ld	(nec.xlt),hl	; no interleaving
+
+	ld 	hl,signon
+	call	lineout
+
+;---------------------------------------------;
+; Request drive to sense drive status or <RETURN> to quit ;
+;---------------------------------------------;
+start1:
+	xor	a
+	ld	(dest),a
+;
+	ld	hl,askdest
+	call	lineout
+;
+	ld	a,1
+	LD	(nec.adrv),a
+
+	call	getchar
+	cp	cr
+	jp	z,reboot	; <return> reboots
+	cp	3
+	jp	z,reboot	; <ctrl-C> reboots
+
+	cp	'D'+1
+	jr	nc,sterr
+	cp	'A'
+	jr	c,sterr
+	sub	'A'
+	LD	(nec.adrv),a
+	ld	(dest),a
+	jr	start3
+;
+sterr:	ld	hl,drver	;drive A-D
+	call	lineout
+	jp	start1
+
+;----------------------------------------;
+; Request sense drive status head number ;
+;----------------------------------------;
+start3:
+	ld	a,0
+	ld	(nec.head),a	; default is head 0
+
+	ld	hl,askhead
+	call	lineout
+
+	call	getchar
+	cp	cr
+	jp	z,reboot	; <return> quits
+	cp	3
+	jp	z,reboot	; <ctrl-C> quits
+
+	cp	'1'+1
+	jr	nc,st3err
+	cp	'0'
+	jr	c,st3err
+	sub	'0'
+	ld	(nec.head),a
+	jr	sense
+;
+st3err:	ld	hl,hder		;head 0-1
+	call	lineout
+	jp	start3
+
+;-----------------------------;
+; sense drive status routines ;
+;-----------------------------;
+sense:
+	call	NECsense	; sense drive status
+
+	ld	l,a
+	ld	h,0
+
+	xor	a
+	add	hl,hl
+	adc	a,'0'
+	ld	(sr3.ft),a
+
+	xor	a
+	add	hl,hl
+	adc	a,'0'
+	ld	(sr3.wp),a
+
+	xor	a
+	add	hl,hl
+	adc	a,'0'
+	ld	(sr3.ry),a
+
+	xor	a
+	add	hl,hl
+	adc	a,'0'
+	ld	(sr3.t0),a
+
+	xor	a
+	add	hl,hl
+	adc	a,'0'
+	ld	(sr3.ts),a
+
+	xor	a
+	add	hl,hl
+	adc	a,'0'
+	ld	(sr3.hd),a
+
+	xor	a
+	add	hl,hl
+	adc	a,'0'
+	ld	(sr3.u1),a
+
+	xor	a
+	add	hl,hl
+	adc	a,'0'
+	ld	(sr3.u0),a
+
+	ld	hl,sr3msg
+	call	lineout		; just a cr,lf
+
+	jp	start1
+
+;---------------------------------;
+; exit program and return to CP/M ;
+;---------------------------------;
+reboot:
+	ld	hl,exitmsg
+	call	lineout
+
+	ld	c,0
+	jp	bdos		; and terminate program
+
+exitmsg:	db	cr,lf,'NECSENSE - Program completed',0
+
+;--------------------------------------------------------------------------;
+;
+	end
+
