@@ -1,0 +1,571 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS character i/o
+
+	name	('BIOS3A0')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; ALPHA Aug 8,83
+; BETA  Dec 5,83
+; BETA+ Jan 5,84
+;       Mar 1,84 XON-XOFF corrected
+; REV-A Apr 30,84
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+	cseg		;GENCPM puts CSEG code in resident common memory
+
+;===========================
+; Character I/O BIOS modules
+;===========================
+
+	public	const,conin,conout
+	public	list,listst
+	public	auxin,auxout
+	public	conost,auxist,auxost
+	public	devtbl,devini
+
+
+;====================================
+; user defined character I/O routines
+;====================================
+
+	public	?cinit		; (re) initialize device in <C>
+
+;=========================
+; general utility routines
+;=========================
+
+	public	?pmsg		; print message @<SP> terminated with a zero
+	public	?pdec		; print <HL> as ascii unsigned number
+	public	?idle		; called whenever function waiting
+
+;--------------------------------------------------------------------------
+; PUBLIC SYMBOLS IN EPSON QX-10 CP/M 3 BIOS
+;
+; variables in system data page
+;--------------------------------------------------------------------------
+
+	extrn	@covec,@civec	; I/O redirection vectors
+	extrn	@aivec,@aovec	;  "       "        "
+	extrn	@lovec		;  "       "        "
+	extrn	@mxtpa		; addr of system entry point
+	extrn	@bnkbf		; 128 byte scratch buffer
+
+; user defined character I/O routines
+
+	extrn	?ci,?cist	; each take device in <B>
+	extrn	?co,?cost	; each take device in <B>
+	extrn	?baud		; set baud rate for device in <B>
+	extrn	?setsio		; initialise serial sio device in <B>
+	extrn	@ctbl		; physical character device table
+	extrn	?cmsk		; mask valid character devices in <HL>
+	extrn	?nochar		; return number of devices in <A>
+
+; memory control
+
+	extrn	@cbnk,@sbnk	; current bank and system bank number
+	extrn	?move		; select move bank & block move
+	extrn	?bank		; select bank <A>
+	extrn	?tpabnk,?sysbnk	; select TPA or SYS bank
+	extrn	?gosys		; Use system bank and local SP, (preserve <HL>)
+	extrn	?retsys		; return to callers bank and SP, (preserve <A>)
+
+; clock support
+
+	extrn	?time		; signal time operation
+
+; general utility routines
+
+	extrn	?pderr		; print BIOS disk error message header
+
+; BIOS entry points
+
+	extrn	?boot,?wboot,?const,?conin,?cono,?list,?auxo,?auxi
+	extrn	?home,?sldsk,?sttrk,?stsec,?stdma,?read,?write
+	extrn	?lists,?sctrn
+	extrn	?conos,?auxis,?auxos,?dvtbl,?devin,?drtbl
+	extrn	?mltio,?flush,?mov,?tim,?bnksl,?stbnk,?xmov
+
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+cr	equ	0dh
+lf	equ	0ah
+ctlQ	equ	'Q'-'@'		;XON
+ctlS	equ	'S'-'@'		;XOFF
+
+; MODEBAUD.LIB
+
+;************************************;
+;* EQUATES for MODE byte bit fields *;
+;************************************;
+
+mb$input	equ	00000001b	; device may do input
+mb$output	equ	00000010b	; device may do output
+mb$in$out	equ	mb$input + mb$output
+mb$softbaud	equ	00000100b	; software selectable baud rate
+mb$serial	equ	00001000b	; device may use protocol
+mb$xonxoff	equ	00010000b	; XON/XOFF protocol enabled
+
+
+
+;--------------------------------------------------------------------------
+; ?idle
+;
+; Input:	-none-
+; Returns:	-none-
+; Destroyed:	-none- ALL REGISTERS MUST BE UNCHANGED
+; Function:	Allows any house-keeping type of operation to be executed
+;		whenever the BIOS is waiting on hardware to respond.
+;		Any user of this function must ensure:
+;		1. All registers are maintained
+;		2. On completion, the instructions are restored
+;		3. Must not re-enter into initiating function
+;--------------------------------------------------------------------------
+	cseg		;(this must be in COMMON memory)
+?idle:	nop
+	nop
+	ret			; and return to calling function
+
+;--------------------------------------------------------------------------
+;
+;	Charactor device selection
+;	All character entry must be in common memory
+;	and may only use bank 0 code if bank is restored on exit
+;	Warning: RESIDENT calls may change currently selected bank
+; NOTE: This version assumes all devices are polled - a later version
+; should take into account the interrupt nature and thus checking status
+; on any char input i/o should simply sample a bit in an interrupt status
+; word containing the current status of all input buffers and maintained
+; by the interrupt processing routines
+;--------------------------------------------------------------------------
+ 
+;--------------------------------------------------------------------------
+; BIOS character OUTPUT jump table
+;
+; (4)	conout	;CONSOLE OUTPUT
+;		;Send character in <C> to all selected devices
+; (5)	list	;LIST OTPUT
+;		;Send character in <C> to all selected devices
+; (6)	auxout	;AUXILIARY OUTPUT
+;		;Send character in <C> to all selected devices
+;
+; Entry:	<C> = character
+; Returned:	none
+; Function:	Send the character to the any assigned devices.
+;		The character is in ASCII with no parity.
+;--------------------------------------------------------------------------
+
+	cseg		; must be in common for direct BIOS calls 
+conout:	ld	hl,(@covec)	;fetch console output bit vector
+	jr	out$scan
+list:	ld	hl,(@lovec)	;fetch list output bit vector
+	jr	out$scan
+auxout:	ld	hl,(@aovec)	;fetch aux output bit vector
+;	jr	out$scan
+
+;-------;
+out$scan:
+;-------;
+	call	?gosys		; go to system bank (<A,DE> destroyed)
+
+	jp	co$strt
+	dseg		; as now in system bank
+
+co$strt:
+	call	?cmsk		; mask out <HL> bits which are not assignable
+	ld	b,0		; start with device 0
+co$next:
+	add	hl,hl		; shift out next bit
+	jr	nc,not$out$device
+
+	push	hl		; save the vector
+not$out$ready:
+	push	bc		; save the count and character
+	call	coster
+	pop	bc		; restore and resave the device and character
+	or	a
+	jr	nz,out$ready
+	call	?idle
+	jr	not$out$ready
+
+out$ready:
+	push	bc
+	call	?co		; if device selected - print it
+	pop	bc
+	pop	hl
+
+not$out$device:
+	inc	b		; next device number (as per DEVICE.COM)
+	ld	a,h
+	or	l
+	jr	nz,co$next	; more devices so find them
+	jp	?retsys		; recover stack and bank, then return
+
+;--------------------------------------------------------------------------
+; BIOS character OUTPUT STATUS jump table
+;
+; (17)	conost	; CONSOLE OUTPUT STATUS
+;		; Return true if all selected console ouput devices are ready
+; (15)	listst	; LIST STATUS
+;		; Return true if all selected list ouput devices are ready
+; (19)	auxost	; AUXILIARY OUTPUT STATUS
+;		; Return true if all selected aux. ouput devices are ready
+;
+; Entry:	none
+; Returned:	<A> = -1 if ready, <A> = 0 if not ready
+; Function:	Return the ready status of assigned device
+;--------------------------------------------------------------------------
+
+	cseg		; must be in common for direct BIOS calls 
+conost:	ld	hl,(@covec)	;fetch console output bit vector
+	jr	ost$scan
+listst:	ld	hl,(@lovec)	;fetch list output bit vector
+	jr	ost$scan
+auxost:	ld	hl,(@aovec)	;fetch aux output bit vector
+;	jr	ost$scan
+
+;-------;
+ost$scan:
+;-------;
+	call	?gosys		; go to system bank (<A,DE> destroyed)
+	jp	cos$strt
+
+	dseg		; as now in system bank
+
+cos$strt:
+	call	?cmsk		; mask out <HL> bits which are not assignable
+	ld	b,0		; start with device 0
+cos$next:
+	add	hl,hl		; shift out next bit
+
+	push	hl		; save the vector
+	push	bc		; save the count
+	ld	a,-1		; assume device ready
+	call	c,coster	; check status for this device
+	pop	bc		; restore and resave the device and character
+	pop	hl
+
+	or	a		; see if this device is ready
+	jp	z,?retsys	; if ANY device not ready, return FALSE
+
+	inc	b		; next device number
+	ld	a,h
+	or	l
+	jr	nz,cos$next	; more devices so find them
+	or	-1		; ALL selected devices were ready, return TRUE
+	jp	?retsys		; recover stack and bank, then return
+
+; check ready status for output device in <B>
+; (including optional xon/xoff)
+coster:
+	ld	l,b
+	ld	h,0		; make device code word length
+	push	hl		; save device code
+	add	hl,hl		;* 2
+	add	hl,hl		;* 4
+	add	hl,hl		;* 8
+	ld	de,@ctbl	; base of char. table
+	add	hl,de		; address of (device) table
+	ld	de,6		; mode byte offset
+	add	hl,de		; address of (device).mode
+	ld	a,(hl)
+	and	mb$xonxoff	; mask xonxoff bit
+	pop	hl
+	jp	z,?cost		; not xon device, so get output status
+	ld	de,xofflist
+	add	hl,de		; -> to proper xon/xoff flag
+	call	cistl		; see if device input has character
+	ld	a,(hl)
+	call	nz,cil		; get flag or read key if any
+	cp	ctlq
+	jr	nz,not$q	; test for ctl-Q (XON)
+	ld	a,-1		; set the flag
+not$q:	cp	ctls
+	jr	nz,not$s	; if its a ctl-S (XOFF)
+	ld	a,0		; clear the flag
+
+not$s:
+	ld	(hl),a		; save the flag
+	call	costl		; get the actual output status
+	and	(hl)		; and mask the ctl-Q/ctl-S flag
+	ret			; return this as the stats
+
+xofflist:
+	db	-1,-1,-1,-1,-1,-1,-1,-1	; ctl-S clears to zero
+	db	-1,-1,-1,-1,-1,-1,-1,-1
+
+cistl:			; get input status with <BC> and <HL> saved
+	push	bc
+	push	hl
+	call	?cist
+	pop	hl
+	pop	bc
+	or	a
+	ret
+
+costl:			; get output status with <BC> and <HL> saved
+	push	bc
+	push	hl
+	call	?cost
+	pop	hl
+	pop	bc
+	or	a
+	ret
+
+cil:			; get input character with <BC> and <HL> saved
+	push	bc
+	push	hl
+	call	?ci
+	pop	hl
+	pop	bc
+	ret
+
+;--------------------------------------------------------------------------
+; BIOS character INPUT STATUS jump table
+;
+; (2)	const	; CONSOLE INPUT STATUS
+;		; Return true if ANY selected console input devices are ready
+; (18)	auxist	; AUXILIARY INPUT STATUS
+;		; Return true if ANY selected aux. input devices are ready
+;
+; Entry:	none
+; Returned:	<A> = -1 if ready, <A> = 0 if not ready
+; Function:	Return the ready status of assigned device
+;--------------------------------------------------------------------------
+
+	cseg		; must be in common for direct BIOS calls 
+const:	ld	hl,(@civec)	;fetch console input bit vector
+	jr	ist$scan
+auxist:	ld	hl,(@aivec)	;fetch aux input bit vector
+;	jr	ist$scan
+
+;-------;
+ist$scan:
+;-------;
+	call	?gosys		; go to system bank (<A,DE> destroyed)
+	jp	cis$strt
+
+	dseg		; as now in system bank
+
+cis$strt:
+	call	?cmsk		; mask out <HL> bits which are not assignable
+	ld	b,0		; start with device 0
+cis$next:
+	add	hl,hl		; shift out next bit
+	ld	a,0		; assume device not ready
+	call	c,cistl		; check status for this device
+	or	a		; see if this device is ready
+	jp	nz,?retsys	; if ANY device ready, return TRUE
+	inc	b		; next device number
+	ld	a,h
+	or	l
+	jr	nz,cis$next	; more devices so find them
+	xor	a		; ALL selected devices were not ready, return FALSE
+	jp	?retsys		; recover stack and bank, then return
+
+;--------------------------------------------------------------------------
+; BIOS character input jump table
+;
+; (3)	conin	;CONSOLE INPUT
+;		;Return character from first ready console input device
+; (7)	auxin	;AUXILIARY INPUT
+;		;Return character from first ready aux. input device
+;
+;
+; Entry:	none
+; Returned:	<A> = character
+; Function:	Read the next character with no parity. Wait until a
+;		character is available before returning. A returned
+;		ASCII CTRL-Z (1Ah) reports an end of file for 'auxin'.
+;
+;--------------------------------------------------------------------------
+
+	cseg		; must be in common for direct BIOS calls 
+conin:	ld	hl,(@civec)	;fetch console input bit vector
+	jr	in$scan
+auxin:	ld	hl,(@aivec)	;fetch aux input bit vector
+;	jr	in$scan
+
+;------;
+in$scan:
+;------;
+	call	?gosys		; go to system bank (<A,DE> destroyed)
+	jp	ci$strt
+
+	dseg		; as now in system bank
+ci$strt:
+	call	?cmsk		; mask out <HL> bits which are not assignable
+in$wait:
+	push	hl		; save bit vector
+	ld	b,0		; start with device 0
+ci$next:
+	add	hl,hl		; shift out next bit
+	ld	a,0		; insure zero <A> (nonexistant device not ready)
+	call	c,cistl		; see if device has a character
+	or	a
+	jr	nz,ci$rdy
+	inc	b		; next device number
+	ld	a,h
+	or	l
+	jr	nz,ci$next	; more devices so find them
+	pop	hl		; recover bit vector
+
+	call	?idle		; allow any housekeeping
+	jr	in$wait		; loop till character entered from any device
+ci$rdy:
+	pop	hl		; discard any other vectors
+	call	?ci
+	jp	?retsys		; recover stack and bank, then return
+
+	page
+
+;-----------------------------------------------------------------------
+; DEVTBL (20)
+; Entry:	none
+; Returned:	<HL> = address of @ctbl
+; Function:	The DEVTBL and DEVINI entry points allow the support of
+;		device assignment with a flexible, yet completely optional
+;		system. DEVTBL returns the address of the Character I/O
+;		table @ctbl which must be in common memory
+;-----------------------------------------------------------------------
+	cseg		; safer to be in common in case of direct BIOS calls 
+devtbl:
+	ld	hl,@ctbl
+	ret
+
+;-----------------------------------------------------------------------
+; DEVINI (21)
+; Entry:	<C> = device numbr (0-15)
+; Returned:	none
+; Function:	Initialize the physical character device specified in
+;		register C to the baud rate contained in the appropriate
+;		entry of the @ctbl. The only CP/M 3 utility that uses
+;		this call is the DEVICE utility.
+;-----------------------------------------------------------------------
+	cseg		; safer to be in common in case of direct BIOS calls 
+devini:
+?cinit:			; (re) initialize device in <C>
+	call	?nochar		; return number of devices in <A>
+	dec	a		; adjust to base 0
+	cp	c		; compare with device (base 0)
+	ret	c		; invalid device
+;
+	call	?gosys		; go to system bank (<A,DE> destroyed)
+	jp	cin$bnk
+
+	dseg		; as now in system bank
+cin$bnk:
+	ld	l,c
+	ld	h,0
+	add	hl,hl
+	add	hl,hl
+	add	hl,hl		; *8
+	ld	de,6
+	add	hl,de
+	ld	de,@ctbl
+	add	hl,de
+
+	push	hl
+	ld	b,c		; <B> = device number
+	ld	a,(hl)		; test for device using
+	and	mb$serial	; serial interface
+	push	bc
+	call	nz,?setsio	; initialise sio for device in <B>
+	pop	bc
+	pop	hl
+
+	ld	a,(hl)		; test for device allowing 
+	and	mb$softbaud	; software selection
+	jp	z,?retsys	; cannot change baud rate
+	inc	hl		; -> baud rate
+	ld	c,(hl)		; <C> = baud rate
+	call	?baud		; and set baud rate for device in <B>
+	jp	?retsys		; recover stack and bank, then return
+
+
+	page
+;|======================================================================|
+;|BIOS Utility subroutines						|
+;|									|
+;|	?pmsg		; print message @<SP> terminated with a zero	|
+;|			; <DE> = number of entries in table.		|
+;|	?pdec		; print <HL> as ascii unsigned number (0-65535)	|
+;|NOTE: These routines must be in common (bank 0 ) for direct BIOS calls|
+;|======================================================================|
+
+	cseg		; resident common memory
+
+;|--------------------------------------------------------------|
+;|?pmsg - print message @<(SP)> terminated by a zero		|
+;|	and continue processing at location after message	|
+;| Entry:	<(SP)> = start of message terminated by a zero	|
+;| Return:	Return to address after message			|
+;|--------------------------------------------------------------|
+?pmsg:	pop	hl
+	ld	a,(hl)
+	inc	hl
+	push	hl
+	or	a
+	ret	z		;if end of message
+	ld	c,a
+	call	?cono		;display message at current console
+	jr	?pmsg
+
+	dseg		; SYSTEM BANK
+
+;|--------------------------------------|
+;|?pdec	- Display binary number		|
+;|Called by disk error routines only	|
+;|--------------------------------------|
+
+?pdec:			; print 16 bit unsigned binary number from <HL>
+	ld	bc,table10
+	ld	de,-10000
+next:
+	ld	a,'0'-1
+pdecl:	push	hl
+	inc	a
+	add	hl,de
+	jr	nc,stoploop
+	inc	sp
+	inc	sp		; discard saved HL
+	jr	pdecl
+stoploop:
+	push	bc
+	ld	c,a
+	call	?cono
+	pop	bc
+
+	pop	hl
+	ld	a,(bc)
+	ld	e,a
+	inc	bc
+	ld	a,(bc)
+	ld	d,a
+	inc	bc
+	or	e
+	jr	nz,next
+	ret
+table10:
+	dw	-1000,-100,-10,-1,0
+
+;---------------------------------------------------------------
+
+	end
