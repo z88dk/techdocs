@@ -1,0 +1,18 @@
+;list SUB files
+list CBIOS3.SUB
+list BIOSLIST.SUB
+;list EQU files
+list CONEQUS.MAC
+list CONOUDOC.MAC
+list EQUSMACS.MAC
+;list MAC files
+list CBIOS3A3.MAC
+list CONOUT.MAC
+list FONT.MAC
+list FONTA.MAC
+list GRAHOOKS.MAC
+list GRAPH.MAC
+list HARDCOPY.MAC
+list LIST.MAC
+list MUSIC.MAC
+list TRANSLAT.MAC
