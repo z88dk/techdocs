@@ -1,0 +1,124 @@
+	;Music Module for CP/M+ on the QX10
+.comment	" Music is invoked through three escape sequences. ESC -
+A, set note length, ESC - B, set note frequncy, ESC - C, sound note
+
+when a note is sounded, it is done so at the last set frequency and time.
+When doing music, the processor waits. With the bell, however, the 
+processer sets the bell and then gets on with the next task.
+"
+dseg
+;----------------------------------------------------------------------------
+squeak:: 			;turn on the horn
+	xra	a
+	out	04H
+	lda	pitch
+	out	04H
+	in	30h		; read DRAM bits
+	ani	0F0H		; and remove FDD bits
+	ori	00000100b	;switch on bit 2
+; this will set the speaker timer trigger
+	push	psw		;save contents of the Memory map
+	out	18h		; (and reselect the DRAM)
+	lda	interval	;what has the user specified
+;now we hang about for interval*1 tenth sec
+..again:	;once more through the loop
+	push	psw		;restore the contents of the memory map
+	lxi	b,200*10	;roughly right
+..loop:	;round until BC=0
+	dcx	b
+	mov	a,b		;is BC=0?
+	ora	c
+.z80	;z80 opcode coming!
+	jr	nz,..loop	;if not then loop again
+.8080	;back to old times
+	pop	psw		;restore interval count
+	dcr	a
+	jnz	..again		;and do the millisecond loop
+;now switch it off
+	pop	psw		;restore the contents of the memory map
+	ani	11111011B	;reset bit 2
+	out	18H		;and switch off the bell
+	ret
+
+set.interval::	;to the value presented in the C register. An entry point
+	mov	a,c		;lets look at it
+;	ani	1fH		;only 32 values allowed
+	sta	interval	;stuff it away
+	ret	;and go home
+
+set.note::	;to the value in C. values A...G. # and ^ are sharps and flats
+	dcr	c		;A,a ^A=0
+	mov	a,c		;look at the value
+	cpi	"#"-1		;was it a sharp?
+	jz	..sharpen	;if so, alter current value
+	cpi	"^"-1		;was it a flat?
+	jz	..flatten	;if so......
+	sui	20H
+;convert the ascii digit into something meaningful
+	jc	..on		;if ^A..^G then we do not subtract
+;high nibble registers the octave
+	mov	c,a		;stuff it safely away
+..on:	;C=converted value. now to determine the note
+	mov	a,c
+	ani	00000111B	;look at the A...G value
+	mov	e,a		;save it for later in a spare register
+	mvi	a,00011000B	;bit 3=mid octave, bit 4=high octave 
+;E= 0..7 > A..G
+	ana	c		;did user specify the octave in these bits?
+	add	a		;shift left
+	add	a		;once more with feeling
+	ora	c		;check octave
+	add	a		;sign bit has high octave bit
+	mvi	b,0		;in case it is the low octave
+	jp	..not.hi	;bit 7 not set so it wornt the high octave
+	mvi	b,14		;note table offset for high octave
+	jmp	..over		;job done if high octave
+..not.hi:	;was it the mid octave?
+	add	a		;shift next bit into sign bit
+	jp	..over		;bit 7 not set so must be low octave
+	mvi	b,7		;not table offset for mid octave
+..over:	mov	a,e		;get note
+	add	b		;add in the octave offset
+	sta	last.one	;remember the note for later
+	lxi	h,base		;get the value
+to.it:	add	l		;HL=HL*A
+	mov	l,a
+	mvi	a,0
+	adc	h
+	mov	h,a
+;we point into table
+	xra	a		;clear the accumulator
+	out	04H		;and zap the speaker frequency
+	mov	a,m		;get the frequency value
+	sta	pitch
+	out	04H		;and tell the hardware
+;set the frequency
+	ret	;all done now
+
+..sharpen:	;sharpen the current frequency
+	lxi	h,sharps	;get the table base
+back:	;now we increment into the table, get the frequency and tell hardware
+	lda	last.one	;remember the last value
+	jmp	to.it		;and do it
+..flatten:
+	lxi	h,flats		;backup from the second table
+	jmp	back		;and do it
+
+base:	db	142,128,120,106,95,89,80	;ABCDEFG
+	db	71,64,60,53,47,45,40		;ABCDEFG
+	db	36,32,30,27,24,22,20		;ABCDEFG
+	;------------------------------------------------
+FLATS:	db	152	;flats and sharps. this is A^
+Sharps:	db	134,120,112,102,89,84,76	;A........
+	db	67,60,56,51,45,42,38		;A........
+	db	34,30,28,25,22,21,19		;A........
+
+interval:	db	3	;the time interval for each note
+last.one:	db	8	;the last note specified
+pitch:		db	40	;pitch of note
+
+
+
+
+end
+	;goodbye
