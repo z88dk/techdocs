@@ -1,0 +1,175 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS test light pen device
+
+	name	('TESTLP')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; ALPHA Aug 8,83
+; BETA  Dec 5,83
+; BETA+ Jan 5,84
+;
+;------------------------------------------------------------------
+
+
+bdos	equ	5
+
+	cseg
+
+	ld	sp,stack
+	ld	de,title
+	ld	c,9
+	call	bdos
+
+	ld	de,scbpb
+	ld	a,26h		; offset to AUXIN
+	ld	(de),a
+	inc	de
+	xor	a		; Fetch SCB
+	ld	(de),a
+	dec	de
+	ld	c,31h		; BDOS Get/Set SCB
+	call	bdos
+
+	ld	de,0000000001000000b	; LPEN is device no 10
+	ld	a,e
+	or	l
+	ld	l,a
+	ld	a,d
+	or	h
+	ld	h,a		; set LPEN bit
+
+	ld	de,scbpb
+	ld	a,26h		; offset to AUXIN
+	ld	(de),a
+	inc	de
+	ld	a,0feh		; Set word
+	ld	(de),a
+	inc	de
+	ld	a,l
+	ld	(de),a
+	inc	de
+	ld	a,h
+	ld	(de),a
+
+	ld	de,scbpb
+	ld	c,31h		; BDOS Get/Set SCB
+	call	bdos
+
+start:
+	ld	c,11		; BDOS Consol input status
+	call	bdos
+	or	a
+	jp	nz,finish	; any character finishes it
+
+	call	auxst
+	jr	z,start		; wait till something happens
+
+	ld	b,4		; max of 4 bytes
+	ld	c,0		; bytes read
+	ld	hl,data
+more:
+	push	bc
+	push	hl
+	call	auxst
+	pop	hl
+	pop	bc
+	jr	z,nomore
+
+	push	bc
+	push	hl
+	call	auxin
+	pop	hl
+	pop	bc
+
+	ld	(hl),a
+	inc	hl
+	inc	c
+	djnz	more
+
+nomore:	push	bc
+	ld	de,msg1
+	ld	c,9
+	call	bdos
+	pop	bc
+
+	ld	hl,data
+	ld	b,c
+next:
+	push	bc
+	push	hl
+	ld	a,(hl)
+	call	hexbyt
+	ld	de,msg2
+	ld	c,9
+	call	bdos
+	pop	hl
+	pop	bc
+	inc	hl
+	djnz	next
+
+	ld	de,msg3
+	ld	c,9
+	call	bdos
+	jp	start
+
+hexbyt:	push	af
+	rra
+	rra
+	rra
+	rra
+	call	hexchr
+	pop	af
+hexchr:	and	0fh
+	add	a,'0'
+	cp	'9'+1
+	jr	c,hexdig
+	add	a,'A'-'0'-10
+hexdig:	ld	e,a
+	ld	c,2
+	jp	bdos
+
+data:	ds	4
+title:	db	0dh,0ah,'MML:TESTLP Test light pen interrupt detection'
+	db	0dh,0ah
+	db	0dh,0ah,'Instructions:  Any key terminates program'
+	db	0dh,0ah,'      Press light pen on any BRIGHT spot and'
+	db	0dh,0ah,'      the BELL will ring and address displayed'
+	db	0dh,0ah,'$'
+msg1:	db	0dh,0ah,'L/Pen LAD (Low, Mid, High, Spare): ','$'
+msg2:	db	'h ','$'
+msg3:	db	0dh,'$'
+
+finish:	ld	c,1		; BDOS Consol input
+	call	bdos
+	ld	c,0
+	jp	bdos		; and exit
+
+
+auxst:	ld	c,7		; BDOS Auxiliary input status
+	call	bdos
+	or	a
+	ret
+
+auxin:	ld	c,3		; BDOS Auxiliary input
+	jp	bdos
+
+scbpb:	db	0		; Offset within SCB
+	db	0		; GET = 0, Set byte = 0ffh, word = 0feh
+	dw	0		; Byte or word value to set
+
+	ds	64
+stack	equ	$
+
+
+;------------------------------------------------------------------------
+
+	end
