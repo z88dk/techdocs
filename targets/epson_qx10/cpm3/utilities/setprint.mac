@@ -1,0 +1,1405 @@
+	.z80	;Lets use Z80 Mnemonics
+	title	EPSON QX+ - SET THE PRINTER
+
+	name	('SLIST')
+
+	vers	Equ	1	;current version
+;------------------------------------------------------------------
+; EPSON QX-10 Utility to Alter the native printer setting
+;
+; Author: A. Clarke, 11 Sun Street, London E.C.2.
+; Date: 19th February 1984
+;------------------------------------------------------------------
+;copyright A.R.M.C. 1984
+	cseg
+
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+vers22	equ	22h	; CP/M version number
+vers31	equ	31h	; CP/M version number
+rev	equ	'A'	; Utility version
+
+bios	Equ	0001h	;pointer to BIOS jump table
+bdos	Equ	0005h	;BDOS entry point
+boot	Equ	0000h	;Home time
+dfcb	Equ	005ch	;Default FCB location
+dbuf	Equ	0080h	;CCP parameter buffer and DMA buffer
+
+
+;*** logical constants ***
+false	Equ	0000h		;not true
+true	Equ	0ffh		;not exactly false
+
+
+;*** ascii codes ***
+cr	Equ	0dh		;carriage return
+lf	Equ	0ah		;line feed
+eof	Equ	1ah		;end of file code
+ff	Equ	0ch	;form feed
+esc	Equ	1bh		;escape char for cursor control
+bspace	Equ	08		;backspace
+tab	Equ	09h		;tab
+
+;*** Arrow Key Assignments ***
+
+Up.Arrow	Equ	1eh
+Down.Arrow	Equ	1fh
+Left.Arrow	Equ	1dh
+Right.Arrow	Equ	1ch
+	;these are the default settings!
+;*** Direct BIOS offsets ***
+CSTS	Equ	3	;const
+CI	Equ	6	;conin
+CO	Equ	9	;conout
+LI	Equ	12	;listout
+
+;---------------------------------------------------------------
+;Variables
+;--------------------------------------------------------------
+
+	
+column:	db	00		;column on vdu
+line:	db	00		;line on vdu
+margin:	db	00	;margin for menu selection
+startline:db	00	;of menu
+str.array:DW	00	;pointer to array used for menu selection
+offset:	DW	00
+highlt:	db	00	;the array element that is highlit(currently selected
+flip.flop:db	0ffh	;are we moving up or down the menu
+Ch.Starting:	db	' '	;character starting the menu item
+Ch.Finishing:	db	' '	;character finishing the menu item
+selection:	db	00	;remembered selection
+We.Highlight:		db	000	;do we do an inverse video highlight?
+print.byte:	db	000	;what we send to the printer
+option.configurable:
+		db	000	;which option we are doing
+
+;---------------------------------------------------------------
+;
+;Machine-specific graphics and console routines
+;
+;---------------------------------------------------------------
+
+;*** cursor control codes ***
+	db	'Copyright MML Ltd (c) 1984'
+
+;*** all patches as in wordstar ***
+clear:	defb	02,27,'+',00,00,00;clear screen string
+clead1:	defb	02,27,61,00	;yx cursor addressing lead-in
+linoff:	defb	20h		;offset to add
+coloff:	defb	20h
+
+
+
+;*** other vdu patches in addition ***
+char.starting.highlight:
+	DB	'('	;additional emphasis for selected option
+;for menu selection
+char.finishing.highlight:
+	DB	')'	;see above
+;for menu selection
+	
+uscore:	db	'_'	;not used
+ivonº	db	02,27,"0",00,00,00,00	;string to switch on inverse
+ivoff:	db	04,27,"1",27,"7",00,00	;string to switch off all highlighting
+ivon2:	db	02,27,"6",00,00,00,00 	;string to switch on intensity
+
+
+;cursor turn off/on strings
+on.cursor:defb	02,1bh,'3',00	;switch on the cursor
+off.cursor:defb	02,1bh,'2',00	;switch off the cursor
+
+;screen switching strings
+upper.screen:defb	2,1bh,"u",00;switch to upper screen
+lower.screen:defb	2,1bh,"v",00;switch to lower screen
+
+;mode switching strings
+grfiks:	defb	2,1bh,'g',00	;enter graphics
+no.grfix:defb	2,1bh,'h',00	;exit graphics mode
+
+	
+
+
+
+;*** hilton turns the terminal highlight ***
+;*** specified by ivon, on; hiltoff off   ***
+hilton:	push	hl
+	push	de
+	push	bc
+	ld	a,(char.starting.highlight)
+	ld	(ch.starting),a
+	ld	a,(char.finishing.highlight)
+	ld	(ch.finishing),a	;set the first and last characters
+	ld	hl,ivon	;inverse video on string
+	ld	a,(we.highlight)	;only switch on if boolean set
+	and	a
+	call	nz,msg		;do we do inverse video
+	ld	hl,ivon2	;do highlight anyway
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+hiltoff:push	hl
+	push	de
+	push	bc
+	ld	a," "
+	ld	(ch.starting),a	;reset leading and trailing character
+	ld	(ch.finishing),a
+	ld	hl,ivoff
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+alton:	push	hl
+	push	de	;switch on alternative highlighting
+	push	bc
+	ld	hl,ivon2
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+
+;---------------------------------------------------------------------------
+yxpos:	;sends the character cursor to the location in line Column
+	push	hl
+	push	de
+	push	bc		;save everything
+	ld	hl,clead1	;print lead-in
+	call	msg
+	ld	a,(line)	;get line no.
+	ld	b,a
+	ld	a,(linoff)
+	Add	a,b		;addin line offset
+	call	putchar		;out it goes
+	ld	a,(Column)	;get column
+	ld	c,a
+	ld	a,(coloff)	;add in offset
+	add	a,c
+	call	putchar		;send it out
+	pop	bc		;restore the world
+	pop	de
+	pop	hl
+	ret			;and go home
+
+
+
+;---------------------------------------
+gra.off:;turn into character mode
+	push	hl		;save the world
+	push	de
+	push	bc
+	ld	hl,no.grfix	;the no graphics string
+	call	msg		;to switch into character mode
+	pop	bc		;restore the world
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------	
+curon:		;switch on the cursor
+	push	hl
+	push	de
+	push	bc
+	ld	hl,on.cursor	;switch cursor on 
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------
+into.graphics:;lets enter graphics mode
+	
+	push	hl
+	push	de
+	push	bc
+	ld	hl,grfiks	;switch into graphics
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------	
+curoff:	;switch off the cursor
+	push	hl
+	push	de
+	push	bc
+	ld	hl,off.cursor	;string to tell the console
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------
+screen.clear:;clear the whole damned screen
+	push	hl
+	push	de
+	push	bc
+	ld	hl,clear
+	call	msg		;send out clear-screen string
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+	page
+
+	subttl  'DIRECT BIOS SUBROUTINES'
+
+;----------------------
+;-- BIOS Interaction --
+;----------------------
+
+
+CONIN:
+	call	curon		;switch on the cursor
+	LD	DE,CI		;console input
+	CALL	dir_bios
+	push	af
+	call	curoff		;switch it back off
+	pop	af
+	CP	'A' OR 20H
+	RET	C
+	CP	('Z' OR 20H)+1
+	RET	NC
+	AND	5FH		;small alph -> large alph
+	RET
+;
+
+priviliged:
+	ld	de,-3		;cold boot
+	jr	dir_bios
+
+const:	
+	ld	de,CSTS
+	jr	dir_bios
+conout:
+	ld	de,co
+	jr	dir_bios
+
+list:
+	ld	de,li
+	jr	dir_bios
+;
+;
+dir_bios:
+	LD	hl,(bios)	;entry BIOS
+	ADD	hl,DE
+	JP	(hl)		; direct BIOS call
+
+
+
+;------------------------
+;-- BDOS Character I/O --
+;------------------------
+
+subttl  'BDOS CHARACTER SUBROUTINES'
+
+;-----;
+listout:
+;-----;
+	ld	a,(hl)
+	or	a
+	ret	z
+;
+;
+	push	hl
+	ld	c,a
+	call	list
+	pop	hl
+	inc	hl
+	jr	listout
+
+;-----;
+strout:
+;-----;
+	ld	a,(hl)
+	or	a
+	ret	z
+;
+;
+	push	hl
+	call	putchar
+	pop	hl	;send out null-terminated string
+	inc	hl
+	jr	strout	;to console
+
+;------;
+putchar:
+;------;
+	ld	c,a	;to the console by direct bios call
+	call	conout		;conout
+	ret
+
+
+;-------;
+Msg:
+;-------;
+	
+	ld	a,(hl)		;print string preceded by a count byte
+	ld	b,a		;get count byte
+	or	a		;is it a null string
+	ret	z		;if null string, then go home
+..loop:	inc	hl		;point to next ascii byte
+	ld	a,(hl)		;get it
+	push	hl
+	push	bc
+	call	putchar		;send it to the console
+	pop	bc
+	pop	hl
+	dec	b		;any more to do
+	ret	z		;if not go home
+	jr	..loop		;otherwise do the next byte
+
+
+
+;-------;
+pr.msg::	;same as MSG but to the printer
+;-------;
+	
+	ld	a,(hl)		;print string preceded by a count byte
+	ld	b,a		;get count byte
+	or	a		;is it a null string
+	ret	z		;if null string, then go home
+..lloop:
+	inc	hl		;point to next ascii byte
+	ld	a,(hl)		;get it
+	push	hl
+	push	bc
+	ld	c,a
+	call	list		;send it to the printer
+	pop	bc
+	pop	hl
+	dec	b		;any more to do
+	ret	z		;if not go home
+	jr	..lloop		;otherwise do the next byte
+
+
+
+
+getchar:
+	ld	c,1		;conin
+	call	bdos
+	cp	'a'	;from the console
+	ret	c
+	cp	'z'+1
+	ret	nc
+	and	5fh		; remove case bits
+	ret
+
+;--------------------------------------------------
+yesorno:;returns 0 in a if no, 0ffh if yes
+	call	curon		;switch on the cursor
+	call	conin		;and get the users fumbling response
+	push	af		;remember the response
+	call	curoff		;and switch off the cursor
+	pop	af		;what did the poor slob say
+	cp	'Y'		;was it a y?
+	jp	z,..yes		;yup
+	cp	'N'		;was it a big n
+	jp	z,..no		;he said no
+	cp	0dh		;a carriage return
+	jp	z,..no		;if so then it was a no
+	cp	0ah		;ditto line feed
+	jp	z,..no
+	jp	yesorno		;the silly boy pressed the wrong button
+..no:	ld	hl,no.thank.you	;polite
+	call	strout
+	xor	a		;signal a no
+	ret	
+..yes:	ld	hl,yes.please	;polite
+	call	strout
+	xor	a		;signal a yes
+	dec	a
+	scf			;might as well
+	ret	
+
+
+;-----------------------
+;---    Utilities    ---
+;-----------------------
+
+
+;----------------------------------------------------------------------------
+addhl:	;adds a to hl and leaves the result in hl
+	add	a,l
+	ld	l,a
+	ret	nc
+	inc	h
+	ret	
+
+;----------------------------------------------------------------------------
+INTEGER::	;convert a number in memory from 
+;ASCII to Binary. HL points to string (null term!!)
+	push	hl	;save pointer
+;has it got a radix qualifier?
+	
+	ld	c,(hl)
+	ld	b,0
+	add	hl,bc	;point to last character
+..back1:	
+	ld	a,(hl)
+	cp	" "
+	jr	nz,..hop6
+	dec	hl
+	jp	..back1
+..hop6:	cp	"9"+1		;is it a letter?
+	ld	hl,radix	;default radix
+	ld	(hl),10
+	jr	c,..no.radix
+	cp	"H"
+	ld	(hl),16
+	jr	z,..1on
+	cp	"O"
+	ld	(hl),8
+	jr	z,..1on
+	cp	"B"
+	ld	(hl),2
+	jr	z,..1on
+	ld	(hl),10
+..1on:	
+..no.radix:
+	pop	hl
+	inc	hl	;bump over count byte
+ 	ld	DE,0	;initialise accumulator
+..back8:
+	ld	a,(hl)
+	cp	" "
+	jr	nz,..over9
+	inc	hl
+	jp	..back8
+..over9:
+	ex	de,hl
+..2xloop:
+	ld	a,(DE)
+	sub	'0'	;make character binary
+	and	a
+	ret	m	;illegal character
+	cp	10
+	jp	c,..hoppity
+
+	sub	("A"-"9")-1
+..hoppity:
+	push	hl
+	ld	hl,radix
+	cp	(HL)
+	ccf
+	pop	hl
+	ret	c	;illegal character
+	inc	de	;increment pointer
+	ld	c,a
+	ld	b,0
+	ld	a,(radix)
+	add	hl,hl
+	cp	2
+	jp	z,..onwards
+	push	bc	;save current value
+	push	hl
+	add	hl,hl
+	add	hl,hl	;*8
+	pop	bc
+	cp	8
+	jp	z,..over.we.go
+	cp	16
+	jp	z,..over.we.go
+	add	hl,bc
+..over.we.go:	pop	bc
+	cp	16
+	jr	nz,..onwards
+	add	hl,hl
+..onwards:
+	add	hl,bc
+	jp	..2xloop	;do the next
+
+radix:	DB	10
+
+
+
+
+;--------------------------------------------------
+DECOUT: ;types out the contents of HL on the console
+;in decimal.
+
+	PUSH	Bc
+	PUSH	De
+	PUSH	Hl
+	Ld	Bc,-10	;-Radix
+	Ld	De,-1
+..1xloop:Add	hl,bc	;repeated subtraction
+	Inc	de
+	Jr	C,..1xloop
+	Ld	Bc,10
+	add	hl,bc
+	ex	de,hl
+	ld	A,H
+	OR	L
+	Call	NZ,DECOUT	;recursive call
+	ld	A,E
+	ADD	a,'0'
+	CALL	putchar
+	POP	Hl
+	POP	De
+	POP	Bc
+	RET
+
+;----------------------------------------------------------------------------
+drawdown:;the whole screen a double line
+	ld	b,23		;the number of lines
+..downloop:
+	push	bc
+	ld	hl,line	;get where we are
+	inc	(hl)		;increment it
+	call	yxpos		;and point the cursor there
+	ld	a,086h		;down line
+	call	putchar		;output the byte
+	pop	bc
+	djnz	..downloop	;and do another until b=0
+	ret			;the job is all done
+;----------------------------------------------------------------------------
+nice.box:;around the screen
+	xor	a
+	ld	(line),a	;zap the line position
+	ld	(Column),a	;and the column position
+	call	yxpos		;home the cursor
+;draw the top border	
+	ld	a,087h		;a top left border
+	call	putchar		;send a top-left bracket
+	ld	b,78
+..toploop:;now do the top line across
+	ld	a,085h		;do a top line
+	push	bc
+	call	putchar		;out goes a line character
+	pop	bc
+	djnz	..toploop
+	ld	a,088h		;a top right border
+	call	putchar		;do a top right character
+;go to bottom line	
+	ld	a,24		;now do likewise for the bottom
+	ld	(line),a
+	xor	a
+	ld	(Column),a	;go to the bottom left
+	call	yxpos
+;draw the bottom border	
+	ld	a,089h		;a bottom left border
+	call	putchar
+	ld	b,78		;and now a nice horizontal line
+..botloop:
+	ld	a,085h		;do a bottom line
+	push	bc
+	call	putchar
+	pop	bc
+	djnz	..botloop
+	ld	a,08ah		;a bottom right border
+	call	putchar
+	xor	a
+	ld	(Column),a
+	ld	(line),a	;home again
+	call	drawdown
+	ld	a, 79		;we have drawn a vertical line
+	ld	(Column),a
+	xor	a		;go to the top right
+	ld	(line),a
+	call	drawdown	;and do the second vertical line
+	
+	ret	
+
+
+
+
+;*** findst points hl to the count ***
+;*** byte of the string array      ***
+;*** element specified in c.       ***
+	
+findst:	
+	inc	c
+..loop5:	dec	c
+	ret	z
+	push	bc
+	ld	b,0
+	ld	c,(hl)
+	add	hl,bc
+	inc	hl
+	inc	hl
+	pop	bc
+	jp	..loop5
+
+
+
+;*** typest types the bc'th string ***
+;*** in the array addressed by hl  ***
+typest:	call	findst
+	call	msg
+	ret	
+
+;----------------------------------------------------
+matchst:	;find out if string pointed to
+;by HL matches the one pointed to by DE
+;takes account of abbreviations
+	xor	a
+	ld	b,(hl)
+	cp	b
+	ret	z
+	ex	de,hl
+	ld	c,(hl)
+	cp	c
+	ret	z
+	ex	de,hl
+;check for null strings
+..back2:
+	inc	hl
+	inc	de
+	ld	a,(de)
+	xor	(hl)
+	and	0dfh
+	jr	nz,..bad
+	dec	c
+	jr	z,..good
+	djnz	..back2
+..good:
+	xor	a
+	dec	a
+	ret
+..bad:
+	xor	a
+	ret
+			
+
+
+
+;----------------------------------------------------
+in.list::	;finds out if the string addressed
+;by DE is in the string array in HL.
+;non-zero if a match, C points to element no.
+;HL points to the element
+
+	ld	a,(hl)
+	and	a		;examine length
+	ret	z		;null string array
+;so no match for string
+	ld	b,a
+	inc	hl
+	xor	a
+	ld	c,a		;B has number to do
+..loop9:
+	push	bc	;C has number done
+	push	hl
+	call	findst
+;HL points to the count byte of the string
+;DE points to the count byte of the match
+	push	de
+	call	matchst
+	pop	de
+	pop	hl
+	pop	bc
+	and	a
+	ret	nz			;return non-zero if match
+;element no. in C
+	inc	c
+	djnz	..loop9
+	xor	a
+	ret			;failure to match
+
+
+
+
+
+;*** typelist types, in the form    ***
+;*** of a vertical list, an array   ***
+;*** pointed to by str.array.	    ***
+;*** top of list at screen position ***
+;*** dictated by \ine and column    ***
+;*** zero set if last list passed   ***
+typelist:
+
+;start by finding out where we start to type the list
+	ld	a,(line)
+	ld	(startline),a
+	ld	a,(column)
+	ld	(margin),a
+;Str.array points to the start of the string array
+	ld	hl,(str.array)
+	ld	a,(hl)
+	and	a		;examine length
+	ret	z		;null string array
+
+	ld	b,a
+	inc	hl
+	xor	a
+	ld	c,a
+..loop6:	push	bc
+	push	hl
+	ld	a,(margin)
+	and	a
+	jp	z,..over
+	dec	a
+..over:	ld	(column),a
+	call	yxpos
+	ld	a,(highlt)
+	cp	c
+	push	af
+	call	z,hilton
+	ld	a,(ch.starting)
+	push	bc	
+	push	hl
+	call	putchar
+	pop	hl
+	pop	bc
+	call	typest
+	ld	a,(ch.finishing)
+	call	putchar
+	pop	af
+	call	z,hiltoff
+	pop	hl
+	pop	bc
+	ld	a,(line)
+	inc	a
+	ld	(line),a
+	inc	c
+	dec	b
+	jp	nz,..loop6
+	ld	a,(margin)
+	ld	(column),a
+	ld	a,(startline)
+	ld	(line),a
+	call	yxpos
+	ret	nz
+	inc	a
+	ret	
+
+	
+choose.it:	;make a selection from the available choices
+;using the string array pointed to by str.array. Returns non
+;zero if successful and character pressed in A reg.
+;Highlt is a byte variable that, on entry, describes the default
+;choice and on exit describes the user choice
+	xor	a
+	dec	a		;set boolean to show highlight
+	ld	(we.highlight),a
+	call	typelist
+	ret	z
+	call	getchar
+	cp	03h
+	jp	z,aborted
+	cp	esc
+	jp	z,..exit
+	cp	up.arrow
+	jp	z,..up
+	cp	down.arrow
+	jp	z,..down
+	cp	right.arrow
+	jp	z,..exit
+	cp	left.arrow
+	jp	z,..exit
+	cp	0dh
+	jp	z,..exit
+	jp	..updn
+..exit:	;he positivel wanted out
+	push	af
+	xor	a
+	;set boolean to repress highlight
+	ld	(we.highlight),a
+	call	typelist	;retype the list removing the highlight
+	pop	af	;save the character that he typed
+	and	a	;set flags
+	ret	
+..down:	ld	a,false
+	ld	(flip.flop),a
+	ld	hl,(str.array)
+	ld	b,(hl)
+	dec	b
+	ld	a,(highlt)
+	cp	b
+	jp	z,choose.it
+	inc	a
+	ld	(highlt),a
+	ld	a,true
+	ld	(flip.flop),a
+	jp	choose.it
+..up:	ld	a,true
+	ld	(flip.flop),a
+	ld	a,(highlt)
+	and	a
+	jp	z,choose.it
+	dec	a
+	ld	(highlt),a
+	ld	a,false
+	ld	(flip.flop),a
+	jp	choose.it
+	
+..updn:	ld	a,(flip.flop)
+	and	a
+	jp	z,..up
+	jp	..down
+
+
+;---------------------------------------------------------------------------;
+
+
+	subttl  'printset	main'
+	page
+
+;----------------------------------------------------------------------------
+Coord.Table:	;clumsy but alterable
+;they are in the format Y,X,Y,X,Y,X  for each port for each option
+	db	10,5
+	db	10,25
+	db	10,45
+	db	10,65
+
+	db	17,5
+	db	17,25
+	db	17,45
+	db	17,65
+
+;this table defines the location of each menu on the screen
+;----------------------------------------------------------------------------
+compute.screen.coords:	;(from  Option.configurable)
+;compute the line, column and the choice list
+
+	ld	a,(option.configurable)	;get current option
+	add	a,a
+	ld	hl,coord.table	;which line of the coordinate table are we
+	call	addhl
+	ld	a,(hl)	;get the line number
+	ld	(line),a	;and set it
+	inc	hl
+	ld	a,(hl)	;get the column number
+	ld	(column),a	;and set it
+	ld	a,(option.configurable)
+	ld	hl,st.array.pointers
+	add	a,a	;as they are word pointers
+	call	addhl	;find out which of the menus we use
+	ld	e,(hl)	;get the menu array address from the table
+	inc	hl
+	ld	d,(hl)
+	ex	de,hl	;put it into HL
+	ld	(str.array),hl	;and tell the menu selection utilities
+	ret	;return exhausted
+
+
+find.bit:		;from option configurable 
+	ld	a,(option.configurable)
+	ld	c,1	;set bit zero
+	and	a
+	ret	z	;if bit zero is option then done
+	ld	b,a
+	ld	a,c
+rot.loop:
+	add	a,a
+	djnz	rot.loop
+	ld	c,a
+	ret
+
+;----------------------------------------------------------------------------
+draw.screen:		;draw in all the options
+	xor	a
+	ld	(we.highlight),a
+do.anuva:
+	ld	(option.configurable),a
+	call	compute.screen.coords
+	call	compute.highlight
+	call	typelist
+	ld	a,(option.configurable)
+	inc	a
+	cp	8
+	jp	nz,do.anuva
+	ret
+
+	
+
+;----------------------------------------------------------------------------
+Compute.Highlight::	;(from the information in Option.configurable)
+
+	call	find.bit
+;at this point the mask in C should be correct
+	ld	a,(print.byte)
+	and	c
+	ld	a,0
+	jr	z,Its.Dun
+	ld	a,1
+its.dun:
+	ld	(highlt),a	;so we know the current selected choice
+	ret
+
+reconfigure:
+	call	find.bit
+; the mask in C should be correct
+	ld	a,c		
+	cpl	
+	ld	c,a
+;mask is inverted
+	ld	a,(highlt)
+	rra
+	sbc	a,a
+;spread the highlight choice to all bits
+	ld	b,a				
+	ld	a,(print.byte)
+	xor	b
+	and	c
+	xor	b
+	ld	(print.byte),a
+	push	af
+	ld	hl,our.code
+	call	strout
+	pop	af
+	ld	l,a
+	ld	h,0
+	call	decout
+	ld	a,' '
+	call	putchar
+	ld	a,' '
+	call	putchar
+	ret
+
+
+biospb:	ds	6
+
+;----------------------------------------------------------------------------
+Start:	;here, folks
+
+	ld	c,12		; BDOS return version number
+	call	bdos
+	cp	031h		; Check that the right version of CP/M
+	jp	nz,notcpm3
+	ld	a,h
+	or	a
+	jp	nz,notcpm3
+;now we set the stack
+	ld	hl,(0006h)
+	ld	sp,hl		; use top of memory as stack
+;check for QX+
+	ld	c,50		; BDOS Direct BIOS calls
+	ld	de,BIOSPB
+	ld	a,30		; Customised BIOS entry point
+	ld	(de),a		; requires no other registers
+	call	BDOS		; Check that the right machine 
+	cp	'A'		; Epson BIOS returned version
+	jp	z,onwards.confidently
+;-----------------------------------------;
+; Program not loaded under CP/M3 on Epson ;
+;-----------------------------------------;
+notcpm3:
+	ld	hl,cpm3msg
+	call	strout
+
+	ld	c,0
+	jp	bdos		; and terminate program
+
+cpm3msg:
+	db	'Epson Printer Configuration Utility -'
+	db	' Requires CP/M + on Epson QX-10',cr,lf,0
+;silly wally
+
+onwards.confidently:
+;first we check to see if it was a batch mode job
+	ld	hl,dfcb+1
+	ld	a,(HL)
+	cp	' '
+	jp	nz,auto.mode	;he typed something
+;now we do the fancy screen stuff
+	ld	hl,hello.string
+	call	msg		;split the screen and print title
+	ld	hl,instruct
+	call	strout		;print the instructions
+	ld	hl,OK
+	call	msg
+ 	call	getchar		;and throw it away
+	push	af
+	ld	hl,tidy.up
+	call	msg
+	pop	af
+	cp	3
+	jp	z,aborted		;he decided to cut his losses
+cut.the.crop:
+	call	screen.clear
+	call	hiltoff			;switch off highlighting
+	call	curoff			;switch off the cursor
+	ld	hl,prompt.string	;inform the user
+	call	strout
+	call	nice.box
+	call	draw.screen	;first
+
+;now the first screen of choices is displayed with current configuration
+	xor	a
+	ld	(option.configurable),a	;start with option 8
+..choice:
+	call	compute.screen.coords	;for the option 
+	call	compute.highlight
+	call	choose.it	;do the menu choice thing
+;Now we enter a sort of programmers nightmare
+;What key did the user press?
+	push	af
+	call	reconfigure	;the byte
+	pop	af
+	cp	esc		;or ESC?
+	jp	z,Im.Done	;if so he is done
+	cp	Left.Arrow		;left arrow?	
+	jr	nz,..over3
+	ld	a,(option.configurable)
+	dec	a
+	jp	m,..dunnit
+	ld	(option.configurable),a
+	jp	..dunnit
+;he must be wanting to go to the next
+..over3:		
+	ld	a,(option.configurable)
+	inc	a
+	cp	8
+	jp	nc,..dunnit
+	ld	(option.configurable),a
+..dunnit:
+	call	compute.highlight
+	jp	..choice
+
+Im.Done:	;
+	call	screen.clear
+	call	tell.printer
+	call	curon
+exit.it:
+	ld	hl,done.msg
+	call	strout
+	ld	a,(print.byte)
+	ld	l,a
+	ld	h,0
+	call	decout
+	jp	finish	
+
+;----------------------------------------------------------------------------
+auto.mode:	;used if the user typed a mode code
+
+	ld	hl,dbuf
+	ld	e,(hl)	;get count byte
+	ld	d,0
+	inc	d
+	add	hl,de
+	ld	(hl),0
+	ld	hl,dbuf
+	call	integer	;analyse the string in DBUF
+	ld	a,L
+	ld	(print.byte),a
+	call	tell.printer
+	jp	exit.it
+
+;----------------------------------------------------------------------------
+
+
+;----------------------------------
+; *** Printer interaction words ***
+;----------------------------------
+
+pro.Mask		equ	00000010B
+italic.Mask		equ	01000000B
+under.Mask		equ	10000000B
+Em.Mask			Equ	00001000B
+En.Mask			Equ	00100000B
+Co.Mask			Equ	00000100B
+
+fx.mask			Equ	00111101B	;strip out invalid bits
+
+
+mx.printer	equ	0
+
+Tell.Printer::	;of what we have decided
+;first what printer have we?
+	ld	a,ESC
+	call	putchar
+	ld	a,'N'
+	call	putchar
+	call	const
+	and	a,a
+	ld	a,mx.printer
+	jr	z,over66			;old plus version
+	LD	DE,CI		;console input
+	CALL	dir_bios
+	sub	'0'
+;get the printer type	
+over66::
+	add	a,a
+	ld	hl,printer.subroutines
+	call	addhl
+	ld	e,(HL)
+	inc	hl
+	ld	d,(HL)
+	ex	de,hl
+	JP	(HL)		;do according to the printer
+
+printer.subroutines:
+	dw	MX.out
+	dw	FX.out
+	dw	LQ.out
+	dw	JX.out
+	dw	aborted
+
+
+MX.out::	;the mx recognises the emphasised, enlarged and condensed mode
+;and very little else
+	ld	a,(print.byte)
+	ld	hl,emphasised.string
+	and	Em.Mask
+	jr	nz,over1
+	ld	hl,not.emphasised.string
+over1:	call	Pr.Msg
+	ld	a,(print.byte)
+	ld	hl,enlarged.string
+	and	En.Mask
+	jr	nz,over2
+	ld	hl,not.enlarged.string
+over2:	call	Pr.Msg
+	ld	a,(print.byte)
+	ld	hl,condensed.string
+	and	Co.Mask
+	jr	nz,over3
+	ld	hl,not.condensed.string
+over3:	call	Pr.Msg
+	ret	
+
+emphasised.string:	db	2,ESC,'E',000
+not.emphasised.string:	db	2,ESC,'F',000
+enlarged.string:	db	1,0EH,000
+not.enlarged.string:	db	1,14H,000
+condensed.string:	db	1,0FH,000
+not.condensed.string:	db	1,12H,000
+proportional.string:	db	3,ESC,'p',1,000
+not.proportional.string:db	3,ESC,'p',0,000
+italics.string:		db	2,ESC,'4',000
+not.italics.string:	db	2,ESC,'5',000
+underline.string:	db	3,ESC,'-',1,000
+not.underline.string:	db      3,ESC,'-',0,000
+Printmode.String:	db	2,ESC,'!',000
+
+JX.OUT:	;consider it is the same as FX for now
+
+FX.OUT::	;in the FX,	proportional (bit 1), italics (bit 6), and 
+;Underline are handled separately	;(lq)	bit 7
+
+	ld	a,(print.byte)
+	ld	hl,italics.string
+	and	italic.Mask
+	jr	nz,over5
+	ld	hl,not.italics.string
+over5:	call	Pr.Msg
+	ld	a,(print.byte)
+	ld	hl,underline.string
+	and	under.Mask
+	jr	nz,over6
+	ld	hl,not.underline.string
+over6:	call	Pr.Msg
+	ld	hl,printmode.string
+	call	Pr.Msg
+	ld	a,(print.byte)
+	and	fx.mask		;strip out invalid bits
+	ld	c,a
+	call	list
+	ld	a,(print.byte)
+	ld	hl,proportional.string
+	and	pro.Mask
+	jr	nz,over4
+	ld	hl,not.proportional.string
+over4:	call	Pr.Msg
+	ret	
+
+LQ.Out:	;just send out the print byte raw
+	ld	hl,printmode.string
+	call	pr.msg
+	ld	a,(print.byte)
+	ld	c,a
+	call	list
+	ret
+		
+	
+
+aborted:	;the user panicked and pressed break
+	call	screen.clear
+	call	curon
+	ld	hl,abortmsg
+	call	strout
+
+;and fall through
+;-----;
+finish:
+	ld	c,0		; BDOS system reset
+	jp	bdos
+
+;----------------------------------------------------------------------------
+
+	
+
+hello.string:
+	defb	..1end - $	;length of the string
+	defb	1bh,",","g",5,"c";define split screen
+	defb	1bh,"u"		;go to the upper
+	defb	1bh,"/"		;make multifont
+	defb	1bh,"#",6	;style 4
+	defb	'   QX+ Epson Printer Mode Utility'
+	defb	1bh,"v"		;enter the lower screen
+	defb	1BH,"+"		;blank the screen
+	defb	1bh,')'
+..1end:	defb	000,000
+
+ok:	defb	..end1 - $
+
+	db	ESC,'=',(18+' '),(26+' ')	;bottom centre
+	defb	1bh,'('		;full intensity
+	defb	1bh,"^"		;blink
+	defb	"<press any key to continue>"
+	defb	1bh,"q"		;cancel blink
+	defb	1bh,')'		;half intensity
+..end1:	defb	00,00
+
+tidy.up:;set the screen to rights
+	defb	..end2 - $
+	defb	1bh,"+"
+	defb	1bh,"u",1bh,"\"
+	defb	1bh,"v",1bh,"u"	;dont ask
+	defb	1bh,",","C",26,"C"
+	defb	1bh,"+"
+..end2:	defb	000,000
+
+
+;-------------------------
+;-- String message area --
+;-------------------------
+
+prompt.string:		;at the top of the page
+
+	db	esc,"=",1+32,15+32
+	DB	'QX+ Epson Printer Configuration   ver '
+	db	vers/10+'0','.',vers mod 10+'0'
+ 
+	db	esc,"=",2+32,15+32
+	db	'Use the cursor control keys to make your choices.'
+ 	db	esc,"=",3+32,15+32
+	db	'The space bar cycles between choices.   Press CR'
+	db	esc,"=",4+32,15+32
+	db	'when a selection is made. ESC finishes. BREAK aborts.'
+	db	000
+
+
+no.thank.you:
+	db	' No thank you        '
+	db	00
+Yes.Please:
+	db	' Yes                 '
+	db	00
+
+done.msg:	db	cr,lf,'-- The printer has been set to mode '
+	db	00
+
+abortmsg:
+	db	esc,'*'
+	db	esc,'H'
+	db	cr,lf,lf,'** Program terminated ** no action taken.'
+	db	cr,lf,000
+	
+
+
+
+
+
+;----------------------------------------------------------------------------
+instruct:
+db	0dH,0aH		;carriage return, linefeed
+db	'		This utility sets the typestyle of the Epson printer. It'
+db	0dH,0aH		;
+db	'	will  work with the MX, RX, JX, FX, or LQ printers.  Only  those'
+db	0dH,0aH		;
+db	'	features  actually  supported by the printer will work.  The  MX'
+db	0dH,0aH		;
+db	'	series,  as  an example, will not do Italic, underline,  double-'
+db	0dH,0aH		;
+db	'	-strike  or  proportional printing and the  FX  will  not  allow'
+db	0dH,0aH		;
+db	'	emphasised or condensed elite characters. All previous  settings'
+db	0dH,0aH		;
+db	'	for print modes are cancelled when a new setting is made by this'
+db	0dH,0aH		;
+db	'	program. Please refer to your printer manual for details. The JX,'
+db	0dH,0aH		;
+db	'	FX and LQ printers have listings of all possible combinations of'
+db	0dH,0aH		;
+db	'	character modes. Users of the LQ will find appendix F useful and'
+db	0dH,0aH		;
+db	'	a similar table appears in other manuals under ( ESC ! ).'
+db	0dH,0aH		;
+db	'		To set the printer from the command line, the  user  can' 
+db	0dH,0aH		;
+db	'	type  SETLIST  <number>, where <number> corresponds to  a  print'
+db	0dH,0aH		;
+db	'	mode  code  in decimal, hex, octal, or binary.  The code  is  as'
+db	0dH,0aH		;
+db	'	listed in the manual. (eg SETLIST 2 or SETLIST 00100010B ).'
+
+	db	000
+
+  
+;----------------------------------------------------------------------------
+St.Array.Pointers:	;pointers to string arrays
+	dw	elite.pica	;	bit 0
+	dw	proportional	;(lq)	bit 1
+	dw	condensed	;	bit 2
+	dw	emphasized	;	bit 3
+	dw	double.strike	;	bit 4
+	dw	Enlarged	;	bit 5
+	dw	italics		;(lq)	bit 6
+	dw	Underline	;(lq)	bit 7
+
+
+;----------------------------------------------------------------------------
+Elite.Pica:	db	2
+	db	04,'Pica',000
+	db	05,'Elite',000
+
+Proportional:	db	2
+	db	12,'Fixed Length',000
+	db	12,'Proportional',000
+
+condensed:
+	db	2
+	db	6,'Normal',000
+	db	9,'Condensed',000
+
+Emphasized:
+	db	2
+	db	12,'Unemphasised',000
+	db	10,'Emphasised',000
+
+
+double.strike:
+	db	2
+	db	13,'Single Strike',000
+	db	13,'Double Strike',000
+
+enlarged:
+	db	2
+	db	12,'Not Enlarged',000
+	db	8,'Enlarged',000
+
+Italics:
+	db	2
+	db	10,'Not Italic',000
+	db	6,'Italic',000
+
+Underline:
+	db	2
+	db	12,'No Underline',00
+	db	9,'Underline',00
+
+
+our.code:	db	esc,'=',32+22,32+2
+		db	'Current Mode Code --> '
+		db	00
+
+;
+end	start
