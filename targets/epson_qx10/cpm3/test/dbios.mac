@@ -1,0 +1,73 @@
+	.z80
+
+	title	EPSON QX-10 + UTILITY - Direct Bios calls
+
+	name	('DBIOS')
+
+;------------------------------------------------------------------
+; Utilities for EPSON QX-10 Plus
+;
+; Copyright 1984 D. Powys-Lybbe
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 2nd Febuary 1984
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+;
+;------------------------------------------------------------------
+
+
+;-------------------------
+; direct BIOS entry points
+;-------------------------
+
+	public	?conin,?const,?conot,?conos
+	public	?wboot
+
+; utility
+	public	?pmsg
+
+;----------------------------------------------------------------------------;
+
+	cseg
+
+bdos	equ	0005h
+
+biospb:	db	0		; Direct BIOS call function (no parameters)
+
+?conin:
+	ld	a,3
+	jr	dbios
+?const:
+	ld	a,2
+	jr	dbios
+?conot:
+	ld	a,4
+	jr	dbios
+?conos:
+	ld	a,17
+	jr	dbios
+?wboot:
+	ld	a,1
+
+dbios:	ld	de,biospb
+	ld	(de),a
+	ld	c,50
+	jp	bdos		; and return
+
+;---------------------------------------------------------------------------;
+
+?pmsg:	pop	hl
+	ld	a,(hl)
+	inc	hl
+	push	hl
+	or	a
+	ret	z
+	ld	c,a
+	call	?conot
+	jr	?pmsg
+
+;---------------------------------------------------------------------------;
+
+	end
