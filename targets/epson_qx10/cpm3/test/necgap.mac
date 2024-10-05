@@ -1,0 +1,521 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS ID study
+
+	name	('NECGAP')
+
+;------------------------------------------------------------------
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+;    31 Oct 83 - Taken from NEC765.MAC
+;
+;------------------------------------------------------------------
+
+
+	cseg
+
+bit0	equ	1 shl 0
+bit1	equ	1 shl 1
+bit2	equ	1 shl 2
+bit3	equ	1 shl 3
+bit4	equ	1 shl 4
+bit5	equ	1 shl 5
+bit6	equ	1 shl 6
+bit7	equ	1 shl 7
+
+	maclib	CBIOS.EQU	; QX-10 hardware ports and equates
+
+
+;------------------------------------------------------------------------
+;---------
+; skew tables
+;
+	dseg		; As only used by banked functions
+
+xlt::	ds	32	; space for up to 32 sectors per track
+	
+;----------------------------------------------------------------------------
+
+	cseg
+
+start:	ld	hl,(6)		; start of BDOS
+	ld	sp,hl		; use as our stack
+
+	xor	a		; use drive A:
+	call	NECselect
+	jp	m,dskerr
+
+; -------------
+; Request track
+; -------------
+	call	seltrk
+	jp	z,0		; <RETURN> exists
+
+; -----------------
+; Seek track in <C>
+; -----------------
+	call	seektrk		; seek track in <C>
+	jp	nz,dskerr	; seek error
+
+	ld	hl,xlt		; start of table
+	ld	b,16		; number of physical sectors
+
+nxtxlt:	push	hl
+	push	bc
+	call	IDside1		; select first side of unit <C>
+	pop	bc
+	pop	hl
+	jp	nz,dskerr		
+
+; -------------------
+; fetch sector number
+; -------------------
+
+	ld	a,(NECr)	; Sector number
+	ld	(hl),a
+	inc	hl
+	djnz	nxtxlt
+
+; ---------------------
+; display sector number
+; ---------------------
+
+	call	SECTmap
+
+	jp	start
+
+; ----------------------------------------------------------------------------
+; Request track or <RETURN> to end
+; ----------------------------------------------------------------------------
+SELtrk:
+	ld	hl,0
+	ld	(USEtrk),hl	; initialise to track 0
+
+	ld	de,trkMSG
+	ld	c,9
+	call	5
+	ld	c,1
+	call	5
+	cp	0dh
+	ret	z
+newdec:	call	adddec
+	jr	nz,seltrk	; error so retry
+	ld	c,1
+	call	5
+	cp	0dh
+	jr	nz,newdec
+
+	ld	hl,(USEtrk)
+	ld	c,l
+	inc	a
+	ret		; <A> > 0
+
+adddec:	ld	b,10
+	ld	hl,(USEtrk)
+	sub	'0'
+	ret	c	; too small
+	cp	9
+	jr	z,xten
+	ret	nc	; <A> <> 0
+xten:	inc	hl
+	djnz	xten	; multiply USEtrk by ten
+	ld	e,a
+	ld	d,0
+	add	hl,de
+	ld	(USEtrk),hl
+	xor	a
+	ret		; <A> = 0 
+
+USEtrk:	dw	0	; track to seek
+trkMSG:	db	0dh,0ah,'Sector interleave - Enter TRACK or <RETURN> ? $'
+; ----------------------------------------------------------------------------
+
+
+; ----------------------------------------------------------------------------
+; Display sector mapping starting with sector 1
+; ----------------------------------------------------------------------------
+SECTmap:
+	ld	de,TltMSG
+	ld	c,9
+	call	5
+
+	ld	hl,xlt
+	ld	b,16
+	ld	e,0
+	ld	a,1
+nxtsm1:	cp	(hl)
+	jr	z,strtm
+	inc	hl
+	inc	e
+	djnz	nxtsm1
+	ld	e,0	; 1 not found so start at first sector returned
+
+strtm:	ld	a,16
+	sub	e
+	ld	b,a
+	ld	d,0
+	ld	hl,xlt
+	add	hl,de
+	call	hexstr
+
+	ld	hl,xlt
+	ld	a,e
+	ld	b,a
+	or	a
+	call	nz,hexstr
+
+	ld	de,trmMSG
+	ld	c,9
+	call	5
+	ret
+
+hexstr:	ld	a,(hl)
+	push	hl
+	push	de
+	push	bc
+	call	hex
+	pop	bc
+	pop	de
+	pop	hl
+	inc	hl
+	djnz	hexstr
+	ret
+
+hex:	push	af	; save AF
+	rrca
+	rrca
+	rrca
+	rrca
+	call	hexchr
+	pop	af
+	call	hexchr
+	ld	de,hexMSG
+	ld	c,9
+	call	5
+	ret
+hexchr:	and	0fh
+	cp	10
+	jp	c,numchr
+	add	a,'A'-'0'-10
+numchr:	add	a,'0'
+	ld	e,a
+	ld	c,2
+	call	5
+	ret
+hexMSG:	db	'h $'
+tltMSG:	db	0dh,0ah,'SECTORS - $'
+trmMSG:	db	0dh,0ah,'$'
+; ----------------------------------------------------------------------------
+
+
+; ----------------------------------------------------------------------------
+; NEC controller error
+; ----------------------------------------------------------------------------
+DSKerr:
+	ld	de,errMSG
+	ld	c,9
+	call	5
+	ld	c,1
+	call	5
+	cp	03
+	jp	z,0
+	jp	start	; any other character retries
+errMSG:	db	0dh,0ah,'DISK ERROR - Hit <RETURN> or <CTRL>-<C> to abort$'
+; ----------------------------------------------------------------------------
+
+
+; ----------------------------------------------------------------------------
+; assign unit in <A> to all NEC commands (assume head=0)
+; ----------------------------------------------------------------------------
+NECselect:
+	ld	(skdsk),a	; set unit number for seek
+	ld	(rcdsk),a	; set unit number for calibrate
+	ld	(iddsk),a	; set unit number for ID read
+	ld	(sds.u),a	; also set up for error routine
+; ----------------------------------------------------------------------------
+
+
+; ----------------------------------------------------------------------------
+; turn motor on and wait for READY line to go true
+; ----------------------------------------------------------------------------
+	call	NECsense	; returns <A> = ST3
+	and	bit5		; see if ready
+	jr	nz,gomotor
+
+	ld	bc,6554		; wait max 1 Sec for drive to reach speed
+				; spec says 1/2 sec but it seems to need more
+pause:	call	NECsense	; returns <A> = ST3
+	and	bit5		; see if ready
+	jr	nz,uptospeed
+	dec	bc
+	ld	a,b
+	or	c
+	jr	nz,pause	; 261083 time =<BC>*153uSec
+
+hole:	ld	a,bit7		; Set NOT READY bit as drive outside range
+	or	a
+	ld	hl,0		; and set HL = 0
+	ret
+
+uptospeed:
+	ld	c,bit6 or bit7	; test for ready line change state
+tstST0:	call	NECint		; returns <A> = ST0
+	and	c		; see if ready status changed
+	cp	c		; and hence wait for our NR bit to clear
+	jr	z,tstST0	; continue to flush out ST0 for all drives
+
+gomotor:
+	xor	a
+	out	(motor),a	; and keep motor going
+	ret
+; ----------------------------------------------------------------------------
+
+
+
+; ----------------------------------------------------------------------------
+; SEEK TRACK IN <C> & <DE> -> head position
+; ----------------------------------------------------------------------------
+seektrk:
+	ld	a,c		; test for track 0
+	or	a
+	jr	z,recal		; seek track 0 (<DE> -> head position)
+
+	ld	(skNCN),a
+	push	hl
+	call	NECcmnd		;(destroys <HL>, <AF>, <B>)
+	db	3		; length of command
+	db	00001111b	; seek command
+skdsk:	db	000b		; hd/unit
+skncn:	db	0		; cylinder (track) number
+	pop	hl
+
+	call	seekrdy
+	ret			; return <A> = 0 if ok, else <A> = 1 or 80h
+; ----------------------------------------------------------------------------
+
+; ----------------------------------------------------------------------------
+; RECALIBRATE/SEEK TRACK 0 (<DE> -> head position)
+; ----------------------------------------------------------------------------
+recal:	push	hl
+	call	NECcmnd		;(destroys <HL>, <AF>, <B>)
+	db	2		; length of command
+	db	00000111b	; recalibrate command
+rcdsk:	db	00000000b	; hd/trk
+	pop	hl
+; ----------------------------------------------------------------------------
+
+; ----------------------------------------------------------------------------
+; Complete RECAL or SEEK and return disc error code
+; must preserve <C> <DE> <HL>
+; ----------------------------------------------------------------------------
+seekrdy:
+	call	NECint		; sense interrupt status, fill result bytes
+				; returns <A> = ST0
+	bit	5,a		; test seek done bit
+	jr	z,seekrdy	; -no- wait till it is
+	and	11111000b	; remove hd,unit
+	xor	00100000b
+	ret	z		; all OK
+	jp	NECtst		; Set and return error code
+; ----------------------------------------------------------------------------
+
+
+; ----------------------------------------------------------------------------
+seekdone:
+	xor	a		; return <A> = 0 as ok
+	ret	
+; ----------------------------------------------------------------------------
+
+
+; ----------------------------------------------------------------------------
+; NEC command: select first side of unit idDSK
+; ----------------------------------------------------------------------------
+IDside1:			
+	push	hl
+	ld	hl,idDSK
+	res	2,(hl)		; Select head 0
+	pop	hl
+	jr	NECid		; read ID (double density mode only)
+; ----------------------------------------------------------------------------
+
+; ----------------------------------------------------------------------------
+; NEC command: select second side of unit idDSK
+; ----------------------------------------------------------------------------
+IDside2:			; select second side of unit  idDSK
+	push	hl
+	ld	hl,idDSK
+	set	2,(hl)		; Select head 1
+	pop	hl
+
+; ----------------------------------------------------------------------------
+; NEC command: Read next sector ID (idDSK -> head/unit)
+; ----------------------------------------------------------------------------
+NECid:	push	hl
+	call	NECcmnd		; Read next sector ID (destroys <HL>, <B>)
+	db	2		; length of command
+	db	01001010b	; SEEK ID - MFM Mode, No Skip
+idDSK:	db	0
+	call	NECrslt		; and read result & return <A> = ST0
+	pop	hl
+	and	11111000b	; remove hd,unit
+	ret	z		; all OK
+	jp	NECtst		; decode error
+; ----------------------------------------------------------------------------
+
+; ----------------------------------------------------------------------------
+; NEC command: Sense drive status (sds.u -> Head/unit)
+; ----------------------------------------------------------------------------
+sds.u:	db	0		; head/unit number
+NECsense:			; (takes min of T103 for 2 byte command)
+	out	(motor),a	; keep motor going
+NECwc:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECwc	; wait till ready
+	jp	m,NECsr		; ERROR: NEC waiting for RESULT phase
+	ld	a,00000100b	; sense command
+	ld	(command),a	; save for testing
+	out	(35h),a
+NECwu:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECwu	; wait till ready
+	jp	m,NECsr		; ERROR: NEC waiting for RESULT phase
+	ld	a,(sds.u)	; head/unit number
+	out	(35h),a
+NECsr:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECsr	; wait till ready
+	ret	p		; NEC waiting for COMMAND phase
+	in	a,(35h)		; read ST3
+	ld	(result),a	; and save
+	ret			; return ST3 in <A>
+;*;NECsense:
+;*;	call	NECcmnd		;(destroys <HL>, <AF>, <B>)
+;*;	db	2		; length of command
+;*;	db	00000100b	; sense command
+;*;sds.u:	db	0		; head/unit number
+;*;	call	NECrslt		; return ST3 in <A>
+;*;	ret			; (takes min of T325 to complete)
+; ----------------------------------------------------------------------------
+
+
+; ----------------------------------------------------------------------------
+; NEC command: Sense interrupt status and fill result bytes
+; ----------------------------------------------------------------------------
+NECint:
+	out	(motor),a	; keep motor going
+NECwi:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECwi	; wait till ready
+	jp	m,NECrslt	; ERROR: NEC waiting for RESULT phase
+	ld	a,00001000b	; sense command
+	ld	(command),a	; save for testing
+	out	(35h),a
+	jr	NECrslt
+;*;NECint:
+;*;	push	hl
+;*;	push	bc
+;*;	call	NECcmnd		;(destroys <HL>, <AF>, <B>)
+;*;	db	1		; only 1 byte
+;*;	db	00001000b	; sense interrupt status
+;*;	pop	bc
+;*;	pop	hl
+; ----------------------------------------------------------------------------
+
+
+; ----------------------------------------------------------------------------
+; NEC command: Read NEC results bytes, returns <A> = ST0 or ST3
+; ----------------------------------------------------------------------------
+NECrslt:			; (takes min of T103 to complete)
+	push	hl
+	ld	hl,result	; result area
+NECrqm:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECrqm	; wait till ready
+	jp	p,NECr01	; NEC waiting for COMMAND phase
+	in	a,(35h)
+	ld	(hl),a
+	inc	hl
+	jr	NECrqm
+NECr01:	pop	hl		; assume all is complete
+	ld	a,(result)	; and return 1st result byte ST0 or ST3
+	ret
+; ----------------------------------------------------------------------------
+
+
+; ----------------------------------------------------------------------------
+; NEC command data: command and results bytes
+; ----------------------------------------------------------------------------
+command:	db	0	; save last command executed
+result:			; save result byte(s)
+NECst0:	db	-1	; 1st result byte - ST0 (except sense returns ST3)
+NECst1:	db	-1	; 2nd result byte - ST1 for read/write commands
+NECst2:	db	-1	; 3rd result byte - ST0 for rd/wr commands
+NECc:	db	-1	; 4th result byte - Cylinder for rd/wr commands
+NECh:	db	-1	; 5th result byte - Head/side for rd/wr commands
+NECr:	db	-1	; 6th result byte - Record/Sector for rd/wr commands
+NECn:	db	-1	; 7th result byte - Sector size for rd/wr commands
+; ----------------------------------------------------------------------------
+ 
+;-----------------------------------------------------------------------
+; NECcmnd
+; Entry:	<SP> -> command bytes terminated by 0FFH and ret ptr
+;		First command byte is count of bytes for transmission
+; Destroyed:	<HL>, <AF>, <B> 
+; floppy command routine must be in common
+;-----------------------------------------------------------------------
+NECcmnd:			; (takes min of T103 for 2 byte command)
+	out	(motor),a	; keep motor going
+	pop	hl
+	ld	b,(hl)		; count of bytes to send
+	inc	hl
+	ld	a,(hl)		; for testing
+	ld	(command),a	; save for testing
+NECwr:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECwr	; wait till ready
+	jp	m,NECphs	; ERROR: NEC waiting for RESULT phase
+	ld	a,(hl)
+	out	(35h),a
+NECphs:	inc	hl
+	djnz	NECwr		; decrement <B> till done, then return
+	jp	(hl)		; done command
+
+;--------------------------------------------
+; On entry <A> = STATUS REGISTER 0 AND 11011000b
+;		bit 7 - Invalid command or drive went not ready
+;		bit 6 - Abnormal termination or drive went not ready
+;		bit 4 - Equipment check error
+;		bit 3 - Not ready
+; Test for errors and return
+; <A> = 0 if no error, or set 
+;		bit 7 - Drive not ready
+;		bit 6 - Drive write protected
+;		bit 4 - Posibble media change
+;		bit 1 - track/sector id error	
+;      		bit 0 -	Fatal error
+;--------------------------------------------
+
+NECtst:	cp	bit6 or bit7	; test device going not ready
+	jr	z,NECnRDY
+	bit	3,a		; test bit 3 - device NOT READY
+	jr	nz,NECnRDY
+	bit	4,a		; test fatal hardware error
+	jr	z,NECdead
+	ld	a,bit1		; track/sector or ID error
+	jr	NEChme
+NECdead:	;261083
+	ld	a,bit0		; FATAL error
+NEChme:	or	a
+	ret
+NECnRDY:
+	ld	a,bit7		; flag 'NOT READY'
+	or	a
+	ret
+
+;-----------------------------------------------------------------------
+
+	end
+
