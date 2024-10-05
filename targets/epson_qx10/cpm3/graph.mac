@@ -1,0 +1,1131 @@
+title	"Graphics Driver for CP/M+ on the QX 10----------A.R.M.C."
+subttl	"A.Clarke, November 1983 " 
+NAME ('Graph')
+dseg	;as it goes into the system bank
+
+include EQUSMACS
+
+Entry	doline		;HL points to the coordinates in an array <X> <Y>
+			;DE contains the line mask (for area fill purposes)
+Entry	domarker	;write out the marker. HLpoints to coordinate
+		;pair <X> <Y> DE contains the marker type
+Entry	Bar		;HL points to low left,top right coordinates
+;Entry	Arc		;BC points to start angle, end angle
+		;HL points to XY centre, XY start, XY end point
+;Entry	pie		;BC points to start angle, end angle
+		;HL points to XY centre, XY start, XY end point
+Entry	Circle		;do a circle
+Entry 	docircle	;do circle pointed to by the gdc
+Entry	pixel		;write pixel at current cursor location
+Entry	String		;HL points to string, DE to count, byte string
+Entry	DoText		;HL points to text, DE contains count, integer string
+Entry	writemode	;A has the writing mode code
+Entry	linestyle	;A has the line type code
+Entry	mkerzoom	;A has the zoom factor for the markers
+Entry	MkerType	;A has the marker type
+Entry	setfontsize	;A has the font size
+Entry	Textdir		;A sets the text direction
+Entry	textfont	;A has the font style no.
+Entry	setfill		;A has the Bar fill style
+
+
+;*** Variables for internal use ***
+
+XY.pair:	dw	00	;points to word array consisting of <x><X><y><Y>
+XY.Point:	dw	00	;points to coordinate array element beginning current operation
+
+
+..TempX:	DW	000
+..TempY:	DW	000	;locally used variables
+
+Texture.no:	db	00
+
+Low.Left.Pointer:	dw	000	;of a box or rectangle
+
+;-----------------------------------------------------------------------------
+Zoom:	;zoom the display to factor in A
+	sta	..zoom.factor
+;	out	g.zoom.control	;wobbles the screen
+	mvi	a,.Zoom
+	call	tochip##
+	lxi	h,..zoom.factor
+	mvi	c,1
+	call	outCHL##
+	ret
+
+..Zoom.Factor:	db	000
+
+
+;----------------------------------------------------------------------------
+pixel:	;write a pixel according to the current writing mode at the cursor
+;location (in current foreground colour)
+	call	are.we.monochrome##
+	jrnz	..draw.pixel
+	lda	colour##
+	mvi	b,1		;blue for a boy
+	rar
+	push	psw
+	cc	do.colour.pixel
+	pop	psw
+	rar
+	rar
+	mvi	b,2		;green
+	push	psw
+	cc	do.colour.pixel
+	pop	psw
+	rar
+	rar
+	mvi	b,4
+	rnc	;cause the job is done
+do.colour.pixel:
+	call	switch.colour.plane##	;so we are in the right colour
+	lda	previous.Dad##
+	lhld	p1.curs##
+	call	putcur			;are we in the right place
+..draw.pixel:
+	lxi	h,..pixel.params
+	call	do.orders##
+	ret
+
+..pixel.params:
+	db	02
+;*FigS*
+	db	02
+	db	.FigS
+	db	is.rdat Shl 3 or eastwards
+
+;*FigD*
+	db	01
+	db	.FigD
+
+;----------------------------------------------------------------------------
+Doline:		;GSX entry point. Draws a line using the coordinates pointed 
+;to by HL calculating the line as being from X1Y1 to X2Y2. 
+;the coordinates are in the form <X1> <Y1> <X2> <Y2> each being an integer
+;DE contains the line mask for this line
+	push	h
+	call	load.line.mask
+	pop	h
+
+
+;-----------------------------------------------------------------------------
+Draw.line:	;Draws a line using the coordinates pointed to by HL
+;calculating the line as being from X1Y1 to X2Y2. Thank god for intelligent
+;graphics chips!
+;the coordinates are in the form <X1> <Y1> <X2> <Y2>; each being an integer
+;The type of line can be specified
+	push	h
+	xra	a
+	sta	p1.line	;initialise direction truth table (bit array)
+	call	point##	;move cursor to start of line
+	pop	h
+	push	h	;restore the pointer to the coordinates
+	call	calc.delta	;calculate delta X
+	xchg
+	pop	h
+	inx	h
+	inx	h
+	push	d	;save delta X
+	call	calc.delta	;and calculate delta Y
+	pop	d
+;DE has Delta X, HL has Delta Y
+	call	cmp16##	;compare deltas
+	jnc	..on	;if carry, then Delta X>Delta Y
+	xchg
+..on:		;HL=delta I, the larger of the two differences
+	lda	p1.line
+	ral
+	sta	p1.line	;store truth of Delta X>Delta Y	
+	lda	mask.graphics##
+	mov	b,a
+	mov	a,h
+	mov	c,h	;save the old H for future restoration
+	ora	b	;mask in the graphics bit
+	mov	h,a
+	shld	DC.Line	;save the DC value (DeltaI) with graphics bit set
+	mov	h,c	;and restore delta I	
+;to set the graphics drawing flag in mixed mode
+;HL=Delta I, DE=Delta D
+	call	HL.Negated##
+	xchg
+	push	H
+	dad	d
+	dad	h
+	shld	D2.Line	;D2=2*(DeltaD-DeltaI)
+	pop	h
+	dad	h
+	shld	D1.Line	;D1=2*DeltaD
+	dad	d
+	shld	D.Line	;D=(2*DeltaD)-DeltaI
+	lda	p1.line
+;the low bits of p1.line contain-----2 delta X>Delta Y
+;                               -----1 delta Y is negative
+;                               -----0 delta X is negative
+	lxi	H,truth.table
+	add	l
+	jrnc	no.carry
+	inr	h
+no.carry:
+	mov	l,a
+	mov	a,m
+	ori	is.line Shl 3
+	sta	p1.line
+;now the cursor is pointing to the start and the line is described
+	call	are.we.monochrome##
+	jrnz	..draw.the.line
+	lda	colour##
+	mvi	b,1		;blue for a boy
+	rar
+	push	psw
+	call	do.the.colour.line
+	pop	psw
+	rar
+	rar
+	push	psw
+	mvi	b,2		;green
+	call	do.the.colour.line
+	pop	psw
+	rar
+	rar
+	mvi	b,4
+do.the.colour.line:
+	jc	..no.sweat	;about black lines
+	lda	.mode
+	cpi	@complement
+	rz			;nothing to do if complement
+	mvi	a,.wdat or @reset
+	call	ToChip##	;draw a black line
+..no.sweat:
+	call	switch.colour.plane##	;so we are in the right colour
+	lda	previous.Dad##
+	lhld	p1.curs##
+	call	putcur			;are we in the right place
+	
+..draw.the.line:
+	lxi	h,line.commands
+	call	do.orders##
+	lda	.mode		;restore the mode
+	ori	.Wdat
+	jmp	ToChip##
+
+truth.table:	;direction	truth
+;                ---------      -----
+	
+	db	Southwest	;+++
+	db	westwards	;++-
+	db	northwards	;+-+
+	db	northwest	;+--
+	db	southwards	;-++
+	db	southeast	;-+-
+	db	northeast	;--+
+	db	eastwards	;---
+
+line.commands:
+	db	2	;line drawing commands
+;*FigS*
+	db	12
+	db	.FigS
+p1.line:	db	00		
+DC.Line:	dw	00
+D.Line:		dw	00
+D2.Line:	dw	00
+D1.line:	dw	00
+DM.line:	dw	00
+;*FigD
+	db	1	;byte in command
+	db	.figD	;Figure draw start
+	
+calc.delta:	;calculates the difference between X1 and X2 and flags whether
+;X2 was less than X1
+;HL points to the first parameter
+	mov	e,m
+	inx	h
+	mov	d,m
+	inx	h
+	inx	h
+	inx	h
+	push	d
+	mov	e,m
+	inx	h
+	mov	d,m
+	pop	h
+	call	Dsub##		;HL=HL-DE
+	lda	p1.line
+	ral
+	sta	p1.line	;save the carry flag to later calculate direction
+	rar
+	rnc			;ensure exit with ABS(HL)
+	jmp	hl.negated		
+
+
+
+;-----------------------------------------------------------------------------
+WriteMode:	;A has an integer that specifies in its low two bits
+;the write type
+;1=replace
+;2=overstrike
+;3=complement
+;4=Erase     
+;	must be replaced with:-----
+;Replace with pattern=00B
+;Complement=01B	
+;Reset with zero=10B
+;Set to one=11B
+	dcr	a
+	ani	00000011B
+	lxi	h,substitution.table
+	call	addhl##
+;We have converted the code to hardware meaningfulness
+	mov	a,m	;we are only interested in the low two bits
+	sta	.mode
+reset.write.mode:
+	ori	.WDat
+	jmp	tochip##
+
+Substitution.Table:
+	db	@replace		;1=replace   
+	db	@set		        ;2=overstrike
+	db	@Complement     	;3=complement
+	db	@Reset          	;4=Erase     
+
+.mode:	db	000
+
+
+
+;----------------------------------------------------------------------------
+mkertype:	;to set the marker type externally. Marker type in A
+	call	correct
+	ani	0fh
+	sta	no.of.marker.type
+	ret
+
+;----------------------------------------------------------------------------
+MkerZoom:	;to set the marker magnification factor Externally
+	call	correct
+	ani	0fh
+	sta	Marker.Zoom
+	ret
+
+;----------------------------------------------------------------------------
+no.of.marker.type:	db	000	;the marker number
+Marker.zoom:		db	000	;the zoom factor used for markers
+
+;----------------------------------------------------------------------------
+domarker:	;Do the marker to the currently set marker scale and the
+;currently set marker type so that it marks the point at (HL1...HL8)
+;and then place it
+	push	h
+	lda	no.of.marker.type
+	mov	l,a
+	mvi	h,0
+	dad	h	;*2
+	DAD	H	;*4
+	DAD	H	;*8
+	lxi	D,Markers##	;our table of markers
+	dad	d
+	shld	mark.address
+	lda	marker.zoom
+	call	Zoom
+	pop	h
+	call	place.marker	;and place it there
+	xra	a
+	call	Zoom		;reset Zoom factor
+	ret
+
+;----------------------------------------------------------------------------
+place.marker:	;put a marker at the position contained in the integer array
+;pointed to by HL. 
+	push	h
+	call	compensate
+	shld	..new.X	;it is the converted X location
+	pop	h
+	inx	h
+	inx	h
+	call	compensate
+	shld	..new.Y	;it is the converted Y location
+	lxi	h,..new.X
+	call	point
+	call	are.we.monochrome
+	jnz	put.the.marker
+	sta	..gb3
+	mvi	a,1
+	call	do.colour.marker
+	mvi	a,2
+	call	do.colour.marker
+	mvi	a,4
+do.colour.marker:
+	sta	colour+1
+	lda	previous.Dad
+	lhld	p1.curs
+	call	putcur		;place the marker correctly
+
+;and fall through	
+Put.The.Marker:	;print the marker at the current graphics cursor position
+;this is a seven by seven pattern
+	lhld	mark.address
+	lxi	d,..marker.order
+	jmp	spit.it.out##
+
+..marker.order:
+	db	is.GCharacter Shl 3 or Eastwards
+	db	07	;DC is the no. of pixels-1
+..gb3:	db	40h	;DC high bit for graphics area
+mark.address:	dw	000	;points to marker
+..New.X:	dw	00	;a temporary scratch area
+..New.Y:	dw	00	;that records the immediate last marker
+
+compensate: ;the number pointed to by HL is incremented by 4*Zoom  and passed
+;back in HL.
+	push	h
+	lxi	h,4	;half the character size
+	lxi	d,4	;half the character size
+	lda	marker.zoom
+..back:
+	ana	a
+	jz	..on2
+	dad	D	;double it each time
+	dcr	a
+	jmp	..back
+..on2:
+	xchg
+	mov	c,e
+	mov	b,d
+;BC=DE=compensation factor
+	pop	h
+	mov	e,m
+	inx	h
+	mov	d,m
+	xchg	;get coordinate in HL
+	call	BCMinus##	;negate BC
+	dad	b	;add in the compensation factor
+	ret
+
+
+;----------------------------------------------------------------------------
+circle:	;HL points to an integer array consisting of
+;<X Centre> <Y Centre> <X point on circum.> <Y point on circum.> <Radius>
+	push	h
+	call	point
+	pop	h
+	lxi	d,8	;to point to radius
+	dad	d
+
+;and fall through
+
+;----------------------------------------------------------------------------
+DOCIRCLE:	;draw a circle whose radius is pointed to by HL 
+;whose centre is at the GDcursor
+	mov	e,m
+	inx	h
+	mov	d,m
+	xchg	;HL=radius
+	SHLD	RADIUS	
+	call	do.line.style
+	CALL	Make.Location.array	;calculate the arc start addresses
+	CALL	calculate.FIGS.params	
+;now we have everything set up
+	call	are.we.monochrome
+	jrnz	draw.circle
+	lda	colour##
+	mvi	b,1		;blue for a boy
+	rar
+	push	psw
+	call	do.colour.circle
+	pop	psw
+	rar
+	rar
+	mvi	b,2		;green
+	push	psw
+	call	do.colour.circle
+	pop	psw
+	rar
+	rar
+	mvi	b,4
+do.colour.circle:
+	jc	..not.sweat	;about black circles
+	lda	.mode
+	cpi	@complement
+	rz			;nothing to do if complement
+	mvi	a,.wdat or @reset
+	call	ToChip##	;draw a black circle
+..not.sweat:
+	call	switch.colour.plane
+	lda	previous.Dad
+	lhld	p1.curs
+	call	putcur		;place the marker correctly
+
+draw.circle:
+	MVI	B,8
+	LXI	H,Addr.array	
+	PUSH	H
+..loop4: 
+	MVI	A,.Curs	;sets the cursor position for the arc
+	CALL	tochip##	;and tell the chip
+	POP	H
+	MVI	C,3	;send out the Ead and Dad for this arc
+	CALL	outCHL##	;
+	PUSH	H
+	MVI	A,.figs	;specify the direction,dimension and that it is arc
+	CALL	tochip##	;
+	LXI	H,fig.type.dir	;increment the direction
+	INR	M	
+	MVI	A,11110111B	
+	ANA	M
+	MOV	M,A
+	push	b
+	CALL	set.Graphics.Bit	
+	pop	b
+	MVI	C,0BH	;the no. of bytes in the order
+	CALL	outCHL##	;
+	MVI	A,.FigD
+	CALL	tochip##	
+	MVI	A,5
+	CMP	B
+	JRNZ	..hop
+	LXI	H,DM.circle	
+	MVI	M,1
+..hop: 
+	djnz	..loop4
+	POP	H
+	lda	.mode
+	ori	.Wdat
+	call	ToChip
+	RET
+
+fig.type.dir:	db	000	;figure type and direction
+p2dc:		db	000	;Rad Sin Phi
+p3dc:		db	000	;
+d.circle:	dw	000	;rad -1
+d2.circle:	dw	000	;2(rad -1)
+d1.circle:	dw	000	;-1
+DM.circle:	dw	000	;R Sin theta
+
+;----------------------------------------------------------------------------
+Make.Location.array:		; calculate an array for the Arc drawing
+;sequence
+	PUSH	H
+	PUSH	B
+	PUSH	D	;save the world
+	PUSH	PSW
+	MVI	A,is.Arc.or.Circle shl 3
+	STA	fig.type.dir	;
+	LHLD	RADIUS	;
+	XCHG
+	LHLD	p1.curs	;get the last Ead
+	LXI	B,pitch/2	;pitch/2
+	CALL	BCMinus##		;
+;HL=Centre Ead, DE=Radius, and BC=-pitch/2
+	CALL	HLminusBCxDE	;
+	SHLD	Addr.array	;store the initial Ead northwards
+	SHLD	Addr.array+0FH
+	LHLD	RADIUS	
+	XCHG
+	LHLD	p1.curs		;get the Ead of the circle centre
+	LXI	B,pitch/2	;pitch/2
+;HL=Centre Ead, DE=Radius, and BC=pitch/2
+	CALL	HLminusBCxDE	
+	SHLD	Addr.array+03H	
+	SHLD	Addr.array+0CH	
+	LDA	P3.Curs##	
+;get the dot address and store it in the array
+	STA	Addr.array+02H	
+	STA	Addr.array+011H	
+	STA	Addr.array+05H	
+	STA	Addr.array+0EH	
+
+	LHLD	RADIUS	
+	MOV	A,L
+	STA	Addr.array+018H	
+;save the dot offset
+	ANI	0F0H
+	MOV	L,A
+
+	mvi	c,4
+	call	shift.right##	;shift right four times
+	mov	c,l
+	mov	a,h
+	ani	0FH	;mask shifted bits
+	mov	b,a	;BC=Ead 
+	push	b
+	LDA	Addr.array+018H
+	ANI	0FH
+;restore the dot offset
+	CALL	Add.To.Cursor.Address	
+	STA	Addr.array+0Bh
+	STA	Addr.array+014h
+	LHLD	p1.Curs	
+	DAD	B
+	SHLD	Addr.array+09H
+	SHLD	Addr.array+012H
+	POP	B	;restore the cursor Ead
+	LDA	Addr.array+018H
+	ANI	0FH
+	CMA		;A is negated
+	INR	A	;-Dot.address
+	CALL	Add.To.Cursor.Address	
+	STA	Addr.array+08H
+	STA	Addr.array+017H
+	CALL	BCMinus##	
+	LHLD	p1.Curs	
+	DAD	B
+	SHLD	Addr.array+06H
+	SHLD	Addr.array+015H
+	POP	PSW
+	POP	D
+	POP	B
+	POP	H
+	RET
+
+Add.To.Cursor.Address:	;adds the dot address to the EAD in BC returning a 
+;converted Dad in A and an adjusted Ead in BC 
+	MOV	E,A
+	LDA	previous.Dad	
+	ADD	E
+	MOV	E,A
+	ANI	0F0H
+	JZ	..on1	
+	INX	B	;increment BC if overflow on the Ead
+..on1:		
+	MOV	A,E
+	RLC
+	RLC
+	RLC
+	RLC
+	ANI	0F0H
+	RET
+
+
+;----------------------------------------------------------------------------
+calculate.FIGS.params:	;calculate the parameters to draw each arc in turn 
+	PUSH	H
+	PUSH	D
+	PUSH	B
+	PUSH	PSW
+	LHLD	RADIUS	
+	SHLD	..Temp9	
+	MVI	A,0
+	STA	..Temp8	
+	LXI	B,0000h	;
+;calculate Radius sin Phi
+..loop6:	
+	LXI	H,..Temp5	
+	LXI	D,..Temp8	
+	LDAX	D
+	ADD	M
+	STAX	D	;add low bytes
+	INX	H	;temp5+1
+	INX	D	;Temp8+1
+	LDAX	D
+	ADC	M
+	STAX	D
+	INX	H	;Temp5+2
+	INX	D	;Temp8+1
+	LDAX	D
+	ADC	M
+	STAX	D
+	INX	B
+	JC	..loop6	
+
+	LDA	..Temp9	
+	ANI	1
+	JNZ	..Hop4	
+	LDA	..Temp8	
+	ADI	0B5H
+	JNC	..Hop4	
+	DCX	B
+..Hop4:		; 
+	LXI	H,p2dc		;store Rad Sin Phi
+	MOV	M,C
+	INX	H
+	MOV	M,B
+	LHLD	RADIUS	
+	DCX	H
+	SHLD	d.circle	;store Radius-1
+	DAD	H
+	SHLD	d2.circle	;store 2(Radius-1)
+	LXI	H,03fffh	;-1
+	SHLD	d1.circle	;D1=-1
+	LXI	H,0000h	;
+	SHLD	DM.circle	;Rad Sin Theta
+	POP	PSW
+	POP	B
+	POP	D
+	POP	H
+	RET
+
+;----------------------------------------------------------------------------
+set.graphics.bit:	;in the p3 byte of the .FIGS parameters
+	lda	p3DC
+	mov	b,a
+	lda	mask.graphics##
+	ora	b
+	sta	p3DC
+	ret
+
+RADIUS:		
+	dw	0000h	;0
+
+scratch:
+Addr.array:	;for the graphics cursor positioning algorithm
+	ds	28	;byte array size
+
+..Temp5:		
+	DB	95H,0FEH,0FFH
+..Temp8:		
+	DB	0
+..Temp9:	
+	DB	0,0
+
+;---------------------------------------------------------------------------
+linestyle:
+	sta	primitive.linestyle
+	ret
+
+Primitive.Linestyle:	db	000	;our line style for circles etc
+
+;----------------------------------------------------------------------------
+Do.line.Style:	;alter the parameter ram bytes to a particular linestyle
+;according to Primitive.linestyle
+	lda	primitive.linestyle
+	ani	07H	;mod 8
+	jnz	..hoppity
+	inr	a	;silly line style
+..hoppity:
+	dcr	a	;so it starts at 0
+	mov	l,a	;to filter silly values
+	mvi	H,0	;HL=style index
+	dad	h	;word values
+	lxi	d,line.masks
+	dad	d
+;sets the line type for drawing to the mask pointed to by HL
+	mov	e,m
+	inx	h
+	mov	d,m	;get the mask into DE
+load.line.mask:	;from DE into PRam
+	xchg
+	shld	..line.mask	;store it
+	lxi	h,..line.mask.orders
+	jmp	order.it##	;and tell the GDC
+	   
+..line.mask.orders:
+;*PRam*
+	db	03
+	db	.PRam+8
+..line.mask:
+	DW	0FFFFh	;dummy line mask
+
+line.masks:	;these are the eight linestyles that are specifiable for
+;the drawing of lines
+
+;** The required linestyles **
+;1-Solid	2-Dashed	3-Dotted	4-Dashed/dotted
+DW	1111111111111111B
+DW	0000000011111111B
+DW	0001110000011100B
+DW	0001100011111111B
+
+;** The extra linestyles **
+;5-Grey		6-little.Dash	7-little.dot	8-tiny.dot	
+DW	1010101010101010B
+DW	1111100011111000b
+DW	1110111011101110B
+DW	1100110011001100B
+
+Fill.Style.Index:	db	000	;defaults to solid
+
+;----------------------------------------------------------------------------
+correct:	;correct a parameter so that it can be 0-F
+	cpi	'A'
+	rc
+	ani	0dfh
+	sui	'7'
+	ret
+
+;----------------------------------------------------------------------------
+setfill:	;entry point to set the rectangle fill style
+	cpi	0ffH	;flagging hollow?
+	cnz	correct
+	ani	1fh
+	sta	fill.style.index
+	ret
+
+;----------------------------------------------------------------------------
+do.fill.style:	;from fill.style.index. This routine actually
+;fills the parameter Ram with the fill style
+	lda	fill.style.index
+	sta	texture.no
+	ani	0fH	;mod 16
+	mov	l,a	;to filter silly values
+	mvi	H,0	;HL=style index
+	dad	h
+	dad	h
+	dad	h	;*8
+	lxi	d,fill.mask.base##
+	dad	d
+	mvi	a,.PRam+8
+	call	toChip##
+	mvi	c,8
+	jmp	OutCHL##
+
+
+;----------------------------------------------------------------------------
+bar:	;draw a bar from XY lower left hand corner to XY (upper right hand
+;corner)
+	shld	low.left.pointer
+	call	point	;to lower left corner
+	lhld	low.left.pointer
+	call 	calc.delta
+	shld	rec.length
+	mov	a,h
+	ora	l
+	jz	line.instead	;prevent zero rectangle
+	dcx	h
+	mov	a,h
+	ora	l
+	jz	dubble.vert	;prevent zero rectangle
+	xra	a
+	sta	p1.line	;we may use this as an error flag
+	lhld	low.left.pointer
+	inx	h
+	inx	h		;point to the first Y position
+	call	calc.delta	 
+	shld	rec.height
+	mov	a,h
+	ora	l
+	jz	line.instead
+	dcx	h
+	mov	a,h
+	ora	l
+	jz	dubble.hoz	;prevent zero rectangle
+	call	do.fill.style	;set the fill style
+	lda	texture.no
+	cpi	16	;unless it is a hollow Bar, then fill it
+	cc	do.box	;fill it
+	call	do.line.style
+	call	do.rec	;and outline it
+	ret
+
+line.instead:	;if either a vertical or horizontal line
+	lhld	low.left.pointer
+	jmp	draw.line
+
+dubble.hoz:
+	lhld	low.left.pointer
+	inx	h
+	inx	h
+	jmp	double
+
+dubble.vert:
+	lhld	low.left.pointer
+double: 	;duplicate the vertex element pointed to by HL
+	push	h
+	mov	e,m
+	inx	h
+	mov	d,m
+	inx	h	;hop over the next vertex element
+	inx	h
+	inx	h
+	mov	m,e
+	inx	h
+	mov	m,d
+	call	draw.it
+	pop	h
+	call	bump.integer
+	inx	h
+	inx	h
+	inx	h
+	call	bump.integer
+draw.it:
+	lhld	low.left.pointer
+	jmp	draw.line
+
+bump.integer:
+	inr	m	
+	inx	h
+	rnc
+	inr	m
+	ret
+
+;----------------------------------------------------------------------------
+DO.REC:	;where rec.length contains horizontal dots(length), 
+;rec.height contains vertical dots (Height)
+	call	are.we.monochrome
+	jnz	draw.rec
+	lda	colour##
+	mvi	b,1		;blue for a boy
+	rar
+	push	psw
+	cc	do.colour.rec
+	pop	psw
+	rar
+	rar
+	mvi	b,2		;green
+	push	psw
+	cc	do.colour.rec
+	pop	psw
+	rar
+	rar
+	mvi	b,4
+	rnc	;cause the job is done
+do.colour.rec:
+	call	switch.colour.plane
+draw.rec:
+	lda	previous.Dad	;restore cursor
+	lhld	p1.curs
+	call	putcur		;place the marker correctly
+	CALL	do.rectangle.params	
+	MVI	A,.FigS	;figure specify
+	CALL	tochip##	;and send out command	
+	LXI	H,fig.type.DIR	
+	CALL	set.graphics.bit	
+	MVI	C,0BH	;in the order array
+	CALL	outCHL##	
+	MVI	A,.FigD	;and draw the figure
+	CALL	tochip##	;and send out command	
+	RET
+
+do.box:		 
+	call	are.we.monochrome
+	jnz	draw.box
+	lda	colour##
+	mvi	b,1		;blue for a boy
+	rar
+	push	psw
+	cc	do.colour.box
+	pop	psw
+	rar
+	rar
+	mvi	b,2		;green
+	push	psw
+	cc	do.colour.box
+	pop	psw
+	rar
+	rar
+	mvi	b,4
+	rnc	;cause the job is done
+do.colour.box:
+	call	switch.colour.plane
+	xthl
+	xthl
+	xthl
+	xthl	;pick ones teeth for a while
+draw.box:
+	lda	previous.Dad
+	lhld	p1.curs
+	call	putcur		;place the marker correctly
+	CALL	do.Box.Params	
+	MVI	A,.FigS	;4CH
+	CALL	tochip##	;and send out command	
+	LXI	H,fig.type.DIR	
+	CALL	set.graphics.bit	
+	MVI	C,0BH	;in the box order array
+	CALL	outCHL##	
+	MVI	A,.GChrD	;Draw the graphics character
+	CALL	tochip##	;and send out command	
+	RET
+
+do.rectangle.params:		 
+	PUSH	H
+	PUSH	D
+	PUSH	B
+	PUSH	PSW	;save the whole damned world
+	CALL	get.our.data
+	;HL=rectangle length,DE=rectangle height 
+	DCX	H
+	DCX	D
+	SHLD	D.Circle	;pixels in initial direction-1
+	SHLD	DM.Circle	;pixels in initial direction-1
+	XCHG
+	SHLD	d2.Circle	;no. of pixels at right angles
+;	SHLD	DM.Circle	
+	LXI	H,3
+	SHLD	p2dc	;DC=3 for some reason
+	LXI	H,03fffh	;-1
+	SHLD	d1.circle	;-1 in D1 for some reason
+	mvi	a,eastwards or (is.rectangle shl 3)	;42h
+	STA	fig.type.DIR	
+	POP	PSW
+	POP	B
+	POP	D
+	POP	H
+	RET
+
+get.our.data:	;On exit, HL=rectangle length,DE=rectangle height A=direction
+	LHLD	Rec.Height	
+	XCHG
+	LHLD	rec.length	
+	RET
+
+do.Box.Params:		 
+	PUSH	H
+	PUSH	D
+	PUSH	B
+	PUSH	PSW	;show how big our stack is!
+	CALL	get.our.data
+	;HL=rectangle length,DE=rectangle height A=direction
+	xchg
+	MOV	A,H
+	ANI	3fh	;strip out the naughty bits
+	MOV	H,A
+	DCX	H	;HL=pixels in the direction at right angles
+	SHLD	p2dc	;put it in DC
+	XCHG
+ 	SHLD	D.Circle	;no. of pixels in the initial direction
+	SHLD	d2.Circle	;no. of pixels in the initial direction
+	LXI	H,03fffh	;-1 as wanted by the 7220
+	SHLD	d1.circle	;in D1
+	SHLD	DM.Circle	;and in DM
+	mvi	a,eastwards or (is.GCharacter shl 3)
+	STA	fig.type.DIR	;
+	POP	PSW
+	POP	B
+	POP	D
+	POP	H
+	RET
+
+rec.length:		 
+	DB	0,0
+Rec.Height:		 
+	DB	0,0
+
+;----------------------------------------------------------------------------
+TextFont:	;set the text font
+	ret	;for the time being
+;----------------------------------------------------------------------------
+SetFontSize:
+	call	correct
+	ani	0fh
+	sta	text.height
+	ret
+
+Text.Height:	db	000
+
+;----------------------------------------------------------------------------
+Textdir:	;direction in A
+	ANI	0FH	;prune it
+	ORI	10H	;set the graphic char. bit
+	STA	gra.char.order	;store the direction parameter
+	ret
+
+;----------------------------------------------------------------------------
+String:		;do a byte string
+	xra	a	;A=nop
+	sta	self.modifying
+	jmp	.text
+
+;----------------------------------------------------------------------------
+DOTEXT:		;DE has the character count, HL points to the string
+;does an integer string
+	mvi	a,23H	;inx	h
+	sta	self.modifying
+.text:
+	push	h	;save string pointer
+	push	d
+	lda	text.height
+	call	zoom
+;are we sending black text?
+	lda	colour
+	ani	00010101B	;have we a foreground?
+	jrnz	..uncomplicated
+	mvi	a,@replace or .Wdat
+	call	tochip##
+..uncomplicated:
+	pop	d
+	pop	h	;restore string pointer
+	mov	a,e	;examine character count
+	ana	a
+	rz		;none to do if zero count
+	mov	c,e	;place the count in BC
+	mov	b,d
+.loop5:
+	MOV	A,M
+	INX	H
+self.modifying:	;god forgive me for this code
+	inx	H	;increment twice since every character
+;is stored as an integer
+	PUSH	H
+	PUSH	B
+	call	char.out
+	POP	B
+	POP	H
+	DCR	C
+	JNZ	.loop5
+	xra	a
+	call	Zoom
+	lda	.mode
+	jmp	reset.write.mode
+
+;-------------------------------------------------------------------------
+Char.Out:	;outputs the byte in A as a graphics character
+;according to a table at font8x8. The nos below 32 are reserved
+;so that nothing is printed for these.
+;it always increments the graphics cursor position to the next
+;character position
+	SUI	" "
+	rc	;return if below 20H (just a precaution)
+	sta	..character
+	xra	a
+	sta	colour##+1
+	call	are.we.monochrome
+	jnz	send.char	;if so just send it
+	sta	..gb1		;zero the graphics bit
+	call	where.are.we##
+	sta	..Dad		;find out the cursor address
+	xchg
+	shld	..Ead
+	mvi	a,1		;select plane 1
+	sta	colour+1
+	call	send.char
+	mvi	a,2		;select plane 2
+	call	pos.and.send
+	mvi	a,4		;select plane 3
+pos.and.send:	;position and send the character
+	sta	colour+1
+	lda	..Dad
+	lhld	..Ead
+	call	putcur##	;reposition the cursor		
+send.char:	;to the VRAM at the current cursor location
+	lda	..character
+	mov	l,a
+	mvi	h,0
+	lxi	D,Font8x8##
+	DAD	H	;*2
+	DAD	H	;*4
+	DAD	H	;*8
+	DAD	D	;add to the base of the array
+	lxi	d,gra.char.order
+	jmp	spit.it.out##
+
+..Dad:		db	000	;the dot address
+..Ead:		dw	000	;The word address
+..character:	db	000	;the current character 
+
+gra.char.order:		
+	DB	10H
+	db	7H
+..gb1:	db	'@'
+
+
+
+
+;----------------------------------------------------------------------------
+HLminusBCxDE:
+	mvi	a,0
+	cmp	e
+	jz	..on6
+	dad	b
+	dcr	e
+	jmp	HLminusBCxDE
+
+..on6:	cmp	d
+	rz
+	dad	b
+	dcr	e
+	dcr	d
+	jmp	HLminusBCxDE
+
+
+end
+										     
+
+;*** Here Endeth the Module ***
