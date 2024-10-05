@@ -1,0 +1,1502 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS RS232 serial i/o
+
+	name	('u7201')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; ALPHA Aug 8,83
+; BETA  Dec 5,83
+; BETA+ Jan 5,84
+;       Feb 20,84 Serial clock corrected
+; REV-A Apr 30,84
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+	cseg		;GENCPM puts CSEG code in resident common memory
+
+;====================================================
+; user defined serial/parallel character I/O routines
+;====================================================
+
+;Character device initialisation (Cold Boot)	
+
+	public	initsio			; initialise main SIO
+	public	initx1sio		; initialise 1st optional SIO board
+	public	initx2sio		; initialise 2nd optional SIO board
+	public	@sio0a,@sio0b		; Main SIO parameters
+	public	@sio1a,@sio1b		; 1st optional SIO parameters
+	public	@sio2a,@sio2b		; 2nd optional SIO parameters
+
+
+;KEYBOARD - Main board serial port (1200 baud)
+
+	public	kbdst,kbdin
+	public	key$baud,key$set	; set up baud & SIO
+	public	?kbdint			; interrupt routine
+
+; Special keybaord functions - PFNTABLE.MAC
+
+	public	kbdret			; keyboard function return
+	public	set$sd$flag		;set flag for later screendump
+	public	sf1$key			; set multifont key 1
+	public	sf2$key			; set multifont key 2
+	public	sf3$key			; set multifont key 3
+	public	sf4$key			; set multifont key 4
+	public	xchee			; caps lock
+	public	kbdstr			; insert string to k'bd FIFO buffer
+	public	kbdfifo			;insert char in A into FIFO
+
+;Main Serial SIO
+
+	public	ser1in,ser1out		; Main Serial I/O char i/o
+	public	ser1sin,ser1sot
+	public	ser1baud,ser1set
+	public	@sio0a			; table of SIO parameters
+	public	@sio0b			; table of SIO parameters
+
+; 1st Option Serial SIO-A & SIO-B
+
+	public	ser2in,ser2out		; Option Serial-A I/O char i/o
+	public	ser2sin,ser2sot
+	public	ser2baud,ser2set
+	public	ser3in,ser3out		; Option Serial-B I/O char i/o
+	public	ser3sin,ser3sot
+	public	ser3baud,ser3set
+	public	@sio1a			; table of SIO parameters
+	public	@sio1b			; table of SIO parameters
+
+; 2nd Option Serial SIO-A & SIO-B
+
+	public	ser4in,ser4out		; Option Serial-A I/O char i/o
+	public	ser4sin,ser4sot
+	public	ser4baud,ser4set
+ 	public	ser5in,ser5out		; Option Serial I/O char i/o
+ 	public	ser5sin,ser5sot
+	public	ser5baud,ser5set
+	public	@sio2a			; table of SIO parameters
+	public	@sio2b			; table of SIO parameters
+
+;-------------------------------------------------------------
+; PUBLIC SYMBOLS IN EPSON QX-10 CPM3 BIOS
+;-------------------------------------------------------------
+
+;KEYTABLE.MAC - keybard position coding tables
+
+	extrn	@pfntble		; table of PF Key pointers
+	extrn	@kbtab			; Keyboard position table
+	extrn	@complex		; Special & PFN table
+
+; character i/o
+
+	extrn	crtout			; direct screen output
+
+; user defined character I/O routines
+
+	extrn	@cpm3b			; CP/M 3 baud rate table
+
+; ARMC routines & status bytes
+
+	extrn	scrnd,style,pr.style	; Screendump and font styles
+
+; memory control
+
+	extrn	@cbnk,@sbnk,@tbnk	; current, system and tpa bank number
+	extrn	?tpabnk,?sysbnk		; select TPA or SYS bank
+	extrn	?bank			; select bank in <A>
+	extrn	?goint		; conditional switch to system bank
+	extrn	?reti		; conditional restore of callers bank
+
+;------------------------------------------------------------------
+
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+	maclib	CBIOS.EQU	; QX-10 hardware ports and equates
+
+	maclib	8253.EQU	; CTC hardware ports and equates
+xclk$f	equ	6000		; frequency 1536000 = 6000 * 256 hertz
+
+	maclib	7201.EQU	; SIO ports
+
+	maclib	X7201.EQU	; Optional expansion SIO ports
+
+;-----------------------------------------------------------------
+;Epson interrupt vectors
+
+;EPSON CP/M: inttab	equ	0fd80h	; base of interrupt vector
+inttab	equ	0fe00h		; base of interrupt vector
+intpwr	equ	inttab+0	; power down
+intstm	equ	inttab+4	; soft timer
+intx1	equ	inttab+8	; ext int 1
+intx2	equ	inttab+12	; ext int 2
+int201	equ	inttab+16	; 7201 interrupt
+int220	equ	inttab+20	; 7220 interrupt
+intfdc	equ	inttab+24	; 765 fdc interrupt
+
+int255	equ	inttab+32	; 8255 interrupt
+intx3	equ	inttab+36	; ext int 3
+int818	equ	inttab+40	; 46818 interrupt
+intx4	equ	inttab+44	; ext int 4
+intx5	equ	inttab+48	; ext int 5
+inttm2	equ	inttab+52	; soft timer 2
+intx6	equ	inttab+56	; ext int 6
+intx7	equ	inttab+60	; ext int 7
+inttop	equ	inttab+64	; top of interrupt jumps
+
+
+	page
+
+;                           =======================
+;                           PHYSICAL DEVICE DRIVERS
+;                           =======================
+
+;=====================================================================
+;KEYBOARD - Main board serial port (1200 baud)
+;
+; kbdst	- return character status (0= not ready)
+;
+; kbdin - read next character from fifo buffer - wait if none
+;
+; sioint - keyboard interrupt: read character, convert and add to fifo
+;
+;=====================================================================
+
+	dseg		; as system bank already called
+;-----
+kbdst:			;keyboard status
+	ld	hl,dump$screen	;should we dump the screen to the printer
+	ld	a,(hl)
+	and	a
+	ld	(hl),0		;preserve flags but reset screendump flag
+	call	nz,scrnd
+	ld	a,(fifst1a)	; 0= not ready, -1 = ready
+	ret
+
+;-----
+kbdin:			;keyboard character input
+	ld	a,fif1al
+	ld	hl,fif1ar
+	jp	exfifo		; extract character from fifo buffer
+
+;----------------------------------------------------------------------------
+; sioint	Main serio i/o interrupt (Keyboard & serial port)
+;
+; Read character from keyboard or main serial port
+; If keyboard character, decode position encoding
+; and either add character to fifo buffer, or perform special functions
+; remember this is an interrupt so keep it quick
+;----------------------------------------------------------------------------
+
+	cseg		; all interrupt handling must start in common
+
+?kbdint:		; interrupt routine
+sioint:			;keyboard interrupt
+
+	ld	(INTsp),sp
+	ld	sp,INTsp
+
+	call	?goint		; conditional switch to system bank
+
+	jp	kbdint1
+
+	dseg		; as now in system bank
+
+;----------------------------------------------------------------------
+; 7201 device differs from Z80-SIO in a number of significant respects
+; 1. Interrupt Pending bit 1 of main register is only set in NON-Vectored
+;    interrupt mode, when Status Register 2B is read (and the 7201 is
+;    requesting interrupt service). In Vectored Interrupt Mode, it is
+;    set during the interrupt acknowledge cycle.
+; 2. The Interrupt Pending bit 1 is reset only when the End Of Interrupt
+;    command is issued (if there are no pending interrupt requests)
+; 3. In non vectored interrupt mode, the Interrupt Acknowledge sequence
+;    is simulated by reading the vector in Status Register 2B.
+;----------------------------------------------------------------------
+
+kbdint1:
+	ld	c,sio$as
+	in	a,(c)
+
+	bit	0,a		; test if rx full
+	jr	nz,kbdrx
+
+	inc	c		; to next device (sio$bs)
+	in	a,(c)		; test serial port
+	bit	0,a		; test if rx full
+	jr	z,sioclr	; neither serial ports caused interrupt 
+
+; main serial port Rx character
+ser1rx:	ld	a,1
+	out	(c),a		; access register 1
+	in	a,(c)		; read status 2
+	and	01110000b
+	in	a,(sio$bd)	; input byte from SIO
+	call	nz,sioerr	; read error
+
+	ld	d,fif1bl	; length of buffer -1
+	ld	hl,fif1br	; pointer to last character removed
+	call	addfifo		; add character to fifo buffer (save <C>)
+	jr	siotst
+
+; keyboard position code
+kbdrx:	ld	a,1
+	out	(c),a		; access register 1
+	in	a,(c)		; read status 2
+	and	01110000b
+	in	a,(sio$ad)	; input byte from SIO
+	call	nz,sioerr	; read error
+
+	call	kbdpos		; convert into ascii and add to fifo
+
+; test result of addition to fifo
+siotst:
+	call	c,intbell	; error so ring bell
+	jr	kbdint1		; and test for any more
+
+sioerr:			; read error <C> -> status port
+	push	af		; save input character
+	ld	a,00110000b	; Error reset
+	out	(c),a
+	call	intbell		; error so ring bell
+	pop	af
+	ret
+
+sioclr:			; Reset any other possible cause of interrupts
+ 	ld	a,000010000b	; reset external/status interrupts
+	out	(sio$ac),a
+	out	(sio$bc),a
+
+ 	ld	a,000101000b	; reset transmitter interrupt
+	out	(sio$ac),a
+	out	(sio$bc),a
+
+	ld	a,00111000b	; End of interrupt as finished all processing
+	out	(sio$ac),a	; (channel A only)
+
+	jp	?reti
+
+intbell:			; RING bell
+	xor	a
+	out	(clk$b),a	; set timer constant to 1000h
+	ld	a,16
+	out	(clk$b),a
+
+	in	a,(getbnk)
+	and	not 1111b	; remove FDD bits
+	or	1		; this will ring bell
+	out	(setbnk),a	; (and re-select current bank)
+
+	ret
+
+	page
+
+	dseg		; as system bank selected
+;----------------------------------------------------------------------
+; kbdpos	Decode keyboard position in <A> into ascii character
+; Returns:	CARRY SET if error
+;----------------------------------------------------------------------
+kbdpos:
+	cp	080h		; test for SHIFT/CTRL/GRPH keys
+	jp	nc,ky60
+;
+	ld	hl,@kbtab	; keyboard position table
+	ld	c,a
+	ld	b,0
+	add	hl,bc
+	cp	30h		; test for keypad or function keys
+	jr	c,ky40		; -yes-
+	ld	de,(kbdcase)	; add any case offset
+	add	hl,de	
+ky40:	ld	a,(hl)
+	cp	0ffh		; test for funtion key
+	jr	z,kbdfunct	; function key or special character
+
+;---------------------------------------------------
+; kbdfifo - Add character in <A> to fifo buffer
+; RETURN:	carry set if fifo full
+; DESTROYED:	<A>, <HL>, <DE>
+;---------------------------------------------------
+kbdfifo:
+	ld	d,fif1al	; length of buffer -1
+	ld	hl,fif1ar	; pointer to last character removed
+	jp	addfifo		; add character to fifo buffer
+
+;-----------------------------------------------------
+; function or special characters (ASCII code = 0ffh)
+; Use special table to return either character string,
+; or perform special function
+;
+; ENTRY:	<BC> = key position code
+; RETURN:	carry set if error or fifo full
+;-----------------------------------------------------
+kbdfunct:
+	ld	hl,@complex
+	add	hl,bc
+	add	hl,bc
+	ld	a,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,a		; (hl) -> string definition or special process
+
+	ld	a,(hl)
+	or	a		;<HL>=string, 1st byte = max len or 0
+	jr	z,kbdspec
+;-----------------------------------------------------
+; KBDSTR
+; Add string of characters to keyboard FIFO buffer
+; ENTRY:	<HL> -> start of character string
+;	where	(hl) = maximum number of characters
+;		(hl+1) = length of string
+;		(hl+2) = start of string
+; RETURN:	carry set if error or fifo full
+; Function:	Public entry point for CONOUT to read
+;		contents of function key.		
+; Destroys:	Registers <A), <BC>, <DE> & <HL>
+;-----------------------------------------------------
+kbdstr:
+	inc	hl
+	ld	b,(hl)		;<HL>=string, 2nd byte = count
+kbdstr1:
+	inc	hl
+	ld	a,b
+	or	a
+	ret	z		; successfull end of string, CF = 0
+	dec	b
+	push	bc
+	push	hl
+	ld	a,(hl)		;<HL>=string, remaining bytes = character string
+	call	kbdfifo		; add to fifo buffer
+	pop	hl
+	pop	bc
+	ret	c		; error occured in adding byte, CF = 1
+	jr	kbdstr1
+
+;-----------------
+; special function
+;-----------------
+kbdspec:
+	inc	hl
+	ld	a,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,a
+	jp	(hl)
+
+
+;=======================
+;SHIFT/CTRL or GRPH keys
+;=======================
+ky60:	ld	hl,kbdstatus
+	or	a
+	rra	
+	ld	b,0
+	rl	b		; move MAKE bit into <B>
+	rlca			;<A> = key without direction bit, <B> = direction bit
+
+	cp	8ah		; CTRL key
+	jr	nz,ky61
+	res	5,(hl)		; break
+	bit	0,b	
+	jr	z,ky70
+	set	5,(hl)		; make
+	jr	ky70
+
+ky61:	cp	8ch		; GRPH key
+	jr	nz,ky62
+	res	2,(hl)		; break
+	bit	0,b	
+	jr	z,ky70
+	set	2,(hl)		; make
+	jr	ky70
+
+ky62:	cp	84h		; right SHIFT key
+	jr	z,ky63
+	cp	86h		; left SHIFT key
+	jr	nz,ky64
+ky63:	res	0,(hl)		; break
+	bit	0,b	
+	jr	z,ky70
+	set	0,(hl)		; make
+	jr	ky70
+
+ky64:
+	scf			; set carry flag as should never get here
+	ret
+
+;-------------------------------------;
+; caps lock entry from @complex table ;
+;-------------------------------------;
+xchee:			; caps lock
+	ld	hl,kbdstatus
+	ld	a,(hl)
+	xor	2		; togle caps status
+	ld	(hl),a
+
+	and	2
+	rra			; move to bit 0
+	or	01000000b	; turn on/off caps LED (No 0)
+	out	(sio$ad),a	; and send to keyboard
+
+; set case status 
+;
+; 1st table 00-7fh           (any key pos 00h-2fh)
+; 2nd table 30-7fh bias=000h (CTRL)
+; 3rd table 30-7fh bias=050h (GRPH)
+; 4th table 30-7fh bias=0a0h (un-shift, no caps)
+; 5th table 30-7fh bias=0f0h (shift, no caps)
+; 6th table 30-7fh bias=140h (un-shift, caps)
+; 7th table 30-7fh bias=190h (shift, caps)
+
+ky70:
+	ld	bc,0h
+	bit	5,(hl)		; ctrl ?
+	jr	nz,ky79		;-yes-	(this has priority over all others)
+	ld	bc,050h
+	bit	2,(hl)		; GRPH SHIFT ?
+	jr	nz,ky79		;-yes-	(this has priority over SHIFT & CAPS)
+	ld	bc,0a0h
+	bit	0,(hl)		; SHIFT ?
+	jr	z,ky71		;-no-
+	ld	bc,0f0h		;-yes-
+ky71:	bit	1,(hl)		; CAPS
+	jr	z,ky79		;-no-
+	ld	hl,050h*2
+	add	hl,bc
+	ld	b,h
+	ld	c,l
+ky79:	ld	(kbdcase),bc
+	and	a		; carry flag cleared
+	ret
+
+kbdret:	ret
+
+	cseg		; should be in common I think
+kbdstatus:	db	0	; status of SHIFT/CTRL/GRPH/CAPS keys
+kbdcase:	dw	0a0h	; table offset for SHIFT/CTRL/GRPH/CAPS
+	dseg
+
+;==================================
+;Keypress service routines  A.R.M.C.   
+;==================================
+set$sd$flag:	;set flag to suggest that in future it would be nice
+;if we could do a screendump
+	xor	a
+	dec	a
+	ld	(dump$screen),a
+	ret
+
+dump$screen:	db	000	;screendump boolean
+
+sf1$key:	;react to press of style key 1
+	ld	bc,084eH
+	jr	do.style
+sf2$key:	;react to press of style key 2
+	ld	bc,044cH
+	jr	do.style
+sf3$key:	;react to press of style key 3
+	ld	bc,024AH
+	jr	do.style
+sf4$key:	;guess what
+	ld	bc,0148H
+do.style:
+	ld	hl,key$style
+	ld	a,(hl)
+	xor	b
+	ld	(hl),a		;toggle style
+	and	b		;zero if we switched off
+	ld	a,c
+	jr	z,do$led	;bit 0 is zero if switch off
+	inc	a		;set bit 0
+do$led:	out	(sio$ad),a	;send command to keyboard
+	ld	a,3		;convert to internal representation
+	add	a,(hl)
+	ld	(style),a
+	ld	(pr.style),a
+	ret
+
+key$style:	db	000	;what we remember to be the style
+	
+	page
+
+;===============
+;Main Serial SIO
+;===============
+
+	dseg		; as system bank already selected
+
+;--------------------------------------------------
+ser1sin:	; Main Serial I/O char input status
+;--------------------------------------------------
+	ld	a,(fifst1b)	; 0= not ready, -1 = ready
+	ret
+
+;-------------------------------------------
+ser1in:		; Main Serial I/O char input
+;-------------------------------------------
+	ld	a,fif1bl	; length of buffer -1
+	ld	hl,fif1br
+	jp	exfifo
+
+
+;---------------------------------------------------
+ser1sot:	; Main Serial I/O char output status
+;---------------------------------------------------
+	ld	c,sio$bs	; Channel B status
+sersot:	in	a,(c)
+	and	0100b		; test if TX empty
+	ret	z		; return with NOT READY status
+	or	0ffh		; return with READY status
+	ret
+
+;--------------------------------------------
+ser1out:	; Main Serial I/O char output
+;--------------------------------------------
+	ld	c,sio$bd	; Channel B data
+serout:	out	(c),a		; XMIT character
+	ret
+
+;			=======================
+;			Option RS-232C I/F card
+;			=======================
+
+;=======================
+;1st Option Serial SIO-A
+;=======================
+
+;----------------------------------------------------
+ser2sin:	; Option Serial I/O char input status
+;----------------------------------------------------
+	ld	a,(fifst2a)	; 0= not ready, -1 = ready
+	ret
+
+;---------------------------------------------
+ser2in:		; Option Serial I/O char input
+;---------------------------------------------
+	ld	a,fif2al	; length of buffer -1
+	ld	hl,fif2ar
+	jp	exfifo
+
+;-----------------------------------------------------
+ser2sot:	; Option Serial I/O char output status
+;-----------------------------------------------------
+	ld	c,x1sio$as	; Channel A status
+	jr	sersot
+
+;----------------------------------------------
+ser2out:	; Option Serial I/O char output
+;----------------------------------------------
+	ld	c,x1sio$ad	; Channel A data
+	jr	serout		; XMIT character
+
+;=======================
+;1st Option Serial SIO-B
+;=======================
+
+;----------------------------------------------------
+ser3sin:	; Option Serial I/O char input status
+;----------------------------------------------------
+	ld	a,(fifst2b)	; 0= not ready, -1 = ready
+	ret
+
+;---------------------------------------------
+ser3in:		; Option Serial I/O char input
+;---------------------------------------------
+	ld	a,fif2bl	; length of buffer -1
+	ld	hl,fif2br
+	jp	exfifo
+
+;-----------------------------------------------------
+ser3sot:	; Option Serial I/O char output status
+;-----------------------------------------------------
+	ld	c,x1sio$bs	; Channel B status
+	jr	sersot
+
+;----------------------------------------------
+ser3out:	; Option Serial I/O char output
+;----------------------------------------------
+	ld	c,x1sio$bd	; Channel B data
+	jr	serout		; XMIT character
+
+;=======================
+;2nd Option Serial SIO-A
+;=======================
+
+;----------------------------------------------------
+ser4sin:	; Option Serial I/O char input status
+;----------------------------------------------------
+	ld	a,(fifst3a)	; 0= not ready, -1 = ready
+	ret
+
+;---------------------------------------------
+ser4in:		; Option Serial I/O char input
+;---------------------------------------------
+	ld	a,fif3al	; length of buffer -1
+	ld	hl,fif3ar
+	jp	exfifo
+
+;-----------------------------------------------------
+ser4sot:	; Option Serial I/O char output status
+;-----------------------------------------------------
+	ld	c,x2sio$as	; Channel A status
+	jr	sersot
+
+;----------------------------------------------
+ser4out:	; Option Serial I/O char output
+;----------------------------------------------
+	ld	c,x2sio$ad	; Channel A data
+	jr	serout		; XMIT character
+
+;=======================
+;2nd Option Serial SIO-B
+;=======================
+
+;----------------------------------------------------
+ser5sin:	; Option Serial I/O char input status
+;----------------------------------------------------
+	ld	a,(fifst3b)	; 0= not ready, -1 = ready
+	ret
+
+;---------------------------------------------
+ser5in:		; Option Serial I/O char input
+;---------------------------------------------
+	ld	a,fif3bl	; length of buffer -1
+	ld	hl,fif3br
+	jp	exfifo
+
+;-----------------------------------------------------
+ser5sot:	; Option Serial I/O char output status
+;-----------------------------------------------------
+	ld	c,x2sio$bs	; Channel B status
+	jr	sersot
+
+;----------------------------------------------
+ser5out:	; Option Serial I/O char output
+;----------------------------------------------
+	ld	c,x2sio$bd	; Channel B data
+	jr	serout		; XMIT character
+
+	page
+
+
+;			=======================
+;			Option RS-232C I/F card
+;			=======================
+
+;----------------------------------------------------------------------------
+; x1sioint	1st Optional RS-232C i/o
+;
+; Read character from either port A or port B
+; and add character to respective fifo buffer
+; remember this is an interrupt so keep it quick
+;----------------------------------------------------------------------------
+
+	cseg		; all interrupt handling must start in common
+
+x1sioint:		; interrupt routine
+	ld	(intsp),sp
+	ld	sp,intsp	; use local stack
+	call	?goint		; conditional switch to system bank
+	jp	x1sint1
+
+	dseg		; as now in system bank
+x1sint1:
+	ld	c,x1sio$as	; Channel A status
+	ld	d,fif2al	; length of buffer -1
+	ld	hl,fif2ar	; pointer to last character removed
+	in	a,(c)
+	bit	0,a		; test if rx full
+	jr	nz,x1siorx
+
+	inc	c
+	inc	c		; Channel B status
+	ld	d,fif2bl	; length of buffer -1
+	ld	hl,fif2br	; pointer to last character removed
+	in	a,(c)		; test serial port
+	bit	0,a		; test if rx full
+	jr	z,xsioclr	; neither serial ports caused interrupt 
+; Option 1 SIO has character in receive buffer
+x1siorx:
+	call	xsiorx
+	jr	x1sint1
+
+
+;----------------------------------------------------------------------------
+; x2sioint	2nd Optional RS-232C i/o
+;
+; Read character from either port A or port B
+; and add character to respective fifo buffer
+; remember this is an interrupt so keep it quick
+;----------------------------------------------------------------------------
+
+	cseg		; all interrupt handling must start in common
+
+x2sioint:		; interrupt routine
+	ld	(intsp),sp
+	ld	sp,intsp	; use local stack
+	call	?goint		; conditional switch to system bank
+	jp	x2sint1
+
+	dseg		; as now in system bank
+x2sint1:
+
+	ld	c,x2sio$as	; Channel A status
+	ld	d,fif3al	; length of buffer -1
+	ld	hl,fif3ar	; pointer to last character removed
+	in	a,(c)
+	bit	0,a		; test if rx full
+	jr	nz,x2siorx
+
+	inc	c
+	inc	c		; Channel B status
+	ld	d,fif3bl	; length of buffer -1
+	ld	hl,fif3br	; pointer to last character removed
+	in	a,(c)		; test serial port
+	bit	0,a		; test if rx full
+	jr	z,xsioclr	; neither serial ports caused interrupt 
+
+; Option 2 SIO has character in receive buffer
+x2siorx:
+	call	xsiorx
+	jr	x2sint1
+
+;----------------------------------------------------------------------------
+; x1sioint & x2sioint - common modules
+; Entry:	<C> -> status/command port
+;		<D> =  length of buffer -1
+;		<HL> -> last character removed
+;----------------------------------------------------------------------------
+
+; Optional serial port Rx character
+; on entry <C> -> status/command port
+xsiorx:
+	ld	a,1
+	out	(c),a		; read register 1
+	in	a,(c)		; read status 2
+	dec	c		; prepare for data register
+	and	01110000b	; test error
+	in	a,(c)		; input byte from SIO
+	call	nz,sioerr	; read error
+
+	call	addfifo		; add character to fifo buffer (<C> saved)
+
+; test result of addition to fifo
+	call	c,intbell	; error so ring bell
+	ret
+
+; Reset any other possible cause of interrupts
+xsioclr:
+	ld	a,c		; Channel port address
+	and	not 11b		; Channel A data
+	inc	c		; command
+	ld	c,a
+
+ 	ld	a,000010000b	; reset external/status interrupts
+	out	(c),a		; channel A
+ 	ld	a,000101000b	; reset transmitter interrupt
+	out	(c),a		; channel A
+
+	inc	c
+	inc	c
+ 	ld	a,000010000b	; reset external/status interrupts
+	out	(c),a		; channel B
+ 	ld	a,000101000b	; reset transmitter interrupt
+	out	(c),a		; channel B
+
+	dec	c
+	dec	c
+	ld	a,00111000b	; End of interrupt as finished all processing
+	out	(c),a		; channel A (only)
+
+	jp	?reti		; and return from interrupt
+				; (with (SP) -> callers bank)
+
+
+	dseg			; remainder in system bank
+
+	page
+
+;			============
+;			FIFO BUFFERS
+;			============
+
+;-------------------------------------------------------;
+;	remove	          v	last byte removed	;
+;		:::::::::::::::: - empty (fifst = 0)	;
+;	fill	          ^	last byte added		;
+;							;
+;	remove	          v				;
+;		:::::::::::1::::			;
+;	fill	           ^				;
+;							;
+;	remove	          v				;
+;		6789012345:12345 - nearly full		;
+;	fill	         ^				;
+;							;
+;	remove	          v     last byte removed	;
+;		6789012345612345 - full (fifst = -1)   	;
+;	fill	          ^	last byte added		;
+;-------------------------------------------------------;
+
+;----------------------------------------------------------------------
+; Keyboard fifo input buffer
+; fifo bytes must be in this order
+;----------------------------------------------------------------------
+fifst1a:
+	db	0		; set to 0ffh when buffer has character
+fif1af:	db	0		; last byte to fill
+fif1ar:	db	0		; last byte removed
+fif1a:	ds	16		; 16 byte buffer
+fif1al	equ	$-fif1a-1	; length of buffer less 1
+
+
+;----------------------------------------------------------------------
+; Main Serial i/o port fifo input buffer
+; fifo bytes must be in this order
+;----------------------------------------------------------------------
+fifst1b:
+	db	0		; set to 0ffh when buffer has character
+fif1bf:	db	0		; last byte to fill
+fif1br:	db	0		; last byte removed
+fif1b:	ds	16		; 16 byte buffer
+fif1bl	equ	$-fif1b-1	; length of buffer less 1
+
+;----------------------------------------------------------------------
+; 1st Optional Serial i/o port-A fifo input buffer
+; fifo bytes must be in this order
+;----------------------------------------------------------------------
+fifst2a:
+	db	0		; set to 0ffh when buffer has character
+fif2af:	db	0		; last byte to fill
+fif2ar:	db	0		; last byte removed
+fif2a:	ds	16		; 16 byte buffer
+fif2al	equ	$-fif2a-1	; length of buffer less 1
+
+;----------------------------------------------------------------------
+; 1st Optional Serial i/o port-B fifo input buffer
+; fifo bytes must be in this order
+;----------------------------------------------------------------------
+fifst2b:
+	db	0		; set to 0ffh when buffer has character
+fif2bf:	db	0		; last byte to fill
+fif2br:	db	0		; last byte removed
+fif2b:	ds	16		; 16 byte buffer
+fif2bl	equ	$-fif2b-1	; length of buffer less 1
+
+;----------------------------------------------------------------------
+; 2nd Optional Serial i/o port-A fifo input buffer
+; fifo bytes must be in this order
+;----------------------------------------------------------------------
+fifst3a:
+	db	0		; set to 0ffh when buffer has character
+fif3af:	db	0		; last byte to fill
+fif3ar:	db	0		; last byte removed
+fif3a:	ds	16		; 16 byte buffer
+fif3al	equ	$-fif3a-1	; length of buffer less 1
+
+;----------------------------------------------------------------------
+; 2nd Optional Serial i/o port-B fifo input buffer
+; fifo bytes must be in this order
+;----------------------------------------------------------------------
+fifst3b:
+	db	0		; set to 0ffh when buffer has character
+fif3bf:	db	0		; last byte to fill
+fif3br:	db	0		; last byte removed
+fif3b:	ds	16		; 16 byte buffer
+fif3bl	equ	$-fif3b-1	; length of buffer less 1
+
+	page
+
+; =========================================
+; General utilities to support fifo buffers
+; =========================================
+
+;----------------------------------------------------------------------
+; addfifo - Add character in to fifo buffer
+; Entry:	<A> contains character to add to buffer
+;		<D> = length-1 of fifo buffer
+;		<HL> -> fifo parameter block
+;		<C> = port number
+; RETURN:	carry set if fifo full, <C> preserved
+; DESTROYED:	<A>, <HL>, <DE>
+; NOTE: interrupts must be disabled whenever this routine is called
+;----------------------------------------------------------------------
+addfifo:
+	ld	(fifochar),a	; and temporarily save
+	ld	a,(hl)		; last character removed
+	dec	hl
+	ld	e,(hl)		; last character filled
+	dec	hl		; pointer to fifo status
+	cp	e		; test if removed = filled
+	jr	nz,fifoadd	; -no-
+	ld	a,(hl)		; -yes- test if fifo empty or full
+	or	a
+	scf			; set error flag in case
+	ret	nz		; -full-
+fifoadd:
+	or	-1
+	ld	(hl),a		; set status to ready
+	inc	e
+	ld	a,d		; length of buffer -1
+	cp	e
+	jr	nc,fiford
+	xor	a
+	ld	e,a
+fiford:	inc	hl		; pointer to byte to fill
+	ld	(hl),e		; update last character filled
+	inc	hl		; pointer to byte removed
+	inc	hl		; pointer to fifo buffer
+	ld	d,0		; fifo buffer
+	add	hl,de		; pointer to byte to be filled
+	ld	(hl),0		; add character to fifo
+fifochar	equ	$-1
+	xor	a
+	ret			; return with carry not set
+
+;----------------------------------------------------------------------
+; EXFIFO
+; Entry:	<A> = length of buffer -1
+; 		<HL> -> fifo parameter block
+; Return:	Set 'EMPTY' status of fifo parameter block
+; Function:	Take character out of fifo buffer.
+;		this assumes fifo status already tested.  
+;----------------------------------------------------------------------
+exfifo:
+	di			; must disallow update of FIFO
+	ld	e,(hl)		; offset to last character removed
+	inc	e		; move to next character
+	cp	e		; test with length-1
+	jp	nc,efiupd
+	ld	e,0		; > length-1 so set to zero
+efiupd:
+	ld	(hl),e		; update last character removed
+	dec	hl
+	ld	a,(hl)		; offset to last character added
+	sub	e		; see if same
+	jp	nz,efird
+	dec	hl		; -yes- taken last character
+	ld	(hl),a		; set status to not ready
+	inc	hl
+efird:
+	inc	hl
+	inc	hl		; fifo buffer
+	ld	d,0
+	add	hl,de
+	ld	a,(hl)		; character
+
+	ei			; breath again
+	ret
+
+	page
+
+; ===================================
+; set baud rates for main SIO devices
+; <C> = CP/M Plus baud rate number
+; <A> -> SIO register 4
+; destoys:	<A> <BC> <DE> <HL>
+; ===================================
+
+	dseg		; as system bank already selected
+set$baud:		; <A> -> SIO register 4
+	call	baudrate	; returns <D>, <BC> = clock rate
+sb$dvd:
+	push	hl
+	ld	hl,(sb$div)
+	inc	hl
+	ld	(sb$div),hl
+	pop	hl
+
+	add	hl,bc
+	adc	a,d
+	cp	clk$f/256	; timer clock
+	jr	c,sb$dvd
+	jr	nz,sb$cnt
+	ld	e,a		; save <A>
+	ld	a,h
+	cp	clk$f and 0ffh	; timer clock
+	ld	a,e
+	jr	c,sb$dvd
+sb$cnt:
+	ld	hl,(sb$div)
+	ex	de,hl		; <DE> = count
+;
+	ld	hl,clk$no	; required port
+	ld	a,(hl)
+	or	11b		; change to command port
+	ld	c,a
+	ld	a,(hl)		; required port
+	and	11b		; mask port number
+	rrca
+	rrca			; move to bit 6 & 7
+	or	110110b		; and add clock command
+	out	(c),a		; set timer counter mode
+
+	ld	c,(hl)		; required port
+	ld	a,e
+	out	(c),a		; set low bit rate
+
+	ld	a,d
+	out	(c),a		; set high bit rate
+
+	ret
+
+; =======================================
+; set baud rates for optional SIO devices
+; <C> = CP/M Plus baud rate number
+; <A> -> SIO register 4
+; =======================================
+
+xset$baud:		; <A> -> SIO register 4
+	call	baudrate	; returns <DEHL>=0, <BC> = rate
+xsb$dvd:
+	push	hl
+	ld	hl,(sb$div)
+	inc	hl
+	ld	(sb$div),hl
+	pop	hl
+
+	add	hl,bc
+	adc	a,d
+	cp	xclk$f/256	; timer clock
+	jr	c,xsb$dvd
+	jr	nz,sb$cnt
+	ld	e,a		; save <A>
+	ld	a,h
+	cp	xclk$f and 0ffh	; timer clock
+	ld	a,e
+	jr	c,xsb$dvd
+	jr	sb$cnt
+; --------------------------------------------
+; common module for main & optional baud rates
+; <C> = CP/M Plus baud rate number
+; <A> -> SIO register 4 (for clock multiple)
+; returns:	<D> <BC> = 3 byte clock rate
+; --------------------------------------------
+baudrate:		; <A> -> SIO register 4
+	ld	b,0
+	ld	hl,@cpm3b
+	add	hl,bc
+	add	hl,bc
+	ld	c,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,c		; <hl> = required baud rate
+
+	and	11000000b	; 00 = X1, 01 = X16, 10 = X32, 11 = X64
+	rlca
+	rlca			; = 0, 16, 32 or 64
+	jr	z,retrate
+;------------------------------------
+; adjust baud rate for clock multiple
+;------------------------------------
+	add	a,3		; <A> = 4, 5, or 6 (16x, 32x or 64x)
+	ld	b,a
+	xor	a
+adjclk:	add	hl,hl
+	adc	a,a		; *2
+	djnz	adjclk		; *16, or x32, or x64
+
+retrate:			; <AHL> = clock rate
+	ld	b,h
+	ld	c,l		; <BC> = baud rate adjusted for multiple
+	ld	d,a		; <D>  = very high byte
+
+	or	b
+	or	c
+	call	z,badbaud	; baudrate of zero
+	xor	a		; return <A>, <HL> & (sb$div) set to zero
+	ld	h,a
+	ld	l,a		; set count to zero
+	ld	(sb$div),hl
+	ret
+badbaud:
+	ld	c,1		; rate must be > 0
+	ret
+
+clk$no:	db	0		; set to keyboard or RS232 clock port number
+sb$div:	dw	0		; temp data for result of divide
+
+; ------------------------------
+; set keyboard baud rates = 1200
+; ------------------------------
+
+key$baud:			; NOTE: only valid rate is <C> = 8 (1200 baud)
+	ld	a,clk$bk	; keyboard clock port
+	ld	(clk$no),a
+	ld	a,(@sio0a+4)	; keyboard SIO register 4
+	jp	set$baud	; and set baud rate
+
+; -------------------------------
+; set serial i/o baud rate to <C>
+; -------------------------------
+
+ser1baud:
+	ld	a,clk$br	; RS232 clock port
+	ld	(clk$no),a
+	ld	a,(@sio0b+4)	; main serial register 4
+	jp	set$baud	; and set baud rate
+
+xserbaud:
+	ld	(clk$no),a
+	ld	a,b		; SIO register 4
+	jr	xset$baud	; and set baud rate
+
+ser2baud:
+	ld	a,(@sio1a+4)	; RS232 SIO-A register 4
+	ld	b,a
+	ld	a,x1ctc$c0	; RS232 SIO-A clock port
+	jr	xserbaud	; and set baud rate
+
+ser3baud:
+	ld	a,(@sio1b+4)	; RS232 SIO-B register 4
+	ld	b,a
+	ld	a,x1ctc$c1	; RS232 SIO-B clock port
+	jr	xserbaud	; and set baud rate
+
+ser4baud:
+	ld	a,(@sio2a+4)	; RS232 SIO-A register 4
+	ld	b,a
+	ld	a,x2ctc$c0	; RS232 SIO-A clock port
+	jr	xserbaud	; and set baud rate
+
+ser5baud:
+	ld	a,(@sio2b+4)	; RS232 SIO-B register 4
+	ld	b,a
+	ld	a,x2ctc$c1	; RS232 SIO-B clock port
+	jr	xserbaud	; and set baud rate
+
+	page
+
+; ====================================================
+; Initialise the SIO device to default settings
+; ====================================================
+
+	dseg		; as system bank already selected
+;----------------------------------------------------------------------
+; 7201 initialisation
+; Control register 2A (and 2B if desired) should be programmed first to
+; establish the Processor/Bus interface mode. Then program each channel
+; to be used separately, beginning with Control Register 4 to set the
+; protocol mode for that channel. The remaining registers may then be
+; programmed in any order.
+;----------------------------------------------------------------------
+
+key$set:		; set up SIO and interrupt vector
+	ld	hl,@sio0a	; COMMAND table
+	ld	c,sio$ac	; ....... port
+	jr	serset
+
+ser1set:
+	ld	hl,@sio0b	; COMMAND table
+	ld	c,sio$bc	; ....... port
+	jr	serset
+
+ser2set:
+	ld	hl,@sio1a	; COMMAND table
+	ld	c,x1sio$ac	; ....... port
+	jr	serset
+
+ser3set:
+	ld	hl,@sio1b	; COMMAND table
+	ld	c,x1sio$bc	; ....... port
+	jr	serset
+
+ser4set:
+	ld	hl,@sio2a	; COMMAND table
+	ld	c,x2sio$ac	; ....... port
+	jr	serset
+
+ser5set:
+	ld	hl,@sio2b	; COMMAND table
+	ld	c,x2sio$bc	; ....... port
+
+serset:	ld	b,lensiotbl	; ....... length
+	otir			; ....... set
+	ret
+
+; ======================================
+; Table of SIO parameters for redefining
+; Offset 4 bytes -> SIO register 4
+; ======================================
+
+	cseg		; for direct BIOS calls
+
+@sio0a:			; table of Keybaord SIO parameters
+	db	00011000b	; Channel reset
+
+	db	2		; Write register 2 (channel A only)
+	db	0		; with 8085 vector mode
+
+	db	4 or 00010000b	; Write register 4, Reset EX/SP int
+	db	00110111b	; with x1, ASYNC, 1stop, parity enabled
+
+	db	3		; Write register 3
+	db	11100001b	; with 8bit Rx, auto, Rx enabled
+
+	db	5		; Write register 5
+	db	11101010b	; with DTR,RTS = 1, 8bit Tx, Tx enabled
+
+	db	1 or 00010000b	; Write register 1, Reset EX/SP int
+	db	00011000b	; with All Rx int
+lensiotbl	equ	$-@sio0a	; Length of SIO command
+
+@sio0b:			; table of RS232 SIO parameters
+	db	18h		; Channel reset
+
+	db	2		; Write register 2
+	db	0		; with 8085 vector mode
+
+	db	4 or 00010000b	; Write register 4, Reset EX/SP int
+	db	01110100b	; with x16, ASYNC, 1stop, no parity
+
+	db	3		; Write register 3
+	db	0e1h		; with 8bit Rx, auto, Rx enabled
+
+	db	5		; Write register 5
+	db	0eah		; with DTR,RTS = 1, 8bit Tx, Tx enabled
+
+	db	1 or 00010000b	; Write register 1, Reset EX/SP int
+	db	10h		; with All Rx int
+
+@sio1a:			; table of RS232 SIO parameters
+	db	18h		; Channel reset
+
+	db	10h or 2	; Reset EX/SP int, Write register 2
+	db	0		; with 8085 vector mode
+
+	db	4		; Write register 4
+	db	01110100b	; with x16, ASYNC, 1stop, no parity
+
+	db	3		; Write register 3
+	db	0e1h		; with 8bit Rx, auto, Rx enabled
+
+	db	5		; Write register 5
+	db	0eah		; with DTR,RTS = 1, 8bit Tx, Tx enabled
+
+	db	1 or 00010000b	; Write register 1, Reset EX/SP int
+	db	10h		; with All Rx int
+
+@sio1b:			; table of RS232 SIO parameters
+	db	18h		; Channel reset
+
+	db	10h or 2	; Reset EX/SP int, Write register 2
+	db	0		; with 8085 vector mode
+
+	db	4		; Write register 4
+	db	01110100b	; with x16, ASYNC, 1stop, no parity
+
+	db	3		; Write register 3
+	db	0e1h		; with 8bit Rx, auto, Rx enabled
+
+	db	5		; Write register 5
+	db	0eah		; with DTR,RTS = 1, 8bit Tx, Tx enabled
+
+	db	1 or 00010000b	; Write register 1, Reset EX/SP int
+	db	10h		; with All Rx int
+
+@sio2a:			; table of RS232 SIO parameters
+	db	18h		; Channel reset
+
+	db	10h or 2	; Reset EX/SP int, Write register 2
+	db	0		; with 8085 vector mode
+
+	db	4		; Write register 4
+	db	01110100b	; with x16, ASYNC, 1stop, no parity
+
+	db	3		; Write register 3
+	db	0e1h		; with 8bit Rx, auto, Rx enabled
+
+	db	5		; Write register 5
+	db	0eah		; with DTR,RTS = 1, 8bit Tx, Tx enabled
+
+	db	1 or 00010000b	; Write register 1, Reset EX/SP int
+	db	10h		; with All Rx int
+
+@sio2b:			; table of RS232 SIO parameters
+	db	18h		; Channel reset
+
+	db	10h or 2	; Reset EX/SP int, Write register 2
+	db	0		; with 8085 vector mode
+
+	db	4		; Write register 4
+	db	01110100b	; with x16, ASYNC, 1stop, no parity
+
+	db	3		; Write register 3
+	db	0e1h		; with 8bit Rx, auto, Rx enabled
+
+	db	5		; Write register 5
+	db	0eah		; with DTR,RTS = 1, 8bit Tx, Tx enabled
+
+	db	1 or 00010000b	; Write register 1, Reset EX/SP int
+	db	10h		; with All Rx int
+
+	page
+
+; =============================
+; COLD BOOT  SIO initialisation
+; (assumes interrupts disabled)
+; =============================
+
+	dseg		; as system bank already selected
+
+initsio:		; initialise main SIO
+	ld	c,8		; 1200 baud (CINIT wont do this)
+	call	key$baud	; initialise baud rate
+
+; ----------------------- ;
+; set up interrupt vector ;
+; ----------------------- ;
+	di
+	ld	hl,jpint
+	ld	de,int201	; RS232 7201 interrupt vector
+	ld	bc,4
+	ldir
+	ret
+jpint:	jp	?kbdint
+	ret
+
+
+;---------	-----------------------------------------------
+initx1sio:	; Initialise 1st optional RS232 serial i/o card
+;---------	-----------------------------------------------
+
+	; initialise 1st optional SIO board
+
+	call	xsetid		; set up interrupt flags
+
+	ld	a,18h		; channel reset
+	out	(x1sio$ac),a
+	out	(x1sio$bc),a	; to disable interrupts
+
+	ld	c,x1id		; optional 1 RS232 port address sense ID
+	ld	hl,x1sioint	; optional RS232 interrupt routine
+
+	jr	xsetint		; set interrupts if board exists
+
+;---------	-----------------------------------------------
+initx2sio:	; Initialise 2nd optional RS232 serial i/o card
+;---------	-----------------------------------------------
+
+	call	xsetid		; set up interrupt flags
+
+	ld	a,18h		; channel reset
+	out	(x2sio$ac),a
+	out	(x2sio$bc),a	; to disable interrupts
+
+	ld	c,x2id		; optional 1 RS232 port address sense ID
+	ld	hl,x2sioint	; optional RS232 interrupt routine
+
+;---------------------------------------------
+; common routine for both optional RS232 cards
+;---------------------------------------------
+
+
+;-------------------
+; now sense RS232 ID
+;-------------------
+xsetint:
+	ei			; must enable interrupts for test
+	xor	a
+	out	(c),a		; see if RS232 configured for this address
+	nop			; time for interrupt till IN resets it
+	in	b,(c)		; and read ID (DSR-A, DSR-B, RING, & DIP SW)
+	or	a		; see if interrupt has done anything
+	di
+	jr	z,xclrid	; -no-
+
+	dec	a
+	ld	c,a
+	ld	b,0
+	ex	de,hl		; <DE> -> address of interrupt routine
+	ld	hl,inttble
+	add	hl,bc
+	add	hl,bc
+	ld	a,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,a		; <HL> = start of interrupt vector
+	ld	(hl),0c3h	; 'JP'
+	inc	hl
+	ld	(hl),e		; LOW interrupt routine
+	inc	hl
+	ld	(hl),d		; HIGH interrupt routine
+;---------------------
+; clear interupt flags
+;---------------------
+xclrid:
+	ld	hl,inttble
+	ld	b,5		; 5 possible slots
+xclrid1:
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	inc	hl
+	ld	a,(de)
+	cp	0fbh		; test for EI
+	jr	nz,xclrid2	; -no- so must be in use
+	ex	de,hl
+	inc	hl
+	ld	(hl),0c9h	; 'RET'
+	ex	de,hl
+xclrid2:
+	djnz	xclrid1
+
+	ret
+
+;-----------------------
+; set up interrupt flags
+;-----------------------
+xsetid:	di
+	ld	hl,inttble
+	ld	b,5		; 5 possible slots (but slot 5 cannot be used)
+	ld	c,1
+xsetid1:
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	inc	hl
+	ld	a,(de)
+	cp	0fbh		; test for EI
+	jr	nz,xsetid2	; -no- so must be in use by someone else
+	ex	de,hl
+	inc	hl
+	ld	(hl),03eh	; 'LD A,?'
+	inc	hl
+	ld	(hl),c		; <C> = 1,2,3,4 or 5
+	inc	hl
+	ld	(hl),0c9h	; 'RET'
+	ex	de,hl
+xsetid2:
+	inc	c
+	djnz	xsetid1
+	ret
+
+;--------------------------------------------------;
+; table of interrupt vectors for 5 expansion slots ;
+;--------------------------------------------------;
+
+inttble:
+	dw	intx3		; option slot 1
+	dw	intx4		; option slot 2
+	dw	intx5		; option slot 3
+	dw	intx6		; option slot 4
+	dw	intx7		; option slot 5 (not available for RS232)
+
+;---------------------------------------------------------------
+
+	end
