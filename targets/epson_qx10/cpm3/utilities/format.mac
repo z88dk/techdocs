@@ -1,0 +1,2034 @@
+	title	'FORMAT---QX-10+ Multiple Disk Formatter'
+	.z80	
+
+	PAGE	54
+	.Comment"
+
+	Thió  prograí waó originallù writteî bù Andre÷ Clarkå  oæ 
+MMÌ  undeò  contracô  tï  Epsoî (UK©  Limited®  Iô  waó  slightlù 
+modified by Andrew Glenn of EUL.
+
+Copyright (C) EUL 25th April 1984
+
+Revision History
+
+ver	date	author	location	comment
+-----------------------------------------------------------------
+1.0	24/4/84	AGG	EUL		First release version
+1.1	30/4/84	ARMC	Suffolk		Glued in Uncle Davids revisions
+
+	"
+	page
+
+VERS	EQU	11	; Breathed on by ARMC 
+
+;----------------;
+; Useful equates ;
+;----------------;
+
+false	Equ	0000H
+true	Equ	0FFFFH
+	
+WBOOT	EQU	1	;address of BIOS
+BDOS	EQU	5	;BDOS entry point
+
+LF	EQU	0AH	;linefeed
+CR	EQU	0DH	;carriage return
+TAB	EQU	09H	;tab
+ESC	EQU	1BH	;Escape
+
+CI	EQU	6	;console input
+CO	EQU	9	;console output
+
+epson	equ	0	; format type for standard epson disc
+ibmss	equ	1	; format type for single sided IBM PC disc
+ibmds	equ	2	; format type for double sided IBM PC disc
+epsonx	equ	3	; format type for high capacity epson disc
+
+disk.rad	equ	61	;radius of disk picture
+
+bit0	equ	1 shl 0
+bit1	equ	1 shl 1
+bit2	equ	1 shl 2
+bit3	equ	1 shl 3
+bit4	equ	1 shl 4
+bit5	equ	1 shl 5
+bit6	equ	1 shl 6
+bit7	equ	1 shl 7
+
+; graphics codes
+
+topleft		equ	87h
+topright	equ	88h
+bottomleft	equ	89h
+bottomright	equ	8ah
+
+
+	maclib	NEC765A.INC
+
+;---------------------------------------------------------------------------;
+	page
+
+	cseg
+
+	jp	START
+
+;----------;
+; Messages ;
+;----------;
+Our.Little.Secret:	DB	true	;shall we allow formatting of
+					;3 1/2 in. disks? Set to true
+					;to allow it.
+	DB	'COPYRIGHT  1984, MML Systems Ltd',1ah
+
+SIGNON:
+	db	esc,"=",1+32,27+32
+	DB	'EPSON QX+ FORMAT   ver '
+	db	vers/10+'0','.',vers mod 10+'0' 
+	db	cr,lf,0
+
+instruct:
+db	cr,lf,'	      This  utility enables you to  FORMAT  disks to one of four'
+db	cr,lf,'	formats that can be used with QX+.'
+db	cr,lf,'	      The  Epson format  is  compatible with  previous  releases'
+db	cr,lf,'	of the QX-10 CP/M. The two  IBM  formats allow  data to be  read'
+db	cr,lf,'	from, and written to IBM-PC disks and are recognised  by the QX+'
+db	cr,lf,'	system. The IBM Double-sided format should be used in preference'
+db	cr,lf,'	to the single-sided. The  EPSON+  format provides  a significant'
+db	cr,lf,'	increase in the disc storage  capacity to 400K bytes of storage,'
+db	cr,lf,'	but this format is not portable.'
+db	cr,lf,'	      IMPORTANT:   Only the Epson format can be used  for  the '
+db	cr,lf,'	QX+  cold  boot. If in doubt, then choose the Epson  format.  In'
+db	cr,lf,'	addition you may initialise the disk directory for time and date'
+db	cr,lf,'	stamping.  Refer to the CP/M Plus manual for the  details  under'
+db	cr,lf,'	INITDIR, SET [NAME=], SET [CREATE=ON] and SHOW [LABEL].'
+db	cr,lf,00
+
+askdest:
+	db	Esc,"=",4+32,2+32
+	db	'In which drive do you wish to format a disk?'
+	db	' ( press <CR> to quit ) ',0
+
+smallmsg:
+	db	Esc,"=",6+32,2+32
+	db	'Dou you really want to format an add-on EPSON'
+	db	' microfloppy disk?? (Y/N)',0
+
+trk.message:
+	db	Esc,"=",4+32,3+32
+	db	'Formatting Track: ',0
+	
+
+clean.line:	;quick and dirty
+	db	Esc,"=",3+32,2+32,esc,'T',Esc,"=",3+32,78+32,86h
+	db	Esc,"=",4+32,2+32,esc,'T',Esc,"=",4+32,78+32,86h
+	db	ESC,"=",5+32,2+32,esc,'T',Esc,"=",5+32,78+32,86h
+	db	ESC,"=",6+32,2+32,esc,'T',Esc,"=",6+32,78+32,86h
+	db	0	
+
+clean.display:	;quick and dirty
+;		 0123456789012345678901234567890123456789
+	db	Esc,"=",3+32,2+32,esc,'T',Esc,"=",3+32,78+32,86h
+	db	Esc,"=",4+32,12+32,esc,'T',Esc,"=",4+32,78+32,86h
+	db	Esc,"=",5+32,12+32,esc,'T',Esc,"=",5+32,78+32,86h
+	db	Esc,"=",6+32,12+32,esc,'T',Esc,"=",6+32,78+32,86h
+	db	Esc,"=",7+32,12+32,esc,'T',Esc,"=",7+32,78+32,86h
+	db	Esc,"=",8+32,12+32,esc,'T',Esc,"=",8+32,78+32,86h
+	db	Esc,"=",9+32,12+32,esc,'T',Esc,"=",9+32,78+32,86h
+	db	Esc,"=",10+32,12+32,esc,'T',Esc,"=",10+32,78+32,86h
+	db	Esc,"=",11+32,12+32,esc,'T',Esc,"=",11+32,78+32,86h
+	db	Esc,"=",12+32,12+32,esc,'T',Esc,"=",12+32,78+32,86h
+	db	Esc,"=",13+32,12+32,esc,'T',Esc,"=",13+32,78+32,86h
+	db	0
+
+
+asktype:
+	db	Esc,"=",4+32,12+32
+	db	'EPSON QX-10 Plus diskette formats'
+	db	Esc,"=",6+32,12+32
+	db	'1  -  Epson   double sided  '
+loc1:	db	'280k bytes'
+	db	Esc,"=",7+32,12+32
+	db	'2  -  IBM-PC  single sided  '
+loc2:	db	'156k bytes'
+	db	Esc,"=",8+32,12+32
+	db	'3  -  IBM-PC  double sided  '
+loc3:	db	'316k bytes'
+	db	Esc,"=",9+32,12+32
+	db	'4  -  Epson+  double sided  '
+loc4:	db	'400k bytes'
+	db	Esc,"=",10+32,12+32
+	db	'   Select diskette format (1, 2, 3 or 4) ? ',0
+
+typer:
+	db	Esc,"=",11+32,12+32
+	db	'Invalid format type ( select 1, 2, or 3) ',0
+
+askinit:
+	db	Esc,"=",4+32,12+32
+	db	'      EPSON QX-10 Plus diskette date stamp'
+	db	Esc,"=",6+32,12+32
+	db	'N  -  NO  directory date stamping'
+	db	Esc,"=",7+32,12+32
+	db	'Y  -  initialise diskette as INITDIR utility'
+	db	Esc,"=",9+32,12+32
+	db	'   Initialise diskette for date stamping (Y/N) ? ',0
+
+initer:
+	db	Esc,"=",10+32,12+32
+	db	'?       Please respond with Y or N (or <BREAK>) ',0
+
+
+; We poke these in with makebig and makelittle accordingly
+big1:	db	'280k'
+big2:	db	'156k'
+big3:	db	'316k'
+big4:	db	'400k'
+small1:	db	'624k'
+small2:	db	'316k'
+small3:	db	'636k'
+small4:	db	'800k'
+
+
+;-----------------
+; LABEL DATA AREAS
+;-----------------
+
+pfcb:	dw	buff		; ascii string
+	dw	makefcb
+makefcb:
+	ds	36
+buff:	ds	16
+	db	cr
+
+ldflt:	db	20h
+lname:	db	'LABEL      '	; default name
+	db	0,0,0,0,0,0,0,0,0,0,0,0	; mode and password
+	db	0,0,0,0			; create time
+	db	0,0,0,0			; update time
+
+lfcb:	db	20h
+lfcb.n:	db	'           '		; label name and type
+lfcb.d:	db	0,0,0,0,0,0,0,0,0,0,0,0	; mode and password
+lfcb.c:	db	0,0,0,0			; create time
+lfcb.u:	db	0,0,0,0			; update time
+
+askname:
+	db	Esc,"=",4+32,12+32
+	db	'      EPSON QX-10 Plus diskette label'
+	db	Esc,"=",6+32,12+32
+	db	'Enter Directory Label name'
+	db	Esc,"=",7+32,12+32
+	db	'   or <CR> for default ? ',0
+labler:
+	db	Esc,"=",8+32,12+32
+	db	'?     Incorrect structure,'
+	db	Esc,"=",9+32,12+32
+	db	'?  enter name or <CR> ',0
+
+;----------------
+; date stamp data
+;----------------
+stamps:	db	bit0		; no date stamping
+	db	bit4 or bit0	; create
+	db	bit6 or bit0	; access
+	db	bit5 or bit4 or bit0	; create and update
+	db	bit5 or bit6 or bit0	; access and update
+	db	bit5 or bit0	; update
+
+set.dat:	; <DE> -> destination stamp field
+	ld	hl,dat
+
+	ld	bc,4
+	ldir
+	ret
+
+dat:	ds	4
+
+askstmp:
+	db	Esc,"=",4+32,12+32
+	db	'      EPSON QX-10 Plus diskette date stamp'
+	db	Esc,"=",6+32,12+32
+	db	'1  -  NO date stamping'
+	db	Esc,"=",7+32,12+32
+	db	'2  -  create ON   access OFF  update OFF'
+	db	Esc,"=",8+32,12+32
+	db	'3  -  create OFF  access ON   update OFF'
+	db	Esc,"=",9+32,12+32
+	db	'4  -  create ON   access OFF  update ON'
+	db	Esc,"=",10+32,12+32
+	db	'5  -  create OFF  access ON   update ON'
+	db	Esc,"=",11+32,12+32
+	db	'6  -  create OFF  access OFF  update ON'
+	db	Esc,"=",12+32,12+32
+	db	'   Select date stamping mode (1,2,3,4,5, or 6) ? ',0
+
+stmper:
+	db	Esc,"=",13+32,12+32
+	db	'?     Please respond with 1 thru 6 (or <BREAK>) ',0
+
+putmsg:
+	db	Esc,"=",4+32,03+32
+	db	'please place the diskette to be formatted into drive: '
+pdisk:	db	'B'
+	db	': Then press <CR> '
+	db	00
+
+done:
+	db	Esc,"=",4+32,03+32
+	db 	'Format complete              ',0
+
+terminate:
+	db	Esc,"=",4+32,03+32
+	db 	'--- FORMATTING TERMINATED ---',0
+
+contms:
+	db	Esc,"=",23+32,03+32
+	db	'Continue? (otherwise quit the program)  (Y/N)',0
+
+drver:
+	db	Esc,"=",5+32,03+32
+	db	'Sorry, Invalid drive name ( Please use A or B )',0
+
+chgmsg:
+
+	db	Esc,"=",3+32,12+32
+	db	07,'** WARNING: **    ',07
+	db	Esc,"=",5+32,12+32
+	db	'You have selected the same drive from'
+	db	Esc,"=",6+32,12+32
+	db	'which this format utility was loaded.'
+	db	Esc,"=",7+32,12+32
+	db	'Have you removed this disk yet?      '
+	db	Esc,"=",9+32,12+32
+	db	'Press Y to continue or <BREAK> to quit ',0
+
+MESTRK:
+	db	'00  ',0
+
+nline:	db	0
+
+;----------------------------------------;
+; NEC parameter block (filled by NECnpb) ;
+;----------------------------------------;
+npb:
+npb_f_N:	ds	1	; format parameters
+npb_f_SC:	ds	1
+npb_f_GPL:	ds	1
+npb_f_D:	ds	1
+npb_rw_N:	ds	1	; read/write parameters
+npb_rw_EOT:	ds	1
+npb_rw_GPL:	ds	1
+npb_rw_DTL:	ds	1
+		ds	1	; high byte of sector length
+npb_cyl:	ds	2
+npb_sides:	ds	1
+npb_strk:	ds	2
+
+;
+dest:	db	0		; destination drive
+srce:	db	0		; source drive
+tpadsk:	db	0		; drive tpa loaded from
+initdir:	db	0	; INITDIR date stamping
+label:	db	0		; set label name
+stamp:	db	0		; set date stamping
+;
+BIOSPB:	ds	8		; Bios parameter block
+
+
+	page
+
+	subttl  'DIRECT BIOS SUBROUTINES'
+CONIN:
+	call	curon		;switch on the cursor
+	LD	DE,CI		;console input
+	CALL	dir_bios
+	push	af
+	call	curoff		;switch it back off
+	pop	af
+	CP	'A' OR 20H
+	RET	C
+	CP	('Z' OR 20H)+1
+	RET	NC
+	AND	5FH		;small alph -> large alph
+	RET
+;
+conout:
+	ld	de,co
+	jr	dir_bios
+;
+;
+dir_bios:
+	LD	hl,(WBOOT)	;entry BIOS
+	ADD	hl,DE
+	JP	(hl)		; direct BIOS call
+
+	page
+	subttl  'BDOS CHARACTER SUBROUTINES'
+
+;------;
+lineout:
+;------;
+	push	hl
+	ld	a,cr
+	call	putchar
+	ld	a,lf
+	call	putchar
+	pop	hl
+;-----;
+strout:
+;-----;
+	ld	a,(hl)
+	or	a
+	ret	z
+;
+;
+	push	hl
+	call	putchar
+	pop	hl
+	inc	hl
+	jr	strout
+
+;------;
+putchar:
+;------;
+	ld	e,a
+	ld	c,2
+	call	bdos		;conout
+	ret
+
+;-------;
+Msg:
+;-------;
+	
+	ld	a,(hl)		;print string preceded by a count byte
+	ld	b,a		;get count byte
+	or	a		;is it a null string
+	ret	z		;if null string, then go home
+..loop:	inc	hl		;point to next ascii byte
+	ld	c,(hl)		;get it
+	push	hl
+	push	bc
+	call	conout		;send it to the console
+	pop	bc
+	pop	hl
+	djnz	..loop		;if any more do the next byte
+	ret			;if not go home
+
+
+;-----------------------------------------
+; fetch character and conver to upper case
+;-----------------------------------------
+getchar:
+	ld	c,1		;conin
+	call	bdos
+	cp	'a'
+	ret	c
+	cp	'z'+1
+	ret	nc
+	and	5fh		; remove case bits
+	ret
+
+;-----------------------------------------;
+; Program not loaded under CP/M3 on Epson ;
+;-----------------------------------------;
+notcpm3:
+	ld	hl,cpm3msg
+	call	lineout
+
+	ld	c,0
+	jp	bdos		; and terminate program
+
+cpm3msg:
+	db	cr,lf,'FORMAT - Requires CP/M + on Epson QX-10',0
+
+
+;---------------------------------------------------------------------------;
+;Graphics and screen functions
+
+;*** cursor control codes ***
+	db	'Copyright MML Ltd (c) 1983'
+
+;*** all patches as in wordstar ***
+clear:	defb	02,27,'+',00,00,00;clear screen string
+clead1:	defb	02,27,61	;yx cursor addressing lead-in
+	defb	00,00,00,00,00,00
+clead2:	defb	00,00,00,00,00,00;between params
+ctrail:	defb	00,00,00,00,00,00;trailing string
+cb4lfg:	defb	00		;y before x or x before y?
+linoff:	defb	20h		;offset to add
+coloff:	defb	20h
+;cursor turn off/on strings
+on.cursor:defb	02,1bh,'3',00	;switch on the cursor
+off.cursor:defb	02,1bh,'2',00	;switch off the cursor
+;screen switching strings
+upper.screen:defb	2,1bh,"u",00;switch to upper screen
+lower.screen:defb	2,1bh,"v",00;switch to lower screen
+;mode switching strings
+grfiks:	defb	2,1bh,'g',00	;enter graphics
+no.grfix:defb	2,1bh,'h',00	;exit graphics mode
+;*** variables ***
+xhere:	defw	00		;current screen position across
+yhere:	defw	00,00		;current screen location down
+
+radix:	defb	10		;temporary radix
+	
+
+;---------------------------------------------------------------------------
+yxpos:	;sends the character cursor to the location in yhere xhere
+	push	hl
+	push	de
+	push	bc		;save everything
+	ld	hl,clead1	;print lead-in
+	call	msg
+	ld	a,(cb4lfg)	;do we do x or y first?
+	and	a
+	jr	nz,..rev	;line first
+	ld	a,(yhere)	;get line no.
+	ld	b,a
+	ld	a,(linoff)
+	Add	a,b		;addin line offset
+	call	putchar		;out it goes
+	ld	hl,clead2	;get mid lead-in
+	call	msg		;send it
+	ld	a,(xhere)	;get column
+	ld	c,a
+	ld	a,(coloff)	;add in offset
+	add	a,c
+	call	putchar		;send it out
+..finished:	ld	hl,ctrail	;job done so send trailing string
+	call	msg
+	pop	bc		;restore the world
+	pop	de
+	pop	hl
+	ret			;and go home
+..rev:	ld	a,(xhere)	;do things backwards
+	ld	c,a		;for potty terminals
+	ld	a,(coloff)
+	add	a,c
+	call	putchar
+	ld	hl,clead2
+	call	msg
+	ld	a,(yhere)
+	ld	b,a
+	ld	a,(linoff)
+	add	a,b
+	call	putchar
+	jr	..finished
+
+
+
+hello.string:
+	defb	..end - $	;length of the string
+	defb	1bh,",","g",5,"c";define split screen
+	defb	1bh,"u"		;go to the upper
+	defb	1bh,"/"		;make multifont
+	defb	1bh,"#",6	;style 4
+	defb	1bh,'X'		;prop spacing
+	defb	'                QX+ Disk Formatting Utility'
+	defb	1bh,'S'		;end prop spacing
+	defb	1bh,"v"		;enter the lower screen
+	defb	1BH,"+"		;blank the screen
+..end:	defb	000,000
+
+ok:	defb	..end1 - $
+	db	esc,"=",18+32,26+32
+	defb	1bh,'('
+	defb	1bh,"^"
+	defb	"<press any key to continue>"
+	defb	1bh,"q"
+	defb	1bh,')'
+..end1:	defb	00,00
+
+tidy.up:;set the screen to rights
+	defb	..end2 - $
+	defb	1bh,"+"
+	defb	1bh,"u",1bh,"\"
+	defb	1bh,"v",1bh,"u"	;dont ask
+	defb	1bh,",","g",26,"g"
+	defb	1bh,"+"
+..end2:	defb	000,000
+
+;---------------------------------------------------------------------
+
+draw.disk:
+	ld	A,(dest)	;find out which drive to format on
+	or	A
+	jr	nz,draw.b.disk
+
+	ld	hl,diskdraw.a.string
+	ld	de,198		;set centre for drive a
+	ld	(C.X),de	; (C.Y stays at 174 allways)
+	jr	do.it
+
+draw.b.disk:
+	ld	hl,diskdraw.b.string
+	ld	de,430		;set centre for drive b
+	ld	(C.X),de
+
+do.it:	ld	c,(hl)		;print string preceded by a count byte
+	inc	hl
+	ld	b,(hl)		;get count byte
+..loop77:
+	inc	hl		;point to next ascii byte
+	ld	a,(hl)		;get it
+	push	hl
+	push	bc
+	call	putchar		;send it to the console
+	pop	bc
+	pop	hl
+	dec	bc		;any more to do
+	ld	a,c
+	or	b
+	jr	nz,..loop77		;otherwise do the next byte
+
+	ld	A,(dest)	;find out which drive to format on
+	or	A
+	jr	nz,draw.bv.disk
+
+;do the vertical lines for drive a picture
+	ld	a,15
+	ld	(xhere),a
+	ld	a,9
+	ld	(yhere),a
+	ld	b,8
+	call	..downloop
+;and the other
+	ld	a,34
+	ld	(xhere),a
+	ld	a,12
+	ld	(yhere),a
+	ld	b,5
+	call	..downloop
+	jr	all.d			;get out
+
+;do the vertical lines for drive b picture
+draw.bv.disk:
+	ld	a,44
+	ld	(xhere),a
+	ld	a,9
+	ld	(yhere),a
+	ld	b,8
+	call	..downloop
+;and the other
+	ld	a,63
+	ld	(xhere),a
+	ld	a,12
+	ld	(yhere),a
+	ld	b,5
+	call	..downloop
+
+all.d:	ret				;all done
+
+;---------------------------------------------------------------------
+
+wipe.floppy::	;erase the floppy envelope
+;	ld	a,0		;do solid fill
+;	ld	(fill.floppy),a
+;	ld	a,4		;erase mode
+;	ld	(mode.floppy),a
+;	ld	hl,draw.floppy
+;	call	msg
+	ret
+
+cir.msg::
+	Db	16		;bytes long
+	Db	1bH,'.',10	;select line style
+line.style:	Db	000	;actual line style
+	Db	1bH,'.',0	;position centre
+C.X:	Dw	198
+C.Y:	Dw	174
+	Db	1bH,'.',7	;draw a circle
+radius:	Dw	2
+	Db	00,00,00
+	
+;---------------------------------------
+docircle::	;of radius 'radius'
+	ld	hl,cir.msg
+	call	msg
+	ret
+
+
+;---------------------------------------
+gra.off:;turn into character mode
+	push	hl		;save the world
+	push	de
+	push	bc
+	ld	hl,no.grfix	;the no graphics string
+	call	msg		;to switch into character mode
+	pop	bc		;restore the world
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------	
+curon:		;switch on the cursor
+	push	hl
+	push	de
+	push	bc
+	ld	hl,on.cursor	;switch cursor on 
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------
+into.graphics:;lets enter graphics mode
+	
+	push	hl
+	push	de
+	push	bc
+	ld	hl,grfiks	;switch into graphics
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------	
+curoff:	;switch off the cursor
+	push	hl
+	push	de
+	push	bc
+	ld	hl,off.cursor	;string to tell the console
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------
+screen.clear:;clear the whole damned screen
+	push	hl
+	push	de
+	push	bc
+	ld	hl,clear
+	call	msg		;send out clear-screen string
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+;----------------------------------------------------------------------------
+addhl:	;adds a to hl and leaves the result in hl
+	add	a,l
+	ld	l,a
+	ret	nc
+	inc	h
+	ret	
+;----------------------------------------------------------------------------
+cmp16:	;sixteen bit compare de with hl
+	ld	a,h
+	sub	d
+	ret	nz
+	ld	a,l
+	sub	e
+	ret	
+;----------------------------------------------------------------------------
+conuc:	;convert character in a to upper case if poss
+	cp	7bh
+	ret	nc
+	cp	61h
+	ret	c
+	and	5fh
+	ret	
+;----------------------------------------------------------------------------
+drawdown:;the whole screen a double line
+	ld	b,23		;the number of lines
+..downloop:
+	push	bc
+	ld	hl,yhere	;get where we are
+	inc	(hl)		;increment it
+	call	yxpos		;and point the cursor there
+	ld	a,086h		;down line
+	call	putchar		;output the byte
+	pop	bc
+	djnz	..downloop	;and do another until b=0
+	ret			;the job is all done
+;----------------------------------------------------------------------------
+nice.box:;around the screen
+	xor	a
+	ld	(yhere),a	;zap the line position
+	ld	(xhere),a	;and the column position
+	call	yxpos		;home the cursor
+;draw the top border	
+	ld	a,087h		;a top left border
+	call	putchar		;send a top-left bracket
+	ld	b,77
+..toploop:;now do the top line across
+	ld	a,085h		;do a top line
+	push	bc
+	call	putchar		;out goes a line character
+	pop	bc
+	djnz	..toploop
+	ld	a,088h		;a top right border
+	call	putchar		;do a top right character
+;go to bottom line	
+	ld	a,24		;now do likewise for the bottom
+	ld	(yhere),a
+	xor	a
+	ld	(xhere),a	;go to the bottom left
+	call	yxpos
+;draw the bottom border	
+	ld	a,089h		;a bottom left border
+	call	putchar
+	ld	b,77		;and now a nice horizontal line
+..botloop:
+	ld	a,085h		;do a bottom line
+	push	bc
+	call	putchar
+	pop	bc
+	djnz	..botloop
+	ld	a,08ah		;a bottom right border
+	call	putchar
+	xor	a
+	ld	(xhere),a
+	ld	(yhere),a	;home again
+	call	drawdown
+	ld	a, 78		;we have drawn a vertical line
+	ld	(xhere),a
+	xor	a		;go to the top right
+	ld	(yhere),a
+	call	drawdown	;and do the second vertical line
+	
+	ret	
+
+;---------------------------------------------------------------------------
+hexout:	;types out the value in a in hexadecimal
+	push	af
+	rrca	
+	rrca	
+	rrca	
+	rrca	
+	call	outchr
+	pop	af
+outchr:	
+	and	0fh
+	add	a,90h
+	daa	
+	adc	a,40h
+	daa	
+	jp	putchar
+	
+;--------------------------------------------------
+decout:	;types out the contents of hl on the console
+;in decimal.
+	push	bc
+	push	de
+	push	hl
+	ld	bc,-10		;-radix
+	ld	de,-1
+..loop1:	add	hl,bc		;repeated subtraction
+	inc	de
+	jr	c,..loop1
+	ld	bc,10
+	add	hl,bc
+	ex	de,hl
+	ld	a,h
+	or	l
+	call	nz,decout	;recursive call
+	ld	a,e
+	add	a,'0'
+	call	putchar
+	pop	hl
+	pop	de
+	pop	bc
+	ret	
+;----------------------------------------------------------------------------
+integer:;convert a number in memory from 
+;ascii to binary. hl points to string (null term!!)
+	push	hl		;save pointer
+;has it got a radix qualifier?
+	
+	ld	c,(hl)
+	ld	b,0
+	add	hl,bc		;point to last character
+..back:	ld	a,(hl)
+	cp	" "
+	jr	nz,..hop
+	dec	hl
+	jr	..back
+..hop:	cp	"9"+1		;is it a letter?
+	ld	hl,radix	;default radix
+	ld	(hl),10
+	jr	c,..no.radix
+	call	conuc
+	cp	"h"
+	ld	(hl),16
+	jr	z,..on
+	cp	"o"
+	ld	(hl),8
+	jr	z,..on
+	cp	"b"
+	ld	(hl),2
+	jr	z,..on
+	ld	(hl),10
+..on:	
+..no.radix:
+	pop	hl
+	inc	hl		;bump over count byte
+	ld	de,0		;initialise accumulator
+	ex	de,hl
+..loop2:	ld	a,(de)
+	call	conuc
+	sub	'0'		;make character binary
+	and	a
+	ret	m		;illegal character
+	cp	10
+	jr	c,..hoppity
+	sub	("a"-"9")-1
+..hoppity:
+	push	hl
+	ld	hl,radix
+	cp	(hl)
+	ccf	
+	pop	hl
+	ret	c		;illegal character
+	inc	de		;increment pointer
+	ld	c,a
+	ld	b,0
+	ld	a,(radix)
+	add	hl,hl
+	cp	2
+	jr	z,..onwards
+	push	bc		;save current value
+	push	hl
+	add	hl,hl		;*4
+	add	hl,hl		;*8
+	pop	bc
+	cp	8
+	jr	z,..over
+	cp	16
+	jr	z,..over
+	add	hl,bc
+..over:	pop	bc
+	cp	16
+	jr	nz,..onwards
+	add	hl,hl
+..onwards:
+	add	hl,bc
+	jr	..loop2		;do the next
+;----------------------------------------------------------------------------
+bin:	;gets a figure of up to nine digits and converts it into an integer.
+;integer in hl and the lsb in a reg. accepts hex, octal or binary if given
+;a qualifier........eg d0h or 010110b	
+	push	bc
+	call	..on.on
+	defb	09		;buffer maximum
+	ds	11		;buffer length
+..on.on:
+	pop	hl		;point hl to our buffer
+	push	hl
+	xor	a
+	ld	b,11
+..loop3:
+	inc	hl		;zero out the buffer
+	ld	(hl),a
+	dec	b
+	jr	nz,..loop3
+	pop	de		;point de to buffer
+	push	de
+	ld	c,10
+	call	bdos		;and do the bdos call
+	pop	hl
+	inc	hl
+	call	integer		;now convert the result into an integer
+	ld	a,l
+	pop	bc
+	ret			;	with hl and a holding the integer
+
+makebig:	;make the message describe 5 1/4 capacities
+
+	ld	hl,big1
+	ld	de,loc1
+	ld	bc,4
+	ldir
+	ld	hl,big2
+	ld	de,loc2
+	ld	bc,4
+	ldir
+	ld	hl,big3
+	ld	de,loc3
+	ld	bc,4
+	ldir
+	ld	hl,big4
+	ld	de,loc4
+	ld	bc,4
+	ldir
+	ret
+
+makelittle:	;oh dear, not an elegant piece of code
+
+	ld	hl,small1
+	ld	de,loc1
+	ld	bc,4
+	ldir
+	ld	hl,small2
+	ld	de,loc2
+	ld	bc,4
+	ldir
+	ld	hl,small3
+	ld	de,loc3
+	ld	bc,4
+	ldir
+	ld	hl,small4
+	ld	de,loc4
+	ld	bc,4
+	ldir
+	ret
+
+
+;---------------------------------------------------------------------------;
+
+
+	subttl  'F O R M A T     main'
+	page
+start:
+	ld	c,12		; BDOS return version number
+	call	bdos
+	cp	031h		; Check that the right version of CP/M
+	jp	nz,notcpm3
+	ld	a,h
+	or	a
+	jp	nz,notcpm3
+
+	ld	hl,(0006h)
+	ld	sp,hl		; use top of memory as stack
+
+	ld	c,50		; BDOS Direct BIOS calls
+	ld	de,BIOSPB
+	ld	a,30		; Customised BIOS entry point
+	ld	(de),a		; requires no other registers
+	call	BDOS		; Check that the right machine 
+	cp	'A'		; Epson BIOS returned version
+	jp	nz,notcpm3
+
+
+	ld	a,(0050h)	; drive from which TPA was loaded
+	dec	a		; (note (50h) = 0 for default)
+	cp	-1		; test for default drive
+	jr	nz,settpa
+	ld	c,25		; return current disk
+	call	bdos
+settpa:	ld	(tpadsk),a
+
+;--if ARMC
+;now we do the fancy screen stuff
+	ld	hl,hello.string
+	call	msg		;split the screen and print title
+	ld	hl,instruct
+	call	strout		;print the instructions
+	ld	hl,OK
+	call	msg
+	call	curoff
+	call	getchar		;and throw it away
+	call	curon
+	ld	hl,tidy.up
+	call	msg
+	call	screen.clear
+start1:				;entry point for round again format
+
+	call	curoff		;switch off the cursor
+	call	nice.box	;round the screen
+	
+;--endif ARMC
+
+	call	NECinit		; initialise disc driver routines
+
+	ld	a,epson
+	ld	(NEC.type),a	; default is EPSON format
+
+	ld	a,01b
+	ld	(NEC.adrv),a	; default is B: drive
+
+	ld	a,1
+	ld	(NEC.scnt),a	; default is single sector transfer
+
+	ld	hl,080h
+	ld	(NEC.dma),hl	; default DMA address for data transfers
+
+	ld	hl,0000h
+	ld	(NEC.xlt),hl	; no interleaving
+
+	ld 	hl,signon
+	call	strout		;U.D. --lineout
+
+;---------------------------------------------;
+; Request drive to format or <CR> to quit ;
+;---------------------------------------------;
+	call	makebig		;assume a vast 5 1/4 in. drive
+	xor	a
+	ld	(dest),a
+;
+	ld	hl,askdest
+	call	strout		;U.D. --lineout
+;
+	ld	a,1
+	LD	(NEC.adrv),a
+
+	call	getchar
+	cp	cr		; has he panicked?
+	jp	z,reboot	; <return> reboots
+	cp	3
+	jp	z,reboot	; <ctrl-C> reboots
+;stash the result hopefully
+	ld	(PDISK),a	;#if drive A-B
+	cp	'D'+1
+	jr	nc,sterr
+	cp	'A'
+	jr	c,sterr
+	cp	'C'
+	jr	c,hophop
+	ld	a,(our.little.secret)	;will we allow this
+	cp	false
+	jr	z,sterr		;some goon is playing silly B*gg*rs
+	ld	hl,smallmsg
+	call	strout		;did he really mean it?
+	call	getchar
+	cp	cr
+	jp	z,quit		; <return> quits
+	cp	3
+	jp	z,quit		; <ctrl-C> quits
+	cp	'Y'
+	jp	nz,sterr
+
+	call	makelittle
+	ld	a,(PDISK)
+hophop:
+	sub	'A'
+	LD	(NEC.adrv),a
+	ani	01h		;convert to left/right --June 6 mod--
+	ld	(dest),a
+	ld	hl,tpadsk	; drive from which this utility loaded
+	cp	(hl)
+	jr	nz,start3	; Drive <> tpadsk
+	jr	start2		; Drive = tpadsk
+;
+sterr:	ld	hl,drver	;drive A-B
+	call	strout	;formerly lineout
+	jp	start1
+
+;-------------------------------------------------------;
+; Selected same drive as TPA source - lets confirm this ;
+;-------------------------------------------------------;
+start2:
+	ld	hl,clean.line
+	call	strout
+	ld	hl,chgmsg
+	call	strout
+	call	getchar
+	push	af
+	ld	hl,clean.display
+	call	strout
+	pop	af
+	cp	3
+	jp	z,start1
+	cp	'Y'
+	jp	nz,start1
+;--------------------------------------------------------;
+; Request format type (EPSON or IBM) or <CR> to quit ;
+;--------------------------------------------------------;
+start3:
+	ld	hl,clean.line
+	call	strout
+	ld	a,epson
+	ld	(NEC.type),a	; default is EPSON format
+
+	ld	hl,asktype
+	call	strout
+
+	call	getchar
+	cp	cr
+	jp	z,quit		; <return> quits
+	cp	3
+	jp	z,quit		; <ctrl-C> quits
+;---------------------------
+; range check on format type
+;---------------------------
+	cp	'4'+1
+	jr	nc,st3err
+	cp	'1'
+	jr	c,st3err
+	sub	'1'
+	LD	(NEC.type),a
+	ld	hl,clean.display
+	call	strout
+	jr	start4
+;
+st3err:	ld	hl,typer	;drive A-B
+	call	strout	;formerly lineout
+	jp	start3
+
+;---------------------------------------------------
+; Request directory initialisation for date stamping
+;---------------------------------------------------
+start4:
+	ld	hl,clean.line
+	call	strout
+	ld	a,0
+	ld	(initdir),a	; default is no INITDIR
+	ld	(label),a	; no label
+	ld	(stamp),a	; no stamp
+
+	ld	hl,askinit
+	call	strout
+
+	call	getchar
+	cp	cr
+	jp	z,quit		; <return> quits
+	cp	3
+	jp	z,quit		; <ctrl-C> quits
+;---------------------------
+; range check on format type
+;---------------------------
+	cp	'N'
+	jr	z,strt45
+	cp	'Y'
+	jr	nz,st4err
+	ld	a,-1
+	LD	(initdir),a
+strt45:	ld	hl,clean.display
+	call	strout
+	jr	start5
+;
+st4err:	ld	hl,initer	;only Y/N
+	call	strout	;formerly lineout
+	jp	start4
+
+;-----------------------------
+; Request directory label name
+;-----------------------------
+start5:
+	ld	a,(initdir)
+	or	a
+	jp	z,start9	; no initdir so no label so no date stamp
+
+	ld	hl,clean.line
+	call	strout
+	ld	a,-1
+	ld	(label),a	; create label
+
+	ld	hl,ldflt	; default label
+	ld	de,lfcb
+	ld	bc,32
+	ldir
+
+	ld	hl,askname
+	call	strout
+
+	call	getchar
+	cp	cr
+	jp	z,strt59	; <return> uses default
+	cp	3
+	jp	z,quit		; <ctrl-C> quits
+;------------------------------
+; build and check on label name
+;------------------------------
+	ld	b,14		; maximum length of name
+	ld	hl,buff
+	jr	strt52
+strt51:
+	push	hl
+	push	bc
+	call	getchar
+	pop	bc
+	pop	hl
+	cp	cr
+	jr	z,strt53	; end of text
+strt52:	ld	(hl),a
+	inc	hl
+	djnz	strt51
+	jr	st5err		; more than 14 characters entered
+strt53:	ld	(hl),cr		; string terminator
+	ld	de,pfcb
+	ld	c,152		; BDOS parse filename
+	call	bdos
+
+	ld	a,h
+	or	l
+	jr	nz,st5err	; cr did not delimit filename
+
+	ld	a,(makefcb)
+	or	a
+	jr	nz,st5err	; a drive was specified
+
+	ld	a,(makefcb+1)
+	cp	' '
+	jr	nz,strt54	; name entered
+
+	ld	a,(makefcb+9)
+	cp	' '
+	jr	z,st5err	; no name or type entered
+
+strt54:	ld	b,11
+	ld	hl,makefcb+1
+strt55:	ld	a,(hl)
+	cp	'?'
+	jr	z,st5err	; name contains a '?'
+	inc	hl
+	djnz	strt55
+	
+	ld	a,(makefcb+16)
+	cp	' '
+	jr	nz,st5err	; a password was specified
+
+	ld	hl,makefcb+1
+	ld	de,lfcb.n
+	ld	bc,11
+	ldir			; copy name only
+
+	ld	a,-1
+	LD	(label),a
+strt59:	ld	hl,clean.display
+	call	strout
+	jr	start6
+;
+st5err:	ld	hl,labler	;bad structure
+	call	strout	;formerly lineout
+	jp	start5
+
+;------------------------
+; Request date stamp mode
+;------------------------
+start6:
+	ld	a,(label)
+	or	a
+	jp	z,start9	; no label so no date stamp
+
+	ld	hl,clean.line
+	call	strout
+
+	ld	a,0
+	ld	(stamp),a	; default is no date stamp
+
+	ld	hl,askstmp
+	call	strout
+
+	call	getchar
+	cp	cr
+	jp	z,quit		; <return> quits
+	cp	3
+	jp	z,quit		; <ctrl-C> quits
+;---------------------------
+; range check on format type
+;---------------------------
+	cp	'6'+1
+	jr	nc,st6err
+	sub	'1'
+	jr	c,st6err
+	ld	hl,stamps
+	ld	c,a
+	ld	b,0
+	add	hl,bc
+	ld	a,(hl)
+	ld	(lfcb.d),a	; label fcb date mode
+	ld	hl,clean.display
+	call	strout
+	jp	start9
+;
+st6err:	ld	hl,stmper	;drive A-B
+	call	strout	;formerly lineout
+	jp	start6
+
+;-----------------------;
+; Confirm disk inserted ;
+;-----------------------;
+start9:
+	ld	hl,clean.display
+	call	strout
+	ld	hl,putmsg
+	call	strout
+	call	getchar
+	cp	3
+	jp	z,quit		; <ctrl-C> warmboots
+	cp	cr
+	jp	nz,start1	; <return> is only valid answer
+;now clean things up
+	ld	hl,clean.line
+	call	strout
+
+;-----------------;
+; format routines ;
+;-----------------;
+format:
+	ld	hl,format
+	ld	(process),hl	; save retry vector
+
+	ld	hl,0
+	ld	(NEC.trk),hl	; start with track 0
+
+	xor	a
+	ld	(NEC.head),a	; and head 0
+	ld	(NEC.side),a	; and side 0
+
+	call	NECsk		; seek track 0
+	or	a		; test result
+	jp	nz,skerr
+
+	call	NECnpb		; return NEC parameter block
+	ld	de,npb
+	ld	bc,14
+	ldir			; copy parameter block
+
+;clean up the message line
+	ld	hl,clean.line
+	call	strout
+;initialise the radius
+	ld	hl,disk.rad
+	ld	(radius),hl
+	call	draw.disk
+
+form1::
+;announce what track we are on
+	ld	hl,trk.message
+	call	strout
+	ld	hl,(NEC.trk)
+	call	decout		;print cylinder no.
+
+	ld	hl,(radius)
+	dec	hl
+	ld	a,l
+	or	H
+	JP	Z,..312
+	ld	(radius),hl	;do track picture
+..312:	call	docircle
+   
+	xor	a	
+	ld	(NEC.head),a	; start with head 0
+	ld	(NEC.side),a	; and side 0
+
+;-------------------
+; Format Diskette
+;-------------------
+
+form2:
+	ld	hl,form2
+	ld	(process),hl	; save retry vector
+
+;test if the second side to be verified as well
+
+	ld	hl,nec.head
+	ld	a,(NPB_sides)
+	cp	(hl)		; test for valid side
+	ld	a,(hl)
+	jr	nc,sside	; -yes- set side same as head
+	xor	a		; -no- set side to 0
+sside:	ld	(nec.side),a	; update side
+
+	ld	hl,dma_f	; space to build format id
+	ld	(nec.dma),hl	; set DMA address for format
+
+	call	NECform		; format track
+	or	a		; test result
+	jp	nz,ioerr	; -error-
+
+	ld	hl,nec.head
+	ld	a,(nec.side)
+	cp	(hl)		; test for 2nd side of single sided
+	jp	nz,nxtside	; -yes- dont verify
+
+;--------------;
+; verify track ;
+;--------------;
+	ld	hl,dma_rw
+	ld	(NEC.dma),hl	; save for write command
+
+	ld	a,(npb_f_SC)	; sectors per track
+	ld	(NEC.scnt),a	; select sector count
+
+
+	ld	a,1
+	ld	(NEC.sect),a	; select sector 1
+
+	ld	a,1
+	ld	(NEC.rdwr),a	; READ
+
+	call	NECrdwr		; write 1st sector
+	or	a		; test result
+	jp	nz,ioerr	; -error-
+
+	ld	hl,(npb_rw_DTL)	; sector size
+	ex	de,hl
+	ld	a,(npb_f_SC)	; sectors per track
+	ld	b,a
+	ld	hl,0
+size:	add	hl,de
+	djnz	size
+
+	ld	b,h
+	ld	c,l		; BC = length of track
+
+	ld	hl,dma_rw
+	ld	a,(npb_f_d)	; data fill  bytes
+	ld	e,a		; (should be 0e5h)
+vrfy:	ld	a,(hl)
+	cp	e
+	jp	nz,verify
+	inc	hl
+	dec	bc
+	ld	a,b
+	or	c
+	jr	nz,vrfy
+
+;-----------------------------------------;
+; done track, test for another side to do ;
+;-----------------------------------------;
+
+nxtside:
+	ld	hl,NEC.head
+	inc	(hl)		; to next side
+	ld	a,(hl)		; test if done both sides
+	cp	2		; test for valid side
+	jr	c,form2		; -yes- do another side
+	
+;---------------------------------;
+; test for another cylinder to do ;
+;---------------------------------;
+
+	ld	hl,(NEC.trk)
+	inc	hl
+	ld	(NEC.trk),hl	; to next cylinder
+	ex	de,hl
+
+	ld	hl,(NPB_cyl)	; maximum cylinders -1
+	ld	a,d
+	cp	h		; test for valid cylinder
+	jp	c,form1		; -yes- do another cylinder
+	ld	a,l
+	cp	e		; test for valid cylinder
+	jp	nc,form1	; -yes- do another cylinder
+
+;---------------------;
+; formated all tracks ;
+;---------------------;
+	ld	a,(NEC.type)
+	cp	epson		; test for epson format
+	jr	z,form80	; -yes-
+	cp	ibmss		; test for ibmpc
+	jr	z,form60
+	cp	ibmds		; test for ibmpc
+	jr	z,form60
+	cp	epsonx		; test for epson+ format
+	jr	z,form80	; -yes-
+	jr	form80
+
+;--------------------------;
+; write code to IBM sector ;
+;--------------------------;
+form60:
+	ld	hl,dma_rw
+	ld	(NEC.dma),hl	; save for write command
+	ld	de,dma_rw+1
+	ld	(hl),0c9h	; fill with RETs in case used in IBM
+	ld	bc,512-1
+	ldir			; and fill 1st sector
+
+	ld	a,(NEC.type)
+	dec	a		; IBM 0 = Single sided, 1 = Double sided
+	ld	(hl),a		; fill byte with format flag
+
+	ld	a,0
+	ld	(NEC.trk),a	; select track 0
+	ld	(NEC.head),a	; select head 0
+
+	inc	a
+	ld	(NEC.sect),a	; select sector 1
+	ld	(NEC.scnt),a	; set sector count to 1
+
+	xor	a
+	ld	(NEC.rdwr),a	; WRITE
+
+	ld	hl,form60
+	ld	(process),hl	; save retry vector
+
+	call	NECrdwr		; write 1st sector
+	or	a		; test result
+	jp	nz,ioerr	; -error-
+
+
+;---------;
+; INITDIR ;
+;---------;
+form80:
+	ld	a,(initdir)
+	or	a
+	jp	z,form90
+
+	ld	hl,(npb_rw_DTL)	; size of sector
+
+; /128 = /256 *2
+	xor	a
+	add	hl,hl		; *2
+	ld	e,h		; /128
+	adc	a,0
+	ld	d,a		; DE = size of sector as multiple of 128
+	ld	a,(npb_rw_EOT)	; number of sectors
+	ld	hl,0
+nxtrec:	add	hl,de
+	dec	a
+	jr	nz,nxtrec	; HL = track size as multiple of 128
+
+	ex	de,hl
+	ld	hl,dma_rw
+
+;-------------------------------------------
+; prepare 1 track of INITDIR style directory
+;-------------------------------------------
+
+nxtdir:	ld	b,4		; 4 entries per sector
+nxtfcb:	ld	c,0e5h		; ERASED flag
+	ld	a,b
+	cp	1
+	jr	nz,setdr
+	ld	c,021h		; DATE STAMP flag
+setdr:	ld	(hl),c		; set DR byte
+	inc	hl
+
+	push	bc
+	ld	b,31
+	xor	a
+nxtzro:	ld	(hl),a		; zero remaining bytes of FCB
+	inc	hl
+	djnz	nxtzro
+	pop	bc
+	djnz	nxtfcb
+
+	dec	de
+	ld	a,d
+	or	e
+	jr	nz,nxtdir
+
+;--------------------------------------------------
+; prepare directory label and associated date stamp
+;--------------------------------------------------
+	ld	a,(label)
+	or	a
+	jr	z,form85
+
+	ld	de,dat		; day and time
+	ld	c,105		; get date and time
+	call	bdos
+
+	ld	a,(lfcb.d)	; update date fcb as required
+	bit	4,a
+	jr	nz,form81
+
+	bit	6,a
+	jr	z,form82
+
+form81:	ld	de,dma_rw+61h	; create/access stamp field
+	call	set.dat
+
+form82:	bit	5,a
+	jr	z,form83
+
+	ld	de,dma_rw+65h	; update stamp field
+	call	set.dat
+
+form83:
+	ld	de,lfcb.c	; create/access stamp field
+	call	set.dat
+	ld	de,lfcb.u	; update stamp field
+	call	set.dat
+
+	ld	hl,lfcb
+	ld	de,dma_rw
+	ld	bc,32
+	ldir			; copy label to first directory entry
+
+;-------------------------------;
+; write INITDIR directory track ;
+;-------------------------------;
+form85:
+	ld	hl,dma_rw
+	ld	(NEC.dma),hl	; save for write command
+
+	ld	a,(npb_strk)
+	ld	(NEC.trk),a	; select directory track
+	ld	a,0
+	ld	(NEC.head),a	; select head 0
+
+	ld	a,1
+	ld	(NEC.sect),a	; select sector 1
+	ld	a,(npb_rw_EOT)
+	ld	(NEC.scnt),a	; set sector count to sectors per track
+
+	xor	a
+	ld	(NEC.rdwr),a	; WRITE
+
+	ld	hl,form85
+	ld	(process),hl	; save retry vector
+
+	call	NECrdwr		; write all sectors to track
+	or	a		; test result
+	jp	nz,ioerr	; -error-
+
+	jp	form90
+
+;-----------------;
+; done formatting ;
+;-----------------;
+form90:
+	ld	hl,done
+	call	strout	;formerly lineout
+	jp	confirm
+
+;===================;
+; Seek or I/O error ;
+;===================;
+skerr:
+ioerr:
+	ld	hl,(NEC.adrv)
+	ld	h,0
+	add	hl,hl
+	ld	bc,ST0tble
+	add	hl,bc		; <HL> -> ST0 for drive selected
+	ld	a,(hl)
+	bit	3,a		; test for NOT READY
+	jp	nz,notready
+
+	and	11000000b	; test interrupt code
+	cp	11000000b	; test for drive status change
+	jp	z,retry		; -yes-
+
+	ld	a,(hl)
+	bit	5,a		; test for SEEK completion
+	jp	nz,fatal	; error during seek - must be fatal
+
+
+;==========================;
+; Read/Write command error ;
+;==========================;
+
+	ld	hl,result	; result bytes
+	cp	(hl)		; test if same as last ST0
+	jp	nz,fatal	; so cant be read/write result phase
+
+	inc	hl
+	ld	a,(hl)		; test ST1
+
+	bit	7,a
+	jr	nz,fatal	; Sector outside range
+
+	bit	5,a
+	jr	nz,iderr	; CRC error in ID
+
+	bit	4,a
+	jr	nz,fatal	; OVERRUN
+
+	bit	2,a
+	jr	nz,verify	; cannot find sector
+
+	bit	1,a
+	jr	nz,wrprot	; write protect
+
+	bit	0,a
+	jr	nz,iderr	; Missing ID mark
+
+	inc	hl
+	ld	a,(hl)		; test ST2
+
+	bit	5,a
+	jr	nz,iderr	; CRC error in DATA
+
+	bit	4,a
+	jr	nz,iderr	; WRONG SIDE
+
+	bit	2,a
+	jr	nz,verify	; cannot find sector
+
+	bit	0,a
+	jr	nz,iderr	; Missing DATA ADDRESS mark
+
+	jp	fatal
+
+;--------------------------------------
+; IDERR
+; 	CRC error in ID
+; 	Missing ID mark
+; 	CRC error in DATA
+; 	WRONG SIDE
+; 	Missing DATA ADDRESS mark
+;--------------------------------------
+iderr:
+	ld 	hl,idmsg
+	call	strout	;formerly lineout
+	jr	tryagain
+
+;--------------------------------------
+; VERIFY
+;	cannot find sector
+;       or read verify error
+;--------------------------------------
+verify:
+	ld 	hl,vfymsg
+	call	strout	;formerly lineout
+	jr	tryagain
+
+;--------------------------------------
+; WRPROT
+;	write protect
+;--------------------------------------
+
+wrprot:
+	ld 	hl,wpmsg
+	call	strout
+	ld	A,(dest)		;find out which is wp'ed dest
+	or	A
+	jr	nz,dest.r
+	ld	hl,show.l.writeprotect
+	jr	do.it.wp
+dest.r:	ld	hl,show.r.writeprotect
+do.it.wp:
+	call	msg
+	jp	abandon
+
+;-------------------------------;
+; fatal seek error of some sort ;
+;-------------------------------;
+fatal:	ld 	hl,ftlmsg
+	call	strout	;formerly lineout
+	jr	tryagain
+
+;----------------------;
+; disk drive not ready ;
+;----------------------;
+notready:
+	ld 	hl,nrmsg
+	call	strout	;formerly lineout
+	jp	tryagain
+
+;-----------------------;
+; try again if required ;
+;-----------------------;
+tryagain:
+	ld	hl,trymsg
+	call	strout		;formerly lineout
+what:	call	conin
+	cp	3		;Break?
+	jp	z,quit		; -yes-
+	cp	cr		; <return>
+	jr	nz,what		; -no-
+
+	ld	hl,erase.r.prompt
+	call	strout
+
+;------------------------------;
+; non permanent error so retry ;
+;------------------------------;
+retry:
+	ld	hl,(process)
+	jp	(hl)		; retry process
+
+;---------------------------;
+; fatal error so do no more ;
+;---------------------------;
+abandon:
+	ld	hl,errmsg
+	call	strout	;formerly lineout
+pause:	call	conin
+	push	af
+	ld	hl,clean.line
+	call	strout
+	pop	af
+	cp	3		;Break?
+	jp	z,quit		; -yes-
+	cp	cr		; <return>
+	jr	nz,what		; -no-
+	call	screen.clear	;erase picture
+	jp	start1		; -yes-
+
+; fatal errors
+wpmsg:	db	Esc,"=",22+32,12+32	;go to error line 
+	db	'ERROR: Disc is write protected',0
+ftlmsg:	db	Esc,"=",22+32,12+32	;go to error line 
+	db 	'ERROR: Cannot complete format',0
+errmsg:	db	Esc,"=",23+32,12+32	;go to error line 
+	db	'Permanent error, press <CR> to restart ',0
+
+; retry messages
+idmsg:	db	Esc,"=",22+32,12+32	;go to error line 
+	db	'ERROR: Cannot verify format',0
+vfymsg:	db	Esc,"=",22+32,12+32	;go to error line 
+	db	'ERROR: Cannot verify format',0
+nrmsg:	db	Esc,"=",22+32,12+32	;go to error line 
+	db 	'ERROR: Drive not ready',0
+trymsg:	db	Esc,"=",23+32,12+32	;go to error line 
+	db 	'RETRY? Press <CR> to retry, else <BREAK> to quit',0
+
+erase.r.prompt:		;what was on the error recoverable prompt
+
+	db	esc,"=",22+32,10+32,esc,'T',esc,"=",22+32,78+32,86h
+	db	esc,"=",23+32,10+32,esc,'T',esc,"=",23+32,78+32,86h
+	db	000
+
+process:	dw	0
+
+;---------------;
+; quit function ;
+;---------------;
+quit:
+	ld	hl,terminate
+	call	strout		;formerly lineout
+
+;---------------------------;
+; request confirm or reboot ;
+;---------------------------;
+confirm:
+	ld	hl,erase.r.prompt
+	call	strout
+	ld	hl,contms
+	call	strout		;formerly lineout
+conf01:
+	call	conin
+	push	af
+	ld	c,a
+	call	conout
+	call	screen.clear
+	pop	af
+	cp	3
+	jp	z,reboot
+	cp	'Y'
+	jp	z,conf02
+	cp	'N'
+	jp	nz,conf01
+	jp	reboot
+conf02:
+	call	screen.clear
+	jp	start1
+
+;---------------------------------;
+; exit program and return to CP/M ;
+;---------------------------------;
+reboot:
+	call	NECclose	; terminate disc driver
+
+	ld	hl,exitmsg
+	call	strout	;formerly lineout
+
+	call	gra.off
+	call	curon		;retrieve the situation
+	call	screen.clear
+	ld	c,0
+	jp	bdos		; and terminate program
+
+exitmsg:	db	cr,lf,'FORMAT - Program completed',0
+
+	page
+;---------------------------------------------------------------------
+; this section contains the floppy picture used to depict the formatting
+; of the disk (the structure is that used by diskcopy)
+
+show.l.writeprotect:
+	db	wp.l.length-1
+	db	esc,'.',15,0	;set solid fill
+	db	esc,'.',4
+	dw	268
+	dw	200
+	dw	276
+	dw	216
+	db	esc,'=',11+32,36+32,'<--',0
+wp.l.length equ $-show.l.writeprotect
+
+show.r.writeprotect:
+	db	wp.r.length-1
+	db	esc,'.',15,0	;set solid fill
+	db	esc,'.',4
+	dw	500
+	dw	200
+	dw	508
+	dw	216
+	db	esc,'=',11+32,65+32,'<--',0
+wp.r.length equ $-show.r.writeprotect
+ 
+diskdraw.a.string:
+	dw	dis.a.length-2
+	db	esc,'G'
+	db	esc,'['
+	db	esc,'.',10,0	;solid	
+	db	esc,'.',9,1	;set to replace
+
+	db	esc,"=",9+32,13+32,'A'
+	db	esc,"=",9+32,15+32,topleft
+	db	85h,85h,85h,85h,85h,85h,85h,85h,85h,85h,85h,85h
+	db	85h,85h,85h,85h,85h,85h
+	db	esc,"=",9+32,34+32,topright	
+	db	esc,"=",18+32,15+32,bottomleft
+	db	85h,85h,85h,85h,85h,85h,85h,85h,85h,85h,85h,85h
+	db	85h,85h,85h,85h,85h,85h
+	db	esc,"=",18+32,34+32,bottomright
+	db	esc,"=",11+32,34+32,bottomright
+	db	esc,'=',10+32,34+32,86h
+	db	esc,"=",11+32,33+32,topleft
+	db	esc,"=",12+32,33+32,bottomleft
+	db	esc,"=",12+32,34+32,topright
+
+	db	esc,'.',0		;locate cursor
+	dw	198			;circle centre x coord
+	dw	174			;   "      "   y   "
+	db	esc,'.',7		;Draw the Circle Please
+	dw	61
+
+	db	esc,'.',0		;locate cursor
+	dw	198			;as above
+	dw	174			; ditto
+	db	esc,'.',7		;Draw the Circle Please
+	dw      15
+
+	db	0,0,0,0			;dummy null bytes (to make 2nd
+					; circle appear !?)
+
+dis.a.length	equ	$-diskdraw.a.string
+
+diskdraw.b.string:
+	dw	dis.b.length-2
+	db	esc,'G'
+	db	esc,'['
+	db	esc,'.',10,0	;solid	
+	db	esc,'.',9,1	;set to replace
+
+	db	esc,"=",9+32,42+32,'B'
+	db	esc,"=",9+32,44+32,topleft
+	db	85h,85h,85h,85h,85h,85h,85h,85h,85h,85h,85h,85h
+	db	85h,85h,85h,85h,85h,85h
+	db	esc,"=",9+32,63+32,topright	
+	db	esc,"=",18+32,44+32,bottomleft
+	db	85h,85h,85h,85h,85h,85h,85h,85h,85h,85h,85h,85h
+	db	85h,85h,85h,85h,85h,85h
+	db	esc,"=",18+32,63+32,bottomright
+	db	esc,"=",11+32,63+32,bottomright
+	db	esc,'=',10+32,63+32,86h
+	db	esc,"=",11+32,62+32,topleft
+	db	esc,"=",12+32,62+32,bottomleft
+	db	esc,"=",12+32,63+32,topright
+
+	db	esc,'.',0		;locate cursor
+	dw	430
+	dw	174
+	db	esc,'.',7		;Draw the Circle Please
+	dw	61
+	db	esc,'.',0		;locate cursor
+	dw	430
+	dw	174
+	db	esc,'.',7		;Draw the Circle Please
+	dw	15
+	
+	db	0,0,0,0			;dummy null bytes (to make 2nd
+					; circle appear !?)
+
+dis.b.length	equ	$-diskdraw.b.string
+
+;---------------------------------------------------------------------
+page
+;----------------;
+; DMA data areas ;
+;----------------;
+	dseg
+dma_f:	ds	18*4	; 4 bytes per sector (maximum of 18 sectors)
+dma_rw:	ds	5*1024	; space for 1 whole track for verify
+
+
+;--------------------------------------------------------------------------;
+;
+	end
+
