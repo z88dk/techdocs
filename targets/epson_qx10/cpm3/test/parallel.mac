@@ -1,0 +1,158 @@
+	.z80
+	title	EPSON QX-10 Test parallel i/o status
+
+;---------------------------------------------------------------------
+; Centronix Parallel Output Port (PPI) - printer
+; Set to MODE 1: 2 channels of 8 data lines + 4 control lines 
+;---------------------------------------------------------------------
+ppi	equ	0101b shl 2	;8255 ppi centronics printer port
+ppi$ad	equ	ppi+00b		;PIO data port (port A)
+ppi$bs	equ	ppi+01b		;PIO status port (port B)
+ppi$cc	equ	ppi+10b		;PIO control port (port C)
+ppi$cmd	equ	ppi+11b		;PIO 8255 command
+;------------------------------------------------------
+;	status bits for Centronix Interface (ppi+01b)
+;------------------------------------------------------
+ppi$dsr	equ	0		; DSR - not used
+ppi$err	equ	3		; (32) input: ^ERR: error signal from printer
+ppi$npa	equ	4		; (12) input: NPA: no paper signal from printer
+ppi$rdy	equ	5		; (11) input: ^RDY: ready for output to printer
+ppi$pef	equ	6		; (35) input: ^PWF: printer power down detect
+ppi$slo	equ	7		; (13) input: ^SLO: printer operational (not error)
+
+bdos	equ	5
+
+;-----------------------------------------------------------------
+;
+;	Test Parallel Status
+;
+;-----------------------------------------------------------------
+ 
+	cseg
+
+	ld	de,msg0
+	ld	c,9
+	call	bdos
+
+start:
+	ld	c,11
+	call	bdos		; test console status
+	or	a
+	jp	nz,finish	; terminate if not <RETURN>
+
+;------------------------;
+; test and report status ;
+;------------------------;
+
+;Centronics parallel output driver
+
+	in	a,(ppi$bs)	; test status
+
+	and	11111000b	; Status bits
+	ld	hl,previous
+	cp	(hl)
+	jr	z,start
+	ld	(hl),a
+
+	xor	11101000b	; Invert ERR RDY PWF SLO
+	rrca
+	rrca
+	rrca
+
+	rrca
+	call	yesno		; show ERR
+
+	rrca
+	call	yesno		; show NPA
+
+	rrca
+	call	yesno		; show RDY
+
+	rrca
+	call	yesno		; show PWF
+
+	rrca
+	call	yesno		; show SLO
+
+	ld	de,msg_rdy
+	bit	ppi$rdy,a
+	jr	nz,status	; READY
+
+	ld	de,msg_pwf
+	bit	ppi$pef,a
+	jr	nz,status	; no power at printer
+
+	bit	ppi$err,a
+	jr	nz,error	; Error
+
+	ld	de,msg_none
+	bit	ppi$npa,a
+	jr	nz,status	; off line
+
+	ld	de,msg_slo
+	bit	ppi$SLO,a
+	jr	nz,status	; Select out signal
+
+	ld	de,msg_bsy
+	jr	status		; Busy
+
+error:
+	ld	de,msg_npa
+	bit	ppi$npa,a
+	jr	nz,status	; no paper
+
+	ld	de,msg_off
+	jr	status		; off line
+
+status:
+	ld	c,9
+	call	bdos
+	jp	start
+
+
+yesno:
+	ld	de,msgyes
+	jr	c,outyesno
+	ld	de,msgno
+outyesno:
+	push	af
+	ld	c,9
+	call	bdos
+	pop	af
+	ret
+
+finish:
+	ld	c,1
+	call	bdos		; fetch console character
+
+	ld	c,0
+	jp	bdos
+
+msg0:	db	0dh,0ah,'Hit any key to terminate testing Epson Printer status'
+	db	0dh,0ah,'ERR NPA RDY PWF SLO','   Printer is:'
+	db	0dh,0ah,'$'
+
+msgyes:	db		'YES ','$'
+msgno:	db		'no  ','$'
+
+msg_rdy:	db	'  ready               ',0dh,'$'
+msg_pwf:	db	'  NOT SWITCHED ON     ',0dh,'$'
+msg_none:	db	'  NOT CONNECTED       ',0dh,'$'
+msg_bsy:	db	'  busy                ',0dh,'$'
+msg_slo:	db	'  NOT SELECTED        ',0dh,'$'
+msg_npa:	db	'  NO PAPER            ',0dh,'$'
+msg_off:	db	'  OFF LINE            ',0dh,'$'
+
+msg1:	db	0dh,0ah,'--- Printer is NOT ready','$'
+msg2:	db	0dh,0ah,'--- Printer is ready','$'
+msg3:	db	0dh,0ah,'--- Printer is NOT switched on, or NOT connected','$'
+msg4:	db	0dh,0ah,'--- Printer is OUT OF PAPER or OFF LINE','$'
+msg5:	db	0dh,0ah,'--- Printer is in EFFECTIVE OPERATION STATE','$'
+msg6:	db	0dh,0ah,'--- Printer is in ERROR','$'
+
+previous:
+	db	0ffh
+
+;---------------------------------------------------------------
+
+	end
