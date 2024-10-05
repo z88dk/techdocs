@@ -1,0 +1,21 @@
+; Listing of BIOS modules
+; SUB files
+list cbios1.sub
+list nec765.sub
+list cbioslst.sub
+list bioslist.sub
+; EQU files
+list 46818.equ
+list 7201.equ
+list 8253.equ
+list 8255.equ
+list 8259a.equ
+; MAC files
+list cbios.mac
+list cbios3a4.mac
+list cbios3a5.mac
+list nec765.mac
+list mdisk.mac
+list cbios3a6.mac
+list cbios3a8.mac
+list cbios3a9.mac
