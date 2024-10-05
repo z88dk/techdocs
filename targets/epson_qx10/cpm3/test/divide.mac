@@ -1,0 +1,313 @@
+	.z80
+
+;--------------------------------------------------------------------------
+	page
+
+	cseg
+
+bdos	equ	0005h
+
+start:	ld	de,msg1
+	ld	c,9
+	call	bdos
+
+	ld	de,cbuff
+	ld	c,10		; BDOS console input
+	call	bdos
+
+	ld	hl,cbuff+1
+	ld	a,(hl)
+	or	a
+	jp	z,0
+
+	call	ascint
+	jr	nz,start
+	ex	de,hl
+	ld	(num),hl	; numerator
+
+start1:
+	ld	de,msg3
+	ld	c,9
+	call	bdos
+
+	ld	de,cbuff
+	ld	c,10		; BDOS console input
+	call	bdos
+
+	ld	hl,cbuff+1
+	ld	a,(hl)
+	or	a
+	jp	z,0
+
+	call	ascint
+	jr	nz,start1
+	ex	de,hl
+	ld	(den),hl	; denominator
+
+
+	ld	b,h
+	ld	c,l
+	ld	hl,(num)
+
+	call	?id22n
+
+	ld	(times),hl
+	ld	(remain),de
+
+; output hex values
+
+	ld	hl,(num)
+	ex	de,hl
+	ld	hl,msg4a
+	call	hexm
+
+	ld	hl,(den)
+	ex	de,hl
+	ld	hl,msg4b
+	call	hexm
+
+	ld	hl,(times)
+	ex	de,hl
+	ld	hl,msg4c
+	call	hexm
+
+
+	ld	hl,(remain)
+	ex	de,hl
+	ld	hl,msg4d
+	call	hexm
+
+	ld	de,msg4
+	ld	c,9
+	call	bdos
+
+
+; output decimal values
+
+	ld	hl,(num)
+	ex	de,hl
+	ld	hl,msg5a
+	call	decm
+
+	ld	hl,(den)
+	ex	de,hl
+	ld	hl,msg5b
+	call	decm
+
+	ld	hl,(times)
+	ex	de,hl
+	ld	hl,msg5c
+	call	decm
+
+
+	ld	hl,(remain)
+	ex	de,hl
+	ld	hl,msg5d
+	call	decm
+
+	ld	de,msg5
+	ld	c,9
+	call	bdos
+
+
+	jp	start
+
+hexm:			; convert <DE> into hex at (hl)
+	ld	a,d
+	call	hexh
+	ld	a,d
+	call	hexl
+	ld	a,e
+	call	hexh
+	ld	a,e
+	jp	hexl
+
+hexh:	rrca
+	rrca
+	rrca
+	rrca
+hexl:	and	0fh
+	add	a,'0'
+	cp	'9'+1
+	jr	c,hexchar
+	add	a,'A'-'0'-10
+hexchar:
+	ld	(hl),a
+	inc	hl
+	ret
+;
+decm:			; convert <DE> into decimal at (hl)
+	push	hl
+	ld	hl,10000
+	call	digit
+	pop	hl
+	ld	(hl),b
+	inc	hl
+
+	push	hl
+	ld	hl,1000
+	call	digit
+	pop	hl
+	ld	(hl),b
+	inc	hl
+
+	push	hl
+	ld	hl,100
+	call	digit
+	pop	hl
+	ld	(hl),b
+	inc	hl
+
+	push	hl
+	ld	hl,10
+	call	digit
+	pop	hl
+	ld	(hl),b
+	inc	hl
+
+	push	hl
+	ld	hl,1
+	call	digit
+	pop	hl
+	ld	(hl),b
+	inc	hl
+
+	ret
+
+
+digit:			; de = de-hl
+	ld	b,'0'
+dig1:
+	ld	a,e
+	sub	l
+	ld	c,a
+	ld	a,d
+	sbc	a,h
+	ret	c
+	inc	b
+	ld	d,a
+	ld	e,c
+	jr	dig1
+
+
+;-----;
+ascint:				; convert ascii text into integer <DE>
+;-----;
+	ld	b,a
+	ld	de,0
+nxtdig:
+	push	hl
+	ld	h,d
+	ld	l,e
+	add	hl,hl		; *2
+	add	hl,hl		; *4
+	add	hl,de		; *5
+	add	hl,hl		; *10
+	ex	de,hl
+	pop	hl
+
+	inc	hl
+	ld	a,(hl)
+
+	sub	'0'
+	jr	c,digerr
+	cp	10
+	jr	nc,digerr
+	push	hl
+	ld	l,a
+	ld	h,0
+	add	hl,de
+	ex	de,hl
+	pop	hl
+
+	djnz	nxtdig
+	xor	a
+	ret			; return z, nc
+
+digerr:
+	ld	de,msg2
+	ld	c,9
+	call	bdos
+	or	-1
+	ret			; return nz
+
+
+
+msg1:	db	0dh,0ah,'Enter numerator (0-65535) ? ','$'
+cbuff:	db	255
+	db	0
+	ds	255
+msg2:	db	0dh,0ah,' ? only number 0-9 allowed','$'
+msg3:	db	0dh,0ah,'Enter denominator (0-65535) ? ','$'
+
+
+num:	dw	0
+den:	dw	0
+times:	dw	0
+remain:	dw	0
+
+msg4:	db	0dh,0ah
+msg4a:	db	'0000h / '
+msg4b:	db	'0000h = '
+msg4c:	db	'0000h mod '
+msg4d:	db	'0000h','$'
+
+msg5:	db	0dh,0ah
+msg5a:	db	'65535 / '
+msg5b:	db	'65535 = '
+msg5c:	db	'65535 mod '
+msg5d:	db	'65535','$'
+
+
+
+; routine to divide two 16 bit numbers
+
+; hl = hl / bc, de = remainder
+
+
+?id22n:
+; division  bc = denominator, hl = numerator
+
+	ex	de,hl	; de = numerator
+
+	ld	a,b
+	or	c	; bc = denominator
+	jr	z,zrodivide
+
+	ld	hl,0
+	ld	a,16
+nxtbit:	ex	de,hl
+	add	hl,hl	; rotate left
+	jr	nc,zrobit
+	inc	de
+zrobit:	ex	de,hl
+	push	hl
+	and	a
+	sbc	hl,bc
+	jp	c,less
+	inc	de
+	ex	(sp),hl
+less:	pop	hl
+	dec	a
+	jr	z,allbits
+	add	hl,hl
+	jp	nxtbit
+allbits:
+	ex	de,hl
+
+; done divide
+
+; returns hl = hl/bc, remainder in de
+
+	ret
+
+zrodivide:
+	ld	hl,-1
+	ld	d,h
+	ld	e,l		; set everything to -1
+	ret
+
+
+
+
+	end
