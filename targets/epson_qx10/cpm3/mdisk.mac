@@ -1,0 +1,666 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS Ram disc drivers
+
+	name	('MDISK')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; ALPHA Aug 8,83
+; BETA  Dec 5,83
+; BETA+ Jan 5,84
+; REV-A Apr 30,84
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+; disk parameter headers (DPH's)
+
+        public	dph12			; M: QX-10 Memory disc
+
+;-----------------------
+; CP/M 3 CBIOS externals
+;-----------------------
+
+; disk communication data items
+
+	extrn	@dtbl			» table of pointers to XDPH's
+	extrn	@adrv,@trk,@sect,@scnt	; parameters for disk I/O
+	extrn	@dma,@dbnk		;    "       "    "    "
+
+	extrn	@retries		; Number of retries remaining
+	extrn	@rdwr			; disc READ or WRITE flag
+	extrn	@wrdc			; BDOS write deblocking codes
+
+; memory control
+
+	extrn	@cbnk,@sbnk,@tbnk	; current, system and tpa bank number
+	extrn	?xmove,?move,@xbc	; select move bank & block move
+	extrn	?tpabnk,?sysbnk		; select TPA or SYS bank
+	extrn	?bank			; select bank in <A>
+	extrn	@bnkno			; table of epson bank numbers (0-3)
+
+; general utility routines
+
+	extrn	?pmsg			; print message @<SP>
+	extrn	?pdec			; print 16 bit number in <HL>
+	extrn	?idle			; called whenever waiting on hardware
+
+; common memory
+
+	extrn	@cpage			; -> base page of common memory
+
+;------------------------------------------------------------------------
+
+	cseg
+
+bit0	equ	1 shl 0
+bit1	equ	1 shl 1
+bit2	equ	1 shl 2
+bit3	equ	1 shl 3
+bit4	equ	1 shl 4
+bit5	equ	1 shl 5
+bit6	equ	1 shl 6
+bit7	equ	1 shl 7
+
+	maclib	CBIOS.EQU	; QX-10 hardware ports and equates
+
+maxbank	equ	3		; Largest bank number available
+
+;------------------------------------------------------------------------
+	page
+
+;		===============
+;		DISC DATA AREAS
+;		===============
+
+;--------------------------------------------------------------
+;
+; CP/M disc parameters
+;
+;--------------------------------------------------------------
+
+;-----------------------------------------------------------
+; dph for drive M:
+; NB: if GENCPM sets up CSV  then DRM must be defined in DPB
+;     if GENCPM sets up ALV  then DSM must be defined in DPB
+;     if GENCPM sets up BCBs then PSH must be defined in DPB
+;     if GENCPM sets up HASH then DRM must be defined in DPB
+; dph's must be initialised to largest possible configuration
+;
+; Extended DPH parameters:
+;    -10	1 word	Address of ERROR PROCESSING routine
+;     -8	1 word	Address of DISC RD/WR routine
+;     -6	1 word	Address of DISC SELECT routine
+;     -4	1 word	Address of COLD BOOT INIT routine
+;     -2	1 byte	Physical device unit number
+;     -1	1 byte	Physical format or type of disc selected
+
+	dseg		; DPH's unlike DPB's can be in system bank
+;M:
+
+	dw	?RAMerr		; address of error routine
+	dw	?RAM		; address of MDISC rd/wr driver
+	dw	?selRAM		; address of MDISC select driver
+	dw	?RAMinit	; address of COLD BOOT routine
+	db	-1		; Physical memory bank no. (no bank assigned)
+	db	0		; Physical selected device format (not used)
+dph12:	dw	0		; no XLT
+	ds	9		; scratch area
+	db	0		; Media Flag (gate opened)
+	dw	dpbmram		; disk parameter block
+	dw	0fffeh		; CSV - allocated by GENCPM
+	dw	0fffeh		; ALV - allocated by GENCPM
+	dw	0fffeh		; DIRBCB7 - allocated by GENCPM
+	dw	0fffeh		; DTABCB7 - allocated by GENCPM
+	dw	0fffeh		; HASH7 - allocated by GENCPM
+	db	0		; HBANK7 - allocated by GENCPM
+
+; --------------------
+; Disk Parameter Block
+; --------------------
+
+	cseg		; DPB's must be in common
+
+	dw	128		; physical sector size
+dpbmram:		; banked memory silicon disc
+	dw	(64-8)*(1024/128)	; sectors per track or bank
+	db	3,7		; block mask
+	db	0		; ex mask
+	dw	(56*2)-1	; max block number
+	dw	32-1		; max dir entries-1
+	db	080h,0		; alloc1/2
+	dw	8		; checksize (just in case memory corrupted)
+	dw	2		; track/bank offset
+	db	0,0		; deblock mask
+
+;------------------------------------------------------------------------
+	page
+
+;               ===========
+;               RAM DRIVERS
+;               ===========
+
+;---------------------------------------------------------------------
+; ?SELRAM, ?RAMINIT	-	ram select & ram init
+; ===================================================
+; Entry:	<DE> -> dph
+; 		<DE>-1 = format code
+; 		<DE>-2 = physical unit
+; Returns:	<HL> = dph if successful
+;		<HL> = 0 if unsuccessful
+;		<A> = 0 if successful
+;		<A> > 0 if unsuccessful and retries possible
+; Function:
+;	1/ ?SELRAM only: check if 1st time select since cold boot
+;	2/ test if memory exists
+;	3/ test for valid directory
+;	4/ test for size of memory
+;---------------------------------------------------------------------
+
+	dseg		; system bank
+
+;------;
+?selram:
+;------;
+
+	dec	de
+	dec	de
+	ld	a,(de)		; fetch physical device number from DPH
+	inc	de		; which for RAM disc is set to first bank
+	inc	de		; by this select routine
+	inc	a		; test if device number = -1
+	jp	nz,ramok	; -no- so must have successfully selected ram
+
+;-------;
+?RAMinit:		; COLD BOOT INIT
+;-------;
+
+	call	dpbptr		; returns address of dpb in <BC>
+	ld	hl,13		; offset to bank (track) offset
+	add	hl,bc
+	ld	a,(hl)
+	ld	(@trk),a	; initialise track to track offset
+	ld	(@dbnk),a	; and set DMA bank to any valid bank
+
+
+	push	bc		; save dpb
+	push	de		; save dph
+	call	testram		; see if this track exists
+	pop	de		; recover dph
+	pop	bc		; recover dpb
+	jr	z,goodram	;-yes- so have ram
+
+; -------------------------------- ;
+; not valid ram - so try next bank ;
+; -------------------------------- ;
+
+	ld	a,maxbank	; Largest bank number available
+	ld	hl,13		; offset to bank (track) offset
+	add	hl,bc
+	cp	(hl)		; test current bank with maximum available
+	jr	z,badram	; no ram left
+	inc	(hl)		; up track offset to next bank
+;
+	jr	?RAMinit	; and repeat test on next bank
+
+;------;
+testram:		; check if ram exists for track (@trk)
+;------;
+
+	ld	hl,cbuff	; our DMA area
+	ld	(@dma),hl
+
+	ld	hl,0		; set sector count to zero
+	call	rdram		; read 1st sector
+; test ram
+	ld	hl,cbuff
+	ld	a,(hl)		; test 1st byte
+	push	af		; and save for later
+	xor	-1
+	ld	(hl),a		; switch bytes
+	ld	hl,0		; set sector count to zero
+	call	wrram		; write to memory bank	
+	ld	hl,0		; set sector count to zero
+	call	rdram		; read back in
+	ld	hl,cbuff
+	ld	a,(hl)
+	xor	-1
+	ld	(hl),a
+	pop	af
+	cp	(hl)		; test if byte changed
+	ret	nz		; -no- track dont exists
+	ld	hl,0		; set sector count to zero
+	call	wrram		; so write back correct record
+	ret			; return cf=z as good ram
+
+;-----;
+badram:		; no ram left - return bad select no retries possible
+;-----;
+	xor	a
+	ld	h,a
+	ld	l,a
+	ret
+
+;------;
+goodram:		; 1st byte in RAM worked  (on entry <DE> -> dph)
+;------;
+
+	ld	a,(@trk)	; first track with RAM
+	dec	de
+	dec	de
+	ld	(de),a		; and update physical device number in DPH
+	inc	de
+	inc	de
+
+; -------------------------;
+; test for valid directory ;
+;  (on entry <DE> -> dph)  ;
+; -------------------------;
+
+	push	de
+	ld	hl,tstalc
+	ld	(hl),0
+	ld	de,tstalc+1
+	ld	bc,lenalc-1
+	ldir			; zero our alloc vector 
+	pop	de		; recover dph
+
+	ld	hl,cbuff	; the directory should be in here
+	ld	b,4		; 4 directories in 128 byte sector
+nxtfcb:
+	ld	c,11		; set <C> ready for tstnm
+	ld	a,(hl)
+	cp	0e5h		; test for dr = ERASED
+	jr	z,mrkera
+	cp	31+1		; max user no
+	jr	c,tstnm
+	ld	a,b		; (what about disk label and password)
+	cp	1		; could be password if <b> = 1
+	jr	nz,notfcb	; so assume this is not a valid FCB
+	jr	mrkera		; so as all others ok, ignore
+
+tstnm:				; dr is valid user no
+	inc	hl
+	ld	a,(hl)
+	and	07fh		; mask parity flag
+	cp	' '		; test for character 
+	jr	c,notfcb	; assume control character is error
+	dec	c		; decrement filename count
+	jr	nz,tstnm	; and test till end of filename
+
+	inc	hl		; <HL> -> ex
+	inc	hl		; <HL> -> s1
+	inc	hl		; <HL> -> s2
+	inc	hl		; <HL> -> rc
+
+	ld	c,16		; size of data block
+tstdb:				; test each byte of datablock
+	inc	hl
+	ld	a,(hl)
+	cp	(60*2)		; test less than maximum number of blocks
+	jr	nc,notfcb	; -no- so must be illegal FCB
+	or	a
+	jr	z,zrodb		; first block implies empty allocation
+	and	not (8-1)	; remove low 3 bits
+	rrca			; /2
+	rrca			; /4
+	rrca			; /8
+
+	push	bc
+	ld	c,a
+	ld	b,0		; BC is byte offset
+	ld	a,(hl)
+	and	(8-1)		; mask low 3 bits
+
+	push	hl
+	ld	hl,tstalc
+	add	hl,bc
+	inc	a		; a=1 to 8
+	ld	b,a
+	ld	a,80h		; set bit 7
+shift:	rlca
+	djnz	shift
+	ld	b,a		; b has bit set to test
+	ld	a,(hl)
+	and	b
+	jr	nz,alocerr	; bit has already been set
+	ld	a,(hl)
+	or	b
+	ld	(hl),a		; bit now set
+	pop	hl
+
+	pop	bc
+
+zrodb:	dec	c
+	jr	nz,tstdb	; repeat test for remaining bytes
+	jr	tstok
+
+alocerr:			; allocation error so assume illegal FCB
+	pop	hl
+	pop	bc
+	jr	notfcb
+
+tstalc:	ds	((60*2)+7)/8	; check alloc table (for maximum ram size)
+lenalc	equ	$-tstalc
+
+mrkera:				; dr = 0e5h so skip bytes
+	push	bc
+	ld	bc,32-1		; skip to end of fcb
+	add	hl,bc
+	pop	bc
+
+tstok:				; no errors in FCB found
+	inc	hl		; <HL> -> usr
+	djnz	nxtfcb		; loop for remaining directory fcb's
+	jr	ramdir		; (directory looks ok)
+
+; error found in first sector of directory
+; so erase directory
+
+notfcb:				; (on entry DE -> dph)
+	push	de		; save dph
+	call	dpbptr		; returns address of dpb in <BC>
+	ld	hl,13		; offset to bank (track) offset
+	add	hl,bc		; (this should be unneccesary)
+	ld	a,(hl)
+	ld	(@trk),a	; go back to directory track
+
+	ld	hl,cbuff	; (assumes @dma -> cbuff)
+	ld	(hl),0e5h
+	ld	d,h
+	ld	e,l
+	inc	de
+	ld	bc,128-1
+	ldir			; fill buffer with 0e5h
+; --------------------
+; directory now erased
+; --------------------
+	ld	b,8		; check size
+	ld	hl,0		; start of directory
+nxtdir:	push	bc
+	push	hl
+	call	wrram		; write directory sector
+	pop	hl
+	ld	bc,128
+	add	hl,bc
+	pop	bc
+	djnz	nxtdir
+
+	pop	de		; recover dph in <DE>
+
+; --------------------------------------------;
+; now find size of ram (on entry <DE> -> dph) ;
+; --------------------------------------------;
+ramdir:
+	call	dpbptr		; returns address of dpb in <BC>
+	ld	hl,5		; offset to LOW size of disc -1
+	add	hl,bc
+	ld	(hl),-1		; initialise size to -1
+topram:
+	ld	hl,5		; offset to LOW size of disc -1
+	add	hl,bc
+	ld	a,(@cpage)	; start of common memory
+	rrca
+	rrca			; /4 to give no of 1k blocks
+	add	a,(hl)		; add size of bank to previous total capacity
+	ld	(hl),a		; increase ram size by one tracks worth
+
+; go to next track and test for ram availability
+
+	ld	a,maxbank	; Largest bank number available
+	ld	hl,@trk
+	inc	(hl)		; increment to next track
+	cp	(hl)		; test if valid track (=bank no)
+	jr	c,ramok		; no ram left
+
+	push	bc		; save dpb
+	push	de		; save dph
+	call	testram		; see if this track exists
+	pop	de		; recover dph
+	pop	bc		; recover dpb
+	jr	z,topram	;-yes- so maybe more tracks
+
+; Successful 1st time select - return to caller
+ramok:
+	ex	de,hl		; move dph to <HL>
+	xor	a
+	ret			; return
+
+;--------------------------------;
+; returns address of dpb in <BC> ;
+; entry:	<DE> = dph       ;
+; destroys:	<HL>             ;
+;--------------------------------;
+dpbptr:	ld	hl,12		; offset to dpb
+	add	hl,de
+	ld	c,(hl)
+	inc	hl
+	ld	b,(hl)		; <BC> -> dpb
+	ret
+
+;--------------------------------------------------------------------
+;                    ram ERRORS
+;
+; Input: 	<A> = ram error bits		 
+;
+; Returns:	<A> = 1		Return to BIOS for error condition
+;
+;--------------------------------------------------------------------
+
+?ramerr:
+	ld	a,1		; whatever the error report to BDOS
+	ret
+
+;-----------------------------------------------------------------------
+; ram
+; Inputs:	<DE> -> dph
+; 		<DE>-1 = disc format
+; 		<DE>-2 = physical unit
+;		@SCNT - number of sectors to transfer (may = 0)
+;		@DMA - address of start of transfer
+;		@RDWR - set to 0 for write, >0 for read
+; Returns:	<A> = 0 if no error, else <A> = 1 address outside range
+;
+; ram disc is configured as tracks of 56k banks, sectors of 128 bytes
+; physical unit is defined as 2 for bank 2 (was F:) or 3 for bank 3 E:)
+;
+; Uses common memory at location cbuff for DMA buffer
+;-----------------------------------------------------------------------
+
+?ram:
+;-----; calculate physical address (3 bytes max)
+;-----	ld	hl,(@sect)	; sectors
+;-----	add	hl,hl		;*2
+;-----	add	hl,hl		;*4
+;-----	add	hl,hl		;*8
+;-----	add	hl,hl		;*16
+;-----	add	hl,hl		;*32
+;-----	add	hl,hl		;*64
+;-----	add	hl,hl		;*128
+
+	ld	a,(@cpage)	; base of common memory
+	cp	h		; check if in common
+	jr	z,noram
+	jr	c,noram		; do I/O in common
+
+; ---------------------------- ;
+; test for multiple sector i/o ;
+; ---------------------------- ;
+
+;-----	ld	a,(@scnt)	; number of physical sectors
+;-----	or	a		; test for single sector
+;-----	jp	z,goram		; -yes- so no complications
+
+; ------------------------ ;
+; repeat transfer by @SCNT ;
+; ------------------------ ;
+
+;-----------------------------------;
+; NOTE: Once XMOVE is permanently   ;
+; implemented then this could be    ;
+; used for multiple sector transfer ;
+; viz:                              ;
+	ld	hl,@trk		; Bank number of Ram disc (2 or 3)
+	ld	de,@dbnk	; TPA or SYSTEM bank number (0 or 1)
+	ld	a,(@rdwr)	;
+	or	a		;
+	jr	nz,setxmove	; rd
+	ex	de,hl		; wr
+setxmove:			;
+	ld	c,(hl)		; Source bnk
+	ex	de,hl		;
+	ld	b,(hl)		; Dest bnk
+	ld	(@xbc),bc	;
+
+	ld	a,(@scnt)	; multi sector counte = 0, 1, 2 etc
+	ld	hl,128		;
+	or	a		;
+	jr	z,havelen	;
+	ex	de,hl		;
+	ld	hl,0		;
+uplen:	add	hl,de		;
+	dec	a		;
+	jr	nz,uplen	;
+havelen:			;	
+	ld	b,h		;
+	ld	c,l		; <BC>=length;
+				;
+	ld	hl,(@sect)	;
+	add	hl,hl		;*2
+	add	hl,hl		;*4
+	add	hl,hl		;*8
+	add	hl,hl		;*16
+	add	hl,hl		;*32
+	add	hl,hl		;*64
+	add	hl,hl		;*128 <HL> -> ramdisc start address 
+				;
+	ld	de,(@dma)	; <DE> -> DMA start address
+
+	ld	a,(@rdwr)	;
+	or	a		;
+	jr	z,setmove	;wr
+	ex	de,hl		;rd
+setmove:			;
+	call	?xmove		; hl->dest, de->srce, bc=length
+	xor	a		;
+	ret			;
+;-------------------------------;
+
+;-----------------------------------;
+;   this was the previous method    ;
+;   ============================
+;	ex	de,hl		; save start of RAM sector
+;	ld	hl,(@dma)
+;	push	hl		; save start @DMA
+;	ex	de,hl
+;
+;nxtdma:
+;	push	hl		; save start of RAM sector
+;	call	goram		; do 1 sector I/O in common
+;	pop	hl		; recover RAM sector
+;
+;	ld	bc,128		; size of sector
+;	add	hl,bc		; increment for each count
+;	ex	de,hl		; save start address
+;
+;	ld	hl,(@dma)
+;	add	hl,bc		; increment DMA for each count
+;	ld	(@dma),hl
+;
+;	ld	hl,@scnt	; decrement @scnt
+;	dec	(hl)
+;
+;	ex	de,hl
+;	jr	nz,nxtdma	; <HL> = start of ram sector
+;
+;	pop	hl		; recover value of @DMA on entry
+;	ld	(@dma),hl
+;	xor	a
+;	ret			; and return to caller
+;
+;-----------------------------------------------------------;
+; errors etc. ram address is outside range 0000h and 0efffh ;
+;-----------------------------------------------------------;
+
+noram:
+	ld	a,1
+	or	a
+	ret			; set i/o error 
+
+
+;---------------------------------------------
+; RAM I/O
+; *******
+;
+; Entry:	<HL> = start of ram disc
+;	 	@trk = ram disc bank
+; 		@dbnk = dma bank
+;	 	@dma = dma address
+; 		@rdwr = direction
+; Returns:	<A> = 0 (successful)
+; Transfers:	128 bytes
+;
+; MUST BE IN COMMON MEMORY
+;-----------------------------------------------
+	cseg
+goram:
+	ld	a,(@rdwr)
+	or	a
+	jr	z,wrram
+
+rdram:	ld	a,(@trk)	; select ram bank
+	call	?bank
+
+	ld	de,cbuff	; use common data area for transfer
+	ld	bc,128
+	ldir
+
+	ld	a,(@dbnk)
+	call	?bank
+
+	ld	hl,(@dma)
+	ex	de,hl
+	ld	hl,cbuff
+	ld	bc,128
+	ldir
+
+	call	?sysbnk		; return to system bank
+	xor	a
+	ret
+
+wrram:	ld	a,(@dbnk)
+	call	?bank
+
+	push	hl		; save ram address
+	ld	hl,(@dma)
+	ld	de,cbuff
+	ld	bc,128
+	ldir
+	pop	de		; recover in <DE>
+
+	ld	a,(@trk)	; select ram bank
+	call	?bank
+
+	ld	hl,cbuff	; use upper area for transfer
+	ld	bc,128
+	ldir
+
+	call	?sysbnk		; return to system bank
+	xor	a
+	ret
+
+;-----------------------------------------------------------------------
+
+	end
+
