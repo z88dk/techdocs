@@ -1,0 +1,1927 @@
+	.z80	;Lets use Z80 Mnemonics
+	title	EPSON QX-10 - terminal program
+
+	name	('TERM')
+
+	vers	Equ	1	;current version
+;------------------------------------------------------------------
+; EPSON QX-10 Utility to emulate a dumb terminal
+;
+; Author: A. Clarke, 11 Sun Street, London E.C.2.
+; Date: 30th March 1984
+;------------------------------------------------------------------
+;copyright A.R.M.C. 1984
+	cseg
+
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+vers22	equ	22h	; CP/M version number
+vers31	equ	31h	; CP/M version number
+rev	equ	'A'	; Utility version
+
+bios	Equ	0001h	;pointer to BIOS jump table
+bdos	Equ	0005h	;BDOS entry point
+boot	Equ	0000h	;Home time
+dfcb	Equ	005ch	;Default FCB location
+dbuf	Equ	0080h	;CCP parameter buffer and DMA buffer
+
+;*** Device Table Constants ***
+
+mb$input	equ	00000001b	; device may do input
+mb$output	equ	00000010b	; device may do output
+mb$in$out	equ	mb$input + mb$output
+mb$softbaud	equ	00000100b	; software selectable baud rate
+mb$serial	equ	00001000b	; device may use protocol
+mb$xonxoff	equ	00010000b	; XON/XOFF protocol enabled
+
+baud$none	equ	0	; no baud rate associated with device
+baud$50		equ	1	; 50 baud
+baud$75		equ	2	; 75 baud
+baud$110	equ	3	; 110 baud
+baud$134	equ	4	; 134 baud
+baud$150	equ	5	; 150 baud
+baud$300	equ	6	; 300 baud
+baud$600	equ	7	; 600 baud
+baud$1200	equ	8	; 1,200 baud
+baud$1800	equ	9	; 1,800 baud
+baud$2400	equ	10	; 2,400 baud
+baud$3600	equ	11	; 3,600 baud
+baud$4800	equ	12	; 4,800 baud
+baud$7200	equ	13	; 7,200 baud
+baud$9600	equ	14	; 9,600 baud
+baud$19200	equ	15	; 19,200 baud
+
+
+;*** logical constants ***
+false	Equ	0000h		;not true
+true	Equ	0ffh		;not exactly false
+
+
+;*** ascii codes ***
+cr	Equ	0dh		;carriage return
+lf	Equ	0ah		;line feed
+eof	Equ	1ah		;end of file code
+ff	Equ	0ch	;form feed
+esc	Equ	1bh		;escape char for cursor control
+bspace	Equ	08		;backspace
+tab	Equ	09h		;tab
+
+;*** Arrow Key Assignments ***
+
+Up.Arrow	Equ	1eh
+Down.Arrow	Equ	1fh
+Left.Arrow	Equ	1dh
+Right.Arrow	Equ	1ch
+	;these are the default settings!
+;*** Direct BIOS offsets ***
+cist	Equ	3	;const
+CI	Equ	6	;conin
+CO	Equ	9	;conout
+LI	Equ	12	;listout
+ao	Equ	15	;auxout
+ai	Equ	18	;auxin
+aist	Equ	(18-1)*3
+aost	Equ	(19-1)*3
+
+
+
+input.base	equ	the.last		;of the program
+input.top	equ	input.base+(48*0400H)	;a 48K buffer (Might as well
+;use it for something!)
+input.2.base	equ	input.top+1
+input.2.top	equ	input.2.base+(3*0400H)	;another
+
+fun.storage:	ds	20	;where we store the HELP key assignment
+;---------------------------------------------------------------
+;Variables
+;--------------------------------------------------------------
+
+input.pointer:		dw	input.base
+output.pointer:		dw	input.base
+input.2.pointer:	dw	input.2.base
+output.2.pointer:	dw	input.2.base
+	
+column:	db	00		;column on vdu
+line:	db	00		;line on vdu
+margin:	db	00	;margin for menu selection
+startline:db	00	;of menu
+str.array:DW	00	;pointer to array used for menu selection
+offset:	DW	00
+highlt:	db	00	;the array element that is highlit(currently selected
+flip.flop:db	0ffh	;are we moving up or down the menu
+Ch.Starting:	db	' '	;character starting the menu item
+Ch.Finishing:	db	' '	;character finishing the menu item
+selection:	db	00	;remembered selection
+We.Highlight:		db	000	;do we do an inverse video highlight?
+Option.configurable:	db	000	;the current option being configured
+Current.Port:		db	000	;the current port being configured
+
+;---------------------------------------------------------------
+;
+;Machine-specific graphics and console routines
+;
+;---------------------------------------------------------------
+
+;*** cursor control codes ***
+	db	'Copyright MML Ltd (c) 1984'
+
+;*** all patches as in wordstar ***
+clear:	defb	02,27,'+',00,00,00;clear screen string
+clead1:	defb	02,27,61,00	;yx cursor addressing lead-in
+linoff:	defb	20h		;offset to add
+coloff:	defb	20h
+
+
+
+;*** other vdu patches in addition ***
+char.starting.highlight:
+	DB	'('	;additional emphasis for selected option
+;for menu selection
+char.finishing.highlight:
+	DB	')'	;see above
+;for menu selection
+	
+uscore:	db	'_'	;not used
+ivonº	db	02,27,"0",00,00,00,00	;string to switch on inverse
+ivoff:	db	04,27,"1",27,"7",00,00	;string to switch off all highlighting
+ivon2:	db	02,27,"6",00,00,00,00 	;string to switch on intensity
+
+
+;cursor turn off/on strings
+on.cursor:defb	02,1bh,'3',00	;switch on the cursor
+off.cursor:defb	02,1bh,'2',00	;switch off the cursor
+
+;screen switching strings
+upper.screen:defb	2,1bh,"u",00;switch to upper screen
+lower.screen:defb	2,1bh,"v",00;switch to lower screen
+
+;mode switching strings
+grfiks:	defb	2,1bh,'g',00	;enter graphics
+no.grfix:defb	2,1bh,'h',00	;exit graphics mode
+
+	
+
+
+
+;*** hilton turns the terminal highlight ***
+;*** specified by ivon, on; hiltoff off   ***
+hilton:	push	hl
+	push	de
+	push	bc
+	ld	a,(char.starting.highlight)
+	ld	(ch.starting),a
+	ld	a,(char.finishing.highlight)
+	ld	(ch.finishing),a	;set the first and last characters
+	ld	hl,ivon	;inverse video on string
+	ld	a,(we.highlight)	;only switch on if boolean set
+	and	a
+	call	nz,msg		;do we do inverse video
+	ld	hl,ivon2	;do highlight anyway
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+hiltoff:push	hl
+	push	de
+	push	bc
+	ld	a," "
+	ld	(ch.starting),a	;reset leading and trailing character
+	ld	(ch.finishing),a
+	ld	hl,ivoff
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+alton:	push	hl
+	push	de	;switch on alternative highlighting
+	push	bc
+	ld	hl,ivon2
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+
+;---------------------------------------------------------------------------
+yxpos:	;sends the character cursor to the location in line Column
+	push	hl
+	push	de
+	push	bc		;save everything
+	ld	hl,clead1	;print lead-in
+	call	msg
+	ld	a,(line)	;get line no.
+	ld	b,a
+	ld	a,(linoff)
+	Add	a,b		;addin line offset
+	call	putchar		;out it goes
+	ld	a,(Column)	;get column
+	ld	c,a
+	ld	a,(coloff)	;add in offset
+	add	a,c
+	call	putchar		;send it out
+	pop	bc		;restore the world
+	pop	de
+	pop	hl
+	ret			;and go home
+
+
+
+;---------------------------------------
+gra.off:;turn into character mode
+	push	hl		;save the world
+	push	de
+	push	bc
+	ld	hl,no.grfix	;the no graphics string
+	call	msg		;to switch into character mode
+	pop	bc		;restore the world
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------	
+curon:		;switch on the cursor
+	push	hl
+	push	de
+	push	bc
+	ld	hl,on.cursor	;switch cursor on 
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------
+into.graphics:;lets enter graphics mode
+	
+	push	hl
+	push	de
+	push	bc
+	ld	hl,grfiks	;switch into graphics
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------	
+curoff:	;switch off the cursor
+	push	hl
+	push	de
+	push	bc
+	ld	hl,off.cursor	;string to tell the console
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------
+screen.clear:;clear the whole damned screen
+	push	hl
+	push	de
+	push	bc
+	ld	hl,clear
+	call	msg		;send out clear-screen string
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+	page
+
+	subttl  'DIRECT BIOS SUBROUTINES'
+
+;----------------------
+;-- BIOS Interaction --
+;----------------------
+
+
+CONIN:
+	LD	DE,CI		;console input
+	CALL	dir_bios
+	RET
+;
+
+priviliged:
+	ld	de,-3		;cold boot
+	jr	dir_bios
+
+conout:
+	ld	de,co
+	jr	dir_bios
+
+const:
+	ld	de,cist
+	jr	dir_bios
+
+auxin:
+	ld	de,ai
+	jr	dir_bios
+
+auxout:
+	ld	de,ao
+	jr	dir_bios
+
+auxost:
+	ld	de,aost
+	jr	dir_bios
+
+auxist:
+	ld	de,aist
+	jr	dir_bios
+;
+;
+dir_bios:
+	LD	hl,(bios)	;entry BIOS
+	ADD	hl,DE
+	JP	(hl)		; direct BIOS call
+
+devini:
+	ld	de,20*3
+	jr	dir_bios
+
+devtbl:
+	ld	de,19*3
+	jr	dir_bios
+
+
+;------------------------
+;-- BDOS Character I/O --
+;------------------------
+
+subttl  'BDOS CHARACTER SUBROUTINES'
+
+;-----;
+strout:
+;-----;
+	ld	a,(hl)
+	or	a
+	ret	z
+;
+;
+	push	hl
+	call	putchar
+	pop	hl	;send out null-terminated string
+	inc	hl
+	jr	strout	;to console
+
+;------;
+putchar:
+;------;
+	ld	c,a	;to the console by direct bios call
+	call	conout		;conout
+	ret
+
+
+;-------;
+Msg:
+;-------;
+	
+	ld	a,(hl)		;print string preceded by a count byte
+	ld	b,a		;get count byte
+	or	a		;is it a null string
+	ret	z		;if null string, then go home
+..loop:	inc	hl		;point to next ascii byte
+	ld	a,(hl)		;get it
+	push	hl
+	push	bc
+	call	putchar		;send it to the console
+	pop	bc
+	pop	hl
+	dec	b		;any more to do
+	ret	z		;if not go home
+	jr	..loop		;otherwise do the next byte
+
+
+
+
+bell:	push	hl
+	push	de	;ring the bell
+	push	bc
+	push	af
+	ld	e,07h		; BELL
+	ld	c,6		; BDOS Direct Console output
+	call	bdos
+	pop	af
+	pop	bc
+	pop	de
+	pop	hl
+	ret
+
+getchar:
+	ld	c,1		;conin
+	call	bdos
+	cp	'a'	;from the console
+	ret	c
+	cp	'z'+1
+	ret	nc
+	and	5fh		; remove case bits
+	ret
+
+;--------------------------------------------------
+yesorno:;returns 0 in a if no, 0ffh if yes
+	call	curon		;switch on the cursor
+	call	conin		;and get the users fumbling response
+	push	af		;remember the response
+	call	curoff		;and switch off the cursor
+	pop	af		;what did the poor slob say
+	cp	3		;did he panic
+	jp	z,aborted
+	cp	'Y'		;was it a y?
+	jp	z,..yes		;yup
+	cp	'N'		;was it a big n
+	jp	z,..no		;he said no
+	cp	'y'		;was it a y?
+	jp	z,..yes		;yup
+	cp	'n'		;was it a big n
+	jp	z,..no		;he said no
+	cp	0dh		;a carriage return
+	jp	z,..no		;if so then it was a no
+	cp	0ah		;ditto line feed
+	jp	z,..no
+	jp	yesorno		;the silly boy pressed the wrong button
+..no:	ld	hl,no.thank.you	;polite
+	call	strout
+	xor	a		;signal a no
+	ret	
+..yes:	ld	hl,yes.please	;polite
+	call	strout
+	xor	a		;signal a yes
+	dec	a
+	scf			;might as well
+	ret	
+
+cmp16:
+	ld	a,h
+	sub	d
+	ret	nz
+	ld	a,l
+	sub	e
+	ret
+
+;-------------------------
+;-- String message area --
+;-------------------------
+
+prompt.string:		;at the top of the page
+
+	db	esc,"=",1+32,11+32
+	DB	'QX+ terminal   ver '
+	db	vers/10+'0','.',vers mod 10+'0'
+ 
+	db	esc,"=",2+32,15+32
+	db	'Use the cursor control keys to make your choices.'
+ 	db	esc,"=",3+32,15+32
+	db	'The space bar cycles between choices.   Press CR'
+	db	esc,"=",4+32,15+32
+	db	'when a selection is made            <^C> aborts.'
+	db	000
+
+
+
+no.thank.you:
+	db	' No thank you        '
+	db	00
+Yes.Please:
+	db	' Yes                 '
+	db	00
+
+done.msg:	db	cr,lf,lf,'-- The sio ports are now reconfigured -- now in terminal mode'
+
+	db	cr,lf,00
+
+abortmsg:
+	db	cr,lf,lf,'** Program terminated ** '
+	db	cr,lf,000
+	
+
+
+
+;-----------------------
+;---    Utilities    ---
+;-----------------------
+
+
+;----------------------------------------------------------------------------
+addhl:	;adds a to hl and leaves the result in hl
+	add	a,l
+	ld	l,a
+	ret	nc
+	inc	h
+	ret	
+
+
+;----------------------------------------------------------------------------
+drawdown:;the whole screen a double line
+	ld	b,23		;the number of lines
+..downloop:
+	push	bc
+	ld	hl,line	;get where we are
+	inc	(hl)		;increment it
+	call	yxpos		;and point the cursor there
+	ld	a,086h		;down line
+	call	putchar		;output the byte
+	pop	bc
+	djnz	..downloop	;and do another until b=0
+	ret			;the job is all done
+;----------------------------------------------------------------------------
+nice.box:;around the screen
+	xor	a
+	ld	(line),a	;zap the line position
+	ld	(Column),a	;and the column position
+	call	yxpos		;home the cursor
+;draw the top border	
+	ld	a,087h		;a top left border
+	call	putchar		;send a top-left bracket
+	ld	b,78
+..toploop:;now do the top line across
+	ld	a,085h		;do a top line
+	push	bc
+	call	putchar		;out goes a line character
+	pop	bc
+	djnz	..toploop
+	ld	a,088h		;a top right border
+	call	putchar		;do a top right character
+;go to bottom line	
+	ld	a,24		;now do likewise for the bottom
+	ld	(line),a
+	xor	a
+	ld	(Column),a	;go to the bottom left
+	call	yxpos
+;draw the bottom border	
+	ld	a,089h		;a bottom left border
+	call	putchar
+	ld	b,78		;and now a nice horizontal line
+..botloop:
+	ld	a,085h		;do a bottom line
+	push	bc
+	call	putchar
+	pop	bc
+	djnz	..botloop
+	ld	a,08ah		;a bottom right border
+	call	putchar
+	xor	a
+	ld	(Column),a
+	ld	(line),a	;home again
+	call	drawdown
+	ld	a, 79		;we have drawn a vertical line
+	ld	(Column),a
+	xor	a		;go to the top right
+	ld	(line),a
+	call	drawdown	;and do the second vertical line
+	
+	ret	
+
+
+
+
+;*** findst points hl to the count ***
+;*** byte of the string array      ***
+;*** element specified in c.       ***
+	
+findst:	
+	inc	c
+..loop5:	dec	c
+	ret	z
+	push	bc
+	ld	b,0
+	ld	c,(hl)
+	add	hl,bc
+	inc	hl
+	inc	hl
+	pop	bc
+	jp	..loop5
+
+
+
+;*** typest types the bc'th string ***
+;*** in the array addressed by hl  ***
+typest:	call	findst
+	call	msg
+	ret	
+
+;----------------------------------------------------
+matchst:	;find out if string pointed to
+;by HL matches the one pointed to by DE
+;takes account of abbreviations
+	xor	a
+	ld	b,(hl)
+	cp	b
+	ret	z
+	ex	de,hl
+	ld	c,(hl)
+	cp	c
+	ret	z
+	ex	de,hl
+;check for null strings
+..back2:
+	inc	hl
+	inc	de
+	ld	a,(de)
+	xor	(hl)
+	and	0dfh
+	jr	nz,..bad
+	dec	c
+	jr	z,..good
+	djnz	..back2
+..good:
+	xor	a
+	dec	a
+	ret
+..bad:
+	xor	a
+	ret
+			
+
+
+
+;----------------------------------------------------
+in.list::	;finds out if the string addressed
+;by DE is in the string array in HL.
+;non-zero if a match, C points to element no.
+;HL points to the element
+
+	ld	a,(hl)
+	and	a		;examine length
+	ret	z		;null string array
+;so no match for string
+	ld	b,a
+	inc	hl
+	xor	a
+	ld	c,a		;B has number to do
+..loop9:
+	push	bc	;C has number done
+	push	hl
+	call	findst
+;HL points to the count byte of the string
+;DE points to the count byte of the match
+	push	de
+	call	matchst
+	pop	de
+	pop	hl
+	pop	bc
+	and	a
+	ret	nz			;return non-zero if match
+;element no. in C
+	inc	c
+	djnz	..loop9
+	xor	a
+	ret			;failure to match
+
+
+
+
+
+;*** typelist types, in the form    ***
+;*** of a vertical list, an array   ***
+;*** pointed to by str.array.	    ***
+;*** top of list at screen position ***
+;*** dictated by \ine and column    ***
+;*** zero set if last list passed   ***
+typelist:
+
+;start by finding out where we start to type the list
+	ld	a,(line)
+	ld	(startline),a
+	ld	a,(column)
+	ld	(margin),a
+;Str.array points to the start of the string array
+	ld	hl,(str.array)
+	ld	a,(hl)
+	and	a		;examine length
+	ret	z		;null string array
+
+	ld	b,a
+	inc	hl
+	xor	a
+	ld	c,a
+..loop6:	push	bc
+	push	hl
+	ld	a,(margin)
+	and	a
+	jp	z,..over
+	dec	a
+..over:	ld	(column),a
+	call	yxpos
+	ld	a,(highlt)
+	cp	c
+	push	af
+	call	z,hilton
+	ld	a,(ch.starting)
+	push	bc	
+	push	hl
+	call	putchar
+	pop	hl
+	pop	bc
+	call	typest
+	ld	a,(ch.finishing)
+	call	putchar
+	pop	af
+	call	z,hiltoff
+	pop	hl
+	pop	bc
+	ld	a,(line)
+	inc	a
+	ld	(line),a
+	inc	c
+	dec	b
+	jp	nz,..loop6
+	ld	a,(margin)
+	ld	(column),a
+	ld	a,(startline)
+	ld	(line),a
+	call	yxpos
+	ret	nz
+	inc	a
+	ret	
+
+	
+choose.it:	;make a selection from the available choices
+;using the string array pointed to by str.array. Returns non
+;zero if successful and character pressed in A reg.
+;Highlt is a byte variable that, on entry, describes the default
+;choice and on exit describes the user choice
+	xor	a
+	dec	a		;set boolean to show highlight
+	ld	(we.highlight),a
+	call	typelist
+	ret	z
+	call	getchar
+	cp	03h
+	jp	z,aborted
+	cp	esc
+	jp	z,..exit
+	cp	up.arrow
+	jp	z,..up
+	cp	down.arrow
+	jp	z,..down
+	cp	right.arrow
+	jp	z,..exit
+	cp	left.arrow
+	jp	z,..exit
+	cp	0dh
+	jp	z,..exit
+	jp	..updn
+..exit:	;he positivel wanted out
+	push	af
+	xor	a
+	;set boolean to repress highlight
+	ld	(we.highlight),a
+	call	typelist	;retype the list removing the highlight
+	pop	af	;save the character that he typed
+	and	a	;set flags
+	ret	
+..down:	ld	a,false
+	ld	(flip.flop),a
+	ld	hl,(str.array)
+	ld	b,(hl)
+	dec	b
+	ld	a,(highlt)
+	cp	b
+	jp	z,choose.it
+	inc	a
+	ld	(highlt),a
+	ld	a,true
+	ld	(flip.flop),a
+	jp	choose.it
+..up:	ld	a,true
+	ld	(flip.flop),a
+	ld	a,(highlt)
+	and	a
+	jp	z,choose.it
+	dec	a
+	ld	(highlt),a
+	ld	a,false
+	ld	(flip.flop),a
+	jp	choose.it
+	
+..updn:	ld	a,(flip.flop)
+	and	a
+	jp	z,..up
+	jp	..down
+
+
+;---------------------------------------------------------------------------;
+
+
+	subttl  'T E R M        main'
+	page
+
+;----------------------------------------------------------------------------
+Coord.Table:	;clumsy but alterable
+;they are in the format Y,X,Y,X,Y,X  for each port for each option
+	db	6,20,6,38,6,58		;RS232
+	db	13,20,13,38,13,58	;rs232a
+	db	20,20,20,38,20,58	;rs232b
+	db	6,20,6,38,6,58		;rs232c
+	db	13,20,13,38,13,58	;rs232d
+	;this table defines the location of each menu on the screen
+;----------------------------------------------------------------------------
+compute.screen.coords:	;from Current.port and Option.configurable)
+	ld	a,(option.configurable)	;get current option
+	ld	c,a	;into C
+	ld	b,0
+;BC has the configurable option number
+	ld	a,(current.port)
+	ld	hl,coord.table	;which line of the coordinate table are we
+	ld	de,6		;length of each record
+..back1:
+	and	a
+	jr	z,..hop
+	add	hl,de	;repeated addition
+	dec	a
+	jp	..back1		
+..hop:
+	add	hl,bc	;add in the current option number
+	add	hl,bc		;increment to coordinate pair
+	ld	a,(hl)	;get the line number
+	ld	(line),a	;and set it
+	inc	hl
+	ld	a,(hl)	;get the column number
+	ld	(column),a	;and set it
+	ld	a,(option.configurable)
+	ld	hl,st.array.pointers
+	add	a,a	;as they are word pointers
+	call	addhl	;find out which of the menus we use
+	ld	e,(hl)	;get the menu array address from the table
+	inc	hl
+	ld	d,(hl)
+	ex	de,hl	;put it into HL
+	ld	(str.array),hl	;and tell the menu selection utilities
+	ret	;return exhausted
+
+
+;----------------------------------------------------------------------------
+Baud.Coord.Table:	;clumsy but alterable
+;they are in the format Y,X,Y,X,Y,X  for each port for each option
+	db	5,5		;RS232
+	db	5,21		;rs232a
+	db	5,37		;rs232b
+	db	5,53		;rs232c
+	db	5,69		;rs232d
+	;these are the start screen addresses for the baud selection menu
+;----------------------------------------------------------------------------
+compute.baud.coords:	;from Current.port and Option.configurable)
+	ld	a,(current.port)
+	ld	hl,baud.coord.table	;which are the relevant coordinates
+	add	a,a		;length of each record
+	call	addhl	;increment into the array
+	ld	a,(hl)
+	ld	(line),a	;and save line and column
+	inc	hl
+	ld	a,(hl)
+	ld	(column),a
+	ret	;return exhausted
+
+
+
+SIO.Table.Pointers:
+		
+	dw	@sio0b		; table of RS232 SIO parameters
+	dw	@sio1a		; table of RS232 SIO parameters
+	dw	@sio1b		; table of RS232 SIO parameters
+	dw	@sio2a		; table of RS232 SIO parameters
+	dw	@sio2b		; table of RS232 SIO parameters
+;this is a table of pointers to the base of each sio config array(structure)
+
+;----------------------------------------------------------------------------
+Option.Information:	;contained in Eight bytes
+;1/---offset into table of register contents
+;2/---mask to obtain required data bits
+;3/---Match for choice 1
+;4/---Match for choice 2
+;5/---Match for choice 3
+;6/---Match for choice 4
+;7/---Match for choice 5
+;8/---Match for choice 6
+
+;Parity information
+..reg4-@sio0B,00000011B,00000000B,00000011B,00000001B,0,0,0	;in register 4
+;Stop bit stuff
+..reg4-@sio0B,00001100B,00000100b,00001000b,00001100b,0,0,0	;ditto
+;Data bits Tx
+..reg5-@sio0B,01100000b,00000000b,01000000b,00100000b,01100000b,0,0	;reg 5
+;Data bits RX
+..reg3-@sio0B,11000000B,00000000b,10000000b,01000000b,11000000b,0,0	;reg 3
+;----------------------------------------------------------------------------
+reach.bits:	;from the information in Current.port and
+;Option.configurable)
+;on exit----
+;DE points to the desired register contents, HL to mask byte
+;A has the register contents
+	ld	a,(current.port)	;which is the current port
+	add	a,a
+	ld	hl,Sio.Table.Pointers	;find out where the port table is
+	call	addhl
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+;DE points to relavent SIO table:
+	ld	a,(option.configurable)	;which option is desired
+	ld	HL,option.information
+	add	a,a	;increment into the array
+	add	a,a
+	add	a,a
+	call	addhl
+	ld	c,(hl)	;get register that needs to be altered
+	ld	b,0
+	Ex	De,Hl	;point HL to it
+;BC has the offset, and HL points to the Parameter Block for the SIO
+	add	hl,bc
+	Ex	De,Hl	;DE points to the actual register contents
+;DE has a pointer to the desired register contents HL points to our data 
+	inc	hl	;point HL to the mask 
+	ld	a,(de)
+;DE points to the desired register contents, HL to mask byte
+	ret	
+;with two pointers DE points to Reg. contents, HL to the mask etc
+
+;----------------------------------------------------------------------------
+Compute.Highlight::	;from the information in Current.port and
+;Option.configurable)
+
+	call	reach.bits	;see above
+;DE points to the desired register contents, HL to mask byte
+	and	(hl)	;mask out everything else
+;A has the current selection
+	ld	c,0
+	ld	b,6	;max no. of bytes to compare
+..loop20:	;now compare the masked register with samples in the array
+	inc	hl	;until a match is found
+	cp	(hl)	;is it this one?
+	jr	z,..found.it	;yippee
+	inc	c	;C will contain the choice no.
+	djnz	..loop20	;try again
+..found.it:	;unless C=6
+;we matched it with the Cth one
+	ld	a,c
+	ld	(highlt),a	;so we know the current selected choice
+	ret
+
+;----------------------------------------------------------------------------
+Read.Baud.Highlight:	;from our dev table
+	ld	a,(current.port)
+	ld	hl,pointers.to.baud	;what is currently in the device table?
+	add	a,a		;length of each record
+	call	addhl	;increment into the pointer array
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)	;pointer in DE
+	ex	de,hl
+	ld	a,(hl)		;get baud byte
+	dec	a
+	ld	(highlt),a	;current choice (0....n-1)
+	ret	;return exhausted
+
+;----------------------------------------------------------------------------
+Write.Baud.Highlight:	;to our dev table
+	ld	a,(current.port)	;reset our image of the table
+	ld	hl,pointers.to.baud	;find the address of the baud byte
+	add	a,a		;length of each record
+	call	addhl
+	ld	e,(hl)	;get the pointer
+	inc	hl
+	ld	d,(hl)
+	ex	de,hl
+	ld	a,(highlt)	;and the choice selected by the user
+	inc	a	;(1....n)
+	ld	(hl),a		;put baud byte
+	ret	;return exhausted
+
+;----------------------------------------------------------------------------
+reconfigure::		;the bits of the current register
+	ld	a,(option.configurable)	;which option is desired
+	cp	2			;is it the special case of data bits?
+	jp	nz,..not.special.case
+	call	..not.special.case	;do TX data bits
+	ld	a,(option.configurable)	;which option is desired
+	push	af			;preserve value
+	inc	a			;Rx stop bits invisible option
+	ld	(option.configurable),a	;bump option temporarily
+	call	..not.special.case	;do RX data bits
+	pop	af			;restore real value
+	ld	(option.configurable),a	;bump option temporarily
+	ret
+
+;the simple case
+..not.special.case:
+	call	reach.bits
+;DE points to the desired register contents, HL to mask byte
+	ld	a,(hl)	;get the mask byte
+	cpl		;flip all the bits
+	ld	b,a	;and stuff it in B
+	ld	a,(highlt)	;get the selected option choice
+	inc	hl
+	call	addhl	;to get the relavent bit pattern
+	ld	c,(hl)	;into C
+	ld	a,(DE)	;get the current register
+;B has the mask, C has the desired pattern, A has the register contents
+	xor	c	;blend them in
+	and	B	;by witchcraft
+	xor	c	;sheer witchcraft
+	ld	(de),a	;stash the register
+	ret
+
+
+;----------------------------------------------------------------------------
+print.label:	;from Current.port and Option.configurable)
+	ld	a,(option.configurable)	;it can be one of three labels
+	ld	c,a
+	ld	b,0
+;BC has the configurable option number
+	ld	a,(current.port)
+	push	bc
+;BC has the configurable option number
+	ld	hl,coord.table	;get the appropriate screen coordinates
+	ld	de,6		;length of each record
+..back3:
+	and	a
+	jr	z,..hop2
+	add	hl,de
+	dec	a
+	jp	..back3		
+..hop2:
+	add	hl,bc	;select option within port line in table
+	add	hl,bc		;increment to coordinate pair
+	ld	a,(hl)
+	dec	a
+	dec	a
+;tyo lines up
+	ld	(line),a	;take it from me, this is the line no.
+	inc	hl
+	ld	a,(hl)	;get the column no. from the table
+	inc	a
+	ld	(column),a	;set the column
+	pop	bc	;restore option no.
+	ld	a,c
+	ld	hl,label.pointers	;find a pointer to the label
+	add	a,a	;as they are word pointers
+	call	addhl
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)	;pointer to null term. string in DE
+	ex	de,hl	;fetch the string address
+	push	hl
+	call	yxpos	;position things for the label
+	pop	hl
+	call	strout	;and print it out
+	ret	;return exhausted
+
+
+;----------------------------------------------------------------------------
+draw.upper.screen:	;we have two screens. this is the one with 1st 3 ports
+	ld	hl,upper.screen.trimmings	;labels and prompts
+	call	strout	;put them on the screen
+	ld	a,(option.configurable)
+	ld	c,a
+	ld	a,(current.port)
+	ld	b,a	;B has the current port, C has the option
+	push	bc		;save current selection
+	xor	a	;now do a for I, for J loop
+;type out all the choices for the first three ports and the current sel
+..more:	;to do
+	ld	(current.port),a
+	xor	a
+..once.again:
+	ld	(option.configurable),a
+;start out doing no. one, parity
+	call	print.label
+	call	compute.screen.coords	;for the menu
+	call	compute.highlight	;for the current selection
+	Xor	a
+	ld	(we.highlight),a	;we do not do inverse video yet
+	call	typelist	;type the menu
+	ld	a,(option.configurable)
+	inc	a
+	cp	3	;until we done all three
+	jr	nz,..once.again
+	ld	a,(current.port)
+	inc	a
+	cp	3	;until we done three ports
+	jr	nz,..more
+;restore settings
+	pop	bc	;for the currently selected port and option
+	ld	a,b
+	ld	(option.configurable),a
+	ld	a,c
+	ld	(current.port),a
+	call	nice.box
+	ret
+
+;----------------------------------------------------------------------------
+draw.lower.screen:	;as we did the upper one
+	ld	hl,lower.screen.trimmings
+	call	strout
+	ld	a,(option.configurable)
+	ld	c,a
+	ld	a,(current.port)
+	ld	b,a
+	push	bc		;save current selection
+	ld	a,3
+;type out all the choices for the last two ports and the current sel
+..more1:
+	ld	(current.port),a
+	xor	a
+..1.once.again:
+	ld	(option.configurable),a
+;start out doing no. one, parity
+	call	print.label
+	call	compute.screen.coords
+	call	compute.highlight
+	Xor	a
+	ld	(we.highlight),a
+	call	typelist
+	ld	a,(option.configurable)
+	inc	a
+	cp	3
+	jr	nz,..1.once.again
+	ld	a,(current.port)
+	inc	a
+	cp	5
+	jr	nz,..more1
+;restore settings
+	pop	bc
+	ld	a,b
+	ld	(option.configurable),a
+	ld	a,c
+	ld	(current.port),a
+	call	nice.box
+	ret
+		
+;---------------------------------------------------------------------------
+Get.SIO.Tables::	;from the BIOS
+	call	priviliged	;make privilaged call to bios
+;with luck, then HL=pointer to table
+	ld	de,6*2		;point to @sio0B
+	add	hl,de
+	ld	e,(hl)	;get its address
+	inc	hl
+	ld	d,(hl)	;into DE
+	ex	de,hl
+	ld	de,@sio0b
+	ld	bc,..table.end-@sio0B
+	ldir	;and copy the whole lot into our workspace
+	call	devtbl		;get the device table
+	ld	de,@CTBL
+	ld	bc,..ctbl.end-@ctbl
+	ldir	;and copy the device table into our workspace
+	ret
+
+;--------------------------------------------------------------
+put.SIO.Tables::	;into the bios
+	call	priviliged	;a secret call for uncle david and I
+;with luck, then HL=pointer to table
+	ld	de,6*2		;point to @sio0B
+	add	hl,de
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	ld	hl,@sio0b
+	ld	bc,..table.end-@sio0B
+	ldir	;copy the initialisation table back again
+	call	devtbl		;get the device table
+	ld	de,@CTBL
+	ex	de,hl
+	ld	bc,..ctbl.end-@ctbl
+	ldir	;and copy our image back to the bios
+;now we reinitialise all serial devices (clumsily)
+	ld	c,3
+	call	DevIni	;initialise device no.C
+	ld	c,5
+	call	DevIni	;initialise device no.C
+	ld	c,6
+	call	DevIni	;initialise device no.C
+	ld	c,7
+	call	DevIni	;initialise device no.C
+	ld	c,8
+	call	DevIni	;initialise device no.C
+	ret	;lets hope nobody sees this code
+
+
+
+;------------------------------------------------------------		
+type.bauds:	;onto the screen nicely
+	ld	hl,baud.screen.trimmings	;prompts etc.
+	call	strout
+	ld	a,(current.port)
+	ld	b,a
+	push	bc		;save current selection
+	xor	a
+;type out all the choices for the first three ports and the current sel
+..more4:
+	ld	(current.port),a
+;start out doing no. one, parity
+	call	compute.baud.coords
+	call	read.baud.highlight
+	Xor	a
+	ld	(we.highlight),a
+	call	typelist
+	ld	a,(current.port)
+	inc	a
+	cp	5	;have we another menu to do?
+	jr	nz,..more4
+;restore settings
+	pop	bc
+	ld	a,b
+	ld	(current.port),a
+	ret
+
+
+
+biospb:	ds	6
+
+conf.sios:
+	call	hiltoff		;switch off highlighting
+	call	curoff		;switch off the cursor
+	call	get.sio.tables	;from the BIOS and the DEV table
+	ld	hl,choice.prompt	;inform the user
+	call	strout
+	call	draw.upper.screen	;first
+
+;now the first screen of choices is displayed with current configuration
+	xor	a
+	ld	(current.port),a	;start with port 1
+	ld	(option.configurable),a	;and option 1
+..choice:
+	call	compute.screen.coords	;for the option and port
+	call	compute.highlight
+	call	choose.it	;do the menu choice thing
+;Now we enter a sort of programmers nightmare
+;What key did the user press?
+	push	af
+	call	reconfigure	;the copy of the table
+	pop	af
+	cp	esc		;or ESC?
+	jp	z,Im.Done	;if so he is done
+	cp	Left.Arrow		;left arrow?	
+	jr	nz,..over3
+	ld	a,(option.configurable)
+	dec	a
+	jp	m,..carry
+	ld	(option.configurable),a
+	jp	..dunnit
+..carry:ld	a,(current.port)
+	cp	3	;have we gone from 4th to 3rd
+	push	af
+	call	z,draw.upper.screen
+	pop	af
+	dec	a
+	jp	m,..dunnit
+	ld	(current.port),a
+	ld	a,2
+	ld	(option.configurable),a
+	jp	..dunnit
+;he must be wanting to go to the next
+..over3:		
+	ld	a,(option.configurable)
+	inc	a
+	cp	3	;only three option choices
+	jr	z,..bumpit
+	ld	(option.configurable),a
+	jp	..dunnit
+..bumpit:
+	ld	a,(current.port)
+	cp	2	;have we gone from 3rd to 4th
+	push	af
+	call	z,draw.lower.screen
+	pop	af
+	inc	a
+	cp	5	;only five configurable ports
+	jp	z,..dunnit
+	ld	(current.port),a
+	xor	a
+	ld	(option.configurable),a
+..dunnit:
+	call	compute.highlight
+	jp	..choice
+
+Im.Done:	;now for the baud rate menus
+	call	reconfigure	;anything remaining
+	call	screen.clear
+	call	nice.box	;might as well show off
+	ld	hl,baud.array
+	ld	(str.array),hl	;make the baud menu current
+	ld	a,(current.port)
+	push	af
+	call	type.bauds
+	pop	af
+	ld	(current.port),a
+..choice8:
+	call	compute.baud.coords
+	call	read.baud.highlight
+	call	choose.it
+;Now we enter another sort of programmers nightmare
+;What key did the user press?
+	cp	3		;was it a control C
+	Jp	z,all.Done
+	push	af
+	call	write.baud.highlight
+	pop	af
+	cp	esc		;or ESC?
+	jp	z,all.Done
+	cp	Left.Arrow		;left arrow?	
+	jr	nz,..over8
+	ld	a,(current.port)
+	dec	a
+	jp	m,..dunnit8
+	ld	(current.port),a
+	jp	..dunnit8
+;he must be wanting to go to the next
+..over8:		
+	ld	a,(current.port)
+	inc	a
+	cp	5	;only five configurable ports
+	jp	z,..dunnit8
+	ld	(current.port),a
+..dunnit8:
+	call	read.baud.highlight
+	jp	..choice8
+all.done:
+	call	write.baud.highlight
+	call	put.sio.tables
+	call	screen.clear
+	call	curon
+	ld	hl,done.msg
+	call	strout
+	ret	
+
+we.quit:
+;firstly reprogram the help key
+
+	ld	c,esc
+	call	conout
+	ld	c,'$'
+	call	conout		;put new value in
+	ld	c,18		;help key
+	call	conout
+	ld	hl,fun.storage
+	ld	b,(hl)
+	inc	b	
+fk.send.loop:
+	push	bc
+	push	hl
+	ld	c,(hl)
+	call	conout
+	pop	hl
+	pop	bc
+	inc	hl
+	djnz	fk.send.loop
+
+
+
+
+
+aborted:	;the user panicked and pressed break
+	call	screen.clear
+	call	curon
+	ld	hl,abortmsg
+	call	strout
+
+;and fall through
+;-----;
+finish:
+	ld	c,0		; BDOS system reset
+	jp	bdos
+
+
+;----------------------------------------------------------------------------
+Start:	;here, folks
+
+	ld	c,12		; BDOS return version number
+	call	bdos
+	cp	031h		; Check that the right version of CP/M
+	jp	nz,notcpm3
+	ld	a,h
+	or	a
+	jp	nz,notcpm3
+;now we set the stack
+	ld	hl,(0006h)
+	ld	sp,hl		; use top of memory as stack
+;check for QX+
+	ld	c,50		; BDOS Direct BIOS calls
+	ld	de,BIOSPB
+	ld	a,30		; Customised BIOS entry point
+	ld	(de),a		; requires no other registers
+	call	BDOS		; Check that the right machine 
+	cp	'A'		; Epson BIOS returned version
+	jp	z,onwards.confidently
+;-----------------------------------------;
+; Program not loaded under CP/M3 on Epson ;
+;-----------------------------------------;
+notcpm3:
+	ld	hl,cpm3msg
+	call	strout
+
+	ld	c,0
+	jp	bdos		; and terminate program
+
+cpm3msg:
+	db	'TERMinal emulation Utility -'
+	db	' Requires CP/M + on Epson QX-10',cr,lf,0
+;silly wally
+
+onwards.confidently:
+;first we check to see if it was a batch mode job
+	ld	hl,dfcb+1
+	ld	a,(HL)
+	cp	' '
+	jr	nz,cut.the.crop
+;now we do the fancy screen stuff
+	ld	hl,hello.string
+	call	msg		;split the screen and print title
+	ld	hl,instruct
+	call	strout		;print the instructions
+	ld	hl,OK
+	call	msg
+ 	call	getchar		;and throw it away
+	push	af
+	ld	hl,tidy.up
+	call	msg
+	pop	af
+	cp	3
+	jp	z,aborted		;he decided to cut his losses
+	ld	hl,want.config
+	call	strout
+	call	yesorno
+	push	af
+	call	screen.clear
+	pop	af
+	and	a
+	jp	z,cut.the.crop
+	call	screen.clear
+	call	conf.sios
+
+cut.the.crop::
+	call	curon
+	ld	c,esc
+	call	conout
+	ld	c,'"'
+	call	conout		;read the function key
+	ld	c,18		;help key
+	call	conout
+	call	conin
+	ld	hl,fun.storage
+	ld	(hl),a
+	ld	b,a
+	inc	hl
+fk.loop:
+	push	bc
+	push	hl
+	call	conin
+	pop	hl
+	pop	bc
+	ld	(hl),a
+	inc	hl
+	djnz	fk.loop
+
+	ld	c,esc
+	call	conout
+	ld	c,'$'
+	call	conout		;put new value in
+	ld	c,18		;help key
+	call	conout
+	ld	c,1
+	call	conout
+	ld	c,0ffh
+	call	conout
+	ld	c,0
+	call	conout
+
+
+
+term.loop:
+	call	auxist		;anything coming in?
+	and	a
+	call	nz,stash.it	;in the input buffer
+	call	const		;someone fingering the keyboard?
+	and	a
+	call	nz,store.it	;in the output buffer
+	call	auxost
+	call	nz,send.it	;from the output buffer
+	call	conost
+	call	nz,type.it	;from the input buffer
+	jp	term.loop
+
+stash.it::	;stash the whole contents of the interrupt buffer into the
+;megabuffer (our input buffer)
+
+	call	auxin		;in A register
+	ld	hl,(input.pointer)
+	ld	(hl),a		;put it in our megabuffer
+	inc	hl
+	ld	(input.pointer),hl
+	ld	de,input.top
+	call	cmp16		;are we due to wrap round?
+	jr	c,if.another
+	ld	hl,input.base	;if so wrap
+	ld	(input.pointer),hl
+if.another:
+	call	auxist		;have we emptied the buffer?
+	and	a
+	ret	z		;no more
+	jp	stash.it
+
+Type.it::
+	ld	hl,(input.pointer)
+	ex	de,hl
+	ld	hl,(output.pointer)
+	call	cmp16
+	ret	z		;because nothing there
+	ld	c,(hl)		;get the byte
+	inc	hl
+	ld	(output.pointer),hl
+	push	hl
+	call	conout		;send it out
+	pop	hl
+	ld	de,input.top	;do we need to wrap round?
+	call	cmp16
+	ret	c
+	ld	hl,input.base
+	ld	(output.pointer),hl
+	ret
+
+store.it::	;in the output buffer
+	call	conin		;in A register
+	cp	0ffH
+;was it a request to quit?
+	ld	hl,(input.2.pointer)
+	jp	z,we.quit	;double ESC
+	ld	(hl),a
+	inc	hl
+	ld	(input.2.pointer),hl
+	ld	de,input.2.top
+	call	cmp16
+	ret	c
+	ld	hl,input.2.base
+	ld	(input.2.pointer),hl
+	ret
+
+send.it::
+	ld	hl,(input.2.pointer)
+	ex	de,hl
+	ld	hl,(output.2.pointer)
+	call	cmp16
+	ret	z		;because nothing to send
+	ld	c,(hl)		;get the byte
+	inc	hl
+	ld	(output.2.pointer),hl
+	push	hl
+	call	auxout		;send it out
+	pop	hl
+	ld	de,input.2.top	;do we need to wrap round?
+	call	cmp16
+	ret	c
+	ld	hl,input.2.base
+	ld	(output.2.pointer),hl
+	ret
+	
+conost:
+	in	a,(38H)		;7220 status port
+	and	04		;is fifo empty
+	ret			;zero if nothing there
+				;non-zero if something
+			
+		
+
+
+;----------------------------------------------------------------------------
+Choice.prompt:
+	db	ESC,'=', 1+32,1+32
+	db	'--[ ] denotes current selection,'
+	db	' Use Cursor keys, space bar & <CR> to select--'
+	db	ESC,'=', 2+32,1+32
+	db	'--Press Ctl C to Quit without an'
+	db	'y alterations, ESC when selections made     --'
+	db	000   
+
+Upper.Screen.Trimmings:
+	db	ESC,'=',4+32,2+32
+	db	'RS232 '
+	db	ESC,'=',5+32,2+32
+	db	'(built-in)       '
+	db	ESC,'=',11+32,2+32
+	db	'RS232A'
+	db	ESC,'=',12+32,2+32
+	db	'(optional port 1)'
+	db	ESC,'=',18+32,2+32
+	db	'RS232B'
+	db	ESC,'=',19+32,2+32
+	db	'(optional port 2)'
+
+
+	db	000
+
+Lower.Screen.Trimmings:
+	db	ESC,'=',4+32,2+32
+	db	'RS232C'
+	db	ESC,'=',5+32,2+32
+	db	'(optional port 3)'
+	db	ESC,'=',11+32,2+32
+	db	'RS232D'
+	db	ESC,'=',12+32,2+32
+	db	'(optional port 4)'
+	db	ESC,'=',18+32,2+32
+	db	esc,'Y'			;erase to end of screen
+	db	000
+
+Baud.Screen.Trimmings:
+
+	db	ESC,'=',1+32,2+32
+	db	'Select the Baud rates using the cursor '
+	db	'control keys. Press ESC when finished'
+	db	ESC,'=',3+32,2+32
+	db	' RS232           RS232A          RS232B         '
+	db	' RS232C          RS232D'
+	db	000
+	
+
+hello.string:
+	defb	..1end - $	;length of the string
+	defb	1bh,",","g",5,"c";define split screen
+	defb	1bh,"u"		;go to the upper
+	defb	1bh,"/"		;make multifont
+	defb	1bh,"#",6	;style 4
+	defb	1bh,'X'
+	defb	'	    QX+ Terminal Utility'
+	defb	1bh,'S'
+	defb	1bh,"v"		;enter the lower screen
+	defb	1BH,"+"		;blank the screen
+	defb	1bh,')'
+..1end:	defb	000,000
+
+ok:	defb	..end1 - $
+
+	db	ESC,'=',(19+' '),(26+' ')	;bottom centre
+	defb	1bh,'('		;full intensity
+	defb	1bh,"^"		;blink
+	defb	"<press any key to continue>"
+	defb	1bh,"q"		;cancel blink
+	defb	1bh,')'		;half intensity
+..end1:	defb	00,00
+
+tidy.up:;set the screen to rights
+	defb	..end2 - $
+	defb	1bh,"+"
+	defb	1bh,"u",1bh,"\"
+	defb	1bh,"v",1bh,"u"	;dont ask
+	defb	1bh,",","C",26,"C"
+	defb	1bh,"+"
+..end2:	defb	000,000
+;----------------------------------------------------------------------------
+instruct:
+db	0dh,0ah,'		This utility enables the QX-10 to emulate a terminal.  It'
+db	0dh,0ah,'	can  be connected to a remote computer through a serial link  and'
+db	0dh,0ah,'	used  as a terminal with it. All the graphical  functions  remain'
+db	0dh,0ah,'	intact,  together with screendump, but the printer echo will not.'
+db	0dh,0ah,'	Together with the GET and PUT utilities, this utility can be used'
+db	0dh,0ah,'	to  pass  text files between computers.(see the Digital  Research'
+db	0dh,0ah,'	manuals.) '
+db	0dh,0ah,'		DEVICE is used to specify which  serial  port  is  to  be'
+db	0dh,0ah,'	used.  Note  that more than one port may be specified for  input,'
+db	0dh,0ah,'	output, or both. TERM relates to the AUX: logical device  (AUXIN:'
+db	0dh,0ah,'	and AUXOUT:). If X-on/X-off is specified from DEVICE, ensure that'
+db	0dh,0ah,'	this is also true of the sending computer. To act as computer  to'
+db	0dh,0ah,'	a  remote terminal, this utility is not needed, and  the  command'
+db	0dh,0ah,'	DEVICE CON:=RS232 will suffice.'
+db	0dh,0ah,'		To activate terminal mode without the preliminaries,  (as'
+db	0dh,0ah,'	would be necessary if using GET or PUT), type any character after'
+db	0dh,0ah,'	TERM (eg TERM A).'
+db	0dh,0ah,'		To quit terminal mode, press the HOME key!'
+
+	db	000
+
+want.config:
+db	esc,'=',10+32,8+32,'Do you wish to change the Baud Rate or Configuration data'
+db	0dh,0aH,'	before entering TERMinal mode? (Y/N) -->'
+db	00
+
+;----------------------------------------------------------------------------
+St.Array.Pointers:	;pointers to string arrays
+	dw	parity
+	dw	stop.bit
+	dw	Data.Bits
+
+
+;----------------------------------------------------------------------------
+Parity:	db	3
+	db	09,'No Parity',000
+	db	11,'Even Parity',000
+	db	10,'Odd Parity',000
+Stop.Bit:
+	db	3
+	db	10,'1 Stop Bit',000
+	db	13,'1.5 Stop Bits',000
+	db	11,'2 Stop Bits',000
+Data.Bits:
+	db	4
+	db	15,'5(or less) Bits',000
+	db	6,'6 Bits',000
+	db	6,'7 Bits',000
+	db	6,'8 Bits',000
+
+
+..1:	db	'Parity',000
+..2:	db	'Stop Bits',000
+..3:	db	'Data Bits',000
+
+Label.Pointers:
+	dw	..1
+	dw	..2
+	dw	..3
+
+
+Baud.array:
+	db	15
+
+	db	2,'50',000	
+	db	2,'75',000
+	db	3,'110',000	
+	db	3,'134',000	
+	db	3,'150',000	
+	db	3,'300',000	
+	db	3,'600',000	
+	db	4,'1200',000	
+	db	4,'1800',000	
+	db	4,'2400',000	
+	db	4,'3600',000	
+	db	4,'4800',000	
+	db	4,'7200',000	
+	db	4,'9600',000	
+	db	5,'19200',000	
+
+
+
+; ======================================
+; Table of SIO parameters for redefining
+; ======================================
+
+
+;These tables are tucked up in common ready for marauding direct BIOS
+;calls to defile them
+
+
+@sio0a:			; table of Keybaord SIO parameters
+	db	00011000b	; Channel reset
+
+	db	2		; Write register 2 (channel A only)
+	db	0		; with 8085 vector mode
+
+	db	4 or 00010000b	; Write register 4, Reset EX/SP int
+	db	00110111b	; with x1, ASYNC, 1stop, parity enabled
+
+	db	3		; Write register 3
+	db	11100001b	; with 8bit Rx, auto, Rx enabled
+
+	db	5		; Write register 5
+	db	11101010b	; with DTR,RTS = 1, 8bit Tx, Tx enabled
+
+	db	1 or 00010000b	; Write register 1, Reset EX/SP int
+;------	db	00010000b	; with All Rx int (parity affects vector)
+	db	00011000b	; with All Rx int
+lensiotbl	equ	$-@sio0a	; Length of SIO command
+
+@sio0b:			; table of RS232 SIO parameters
+	db	18h		; Channel reset
+	db	10h or 2	; Reset EX/SP int, Write register 2
+	db	0		; with 8085 vector mode
+
+	db	4		; Write register 4
+..reg4::
+	db	01110100b	; with x16, ASYNC, 1stop, no parity
+	db	3		; Write register 3
+..reg3:	db	0e1h		; with 8bit Rx, auto, Rx enabled
+	db	5		; Write register 5
+..reg5:	db	0eah		; with DTR,RTS = 1, 8bit Tx, Tx enabled
+	db	1		; Write register 1
+..reg1:	db	10h		; with All Rx int
+
+@sio1a:			; table of RS232 SIO parameters
+	db	18h		; Channel reset
+	db	10h or 2	; Reset EX/SP int, Write register 2
+	db	0		; with 8085 vector mode
+
+	db	4		; Write register 4
+	db	01110100b	; with x16, ASYNC, 1stop, no parity
+	db	3		; Write register 3
+	db	0e1h		; with 8bit Rx, auto, Rx enabled
+	db	5		; Write register 5
+	db	0eah		; with DTR,RTS = 1, 8bit Tx, Tx enabled
+	db	1		; Write register 1
+	db	10h		; with All Rx int
+
+@sio1b:			; table of RS232 SIO parameters
+	db	18h		; Channel reset
+	db	10h or 2	; Reset EX/SP int, Write register 2
+	db	0		; with 8085 vector mode
+
+	db	4		; Write register 4
+	db	01110100b	; with x16, ASYNC, 1stop, no parity
+	db	3		; Write register 3
+	db	0e1h		; with 8bit Rx, auto, Rx enabled
+	db	5		; Write register 5
+	db	0eah		; with DTR,RTS = 1, 8bit Tx, Tx enabled
+	db	1		; Write register 1
+	db	10h		; with All Rx int
+
+@sio2a:			; table of RS232 SIO parameters
+	db	18h		; Channel reset
+	db	10h or 2	; Reset EX/SP int, Write register 2
+	db	0		; with 8085 vector mode
+
+	db	4		; Write register 4
+	db	01110100b	; with x16, ASYNC, 1stop, no parity
+	db	3		; Write register 3
+	db	0e1h		; with 8bit Rx, auto, Rx enabled
+	db	5		; Write register 5
+	db	0eah		; with DTR,RTS = 1, 8bit Tx, Tx enabled
+	db	1		; Write register 1
+	db	10h		; with All Rx int
+
+@sio2b:			; table of RS232 SIO parameters
+	db	18h		; Channel reset
+	db	10h or 2	; Reset EX/SP int, Write register 2
+	db	0		; with 8085 vector mode
+
+	db	4		; Write register 4
+	db	01110100b	; with x16, ASYNC, 1stop, no parity
+	db	3		; Write register 3
+	db	0e1h		; with 8bit Rx, auto, Rx enabled
+	db	5		; Write register 5
+	db	0eah		; with DTR,RTS = 1, 8bit Tx, Tx enabled
+	db	1		; Write register 1
+	db	10h		; with All Rx int
+..table.end:
+
+;----------------------------------------------------------------------------
+pointers.to.baud:
+	dw	..bd1
+ 	dw	..bd2
+	dw	..bd3
+	dw	..bd4
+	dw	..bd5
+
+
+
+;------------------------------------------------
+@ctbl:		; physical character device table
+;------------------------------------------------
+
+	db	'KEYB  '	; device 0, KEYBOARD
+	db	mb$input + mb$serial
+	db	baud$none
+;
+	db	'CRT   '	; device 1, CRT
+	db	mb$output	; later make mb$in$out
+	db	baud$none
+;
+	db	'PRINT '	; device 2, Centronix PRINTER port
+	db	mb$in$out
+	db	baud$none
+;
+
+	db	'RS232 '	; device 3, Stnd RS232 connector
+	db	mb$in$out + mb$serial + mb$softbaud + mb$xonxoff
+..bd1:	db	baud$9600
+;
+	db	'CMOS  '	; device 4, CMOS memory
+	db	mb$in$out
+	db	baud$none
+;
+
+	db	'RS232A'	; device 5, 1st Optional RS232 channel A
+	db	mb$in$out + mb$serial + mb$softbaud + mb$xonxoff
+..bd2:	db	baud$9600
+;
+;
+
+	db	'RS232B'	; device 6, 1st Optional RS232 channel B
+	db	mb$in$out + mb$serial + mb$softbaud + mb$xonxoff
+..bd3:	db	baud$9600
+
+;
+;
+
+	db	'RS232C'	; device 7, 1st Optional RS232 channel A
+	db	mb$in$out + mb$serial + mb$softbaud + mb$xonxoff
+..bd4:	db	baud$9600
+;
+	db	'RS232D'	; device 8, 1st Optional RS232 channel B
+	db	mb$in$out + mb$serial + mb$softbaud + mb$xonxoff
+..bd5:	db	baud$9600
+
+..ctbl.end:
+;
+
+
+the.last:
+end	start
+
