@@ -1,0 +1,391 @@
+	
+
+;*** Booleans ***
+;Firstly when we say yes, we mean yes
+False	Equ	00
+True	Equ	0FFH
+YES	Equ	True
+No	Equ	False
+
+;*** Conditional assembly switches ***
+testing		equ		false
+green.screen	equ		true
+colour		equ		false
+
+
+;*** Macros ***
+@CHK	macro	?dd
+	if (?dd gt 7fH) and (?dd lt 0FF80H)
+.printx "Displacement range error"
+	endif
+	endm
+
+LDIR	macro	
+	DB	0EDH,0B0H
+	endm
+
+DJNZ	macro	?N
+	DB	10H,?N-$-1
+	endm
+
+JRNZ	macro	?N
+	DB	20H,?N-$-1
+	endm
+
+OUTIR	macro	
+	DB	0EDH,0B3H
+	endm
+
+INI	macro
+	db	0EDH,0A2H
+	endm
+
+OUTI	macro
+	db	0EDH,0A3H
+	endm
+
+CCIR	macro
+	db	0EDH,0B1H
+	endm
+
+;*** Bits and Bobs ***
+;Lets define our bit positions
+
+Bit0	Equ	00000001B
+Bit1	Equ	00000010B
+Bit2	Equ	00000100B
+Bit3	Equ	00001000B
+Bit4	Equ	00010000B
+Bit5	Equ	00100000B
+Bit6	Equ	01000000B
+Bit7	Equ	10000000B
+
+;*** General Parameters ***
+Columns	Equ	80
+Lines	Equ	25
+
+;*** External fixed address subroutines ***
+Hardcopy 	Equ	0f636h	;hardcopy
+beep		equ	0f639h	;sound a beep, c = time interval
+
+;*** Port Addresses ***
+G.Status	Equ	38H	;status register
+G.Command	Equ	39H	;Command register
+G.Parameter	Equ	38H	;Parameter register
+G.Data		Equ	39H	;Data Register
+G.Zoom.Control	Equ	3AH	;Hardware zoom magnification register
+G.Light.Pen	Equ	3BH	;Light pen service request
+G.Which.Monitor	Equ	2CH	;Monitor type tell-tale (Black-white/Colour)
+
+
+;*** Operation control codes ***
+.reset		Equ	00000000B	;Initialises and resets GDC to idle state
+.sync		Equ	00001110B	;Defines op. mode and sync signal waveforms
+.Vsync		Equ	01101110B	;selects master or slave Video sync operation
+.Cchar		Equ	01001011B	;Specifies cursor and character row heights
+
+;*** Display Control ***
+.1.Start	Equ	01101011B	;Ends Idle mode, Unblanks display
+.2.Start	Equ	00001101B	;
+.Stop		Equ	00001100B	;Stops displaying		  	
+.BCtrl		Equ	.Stop		;Controls the blanking and unblanking
+.Curs		Equ	01001001B	;Sets the position of the cursor in display memory
+.Zoom		Equ	01000110B	;Designates magnification factor
+.PRAM		Equ	01110000B	;Defines graphics char and RAM addresses
+.Scroll		Equ	01110000B	;sets display start address and area
+.Csrform	Equ	01001011B	;Defines Cursa of characters
+.Pitch		Equ	01000111B	;Defines horizontal length of V-Ram in words
+.Lpen		Equ	11000000B	;Reads light pen address
+  
+;*** Graphics Control ***
+.Vectw		Equ	01000110B	;Sets parameters for drawing pictures
+.Vecte		Equ	01101100B	;Designates line, quadrilateral, or circle to draw
+.TextW		Equ	01111000B	;Sets graphics text code
+.TextE		Equ	01101000B	;Designates graphics text to display
+.CsrW		Equ	01001001B 	;Sets address to draw
+.CsrR		Equ	11100000B	;Reads address to draw
+.Mask		Equ	01001010B	;Sets mask register
+
+;*** V-Ram Control ***
+.Write		Equ	00100000B	;Prepares to write parameters in V-Ram
+.Read		Equ	10100000B	;Reads data from V-RAM
+.DMAw		Equ	00100100B	;Starts DMA data transfer to V-RAM
+.DMAr		Equ	10100100B	;Starts DMA data transfer from V-RAM
+
+;*** Drawing Control Commands ***
+.Wdat		Equ	.Write		;Writes data words or bytes into display memory
+.FigS		Equ	01001100B	;Specifies the parameters for the drawing processor
+.FigD		Equ	01101100B	;Draws the figure as specified above
+.GChrD		Equ	01101000B	;Draws the graphic char into display memory
+
+;*** Data Read Commands ***
+.Rdat		Equ	.Read		;Reads data words or bytes from display memory
+.Curd		Equ	.CsrR		;Reads the cursor position
+.Lprd		Equ	.Lpen		;Reads the light pen address
+
+;*** Wdat Options ***
+@Replace	Equ	00B	;Replace with pattern
+@Complement	Equ 	01B	;
+@Reset		Equ	10B	;with Zero
+@Set		Equ	11B	;to one
+
+@LHWord		Equ	00B	;Word, low then high
+@LByte		Equ	10B	;Low byte of the word
+@Hbyte		Equ	11B	;High byte of the word
+
+
+;*** Cursor Characteristics ***
+lines.per.cursor	equ	0FH
+Curs.Top.Line		equ	0EH
+Curs.Bottom.Line	equ	0EH
+Blink.Rate		Equ	0BH	;
+blink			Equ	00H
+Non.Blink		Equ	01H
+
+
+;*** Highlighting Modes (all independent)
+@Highlighting	Equ	Bit2
+@Reverse	Equ	Bit3
+@Secret		Equ	Bit6
+@Blink		Equ	Bit7
+
+
+;*** Status Register Flag Positions ***
+Data.Ready	Equ	Bit0		;if true, byte ready for the processor to read
+FIFO.Full	Equ	Bit1		;if false, then able to take byte from processor
+FIFO.Empty	Equ	Bit2		;When true, previous messages to GDC have been processed
+Im.Drawing	Equ	Bit3		;True if the GDC is drawing a figure
+DMA.Execute	Equ	Bit4		;True during data transfers
+V.Sync.Active   Equ	Bit5		;True if vertical sync is occuring
+H.Blank.Active	Equ	Bit6		;true if horizontal retrace blanking is underway
+Light.Pen.Det	Equ	Bit7		;When true, The lightpen address register has readable value
+
+;*** DIRection Values ***
+Southwards	Equ	0
+Southeast	Equ	1
+Eastwards	Equ	2
+Northeast	Equ	3
+Northwards	Equ	4
+Northwest	Equ	5
+Westwards	Equ	6
+Southwest	Equ	7
+
+;*** Valid Figure Type Select Combinations ***
+
+is.Wdat		Equ	0
+is.Rdat		Equ	0
+is.DMA		Equ	0
+is.Line		Equ	00001B
+is.GCharacter	Equ	00010B
+is.Arc.or.circle	Equ	00100B
+iS.Rectangle	Equ	01000B
+Is.Slanted	Equ	10000B
+
+;*** Sync and reset mode of operations ***
+D.refresh		Equ	bit2		;refresh for zoom and DMA
+F.Access		Equ	bit4		;drawing access time window
+
+CG.Graphics		Equ	bit1		;in graphics mode
+CG.Character		Equ	bit5		;in character mode
+CG.Mixed		Equ	00
+
+IS.Noninterlaced	Equ	00  		;noninterlaced framing
+IS.Repeat.Interlaced	Equ	bit3		;repeat field interlaced framing 
+IS.Interlaced		Equ	bit0 OR bit3	;interlaced framing
+								      
+;*** Specific setup parameters ***
+
+.comment	"all horizontal widths are counted in display words and all
+vertical intervals are counted in lines.
+
+The Display Word Cycle is .480 microseconds (2 clock cycles)
+
+
+"
+Actv.words		Equ	4EH 	;Active display words per line. Must be
+;an even number from 2 to FFH
+Actv.Lines		Equ	0190h	;active display lines per video field
+;*timing parameters*
+Hz.Sync.Width		Equ	03H	;display word cycles.(clock cycles/2)
+;if video monitor then 14h
+Vt.Sync.Width		Equ	10H	;lines- 
+;if video monitor then 75
+Hz.Front.Porch.Width	Equ	07H	;display word cycles.(clock cycles/2)
+Hz.Back.porch.Width	Equ	13H	;display word cycles.(clock cycles/2)
+Vt.Front.porch.Width	Equ	01H	;lines
+Vt.Back.porch.Width	Equ	04h	;lines
+Pitch			Equ	80	;words
+Partition.length	Equ	190H
+Starting.Address	Equ	0000H	;Start at the beginning
+Hi.Starting.address	Equ	00H	;256K addressable!
+Image			Equ	1B 	;0=character area, 1=graphics area
+non.image		Equ	0B	;must be 0 if in graphics mode
+Wide.display.Cycle	Equ	0	;1=two word display cycle width
+.z80
+
+rdwr:	db	0ffh	;write =false read = true
+@dma:	dw	2000H	;just for debugging
+
+dma$1	equ	010000b shl 2	; 8237 dma controller #1
+dma$2	equ	010100b shl 2	; 8237 dma controller #2
+
+;
+; set up DMA device for Console i/o
+;
+writeDMA	equ	01001001b ; write dma mode Chn 1 single mode
+readDMA		equ	01000101b ; read dma mode Chn 1 single mode
+
+dma1$b0	equ	dma$1 or 0000b	; Channel 0 Base address
+dma1$w0	equ	dma$1 or 0001b	; Channel 0 Word address
+dma1$b1	equ	dma$1 or 0010b	; Channel 1 Base address
+dma1$w1	equ	dma$1 or 0011b	; Channel 1 Word address
+dma1$b2	equ	dma$1 or 0100b	; Channel 2 Base address
+dma1$w2	equ	dma$1 or 0101b	; Channel 2 Word address
+dma1$b3	equ	dma$1 or 0110b	; Channel 3 Base address
+dma1$w3	equ	dma$1 or 0111b	; Channel 3 Word address
+dma1$c	equ	dma$1 or 1000b	; DMA command (w/o)
+dma1$St	equ	dma$1 or 1000b	; Status register (r/o)
+dma1$Rq	equ	dma$1 or 1001b	; write request register (w/o)
+dma1$Sm	equ	dma$1 or 1010b	; Single mask register (w/o)
+dma1$Md	equ	dma$1 or 1011b	; Set mode (w/o)
+dma1$Pt	equ	dma$1 or 1100b	; Clear byte pointer (w/o)
+dma1$Tr	equ	dma$1 or 1101b	; Temporary register (r/o)
+dma1$Mc	equ	dma$1 or 1101b	; Master clear (reset) (w/o)
+dma1$x	equ	dma$1 or 1110b	; not assigned
+dma1$Am	equ	dma$1 or 1111b	; All mask register (w/o)
+
+Test:	ld	de,copy.bytes
+
+; Entry:	<DE> - length of transfer
+FLdma:	ld	c,writeDMA
+	ld	a,(rdwr)
+	or	a
+	jr	z,FLdma1
+	ld	c,readDMA
+FLdma1:	xor	a
+	out	(dma1$Mc),a	; clear (reset) dma
+	ld	a,c
+	out	(dma1$Md),a	; dma mode set
+	ld	hl,(@dma)
+	ld	a,l
+	out	(dma1$b1),a	; LOW dma address
+	ld	a,h
+	out	(dma1$b1),a	; HIGH dma address
+	dec	de		; decrement length of transfer
+	ld	a,e
+	out	(dma1$w1),a	; LOW sector length -1
+	ld	a,d
+	out	(dma1$w1),a	; HIGH sector length -1
+;
+	ld	a,01100000b	; Extended write, DREQ low, DACK high
+	out	(dma1$c),a	; command
+	ld	a,00001101b	; Clr chn1, Set chn0, chn2, chn3
+	out	(dma1$Am),a	; 
+	ret
+
+; lets see what happened
+dma.st:
+	in	a,(dma1$b1)	; LOW destination address
+	ld	l,a
+	in	a,(dma1$b1)	; HIGH destination address
+	ld	h,a
+	in	a,(dma1$w1)	; LOW sector length -1
+	ld	c,a
+	in	a,(dma1$w1)	; HIGH sector length -1
+	ld	b,a
+	nop
+	in	a,(dma1$St)	; status
+	nop
+	in	a,(dma1$Tr)	; temporary register
+	nop
+	ret
+
+more.dma:			; seems to need more DMA
+	ld	de,copy.bytes
+	ld	c,writeDMA
+	ld	a,(rdwr)
+	or	a
+	jr	z,moredma1
+	ld	c,readDMA
+moredma1:
+ 	dec	de		; decrement length of transfer
+	ld	a,e
+	out	(dma1$w1),a	; LOW sector length -1
+	ld	a,d
+	out	(dma1$w1),a	; HIGH sector length -1
+;
+	ld	a,01100000b	; Extended write, DREQ low, DACK high
+	out	(dma1$c),a	; command
+	ld	a,00001101b	; Clr chn1, Set chn0, chn2, chn3
+	out	(dma1$Am),a	; 
+	ret
+
+.8080
+
+;----------------------------------------------------------------------------
+wait.until.ready:	;hang on the status register of the 7220 until
+;it is ready to communicate
+
+..loop1:
+	in	g.status
+	ani	Im.Drawing OR Fifo.Empty	
+	xri	Fifo.empty
+;	Is the 7220 ready to receive an order?
+	jrnz	..loop1
+	ret
+
+;----------------------------------------------------------------------------
+TOCHIP:	;send command byte in A to the GDC chip 
+	PUSH	PSW
+	call	wait.until.ready
+	POP	PSW
+	OUT	g.command
+	RET
+
+;----------------------------------------------------------------------------
+OutCHL:	;outputs the parameter byte array pointed to by HL consisting of
+;C bytes
+	call 	wait.until.ready
+	mov	a,m
+	OUT	g.parameter
+	INX	H
+	DCR	C
+	JNZ	OUTCHL	;
+	RET
+try.it.out:
+	call 	test
+	mvi	a,.figs
+	call	tochip
+	mvi	c,no.orders
+	lxi	h,orders
+	call	outchl
+	mvi	a,.dmar	;DMA Read
+	call	tochip
+..loop:	call	dma.st
+	in	g.status
+	ani	dma.execute
+	jz	dma.ok
+	call more.dma
+	jmp	..loop
+dma.ok:mvi	a,01101011b
+	call	tochip
+	ret
+
+;*;orders:	;*FigS*
+;*;	db	is.dma or eastwards	;direction and transfer type
+;*;	db	00			;DC=no of word addresses at right angles-1
+;*;	db	38			;D=no of bytes in initial dir. -2
+;*;	db	19			;D/2
+;*;no.orders	equ	4
+; dp-l's version
+copy.bytes	equ	40
+orders:	;*FigS*
+	db	is.dma or eastwards	;direction and transfer type
+	dw	0			;DC=no of word addresses at right angles-1
+	dw	copy.bytes		;D=no of bytes in initial dir.
+	dw	(copy.bytes-2)/2	;D/2
+no.orders	equ	$-orders
+
+
+end Try.It.Out
+
