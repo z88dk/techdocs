@@ -1,0 +1,282 @@
+
+;*** Booleans ***
+;Firstly when we say yes, we mean yes
+False	Equ	00
+True	Equ	0FFH
+YES	Equ	True
+No	Equ	False
+
+;*** ASCII Characters ***
+ESC	Equ	1BH
+
+;*** Conditional assembly switches ***
+;none at present
+
+;*** Macros ***
+@CHK	macro	?dd
+	if (?dd gt 7fH) and (?dd lt 0FF80H)
+.printx "Displacement range error"
+	endif
+	endm
+
+LDIR	macro	
+	DB	0EDH,0B0H
+	endm
+
+LDDR	macro
+	DB	0EDH,0B8H
+	endm
+
+LDED	macro	?NNNN
+	DB	0EDH,5BH
+	DW	?NNNN
+	endm
+
+DJNZ	macro	?N
+	DB	10H,?N-$-1
+	endm
+
+JRNZ	macro	?N
+.z80
+	jr	nz,?N
+.8080
+	endm
+
+JRNC	macro	?N
+.z80
+	jr	nc,?N
+.8080
+	endm
+
+JRC	macro	?N
+.z80
+	jr	c,?N
+.8080
+	endm
+
+JMPR	macro	?N
+.z80
+	jr	?N
+.8080
+	endm
+
+JRZ	macro	?N
+.z80
+	jr	z,?N
+.8080
+	endm
+
+RALR	macro	?R
+	DB	0CBH,10H+?R
+	endm
+
+RARR	macro	?R
+	DB	0CBH,18H+?R
+	endm
+
+SRLR	macro	?R
+	DB	0CBH,38H+?R
+	endm
+
+RES	macro	?N,?R
+	DB	0CBH,?N*8+?R+80H
+	endm
+
+
+BIT	macro	?N,?R
+	DB	0CBH,?N*8+?R+40H
+	endm
+
+SETB	macro	?N,?R
+	DB	0CBH,?N*8+?R+0C0H
+	endm
+
+OUTIR	macro	
+	DB	0EDH,0B3H
+	endm
+
+INI	macro
+	db	0EDH,0A2H
+	endm
+
+OUTI	macro
+	db	0EDH,0A3H
+	endm
+
+CCIR	macro
+	db	0EDH,0B1H
+	endm
+
+DSBC	macro	?R
+	db	0EDH,?R*8+42H
+	endm
+
+DADC	macro	?R
+	db	0EDH,?R*8+4AH
+	endm
+
+
+;*** Bits and Bobs ***
+;Lets define our bit positions
+
+Bit0	Equ	00000001B
+Bit1	Equ	00000010B
+Bit2	Equ	00000100B
+Bit3	Equ	00001000B
+Bit4	Equ	00010000B
+Bit5	Equ	00100000B
+Bit6	Equ	01000000B
+Bit7	Equ	10000000B
+
+;*** General Parameters ***
+Columns	Equ	80
+Lines	Equ	25
+
+
+;*** Port Addresses ***
+G.Status	Equ	38H	;status register
+G.Command	Equ	39H	;Command register
+G.Parameter	Equ	38H	;Parameter register
+G.Data		Equ	39H	;Data Register
+G.Zoom.Control	Equ	3AH	;Hardware zoom magnification register
+G.Light.Pen	Equ	3BH	;Light pen service request
+G.Which.Monitor	Equ	2CH	;Monitor type tell-tale (Black-white/Colour)
+Video.Board.Type	Equ	2cH	;which board (colour or monochrome)
+Colour.Plane	Equ	2DH	;select the colour plane to access
+
+
+;*** Operation control codes ***
+.reset		Equ	00000000B	;Initialises and resets GDC to idle state
+.sync		Equ	00001110B	;Defines op. mode and sync signal waveforms
+.Vsync		Equ	01101110B	;selects master or slave Video sync operation
+.Cchar		Equ	01001011B	;Specifies cursor and character row heights
+
+;*** Display Control ***
+.1.Start	Equ	01101011B	;Ends Idle mode, Unblanks display
+.2.Start	Equ	00001101B	;
+.Stop		Equ	00001100B	;Stops displaying		  	
+.BCtrl		Equ	.Stop		;Controls the blanking and unblanking
+.Curs		Equ	01001001B	;Sets the position of the cursor in display memory
+.Zoom		Equ	01000110B	;Designates magnification factor
+.PRAM		Equ	01110000B	;Defines graphics char and RAM addresses
+.Pitch		Equ	01000111B	;Defines horizontal length of V-Ram in words
+  
+;*** Graphics Control ***
+.CsrW		Equ	01001001B 	;Sets address to draw
+.CsrR		Equ	11100000B	;Reads address to draw
+.Mask		Equ	01001010B	;Sets mask register
+
+;*** V-Ram Control ***
+.DMAw		Equ	00100100B	;Starts DMA data transfer to V-RAM
+.DMAr		Equ	10100100B	;Starts DMA data transfer from V-RAM
+
+;*** Drawing Control Commands ***
+.Wdat		Equ	00100000B	;Writes data words or bytes into display memory
+.FigS		Equ	01001100B	;Specifies the parameters for the drawing processor
+.FigD		Equ	01101100B	;Draws the figure as specified above
+.GChrD		Equ	01101000B	;Draws the graphic char into display memory
+
+;*** Data Read Commands ***
+.Rdat		Equ	10100000B	;Reads data words or bytes from display memory
+.Curd		Equ	11100000B	;Reads the cursor position
+.Lprd		Equ	11000000B	;Reads the light pen address
+
+;*** Wdat Options ***
+@Replace	Equ	00B	;Replace with pattern
+@Complement	Equ 	01B	;
+@Reset		Equ	10B	;with Zero
+@Set		Equ	11B	;to one
+
+@LHWord		Equ	00B	;Word, low then high
+@LByte		Equ	10B	;Low byte of the word
+@Hbyte		Equ	11B	;High byte of the word
+
+
+;*** Cursor Characteristics ***
+lines.per.cursor	equ	0FH
+Curs.Top.Line		equ	0DH
+Curs.Bottom.Line	equ	0EH
+Blink.Rate		Equ	04H	;
+blink			Equ	00H
+Non.Blink		Equ	01H
+
+
+;*** Highlighting Modes (all independent)
+@Highlighting	Equ	Bit2
+@Reverse	Equ	Bit3
+@Secret		Equ	Bit6
+@Blink		Equ	Bit7
+
+
+;*** Status Register Flag Positions ***
+Data.Ready	Equ	Bit0		;if true, byte ready for the processor to read
+FIFO.Full	Equ	Bit1		;if false, then able to take byte from processor
+FIFO.Empty	Equ	Bit2		;When true, previous messages to GDC have been processed
+Im.Drawing	Equ	Bit3		;True if the GDC is drawing a figure
+DMA.Execute	Equ	Bit4		;True during data transfers
+V.Sync.Active   Equ	Bit5		;True if vertical sync is occuring
+H.Blank.Active	Equ	Bit6		;true if horizontal retrace blanking is underway
+Light.Pen.Det	Equ	Bit7		;When true, The lightpen address register has readable value
+
+;*** DIRection Values ***
+Southwards	Equ	0
+Southeast	Equ	1
+Eastwards	Equ	2
+Northeast	Equ	3
+Northwards	Equ	4
+Northwest	Equ	5
+Westwards	Equ	6
+Southwest	Equ	7
+
+;*** Valid Figure Type Select Combinations ***
+
+is.Wdat			Equ	0
+is.Rdat			Equ	0
+is.DMA			Equ	0
+is.Line			Equ	00001B
+is.GCharacter		Equ	00010B
+is.Arc.or.circle	Equ	00100B
+iS.Rectangle		Equ	01000B
+Is.Slanted		Equ	10000B
+
+;*** Sync and reset mode of operations ***
+D.refresh		Equ	bit2		;refresh for zoom and DMA
+F.Access		Equ	bit4		;drawing access time window
+
+CG.Graphics		Equ	bit1		;in graphics mode
+CG.Character		Equ	bit5		;in character mode
+CG.Mixed		Equ	00
+
+IS.Noninterlaced	Equ	00  		;noninterlaced framing
+IS.Repeat.Interlaced	Equ	bit3		;repeat field interlaced framing 
+IS.Interlaced		Equ	bit0 OR bit3	;interlaced framing
+								      
+;*** Specific setup parameters ***
+
+.comment	"all horizontal widths are counted in display words and all
+vertical intervals are counted in lines.
+
+The Display Word Cycle is .480 microseconds (2 clock cycles)
+
+
+"
+Actv.words		Equ	4EH 	;Active display words per line. Must be
+;an even number from 2 to FFH
+Actv.Lines		Equ	0190h	;active display lines per video field
+;*timing parameters*
+Hz.Sync.Width		Equ	03H	;display word cycles.(clock cycles/2)
+;if video monitor then 14h
+Vt.Sync.Width		Equ	10H	;lines- 
+;if video monitor then 75
+Hz.Front.Porch.Width	Equ	07H	;display word cycles.(clock cycles/2)
+Hz.Back.porch.Width	Equ	13H	;display word cycles.(clock cycles/2)
+Vt.Front.porch.Width	Equ	01H	;lines
+Vt.Back.porch.Width	Equ	04h	;lines
+Pitch			Equ	80	;words
+colour.pitch		Equ	40	;words
+Partition.length	Equ	190H
+Starting.Address	Equ	0000H	;Start at the beginning
+Hi.Starting.address	Equ	00H	;256K addressable!
+Image			Equ	1B 	;0=character area, 1=graphics area
+non.image		Equ	0B	;must be 0 if in graphics mode
+Wide.display.Cycle	Equ	0	;1=two word display cycle width
