@@ -1,0 +1,26 @@
+; list SUB files
+list CBIOS2.SUB
+list CBIOSLST.SUB
+list BIOSLIST.SUB
+list 7201.SUB
+list LPEN.SUB
+; list EQU files
+list 46818.EQU
+list 7201.EQU
+list X7201.EQU
+list 8253.EQU
+list 8255.EQU
+list 8259A.EQU
+list CBIOS.EQU
+; list ASM files
+list SCB.ASM
+; list MAC files
+list CBIOS3A0.MAC
+list CBIOS3A1.MAC
+list CBIOS3A3.MAC
+list 7201.MAC
+list 8255.MAC
+list CMOS.MAC
+list KEYTABLE.MAC
+list LPEN.MAC
+list PFNTABLE.MAC
