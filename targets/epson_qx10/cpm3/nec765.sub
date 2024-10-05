@@ -1,0 +1,10 @@
+; Erase BAK files to make room
+erase nec765.bak
+; MICROSOFT assembly
+a:m80 nec765,=nec765
+; lib disc driver modules
+a:lib cbios3a5=cbios3a5(bios3a),nec765,mdisk
+;-----------------------------
+; Ready to copy to GENCPM disc
+; viz    pip a:=cbios*.rel
+;-----------------------------
