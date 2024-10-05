@@ -1,0 +1,609 @@
+	.z80	;Lets use Z80 Mnemonics
+	title	EPSON QX-10 - Swap the logical drives
+
+	name	('SWAP')
+
+	vers	Equ	1	;current version
+;------------------------------------------------------------------
+; EPSON QX-10 Utility to Alter the logical drive assignment
+;
+; Author: A. Clarke, 11 Sun Street, London E.C.2.
+; Date: 23rd March 1984
+;------------------------------------------------------------------
+;copyright A.R.M.C. 1984
+	cseg
+
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+vers22	equ	22h	; CP/M version number
+vers31	equ	31h	; CP/M version number
+rev	equ	'A'	; Utility version
+
+bios	Equ	0001h	;pointer to BIOS jump table
+bdos	Equ	0005h	;BDOS entry point
+boot	Equ	0000h	;Home time
+dfcb	Equ	005ch	;Default FCB location
+dbuf	Equ	0080h	;CCP parameter buffer and DMA buffer
+
+
+;*** logical constants ***
+false	Equ	0000h		;not true
+true	Equ	0ffh		;not exactly false
+
+
+;*** ascii codes ***
+cr	Equ	0dh		;carriage return
+lf	Equ	0ah		;line feed
+eof	Equ	1ah		;end of file code
+ff	Equ	0ch	;form feed
+esc	Equ	1bh		;escape char for cursor control
+bspace	Equ	08		;backspace
+tab	Equ	09h		;tab
+
+;*** Arrow Key Assignments ***
+
+Up.Arrow	Equ	1eh
+Down.Arrow	Equ	1fh
+Left.Arrow	Equ	1dh
+Right.Arrow	Equ	1ch
+	;these are the default settings!
+;*** Direct BIOS offsets ***
+
+CI	Equ	6	;conin
+CO	Equ	9	;conout
+LI	Equ	12	;listout
+
+;---------------------------------------------------------------
+;Variables
+;--------------------------------------------------------------
+	
+column:	db	00		;column on vdu
+line:	db	00		;line on vdu
+margin:	db	00	;margin for menu selection
+startline:db	00	;of menu
+str.array:DW	00	;pointer to array used for menu selection
+offset:	DW	00
+highlt:	db	00	;the array element that is highlit(currently selected
+flip.flop:db	0ffh	;are we moving up or down the menu
+Ch.Starting:	db	' '	;character starting the menu item
+Ch.Finishing:	db	' '	;character finishing the menu item
+selection:	db	00	;remembered selection
+We.Highlight:		db	000	;do we do an inverse video highlight?
+Option.configurable:	db	000	;the current option being configured
+Current.Port:		db	000	;the current port being configured
+
+;---------------------------------------------------------------
+;
+;Machine-specific graphics and console routines
+;
+;---------------------------------------------------------------
+
+;*** cursor control codes ***
+	db	'Copyright MML Ltd (c) 1983'
+
+;*** all patches as in wordstar ***
+clear:	defb	02,27,'+',00,00,00;clear screen string
+clead1:	defb	02,27,61,00	;yx cursor addressing lead-in
+linoff:	defb	20h		;offset to add
+coloff:	defb	20h
+
+
+
+;*** other vdu patches in addition ***
+char.starting.highlight:
+	DB	'('	;additional emphasis for selected option
+;for menu selection
+char.finishing.highlight:
+	DB	')'	;see above
+;for menu selection
+	
+uscore:	db	'_'	;not used
+ivonº	db	02,27,"0",00,00,00,00	;string to switch on inverse
+ivoff:	db	04,27,"1",27,"7",00,00	;string to switch off all highlighting
+ivon2:	db	02,27,"6",00,00,00,00 	;string to switch on intensity
+
+
+;cursor turn off/on strings
+on.cursor:defb	02,1bh,'3',00	;switch on the cursor
+off.cursor:defb	02,1bh,'2',00	;switch off the cursor
+
+;screen switching strings
+upper.screen:defb	2,1bh,"u",00;switch to upper screen
+lower.screen:defb	2,1bh,"v",00;switch to lower screen
+
+;mode switching strings
+grfiks:	defb	2,1bh,'g',00	;enter graphics
+no.grfix:defb	2,1bh,'h',00	;exit graphics mode
+
+	
+
+
+
+;*** hilton turns the terminal highlight ***
+;*** specified by ivon, on; hiltoff off   ***
+hilton:	push	hl
+	push	de
+	push	bc
+	ld	a,(char.starting.highlight)
+	ld	(ch.starting),a
+	ld	a,(char.finishing.highlight)
+	ld	(ch.finishing),a	;set the first and last characters
+	ld	hl,ivon	;inverse video on string
+	ld	a,(we.highlight)	;only switch on if boolean set
+	and	a
+	call	nz,msg		;do we do inverse video
+	ld	hl,ivon2	;do highlight anyway
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+hiltoff:push	hl
+	push	de
+	push	bc
+	ld	a," "
+	ld	(ch.starting),a	;reset leading and trailing character
+	ld	(ch.finishing),a
+	ld	hl,ivoff
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+alton:	push	hl
+	push	de	;switch on alternative highlighting
+	push	bc
+	ld	hl,ivon2
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+
+;---------------------------------------------------------------------------
+yxpos:	;sends the character cursor to the location in line Column
+	push	hl
+	push	de
+	push	bc		;save everything
+	ld	hl,clead1	;print lead-in
+	call	msg
+	ld	a,(line)	;get line no.
+	ld	b,a
+	ld	a,(linoff)
+	Add	a,b		;addin line offset
+	call	putchar		;out it goes
+	ld	a,(Column)	;get column
+	ld	c,a
+	ld	a,(coloff)	;add in offset
+	add	a,c
+	call	putchar		;send it out
+	pop	bc		;restore the world
+	pop	de
+	pop	hl
+	ret			;and go home
+
+
+
+;---------------------------------------
+gra.off:;turn into character mode
+	push	hl		;save the world
+	push	de
+	push	bc
+	ld	hl,no.grfix	;the no graphics string
+	call	msg		;to switch into character mode
+	pop	bc		;restore the world
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------	
+curon:		;switch on the cursor
+	push	hl
+	push	de
+	push	bc
+	ld	hl,on.cursor	;switch cursor on 
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------
+into.graphics:;lets enter graphics mode
+	
+	push	hl
+	push	de
+	push	bc
+	ld	hl,grfiks	;switch into graphics
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------	
+curoff:	;switch off the cursor
+	push	hl
+	push	de
+	push	bc
+	ld	hl,off.cursor	;string to tell the console
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------
+screen.clear:;clear the whole damned screen
+	push	hl
+	push	de
+	push	bc
+	ld	hl,clear
+	call	msg		;send out clear-screen string
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+	page
+
+	subttl  'DIRECT BIOS SUBROUTINES'
+
+;----------------------
+;-- BIOS Interaction --
+;----------------------
+
+getchar:
+CONIN:
+	call	curon		;switch on the cursor
+	LD	DE,CI		;console input
+	CALL	dir_bios
+	push	af
+	call	curoff		;switch it back off
+	pop	af
+	CP	'A' OR 20H
+	RET	C
+	CP	('Z' OR 20H)+1
+	RET	NC
+	AND	5FH		;small alph -> large alph
+	RET
+;
+
+priviliged:
+	ld	de,-3		;cold boot
+	jr	dir_bios
+
+conout:
+	ld	de,co
+	jr	dir_bios
+
+;
+;
+dir_bios:
+	LD	hl,(bios)	;entry BIOS
+	ADD	hl,DE
+	JP	(hl)		; direct BIOS call
+
+
+
+;------------------------
+;-- BDOS Character I/O --
+;------------------------
+
+subttl  'BDOS CHARACTER SUBROUTINES'
+
+;-----;
+strout:
+;-----;
+	ld	a,(hl)
+	or	a
+	ret	z
+;
+;
+	push	hl
+	call	putchar
+	pop	hl	;send out null-terminated string
+	inc	hl
+	jr	strout	;to console
+
+;------;
+putchar:
+;------;
+	ld	c,a	;to the console by direct bios call
+	call	conout		;conout
+	ret
+
+
+;-------;
+Msg:
+;-------;
+	
+	ld	a,(hl)		;print string preceded by a count byte
+	ld	b,a		;get count byte
+	or	a		;is it a null string
+	ret	z		;if null string, then go home
+..loop:	inc	hl		;point to next ascii byte
+	ld	a,(hl)		;get it
+	push	hl
+	push	bc
+	call	putchar		;send it to the console
+	pop	bc
+	pop	hl
+	dec	b		;any more to do
+	ret	z		;if not go home
+	jr	..loop		;otherwise do the next byte
+
+
+
+
+
+
+abortmsg:
+	db	cr,lf,lf,'** Program terminated ** no action taken.'
+	db	cr,lf,000
+	
+
+
+;---------------------------------------------------------------------------;
+
+
+	subttl  'S W A P        main'
+	page
+
+
+biospb:	
+	db	000
+	db	000
+	dw	000
+	dw	000
+QXBIOS:	dw	000
+
+;----------------------------------------------------------------------------
+Start:	;here, folks
+
+	ld	c,12		; BDOS return version number
+	call	bdos
+	cp	031h		; Check that the right version of CP/M
+	jp	nz,notcpm3
+	ld	a,h
+	or	a
+	jp	nz,notcpm3
+;now we set the stack
+	ld	hl,(0006h)
+	ld	sp,hl		; use top of memory as stack
+;check for QX+
+	ld	c,50		; BDOS Direct BIOS calls
+	ld	de,BIOSPB
+	ld	a,30		; Customised BIOS entry point
+	ld	(de),a		; requires no other registers
+	call	BDOS		; Check that the right machine 
+	cp	'A'		; Epson BIOS returned version
+	jp	z,onwards.confidently
+;-----------------------------------------;
+; Program not loaded under CP/M3 on Epson ;
+;-----------------------------------------;
+notcpm3:
+	ld	hl,cpm3msg
+	call	strout
+
+	ld	c,0
+	jp	bdos		; and terminate program
+
+cpm3msg:
+	db	'logical drive swapping Utility -'
+	db	' Requires CP/M + on Epson QX-10',cr,lf,0
+;silly wally
+
+onwards.confidently:
+;first lets see if he used the program correctly
+;get first drive
+	ld	a,(dfcb)
+;if not valid then goto fancy
+	cp	' '
+	jr	z,fancy
+	dec	a
+	jp	m,fancy
+	ld	c,a
+	ADD	A,'A'
+	LD	(FIRST),A
+	ld	a,(dfcb+16)
+	cp	' '
+	jr	z,fancy
+	dec	a
+	jp	m,fancy
+	ld	b,a
+	ADD	A,'A'
+	LD	(SECOND),a
+back.wards:
+;returns the address of the table in HL
+	push	bc
+	ld	de,3*(30-1)
+	call	dir_bios
+	pop	bc
+	inc	hl
+	inc	hl
+	inc	hl		;do qx bios call
+	ld	de,im.done
+	push	de
+	push	hl
+	ld	l,b		;put second drive in l
+	ret	
+
+
+fancy:
+;now we do the fancy screen stuff
+	ld	hl,hello.string
+	call	msg		;split the screen and print title
+	ld	hl,instruct
+	call	strout		;print the instructions
+	ld	hl,OK
+	call	msg
+ 	call	getchar		;and throw it away
+	push	af
+	ld	hl,tidy.up
+	call	msg
+	pop	af
+	cp	3
+	jp	z,aborted	;he decided to cut his losses
+	call	screen.clear
+	call	hiltoff		;switch off highlighting
+try.again:
+	ld	hl,from.where
+	call	strout
+	call	getchar
+	cp	3
+	jp	z,aborted
+	cp	'A'
+	jr	c,first.bad
+	cp	'P'+1
+	jr	c,first.ok
+first.bad:
+	call	putchar
+	ld	hl,sigh
+	call	strout
+	jp	try.again
+first.ok:
+	ld	(first),a
+	call	putchar
+	ld	a,':'
+	call	putchar
+	ld	hl,wipe		;in case there had been an error
+	call	strout
+try.2nd.again:
+	ld	hl,to.where
+	call	strout
+	call	getchar
+	cp	3		;pressed break
+	jp	z,aborted
+	cp	'A'
+	jr	c,second.bad
+	cp	'P'+1
+	jr	c,second.ok
+second.bad:
+	call	putchar
+	ld	hl,sigh
+	call	strout
+	jp	try.2nd.again
+second.ok:
+	ld	(second),a
+	call	putchar
+	ld	a,':'
+	call	putchar
+	call	screen.clear
+	ld	a,(first)
+	sub	'A'
+	ld	c,a
+	ld	a,(second)
+	sub	'A'
+	ld	b,a
+	jp	back.wards
+
+all.done:
+	call	screen.clear
+im.done:	;say what we have done
+	call	curon
+	ld	hl,done.msg
+	call	strout
+	jp	finish	
+
+aborted:	;the user panicked and pressed break
+	call	screen.clear
+	call	curon
+	ld	hl,abortmsg
+	call	strout
+
+;and fall through
+;-----;
+finish:
+	ld	c,0		; BDOS system reset
+	jp	bdos
+
+;----------------------------------------------------------------------------
+hello.string:
+	defb	..1end - $	;length of the string
+	defb	1bh,",","g",5,"c";define split screen
+	defb	1bh,"u"		;go to the upper
+	defb	1bh,"/"		;make multifont
+	defb	1bh,"#",6	;style 4
+	defb	1bh,'X'		;proportional spacing
+	defb	'	   QX+ Logical Drive Swapping Utility'
+	defb	1bH,'S'		;unproportional
+	defb	1bh,"v"		;enter the lower screen
+	defb	1BH,"+"		;blank the screen
+	defb	1bh,')'
+..1end:	defb	000,000
+
+ok:	defb	..end1 - $
+
+	db	ESC,'=',(18+' '),(26+' ')	;bottom centre
+	defb	1bh,'('		;full intensity
+	defb	1bh,"^"		;blink
+	defb	"<press any key to continue>"
+	defb	1bh,"q"		;cancel blink
+	defb	1bh,')'		;half intensity
+..end1:	defb	00,00
+
+tidy.up:;set the screen to rights
+	defb	..end2 - $
+	defb	1bh,"+"
+	defb	1bh,"u",1bh,"\"
+	defb	1bh,"v",1bh,"u"	;dont ask
+	defb	1bh,",","C",26,"C"
+	defb	1bh,"+"
+..end2:	defb	000,000
+
+;----------------------------------------------------------------------------
+instruct:
+db	0dH,0aH		;carriage return, linefeed
+db	'		This  utility is designed to swap two drive names. Drives'
+db	0dH,0aH		;carriage return, linefeed
+db	'	are  named  from A: to P: and are mapped to physical devices.  In'
+db	0dH,0aH		;carriage return, linefeed
+db	'	the  system  on Bootup, A: or C: refers to the left floppy  drive '
+db	0dH,0aH		;carriage return, linefeed
+db	'	and  B: or D: refers to the right floppy drive. M: refers to  the'
+db	0dH,0aH		;carriage return, linefeed
+db	'	memory disk. Typing'
+db	0dH,0aH		;carriage return, linefeed
+db	'	 	SWAP F: M:'
+db	0dH,0aH		;carriage return, linefeed
+db	'			from the console will make the memory disk  drive'
+db	0dH,0aH		;carriage return, linefeed
+db	'	F: as in EPSON Multifonts CP/M 2.2. It would swap the names of F:'
+db	0dH,0aH		;carriage return, linefeed
+db	'	and  M:.  As F:  is  unassigned at present, it would  effectively'
+db	0dH,0aH		;carriage return, linefeed
+db	'	rename M: to F:'
+db	000
+
+ 
+
+
+from.where:	db	esc,'=',32+6,32+8
+	db	'What drive name do you wish to be replaced? (A..P)--> '
+	db	000
+sigh:	db	esc,'=',32+3,32+8
+	db	'*** please give a drivename from A to P or press <BREAK> ***'
+	db	000
+wipe:	db	esc,'=',32+3,32+8
+	db	'                                                            '
+	db	000
+to.where:	db	esc,'=',32+9,32+8
+	db	'What drive name should it be replaced by? (A..P)--> '
+	db	000
+
+done.msg:	db	0dh,0ah,0ah
+	db	'	Drivenames '
+first:	db	'A: and '
+second:	db	'B: have been swapped.'
+	db	0dh,0ah
+	db	000
+
+end	start
