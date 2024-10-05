@@ -1,0 +1,176 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS CMOS character fifo i/o
+
+	name	('CMOS')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; ALPHA Aug 8,83
+; BETA  Dec 5,83
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+	cseg		;GENCPM puts CSEG code in resident common memory
+
+;====================================================
+; user defined serial/parallel character I/O routines
+;====================================================
+
+;CMOS character FIFO
+
+	public	cmosin,cmosout,cmossin,cmossot	; CMOS character FIFO buffer
+
+;------------------------------------------------------------------
+
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+	maclib	CBIOS.EQU	; QX-10 hardware ports and equates
+
+;---------------------------------------------------------------------
+
+	page
+
+;=====================================================================
+;CMOS - Battary backed 2k RAM used as character FIFO
+;
+; cmossin	- return character status (0= empty)
+;
+; cmosin	- read next character from fifo buffer - wait if none
+;
+; cmossot	- return character status (0= full)
+;
+; cmosout	- read next character from fifo buffer - wait if none
+;
+; CMOS FIFO
+; Offset 0  - Word	- Number of characters in CMOS
+; Offset 2  - bytes	- characters entered
+; WARNING: Can only be used in a banked system
+;=====================================================================
+
+	cseg		; MUST be in common as accessing CMOS RAM
+;-----------------------------------
+cmossin:		;CMOS status
+;-----------------------------------
+	call	cmosbnk			; Select CMOS bank and DI
+	ld	hl,(CMOSlen)
+	ld	de,-cmossize+2-1	; just check in range
+	ex	de,hl
+	add	hl,de
+	ex	de,hl
+	call	c,cmosinit		; as out of range, REWIND (return HL=0)
+	ld	a,h
+	or	l
+	sub	1
+	sbc	a,a
+	cpl				; 0= not ready, -1 = ready
+	jr	rambnk
+cmosinit:
+	ld	hl,0
+	ld	(CMOSlen),hl
+	ret
+
+;---------------------------------------------------------
+cmosin:			; Extract character from CMOS FIFO
+;---------------------------------------------------------
+	call	cmosbnk			; Select CMOS bank and DI
+	ld	hl,CMOSfifo
+	ld	c,(hl)
+	inc	hl
+	ld	b,(hl)			; <BC> -> length of FIFO
+	dec	bc			; reduce FIFO length by 1
+	ld	(hl),b			; update CMOSlen
+	dec	hl
+	ld	(hl),c
+	ld	a,b
+	or	c			; test if buffer will then be empty
+	inc	hl
+	inc	hl			; <HL> -> 1st char of FIFO
+	ld	a,(hl)			; character to be returned
+	jr	z,rambnk		; -yes-
+	ld	d,h
+	ld	e,l
+	inc	hl			; to next character
+	ldir				; <HL> -> <DE>, x <BC>
+	jr	rambnk
+
+;-----------------------------------
+cmossot:		;CMOS status
+;-----------------------------------
+	call	cmosbnk			; Select CMOS bank and DI
+	ld	hl,(CMOSlen)
+	ld	de,-cmossize+2		; capacity of FIFO-1
+	add	hl,de
+	sbc	a,a
+	cpl     			; 0= not ready (FULL), -1 = ready
+	jr	nc,rambnk		; READY
+	ld	a,h			; test for CMOSlen = 2048-2
+	or	l
+	jr	z,rambnk		; 0= not ready (FULL)
+	ld	hl,0
+	ld	(CMOSlen),hl
+	or	-1			; (CMOSsin requires HL = 0 on return)
+	jr	rambnk			; empty CMOS and return -1 = ready
+
+;----------------------------------------------------------
+cmosout:		; Add character in <A> to CMOS FIFO
+;----------------------------------------------------------
+	call	cmosbnk			; Select CMOS bank and DI
+	ld	hl,CMOSfifo
+	ld	c,(hl)
+	inc	hl
+	ld	b,(hl)			; <BC> -> length of FIFO
+	inc	bc
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	inc	hl
+	add	hl,bc
+	ld	(hl),a
+	jp	rambnk			; return to RAM bank
+
+;------------------------------;
+; Select CMOS bank 8000h-87ffh ;
+;------------------------------;
+cmosbnk:
+	di
+	push	af			; save AF
+	ld	a,1b			; enable CMOS
+	out	(cmos),a		; from 8000h to common
+	pop	af			; recover register
+	ret
+
+cmosfifo	equ	8000h		; start of CMOS memory
+cmoslen		equ	cmosfifo
+cmossize	equ	0800h		; size of CMOS
+cmosbuff	equ	cmossize-2	; 2 bytes used for pointer
+
+;-------------------------------;
+; Disable CMOS bank 8000h-87ffh ;
+;-------------------------------;
+rambnk:
+	push	af			; save AF
+	ld	a,0b			; disable CMOS
+	out	(cmos),a
+	pop	af			; recover register
+	ei				; interrupts ok now
+	ret
+
+;----------------------------------------------------------------------------
+
+	end
