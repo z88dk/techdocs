@@ -1,0 +1,359 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS light pen device
+
+	name	('LPEN')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; BETA+ Jan 5,84
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+	cseg		;GENCPM puts CSEG code in resident common memory
+
+;=====================
+; LIGHT PEN input BUFFER
+;=====================
+
+	public	lpenin,lpensin		; L.PEN character BUFFER buffer
+	public	initlpen		; Cold boot initialisation
+
+
+; memory control
+
+	extrn	@cbnk,@sbnk,@tbnk	; current, system and tpa bank number
+	extrn	?tpabnk,?sysbnk		; select TPA or SYS bank
+	extrn	?bank			; select bank in <A>
+	extrn	?goint		; conditional switch to system bank
+	extrn	?reti		; conditional restore of callers bank
+
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+	maclib	CBIOS.EQU	; QX-10 hardware ports and equates
+
+bit0	equ	1 shl 0
+bit1	equ	1 shl 1
+bit2	equ	1 shl 2
+bit3	equ	1 shl 3
+bit4	equ	1 shl 4
+bit5	equ	1 shl 5
+bit6	equ	1 shl 6
+bit7	equ	1 shl 7
+
+
+lpen	equ	03bh	; Light Pen reset interrupt flip flop
+
+;------------------------------------------;
+; GDC Commands - Memory Data Read Commands ;
+;------------------------------------------;
+gdc$rdat	equ	10100000B	;Reads data words or bytes from display memory
+gdc$curd	equ	11100000B	;Reads the cursor position
+gdc$lprd	equ	11000000B	;Reads the light pen address
+
+;--------------------------------------------;
+; GDC Microprocessor Bus Interface Registers ;
+;--------------------------------------------;
+gdc$s	equ	038h	;Read status register
+gdc$p	equ	038h	;Write Parameter into fifo register
+gdc$c	equ	039h	;Write Command into fifo register
+gdc$d	equ	039h	;Read Data from fifo Register
+
+;---------------------------;
+; GDC Status Register Flags ;
+;---------------------------;
+gdc$lpen	equ	bit7	;The LAD register contains a deglitched value
+gdc$hor		equ	bit6	;Horizontal retrace blanking is underway
+gdc$sync	equ	bit5	;Vertical retrace sync occurs
+gdc$dma		equ	bit4	;DMA data transfer
+gdc$dip		equ	bit3	;The GDC is drawing a graphics figure
+gdc$epty	equ	bit2	;All commands/parameters have been processed
+gdc$full	equ	bit1	;Full buffer in the GDC
+gdc$rdy		equ	bit0	;A byte is available to be read
+
+;----------------------------------------------------------------------------
+
+;-------------------------;
+; Epson interrupt vectors ;
+;-------------------------;
+
+;EPSON CP/M: inttab	equ	0fd80h	; base of interrupt vector
+inttab	equ	0fe00h		; base of interrupt vector
+intpwr	equ	inttab+0	; power down
+intstm	equ	inttab+4	; soft timer
+intx1	equ	inttab+8	; ext int 1
+intx2	equ	inttab+12	; ext int 2
+int201	equ	inttab+16	; 7201 interrupt
+int220	equ	inttab+20	; 7220 interrupt
+intfdc	equ	inttab+24	; 765 fdc interrupt
+
+int255	equ	inttab+32	; 8255 interrupt
+intx3	equ	inttab+36	; ext int 3
+int818	equ	inttab+40	; 46818 interrupt
+intx4	equ	inttab+44	; ext int 4
+intx5	equ	inttab+48	; ext int 5
+inttm2	equ	inttab+52	; soft timer 2
+intx6	equ	inttab+56	; ext int 6
+intx7	equ	inttab+60	; ext int 7
+inttop	equ	inttab+64	; top of interrupt jumps
+
+
+;-----------------------------------------------------------------
+ 
+	page
+
+;=======================
+; LIGHT PEN input BUFFER
+;=======================
+
+	dseg		; as system bank already selected
+
+; =============================
+; COLD BOOT LPEN initialisation
+; (assumes interrupts disabled)
+; =============================
+
+initlpen:
+
+; ----------------------- ;
+; set up interrupt vector ;
+; ----------------------- ;
+	di
+	ld	hl,jpint
+	ld	de,int220	; CRT 7220 Light Pen interrupt vector
+	ld	bc,4
+	ldir
+	xor	a
+	ld	(lp$stat),a	; Set NOT READY
+	ret
+jpint:	jp	?lpenint
+	ret
+
+
+
+
+
+;----------------------------------------------------------------------------
+; lpenint	Light Pen interrupt
+;
+; Light Pen interrupt is caused by the signal SW on the light pen which
+; triggers a flip-flop (which can only be reset by an out (3b),a).
+; A similar signal from the Light Pen SIG is used to fire a 240 nSec pulse
+; into the LPEN input to the 7220 CRT.
+;
+; 7220 Light Pen Deglitcher
+; Only if two rising edges on the light pen input occur at the same point
+; during successive video fields are the pulses accepted as a valid light pen
+; detection. A status bit indicates to the system microprocessor that
+; the light pen register contains a valid address.
+
+
+; Test for light pen interrupt
+; Read light pen position and save in 2 byte buffer for reading as a pair
+; remember this is an interrupt so keep it quick
+;----------------------------------------------------------------------------
+
+	cseg		; all interrupt handling must start in common
+
+?lpenint:		; interrupt routine
+
+	push	af
+	in	a,(gdc$s)	; read 7220 status port
+	and	gdc$lpen	; test for L/PEN interrupt
+	jr	nz,detect
+	out	(lpen),a	; reset light pen flip flop
+	pop	af
+	ei
+	ret
+
+detect:
+	pop	af
+	ld	(INTsp),sp
+	ld	sp,INTsp
+	call	?goint		; conditional switch to system bank
+	jp	lpint1
+
+	dseg		; as now in system bank
+
+;7220 has a light pen address in its register LAD
+; 3 byte address read into our buffer
+
+lpint1:
+	ld	b,255		; time out
+lpint2:
+	in	a,(gdc$s)
+	and	gdc$full	; test if fifo has a byte spare
+	jr	z,lpint3	; -yes-
+	djnz	lpint2		; wait until there is room in the FIFO
+	jr	crtclr
+lpint3:	ld	a,gdc$lprd	;Reads the light pen address
+	out	(gdc$c),a	;send command byte in A to the GDC chip 
+
+	ld	hl,lpen$lad
+	call	wait$gdc
+	jr	nz,crtclr
+	in	a,(gdc$d)	;read low address
+	ld	(hl),a
+	inc	hl
+	call	wait$gdc
+	jr	nz,crtclr
+	in	a,(gdc$d)	;read mid address
+	ld	(hl),a
+	inc	hl
+	call	wait$gdc
+	jr	nz,crtclr
+	in	a,(gdc$d)	;read high address
+	ld	(hl),a
+	inc	hl		; until LAD address converted into X,Y coords
+	ld	(hl),0		; set 4th byte to zero
+;A.R.M.C. insert
+;y coordinate = (lad-sad)/words.per.line
+;x coordinate = (lad-sad)%words.per.line
+;sad is pointed to by current.screen
+	ld	hl,(current.screen##);get pointer to current screen
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)		;get the ead of the screen start(sad)
+	ld	hl,(lpen$lad)
+	call	dsub##		;hl-de		
+	ex	de,hl
+;de = (lad-sad)
+	ld	hl,(words.per.line##);the number of display words per line
+	push	hl		;save wpl
+	call	hl.negate##
+	ld	c,l
+	ld	b,h
+	ex	de,hl
+	ld	de,-1
+..loop:	;whose a silly boy then
+	add	hl,bc
+	inc	de
+	jr	c,..loop
+	pop	bc		;restore wpl
+	add	hl,bc
+;hl=x coordinate de=y coordinate
+	ld	a,' '
+	add	a,l
+	ld	hl,lpen$lad+1
+	ld	(hl),a		;add space and convert to chars
+	ld	a,' '
+	add	a,e
+	dec	hl
+	ld	(hl),a	
+;end of ARMC insert
+	ld	a,-1		;character coordinates are YX
+	ld	(lpen$det),a	; set ready status
+
+	ld	a,(lp$stat)	; test if LPEN buffer is empty
+	or	a
+	call	z,copybuff	; -yes- copy 7220 LAD into LPEN buffer
+
+; successful read so lets ring the bells in triumph
+
+	xor	a
+	out	(clk$b),a	; set timer constant to 3000h
+	ld	a,48
+	out	(clk$b),a
+
+	in	a,(getbnk)
+	and	not 1111b	; remove FDD bits
+	or	01b		; this will ring bell
+	out	(setbnk),a	; ding!
+
+	jp	?reti		; Complet interrupt processing
+
+wait$gdc:
+	ld	b,255		; time out
+wait1:	in	a,(gdc$s)
+	and	gdc$rdy or gdc$dip
+	xor	gdc$rdy
+	ret	z
+	djnz	wait1		; wait until data is ready
+	or	a
+	ret			; CF = NZ
+
+crtclr:			; cannot read LPEN address so allow another interrupt
+	out	(lpen),a	; reset light pen interrupt flip flop
+	jp	?reti
+
+
+;------------------------------;
+; Light Pen device - data area ;
+;------------------------------;
+
+; next 5 bytes must be together
+lpen$lad:	ds	4	; LPEN LAD address (could be 3 bytes)
+lpen$det:	db	0	; LPEN LAD status 0 = not ready -1 = ready
+
+buff$no:	dw	0	; Offset into buffer
+
+; next 5 bytes must be together
+lp$buff:	ds	4	; LPEN buffer filled with LPEN LAD
+lp$stat:	db	0	; status 0 = not ready -1 = ready
+
+;---------------------------------------------------------;
+; Light Pen device - read 3 byte co-ordinates from buffer ;
+;---------------------------------------------------------;
+
+lpenin:
+	di
+	ld	hl,(buff$no)	; 0  1 (Y and X byte values)
+	ld	a,l
+	ex	de,hl
+	ld	hl,lp$buff
+	add	hl,de		; <HL> -> next buff byte
+	inc	a
+	ld	(buff$no),a	; up pointer	
+	cp	3		;was 4 - test for last byte
+	ld	a,(hl)		; Contents of buffer
+	call	nc,copybuff	; -yes- so copy any new address
+	ei			; breath again
+	ret
+;---------------------;
+; copy light pen data ;
+; read from 7220 LAD  ;
+; into LPEN buffer    ;
+; including status    ;
+; (must preserve <A>) ;
+;---------------------;
+copybuff:
+	ld	hl,0
+	ld	(buff$no),hl	; set count to zero
+	ld	hl,lpen$lad
+	ld	de,lp$buff
+	ld	bc,4+1
+	ldir			; copy data read from CRT into LPEN buffer
+	ld	hl,lpen$det
+	ld	(hl),0		; and 'empty' pre-fetch
+	ret
+
+
+;--------------------------------------;
+; Light Pen device - test READY status ;
+;--------------------------------------;
+
+lpensin:
+	ld	a,(lp$stat)
+	or	a
+	ret	nz		; return TRUE (0ffh) or READY
+	out	(lpen),a	; reset light pen flip flop to allow another
+	ret			; return FALSE (0h) or NOT READY
+
+;------------------------------------------------------------------------
+
+	end
