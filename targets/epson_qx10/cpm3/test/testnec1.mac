@@ -1,0 +1,283 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS time NEC sense
+
+	name	('TESTNEC')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date:   26th Oct 1983
+;
+;------------------------------------------------------------------
+
+	public	test
+	public	strt1,test1,fin1
+	public	strt2,test2,fin2
+	public	strt3,test3,fin3
+	public	strt4,test4,fin4
+
+	cseg
+
+bit0	equ	1 shl 0
+bit1	equ	1 shl 1
+bit2	equ	1 shl 2
+bit3	equ	1 shl 3
+bit4	equ	1 shl 4
+bit5	equ	1 shl 5
+bit6	equ	1 shl 6
+bit7	equ	1 shl 7
+
+;====================================================================
+; I/O Selector - MAIN SYSTEM
+; Device is selected by address lines A2, A3, A4, A5 with A6, A7 zero
+; Address lines A0 and A1 are optional used to control the device
+;====================================================================
+
+clk$a	equ	0000b shl 2	;8253 counter timer No1
+clk$b	equ	0001b shl 2	;8253 counter timer No2
+
+int$a	equ	0010b shl 2	;8259 interrupt controller
+int$b	equ	0011b shl 2	;8253 interrupt controller
+
+motor	equ	1100b shl 2	;Motor timer
+fdc	equ	1101b shl 2	;765A floppy disc controller
+
+clock	equ	1111b shl 2	;clock (battery powered)
+
+;-----------------------------------------------------------------
+; I/O devices - additional devices
+; Device is selected by address lines A2, A3, A4, A5 with A6 or A7 non zero
+; Address lines A0 and A1 are optional used to control the device
+;-----------------------------------------------------------------
+
+dma$1	equ	010000b shl 2	; 8237 dma controller #1
+dma$2	equ	010100b shl 2	; 8237 dma controller #2
+
+gpib	equ	100010b shl 2	; GPIB Interface Q101E
+
+modem	equ	101100b shl 2	; MODEM Interface Q10DM
+
+;------------------------------------------------------------------------
+	page
+
+;		===========
+;		test select
+;		===========
+
+	cseg
+	jp	test
+	ds	128-3	; dma requires 256 bytes
+test:
+	ld	hl,(5+1)
+	ld	sp,hl	; set stack to top of tpa
+
+	ld	a,0	; test drive 0
+	ld	(@adrv),a
+
+strt1:	nop
+	call	test1	; time sense command
+fin1:	nop		; timed at 10-11 seconds
+	nop
+
+strt2:	nop
+	call	test2	; time interrupt command
+fin2:	nop		; timed at  9-10 seconds
+	nop
+
+strt3:	nop
+	call	test3	; time sense & interrupt command
+fin3:	nop		; timed at  21 seconds
+	nop
+
+strt4:	nop
+	call	test4	; test ready flag
+; result shows that when commencing test with drives not ready
+; returns:
+; 1st time:	ST3 = drive ready, ST0 = 11b & drive 0 not ready, TRK = 21h
+; 2nd time:	ST3 = drive ready, ST0 = 11b & drive 0 ready,     TRK = 21h
+; 3rd time:	ST3 = drive ready, ST0 = 11b & drive 1 ready,     TRK = 15h
+; 4th time:	ST3 = drive ready, ST0 = 10b
+fin4:	nop
+	nop
+
+	nop
+	nop
+	jp	0
+
+
+;------------------------------------------------------------------------
+; dummy routines
+;
+
+?tpabnk:
+?sysbnk:
+?crnbnk:
+?bank:
+	ret
+
+
+test1:		; time NEC sense command
+
+; motor off, so turn on and wait 0.75 sec
+; wait 0.4437 Sec for drive to reach speed
+	ld	bc,0
+tst11:	call	NECsense	; return <A> = ST3
+	and	bit5		; see if ready
+	jr	nz,tst12
+tst12:	dec	bc
+	ld	a,b
+	or	c
+	jr	nz,tst11
+	ret
+
+test2:		; time NEC sense command
+
+; motor off, so turn on and wait 0.75 sec
+; wait 0.4437 Sec for drive to reach speed
+	ld	bc,0
+tst21:	call	NECint		; sense interrupt status
+				; return <A> = ST0
+	and	bit3		; see if not ready
+	jr	z,tst22
+tst22:	dec	bc
+	ld	a,b
+	or	c
+	jr	nz,tst21
+	ret
+
+test3:		; time combined NEC sense and sense interrupt command
+
+; motor off, so turn on and wait 0.75 sec
+; wait 0.4437 Sec for drive to reach speed
+	ld	bc,0
+tst31:	call	NECsense	; return <A> = ST3
+	push	psw		; 261083 save result
+	call	NECint		; 261083 to clear NR bit (see note below)
+	pop	psw		; 261083 recover result
+	and	bit5		; see if ready
+	jr	nz,tst32
+tst32:	dec	bc
+	ld	a,b
+	or	c
+	jr	nz,tst31
+	ret
+
+test4:		; test ready signals from NECsense and NECint
+
+; motor off, so turn on and wait 0.75 sec
+; wait 0.4437 Sec for drive to reach speed
+	ld	bc,6554		; max of 1 sec
+tst41:	call	NECsense	; return <A> = ST3
+	and	bit5		; see if ready
+	ld	e,a		; and save
+	jr	nz,tst42
+	dec	bc
+	ld	a,b
+	or	c
+	jr	nz,tst41
+
+tst42:	call	NECint		; sense interrupt status
+				; return <A> = ST0
+	ld	d,a		; and save
+	ld	c,0
+	ld	a,(rslcnt)	; number of result bytes
+	ld	b,a		; and save
+	cp	2
+	jr	nz,tst43
+	ld	a,(NECst1)
+	ld	c,a		; cylinder count
+
+tst43:	ld	a,d
+	and	bit3		; test NOT READY bit
+	xor	bit3		; and invert
+	rlca
+	rlca			; move to bit 5
+	cp	e		; and test
+	ret
+
+; ------------------
+; Sense drive status
+; sds.u -> Head/unit
+; ------------------
+@adrv:
+sds.u:	db	0		; head=0, drive=0
+NECsense:
+	out	(motor),a		; keep motor going
+NECwc:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECwc	; wait till ready
+	jp	m,NECsr		; ERROR: NEC waiting for RESULT phase
+	ld	a,00000100b	; SENSE command
+	ld	(command),a	; save for testing
+	out	(35h),a
+
+NECwu:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECwu	; wait till ready
+	jp	m,NECsr		; ERROR: NEC waiting for RESULT phase
+	ld	a,(sds.u)	; head/unit number
+	out	(35h),a
+
+NECsr:	in	a,(34h)	; floppy status register
+	add	a,a
+	jr	nc,NECsr	; wait till ready
+	ret	p		; NEC waiting for COMMAND phase
+	ld	a,1
+	ld	(rslcnt),a	; result count
+	in	a,(35h)		; read ST3
+	ld	(result),a	; and save
+	ret			; return <A> = ST3
+
+; ----------------------
+; sense interrupt status
+; ----------------------
+NECint:
+	out	(motor),a		; keep motor going
+NECwi:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECwi	; wait till ready
+	jp	m,NECrslt	; ERROR: NEC waiting for RESULT phase
+	ld	a,00001000b	; SENSE command
+	out	(35h),a		; and fall into result phase
+
+; ------------------
+; read results bytes
+; ------------------
+NECrslt:
+	push	hl
+	push	de
+	ld	hl,rslcnt	; result count
+	xor	a
+	ld	(hl),a		; zero result count
+	ld	de,result	; result area
+NECrqm:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECrqm	; wait till ready
+	jp	p,NECr01	; NEC waiting for COMMAND phase
+	in	a,(35h)
+	ld	(de),a
+	inc	de
+	inc	(hl)		; increment result count
+	jr	NECrqm
+NECr01:	pop	de		; assume all is complete
+	pop	hl
+	ld	a,(result)	; return <A> = ST0 or ST3
+	ret
+
+command:	db	0	; save command byte
+rslcnt:	db	0	; number of result bytes
+result:			; save result byte(s)
+NECst0:	db	0	; 1st result byte - ST0 (except sense returns ST3)
+NECst1:	db	0	; 2nd result byte - ST1 for read/write commands
+NECst2:	db	0	; 3rd result byte - ST0 for rd/wr commands
+NECc:	db	0	; 4th result byte - Cylinder for rd/wr commands
+NECh:	db	0	; 5th result byte - Head/side for rd/wr commands
+NECr:	db	0	; 6th result byte - Record/Sector for rd/wr commands
+NECn:	db	0	; 7th result byte - Sector size for rd/wr commands
+
+	dseg
+
+	end
+
