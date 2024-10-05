@@ -1,0 +1,122 @@
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+; 'EPSON QX-10 CPM3 BIOS Hardware equates'
+;
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+;       Oct 1983 - Disk drivers created
+;	Nov 1983 - Port programming details moved to device.equ
+;	Apr 1984 - Top memory equates added
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+;				=====
+;				QX-10
+;				=====
+
+
+;-----------------------------------------------------------------------
+; MEMORY MAP - Common memory
+;
+;   E000-FDFF   - Common memory for resident system bios
+;   FE00-FE3F   - INTTAB - Interrupt jump vectors
+;   FE40-FE7D   - INTSP - 62 bytes of stack area for interrupt routines
+;   FE7E-FE7F   - INTSP - 2 bytes to save callers stack
+;   FE80-FEFD   - COMMONSP - 126 bytes of stack area for BIOS routines
+;   FEFE-FEFF   - COMMONSP - 2 bytes to save callers stack
+;   FF00-FFFF   - CBUFF - 256 bytes of data area for Bank to Bank transfers
+;------------------------------------------------------------------------
+
+cbuff	equ	0ff00h		; 256 byte buffer area
+commonsp	equ	cbuff-2	; 126+2 byte stack area
+
+;====================================================================
+; I/O Selector - MAIN SYSTEM
+; Device is selected by address lines A2, A3, A4, A5 with A6, A7 zero
+; Address lines A0 and A1 are optional used to control the device
+;====================================================================
+
+clk$a	equ	0000b shl 2	;8253 counter timer No1
+clk$b	equ	0001b shl 2	;8253 counter timer No2
+
+clk$as	equ	clk$a+00b	;CLK Speaker timer
+clk$a2	equ	clk$a+01b	;CLK Soft timer 2
+clk$a1	equ	clk$a+10b	;CLK Soft timer 1
+clk$ac	equ	clk$a+11b	;CLK 8253 command
+
+clk$bs	equ	clk$b+00b	;CLK Speaker frequency
+clk$bk	equ	clk$b+01b	;CLK Keyboard clock
+clk$br	equ	clk$b+10b	;CLK RS232C clock
+clk$bc	equ	clk$b+11b	;CLK 8253 command
+int$a	equ	0010b shl 2	;8259 interrupt controller
+int$b	equ	0011b shl 2	;8259 interrupt controller
+sio	equ	0100b shl 2	;7201 sio
+ppi	equ	0101b shl 2	;8255 ppi centronics printer port
+setbnk	equ	0110b shl 2	;Write Memory bank and timers register
+getbnk	equ	1100b shl 2	;Read Memory bank and FDD status register
+prom	equ	0111b shl 2	;PROM memory select
+cmos	equ	1000b shl 2	;CMOS memory select
+
+crt$a	equ	1011b shl 2	;7220 CRT driver
+
+motor	equ	1100b shl 2	;Motor timer
+fdc	equ	1101b shl 2	;765A floppy disc controller
+
+clock	equ	1111b shl 2	;clock (battery powered)
+
+;-----------------------------------------------------------------
+; I/O devices - additional devices
+; Device is selected by address lines A2, A3, A4, A5 with A6 or A7 non zero
+; Address lines A0 and A1 are optional used to control the device
+;-----------------------------------------------------------------
+
+dma$1	equ	010000b shl 2	; 8237 dma controller #1
+dma$2	equ	010100b shl 2	; 8237 dma controller #2
+
+gpib	equ	100010b shl 2	; GPIB Interface Q101E
+
+fiber	equ	100101b shl 2	; Optical fiber interface Q10OF
+pulse	equ	100111b shl 2	; Pulse transformer interface Q10PT
+adda	equ	101000b shl 2	; AD/DA interface Q10AD
+Xrs232	equ	101001b shl 2	; Expansion RS-232 interface Q10RS
+modem	equ	101100b shl 2	; MODEM Interface Q10DM
+
+;-----------------------------------------------------------------
+;Epson interrupt vectors
+
+;EPSON inttab	equ	0fd80h	; base of interrupt vector
+
+	aseg
+	org	0fe00h
+inttab:				; 128 bytes for interrupts
+intpwr	equ	inttab+0	; power down
+intstm	equ	inttab+4	; soft timer
+intx1	equ	inttab+8	; ext int 1
+intx2	equ	inttab+12	; ext int 2
+int201	equ	inttab+16	; 7201 interrupt
+int220	equ	inttab+20	; 7220 interrupt
+intfdc	equ	inttab+24	; 765 fdc interrupt
+
+intslv	equ	inttab+32
+int255	equ	inttab+32	; 8255 interrupt
+intx3	equ	inttab+36	; ext int 3
+int818	equ	inttab+40	; 46818 interrupt
+intx4	equ	inttab+44	; ext int 4
+intx5	equ	inttab+48	; ext int 5
+inttm2	equ	inttab+52	; soft timer 2
+intx6	equ	inttab+56	; ext int 6
+Šintx7	equ	inttab+60	; ext int 7
+
+inttop	equ	inttab+64	; top of interrupts
+intnos	equ	(inttop-inttab)/4
+
+intSP	equ	inttab+128-2	; NOV30 126-64 bytes of interrupt stack
+
+;----------------------------------------------------------------------
+
