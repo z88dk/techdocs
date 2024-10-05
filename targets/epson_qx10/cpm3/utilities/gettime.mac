@@ -1,0 +1,443 @@
+	title	Tell The Time in English (or whatever)
+
+	name	('TIME')
+
+	vers	Equ	10	;current version
+;----------------------------------------------------------------------
+; EPSON QX-10 Utility to tell the time in a way that one can understand
+;
+; Author: A. Clarke, 11 Sun Street, London E.C.2.
+; Date: 6th May 1984
+;----------------------------------------------------------------------
+;copyright A.R.M.C. 1984
+	cseg
+
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+vers22	equ	22h	; CP/M version number
+vers31	equ	31h	; CP/M version number
+rev	equ	'A'	; Utility version
+
+bdos	Equ	0005h	;BDOS entry point
+boot	Equ	0000h	;Home time
+
+BIOSPB:	ds	8	;for direct BIOS calls
+
+;
+todblk:
+todday:	dw	0	; Day number 1 = Jan 1 1978
+todhr:	db	0	; hour (BCD)
+todmin:	db	0	; min (BCD)
+todsec:	db	0	; sec (BCD)
+;
+toddd:	db	0
+todmm:	db	0
+todyy:	db	0
+;
+month:	dw	0,31,59,90,120,151,181,212,243,273,304,334,365
+
+
+;*** BASIC CONSOLE I/O ROUTINES ***
+
+TYO:	MOV	C,A
+	lxi	d,9
+	lhld	0001H
+	dad	d
+	pchl
+
+
+strout:
+	mov	a,m
+	ana	a
+	rz
+	push	h
+	call	tyo
+	pop	h
+	inx	h
+	jmp	strout
+
+
+addhl:	;Adds HL to A and returns value in HL
+	add	l
+	mov	l,a
+	rnc
+	inr	h
+	ret
+
+;
+;	DATES - RETURN ASCII DATE, TIME TO AREA ADDRESSED BY HL ON ENTRY
+;
+DATES:	;Start here, folks
+
+	mvi	c,12		; BDOS return version number
+	call	bdos
+	cpi	031h		; Check that the right version of CP/M
+	jnz	notcpm3
+	mov	a,h
+	ora	a
+	jnz	notcpm3
+;check for QX+
+	mvi	c,50		; BDOS Direct BIOS calls
+	lxi	d,BIOSPB
+	mvi	a,30		; Customised BIOS entry point
+	stax	d		; requires no other registers
+	call	BDOS		; Check that the right machine 
+	cpi	'A'		; Epson BIOS returned version
+	jz	onwards.confidently
+;-----------------------------------------;
+; Program not loaded under CP/M3 on Epson ;
+;-----------------------------------------;
+notcpm3:
+	lxi	h,cpm3msg
+	call	strout
+
+	mvi	c,0
+	jmp	bdos		; and terminate program
+
+cpm3msg:
+	db	'Epson Time and Utility -'
+	db	' Requires CP/M + on Epson QX-10',0dH,0aH,0
+;silly wally
+
+onwards.confidently:
+	lxi	d,todblk
+	mvi	c,105	; BDOS Get Date and Time
+	call	bdos
+	sta	todsec	; and seconds
+
+;--------------------------------------------------------------;
+; convert date with day 1 = jan 1st 1978 into day month & year ;
+;--------------------------------------------------------------;
+
+	lhld	todday		; BDOS days
+; now subtract 365 or 366 for each year after 1978
+	lxi	b,1978
+dmy1:	lxi	d,-365
+	mov	a,c
+	ani	011b		; check if divisible by 4
+	jnz	dmy2
+	dcx	d		; yes so year has 365 days
+dmy2:	dad	d
+	jnc	dmy3		; result less than 0
+	mov	a,l	;
+	ora	h	;
+	jz	dmy3	;A.R.M.Clarke code
+	inx	b
+	jmp	dmy1
+dmy3:
+; DE = HL-DE
+	mov	a,l
+	sub	e
+	mov	e,a
+	mov	a,h
+	sbb	d
+	mov	d,a
+	
+;----	ora	a
+;----	sbc	hl,de		; subtracty 1 year so <HL> > 0
+;----	exch		; <DE> -> days remaining in year
+
+	push	d
+	lxi	h,-1900
+	dad	b		; <HL> = years > 1900
+	lxi	d,-100		; but if <HL> > 99, subtract 100
+dmy4:	mov	a,h
+	ora	a
+	jnz	dmy5
+	mov	a,l
+	cpi	100		; check range
+	jc	dmy6
+dmy5:	dad	d		; adjust by 100
+	jmp	dmy4
+dmy6:	sta	todyy		; save year
+	pop	d
+; on entry <BC> = absolute year, <DE> days remaining in year
+
+	lxi	h,month+12*2-1
+	mvi	b,12
+	mov	a,c
+	ani	11b		; test  if current year is a leap year
+	jnz	dmy7
+	dcx	d		; so decrement days to allow for Feb 29th
+dmy7:	mov	a,m		; get days remaining
+	dcx	h
+	cmp	d		; test (days to months) with <DE>
+	jc	dmy9		; have month
+	jnz	dmy8
+	mov	a,m		;get low byte
+	cmp	e
+	jc	dmy9
+;	jz	dmy9		; it goes better with this out
+dmy8:	dcr	b		; decrement month
+	dcx	h		; decrement days in month pointer
+	mov	a,b
+	cpi	2		; are we into FEB
+	jnz	dmy7
+	mov	a,c
+	ani	11b		; are we in leap year
+	jnz	dmy7
+	inx	d		; YES so correct days adjustment
+	jmp	dmy7
+dmy9:	mov	a,b
+	sta	todmm		; save month
+	mov	a,e
+	sub	m		; p.s. who cares about <D> - (hl+1)
+	sta	toddd		; save day
+
+;-----------------------------------------------------------
+
+	call	print.time	
+	call	print.day
+	call	print.date
+	call	print.month
+	call	print.year
+	mvi	a,' '
+	call	tyo
+	
+	mvi	a,'('
+	call	tyo
+	lda	toddd	;GET Day
+	CALL	NUMTOCON
+	MVI	a,'/'
+	call	tyo
+
+	lda	todmm	;GET Month
+	CALL	NUMTOCON
+	mvi	a,'/'
+	call	tyo
+
+	lda	todyy	;GET Year
+	CALL	NUMTOCON
+	MVI	a,' '
+	call	tyo
+
+	lda	todhr	; Get hours
+	CALL	BCDASC
+	MVI	a,':'
+	call	tyo
+
+	lda	todmin	;GET MINUTES
+	CALL	BCDASC
+	MVI	a,':'
+	call	tyo
+
+	lda	todsec	; SECONDS
+	CALL	BCDASC
+	mvi	a,')'
+	call	tyo
+	jmp	0000H	;reboot
+	ret
+;
+;
+NUMTOCON:		; Convert binary to BCD
+	cpi	10
+	jc	bcdasc	; Binary same as BCD
+	MOV	B,A
+	XRA	A
+NUM0:	INR	A
+	DAA
+	DCR	B
+	JNZ	NUM0
+BCDASC:			; Convert packed BCD number into ascii
+	PUSH	PSW
+	ANI	0F0H	;CONVERT PACKED DECIMAL NUMBER AND Print it
+	RRC
+	RRC
+	RRC
+	RRC
+	ana	a
+	Cnz	NUM2
+	POP	PSW
+	ANI	0FH
+NUM2:	ADI	'0'
+	CPI	'9'+1
+	JC	NUM3
+	ADI	'A'-('9'+1)
+NUM3:	call	tyo
+	RET
+;
+print.day:	;of the week on the console
+	lhld	todday
+	mvi	c,7	;days in the week
+	call	divide
+	add	a	;as they are string pointer tables
+	lxi	h,day.name.table
+	call	addhl
+;HL points to pointer to string
+	mov	e,m
+	inx	h
+	mov	d,m
+	xchg
+	call	strout	;print out the day of the week
+	ret
+
+print.date::
+	lda	toddd	;GET Day
+	push	psw
+	CALL	NUMTOCON
+	pop	psw
+	mvi	b,0
+..div10:
+	inr	b
+	sui	10
+	jnc	..div10
+	dcr	b
+	adi	10
+;B=quotient, A=remainder
+	lxi	h,th.string
+	cpi	4
+	jnc	..its.th
+	ana	a
+	jz	..its.th
+	dcr	b
+	jz	..its.th
+	lxi	h,th.array
+	dcr	a
+	add	a
+	call	addhl
+	mov	e,m
+	inx	h
+	mov	d,m
+	xchg
+..its.th:
+	call	strout
+	ret
+					
+print.month:
+
+	lda	todmm
+	dcr	a
+	add	a
+	lxi	h,month.name.table
+	call	addhl
+	mov	e,m
+	inx	h
+	mov	d,m
+	xchg
+	call	strout
+	ret
+
+print.year:
+
+	mvi	a,19
+	call	numtocon
+	lda	todyy	;GET Year
+	CALL	NUMTOCON
+	MVI	a,' '
+	call	tyo
+	ret
+	
+;----------------------------------------------------------------------------
+print.time::
+	lda	todhr
+	lxi	h,AM.string
+	mov	b,a
+	ani	0f0H
+	jz	..its.am
+	mov	a,b
+	cpi	13h
+	jc	..its.am
+	sui	12h
+	daa
+	nop
+	lxi	h,PM.String
+	mov	b,a		;replace amended bcd
+..its.am:
+	mov	a,b
+	push	h
+	call	bcdasc
+	mvi	a,':'
+	call	tyo
+	lda	todmin	;GET MINUTES
+	CALL	BCDASC
+	MVI	a,':'
+	call	tyo
+	lda	todsec	; SECONDS
+	CALL	BCDASC
+	pop	h
+	call	strout
+	ret
+
+;----------------------------------------------------------------------------
+Divide:	;HL by C, modulus in A
+	mvi	a,0
+	mvi	b,16
+div.1:	add	a
+	dad	h
+	aci	0
+	cmp	c
+	jc	div.3
+	inx	h
+	sub	c
+div.3:	dcr	b
+	jnz	div.1
+	ret
+
+;----------------------------------------------------------------------------
+; String Area
+day.name.table:
+	dw	d1
+	dw	d2
+	dw	d3
+	dw	d4
+	dw	d5
+	dw	d6
+	dw	d7
+
+d1:	db	'Saturday ',0
+d2:	db	'Sunday ',0
+d3:	db	'Monday ',0
+d4:	db	'Tuesday ',0
+d5:	db	'Wednesday ',0
+d6:	db	'Thursday ',0
+d7:	db	'Friday ',0
+
+month.name.table:
+	dw	m1
+	dw	m2
+	dw	m3
+	dw	m4
+	dw	m5
+	dw	m6
+	dw	m7
+	dw	m8
+	dw	m9
+	dw	m10
+	dw	m11
+	dw	m12
+
+m1:	'January ',0
+m2:	'February ',0
+m3:	'March ',0
+m4:	'April ',0
+m5:	'May ',0
+m6:	'June ',0
+m7:	'July ',0
+m8:	'August ',0
+m9:	'September ',0
+m10:	'October ',0
+m11:	'November ',0
+m12:	'December ',0	
+
+th.array:
+
+	dw	th1
+	dw	th2
+	dw	th3
+
+th1:	db	'st ',0
+th2:	db	'nd ',0
+th3:	db	'rd ',0
+th.string:
+	db	'th ',0
+
+AM.String:	db	' AM, ',0
+PM.String:	db	' PM, ',0
+
+end dates
+;the end
+
