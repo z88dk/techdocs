@@ -1,0 +1,6 @@
+; MICROSOFT assembly
+a:m80 7201,=7201
+; concatenate character driver rel files
+a:lib cbios3a2=7201,keytable,pfntable,cmos,8255,lpen
+; now ready to transferrred  REL files to main CP/M PLUS BIOS disc
+;viz   a:pip a:=b:cbios3a*.rel
