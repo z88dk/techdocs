@@ -1,0 +1,2076 @@
+    	title	'DISKCOPY---QX-10+ Multiple Disk copier'
+
+	PAGE	54
+
+	.z80	;Lets use Z80 Mnemonics
+
+	.Comment"
+
+	Thió  prograí waó originallù writteî bù Andre÷ Clarkå  oæ 
+MMÌ  undeò  contracô  tï  Epsoî 'the check is in the post' (UK©  
+Limited®  Iô  waó very slightlù modified by Andrew Glenn of EUL.
+
+Copyright (C) EUL 25th April 1984
+
+Revision History
+
+ver	date	author	location	comments
+-----------------------------------------------------------------
+1.0	25/4/84	AG	EUL		First release version
+1.1	30/4/84 ARMC	Suffolk		Doctored to reflect revisions
+
+	"
+	page
+	vers	Equ	11	;current version
+
+	cseg
+	jp	start		;needed by L80. L80? who uses that?
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+vers22	equ	22h	; CP/M version number
+vers31	equ	31h	; CP/M version number
+rev	equ	'A'	; Utility version
+
+bios	Equ	0001h	;pointer to BIOS jump table
+bdos	Equ	0005h	;BDOS entry point
+boot	Equ	0000h	;Home time
+dfcb	Equ	005ch	;Default FCB location
+dbuff	Equ	0080h	;CCP parameter buffer and DMA buffer
+WBOOT	EQU	1	;address of warm boot
+
+
+;*** logical constants ***
+false	Equ	0000h		;not true
+true	Equ	0ffh		;not exactly false
+
+
+;*** ascii codes ***
+cr	Equ	0dh		;carriage return
+lf	Equ	0ah		;line feed
+eof	Equ	1ah		;end of file code
+ff	Equ	0ch	;form feed
+esc	Equ	1bh		;escape char for cursor control
+bspace	Equ	08		;backspace
+tab	Equ	09h		;tab
+
+
+;*** graphics codes ***
+
+topleft		equ	87h
+topright	equ	88h
+bottomleft	equ	89h
+bottomright	equ	8ah
+
+xgrcentre	equ	319
+ygrcentre	equ	199
+
+
+
+;*** Arrow Key Assignments ***
+
+Up.Arrow	Equ	1eh
+Down.Arrow	Equ	1fh
+Left.Arrow	Equ	1dh
+Right.Arrow	Equ	1ch
+	;these are the default settings!
+
+;*** Direct BIOS offsets ***
+CSTS	Equ	3	;const
+CI	Equ	6	;conin
+CO	Equ	9	;conout
+LI	Equ	12	;listout
+
+;----------------;
+; Useful equates ;
+;----------------;
+
+
+epson	equ	0	; format type for standard epson disc
+ibmss	equ	1	; format type for single sided IBM PC disc
+ibmds	equ	2	; format type for double sided IBM PC disc
+epsonx	equ	3	; format type for high capacity epson disc
+
+drm.epson	equ	140-1	; datablocks for standard epson disc
+drm.ibmss	equ	156-1	; datablocks for single sided IBM PC disc
+drm.ibmds	equ	158-1	; datablocks for double sided IBM PC disc
+drm.epsonx	equ	200-1	; datablocks for high capacity epson disc
+
+bit0	equ	1 shl 0
+bit1	equ	1 shl 1
+bit2	equ	1 shl 2
+bit3	equ	1 shl 3
+bit4	equ	1 shl 4
+bit5	equ	1 shl 5
+bit6	equ	1 shl 6
+bit7	equ	1 shl 7
+
+
+	maclib	NEC765A.INC
+
+;---------------------------------------------------------------------------;
+
+;---------------------------------------------------------------
+;Variables
+;--------------------------------------------------------------
+
+	
+column:	db	00		;column on vdu
+line:	db	00		;line on vdu
+margin:	db	00	;margin for menu selection
+startline:db	00	;of menu
+str.array:DW	00	;pointer to array used for menu selection
+offset:	DW	00
+highlt:	db	00	;the array element that is highlit(currently selected
+flip.flop:db	0ffh	;are we moving up or down the menu
+Ch.Starting:	db	' '	;character starting the menu item
+Ch.Finishing:	db	' '	;character finishing the menu item
+selection:	db	00	;remembered selection
+We.Highlight:	db	000	;do we do an inverse video highlight?
+what.do:	db	000	;which option we are doing
+
+nline:	db	0
+
+;----------------------------------------;
+; NEC parameter block (filled by NECnpb) ;
+;----------------------------------------;
+npb:
+npb_f_N:	ds	1	; format parameters
+npb_f_SC:	ds	1
+npb_f_GPL:	ds	1
+npb_f_D:	ds	1
+npb_rw_N:	ds	1	; read/write parameters
+npb_rw_EOT:	ds	1
+npb_rw_GPL:	ds	1
+npb_rw_DTL:	ds	1
+		ds	1	; high byte of sector length
+npb_cyl:	ds	2
+npb_sides:	ds	1
+npb_strk:	ds	2
+
+;
+dest:	db	0		; destination drive
+srce:	db	0		; source drive
+tpadsk:	db	0		; drive tpa loaded from
+
+do.we.alter:	db	000	;not intil proven otherwise!
+passwords:	db	000	;ditto
+
+q.marks:		db	'????????????'	;for BDOS search
+old.label.buffer:	db	'(NOLABEL !)'
+			ds	22
+new.label.buffer:	db	'(NOLABEL !)'
+			ds	22
+copy.of.buffer:		db	'(NOLABEL !)'
+			ds	22
+			db	'(NOLABEL !)'
+			ds	22
+
+
+pfcb:	defs	6		;fcb block
+
+;
+BIOSPB:	ds	8		; Bios parameter block
+
+
+;---------------------------------------------------------------
+;
+;Machine-specific graphics and console routines
+;
+;---------------------------------------------------------------
+
+;*** cursor control codes ***
+	db	'Copyright MML Ltd (c) 1984'
+
+;*** all patches as in wordstar ***
+clear:	defb	02,27,'+',00,00,00;clear screen string
+clead1:	defb	02,27,61,00	;yx cursor addressing lead-in
+linoff:	defb	20h		;offset to add
+coloff:	defb	20h
+
+
+
+;*** other vdu patches in addition ***
+char.starting.highlight:
+	DB	'('	;additional emphasis for selected option
+;for menu selection
+char.finishing.highlight:
+	DB	')'	;see above
+;for menu selection
+	
+uscore:	db	'_'	;not used
+ivonº	db	02,27,"0",00,00,00,00	;string to switch on inverse
+ivoff:	db	04,27,"1",27,"7",00,00	;string to switch off all highlighting
+ivon2:	db	02,27,"6",00,00,00,00 	;string to switch on intensity
+
+
+;cursor turn off/on strings
+on.cursor:defb	02,1bh,'3',00	;switch on the cursor
+off.cursor:defb	02,1bh,'2',00	;switch off the cursor
+
+;screen switching strings
+upper.screen:defb	2,1bh,"u",00;switch to upper screen
+lower.screen:defb	2,1bh,"v",00;switch to lower screen
+
+;mode switching strings
+grfiks:	defb	2,1bh,'g',00	;enter graphics
+no.grfix:defb	2,1bh,'h',00	;exit graphics mode
+
+	
+
+
+
+;*** hilton turns the terminal highlight ***
+;*** specified by ivon, on; hiltoff off   ***
+hilton:	push	hl
+	push	de
+	push	bc
+	ld	a,(char.starting.highlight)
+	ld	(ch.starting),a
+	ld	a,(char.finishing.highlight)
+	ld	(ch.finishing),a	;set the first and last characters
+	ld	hl,ivon	;inverse video on string
+	ld	a,(we.highlight)	;only switch on if boolean set
+	and	a
+	call	nz,msg		;do we do inverse video
+	ld	hl,ivon2	;do highlight anyway
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+hiltoff:push	hl
+	push	de
+	push	bc
+	ld	a," "
+	ld	(ch.starting),a	;reset leading and trailing character
+	ld	(ch.finishing),a
+	ld	hl,ivoff
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+alton:	push	hl
+	push	de	;switch on alternative highlighting
+	push	bc
+	ld	hl,ivon2
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+
+;---------------------------------------------------------------------------
+yxpos:	;sends the character cursor to the location in line Column
+	push	hl
+	push	de
+	push	bc		;save everything
+	ld	hl,clead1	;print lead-in
+	call	msg
+	ld	a,(line)	;get line no.
+	ld	b,a
+	ld	a,(linoff)
+	Add	a,b		;addin line offset
+	call	putchar		;out it goes
+	ld	a,(Column)	;get column
+	ld	c,a
+	ld	a,(coloff)	;add in offset
+	add	a,c
+	call	putchar		;send it out
+	pop	bc		;restore the world
+	pop	de
+	pop	hl
+	ret			;and go home
+
+
+
+;---------------------------------------
+gra.off:;turn into character mode
+	push	hl		;save the world
+	push	de
+	push	bc
+	ld	hl,no.grfix	;the no graphics string
+	call	msg		;to switch into character mode
+	pop	bc		;restore the world
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------	
+curon:		;switch on the cursor
+	push	hl
+	push	de
+	push	bc
+	ld	hl,on.cursor	;switch cursor on 
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------
+into.graphics:;lets enter graphics mode
+	
+	push	hl
+	push	de
+	push	bc
+	ld	hl,grfiks	;switch into graphics
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------	
+curoff:	;switch off the cursor
+	push	hl
+	push	de
+	push	bc
+	ld	hl,off.cursor	;string to tell the console
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------
+screen.clear:;clear the whole damned screen
+	push	hl
+	push	de
+	push	bc
+	ld	hl,clear
+	call	msg		;send out clear-screen string
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+ADDHL:	;utility. HL=HL+A
+	add	a,l
+	ld	l,a
+	ret	nc
+	inc	h
+	ret
+
+;------------------------------;
+; display directory label      ;
+;------------------------------;
+
+show.label:	;display directory label on screen
+;base of label addressed by HL
+	ld	b,9
+	call	..type
+	ld	a,'.'
+	push	hl
+	call	putchar
+	pop	hl
+	ld	b,3
+..type:	ld	a,(hl)
+	and	01111111B
+	cp	' '
+	push	hl
+	push	bc
+	call	nz,putchar
+	pop	bc
+	pop	hl
+	inc	hl
+	dec	b
+	jp	nz,..type
+	ret	
+
+	subttl  'DIRECT BIOS SUBROUTINES'
+
+;----------------------
+;-- BIOS Interaction --
+;----------------------
+
+
+CONIN:
+	call	curon		;switch on the cursor
+	LD	DE,CI		;console input
+	CALL	dir_bios
+	push	af
+	call	curoff		;switch it back off
+	pop	af
+	CP	'A' OR 20H
+	RET	C
+	CP	('Z' OR 20H)+1
+	RET	NC
+	AND	5FH		;small alph -> large alph
+	RET
+;
+
+priviliged:
+	ld	de,-3		;cold boot
+	jr	dir_bios
+
+const:	
+	ld	de,CSTS
+	jr	dir_bios
+conout:
+	ld	de,co
+	jr	dir_bios
+
+;
+;
+dir_bios:
+	LD	hl,(bios)	;entry BIOS
+	ADD	hl,DE
+	JP	(hl)		; direct BIOS call
+
+
+
+;------------------------
+;-- BDOS Character I/O --
+;------------------------
+
+subttl  'BDOS CHARACTER SUBROUTINES'
+
+;-----;
+strout:
+;-----;
+	ld	a,(hl)
+	or	a
+	ret	z
+;
+;
+	push	hl
+	call	putchar
+	pop	hl	;send out null-terminated string
+	inc	hl
+	jr	strout	;to console
+
+;------;
+putchar:
+;------;
+	ld	c,a	;to the console by direct bios call
+	call	conout		;conout
+	ret
+
+
+;-------;
+Msg:
+;-------;
+	
+	ld	a,(hl)		;print string preceded by a count byte
+	ld	b,a		;get count byte
+	or	a		;is it a null string
+	ret	z		;if null string, then go home
+..loop:	inc	hl		;point to next ascii byte
+	ld	a,(hl)		;get it
+	push	hl
+	push	bc
+	call	putchar		;send it to the console
+	pop	bc
+	pop	hl
+	dec	b		;any more to do
+	ret	z		;if not go home
+	jr	..loop		;otherwise do the next byte
+
+
+
+getchar:
+	ld	c,1		;conin
+	call	bdos
+	cp	'a'	;from the console
+	ret	c
+	cp	'z'+1
+	ret	nc
+	and	5fh		; remove case bits
+	ret
+
+
+
+;-----------------------
+;---    Utilities    ---
+;-----------------------
+
+
+
+;--------------------------------------------------
+DECOUT: ;types out the contents of HL on the console
+;in decimal.
+
+	PUSH	Bc
+	PUSH	De
+	PUSH	Hl
+	Ld	Bc,-10	;-Radix
+	Ld	De,-1
+..1xloop:Add	hl,bc	;repeated subtraction
+	Inc	de
+	Jr	C,..1xloop
+	Ld	Bc,10
+	add	hl,bc
+	ex	de,hl
+	ld	A,H
+	OR	L
+	Call	NZ,DECOUT	;recursive call
+	ld	A,E
+	ADD	a,'0'
+	CALL	putchar
+	POP	Hl
+	POP	De
+	POP	Bc
+	RET
+
+;----------------------------------------------------------------------------
+drawdown:;the whole screen a double line
+	ld	b,23		;the number of lines
+downloop:
+	push	bc
+	ld	hl,line	;get where we are
+	inc	(hl)		;increment it
+	call	yxpos		;and point the cursor there
+	ld	a,086h		;down line
+	call	putchar		;output the byte
+	pop	bc
+	djnz	downloop	;and do another until b=0
+	ret			;the job is all done
+;----------------------------------------------------------------------------
+nice.box:;around the screen
+	xor	a
+	ld	(line),a	;zap the line position
+	ld	(Column),a	;and the column position
+	call	yxpos		;home the cursor
+;draw the top border	
+	ld	a,087h		;a top left border
+	call	putchar		;send a top-left bracket
+	ld	b,78
+..toploop:;now do the top line across
+	ld	a,085h		;do a top line
+	push	bc
+	call	putchar		;out goes a line character
+	pop	bc
+	djnz	..toploop
+	ld	a,088h		;a top right border
+	call	putchar		;do a top right character
+;go to bottom line	
+	ld	a,24		;now do likewise for the bottom
+	ld	(line),a
+	xor	a
+	ld	(Column),a	;go to the bottom left
+	call	yxpos
+;draw the bottom border	
+	ld	a,089h		;a bottom left border
+	call	putchar
+	ld	b,78		;and now a nice horizontal line
+..botloop:
+	ld	a,085h		;do a bottom line
+	push	bc
+	call	putchar
+	pop	bc
+	djnz	..botloop
+	ld	a,08ah		;a bottom right border
+	call	putchar
+	xor	a
+	ld	(Column),a
+	ld	(line),a	;home again
+	call	drawdown
+	ld	a, 79		;we have drawn a vertical line
+	ld	(Column),a
+	xor	a		;go to the top right
+	ld	(line),a
+	call	drawdown	;and do the second vertical line
+	
+	ret	
+
+
+
+
+;*** findst points hl to the count ***
+;*** byte of the string array      ***
+;*** element specified in c.       ***
+	
+findst:	
+	inc	c
+..loop5:	dec	c
+	ret	z
+	push	bc
+	ld	b,0
+	ld	c,(hl)
+	add	hl,bc
+	inc	hl
+	inc	hl
+	pop	bc
+	jp	..loop5
+
+
+
+;*** typest types the bc'th string ***
+;*** in the array addressed by hl  ***
+typest:	call	findst
+	call	msg
+	ret	
+
+
+
+
+;*** typelist types, in the form    ***
+;*** of a vertical list, an array   ***
+;*** pointed to by str.array.	    ***
+;*** top of list at screen position ***
+;*** dictated by \ine and column    ***
+;*** zero set if last list passed   ***
+typelist:
+
+;start by finding out where we start to type the list
+	ld	a,(line)
+	ld	(startline),a
+	ld	a,(column)
+	ld	(margin),a
+;Str.array points to the start of the string array
+	ld	hl,(str.array)
+	ld	a,(hl)
+	and	a		;examine length
+	ret	z		;null string array
+
+	ld	b,a
+	inc	hl
+	xor	a
+	ld	c,a
+..loop6:	push	bc
+	push	hl
+	ld	a,(margin)
+	and	a
+	jp	z,..over
+	dec	a
+..over:	ld	(column),a
+	call	yxpos
+	ld	a,(highlt)
+	cp	c
+	push	af
+	call	z,hilton
+	ld	a,(ch.starting)
+	push	bc	
+	push	hl
+	call	putchar
+	pop	hl
+	pop	bc
+	call	typest
+	ld	a,(ch.finishing)
+	call	putchar
+	pop	af
+	call	z,hiltoff
+	pop	hl
+	pop	bc
+	ld	a,(line)
+	inc	a
+	ld	(line),a
+	inc	c
+	dec	b
+	jp	nz,..loop6
+	ld	a,(margin)
+	ld	(column),a
+	ld	a,(startline)
+	ld	(line),a
+	call	yxpos
+	ret	nz
+	inc	a
+	ret	
+
+	
+choose.it:	;make a selection from the available choices
+;using the string array pointed to by str.array. Returns non
+;zero if successful and character pressed in A reg.
+;Highlt is a byte variable that, on entry, describes the default
+;choice and on exit describes the user choice
+	xor	a
+	dec	a		;set boolean to show highlight
+	ld	(we.highlight),a
+	call	typelist
+	ret	z
+	call	getchar
+	cp	03h
+	jp	z,aborted
+	cp	esc
+	jp	z,..exit
+	cp	up.arrow
+	jp	z,..up
+	cp	down.arrow
+	jp	z,..down
+	cp	right.arrow
+	jp	z,..exit
+	cp	left.arrow
+	jp	z,..exit
+	cp	0dh
+	jp	z,..exit
+	jp	..updn
+..exit:	;he positivel wanted out
+	push	af
+	xor	a
+	;set boolean to repress highlight
+	ld	(we.highlight),a
+	call	typelist	;retype the list removing the highlight
+	pop	af	;save the character that he typed
+	and	a	;set flags
+	ret	
+..down:	ld	a,false
+	ld	(flip.flop),a
+	ld	hl,(str.array)
+	ld	b,(hl)
+	dec	b
+	ld	a,(highlt)
+	cp	b
+	jp	z,choose.it
+	inc	a
+	ld	(highlt),a
+	ld	a,true
+	ld	(flip.flop),a
+	jp	choose.it
+..up:	ld	a,true
+	ld	(flip.flop),a
+	ld	a,(highlt)
+	and	a
+	jp	z,choose.it
+	dec	a
+	ld	(highlt),a
+	ld	a,false
+	ld	(flip.flop),a
+	jp	choose.it
+	
+..updn:	ld	a,(flip.flop)
+	and	a
+	jp	z,..up
+	jp	..down
+
+
+;---------------------------------------------------------------------------;
+
+
+
+
+aborted:	;the user panicked and pressed break
+	call	screen.clear
+	call	curon
+	ld	hl,abortmsg
+	call	strout
+
+;and fall through
+;-----;
+finish:
+	ld	c,0		; BDOS system reset
+	jp	bdos
+
+;----------------------------------------------------------------------------
+
+
+
+;-----------------------------------------;
+; Program not loaded under CP/M3 on Epson ;
+;-----------------------------------------;
+notcpm3:
+	ld	hl,cpm3msg
+	call	strout
+
+	ld	c,0
+	jp	bdos		; and terminate program
+
+cpm3msg:
+	db	cr,lf,'DISKCOPY - Requires CP/M + on Epson QX-10',0
+
+;---------------------------------------------------------------------------;
+
+
+	subttl  'D I S K C O P Y     main'
+	page
+start:
+	ld	c,12		; BDOS return version number
+	call	bdos
+	cp	031h
+	jr	nz,notcpm3
+	ld	a,h
+	or	a
+	jr	nz,notcpm3
+
+	ld	hl,(0006h)
+	ld	sp,hl		; use top of memory as stack
+
+	ld	c,50		; BDOS Direct BIOS calls
+	ld	de,BIOSPB
+	ld	a,30		; Customised BIOS entry point
+	ld	(de),a		; requires no other registers
+	call	BDOS
+	cp	'A'		; Epson BIOS returned version
+	jr	nz,notcpm3
+
+	ld	a,(0050h)	; drive from which TPA was loaded
+	dec	a
+	cp	-1		; test for default drive
+	jr	nz,settpa
+	ld	c,25		; return current disk
+	call	bdos
+settpa:	ld	(tpadsk),a
+
+;now we do the fancy screen stuff
+	ld	hl,hello.string
+	call	msg		;split the screen and print title
+	ld	hl,instruct
+	call	strout		;print the instructions
+	ld	hl,OK
+	call	msg
+	call	curoff		;turn the cursor off
+ 	call	getchar		;and throw it away
+	call	curon		;then turn it back on
+	push	af
+	ld	hl,tidy.up
+	call	msg
+	pop	af
+	cp	3
+	jp	z,aborted		;he decided to cut his losses
+
+cut.the.crop:
+
+;initialise the label buffers
+
+	ld	hl,copy.of.buffer
+	ld	DE,old.label.buffer
+	ld	bc,22+22+11+11
+	ldir
+
+	xor	a
+	ld	(do.we.alter),a	;not intil proven otherwise!
+	ld	(passwords),a	;ditto
+
+	ld	a,epson
+	ld	(NEC.type),a	; default is EPSON format
+
+	ld	a,1
+	ld	(NEC.scnt),a	; default is single sector transfer
+
+	ld	hl,080h
+	ld	(NEC.dma),hl	; default DMA address for data transfers
+
+	ld	hl,0000h
+	ld	(NEC.xlt),hl	; no interleaving
+
+	call	screen.clear
+	call	gra.off			;force character mode
+	call	hiltoff			;switch off highlighting
+	call	curoff			;switch off the cursor
+	call	nice.box
+
+;-------------------------------------------------;
+; Request drives for diskcopy or <RETURN> to quit ;
+;-------------------------------------------------;
+start1:
+	ld	hl,prompt.string	;inform the user
+	call	strout
+	xor	a
+	ld	(srce),a
+	inc	a
+	ld	(dest),a	; default is source in A, destination in B
+
+	ld	a,'A'
+	ld	(p1disk),a
+	inc	a
+	ld	(p2disk),a	; default is source in A, destination in B
+
+;put in the disk labels
+
+	ld	HL,source.string
+	ld	de,a.string
+	ld	bc,12
+	ldir
+
+	ld	HL,dest.string
+	ld	de,b.string
+	ld	bc,12
+	ldir
+;disk A is filled by default
+	ld	a,4		;reset ***
+	ld	(mode.a),a
+	ld	a,2		;set
+	ld	(mode.b),a
+	
+	ld	hl,loc.a
+	ld	de,fill.loc
+	ld	bc,4
+	ldir
+
+	ld	a,8
+	ld	(line),a
+	ld	a,8
+	ld	(column),a
+	
+	ld	hl,askdest
+	ld	(str.array),hl
+	call	choose.it
+	cp	3
+	jp	z,aborted
+	ld	hl,erase.prompt
+	call	strout
+	ld	a,(highlt)
+	and	a
+	jp	z,start4	;if first choice, 
+;-------------------------------------------------------------;
+; Request alternative drives for diskcopy or <RETURN> to quit ;
+;-------------------------------------------------------------;
+start2:
+	ld	a,1
+	ld	(srce),a
+	dec	a
+	ld	(dest),a	; alternative is source in B, destination in A
+
+	ld	HL,source.string
+	ld	de,b.string
+	ld	bc,12
+	ldir
+
+	ld	HL,dest.string
+	ld	de,a.string
+	ld	bc,12
+	ldir
+;the disk B is emptied
+	ld	a,4		;reset ***
+	ld	(mode.b),a
+	ld	a,2		;set
+	ld	(mode.a),a
+;doctor the strings	
+	ld	hl,loc.b
+	ld	de,fill.loc
+	ld	bc,4
+	ldir
+
+	ld	a,'B'
+	ld	(p1disk),a
+	dec	a
+	ld	(p2disk),a	; alternative is source in B, destination in A
+
+;-----------------------;
+; Confirm disk inserted ;
+;-----------------------;
+start4:
+	ld	hl,putmsg
+	call	strout
+	call	getchar
+	push	psw
+	ld	hl,erase.prompt
+	call	strout
+	pop	psw
+	cp	3
+	jp	z,aborted		; <ctrl-C> warmboots
+	cp	cr
+	jp	nz,start1	; <return> is only valid answer
+
+
+;-------------------;
+; reset disc system ;
+;-------------------;
+
+	ld	c,13		; BDOS Reset Disk System
+	call	bdos
+
+	ld	a,(srce)
+	ld	e,a
+	ld	c,14		; BDOS Select Disk
+	call	bdos
+
+;---------------------;
+; determine disk type ;
+;---------------------;
+
+	ld	c,31		; BDOS Get address of DPB
+	call	bdos
+	ex	de,hl
+	ld	hl,5		; offset to max block number -1
+	add	hl,de
+	ld	c,(hl)
+	inc	hl
+	ld	b,(hl)		; <BC> = max block number -1
+;------------------------------------
+; format type for standard epson disc
+; NEC.type = 0, drm = 140-1 datablocks
+;------------------------------------
+	ld	a,epson
+	ld	(NEC.type),a
+	ld	hl,-drm.epson
+	add	hl,bc
+	ld	a,h
+	or	l
+	jp	z,start9
+;-----------------------------------------
+; format type for single sided IBM PC disc
+; NEC.type = 1, drm = 156-1 datablocks
+;-----------------------------------------
+	ld	a,ibmss
+	ld	(NEC.type),a
+	ld	hl,-drm.ibmss
+	add	hl,bc
+	ld	a,h
+	or	l
+	jp	z,start9
+;-----------------------------------------
+; format type for double sided IBM PC disc
+; NEC.type = 2, drm = 158-1 datablocks
+;-----------------------------------------
+	ld	a,ibmds
+	ld	(NEC.type),a
+	ld	hl,-drm.ibmds
+	add	hl,bc
+	ld	a,h
+	or	l
+	jp	z,start9
+;-----------------------------------------
+; format type for high capacity epson disc
+; NEC.type = 3, drm = 200-1 datablocks
+;-----------------------------------------
+	ld	a,epsonx
+	ld	(NEC.type),a
+	ld	hl,-drm.epsonx
+	add	hl,bc
+	ld	a,h
+	or	l
+	jp	z,start9
+st5err:
+	ld	hl,typer	;drive A-B
+	call	strout
+	jp	start
+
+
+;--------------------------;
+; prepare our disc drivers ;
+;--------------------------;
+start9:
+	ld	a,2
+	ld	(line),a
+	ld	a,15
+	ld	(column),a
+	call	yxpos		;tell user of the format
+	call	type.format
+	ld	a,(NEC.type)	;is it an epson disk?
+	and	a
+	jp	nz,leap.forward
+
+	ld	a,13
+	ld	(line),a
+	ld	a,8
+	ld	(column),a
+	
+	ld	hl,asktype
+	ld	(str.array),hl
+	ld	a,(what.do)
+	ld	(highlt),a
+	call	choose.it
+	cp	3
+	jp	z,aborted
+	ld	a,(highlt)
+	ld	(what.do),a	;in case we repeat
+	and	a
+	jp	z,leap.forward	;it is normal copy
+	ld	hl,2
+	ld	(npb_cyl),hl	;just do two tracks
+	ld	c,13
+	call	bdos
+	jp	no.alteration
+;at this point we allow a system copy
+
+leap.forward:
+	ld	c,13		; BDOS Reset Disk System
+	call	bdos
+
+;--------------------------;
+; mess with the label      ;
+;--------------------------;
+	xor	a
+	ld	(do.we.alter),a	;assume we do not alter things
+	ld	a,(srce)
+	ld	e,a
+	ld	c,65h		;request label data
+	call	0005h
+	rra			;does label exist?
+	jp	nc,no.alteration;as there was no label
+	rla
+	rla			;look at password bit
+	sbc	a,a
+	ld	(passwords),a
+
+	ld	a,(srce)	;set default disk to source drive
+	ld	e,a		;for the get label routine below
+	ld	c,0eh		;now select it
+	call	0005h
+
+	ld	c,11h
+..loop8:
+	ld	de,q.marks
+	call	0005h
+	cp	0ffh
+	jp	z,no.alteration	;should never happen
+	add	a,a
+	add	a,a
+	add	a,a
+	add	a,a
+	add	a,a
+	ld	hl,dbuff
+	call	addhl
+	ld	a,(hl)
+	cp	' '		;was it a label
+	jr	z,..got.it
+	ld	c,12h
+	jr	..loop8
+..got.it:
+;hl points to label string
+	ld	de,old.label.buffer
+	ld	bc,32		;lets read it all in
+	ldir	
+	ld	a,3
+	ld	(line),a
+	ld	a,15
+	ld	(column),a
+	call	yxpos		;go on to next line
+	ld	hl,old.label.buffer
+	call	show.label	;display current label
+	ld	hl,is.label
+	call	strout		;explain
+	ld	a,(passwords)
+	and	a
+	jp	nz,no.alteration	;as there were passwords
+try.once.more:;now we get the new label
+	ld	a,4
+	ld	(line),a
+	ld	a,15
+	ld	(column),a
+	call	yxpos		;go on to next line
+	ld	hl,give.name
+	call	strout		;prompt for label name
+	call	curon
+	call	..on		;get his response
+	db	012		;buffer maximum
+	ds	14		;buffer length
+..on:	pop	hl		;point hl to our buffer
+	push	hl
+	xor	a
+	ld	b,12
+..loop9:
+	inc	hl		;zero out the buffer
+	ld	(hl),a
+	djnz	..loop9
+	pop	de		;point de to buffer
+	push	de
+	ld	c,10
+	call	bdos		;and do the bdos call
+	pop	hl
+	inc	hl		;point to count byte
+	ld	a,(hl)		;get the count
+	and	a
+	jp	z,no.alteration
+	inc	hl
+	ld	(pfcb),hl	;store pointer in the pfcb block
+	ld	hl,new.label.buffer
+	ld	(pfcb+2),hl	;store pointer in the pfcb block
+	ld	de,pfcb
+	ld	c,98h		;parse filename command
+	call	bdos
+	ld	a,h
+	and	l
+	inc	a
+	jr	nz,..ok
+	ld	a,5
+	ld	(line),a
+	ld	a,15
+	ld	(column),a
+	call	yxpos		;go up a line
+	ld	hl,name.error
+	call	strout
+	jp	try.once.more
+..ok:				;now we have his new label correctly formatted
+;for later writing to the new disk.
+	ld	de,old.label.buffer+1
+	ld	hl,new.label.buffer+1
+	ld	bc,11
+	ldir			;overwrite old label
+;but we keep the old password and attributes
+	ld	a,(dest)
+	inc	a		;to autodrive code
+	ld	(old.label.buffer),a;make it the default drive
+	xor	a
+	dec	a
+	ld	(do.we.alter),a	;flag that we write this on the new disk
+no.alteration:;if we skipped the preceeding
+;end of insert
+	call	curoff
+	ld	hl,erase.prompt
+	call	strout
+
+;-----------------------------;
+;put the NEC module to rights ;
+;-----------------------------;
+
+	call	NECinit		; initialise disc driver routines
+	call	draw.disks	;and draw the disk
+	call	nice.box	;and the surround
+	ld	hl,prompt.2.string
+	call	strout
+	ld	a,3
+	ld	(line),a
+	ld	a,15
+	ld	(column),a
+	call	yxpos		;tell user of the format
+	call	type.format
+	ld	hl,lab.string
+	call	strout
+	ld	hl,old.label.buffer
+	call	show.label	;display current label
+	call	type.which.way
+;-------------------;
+; diskcopy routines ;
+;-------------------;
+diskcopy:
+	ld	hl,diskcopy
+	ld	(process),hl	; save retry vector
+
+	ld	hl,0
+	ld	(NEC.trk),hl	; start with track 0
+	xor	a
+	ld	(NEC.head),a	; and head 0
+	ld	(NEC.side),hl	; and side 0
+
+	call	NECsk		; seek track 0
+	or	a		; test result
+	jp	nz,skerr
+
+	call	NECnpb		; return NEC parameter block
+	ld	de,npb
+	ld	bc,14
+	ldir			; copy parameter block
+
+	ld	a,(NEC.type)
+	and	a		;is it a 280K disk
+	jr	nz,a.leap.over
+	ld	a,(what.do)
+	and	a
+	jr	z,a.leap.over	;it is normal copy
+	ld	hl,2
+	ld	(npb_cyl),hl	;just do two tracks
+a.leap.over::
+
+
+	ld	hl,'00'
+	ld	(mestrk),hl
+   
+	ld	hl,60
+	ld	(circ1),hl
+	ld	(circ2),hl
+	ld	hl,tell.track
+	call	strout
+;----------------------------;
+; format and copy each track ;
+;----------------------------;
+copy1:
+	ld	hl,track.string
+	call	msg  	; display track count
+
+	ld	hl,(circ1)	;this bit turns back on the previous
+	inc	hl		;track circle on the source disk picture
+	ld	(radius),hl
+	ld	hl,fill.circle
+	call	msg
+
+	ld	hl,(circ1)
+	dec	hl
+	ld	(circ1),hl
+	ld	(circ2),hl
+	ld	hl,(mestrk)
+	ld	a,h
+	inc	a
+	cp	'9'+1
+	jr	c,uptrk
+	ld	a,'0'
+	inc	l
+uptrk:	ld	h,a	
+	ld	(mestrk),hl
+   
+	xor	a	
+	ld	(NEC.head),a	; start with head 0
+	ld	(NEC.side),a	; start with side 0
+
+;--------------------;
+; format destination ;
+;--------------------;
+form2:
+	ld	a,(dest)
+	LD	(NEC.adrv),a
+
+	ld	hl,form2
+	ld	(process),hl	; save retry vector
+
+; test if second side to be verified as well
+
+	ld	hl,nec.head
+	ld	a,(NPB_sides)
+	cp	(hl)		; test for valid side
+	ld	a,(hl)
+	jr	nc,sside	; -yes- set side same as head
+	xor	a		; -no- set side to 0
+sside:	ld	(nec.side),a	; update side
+
+	ld	hl,dma_f	; space to build format id
+	ld	(nec.dma),hl	; set DMA address for format
+
+	call	NECform		; format track
+	or	a		; test result
+	jp	nz,ioerr	; -error-
+
+	ld	hl,nec.head
+	ld	a,(nec.side)
+	cp	(hl)		; test for 2nd side of single sided
+	jp	nz,nxtside	; -yes- dont do the copying
+
+
+
+;-------------------;
+; read source track ;
+;-------------------;
+	ld	a,(srce)
+	LD	(NEC.adrv),a
+
+	ld	hl,dma_rw
+	ld	(NEC.dma),hl	; save for write command
+
+	ld	a,(npb_f_SC)	; sectors per track
+	ld	(NEC.scnt),a	; select sector count
+
+	ld	a,1
+	ld	(NEC.sect),a	; select sector 1
+
+	ld	a,1
+	ld	(NEC.rdwr),a	; READ
+
+	call	NECrdwr		; read track (multi sectors)
+	or	a		; test result
+	jp	nz,ioerr	; -error-
+
+;-------------------------;
+; write destination track ;
+;-------------------------;
+	ld	a,(dest)
+	LD	(NEC.adrv),a
+
+	ld	hl,dma_rw
+	ld	(NEC.dma),hl	; save for write command
+
+	ld	a,(npb_f_SC)	; sectors per track
+	ld	(NEC.scnt),a	; select sector count
+
+	ld	a,1
+	ld	(NEC.sect),a	; select sector 1
+
+	ld	a,0
+	ld	(NEC.rdwr),a	; WRITE
+
+	call	NECrdwr		; write track (multi sectors)
+	or	a		; test result
+	jp	nz,ioerr	; -error-
+
+;------------------------;
+; read destination track ;
+;------------------------;
+	ld	a,(dest)
+	LD	(NEC.adrv),a
+
+	ld	hl,dma_vf
+	ld	(NEC.dma),hl	; save for write command
+
+	ld	a,(npb_f_SC)	; sectors per track
+	ld	(NEC.scnt),a	; select sector count
+
+	ld	a,1
+	ld	(NEC.sect),a	; select sector 1
+
+	ld	a,1
+	ld	(NEC.rdwr),a	; READ
+
+	call	NECrdwr		; read track (multi sectors)
+	or	a		; test result
+	jp	nz,ioerr	; -error-
+
+;------------
+;verify track
+;------------
+
+	ld	hl,(npb_rw_DTL)	; sector size
+	ex	de,hl
+	ld	a,(npb_f_SC)	; sectors per track
+	ld	b,a
+	ld	hl,0
+size:	add	hl,de
+	djnz	size
+
+	ld	b,h
+	ld	c,l		; BC = length of track
+
+	ld	hl,dma_rw	; source data
+	ld	de,dma_vf	; destination data
+vrfy:	ld	a,(de)
+	cp	(hl)
+	jp	nz,verify
+	inc	hl
+	inc	de
+	dec	bc
+	ld	a,b
+	or	c
+	jr	nz,vrfy
+
+;-----------------------------------------;
+; done track, test for another side to do ;
+;-----------------------------------------;
+nxtside:
+	ld	hl,NEC.head
+	inc	(hl)		; to next side
+	ld	a,(hl)
+	cp	2		; test for valid side
+	jp	c,form2		; -yes- do another side
+	
+;---------------------------------;
+; test for another cylinder to do ;
+;---------------------------------;
+
+	ld	hl,(NEC.trk)
+	inc	hl
+	ld	(NEC.trk),hl	; to next cylinder
+	ex	de,hl
+	ld	hl,(npb_cyl)	; maximum cylinders -1
+	ld	a,d
+	cp	h		; test for valid cylinder
+	jp	c,copy1		; -yes- do another cylinder
+	ld	a,l
+	cp	e		; test for valid cylinder
+	jp	nc,copy1	; -yes- do another cylinder
+
+
+;---------------;
+; done diskcopy ;
+;---------------;
+form80:
+	ld	a,(do.we.alter)
+	and	a
+	jr	z,hop.over
+	ld	de,old.label.buffer
+	ld	c,64h		;set.directory.label
+	call	bdos
+
+hop.over:
+	ld	hl,done
+	call	strout
+	jp	confirm
+
+;===================;
+; Seek or I/O error ;
+;===================;
+skerr:
+ioerr:
+	ld	hl,(NEC.adrv)
+	ld	h,0
+	add	hl,hl
+	ld	bc,ST0tble
+	add	hl,bc		; <HL> -> ST0 for drive selected
+	ld	a,(hl)
+	bit	3,a		; test for NOT READY
+	jp	nz,notready
+
+	and	11000000b	; test interrupt code
+	cp	11000000b	; test for drive status change
+	jp	z,retry		; -yes-
+
+	ld	a,(hl)
+	bit	5,a		; test for SEEK completion
+	jp	nz,fatal	; error during seek - must be fatal
+
+
+;==========================;
+; Read/Write command error ;
+;==========================;
+
+	ld	hl,result	; result bytes
+	cp	(hl)		; test if same as last ST0
+	jp	nz,fatal	; so cant be read/write result phase
+
+	inc	hl
+	ld	a,(hl)		; test ST1
+
+	bit	7,a
+	jr	nz,fatal	; Sector outside range
+
+	bit	5,a
+	jr	nz,iderr	; CRC error in ID
+
+	bit	4,a
+	jr	nz,fatal	; OVERRUN
+
+	bit	2,a
+	jr	nz,verify	; cannot find sector
+
+	bit	1,a
+	jr	nz,wrprot	; write protect
+
+	bit	0,a
+	jr	nz,iderr	; Missing ID mark
+
+	inc	hl
+	ld	a,(hl)		; test ST2
+
+	bit	5,a
+	jr	nz,iderr	; CRC error in DATA
+
+	bit	4,a
+	jr	nz,iderr	; WRONG SIDE
+
+	bit	2,a
+	jr	nz,verify	; cannot find sector
+
+	bit	0,a
+	jr	nz,iderr	; Missing DATA ADDRESS mark
+
+	jp	fatal
+
+;--------------------------------------
+; IDERR
+; 	CRC error in ID
+; 	Missing ID mark
+; 	CRC error in DATA
+; 	WRONG SIDE
+; 	Missing DATA ADDRESS mark
+;--------------------------------------
+iderr:
+	ld 	hl,idmsg
+	call	strout
+	jr	tryagain
+
+;--------------------------------------
+; VERIFY
+;	cannot find sector
+;       or read verify error
+;--------------------------------------
+verify:
+	ld 	hl,vfymsg
+	call	strout
+	jr	tryagain
+
+;--------------------------------------
+; WRPROT
+;	write protect
+;--------------------------------------
+wrprot:
+	ld 	hl,wpmsg
+	call	strout
+	ld	A,(dest)		;find out which is wp'ed dest
+	or	A
+	jr	nz,dest.r
+	ld	hl,show.l.writeprotect
+	jr	do.it
+dest.r:	ld	hl,show.r.writeprotect
+do.it:	call	msg
+	jp	abandon
+
+;-------------------------------;
+; fatal seek error of some sort ;
+;-------------------------------;
+fatal:	ld 	hl,ftlmsg
+	call	strout
+	jr	tryagain
+
+;----------------------;
+; disk drive not ready ;
+;----------------------;
+notready:
+	ld 	hl,nrmsg
+	call	strout
+	jp	tryagain
+
+;-----------------------;
+; try again if required ;
+;-----------------------;
+tryagain:
+	ld	hl,trymsg
+	call	strout
+what:	call	conin
+	cp	3		;Break?
+	jp	z,quit		; -yes-
+	cp	cr		; <return>
+	jr	nz,what		; -no-
+	
+	ld	hl,erase.r.prompt	;wipe away the old error message
+	call	strout
+
+;------------------------------;
+; non permanent error so retry ;
+;------------------------------;
+retry:
+	ld	hl,(process)
+	jp	(hl)		; retry process
+
+;---------------------------;
+; fatal error so do no more ;
+;---------------------------;
+abandon:
+	ld	hl,errmsg
+	call	strout
+pause:	call	conin
+	cp	3		;Break?
+	jp	z,quit		; -yes-
+	cp	cr		; <return>
+	jr	nz,what		; -no-
+	jp	cut.the.crop		; -yes-
+
+process:	dw	0
+
+;---------------;
+; quit function ;
+;---------------;
+quit:
+	ld	hl,terminate
+	call	strout
+	jp	confirm
+
+;---------------------------;
+; request confirm or reboot ;
+;---------------------------;
+confirm:
+	ld	hl,contms
+	call	strout
+conf01:
+	call	conin
+	cp	3
+	jp	z,reboot
+	cp	'Y'
+	jp	z,conf02
+	cp	'N'
+	jp	nz,conf01
+	ld	c,a
+	call	conout
+	jp	reboot
+conf02:
+	ld	c,a
+	call	conout
+	jp	cut.the.crop
+
+draw.disks:
+	ld	hl,diskdraw.string
+	
+	ld	c,(hl)		;print string preceded by a count byte
+	inc	hl
+	ld	b,(hl)		;get count byte
+..loop7:
+	inc	hl		;point to next ascii byte
+	ld	a,(hl)		;get it
+	push	hl
+	push	bc
+	call	putchar		;send it to the console
+	pop	bc
+	pop	hl
+	dec	bc		;any more to do
+	ld	a,c
+	or	b
+	jr	nz,..loop7		;otherwise do the next byte
+;do the vertical lines
+	ld	a,15
+	ld	(column),a
+	ld	a,9
+	ld	(line),a
+	ld	b,8
+	call	downloop
+;and the other
+	ld	a,34
+	ld	(column),a
+	ld	a,12
+	ld	(line),a
+	ld	b,5
+	call	downloop
+
+	ld	a,44
+	ld	(column),a
+	ld	a,9
+	ld	(line),a
+	ld	b,8
+	call	downloop
+;and the other
+	ld	a,63
+	ld	(column),a
+	ld	a,12
+	ld	(line),a
+	ld	b,5
+	call	downloop
+;fill in the first circle
+
+	ld	hl,set.circle
+	call	msg
+	ld	hl,60
+	ld	(radius),hl
+	ld	b,40
+..cir.loop:
+	push	bc
+	ld	hl,fill.circle
+	call	msg
+	ld	hl,(radius)
+	dec	hl
+	ld	(radius),hl
+	pop	bc
+	djnz	..cir.loop
+	ret
+
+;---------------------------------;
+; exit program and return to CP/M ;
+;---------------------------------;
+reboot:
+	call	NECclose	; terminate disc driver
+
+	ld	hl,exitmsg
+	call	strout
+
+	ld	c,0
+	jp	bdos		; and terminate program
+
+exitmsg:	db	esc,'*',esc,'H',ESC,']',lf,lf,'DISKCOPY - Program completed',0
+
+type.which.way:
+	ld	hl,which.way.preamble
+	call	strout
+	ld	a,(srce)
+	ld	c,a
+	ld	hl,askdest
+	inc	hl
+	call	typest
+	ret
+	
+
+type.format:	;type out the format we have established
+	ld	a,(NEC.type)
+	ld	c,a
+	ld	hl,type.array
+	inc	hl
+	call	typest
+	ret
+
+;----------;
+; Messages ;
+;----------;
+	
+
+hello.string:
+	defb	..1end - $		;length of the string
+	defb	1bh,",","g",5,"c"	;define split screen
+	defb	1bh,"u"			;go to the upper
+	defb	1bh,"/"			;make multifont
+	defb	1bh,"#",6,1bh,'X'	;style 4
+	defb	'               QX+ Disk Copying Utility'
+	defb	1bh,'S',1bh,"v"		;enter the lower screen
+	defb	1BH,"+"			;blank the screen
+	defb	1bh,')'
+..1end:	defb	000,000
+
+ok:	defb	..end1 - $
+
+	db	ESC,'=',(18+' '),(26+' ')	;bottom centre
+	defb	1bh,'('		;full intensity
+	defb	1bh,"^"		;blink
+	defb	"<press any key to continue>"
+	defb	1bh,"q"		;cancel blink
+	defb	1bh,')'		;half intensity
+..end1:	defb	00,00
+
+tidy.up:;set the screen to rights
+	defb	..end2 - $
+	defb	1bh,"+"
+	defb	1bh,"u",1bh,"\"
+	defb	1bh,"v",1bh,"u"	;dont ask
+	defb	1bh,",","C",26,"C"
+	defb	1bh,"+"
+..end2:	defb	000,000
+
+
+;-------------------------
+;-- String message area --
+;-------------------------
+
+prompt.string:		;at the top of the page
+
+	db	esc,"=",1+32,25+32
+	db	esc,"("
+	db	'EPSON QX+ DISKCOPY   ver '
+	db	vers/10+'0','.',vers mod 10+'0'
+	db	esc,")" 
+
+	db	esc,"=",2+32,12+32
+	db	'-- Use Cursor Keys then <CR> to select from options --'
+	db	esc,"=",3+32,12+32
+	db	'         -- <BREAK> to abort, <ESC> to exit --'
+	db	000
+
+prompt.2.string:		;at the top of the page
+
+	db	esc,"=",1+32,25+32
+	db	'EPSON QX+ DISKCOPY   ver '
+	db	vers/10+'0','.',vers mod 10+'0'
+	db	000 
+
+erase.prompt:		;what was on the prompt
+
+	db	esc,"=",1+32,10+32,esc,'T',esc,"=",1+32,79+32,86h
+	db	esc,"=",2+32,10+32,esc,'T',esc,"=",2+32,79+32,86h
+ 	db	esc,"=",3+32,10+32,esc,'T',esc,"=",3+32,79+32,86h
+	db	esc,"=",4+32,10+32,esc,'T',esc,"=",4+32,79+32,86h
+	db	esc,"=",5+32,10+32,esc,'T',esc,"=",5+32,79+32,86h
+	db	000
+
+erase.r.prompt:		;what was on the error recoverable prompt
+
+	db	esc,"=",22+32,10+32,esc,'T',esc,"=",22+32,79+32,86h
+	db	esc,"=",23+32,10+32,esc,'T',esc,"=",23+32,79+32,86h
+	db	000
+
+
+; fatal errors
+wpmsg:	db	esc,"=",22+32,15+32,'ERROR: Disc is write protected',0
+ftlmsg:	db 	esc,"=",22+32,15+32,'ERROR: Cannot complete diskcopy',0
+errmsg:	db	esc,"=",23+32,15+32,'Permanent error, press <CR> to restart ',0
+
+; retry messages
+idmsg:	db	esc,"=",22+32,15+32,'ERROR: Cannot read/write track        ',0
+vfymsg:	db	esc,"=",22+32,15+32,'ERROR: Cannot verify diskcopy         ',0
+nrmsg:	db 	esc,"=",22+32,15+32,'ERROR: Drive not ready                ',0
+trymsg:	db 	esc,"=",23+32,15+32,'RETRY? Press <CR> to retry, else <BREAK> to quit',0
+typer:	db	esc,"=",22+32,15+32,'DISKCOPY ERROR: Cannot understand Source diskette format',0
+
+
+which.way.preamble:	db	esc,'=',2+32,15+32,'* ',0
+
+ 
+ 
+ type.array:
+db	4
+db	29,'* Epson QX-10 standard format',0	;format type for standard epson disc     
+db	28,'* IBM PC Single Sided format',0 	;format type for single sided IBM PC disc
+db	28,'* IBM PC Double Sided format',0 	;format type for double sided IBM PC disc
+db	24,'* Epson QX+ 400 K format',0     	;format type for high capacity epson disc
+db	00,00
+
+askdest:
+	db	2
+db	57,'DISKCOPY from Source on drive A to Destination on drive B',0
+db	57,'DISKCOPY from Source on drive B to Destination on drive A',0
+	db	0
+
+asktype:
+	db	2
+db	31,'Copy all the tracks of the disk',0
+db	27,'Copy only the system tracks',0
+	db	00
+
+putmsg:
+	db	esc,"=",2+32,15+32
+	db	'INSERT ----------------- the Source diskette into drive '
+p1disk:	db	'A'
+	db	esc,"=",3+32,15+32
+	db	'       ----------- the Destination diskette into  drive '
+p2disk:	db	'A'
+	db	esc,"=",4+32,15+32
+	db	'         Press <CR> when both diskettes are inserted.'
+	db	0
+
+done:
+	db 	esc,"=",22+32,15+32,'DISKCOPY complete',0
+
+terminate:
+	db 	esc,"=",23+32,15+32,'--- DISKCOPY TERMINATED ---'
+
+contms:
+	db	esc,"=",23+32,15+32,'Do you wish to continue (else exit program) ? (Y/N) ',0
+
+is.label:
+	db	' is the label of the source disk',000
+give.name:
+	db	'What label do you want on the destination disk?'
+	db	esc,'=',5+32,15+32
+	db      '(press <CR> for the same label)                '
+	db	bspace,bspace,bspace,bspace,bspace,bspace,bspace,bspace,bspace,bspace,bspace
+	db	bspace,bspace,bspace
+	db	000
+
+name.error:
+	db	7,'	Error in label, please try again.',0
+instruct:
+db	cr,lf
+db	cr,lf,'	      This  utility  enables you to copy the contents of an'
+db	cr,lf,'	entire disk without the need to FORMAT the destination disk'
+db	cr,lf,'	first.'
+db	cr,lf,'	      The  new disk will have the same format as the source'
+db      cr,lf,'	disk.  For example, using DISKCOPY with a source disk  with'
+db	cr,lf,'	the EPSON+ 400K format will produce an identical 400K disk.'
+db	cr,lf,'	If,  however, you wish to produce a copy of, say, an  EPSON'
+db	cr,lf,'	280K disk but in EPSON+ 400K format, then you will need  to'
+db	cr,lf,'	format  a  disk in the required format and then use PIP  to'
+db	cr,lf,'	copy  the  files. Refer to the CP/M manual for  details  of'
+db	cr,lf,'	PIP.  DISKCOPY displays the disk label if there is one  and'
+db	cr,lf,'	allows  you  to  put a different label on  the  destination'
+db	cr,lf,'	disk.  If  the source disk is an EPSON 280K disk, then  you'
+db	cr,lf,'	will have the option to copy the system track only.'
+db	00,00
+
+abortmsg:
+	db	esc,'+',esc,'H',esc,']',lf,lf,'-- program terminated, no action taken --',0
+
+tell.track:
+	db	esc,'=',6+32,3+32
+	db	'Copying Track: ',00
+track.string:
+	db	track.length-1
+	db	esc,'=',6+32,18+32
+mestrk:	db	'00  '
+	db	esc,'['
+	db	esc,'.',9
+mode.a:	db	4	;reset the first circle
+	db	esc,'.',10,0	;solid	
+	db	esc,'.',0		;locate cursor
+loc.a:	dw	xgrcentre-121
+	dw	ygrcentre-25
+	db	esc,'.',7		;Draw the Circle Please
+circ1:	dw	60
+
+	db	esc,'.',0		;locate cursor
+loc.b:	dw	xgrcentre+111
+	dw	ygrcentre-25
+	db	esc,'.',9
+mode.b:	db	2			;draw the second circle
+	db	esc,'.',7		;Draw the Circle Please
+circ2:	dw	20
+track.length	equ	$-track.string
+
+set.circle:
+	db	10
+	db	esc,'['
+	db	esc,'.',9,4	;reset the first circle
+	db	esc,'.',10,0	;solid	
+	db	000,000
+
+fill.circle:
+	db	16			;in the string
+	db	esc,'.',0		;locate cursor
+fill.loc:
+	dw	xgrcentre-121
+	dw	ygrcentre-25
+	db	esc,'.',9,2		;draw the second circle
+	db	esc,'.',7		;Draw the Circle Please
+radius:	dw	60
+	dw	000,000	
+
+
+source.string:	db	'Source      '
+dest.string:	db	'Destination '
+lab.string:	db	esc,'=',4+32,15+32,'* Label ',0
+
+
+show.l.writeprotect:
+	db	wp.l.length-1
+	db	esc,'.',15,0	;set solid fill
+	db	esc,'.',4
+	dw	268
+	dw	200
+	dw	276
+	dw	216
+	db	esc,'=',11+32,36+32,'<--',0
+wp.l.length equ $-show.l.writeprotect
+
+
+show.r.writeprotect:
+	db	wp.r.length-1
+	db	esc,'.',15,0	;set solid fill
+	db	esc,'.',4
+	dw	500
+	dw	200
+	dw	508
+	dw	216
+	db	esc,'=',11+32,65+32,'<--',0
+wp.r.length equ $-show.r.writeprotect
+	
+ 
+diskdraw.string:
+	dw	dis.length-2
+	db	esc,'G'
+	db	esc,'['
+	db	esc,'.',10,0	;solid	
+	db	esc,'.',9,1	;set to replace
+;draw the first
+	db	esc,'=',8+32,21+32
+a.string:
+	db	'Destination '
+	db	esc,"=",9+32,13+32,'A'
+	db	esc,"=",9+32,15+32,topleft
+	db	85h,85h,85h,85h,85h,85h,85h,85h,85h,85h,85h,85h
+	db	85h,85h,85h,85h,85h,85h
+	db	esc,"=",9+32,34+32,topright	
+	db	esc,"=",18+32,15+32,bottomleft
+	db	85h,85h,85h,85h,85h,85h,85h,85h,85h,85h,85h,85h
+	db	85h,85h,85h,85h,85h,85h
+	db	esc,"=",18+32,34+32,bottomright
+	db	esc,"=",11+32,34+32,bottomright
+	db	esc,'=',10+32,34+32,86h
+	db	esc,"=",11+32,33+32,topleft
+	db	esc,"=",12+32,33+32,bottomleft
+	db	esc,"=",12+32,34+32,topright
+
+	db	esc,'.',0		;locate cursor
+	dw	xgrcentre-121
+	dw	ygrcentre-25
+	db	esc,'.',7		;Draw the Circle Please
+	dw	61
+	db	esc,'.',0		;locate cursor
+	dw	xgrcentre-121
+	dw	ygrcentre-25
+	db	esc,'.',7		;Draw the Circle Please
+	dw	15
+
+;and the second
+
+	db	esc,'=',8+32,48+32
+b.string:
+	db	'Destination '
+	db	esc,"=",9+32,42+32,'B'
+	db	esc,"=",9+32,44+32,topleft
+	db	85h,85h,85h,85h,85h,85h,85h,85h,85h,85h,85h,85h
+	db	85h,85h,85h,85h,85h,85h
+	db	esc,"=",9+32,63+32,topright	
+	db	esc,"=",18+32,44+32,bottomleft
+	db	85h,85h,85h,85h,85h,85h,85h,85h,85h,85h,85h,85h
+	db	85h,85h,85h,85h,85h,85h
+	db	esc,"=",18+32,63+32,bottomright
+	db	esc,"=",11+32,63+32,bottomright
+	db	esc,'=',10+32,63+32,86h
+	db	esc,"=",11+32,62+32,topleft
+	db	esc,"=",12+32,62+32,bottomleft
+	db	esc,"=",12+32,63+32,topright
+
+	db	esc,'.',0		;locate cursor
+	dw	xgrcentre+111
+	dw	ygrcentre-25
+	db	esc,'.',7		;Draw the Circle Please
+	dw	61
+	db	esc,'.',0		;locate cursor
+	dw	xgrcentre+111
+	dw	ygrcentre-25
+	db	esc,'.',7		;Draw the Circle Please
+	dw	15
+	
+dis.length	equ	$-diskdraw.string
+
+page
+
+
+;----------------;
+; DMA data areas ;
+;----------------;
+	dseg
+dma_f:	ds	18*4	; 4 bytes per sector (maximum of 18 sectors)
+dma_rw:	ds	5*1024	; space for 1 whole track for copy
+dma_vf:	ds	5*1024	; space for 1 whole track for verify
+
+
+;--------------------------------------------------------------------------;
+;
+	end start
+
