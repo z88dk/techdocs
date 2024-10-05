@@ -1,0 +1,16 @@
+; MICROSOFT assembly
+a:m80 cbios3a0,=cbios3a0
+a:m80 cbios3a1,=cbios3a1
+a:m80 7201,=7201
+a:m80 keytable,=keytable
+a:m80 pfntable,=pfntable
+a:m80 cmos,=cmos
+a:m80 8255,=8255
+a:m80 lpen,=lpen
+; concatenate character driver rel files
+a:lib cbios3a2=7201,keytable,pfntable,cmos,8255,lpen
+;-------------------------------------
+; now ready to transferrred  REL files
+; to main CP/M PLUS GENCPM disc
+;viz   a:pip a:=b:cbios3a*.rel
+;-------------------------------------
