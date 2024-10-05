@@ -1,0 +1,28 @@
+;y coordinate = (lad-sad)/words.per.line
+;x coordinate = (lad-sad)%words.per.line
+;sad is pointed to by current.screen
+	
+	push	hl		;save the lad
+	ld	hl,(current.screen##);get pointer to current screen
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)		;get the ead of the screen start(sad)
+	pop	hl
+	call	dsub##		;hl-de		
+	ex	de,hl
+;de = (lad-sad)
+	ld	hl,(words.per.line##);the number of display words per line
+	push	hl		;save wpl
+	call	hl.negate##
+	ld	c,l
+	ld	b,h
+	ex	de,hl
+	ld	de,-1
+..loop:	
+	add	hl,bc
+	inc	de
+	jrc	..loop
+	pop	bc		;restore wpl
+	add	hl,bc
+;hl=x coordinate de=y coordinate
+	ret	
