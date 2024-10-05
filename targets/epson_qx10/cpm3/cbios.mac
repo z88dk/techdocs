@@ -1,0 +1,227 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS
+
+	name	('BIOS3A')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; ALPHA Aug 8,83
+; BETA  Dec 5,83
+; BETA+ Jan 5,84
+; REV-A Apr 30,84
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the entry points must not be public.
+;------------------------------------------------------------------
+
+	cseg		;GENCPM puts CSEG code in common memory
+
+; External names for BIOS entry points
+
+	public	?boot,?wboot
+	public	?home,?sldsk,?sttrk,?stsec,?stdma,?read,?write,?sctrn
+	public	?dvtbl,?drtbl
+	public	?mltio,?flush,?mov,?tim,?bnksl,?stbnk,?xmov
+
+; External names for BIOS entry points which use COMMONSP
+
+	public	?const,?conin,?cono,?list,?auxo,?auxi
+	public	?lists
+	public	?conos,?auxis,?auxos,?devin
+
+
+;--------------;
+; BIOS modules ;
+;--------------;
+
+;SYSTEM INITIALIZATION
+	extrn	boot,wboot
+	extrn	devtbl,devini	; character I/O
+	extrn	drvtbl		; Disc I/O
+	
+
+;CHARACTER I/O
+	extrn	conin,const
+	extrn	conost,conout
+	extrn	listst,list
+	extrn	auxist,auxin
+	extrn	auxout,auxost
+
+;DISK I/O
+	extrn	seldsk
+	extrn	home,settrk,setsec,setdma,sectrn
+	extrn	read,write
+	extrn	multio,flush
+
+;MEMORY SELECTS AND MOVES
+	extrn	move,xmove
+	extrn	selmem,setbnk
+
+;CLOCK SUPPORT
+	extrn	time
+
+;--------------------------------------;
+; BIOS modules - Internal public names ;
+;--------------------------------------;
+
+	public	?biosptr		; return addres of table of pointers
+
+	extrn	@kbtab			; Keyboard translation
+	extrn	@pfntble		; table of PF Key pointers
+	extrn	@sio0a			; Keyboard device initialisation
+	extrn	@sio0b			; Main RS232 device initialisation
+	extrn	@sio1a			; 1st optional RS232-A initialisation
+	extrn	@sio1b			; 1st optional RS232-B initialisation
+	extrn	@sio2a			; 2nd optional RS232-A initialisation
+	extrn	@sio2b			; 2nd optional RS232-B initialisation
+	extrn	?swap			; swaps DPH allocation
+
+;------------------------------------------------------------------
+;pointers into the banked CONOUT modules
+;March 3 1984 A.R.M.C.
+;
+;------------------------------------------------------------------
+
+	extrn	font			;points to the base of the font table
+	extrn	country			;points to the country byte
+	extrn	printer			;points to printer type
+	
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+version	equ	31	; CP/M version number
+rev	equ	'A'	; BIOS version letter
+
+;-----------------------------------------------------------------
+;
+;	Standard CBIOS jump table + CP/M 3 jumps
+;	All BIOS routines are invoked by calling these entry points
+;		(c) - Must be in common, (d) - May be in system bank
+;-----------------------------------------------------------------
+ 
+cbstr:				; starting address of cbios
+?boot:	jð	boot	;(d) initial entry on colä start
+?wboot:	jp	wboot	;(c) reentry on program exit, warm start
+
+?const:	jp	const	;(c) return console input status
+?conin:	jp	conin	;(c) return console input character
+?cono:	jp	conout	;(c) send console output character
+?list:	jp	list	;(c) send list character out
+?auxo:	jp	auxout	;(c) send auxiliary output character
+?auxi:	jp	auxin	;(c) return auxiliary input character
+
+?home:	jp	home	;(d) set disk to ligical home
+?sldsk:	jp	seldsk	;(d) select logical disk drive, return dph infl
+?sttrk:	jp	settrk	;(d) set track number
+?stsec:	jp	setsec	;(d) set sector number
+?stdma:	jp	setdma	;(d) set disk I/O DMA memory address
+?read:	jp	read	;(d) read physical block(s)
+?write:	jp	write	;(d) write physical block(s)
+?lists:	jp	listst	;(c) return list device status
+?sctrn:	jp	sectrn	;(d) translate logical to physical sector
+
+; CP/M 3 jump table
+
+?conos:	jp	conost	;(c) return console ouput status
+?auxis:	jp	auxist	;(c) return auxiliary input status
+?auxos:	jp	auxost	;(c) return auxiliary output status
+?dvtbl:	jp	devtbl	;(c) return address of Char I/O device def table
+?devin:	jp	devini	;(c) change baud rate of device
+?drtbl:	jp	drvtbl	;(d) return address of disk drive table
+?mltio:	jp	multio	;(d) set multiple record count for disk i/o
+?flush:	jp	flush	;(d) flush BIOS maintained deblock if used
+?mov:	jp	move	;(c) block move memory to memory operation (Z80)
+?tim:	jp	time	;(d) Signal Time and Date operation
+?bnksl:	jp	selmem	;(c) Select bank for code execution and default DMA
+?stbnk:	jp	setbnk	;(d) select different bank for disk I/O DMA operation
+?xmov:	jp	xmove	;(d) set source and dest. banks for one operation
+	jp	userf	;(c) reserved for system implementor
+	jp	reserv1	; reserved for CP/M 3.1
+	jp	reserv2	; reserved for CP/M 3.1
+
+;-----------------------------------------------;
+; Our own BIOS jump table			;
+; (reserved for system implementor)		;
+; Returns:	<HL> -> table of jump vectors	;
+;		<B>  =  number of jump vectors	;
+;               <A>  =  Bios version number	;
+;-----------------------------------------------;
+userf:	ld	hl,QXbios	; return address of QX10 bios extension table
+	ld	a,rev		; and return version number in <A>
+	ld	b,maxQXf	; and maximum number of QX functions in <B>
+	ret
+
+;-----------------------------------------------;
+;CP/M 3 reserved BIOS jmps 			;
+;(reserved for possible later user (CP/M 4?)    ;
+;-----------------------------------------------;
+reserv1:
+reserv2:
+	ret
+
+;-----------------------------------------------;
+;Ouò owî 'private§ BIOÓ data tablå		;
+;(reserved for priviledged few 			;
+; Returns:	<HL> -> table of jump vectors	;
+;		<A>  =  number of jump vectors	;
+;-----------------------------------------------;
+?biosptr:
+	ld	hl,pointers	; return address of table of BIOS pointes
+	ld	a,noptrs	; and returns number of pointers in <A>
+	ret
+
+;---------------------------------------------------------------;
+;								;
+;	BIOS PRIVILEDGED pointer table				;
+;	Provides entry into BIOS for special programs such as:	;
+;	CONFIG which does nationalisation                       ;
+;								;
+;---------------------------------------------------------------;
+ 
+POINTERS:
+	dw	@kbtab		; ------ Keyboard translation
+	dw	@pfntble	; ------ table of PF Key pointers
+	dw	country		; ------ current keyboard etc
+	dw	printer		; ------ Parallel device translation
+	dw	font		; ------ CRT font
+	dw	@sio0a		; ------ Keyboard device initialisation
+	dw	@sio0b		; ------ Main RS232 device initialisation
+	dw	@sio1a		; ------ 1st optional RS232-A initialisation
+	dw	@sio1b		; ------ 1st optional RS232-B initialisation
+	dw	@sio2a		; ------ 2nd optional RS232-A initialisation
+	dw	@sio2b		; ------ 2nd optional RS232-B initialisation
+noptrs	equ	($-pointers)/2
+
+;---------------------------------------------------------------;
+;								;
+;	BIOS QXbios jump table					;
+;	Provides extended BIOS jump table for special		;
+;	Epson features and access to local BIOS routines	;
+;								;
+;---------------------------------------------------------------;
+
+QXbios:		; start of table
+	jp	?biosptr	; 00	returns BIOS POINTERS
+	jp	?swap		; 01	swaps DPH allocation
+	jp	qxret		; 02
+	jp	qxret		; 03
+	jp	qxret		; 04
+maxQXf	equ	($-QXbios)/3	; maximum number of QX functions in <B>
+
+qxret:	ret		; return to caller
+;---------------------------------------------------------------
+
+	end	
+
