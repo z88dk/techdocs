@@ -1,0 +1,46 @@
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+; 'EPSON QX-10 CPM3 BIOS Hardware equates'
+;
+;		=================================
+;		QX-10  8259A INTERRUPT CONTROLLER
+;		=================================
+;
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+;       Nov 1983 - Device equate files created
+;
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+
+;============================;
+; 8259A INTERRUPT CONTROLLER ;
+;============================;
+
+ICM0	EQU	08H ; 8259 NO.1
+ICM1	EQU	09H
+ICS0	EQU	0CH ; 8259 NO.2
+ICS1	EQU	0DH
+
+;-------------------------------;
+; Interrupt controller commands ;
+;-------------------------------;
+IcwM1	EQU	(low inttab and 0e0h) or 00010101B ; EDGE,4BYTE,MULTI
+IcwM2	EQU	0feh 	  ; ADDR. HIGH
+IcwM3	EQU	10000000B ; IR7. = SLV
+IcwM4	EQU	00000010B ; AEOI,Z80
+IcwS5	EQU	(low intslv and 0e0h) or 00010101B ; A=EDGE,4BYTE,MULTI
+IcwS6	EQU	0feh 	  ; ADDR. HIGH
+IcwS7	EQU	00000111B ; SLAVE ID=7
+IcwS8	EQU	00000010B ; AEOI,Z80
+OCW2    EQU	20H 	  ; NORMAL EOI (not needed as AEOI set)
+
+;----------------------------------------------------------------------
+
