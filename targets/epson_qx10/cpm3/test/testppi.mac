@@ -1,0 +1,179 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS test centronix interface
+
+	name	('TESTPPI')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; A	Jun 83 - Based on Xerox version C
+;
+;------------------------------------------------------------------
+
+	cseg		;GENCPM puts CSEG code in resident common memory
+
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+;-----------------------------------------------------------------
+; I/O Selector - MAIN SYSTEM
+; Device is selected by address lines A2, A3, A4, A5 with A6, A7 zero
+; Address lines A0 and A1 are optional used to control the device
+;-----------------------------------------------------------------
+
+clk$a	equ	0000b shl 2	;8253 counter timer
+clk$b	equ	0001b shl 2	;8253 counter timer
+
+int$a	equ	0010b shl 2	;8259 interrupt controller
+int$b	equ	0011b shl 2	;8253 interrupt controller
+
+sio	equ	0100b shl 2	;7201 sio (keybaord/serial port)
+
+;---------------------------------------------------------------------
+; Centronix Parallel Output Port (PPI) - printer
+; Set to MODE 1: 2 channels of 8 data lines + 4 control lines 
+ppi	equ	0101b shl 2	;8255 ppi centronics printer port
+ppi$ad	equ	ppi+00b		;PIO data port (port A)
+ppi$bs	equ	ppi+01b		;PIO status port (port B)
+ppi$cc	equ	ppi+10b		;PIO control port (port C)
+ppi$cmd	equ	ppi+11b		;PIO 8255 command
+;	status bits for Centronix Interface
+ppi$dsr	equ	0	; DSR - not used
+ppi$err	equ	3	; input: ERR: error signal from printer
+ppi$npa	equ	4	; input: NPA: no paper signal from printer
+ppi$rdy	equ	5	; input: RDY: ready for output to printer
+ppi$pef	equ	6	; input: PWF: printer power down alarm
+ppi$slo	equ	7	; input: SLO: printer operational (not error)
+;	control bits for Centronix Interface
+ppi$c0	equ	0	; output: strobe pulse generated when data sent
+ppi$c3	equ	3	; interrupt: connected to 8259A controller
+ppi$c4	equ	4	; output: ALF: force line feed after printing data
+ppi$c5	equ	5	; output: RST: reset printer
+ppi$c6	equ	6	; input: ACK: printer acknowledges reset of data
+
+
+bank	equ	0110b shl 2	;Memory bank register
+prom	equ	0111b shl 2	;PROM memory select
+cmos	equ	1000b shl 2	;CMOS memory select
+
+crt$a	equ	1011b shl 2	;7220 CRT driver
+
+motor	equ	1100b shl 2	;Motor timer
+fdc	equ	1101b shl 2	;765A floppy disc controller
+
+crt$b	equ	1110b shl 2	;7220 CRT driver
+
+clock	equ	1111b shl 2	;clock (battery powered)
+
+;-----------------------------------------------------------------
+; I/O Port allocation - MAIN SYSTEM
+; The above I/O devices may have sub-devices controllled
+; Address lines A0 and A1, or different usuage
+; depending on whether read or write
+;-----------------------------------------------------------------
+
+
+
+
+
+;-----------------------------------------------------------------
+; I/O devices - additional devices
+; Device is selected by address lines A2, A3, A4, A5 with A6 or A7 non zero
+; Address lines A0 and A1 are optional used to control the device
+;-----------------------------------------------------------------
+
+dma$1	equ	010000b shl 2	; 8237 dma controller #1
+dma$2	equ	010100b shl 2	; 8237 dma controller #2
+
+gpib	equ	100010b shl 2	; GPIB Interface Q101E
+
+fiber	equ	100101b shl 2	; Optical fiber Interface Q100F
+
+pulse	equ	100111b shl 2	; Pulse transformer Interface Q10PT
+
+adda	equ	101000b shl 2	; AD/DA Interface Q10AD
+
+Xrs232	equ	101001b shl 2	; RS-232 Interface Q10RS
+
+modem	equ	101100b shl 2	; MODEM Interface Q10DM
+
+;-----------------------------------------------------------------
+
+
+
+	ld	hl,message
+nxtchr:
+	ld	a,(hl)
+	or	a
+	jp	z,warm
+	ld	c,a
+wait:	call	pio$ost
+	or	a
+	jp	z,wait
+	call	pio$out
+	inc	hl
+	jp	nxtchr
+warm:	ret		; return to CCP
+
+
+message:
+	db	'Just testing centronix port',0dh,0ah,0
+
+
+;------
+; Centronics Parallel Output Port
+;
+pio$out:
+	in	a,(ppi$bs)	; test status
+	and	1 shl ppi$rdy; test ready bit
+	jr	nz,pio$out	; wait if not ready
+
+	ld	a,c
+	out	(ppi$ad),a	;output character
+
+	xor	a
+	out	(ppi$cmd),a	; strobe
+	inc	a
+	out	(ppi$cmd),a
+	ret
+	ld	a,0dh
+	out	(ppi$cmd),a	; enable PIO
+	ret
+
+;
+	ld	a,10		; delay to allow character to be read
+pio$del:			; dont know if this is necessary
+	dec	a		; as not in 820 manual	
+	jr	nz,pio$del	; but is used by Balcones ROM
+	ret
+
+;*;	in	a,(g$pio$bd)
+;*;	and	not (1 shl g$pio$strb)	; raise strobe
+;*;	out	(g$pio$bd),a
+;*;	or	(1 shl g$pio$strb)	; terminate strobe
+;*;	out	(g$pio$bd),a
+
+;------
+; Centronics Parallel Output Port Status
+;
+pio$ost:
+	in	a,(ppi$bs)	; read status
+	cpl
+	and	1 shl ppi$rdy	; test ready bit
+	ret	z		; return FALSE if not ready
+	or	-1
+	ret			; return TRUE if ready
+
+;---------------------------------------------------------------
+
+	end
