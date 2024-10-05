@@ -1,0 +1,5946 @@
+
+
+
+	title	EPSON QX-10 - Configuration program
+
+	name	('CONFG')
+
+	vers	Equ	10	;release version
+;------------------------------------------------------------------
+; EPSON QX-10 Utility to Alter the CP/M3.sys file
+;
+; Author: A. Clarke, 11 Sun Street, London E.C.2.
+; Date: 28th February 1984
+;------------------------------------------------------------------
+;copyright A.R.M.C. 1984
+	cseg
+
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+vers22	equ	22h	; CP/M version number
+vers31	equ	31h	; CP/M version number
+rev	equ	'A'	; Utility version
+
+;*** Device Table Constants ***
+
+mb$input	equ	00000001b	; device may do input
+mb$output	equ	00000010b	; device may do output
+mb$in$out	equ	mb$input + mb$output
+mb$softbaud	equ	00000100b	; software selectable baud rate
+mb$serial	equ	00001000b	; device may use protocol
+mb$xonxoff	equ	00010000b	; XON/XOFF protocol enabled
+
+baud$none	equ	0	; no baud rate associated with device
+baud$50		equ	1	; 50 baud
+baud$75		equ	2	; 75 baud
+baud$110	equ	3	; 110 baud
+baud$134	equ	4	; 134 baud
+baud$150	equ	5	; 150 baud
+baud$300	equ	6	; 300 baud
+baud$600	equ	7	; 600 baud
+baud$1200	equ	8	; 1,200 baud
+baud$1800	equ	9	; 1,800 baud
+baud$2400	equ	10	; 2,400 baud
+baud$3600	equ	11	; 3,600 baud
+baud$4800	equ	12	; 4,800 baud
+baud$7200	equ	13	; 7,200 baud
+baud$9600	equ	14	; 9,600 baud
+baud$19200	equ	15	; 19,200 baud
+
+
+;*** Macros ***
+@CHK	macro	?dd
+	if (?dd gt 7fH) and (?dd lt 0FF80H)
+.printx "Displacement range error"
+	endif
+	endm
+
+LBCD	macro	?NNNN
+	db	0EDH,4BH
+	DW	?NNNN
+	endm
+
+SBCD	macro	?NNNN
+	db	0EDH,43H
+	DW	?NNNN
+	endm
+
+LSPD	macro	?NNNN
+	db	0EDH,07BH
+	DW	?NNNN
+	endm
+
+SSPD	macro	?NNNN
+	db	0EDH,073H
+	DW	?NNNN
+	endm
+
+LDIR	macro	
+	DB	0EDH,0B0H
+	endm
+
+LDDR	macro
+	DB	0EDH,0B8H
+	endm
+
+LDED	macro	?NNNN
+	DB	0EDH,5BH
+	DW	?NNNN
+	endm
+
+DJNZ	macro	?N
+	DB	10H,?N-$-1
+	endm
+
+JRNZ	macro	?N
+	DB	20H,?N-$-1
+	endm
+
+JRNC	macro	?N
+	DB	30H,?N-$-1
+	endm
+
+JRC	macro	?N
+	DB	38H,?N-$-1
+	endm
+
+JMPR	macro	?N
+	DB	18H,?N-$-1
+	endm
+
+JRZ	macro	?N
+	DB	28H,?N-$-1
+	endm
+
+RALR	macro	?R
+	DB	0CBH,10H+?R
+	endm
+
+RARR	macro	?R
+	DB	0CBH,18H+?R
+	endm
+
+SRLR	macro	?R
+	DB	0CBH,38H+?R
+	endm
+
+BIT	macro	?N,?R
+	DB	0CBH,?N*8+?R+40H
+	endm
+
+SETB	macro	?N,?R
+	DB	0CBH,?N*8+?R+0C0H
+	endm
+
+
+CCIR	macro
+	db	0EDH,0B1H
+	endm
+
+DSBC	macro	?R
+	db	0EDH,?R*8+42H
+	endm
+
+DADC	macro	?R
+	db	0EDH,?R*8+4AH
+	endm
+
+
+
+
+;*** ascii codes ***
+cr	Equ	0dh		;carriage return
+lf	Equ	0ah		;line feed
+eof	Equ	1ah		;end of file code
+ff	Equ	0ch		;form feed
+esc	Equ	1bh		;escape char for cursor control
+bspace	Equ	08		;backspace
+tab	Equ	09h		;tab
+
+;*** Arrow Key Assignments ***
+
+Up.Arrow	Equ	1eh
+Down.Arrow	Equ	1fh
+Left.Arrow	Equ	1dh
+Right.Arrow	Equ	1ch
+	;these are the default settings!
+
+;*** Direct BIOS offsets ***
+
+CI	Equ	6	;conin
+CO	Equ	9	;conout
+LI	Equ	12	;listout
+
+
+
+
+;*** Logical Constants ***
+	TRUE	Equ		-1
+	FALSE	Equ		0
+
+;*** CP/M addresses ***
+
+bios	Equ	0001h	;pointer to BIOS jump table
+bdos	Equ	0005h	;BDOS entry point
+boot	Equ	0000h	;Home time
+dfcb	Equ	005ch	;Default FCB location
+dbuf	Equ	0080h	;CCP parameter buffer and DMA buffer
+
+;*** BDOS Command Constants ***
+
+setdma		Equ	26
+read		Equ	20
+write		Equ	21
+read.random	Equ	33
+write.random	Equ	34
+
+;*** Program Constants *** 
+
+Bsize		Equ	256		;size of our logical block
+Not.Allocated	Equ	0FFFFH
+Unmodified	Equ	0000H
+
+;*** Dynamically Loaded Variables ***
+Header.record:	;of the SYS file
+
+
+Top.Page.Res:		db	000	;Top page + 1 of the resident portion
+Length.res:		db	000	;Length (pages) of the resident bit
+Top.Page.Bank:		db	000	;Top page + 1 of the Banked portion
+Length.Bank:		db	000	;Length (pages) of the Banked bit
+Cold.Boot.address:	dw	000	;Cold boot entry point
+
+our.pointer.table:
+key.table.pointer:	dw	000	;points to keyboard translation
+PFK.pointer.pointer:	dw	000	;points to pointer array for PFKs
+country:		dw	000
+printer:		dw	000
+font:			dw	000
+sio0a.pointer:		dw	000	;pointer to config table
+sio0b.pointer:		dw	000	;pointer to config table
+sio1a.pointer:		dw	000	;pointer to config table
+sio1b.pointer:		dw	000	;pointer to config table
+sio2a.pointer:		dw	000	;pointer to config table
+sio2b.pointer:		dw	000	;pointer to config table
+
+revision.no:		db	000	;CPM3.SYS rev no.
+No.QX.Functions:	db	000	;no. of super functions
+devtbl.pointer:		dw	000	;device table pointer
+little.font:		dw	000	;address of the little font
+
+;*** Working Variables ***
+
+Banked:			db	false	;are we accessing banked stuff?
+operation:		db	read	;current file operation
+fcbad:			dw	00	;This always points to the current FCB
+load.address:		dw	000	;load memory address register
+
+maximum:		dw	000	;working register of stringlength
+correct.image:		dw	000	;pointer to location in handy.buffer
+ad.of.pfkstring:	dw	000	;
+pointer.table:		dw	000	;
+
+
+
+handy.buffer:		ds	32	;just that!
+our.buffer:		ds	160	;for reading sequential records
+
+;*** Static FCBs ***
+
+SYS.FCB:	db	1,'CPM3    SYS',0,0,0,0
+		db	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+		db	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+
+;*** Buffer Address Assignments ***
+
+buf1	Equ	 Program.end + (bsize * 1)
+buf2	Equ	 Program.end + (bsize * 2)
+buf3	Equ	 Program.end + (bsize * 3)
+buf4	Equ	 Program.end + (bsize * 4)
+buf5	Equ	 Program.end + (bsize * 5)
+buf6	Equ	 Program.end + (bsize * 6)
+buf7	Equ	 Program.end + (bsize * 7)
+buf8	Equ	 Program.end + (bsize * 8)
+buf9	Equ	 Program.end + (bsize * 9)
+buf10   Equ	 Program.end + (bsize * 10)
+buf11	Equ	 Program.end + (bsize * 11)
+buf12	Equ	 Program.end + (bsize * 12)
+buf13	Equ	 Program.end + (bsize * 13)
+buf14	Equ	 Program.end + (bsize * 14)
+buf15	Equ	 Program.end + (bsize * 15)
+buf16	Equ	 Program.end + (bsize * 16)
+upstairs	set	Program.End + (Bsize * 17)
+	;past the end of the program
+	
+
+;----------------------------------------------------------------------------
+;Variables
+;--------------------------------------------------------------
+	
+column:	db	00		;column on vdu
+line:	db	00		;line on vdu
+margin:	db	00	;margin for menu selection
+startline:db	00	;of menu
+str.array::
+DW	00	;pointer to array used for menu selection
+offset:	DW	00
+highlt:	db	00	;the array element that is highlit(currently selected
+flip.flop:db	0ffh	;are we moving up or down the menu
+Ch.Starting:	db	' '	;character starting the menu item
+Ch.Finishing:	db	' '	;character finishing the menu item
+selection:	db	00	;remembered selection
+We.Highlight:		db	000	;do we do an inverse video highlight?
+Option.configurable:	db	000	;the current option being configured
+Current.Port:		db	000	;the current port being configured
+
+;---------------------------------------------------------------
+;
+;Machine-specific graphics and console routines
+;
+;---------------------------------------------------------------
+
+;*** cursor control codes ***
+	db	'Copyright MML Ltd (c) 1983'
+
+;*** all patches as in wordstar ***
+clear:	Db	02,27,'+',00,00,00;clear screen string
+clead1:	Db	02,27,61,00	;yx cursor addressing lead-in
+linoff:	Db	20h		;offset to add
+coloff:	Db	20h
+
+
+
+;*** other vdu patches in addition ***
+char.starting.highlight:
+	DB	'('	;additional emphasis for selected option
+;for menu selection
+char.finishing.highlight:
+	DB	')'	;see above
+;for menu selection
+	
+uscore:	db	'_'	;not used
+ivonº	db	02,27,"0",00,00,00,00	;string to switch on inverse
+ivoff:	db	04,27,"1",27,"7",00,00	;string to switch off all highlighting
+ivon2:	db	02,27,"6",00,00,00,00 	;string to switch on intensity
+
+
+;cursor turn off/on strings
+on.cursor:Db	02,1bh,'3',00	;switch on the cursor
+off.cursor:Db	02,1bh,'2',00	;switch off the cursor
+
+;screen switching strings
+upper.screen:Db	2,1bh,"u",00;switch to upper screen
+lower.screen:Db	2,1bh,"v",00;switch to lower screen
+
+;mode switching strings
+grfiks:	Db	2,1bh,'g',00	;enter graphics
+no.grfix:Db	2,1bh,'h',00	;exit graphics mode
+
+	
+
+
+;----------------------------------------------------------------------------
+;*** Console i/o primitives ***
+
+
+	subttl  'DIRECT BIOS SUBROUTINES'
+
+biospb:	ds	8
+
+
+;----------------------
+;-- BIOS Interaction --
+;----------------------
+
+BIOS	Macro	A$,OFFSET
+A$:	LHLD	0001H
+	LXI	D,OFFSET
+	DAD	D
+	PCHL	
+	endm
+
+BIOS	CONST,3		;define console status routine
+BIOS	CONOUT,9	;and the console output routine
+;
+.z80
+priviliged:	;a secret call to get the SIO table address
+	ld	de,-3		;cold boot
+dir_bios:
+	LD	hl,(bios)	;entry BIOS
+	ADD	hl,DE
+	JP	(hl)		; direct BIOS call
+
+devini:	;live device initialisation
+	ld	de,20*3
+	jr	dir_bios
+
+devtbl:	;live device table pointer mechanism
+	ld	de,19*3
+	jr	dir_bios
+
+.8080
+
+;------------------------
+;-- BDOS Character I/O --
+;------------------------
+
+subttl  'BDOS CHARACTER SUBROUTINES'
+
+;*** BASIC CONSOLE I/O ROUTINES ***
+
+putchar:
+	push	h	;send the byte in A to the console
+	push	d
+	push	b
+	MOV	C,A
+	call	CONOUT	;out it goes
+	pop	b
+	pop	d
+	pop	h
+	ret	;we saved the registers
+
+
+TYI:	push	h	;get the character from the keyboard
+	push	d
+	push	b
+	call	CONIN	;get the character from the BIOS
+	pop	b
+	pop	d
+	pop	h
+	ret
+
+
+MSG:	MOV	A,M	;print String preceded by a count byte
+	MOV	B,A	;get count byte
+	ORA	A	;is it a null string
+	RZ	;if null string, then go home
+..loop11:
+	INX	H	;point to next ASCII byte
+	MOV	A,M	;get it
+	PUSH	H
+	PUSH	B
+	CALL	putchar	;send it to the console
+	POP	B
+	POP	H
+	DCR	B	;any more to do
+	RZ	;if not go home
+	JMP	..loop11	;otherwise do the next byte
+.z80
+
+CONIN:
+	call	curon		;switch on the cursor
+	LD	DE,CI		;console input
+	CALL	dir_bios
+	push	af
+	call	curoff		;switch it back off
+	pop	af
+	CP	'A' OR 20H
+	RET	C
+	CP	('Z' OR 20H)+1
+	RET	NC
+	AND	5FH		;small alph -> large alph
+	RET
+
+;-----;
+strout:
+;-----;
+	ld	a,(hl)
+	or	a
+	ret	z
+;
+;
+	push	hl
+	call	putchar
+	pop	hl	;send out null-terminated string
+	inc	hl
+	jr	strout	;to console
+
+
+bell:	push	hl
+	push	de	;ring the bell
+	push	bc
+	push	af
+	ld	e,07h		; BELL
+	ld	c,6		; BDOS Direct Console output
+	call	bdos
+	pop	af
+	pop	bc
+	pop	de
+	pop	hl
+	ret
+
+getchar:
+	ld	c,1		;conin
+	call	bdos
+conuc:	cp	'a'	;from the console
+	ret	c
+	cp	'z'+1
+	ret	nc
+	and	5fh		; remove case bits
+	ret
+.8080
+
+;*** Fundemental utilities ***
+
+addhl:	;Add A to HL
+	add	l
+	mov	l,a
+	rnc
+	inr	h
+	ret
+
+cmp16:	;compare de with hl zero and carry set
+	mov	a,h
+	sub	d
+	rnz
+	mov	a,l
+	sub	e
+	ret
+
+dsub:	;iss the equivalent of dad
+	mov	a,l
+	sub	e
+	mov	l,a
+	mov	a,h
+	sbb	d
+	mov	h,a
+	rnz
+	inr	l
+	dcr	l
+	ret
+
+;----------------------------------------------------------------------------
+move:	;do an intelligent move from (HL) to (DE), BC bytes
+	mov	a,c
+	ora	b	;nothing to do if BC=Zero
+	rz
+	call	 cmp16
+	rz	;as there is nothing to do
+	jc	..up.we.go
+	ldir
+	ret
+..up.we.go:	dad	b
+	xchg
+	dad	b
+	dcx	h
+	dcx	d
+	xchg
+	lddr
+	ret
+
+		
+;*** Useful Subroutines ***
+
+;---------------------------------------------------------------------------
+HexOut:	;types out the value in A in Hexadecimal
+	push	psw
+	rrc
+	rrc
+	rrc
+	rrc
+	call	outchr
+	pop	psw
+outchr:
+	Ani	0fH
+	adi	90H
+	daa
+	aci	40H
+	daa
+	jmp	putchar
+	
+;--------------------------------------------------
+DECOUT: ;types out the contents of HL on the console
+;in decimal.
+
+	PUSH	B
+	PUSH	D
+	PUSH	H
+	LXI	B,-10	;-Radix
+	LXI	D,-1
+..1xloop:	DAD	B	;repeated subtraction
+	INX	D
+	JC	..1xloop
+	LXI	B,10
+	DAD	B
+	XCHG
+	MOV	A,H
+	ORA	L
+	CNZ	DECOUT	;recursive call
+	MOV	A,E
+	ADI	'0'
+	CALL	putchar
+	POP	H
+	POP	D
+	POP	B
+	RET
+
+;----------------------------------------------------------------------------
+INTEGER:	;convert a number in memory from 
+;ASCII to Binary. HL points to string (null term!!)
+	push	h	;save pointer
+;has it got a radix qualifier?
+	
+	mov	c,m
+	mvi	b,0
+	dad	b	;point to last character
+..back1:	mov	a,m
+	cpi	" "
+	jrnz	..hop6
+	dcx	h
+	jmp	..back1
+..hop6:	cpi	"9"+1	;is it a letter?
+	lxi	h,radix	;default radix
+	mvi	m,10
+	jrc	..no.radix
+	call	conuc
+	cpi	"H"
+	mvi	M,16
+	jrz	..1on
+	cpi	"O"
+	mvi	m,8
+	jrz	..1on
+	cpi	"B"
+	mvi	m,2
+	jrz	..1on
+	mvi	m,10
+..1on:	
+..no.radix:
+	pop	h
+	inx	h	;bump over count byte
+ 	lxi	d,0	;initialise accumulator
+	xchg
+..2xloop:	ldax	d
+	call	conuc
+	sui	'0'	;make character binary
+	ana	a
+	rm	;illegal character
+	cpi	10
+	jc	..hoppity
+
+	sui	("A"-"9")-1
+..hoppity:
+	push	h
+	lxi	h,radix
+	cmp	m
+	cmc
+	pop	h
+	rc	;illegal character
+	inx	d	;increment pointer
+	mov	c,a
+	mvi	b,0
+	lda	radix
+	dad	h
+	cpi	2
+	jz	..onwards
+	push	b	;save current value
+	push	h
+	dad	h	;*4
+	dad	h	;*8
+	pop	b
+	cpi	8
+	jz	..over.we.go
+	cpi	16
+	jz	..over.we.go
+	dad	b
+..over.we.go:	pop	b
+	cpi	16
+	jrnz	..onwards
+	dad	h
+..onwards:
+	dad	b
+	jmp	..2xloop	;do the next
+
+radix:	DB	10
+
+
+;----------------------------------------------------------------------------
+BIN:	;gets a figure of up to nine digits and converts it into an integer.
+;Integer in HL and the LSB in A reg. Accepts Hex, octal or binary if given
+;a qualifier........eg D0H or 010110B	
+	push	b
+	call	..2on
+	DB	09	;buffer maximum
+	ds	11	;buffer length
+..2on:	pop	h	;point HL to our buffer
+	push	h
+	xra	a
+	mvi	b,11
+..3xloop:	inx	h	;zero out the Buffer
+	mov	m,a
+	dcr	b
+	jnz	..3xloop
+	pop	d	;point DE to buffer
+	push	d
+	mvi	c,10
+	call	bdos	;and do the BDOS call
+	pop	h
+	inx	h
+	call	integer	;now convert the result into an integer
+	mov	a,l
+	POP	B
+	RET	;	with HL and A holding the integer
+
+
+
+; Program entry point
+
+start::	;it all starts here folks
+.z80
+;set our local stack
+	ld	sp,(bdos+1)
+	dec	sp
+	dec	sp
+	dec	sp
+	ld	c,12		; BDOS return version number
+	call	bdos
+	cp	031h		; Check that the right version of CP/M
+	jp	nz,notcpm3
+	ld	a,h
+	or	a
+	jp	nz,notcpm3
+;check for QX+
+	ld	c,50		; BDOS Direct BIOS calls
+	ld	de,BIOSPB
+	ld	a,30		; Customised BIOS entry point
+	ld	(de),a		; requires no other registers
+	call	BDOS		; Check that the right machine 
+	cp	'A'		; Epson BIOS returned version
+	jp	z,onwards.confidently
+;-----------------------------------------;
+; Program not loaded under CP/M3 on Epson ;
+;-----------------------------------------;
+notcpm3:
+	ld	hl,cpm3msg
+	call	strout
+
+	ld	c,0
+	jp	bdos		; and terminate program
+
+cpm3msg:
+	db	'CONFIG - Requires CP/M + on Epson QX-10',cr,lf,0
+
+
+onwards.confidently:
+	ld	hl,hello.string
+	call	msg		;split the screen and print title
+	ld	hl,instruct
+	call	strout		;print the instructions
+	ld	hl,OK
+	call	msg
+	call	curoff
+ 	call	getchar		;and throw it away
+	cp	3
+	push	af
+	ld	hl,tidy.up
+	call	msg
+	pop	af
+	jp	z,0000H
+.8080
+;make the CPM3.SYS into the current file
+	lxi	h,SYS.FCB	;our control block
+	shld	FCBAD		;put it in our file control block pointer
+	call	open		;and open it
+	lxi	d,Dbuf
+;read in the header information into our workspace
+	mvi	c,SetDMA
+	call	Bdos		;get the header record address
+	lxi	d,Sys.FCB
+	mvi	c,read
+	call	Bdos		;read it in simply
+;and move it into our header structure
+	lxi	h,Dbuf
+	lxi	d,Header.Record
+	lxi	b,6		;Length of header stuff
+;this is heady stuff
+.z80
+	ldir
+.8080
+	lhld	cold.boot.address
+	lxi	d,20*3		;get the device table
+	dad	d
+	inx	h		;over JMP address
+	call	find.res.address
+	mov	e,m		;get routine address
+	inx	h
+	mov	d,m
+	xchg
+	call	find.res.address
+	inx	h		;over lxi	h,
+	mov	e,m
+	inx	h
+	mov	d,m
+	xchg
+	shld	devtbl.pointer		;get the device table
+
+	lhld	Cold.Boot.Address
+	lxi	d,30*3		;offset to user call
+	dad	d
+	inx	h		;point to place user jumps to
+	call	Find.Res.Address
+;get the pointer information into HL
+	mov	e,m
+	inx	h
+	mov	d,m
+	xchg
+;HL contains the place userf jumps to.
+	inx	h	;over the jmp instruction
+	call	find.res.address
+	mov	e,m	;
+	inx	h
+	mov	d,m
+;DE has the pointer to the base of the extra bios table
+	xchg
+	inx	h	;points to pointer to biosptr
+	call	find.res.address
+;HL has the real address of the userf function+1
+	mov	e,m
+	inx	h
+	mov	d,m
+;DE has the QXbios address
+ 	inx	h	;point to mvi	a instruction
+	inx	h	;point to revision no.
+	mov	a,m
+	sta	revision.no
+	inx	h
+	inx	h
+	mov	a,m	;get the no of QX functions
+	sta	no.QX.functions
+	xchg
+;HL has the real pointer to the private bios 
+	call	find.res.address
+	inx	h	;jump over LXI H
+	mov	e,m
+	inx	h
+	mov	d,m
+	inx	h
+	inx	h	;bump over LDA
+	mov	a,m	;get noptrs
+	add	a	;calculate no. of bytes
+	mov	c,a
+	mvi	b,0
+	push	b
+	xchg		;get the real pointer address
+	call	find.res.address
+	pop	b
+;BC has the table length
+	lxi	d,our.pointer.table
+.z80
+	ldir
+.8080
+;we now have initialised our pointer table
+;didnt uncle David make it difficult!
+
+;now we first load in our SIO tables
+	lhld	sio0b.pointer	;pointer to config table
+	lxi	d,@sio0b		;destination
+	lxi	b,..table.end-@sio0B	;count
+	call	get.from.sys	;HL contains the 'from' address in load
+;memory, DE contains the real address, BC bytes are read from the system. 
+;the subroutine looks after whether it is banked or TPA
+
+;and copy the whole lot into our workspace
+	lhld	devtbl.pointer		;get the device table
+	lxi	d,@CTBL
+	lxi	b,..ctbl.end-@ctbl
+	call	get.from.sys	;HL contains the 'from' address in load
+;memory, DE contains the real address, BC bytes are read from the system. 
+;and copy the device table into our workspace
+;get the pfk pointer array into our workspace
+
+	lhld	PFK.pointer.pointer	;points to pointer array for PFKs
+	lxi	d,our.pfk.pointer.image
+	lxi	b,19*2
+	call	get.from.sys	;get the function key stuff
+;now we know where the function key strings are!
+
+;now lets get the address of the little fonts
+	lhld	font	;two less than the base of the font
+	dcx	h
+	dcx	h
+	lxi	d,little.font
+	lxi	b,2		;get a word
+	call	get.from.sys
+
+;now we get the lump of meat behind the keyboard to choose an option
+
+Get.a.choice:
+.z80
+	ld	sp,(bdos+1)	;reset our local stack
+	dec	sp		;in case we are recovering
+	dec	sp		;from an error
+	dec	sp
+.8080
+	lxi	h,get.a.choice
+	shld	error.routine	;on error, gosub!
+	call	screen.clear
+	call	hiltoff		;switch off highlighting
+	call	curoff		;switch off the cursor
+	call	nice.box
+	lxi	h,choice.prompt	;inform the user
+	call	strout
+	lxi	h,explain.routines
+	call	strout
+	xra	a
+	sta	highlt		;find what it is at the moment
+;set the choice menu to do
+	lxi	h,choice.array
+	shld	str.array	;point to the country array
+;and where we put it
+	mvi	a,5
+	sta	line
+	mvi	a,15
+	sta	column		;point the cursor
+	call	choose.it	;choose the option
+	cpi	3		;was it control C
+	jz	aborted
+	cpi	1BH
+	jz	leave
+	lda	highlt	;move out the new value
+	add	a
+	lxi	h,subroutines
+	call	addhl
+	mov	e,m	;get the pointer to the subroutine
+	inx	h
+	mov	d,m
+	xchg
+	lxi	d,get.a.choice
+	push	d
+	pchl	;return address is Get.A.Choice, jump to choice
+
+
+subroutines::
+;reset the baud rate and RS232 configuration values
+	dw	set.sios
+;load the Programmable Function Key settings from file
+	dw	set.the.PFKS
+;Set the keyboard and character font for a nationality
+	dw	set.country
+;Load an alternative graphics font from a disk file
+	dw	set.font
+;set the type of printer on the parallel port
+	dw	set.printer
+;leave the program, making the new settings permanent
+	dw	leave
+
+
+leave:
+	call	flush
+	call	close.random
+;Lets hold our breath at this point
+	call	curon
+	lxi	h,leave.msg
+	call	strout
+	jmp	0000
+		
+
+
+;The SYS file is an inverse image of the system in two pieces. The assignment
+;is as follows
+;
+;Sector 0		Header record laid out as above
+;
+;Sector 1		Address Assignment string ($ terminated)
+;
+;Sector 2		start of machine code, top sector
+;
+;To calculate where, in the file, an address is contained, the page no. and
+;offset are separated. the page is subtracted from the top page of the bank
+;minus 1. 1 is then added for the header page. If doing the banked portion,
+;then the length of the resident portion is added
+
+find.virtual.address:	;whether banked or not
+	push	h
+	lhld	op.to.do
+	xthl
+	ret
+op.to.do:	dw	find.res.address
+
+set.banked.or.res:	;by seeing whether the load address is above or
+;below the cold boot address
+;DE= the load address
+	lhld	cold.boot.address
+	call	cmp16
+;if carry set, then it is in common
+	lxi	h,find.res.address
+	jc	..over.it
+	lxi	h,find.bank.address
+..over.it:
+	shld	op.to.do
+	ret
+
+get.from.sys:	;HL contains the 'from' address in load memory, DE contains
+;the real address, BC bytes are read from the system. the subroutine looks 
+;after whether it is banked or TPA
+	push	b	;save the count
+	push	d	;save the 'To' address in real memory
+	xchg
+	call	set.banked.or.res
+	xchg		;source in HL
+	shld	load.address
+	call	find.virtual.address
+;virtual destination in HL
+	pop	d	;restore the real destination address
+;DE contains the virtual memory address
+	pop	b	;save the count
+..another.loop:	;from virtual memory to real memory
+	mov	a,m
+	stax	d
+	inx	h
+	inx	d
+	dcx	b
+	mov	a,c
+	ora	b		;any more to do?
+	rz			;no
+	push	h
+	lhld	load.address	;increment load memory
+	inx	h
+	shld	load.address
+	mov	a,l	;are we on a page boundary?
+	ana	a
+	pop	h
+	jnz	..another.loop	;Keep going unless on page boundary	
+	push	d		;save real memory pointer
+	push	b
+	lhld	load.address
+	call	find.virtual.address
+	pop	b
+	pop	d
+	jmp	..another.loop
+
+
+put.to.sys::	;HL contains the 'from' address in real memory, DE contains
+;the 'load' address, BC bytes are put to the system. the subroutine looks 
+;after whether it is banked or TPA
+	push	b	;save the count
+	push	h
+	call	set.banked.or.res
+	xchg		;destination in HL
+	shld	load.address
+	call	find.virtual.address
+	push	h	;save virtual address
+	call	update	;flag an update
+	pop	d	;virtual destination in DE
+	pop	h	;restore the real source address
+;DE contains the virtual memory address
+	pop	b	;save the count
+..move.loop:	;from real memory to virtual memory
+	mov	a,m
+	stax	d
+	inx	h
+	inx	d
+	dcx	b
+	mov	a,c
+	ora	b		;any more to do?
+	rz			;no
+	push	h
+	lhld	load.address	;increment load memory
+	inx	h
+	shld	load.address
+	mov	a,l	;are we on a page boundary?
+	ana	a
+	pop	h
+	jnz	..move.loop	;Keep going unless on page boundary	
+	push	b
+	push	h		;save real memory pointer
+	lhld	load.address
+	call	find.virtual.address
+	push	h
+	call	update		;flag block as modified
+	pop	d		;put virtual address in DE
+	pop	h
+	pop	b		;count in BC
+	jmp	..move.loop
+
+
+
+;----------------------------------------------------------------------------
+Find.Res.Address:	;HL contains the address within the final file when
+;loaded into memory. Returns HL= the image of that address in a suitable
+;buffer
+	lda	Top.Page.Res
+	cmp	h
+	cmc
+	rnc		;error!!!
+	sub	h	;what page in the file has this?
+to.res.routine:
+	mov	e,a
+	mvi	d,0
+	push	h	;save offset
+;check that our FCB is current
+	lxi	h,SYS.FCB	;our control block
+	shld	FCBAD		;put it in our file control block pointer
+	call	read.page	;Get page (DE), returns address of buffer
+;in DE	
+	pop	h
+	xchg
+	mov	a,e
+	call	addhl
+	stc
+	ret
+	
+;----------------------------------------------------------------------------
+find.Bank.Address:	;HL contains the address within the final file when
+;loaded into memory. Returns HL= the image of that address in a suitable
+;buffer
+whoops::
+	lda	top.page.bank
+	sub	h
+	cmc
+	rnc			;return if error
+	mov	c,a
+	lda	length.res
+	add	c
+	jmp	to.res.routine
+
+;----------------------------------------------------------------------------
+;The following are the LRU blocking routines that enable the pages accessed 
+;to be stored in buffers to minimise the disk shuffle and allow abort without
+;update (assuming you have enough buffers!
+;----------------------------------------------------------------------------
+
+;	(d,e) block #
+;	call rblk (wblk)
+;	(d,e) buffer address
+
+Write.Page:
+	mvi	a,0ffh	;wblk
+	jmp 	blk
+Read.Page:
+	sub 	a		;rblk
+blk:	sta 	flag
+	lhld 	newest	;is block the most recent 
+	mov 	a,e
+	cmp 	m
+	jnz 	blk1	;no
+	inx 	h
+	mov 	a,d
+	cmp 	m
+	jnz 	blk1	;no
+	inx 	h		;yes, return buffer addr
+	mov 	e,m
+	inx 	h
+	mov 	d,m
+	ret
+
+blk1:	lhld 	newest	;search buffer list
+	shld 	bufp
+	xchg
+	shld	blkn
+
+blk2:	lhld 	bufp	;get link to next Buffer Control Table
+	lxi 	d,4
+	call 	ldx
+	mov 	a,d
+	ora 	e
+	jz 	blk3		;end of list, must read in block
+	lhld 	bufp
+	shld 	prev
+	xchg
+	shld	bufp
+	mov 	e,m		;get block #
+	inx 	h
+	mov 	d,m
+	lhld 	blkn	;compare with requested block #
+	mov 	a,h
+	cmp 	d
+	jnz 	blk2	;no
+	mov 	a,l
+	cmp 	e
+	jnz 	blk2	;no
+blk6:	lhld 	bufp	;relink Buffer Control Table's
+	lxi 	d,4
+	call 	ldx
+	push 	d		;save link of current Buffer Control Table
+	lhld 	newest	;reset link of current Buffer Control Table to newest
+	xchg
+	lhld	bufp
+	lxi 	b,4
+	call 	stx
+	lhld 	bufp	;set newest to current Buffer Control Table
+	shld 	newest
+	lhld 	prev	;store saved link in link of previous bct
+	pop 	d
+	lxi 	b,4
+	call 	stx
+	lhld 	bufp	;return buffer address
+	lxi 	d,2
+	call 	ldx
+	ret
+
+blk3:	call 	fbuf	;free a buffer
+	lda 	flag	;rblock q$
+	ora 	a
+	jnz 	blk7	;no
+	lhld 	bufp	;read in block
+	lxi 	d,2
+	call 	ldx
+	lhld 	blkn
+	lxi	b,1
+	call 	RdPage	;Read a page from the file
+blk7:	lhld 	blkn	;store block # in Buffer Control Table
+	xchg
+	lhld	bufp
+	mov 	m,e
+	inx 	h
+	mov 	m,d
+	jmp 	blk6	;relink Buffer Control Table's
+
+fbuf:	lhld 	bufp	;reee a buffer
+	lxi 	d,6		;get modified flag
+	call 	ldx
+	mov 	a,d
+	ora 	e
+	rz		;not modified, return
+	lhld 	bufp	;get block #
+	mov 	e,m
+	inx 	h
+	mov 	d,m
+	push 	d
+	lhld 	bufp	;get buffer addr
+	lxi 	d,2
+	call 	ldx
+	pop 	h
+	lxi	b,1
+	call 	WrPage	;write it back out
+	lhld 	bufp	;clear the modified flag
+	lxi 	d,0
+	lxi 	b,6
+	call 	stx
+	ret		;return
+
+update:	lhld 	newest	;set modified flag on current Buffer Control Table
+	lxi 	d,-1
+	lxi 	b,6
+	call 	stx
+	ret
+
+flush:	lhld 	newest	;free all buffers
+flsh1:	shld 	bufp
+	call 	fbuf	;free a buffer
+	lhld 	bufp	;link to next Buffer Control Table
+	lxi 	d,4
+	call 	ldx
+	mov 	a,d
+	ora 	e
+	rz		;done
+	xchg		;do another one
+	jmp 	flsh1 
+
+ebuf:	lhld 	newest	;set all block numbers to not.allocated
+ebuf1:	shld 	bufp
+	mvi 	m,0ffh
+	inx 	h
+	mvi 	m,0ffh
+	dcx 	h
+	lxi 	d,unmodified
+	lxi 	b,6
+	call 	stx
+	lhld 	bufp	;link to next Buffer Control Table
+	lxi 	d,4
+	call 	ldx
+	mov 	a,d
+	ora 	e
+	rz
+	xchg		;do another one
+	jmp	ebuf1
+
+;indexed load
+;	(de) offset
+;	(hl) base address
+;	call ldx
+;	(de) data
+
+ldx:	dad 	d
+	mov 	e,m
+	inx 	h
+	mov 	d,m
+	ret
+
+;indexed store
+;	(bc) offset
+;	(de) data
+;	(hl) base address
+;	call stx
+
+stx:	dad	b
+	mov 	m,e
+	inx 	h
+	mov 	m,d
+	ret
+;
+
+;
+;----------------------------------------------------------------------------
+;buffer control tables
+bct1:	dw not.allocated;contains the currently allocated block#
+	dw buf1		;buffer address
+	dw bct2		;link- address of the next buffer control table
+	dw unmodified	;modified flag for intelligent flushing
+
+bct2:	dw not.allocated,buf2,bct3,unmodified
+bct3:	dw not.allocated,buf3,bct4,unmodified
+bct4:   dw not.allocated,buf4,bct5,unmodified
+bct5:   dw not.allocated,buf5,bct6,unmodified
+bct6:	dw not.allocated,buf6,bct7,unmodified
+bct7:	dw not.allocated,buf7,bct8,unmodified
+bct8:	dw not.allocated,buf8,bct9,unmodified
+bct9:   dw not.allocated,buf9,bct10,unmodified
+bct10:  dw not.allocated,buf10,bct11,unmodified
+bct11:	dw not.allocated,buf11,bct12,unmodified
+bct12:	dw not.allocated,buf12,bct13,unmodified
+bct13:	dw not.allocated,buf13,bct14,unmodified
+bct14:  dw not.allocated,buf14,bct15,unmodified
+bct15:  dw not.allocated,buf15,bct16,unmodified
+bct16:	dw not.allocated,buf16,00,unmodified
+
+;buffer handler variables
+newest:	dw bct1		;head of bct list
+prev:	dw 0		;buffer strategy temporaries
+bufp:	dw 0
+blkn:	dw 0
+flag:	db 0
+
+
+
+;FILE is the FCB creation routine. It is
+;a macro which is called by invoking 'FILE <X>' where
+;<X> is the string label for the file. The file is
+;made current subsequently by invoking 'CALL <X>"
+
+
+label	set	00
+
+something	macro	n
+.&n:
+	endm
+loadhl		macro	n
+	lxi	h,.&n
+	endm
+
+	
+FILE 	macro   A$		;Macro definition for Workspace and
+;subsequent invocation
+something	%label
+	;create the extended FCB
+	db	0,0,0,0,0,0,0
+	db	0,0,0,0,0,0,0
+	db	0,0,0,0,0,0,0
+	db	0,0,0,0,0,0,0
+	db	0,0,0,0,0,0,0
+	db	0,0,0,0,0,0,0
+	dw	upstairs	;pointer to the buffer
+	db	0,0		;pointer to buffer top
+$&A$:	PUSH 	H		;Define subroutine to make file current
+
+	loadhl	%label
+;Point HL pair to the Extended FCB
+	SHLD	FCBAD		;And make it current
+	POP	H		;save all registers
+	RET 	;and go home
+upstairs	set	upstairs+1024		;buffer itself 
+label		Set	label+1
+;bump the Alloc pointer
+	A$	macro		;Macro to 
+	CALL	$&A$		;invoke the preceeding routine
+	endm
+endm
+
+	
+.Comment	"The following routines help to set up the
+file control block reference macros. these enable
+complex sequential and random file operations to
+be done without fuss. The FCB reference is returned
+in the HL pair"
+
+FCB	macro		;start of the macro
+	LHLD	FCBAD	;get address of current FCB
+	endm		;end of macro
+
+IN.HL:	PUSH	D	;Point to offset in HL of current FCB
+	XCHG
+	FCB		;put address of current FCB in HL
+	DAD	D	;add in offset
+	POP	D	;restore contents of DE
+	RET
+
+FCBREF	macro	A$,OFFSET		;define Macro to define offsets
+$&A$:	LXI	H,OFFSET		;load HL with the offset
+	JMP	IN.HL			;and calculate the offset
+A$	macro			;define macro to define the subroutine
+	CALL	$&A$		;actually do the defined subroutine
+	endm
+	endm
+
+FCBREF	FNAD,1	;address of filename
+FCBREF	FTAD,9	;address of filetype
+FCBREF	EXT,12	;address of file extent no.
+FCBREF	RCO,15	;address of record count
+FCBREF	NR,32	;address of next record no.
+FCBREF	R0,33	;address of random record no.
+FCBREF	R2,35	;address of overflow R0
+;the following are our convenience flags and pointers
+FCBREF	EOF?,36	;address of end of file flag
+FCBREF	WRITE?,37 ;address of write-only flag
+FCBREF	OPEN?,38;address of open? flag
+FCBREF	FULL?,39;address of buffer-full? flag
+FCBREF	OFFSET,40;address of the relative offset
+FCBREF	FBUFF,42;address of buffer base
+FCBREF	TOP,44	;address of top of buffer
+
+	;now all of our offsets are defined
+
+
+
+.Comment "*** PRIMITIVE SEQUENTIAL OPERATIONS ***
+These consist of various routines that use the 
+FCB addressed by the variable FCBAD and allow
+sequential file access for reading and writing
+to sequential files. The core routines are the
+PUTBYT and GETBYT ones which put or get the next
+byte from the current file."
+
+;*** TYPE THE FILENAME IN THE FCB ***
+typfcb:
+	fcb
+SHOW.FCB:
+	MOV	A,M
+	INX	H
+	ANA	A
+.z80
+	Jr	Z,..3ON
+.8080
+	PUSH	H
+	ADI	'A'-1
+	CALL	putchar
+	MVI	A,':'
+	CALL	putchar
+	POP	H
+..3ON:	MVI	B,8
+	CALL	..TYPE
+	MVI	A,'.'
+	PUSH	H
+	CALL	putchar
+	POP	H
+	MVI	B,3
+
+..TYPE:	MOV	A,M
+	CPI	' '
+	PUSH	H
+	PUSH	B
+	CNZ	putchar
+	POP	B
+	POP	H
+	INX	H
+	DCR	B
+	JNZ	..TYPE
+	RET
+
+;----------------------------------------------------------------------------
+WOPEN:		;opens a file for sequential writing. Erases any existing
+;version etc.
+	PUSH	H	;save contents of HL register
+	FCB		;get the address of the current fcb in HL
+	XCHG		;DE points to the FCB
+	MVI	C,19	;delete the existing version
+	PUSH	D	;save pointer to the FCB
+	CALL	BDOS
+	POP	D	;restore FCB pointer
+	MVI	C,22	;make the new file directory entry
+	CALL	BDOS
+	INR	A	;was there an error?
+	LXI	H,WO.ERR;point to error string in anticipation
+	JZ	ERROR	;if there was an error
+	EOF?		;point to the End-of-file flag
+	MVI	M,FALSE	;and set it to false
+	INX	H		;point to WRITE flag
+	MVI	M,TRUE	;flag it as true
+	INX	H	;point to OPEN flag
+	MVI	M,TRUE	;flag it as true
+	POP	H	;restore HL
+	RET
+
+
+;*** OPEN A FILE FOR READING or Random Access Work ***
+
+OPEN:	PUSH	H	;save HL 
+	FCB		;point to the current FCB
+	XCHG		;FCB pointer in DE
+	MVI	C,15	;open the file
+	CALL	BDOS
+	INR	A	;was there an error?
+	LXI	H,O.ERR	;point to error string in anticipation
+	JZ	ERROR	;if zero set, jump to error
+	EOF?		;point to end of file flag
+	MVI	M,FALSE	;and set it to false
+	INX	H	;point to WRITE flag
+	MVI	M,FALSE	;not write
+	INX	H	;point to open flag
+	MVI	M,TRUE	;open
+	POP	H	;restore HL
+	RET
+
+
+
+;*** close a Random Access file ***
+
+close.random:
+	PUSH	H	;save HL 
+	FCB		;point to the current FCB
+	XCHG		;FCB pointer in DE
+	MVI	C,16	;close the file
+	CALL	BDOS
+	INR	A	;was there an error?
+	LXI	H,c.ERR	;point to error string in anticipation
+	JZ	ERROR	;if zero set, jump to error
+	EOF?		;point to end of file flag
+	MVI	M,true	;and set it to true
+	INX	H	;point to WRITE flag
+	MVI	M,FALSE	;not write
+	INX	H	;point to open flag
+	MVI	M,false ;closed
+	POP	H	;restore HL
+	RET
+
+;----------------------------------------------------------------------------
+Do.Buffer:	;read 1K from file into the buffer
+;A=true if end of file, otherwise false
+;DE points to the buffer top
+	fbuff
+	mvi	b,8		;sectors to do
+	mov	e,m
+	inx	h
+	mov	d,m
+	inx	h
+do.B.sectors:
+;HL points to TOP, B has the number of sectors to do, DE has the DMA address  
+;operation has the desired disk operation to do
+;A=true if end of file, otherwise false
+	push	h		;points to TOP
+;pick up the buffer address in DE
+	mvi	c,true		;assume the end of file
+..4xloop:
+	push	d		;save the DMA
+	push	b		;save the count
+	mvi	c,setdma
+	call	bdos
+	fcb
+	xchg
+	lda	operation	;either read or write
+	mov	c,a
+	call	bdos
+	ana	a		;was it successful?
+	pop	b		;restore the count
+	pop	d		;restore DMA
+.z80
+	jr	nz,..end
+.8080
+	lxi	h,128		;bump the DMA address
+	dad	d
+	xchg
+.z80
+	djnz	..4xloop
+.8080
+	mvi	c,false		;we made it, did one K!!
+..end:	pop	h		;restore pointer to TOP
+	mov	m,e
+	inx	h
+	mov	m,d
+	mov	a,c		;was it end of the file
+	ana	a
+	ret	
+
+;*** GETBYTE GETS THE NEXT BYTE ***
+
+GETBYTE:	;from the current FCB into A register
+;EOF%,36	;address of end of file flag
+;WRITE%,37 ;address of write-only flag
+;OPEN%,38	;address of open? flag
+;FULL%,39	;address of buffer-full? flag
+;OFFSET,40	;address of the relative offset
+;FBUFF,42	;address of buffer base
+;TOP,44		;address of top of buffer
+;returns Non-Zero if End of file
+	EOF?		;point to EOF flag
+	MOV	A,M	;what is in it
+	ANA	A
+	RNZ		;return non-zero if end of file reached
+	INX	H	;are we getting from a file for writing?
+	ora	m
+	CNZ	..ERR	;if so, then we cannot allow this
+	INX	H	;is the file open?
+	MOV	A,M
+	ANA	A
+	CZ	OPEN	;if it is not open then open it
+	INX	H	;point to FULL flag
+	MOV	A,M
+	ANA	A	;if not then fill it
+..1back:
+	CZ	RDBUFF
+	inx	h
+	push	h	;save pointer to offset
+	mov	c,m	;get the offset in BC
+	inx	h
+	mov	b,m
+	inx	h
+	mov	e,m	;get the pointer in DE
+	inx	h
+	mov	d,m
+	inx	h
+	mov	a,m	;get the buffer top pointer in HL
+	inx	h
+	mov	h,m
+	mov	l,a
+	xchg
+	dad	b	;point to next byte in HL
+	call	cmp16
+	pop	d	;restore pointer to offset in DE
+.z80
+	jr	c,..1no.sweat
+.8080
+	mvi	a,04	;was the last read incomplete?
+	cmp	b
+	jnz	..1eof	;last read was incomplete
+	FULL?
+	jmp	..1back	;with zero set, try again!
+..1no.sweat:
+
+	MOV	A,M	;get the byte
+	xchg
+	inx	b	;bump the pointer
+	mov	m,c	;and save it
+	inx	h
+	mov	m,b
+	cmp	a	;set zero for success
+	RET	;and return
+
+..ERR:	INX	H	;the error routine
+	MOV	A,M	;is it a closed file for writing
+	DCX	H	;if so then
+	ANA	A	;it is safe to open it
+	JZ	OPEN
+	LXI	H,GB.ERR	;otherwise it is an error
+	JMP	ERROR
+
+..1eof:
+	eof?
+	mvi	a,true
+	mov	m,a
+	ana	a
+	mvi	a,1AH		;put EOF in A
+	ret
+
+;*** PUTBYTE PUTS THE NEXT BYTE ***
+
+PUTBYTE::	;put the byte in A into the current file
+	MOV	C,A	;save it in C
+	WRITE?	;point to the WRITE flag
+	MOV	A,M	;get the write flag
+	ANA	A	;is it for writing?
+	PUSH	B
+	CZ	..1ERR	;if not then we do not allow it
+	INX	H	;point to OPEN flag
+	MOV	A,M	;get it
+	ANA	A	;is the file open?
+	CZ	WOPEN	;if not then open it
+	INX	H	;point to FULL flag
+..back2:
+	inx	h
+	push	h	;save pointer to offset
+	mov	c,m	;get the offset in BC
+	inx	h
+	mov	b,m
+	inx	h
+	mov	e,m	;get the buffer pointer in DE
+	inx	h
+	mov	d,m
+	xchg
+	dad	b	;point to next byte in HL
+	pop	d	;restore pointer to offset in DE
+	mov	a,b
+	cpi	04	;is buffer full?
+.z80
+	jr	nz,..no.sweat
+.8080
+	call	wtbuff
+	FULL?
+.z80
+	jr	z,..back2	; try again!
+.8080
+	LXI	H,WO.ERR	;announce failure in case
+	JMP	ERROR
+..no.sweat:
+	xchg
+	inx	b	;bump the pointer
+	mov	m,c	;and save it
+	inx	h
+	mov	m,b
+	xchg
+	pop	b
+	MOV	m,c	;put the byte
+	cmp	a	;set zero
+	RET	;and return
+
+
+..1ERR:	INX	H	;point to OPEN flag
+	MOV	A,M	;is it open at all?
+	DCX	H	;if closed then it is all right
+	ANA	A	;to WOPEN it
+	JZ	WOPEN
+	LXI	H,PB.ERR	;otherwise an error
+	JMP	ERROR	;jump to the error handler
+
+..eof:
+	pop	b	;jettison the byte to put
+	eof?
+	mvi	a,true
+	mov	m,a
+	ana	a
+	ret
+
+
+CLOSE::	WRITE?	;is this file for writing?
+	MOV	B,M	;save truth in B
+	INX	H	;point to OPEN flag
+	MOV	A,M	;is it open
+	INX	H	;point to the relative offset
+	inx	h
+	ana	a
+	RZ		;nothing to do
+	MOV	A,B	;was it for writing?
+	ANA	A
+	CNZ	..SUB	;we need to put in an EOF if ASCII file
+	FCB	;point to the FCB
+	XCHG	;put pointer in DE
+	MVI	C,16	;close the file
+	CALL	BDOS
+	INR	A	;was there an error?
+	LXI	H,O.ERR	;point to error
+	RNZ			;return non-zero if successful
+	JMP	ERROR	;go to error handler
+..SUB:	MOV	A,M	;were we on a buffer boundary
+	inx	h
+	ora	m
+	RZ	;nothing necessary
+	MVI	A,EOF	;send an EOF marker
+	CALL	PUTBYTE	;put the byte
+	CALL	WTBUFF	;flush the buffer
+	RET	;and go home
+
+;----------------------------------------------------------------------------
+Wrpage::	;Write the HL th page (256 bytes) of the SYS file from 
+;the buffer addressed by DE
+;A=true if something unpleasant happened, else false
+	mvi	a,Write.random
+	sta	operation
+	jmp	do.page
+
+
+;----------------------------------------------------------------------------
+Rdpage:	;read the HL th page (256 bytes) of the SYS file into 
+;the buffer addressed by DE
+;A=true if end of file, else false
+	mvi	a,read.random	;what we want to do
+	sta	operation
+do.page:
+	push	d
+	push	d	;save DMA twice
+	dad	h	;convert pages to sectors
+	xchg
+	r0
+	mov	m,e
+	inx	h
+	mov	m,d
+;insert sector no. in the R0 word
+	pop	H
+	mvi	a,128	;read first sector above second
+	call	addhl
+	xchg
+	TOP
+	mvi	b,1
+	push	h
+	CALL	Do.B.Sectors
+;HL points to TOP, B has the number of sectors to do, DE has the DMA address  
+;operation has the desired disk operation to do
+;A=true if end of file, otherwise false
+	r0
+	mov	e,m	;bump R0 count
+	inx	h
+	mov	d,m
+	inx	d
+	mov	m,d
+	dcx	h
+	mov	m,e
+	pop	h
+	pop	d	;Dma address for second sector
+	rnz		;return end-of-file
+	mvi	b,1
+	call	Do.B.Sectors
+	ret
+	
+	
+
+
+;*** fill the buffer ***
+;----------------------------------------------------------------------------
+RDBUFF:	;fill the buffer of the current FCB
+	mvi	a,read
+	sta	operation
+do.it:	PUSH	B	;save all registers
+	PUSH	D
+	PUSH	H
+	FULL?		;point to the BUFFER-FULL flag
+	MVI	M,true	;yes, its full
+	INX	H	;point to offset
+	xra	a
+	mov	m,a	;zero our offset
+	inx	h
+	mov	m,a
+	call	do.buffer
+	push	psw	;save the result
+	LXI	D,Dbuf	;reset the DMA address
+	MVI	C,26	;as a precaution
+	CALL	BDOS
+	POP	PSW	;Non-zero if end of file or error
+	POP	H	;restore the registers
+	POP	D
+	POP	B
+	RET
+
+
+;*** WRITE RECORD FROM BUFFER ***
+
+WTBUFF:	mvi	a,write
+	sta	operation
+	jmp	do.it
+
+;-----------------------------------------------------------------------------
+ERROR:	;error message handler
+	PUSH	H
+	call	bell
+	CALL	TYPFCB
+	POP	H	;type the current filename
+	CALL	MSG	;and follow it with the error message
+	lxi	h,press.any.key
+	call	strout
+..twit:	call	tyi
+	cpi	3	;did he cry 'enough'
+	jz	aborted
+	cpi	1BH	;did he press ESC?
+	jrnz	..twit
+	lhld	error.routine
+	pchl
+error.routine:	dw	start	;default to start
+
+;-------------------------------------------------------------------------
+;*** File Handling Error Messages ***
+
+press.any.key:
+	defb	1bh,'('		;full intensity
+	defb	1bh,"^"		;blink
+	defb	"            *** Press ESC to continue ***"
+	defb	1bh,"q"		;cancel blink
+	defb	1bh,')'		;half intensity
+	defb	00,00
+
+WO.ERR:		db	19,' cannot fit on disk',00
+O.ERR:		db	15,' is not on disk',00
+C.Err:		db	20,' could not be closed',00
+GB.ERR:		db	20,' is for writing only',00
+PB.ERR:		db	20,' is for reading only',00
+n.err:		db	25,' is not a proper filename',00
+
+;----------------------------------------------------------------------------
+;Panel and screen handling section
+;----------------------------------------------------------------------------
+.z80
+;*** hilton turns the terminal highlight ***
+;*** specified by ivon, on; hiltoff off   ***
+hilton:	push	hl
+	push	de
+	push	bc
+	ld	a,(char.starting.highlight)
+	ld	(ch.starting),a
+	ld	a,(char.finishing.highlight)
+	ld	(ch.finishing),a	;set the first and last characters
+	ld	hl,ivon	;inverse video on string
+	ld	a,(we.highlight)	;only switch on if boolean set
+	and	a
+	call	nz,msg		;do we do inverse video
+	ld	hl,ivon2	;do highlight anyway
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+hiltoff:push	hl
+	push	de
+	push	bc
+	ld	a," "
+	ld	(ch.starting),a	;reset leading and trailing character
+	ld	(ch.finishing),a
+	ld	hl,ivoff
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+alton:	push	hl
+	push	de	;switch on alternative highlighting
+	push	bc
+	ld	hl,ivon2
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+
+;---------------------------------------------------------------------------
+yxpos:	;sends the character cursor to the location in line Column
+	push	hl
+	push	de
+	push	bc		;save everything
+	ld	hl,clead1	;print lead-in
+	call	msg
+	ld	a,(line)	;get line no.
+	ld	b,a
+	ld	a,(linoff)
+	Add	a,b		;addin line offset
+	call	putchar		;out it goes
+	ld	a,(Column)	;get column
+	ld	c,a
+	ld	a,(coloff)	;add in offset
+	add	a,c
+	call	putchar		;send it out
+	pop	bc		;restore the world
+	pop	de
+	pop	hl
+	ret			;and go home
+
+
+
+;---------------------------------------
+gra.off:;turn into character mode
+	push	hl		;save the world
+	push	de
+	push	bc
+	ld	hl,no.grfix	;the no graphics string
+	call	msg		;to switch into character mode
+	pop	bc		;restore the world
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------	
+curon:		;switch on the cursor
+	push	hl
+	push	de
+	push	bc
+	ld	hl,on.cursor	;switch cursor on 
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------
+into.graphics:;lets enter graphics mode
+	
+	push	hl
+	push	de
+	push	bc
+	ld	hl,grfiks	;switch into graphics
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------	
+curoff:	;switch off the cursor
+	push	hl
+	push	de
+	push	bc
+	ld	hl,off.cursor	;string to tell the console
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------
+screen.clear:;clear the whole damned screen
+	push	hl
+	push	de
+	push	bc
+	ld	hl,clear
+	call	msg		;send out clear-screen string
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;--------------------------------------------------
+yesorno:;returns 0 in a if no, 0ffh if yes
+	call	curon		;switch on the cursor
+	call	conin		;and get the users fumbling response
+	push	af		;remember the response
+	call	curoff		;and switch off the cursor
+	pop	af		;what did the poor slob say
+	cp	'Y'		;was it a y?
+	jp	z,..yes		;yup
+	cp	'N'		;was it a big n
+	jp	z,..no		;he said no
+	cp	0dh		;a carriage return
+	jp	z,..no		;if so then it was a no
+	cp	0ah		;ditto line feed
+	jp	z,..no
+	jp	yesorno		;the silly boy pressed the wrong button
+..no:	ld	hl,no.thank.you	;polite
+	call	strout
+	xor	a		;signal a no
+	ret	
+..yes:	ld	hl,yes.please	;polite
+	call	strout
+	xor	a		;signal a yes
+	dec	a
+	scf			;might as well
+	ret	
+
+
+;-------------------------
+;-- String message area --
+;-------------------------
+
+prompt.string:		;at the top of the page
+
+	db	esc,"=",1+32,11+32
+	DB	'QX+ Serial Port Configuration '
+ 
+	db	esc,"=",2+32,15+32
+	db	'Use the cursor control keys to make your choices.'
+ 	db	esc,"=",3+32,15+32
+	db	'The space bar cycles between choices.   Press CR'
+	db	esc,"=",4+32,15+32
+	db	'when a selection is made.   Press BREAK to abort.'
+	db	000
+
+
+
+no.thank.you:
+	db	' No thank you        '
+	db	00
+Yes.Please:
+	db	' Yes                 '
+	db	00
+
+done.msg:	db	cr,lf,lf,'-- The serial ports have been set'
+	db	cr,lf,00
+
+abortmsg:
+	db	cr,lf,lf,'** Program terminated ** no action taken.'
+	db	cr,lf,000
+	
+leave.msg:
+	db	1bh,'*',lf,lf,lf,lf,'*** CPM3.SYS file reconfigured ***'
+	db	' thank you for your patience',0
+
+
+
+
+;----------------------------------------------------------------------------
+drawdown:;the whole screen a double line
+	ld	b,23		;the number of lines
+..downloop:
+	push	bc
+	ld	hl,line	;get where we are
+	inc	(hl)		;increment it
+	call	yxpos		;and point the cursor there
+	ld	a,086h		;down line
+	call	putchar		;output the byte
+	pop	bc
+	djnz	..downloop	;and do another until b=0
+	ret			;the job is all done
+;----------------------------------------------------------------------------
+nice.box:;around the screen
+	xor	a
+	ld	(line),a	;zap the line position
+	ld	(Column),a	;and the column position
+	call	yxpos		;home the cursor
+;draw the top border	
+	ld	a,087h		;a top left border
+	call	putchar		;send a top-left bracket
+	ld	b,78
+..toploop:;now do the top line across
+	ld	a,085h		;do a top line
+	push	bc
+	call	putchar		;out goes a line character
+	pop	bc
+	djnz	..toploop
+	ld	a,088h		;a top right border
+	call	putchar		;do a top right character
+;go to bottom line	
+	ld	a,24		;now do likewise for the bottom
+	ld	(line),a
+	xor	a
+	ld	(Column),a	;go to the bottom left
+	call	yxpos
+;draw the bottom border	
+	ld	a,089h		;a bottom left border
+	call	putchar
+	ld	b,78		;and now a nice horizontal line
+..botloop:
+	ld	a,085h		;do a bottom line
+	push	bc
+	call	putchar
+	pop	bc
+	djnz	..botloop
+	ld	a,08ah		;a bottom right border
+	call	putchar
+	xor	a
+	ld	(Column),a
+	ld	(line),a	;home again
+	call	drawdown
+	ld	a, 79		;we have drawn a vertical line
+	ld	(Column),a
+	xor	a		;go to the top right
+	ld	(line),a
+	call	drawdown	;and do the second vertical line
+	
+	ret	
+
+
+
+
+;*** findst points hl to the count ***
+;*** byte of the string array      ***
+;*** element specified in c.       ***
+	
+findst:	
+	inc	c
+..loop5:
+	dec	c
+	ret	z
+	push	bc
+	ld	b,0
+	ld	c,(hl)
+	add	hl,bc
+	inc	hl
+	inc	hl
+	pop	bc
+	jp	..loop5
+
+
+;*** typest types the bc'th string ***
+;*** in the array addressed by hl  ***
+typest:	call	findst
+	call	msg
+	ret	
+
+;----------------------------------------------------
+matchst:	;find out if string pointed to
+;by HL matches the one pointed to by DE
+;takes account of abbreviations
+	xor	a
+	ld	b,(hl)
+	cp	b
+	ret	z
+	ex	de,hl
+	ld	c,(hl)
+	cp	c
+	ret	z
+	ex	de,hl
+;check for null strings
+..back3:
+	inc	hl
+	inc	de
+	ld	a,(de)
+	xor	(hl)
+	and	0dfh
+	jr	nz,..bad
+	dec	c
+	jr	z,..good
+	djnz	..back3
+..good:
+	xor	a
+	dec	a
+	ret
+..bad:
+	xor	a
+	ret
+			
+
+
+
+;----------------------------------------------------
+in.list:	;finds out if the string addressed
+;by DE is in the string array in HL.
+;non-zero if a match, C points to element no.
+;HL points to the element
+
+	ld	a,(hl)
+	and	a		;examine length
+	ret	z		;null string array
+;so no match for string
+	ld	b,a
+	inc	hl
+	xor	a
+	ld	c,a		;B has number to do
+..loop9:
+	push	bc	;C has number done
+	push	hl
+	call	findst
+;HL points to the count byte of the string
+;DE points to the count byte of the match
+	push	de
+	call	matchst
+	pop	de
+	pop	hl
+	pop	bc
+	and	a
+	ret	nz			;return non-zero if match
+;element no. in C
+	inc	c
+	djnz	..loop9
+	xor	a
+	ret			;failure to match
+
+
+
+
+
+;*** typelist types, in the form    ***
+;*** of a vertical list, an array   ***
+;*** pointed to by str.array.	    ***
+;*** top of list at screen position ***
+;*** dictated by \ine and column    ***
+;*** zero set if last list passed   ***
+typelist::
+
+;start by finding out where we start to type the list
+	ld	a,(line)
+	ld	(startline),a
+	ld	a,(column)
+	ld	(margin),a
+;Str.array points to the start of the string array
+	ld	hl,(str.array)
+	ld	a,(hl)
+	and	a		;examine length
+	ret	z		;null string array
+
+	ld	b,a
+	inc	hl
+	xor	a
+	ld	c,a
+..loop6:	push	bc
+	push	hl
+	ld	a,(margin)
+	and	a
+	jp	z,..over1
+	dec	a
+..over1:
+	ld	(column),a
+	call	yxpos
+	ld	a,(highlt)
+	cp	c
+	push	af
+	call	z,hilton
+	ld	a,(ch.starting)
+	push	bc	
+	push	hl
+	call	putchar
+	pop	hl
+	pop	bc
+	call	typest
+	ld	a,(ch.finishing)
+	call	putchar
+	pop	af
+	call	z,hiltoff
+	pop	hl
+	pop	bc
+	ld	a,(line)
+	inc	a
+	ld	(line),a
+	inc	c
+	dec	b
+	jp	nz,..loop6
+	ld	a,(margin)
+	ld	(column),a
+	ld	a,(startline)
+	ld	(line),a
+	call	yxpos
+	ret	nz
+	inc	a
+	ret	
+
+	
+choose.it::	;make a selection from the available choices
+;using the string array pointed to by str.array. Returns non
+;zero if successful and character pressed in A reg.
+	xor	a
+	dec	a		;set boolean to show highlight
+	ld	(we.highlight),a
+	call	typelist
+	ret	z
+here:
+	call	getchar
+	cp	03h
+	jp	z,aborted
+	cp	esc
+	jp	z,..exit
+	cp	up.arrow
+	jp	z,..up
+	cp	down.arrow
+	jp	z,..down
+	cp	right.arrow
+	jp	z,..exit
+	cp	left.arrow
+	jp	z,..exit
+	cp	0dh
+	jp	z,..exit
+	jp	..updn
+..exit:	;he positivel wanted out
+	push	af
+	xor	a
+	;set boolean to repress highlight
+	ld	(we.highlight),a
+	call	typelist	;retype the list removing the highlight
+	pop	af	;save the character that he typed
+	and	a	;set flags
+	ret	
+..down:	ld	a,false
+	ld	(flip.flop),a
+	ld	hl,(str.array)
+	ld	b,(hl)
+	dec	b
+	ld	a,(highlt)
+	cp	b
+	jp	z,choose.it
+	inc	a
+	ld	(highlt),a
+	ld	a,true
+	ld	(flip.flop),a
+	jp	choose.it
+..up:	ld	a,true
+	ld	(flip.flop),a
+	ld	a,(highlt)
+	and	a
+	jp	z,choose.it
+	dec	a
+	ld	(highlt),a
+	ld	a,false
+	ld	(flip.flop),a
+	jp	choose.it
+	
+..updn:	ld	a,(flip.flop)
+	and	a
+	jp	z,..up
+	jp	..down
+
+
+
+
+	subttl  'S I O C O N F I G        subroutine'
+	page
+
+;----------------------------------------------------------------------------
+Coord.Table:	;clumsy but alterable
+;they are in the format Y,X,Y,X,Y,X  for each port for each option
+	db	6,20,6,38,6,58		;RS232
+	db	13,20,13,38,13,58	;rs232a
+	db	20,20,20,38,20,58	;rs232b
+	db	6,20,6,38,6,58		;rs232c
+	db	13,20,13,38,13,58	;rs232d
+	;this table defines the location of each menu on the screen
+;----------------------------------------------------------------------------
+compute.screen.coords::	;from Current.port and Option.configurable)
+	ld	a,(option.configurable)	;get current option
+	ld	c,a	;into C
+	ld	b,0
+;BC has the configurable option number
+	ld	a,(current.port)
+	ld	hl,coord.table	;which line of the coordinate table are we
+	ld	de,6		;length of each record
+..back41:
+	and	a
+	jr	z,..hop1
+	add	hl,de	;repeated addition
+	dec	a
+	jp	..back41		
+..hop1:
+	add	hl,bc	;add in the current option number
+	add	hl,bc		;increment to coordinate pair
+	ld	a,(hl)	;get the line number
+	ld	(line),a	;and set it
+	inc	hl
+	ld	a,(hl)	;get the column number
+	ld	(column),a	;and set it
+	ld	a,(option.configurable)
+	ld	hl,st.array.pointers
+	add	a,a	;as they are word pointers
+	call	addhl	;find out which of the menus we use
+	ld	e,(hl)	;get the menu array address from the table
+	inc	hl
+	ld	d,(hl)
+	ex	de,hl	;put it into HL
+	ld	(str.array),hl	;and tell the menu selection utilities
+	ret	;return exhausted
+
+
+;----------------------------------------------------------------------------
+Baud.Coord.Table:	;clumsy but alterable
+;they are in the format Y,X,Y,X,Y,X  for each port for each option
+	db	5,5		;RS232
+	db	5,21		;rs232a
+	db	5,37		;rs232b
+	db	5,53		;rs232c
+	db	5,69		;rs232d
+	;these are the start screen addresses for the baud selection menu
+;----------------------------------------------------------------------------
+compute.baud.coords:	;from Current.port and Option.configurable)
+	ld	a,(current.port)
+	ld	hl,baud.coord.table	;which are the relevant coordinates
+	add	a,a		;length of each record
+	call	addhl	;increment into the array
+	ld	a,(hl)
+	ld	(line),a	;and save line and column
+	inc	hl
+	ld	a,(hl)
+	ld	(column),a
+	ret	;return exhausted
+
+
+
+SIO.Table.Pointers:
+		
+	dw	@sio0b		; table of RS232 SIO parameters
+	dw	@sio1a		; table of RS232 SIO parameters
+	dw	@sio1b		; table of RS232 SIO parameters
+	dw	@sio2a		; table of RS232 SIO parameters
+	dw	@sio2b		; table of RS232 SIO parameters
+;this is a table of pointers to the base of each sio config array(structure)
+
+;----------------------------------------------------------------------------
+Option.Information:	;contained in Eight bytes
+;1/---offset into table of register contents
+;2/---mask to obtain required data bits
+;3/---Match for choice 1
+;4/---Match for choice 2
+;5/---Match for choice 3
+;6/---Match for choice 4
+;7/---Match for choice 5
+;8/---Match for choice 6
+
+;Parity information
+..reg4-@sio0B,00000011B,00000000B,00000011B,00000001B,0,0,0	;in register 4
+;Stop bit stuff
+..reg4-@sio0B,00001100B,00000100b,00001000b,00001100b,0,0,0	;ditto
+;Data bits Tx
+..reg5-@sio0B,01100000b,00000000b,01000000b,00100000b,01100000b,0,0	;reg 5
+;Data bits RX
+..reg3-@sio0B,11000000B,00000000b,10000000b,01000000b,11000000b,0,0	;reg 3
+;----------------------------------------------------------------------------
+reach.bits:	;from the information in Current.port and
+;Option.configurable)
+;on exit----
+;DE points to the desired register contents, HL to mask byte
+;A has the register contents
+	ld	a,(current.port)	;which is the current port
+	add	a,a
+	ld	hl,Sio.Table.Pointers	;find out where the port table is
+	call	addhl
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+;DE points to relavent SIO table:
+	ld	a,(option.configurable)	;which option is desired
+	ld	HL,option.information
+	add	a,a	;increment into the array
+	add	a,a
+	add	a,a
+	call	addhl
+	ld	c,(hl)	;get register that needs to be altered
+	ld	b,0
+	Ex	De,Hl	;point HL to it
+;BC has the offset, and HL points to the Parameter Block for the SIO
+	add	hl,bc
+	Ex	De,Hl	;DE points to the actual register contents
+;DE has a pointer to the desired register contents HL points to our data 
+	inc	hl	;point HL to the mask 
+	ld	a,(de)
+;DE points to the desired register contents, HL to mask byte
+	ret	
+;with two pointers DE points to Reg. contents, HL to the mask etc
+
+;----------------------------------------------------------------------------
+Compute.Highlight:	;from the information in Current.port and
+;Option.configurable)
+
+	call	reach.bits	;see above
+;DE points to the desired register contents, HL to mask byte
+	and	(hl)	;mask out everything else
+;A has the current selection
+	ld	c,0
+	ld	b,6	;max no. of bytes to compare
+..loop20:	;now compare the masked register with samples in the array
+	inc	hl	;until a match is found
+	cp	(hl)	;is it this one?
+	jr	z,..found.it	;yippee
+	inc	c	;C will contain the choice no.
+	djnz	..loop20	;try again
+..found.it:	;unless C=6
+;we matched it with the Cth one
+	ld	a,c
+	ld	(highlt),a	;so we know the current selected choice
+	ret
+
+;----------------------------------------------------------------------------
+Read.Baud.Highlight:	;from our dev table
+	ld	a,(current.port)
+	ld	hl,pointers.to.baud	;what is currently in the device table?
+	add	a,a		;length of each record
+	call	addhl	;increment into the pointer array
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)	;pointer in DE
+	ex	de,hl
+	ld	a,(hl)		;get baud byte
+	dec	a
+	ld	(highlt),a	;current choice (0....n-1)
+	ret	;return exhausted
+
+;----------------------------------------------------------------------------
+Write.Baud.Highlight:	;to our dev table
+	ld	a,(current.port)	;reset our image of the table
+	ld	hl,pointers.to.baud	;find the address of the baud byte
+	add	a,a		;length of each record
+	call	addhl
+	ld	e,(hl)	;get the pointer
+	inc	hl
+	ld	d,(hl)
+	ex	de,hl
+	ld	a,(highlt)	;and the choice selected by the user
+	inc	a	;(1....n)
+	ld	(hl),a		;put baud byte
+	ret	;return exhausted
+
+;----------------------------------------------------------------------------
+reconfigure:		;the bits of the current register
+	ld	a,(option.configurable)	;which option is desired
+	cp	2			;is it the special case of data bits?
+	jp	nz,..not.special.case
+	call	..not.special.case	;do TX data bits
+	ld	a,(option.configurable)	;which option is desired
+	push	af			;preserve value
+	inc	a			;Rx stop bits invisible option
+	ld	(option.configurable),a	;bump option temporarily
+	call	..not.special.case	;do RX data bits
+	pop	af			;restore real value
+	ld	(option.configurable),a	;bump option temporarily
+	ret
+
+;the simple case
+..not.special.case:
+	call	reach.bits
+;DE points to the desired register contents, HL to mask byte
+	ld	a,(hl)	;get the mask byte
+	cpl		;flip all the bits
+	ld	b,a	;and stuff it in B
+	ld	a,(highlt)	;get the selected option choice
+	inc	hl
+	call	addhl	;to get the relavent bit pattern
+	ld	c,(hl)	;into C
+	ld	a,(DE)	;get the current register
+;B has the mask, C has the desired pattern, A has the register contents
+	xor	c	;blend them in
+	and	B	;by witchcraft
+	xor	c	;sheer witchcraft
+	ld	(de),a	;stash the register
+	ret
+
+
+;----------------------------------------------------------------------------
+print.label:	;from Current.port and Option.configurable)
+	ld	a,(option.configurable)	;it can be one of three labels
+	ld	c,a
+	ld	b,0
+;BC has the configurable option number
+	ld	a,(current.port)
+	push	bc
+;BC has the configurable option number
+	ld	hl,coord.table	;get the appropriate screen coordinates
+	ld	de,6		;length of each record
+..back43:
+	and	a
+	jr	z,..hopalong
+	add	hl,de
+	dec	a
+	jp	..back43		
+..hopalong:
+	add	hl,bc	;select option within port line in table
+	add	hl,bc		;increment to coordinate pair
+	ld	a,(hl)
+	dec	a
+	dec	a
+;tyo lines up
+	ld	(line),a	;take it from me, this is the line no.
+	inc	hl
+	ld	a,(hl)	;get the column no. from the table
+	inc	a
+	ld	(column),a	;set the column
+	pop	bc	;restore option no.
+	ld	a,c
+	ld	hl,label.pointers	;find a pointer to the label
+	add	a,a	;as they are word pointers
+	call	addhl
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)	;pointer to null term. string in DE
+	ex	de,hl	;fetch the string address
+	push	hl
+	call	yxpos	;position things for the label
+	pop	hl
+	call	strout	;and print it out
+	ret	;return exhausted
+
+
+;----------------------------------------------------------------------------
+draw.upper.screen::	;we have two screens. this is the one with 1st 3 ports
+	call	nice.box
+	ld	hl,upper.screen.trimmings	;labels and prompts
+	call	strout	;put them on the screen
+	ld	a,(option.configurable)
+	ld	c,a
+	ld	a,(current.port)
+	ld	b,a	;B has the current port, C has the option
+	push	bc		;save current selection
+	xor	a	;now do a for I, for J loop
+;type out all the choices for the first three ports and the current sel
+..more:	;to do
+	ld	(current.port),a
+	xor	a
+..once.again:
+	ld	(option.configurable),a
+;start out doing no. one, parity
+	call	print.label
+	call	compute.screen.coords	;for the menu
+	call	compute.highlight	;for the current selection
+	Xor	a
+	ld	(we.highlight),a	;we do not do inverse video yet
+	call	typelist	;type the menu
+	ld	a,(option.configurable)
+	inc	a
+	cp	3	;until we done all three
+	jr	nz,..once.again
+	ld	a,(current.port)
+	inc	a
+	cp	3	;until we done three ports
+	jr	nz,..more
+;restore settings
+	pop	bc	;for the currently selected port and option
+	ld	a,b
+	ld	(option.configurable),a
+	ld	a,c
+	ld	(current.port),a
+	ret
+
+;----------------------------------------------------------------------------
+draw.lower.screen:	;as we did the upper one
+	ld	hl,lower.screen.trimmings
+	call	strout
+	ld	a,(option.configurable)
+	ld	c,a
+	ld	a,(current.port)
+	ld	b,a
+	push	bc		;save current selection
+	ld	a,3
+;type out all the choices for the last two ports and the current sel
+..more1:
+	ld	(current.port),a
+	xor	a
+..1.once.again:
+	ld	(option.configurable),a
+;start out doing no. one, parity
+	call	print.label
+	call	compute.screen.coords
+	call	compute.highlight
+	Xor	a
+	ld	(we.highlight),a
+	call	typelist
+	ld	a,(option.configurable)
+	inc	a
+	cp	3
+	jr	nz,..1.once.again
+	ld	a,(current.port)
+	inc	a
+	cp	5
+	jr	nz,..more1
+;restore settings
+	pop	bc
+	ld	a,b
+	ld	(option.configurable),a
+	ld	a,c
+	ld	(current.port),a
+	call	nice.box
+	ret
+		
+;---------------------------------------------------------------------------
+Get.SIO.Tables::	;from the warm BIOS
+	call	priviliged	;make privilaged call to bios
+;with luck, then HL=pointer to table
+	ld	de,6*2		;point to @sio0B
+	add	hl,de
+	ld	e,(hl)	;get its address
+	inc	hl
+	ld	d,(hl)	;into DE
+	ex	de,hl
+	ld	de,@sio0b
+	ld	bc,..table.end-@sio0B
+	ldir	;and copy the whole lot into our workspace
+	call	devtbl		;get the device table
+	ld	de,@CTBL
+	ld	bc,..ctbl.end-@ctbl
+	ldir	;and copy the device table into our workspace
+	ret
+
+;--------------------------------------------------------------
+put.SIO.Tables::	;into the warm bios
+	call	priviliged	;a secret call for uncle david and I
+;with luck, then HL=pointer to table
+	ld	de,6*2		;point to @sio0B
+	add	hl,de
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	ld	hl,@sio0b
+	ld	bc,..table.end-@sio0B
+	ldir	;copy the initialisation table back again
+	call	devtbl		;get the device table
+	ld	de,@CTBL
+	ex	de,hl
+	ld	bc,..ctbl.end-@ctbl
+	ldir	;and copy our image back to the bios
+;now we reinitialise all serial devices (clumsily)
+	ld	c,3
+	call	DevIni	;initialise device no.C
+	ld	c,5
+	call	DevIni	;initialise device no.C
+	ld	c,6
+	call	DevIni	;initialise device no.C
+	ld	c,7
+	call	DevIni	;initialise device no.C
+	ld	c,8
+	call	DevIni	;initialise device no.C
+	ret	;lets hope nobody sees this code
+
+
+
+;------------------------------------------------------------		
+type.bauds:	;onto the screen nicely
+	ld	hl,baud.screen.trimmings	;prompts etc.
+	call	strout
+	ld	a,(current.port)
+	ld	b,a
+	push	bc		;save current selection
+	xor	a
+;type out all the choices for the first three ports and the current sel
+..more4:
+	ld	(current.port),a
+;start out doing no. one, parity
+	call	compute.baud.coords
+	call	read.baud.highlight
+	Xor	a
+	ld	(we.highlight),a
+	call	typelist
+	ld	a,(current.port)
+	inc	a
+	cp	5	;have we another menu to do?
+	jr	nz,..more4
+;restore settings
+	pop	bc
+	ld	a,b
+	ld	(current.port),a
+	ret
+
+
+
+
+;----------------------------------------------------------------------------
+do.sio.stuff::	;start of SIO configuration.
+
+	call	screen.clear
+	call	hiltoff			;switch off highlighting
+	call	curoff			;switch off the cursor
+	ld	hl,choice.prompt	;inform the user
+	call	strout
+	call	draw.upper.screen	;first
+
+;now the first screen of choices is displayed with current configuration
+	xor	a
+	ld	(current.port),a	;start with port 1
+	ld	(option.configurable),a	;and option 1
+..choice::
+	call	compute.screen.coords	;for the option and port
+	call	compute.highlight
+	call	choose.it		;do the menu choice thing
+;Now we enter a sort of programmers nightmare
+;What key did the user press?
+	push	af
+	call	reconfigure		;the copy of the table
+	pop	af
+	cp	esc			;or ESC?
+	jp	z,Im.Done		;if so he is done
+	cp	Left.Arrow		;left arrow?	
+	jr	nz,..over3
+	ld	a,(option.configurable)
+	dec	a
+	jp	m,..carry
+	ld	(option.configurable),a
+	jp	..dunnit
+..carry:ld	a,(current.port)
+	cp	3			;have we gone from 4th to 3rd
+	push	af
+	call	z,draw.upper.screen
+	pop	af
+	dec	a
+	jp	m,..dunnit
+	ld	(current.port),a
+	ld	a,2
+	ld	(option.configurable),a
+	jp	..dunnit
+;he must be wanting to go to the next
+..over3:		
+	ld	a,(option.configurable)
+	inc	a
+	cp	3	;only three option choices
+	jr	z,..bumpit
+	ld	(option.configurable),a
+	jp	..dunnit
+..bumpit:
+	ld	a,(current.port)
+	cp	2	;have we gone from 3rd to 4th
+	push	af
+	call	z,draw.lower.screen
+	pop	af
+	inc	a
+	cp	5	;only five configurable ports
+	jp	z,..dunnit
+	ld	(current.port),a
+	xor	a
+	ld	(option.configurable),a
+..dunnit:
+	call	compute.highlight
+	jp	..choice
+
+Im.Done:	;now for the baud rate menus
+	call	reconfigure	;anything remaining
+	call	screen.clear
+	call	nice.box	;might as well show off
+	ld	hl,baud.array
+	ld	(str.array),hl	;make the baud menu current
+	ld	a,(current.port)
+	push	af
+	call	type.bauds
+	pop	af
+	ld	(current.port),a
+..choice8:
+	call	compute.baud.coords
+	call	read.baud.highlight
+	call	choose.it
+;Now we enter another sort of programmers nightmare
+;What key did the user press?
+	cp	3		;was it a control C
+	Jp	z,all.Done
+	push	af
+	call	write.baud.highlight
+	pop	af
+	cp	esc		;or ESC?
+	jp	z,all.Done
+	cp	Left.Arrow		;left arrow?	
+	jr	nz,..over8
+	ld	a,(current.port)
+	dec	a
+	jp	m,..dunnit8
+	ld	(current.port),a
+	jp	..dunnit8
+;he must be wanting to go to the next
+..over8:		
+	ld	a,(current.port)
+	inc	a
+	cp	5	;only five configurable ports
+	jp	z,..dunnit8
+	ld	(current.port),a
+..dunnit8:
+	call	read.baud.highlight
+	jp	..choice8
+all.done:
+	call	write.baud.highlight
+	call	put.sio.tables
+	call	screen.clear
+	call	curon
+	ld	hl,done.msg
+	call	strout
+	ret	
+
+aborted:
+	call	screen.clear
+	call	curon
+	ld	hl,abortmsg
+	call	strout
+	jp	0000		;crash out
+;-----;
+finish:
+	ret			;back to config
+
+;---------------------------------------------------------------------------
+;*** String Area ***
+hello.string:
+	defb	.the.end.of.string - $	;length of the string
+	defb	1bh,",","g",5,"c";define split screen
+	defb	1bh,"u"		;go to the upper
+	defb	1bh,"/"		;make multifont
+	defb	1bh,"#",6,1bh,'X'	;style 6 proportional
+	defb	'            QX+ System Configuration Utility'
+	defb	1bh,'S',1bh,"v"		;enter the lower screen
+	defb	1BH,"+"		;blank the screen
+	defb	1bh,')'		;half intensity
+.the.end.of.string:	defb	000,000
+
+ok:	defb	..end1 - $
+
+	db	ESC,'=',(18+' '),(26+' ')	;bottom centre
+	defb	1bh,'('		;full intensity
+	defb	1bh,"^"		;blink
+	defb	"<press any key to continue>"
+	defb	1bh,"q"		;cancel blink
+	defb	1bh,')'		;half intensity
+..end1:	defb	00,00
+
+tidy.up:;set the screen to rights
+	defb	..end2 - $
+	defb	1bh,"+"
+	defb	1bh,"u",1bh,"\"
+	defb	1bh,"v",1bh,"u"	;dont ask
+	defb	1bh,",","C",26,"C"
+	defb	1bh,"+"
+..end2:	defb	000,000
+
+instruct:
+	db	0DH,0AH
+	db	0DH,0AH
+db	'	The  CONFIG  utility alters the CP/M system that is  booted  in'
+	db	0DH,0AH
+db	'	when  the  computer is switched on or reset. You must have  the'
+	db	0DH,0AH
+db	' 	system  in drive A with the file CPM3.SYS present having the RW'
+	db	0DH,0AH
+db	'	(read/write) attribute set. Make sure that you have made a copy'
+	db	0DH,0AH
+db	'	of  this disk before you go further. With CONFIG, you can alter'
+	db	0DH,0AH
+db	'	the  BIOS  printer setting, the serial port configuration,  the'
+	db	0DH,0AH
+db	'	resident graphic font set, the programmable function key values'
+	db	0DH,0AH
+db	'	or  the language setting. Make sure that you have prepared  the'
+	db	0DH,0AH
+db	'	PFK or Graphic font files if you wish to change these  settings'
+	db	0DH,0AH
+db	'	(press BREAK to quit)'
+	db	0DH,0AH
+	db	000
+
+
+
+
+
+;----------------------------------------------------------------------------
+Choice.prompt:
+	db	ESC,'=',1+32,1+32
+	db	'--( ) denotes current selection,'
+	db	' Use Cursor keys, space bar & <CR> to select--'
+	db	ESC,'=', 2+32,1+32
+	db	'--Press BREAK to Quit without an'
+	db	'y alterations, ESC when selections made     --'
+	db	000   
+
+Upper.Screen.Trimmings:
+	db	ESC,'=',4+32,2+32
+	db	'RS232 '
+	db	ESC,'=',5+32,2+32
+	db	'(built-in)       '
+	db	ESC,'=',11+32,2+32
+	db	'RS232A'
+	db	ESC,'=',12+32,2+32
+	db	'(optional port 1)'
+	db	ESC,'=',18+32,2+32
+	db	'RS232B'
+	db	ESC,'=',19+32,2+32
+	db	'(optional port 2)'
+
+
+	db	000
+
+Lower.Screen.Trimmings:
+	db	ESC,'=',4+32,2+32
+	db	'RS232C'
+	db	ESC,'=',5+32,2+32
+	db	'(optional port 3)'
+	db	ESC,'=',11+32,2+32
+	db	'RS232D'
+	db	ESC,'=',12+32,2+32
+	db	'(optional port 4)'
+	db	ESC,'=',18+32,2+32
+	db	esc,'Y'			;erase to end of screen
+	db	000
+
+Baud.Screen.Trimmings:
+
+	db	ESC,'=',1+32,2+32
+	db	'Select the Baud rates using the cursor '
+	db	'control keys. Press ESC when finished'
+	db	ESC,'=',3+32,2+32
+	db	' RS232           RS232A          RS232B         '
+	db	' RS232C          RS232D'
+	db	000
+	
+
+
+;----------------------------------------------------------------------------
+St.Array.Pointers:	;pointers to string arrays
+	dw	parity
+	dw	stop.bit
+	dw	Data.Bits
+
+
+;----------------------------------------------------------------------------
+Parity:	db	3
+	db	09,'No Parity',000
+	db	11,'Even Parity',000
+	db	10,'Odd Parity',000
+Stop.Bit:
+	db	3
+	db	10,'1 Stop Bit',000
+	db	13,'1.5 Stop Bits',000
+	db	11,'2 Stop Bits',000
+Data.Bits:
+	db	4
+	db	15,'5(or less) Bits',000
+	db	6,'6 Bits',000
+	db	6,'7 Bits',000
+	db	6,'8 Bits',000
+
+
+..1:	db	'Parity',000
+..2:	db	'Stop Bits',000
+..3:	db	'Data Bits',000
+
+Label.Pointers:
+	dw	..1
+	dw	..2
+	dw	..3
+
+
+Baud.array:
+	db	15
+
+	db	2,'50',000	
+	db	2,'75',000
+	db	3,'110',000	
+	db	3,'134',000	
+	db	3,'150',000	
+	db	3,'300',000	
+	db	3,'600',000	
+	db	4,'1200',000	
+	db	4,'1800',000	
+	db	4,'2400',000	
+	db	4,'3600',000	
+	db	4,'4800',000	
+	db	4,'7200',000	
+	db	4,'9600',000	
+	db	5,'19200',000	
+
+country.array:
+	db	8	;countries
+	db	17,'The United states',000
+	db	18,'The United Kingdom',000
+	db	7,'Germany',000
+	db	6,'France',000
+	db	5,'Italy',000
+	db	5,'Spain',000
+	db	7,'Denmark',000
+	db	6,'Sweden',000
+
+Printer.array: 
+	db	5
+	db	23,'EPSON MX series printer',0
+	db	26,'EPSON FX/RX series printer',0
+	db	30,'EPSON JX series colour printer',0
+	db	23,'EPSON LQ series printer',0
+	db	13,'Other printer',0
+
+choice.array:
+	db	6	;strings follow
+	db	50,'Reset the baud rate and RS232 configuration values',0
+	db	53,'Load the Programmable Function Key settings from file',0
+	db	53,'Set the keyboard and character font for a nationality',0
+	db	50,'Load an alternative graphics font from a disk file',0
+	db	54,'Set the type of printer connected to the parallel port',0
+	db	52,'Leave the program, making the new settings permanent',0
+	db	00,00
+
+explain.country:
+	db	esc,'=',5+32,57+32
+	db	'The selection governs'
+	db	esc,'=',6+32,57+32
+	db	'the keyboard layout,'
+	db	esc,'=',7+32,57+32
+	db	'and char. translation'
+	db	esc,'=',8+32,57+32
+	db	'to screen & printer'
+	db	000
+
+explain.printer:
+	db	esc,'=',20+32,1+32
+db	'This selection governs the way that Multifont and Screendump printing'
+	db	esc,'=',21+32,1+32
+db	'is handled. Selecting the last option disables all such features'
+	db	000
+
+
+explain.routines:
+	db	esc,'=',20+32,1+32	;go to line 20
+db	'	These routines enable you to make permanent changes to your CP/M'
+	db	esc,'=',21+32,1+32
+db	'	system so that it boots up initially with your preferred settings'
+	db	esc,'=',22+32,1+32
+db	'	Select which aspect you wish to change'
+	db	000
+
+font.file.prompt:
+	db	esc,'=',16+32,1+32
+	db	'	If you wish to load a Character font set file'
+	db	' as produced by'
+	db	esc,'=',17+32,1+32
+	db	'	CHAREDIT, to redefine the Graphic font permanently,'
+	db	' then type its name'
+	db	0dh,0ah
+	db	'	otherwise press <CR> -->'
+	db	000
+
+
+pfk.file.prompt:
+	db	esc,'=',16+32,00+32
+	db	'	If you wish to load a Programmable Function Key file'
+	db	' as produced by'
+	db	esc,'=',17+32,1+32
+	db	'	PFKSET, to redefine permanently the PF Keys, then type'
+	db	' its name'
+	db	0dh,0ah
+	db	'	otherwise press <CR> -->'
+	db	000
+
+; ======================================
+; Table of SIO parameters for redefining
+; ======================================
+
+
+;These tables are tucked up in common ready for marauding direct BIOS
+;calls to defile them
+
+
+@sio0a:			; table of Keybaord SIO parameters
+	db	00011000b	; Channel reset
+
+	db	2		; Write register 2 (channel A only)
+	db	0		; with 8085 vector mode
+
+	db	4 or 00010000b	; Write register 4, Reset EX/SP int
+	db	00110111b	; with x1, ASYNC, 1stop, parity enabled
+
+	db	3		; Write register 3
+	db	11100001b	; with 8bit Rx, auto, Rx enabled
+
+	db	5		; Write register 5
+	db	11101010b	; with DTR,RTS = 1, 8bit Tx, Tx enabled
+
+	db	1 or 00010000b	; Write register 1, Reset EX/SP int
+;------	db	00010000b	; with All Rx int (parity affects vector)
+	db	00011000b	; with All Rx int
+lensiotbl	equ	$-@sio0a	; Length of SIO command
+
+@sio0b:			; table of RS232 SIO parameters
+	db	18h		; Channel reset
+	db	10h or 2	; Reset EX/SP int, Write register 2
+	db	0		; with 8085 vector mode
+
+	db	4		; Write register 4
+..reg4:
+	db	01110100b	; with x16, ASYNC, 1stop, no parity
+	db	3		; Write register 3
+..reg3:	db	0e1h		; with 8bit Rx, auto, Rx enabled
+	db	5		; Write register 5
+..reg5:	db	0eah		; with DTR,RTS = 1, 8bit Tx, Tx enabled
+	db	1		; Write register 1
+..reg1:	db	10h		; with All Rx int
+
+@sio1a:			; table of RS232 SIO parameters
+	db	18h		; Channel reset
+	db	10h or 2	; Reset EX/SP int, Write register 2
+	db	0		; with 8085 vector mode
+
+	db	4		; Write register 4
+	db	01110100b	; with x16, ASYNC, 1stop, no parity
+	db	3		; Write register 3
+	db	0e1h		; with 8bit Rx, auto, Rx enabled
+	db	5		; Write register 5
+	db	0eah		; with DTR,RTS = 1, 8bit Tx, Tx enabled
+	db	1		; Write register 1
+	db	10h		; with All Rx int
+
+@sio1b:			; table of RS232 SIO parameters
+	db	18h		; Channel reset
+	db	10h or 2	; Reset EX/SP int, Write register 2
+	db	0		; with 8085 vector mode
+
+	db	4		; Write register 4
+	db	01110100b	; with x16, ASYNC, 1stop, no parity
+	db	3		; Write register 3
+	db	0e1h		; with 8bit Rx, auto, Rx enabled
+	db	5		; Write register 5
+	db	0eah		; with DTR,RTS = 1, 8bit Tx, Tx enabled
+	db	1		; Write register 1
+	db	10h		; with All Rx int
+
+@sio2a:			; table of RS232 SIO parameters
+	db	18h		; Channel reset
+	db	10h or 2	; Reset EX/SP int, Write register 2
+	db	0		; with 8085 vector mode
+
+	db	4		; Write register 4
+	db	01110100b	; with x16, ASYNC, 1stop, no parity
+	db	3		; Write register 3
+	db	0e1h		; with 8bit Rx, auto, Rx enabled
+	db	5		; Write register 5
+	db	0eah		; with DTR,RTS = 1, 8bit Tx, Tx enabled
+	db	1		; Write register 1
+	db	10h		; with All Rx int
+
+@sio2b:			; table of RS232 SIO parameters
+	db	18h		; Channel reset
+	db	10h or 2	; Reset EX/SP int, Write register 2
+	db	0		; with 8085 vector mode
+
+	db	4		; Write register 4
+	db	01110100b	; with x16, ASYNC, 1stop, no parity
+	db	3		; Write register 3
+	db	0e1h		; with 8bit Rx, auto, Rx enabled
+	db	5		; Write register 5
+	db	0eah		; with DTR,RTS = 1, 8bit Tx, Tx enabled
+	db	1		; Write register 1
+	db	10h		; with All Rx int
+..table.end:
+
+;----------------------------------------------------------------------------
+pointers.to.baud:
+	dw	..bd1
+ 	dw	..bd2
+	dw	..bd3
+	dw	..bd4
+	dw	..bd5
+
+
+
+;------------------------------------------------
+@ctbl:		; physical character device table
+;------------------------------------------------
+
+	db	'KEYB  '	; device 0, KEYBOARD
+	db	mb$input + mb$serial
+	db	baud$none
+;
+	db	'CRT   '	; device 1, CRT
+	db	mb$output	; later make mb$in$out
+	db	baud$none
+;
+	db	'PRINT '	; device 2, Centronix PRINTER port
+	db	mb$in$out
+	db	baud$none
+;
+
+	db	'RS232 '	; device 3, Stnd RS232 connector
+	db	mb$in$out + mb$serial + mb$softbaud + mb$xonxoff
+..bd1:	db	baud$9600
+;
+	db	'CMOS  '	; device 4, CMOS memory
+	db	mb$in$out
+	db	baud$none
+;
+
+	db	'RS232A'	; device 5, 1st Optional RS232 channel A
+	db	mb$in$out + mb$serial + mb$softbaud + mb$xonxoff
+..bd2:	db	baud$9600
+;
+;
+
+	db	'RS232B'	; device 6, 1st Optional RS232 channel B
+	db	mb$in$out + mb$serial + mb$softbaud + mb$xonxoff
+..bd3:	db	baud$9600
+
+;
+;
+
+	db	'RS232C'	; device 7, 1st Optional RS232 channel A
+	db	mb$in$out + mb$serial + mb$softbaud + mb$xonxoff
+..bd4:	db	baud$9600
+;
+	db	'RS232D'	; device 8, 1st Optional RS232 channel B
+	db	mb$in$out + mb$serial + mb$softbaud + mb$xonxoff
+..bd5:	db	baud$9600
+
+..ctbl.end:
+.8080
+;*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+
+;* individual config subroutines to set the country, printer or pfks *;
+;*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+*+
+
+set.sios:	;do the serial port stuff
+	call	do.sio.stuff
+
+;now we save our SIO tables on disk
+	lhld	sio0b.pointer	;pointer to config table
+	lxi	d,@sio0b		;source
+	xchg
+	lxi	b,..table.end-@sio0B	;count
+	call	put.to.sys	;HL contains the 'from' address in real 
+;memory, DE contains the 'load' address, BC bytes are put to the system. 
+;the subroutine looks after whether it is banked or TPA
+
+;and copy the whole device table out
+	lhld	devtbl.pointer		;get the device table address
+	lxi	d,@CTBL
+	xchg
+	lxi	b,..ctbl.end-@ctbl
+	call	put.to.sys	;HL contains the 'from' address in real 
+;memory, DE contains the 'load' address, BC bytes are put to the system. 
+	ret
+
+
+set.country:: 	;with the country in A as a wretched QX code
+;(the second character only)
+
+; Internal code		country name
+; -------------    	------------
+;	0 		The United states
+;	1 		The United Kingdom
+;	2		Germany
+;	3 		France
+;	4  		Italy
+;	5 		Spain
+;	6 		Denmark
+;	7 		Sweden
+
+	call	screen.clear
+	call	nice.box
+	call	hiltoff		;switch off highlighting
+	call	curoff		;switch off the cursor
+	lxi	h,choice.prompt	;inform the user
+	call	strout
+	lxi	h,explain.country
+	call	strout
+	lhld	country
+	call	find.bank.address
+	mov	a,m
+	sta	highlt		;find what it is at the moment
+	lxi	h,country.array
+	shld	str.array	;point to the country array
+	mvi	a,5
+	sta	line
+	mvi	a,30
+	sta	column		;point the cursor
+	call	choose.it	;choose the new country
+	cpi	3
+	jz	aborted
+	lhld	country		;get pointer to country
+	xchg
+	lxi	h,highlt	;move out the new value
+	lxi	b,1
+	call	put.to.sys
+	call	alter.keyboard
+	lhld	key.table.pointer	;points to keyboard translation
+	xchg
+	lxi	h,key.image
+	lxi	b,size.keytable
+	call	put.to.sys
+;and alter the little font set
+	call	setup.the.font
+	lhld	little.font
+	xchg
+	lxi	h,our.font.image
+	lxi	b,size.font
+	call	put.to.sys
+	ret
+
+;----------------------------------------------------------------------------
+set.printer:	;by means of a nice interactive menu
+	call	screen.clear
+	call	nice.box
+	call	hiltoff		;switch off highlighting
+	call	curoff		;switch off the cursor
+	lxi	h,choice.prompt	;inform the user
+	call	strout
+	lxi	h,explain.printer
+	call	strout
+	lhld	printer
+	call	find.bank.address
+	mov	a,m
+	sta	highlt		;find what it is at the moment
+	lxi	h,printer.array
+	shld	str.array	;point to the country array
+	mvi	a,5
+	sta	line
+	mvi	a,30
+	sta	column		;point the cursor
+	call	choose.it	;choose the new country
+	cpi	3
+	jz	aborted
+	lhld	printer		;get pointer to country
+	xchg
+	lxi	h,highlt	;move out the new value
+	lxi	b,1
+	call	put.to.sys
+	ret
+
+;----------------------------------------------------------------------------
+get.file.name:	;from that ape in front of the keyboard
+	call	curon
+	call	..9xon	;get his response
+;in line buffer
+	db	012	;buffer maximum
+	ds	13	;buffer length
+..9xon:	pop	h	;point HL to our buffer
+	push	h
+	xra	a
+	mvi	b,12
+..9xloop:
+	inx	h	;zero out the Buffer
+	mov	m,a
+	dcr	b
+	jrnz	..9xloop
+	pop	d	;point DE to buffer
+	push	d
+	mvi	c,10
+	call	bdos	;and do the BDOS call
+	pop	h
+ 	inx	h	;point to count byte
+	mov	a,m	;get the count
+	ana	a
+	ret
+
+;----------------------------------------------------------------------------
+set.font::
+	lxi	h,font.file.prompt
+	call	strout
+	call	get.file.name
+	rz
+	jmp	send.font		
+
+;----------------------------------------------------------------------------
+set.the.PFKS:
+	lxi	h,pfk.file.prompt
+	call	strout
+	call	get.file.name
+	rz
+	call	fillit	;parse the filename pointed to by HL
+	call	g.rec	;and dispatch it
+	ret
+
+
+alter.keyboard:: 	;with the country 
+;(the second character only)
+
+; Internal code		country name
+; -------------    	------------
+;	0 		The United states
+;	1 		The United Kingdom
+;	2		Germany
+;	3 		France
+;	4  		Italy
+;	5 		Spain
+;	6 		Denmark
+;	7 		Sweden
+
+	lxi	h,@kbtab
+	lxi	d,key.image
+	lxi	b,size.keytable
+	ldir			;make a fresh image for reentrancy
+	lda	highlt		;get what the user ordered
+	sui	2
+	rc	;nothing necessary to substitute if anglosaxon
+	cpi	2	;italy have our keyboard
+	rz		;sensible fellows
+	jc	..no.dec
+	dcr	a
+..no.dec:	;A has keyboard substitution index
+	push	psw
+	add	a
+	lxi	h,substitution.table
+	call	addhl
+	mov	e,m
+	inx	h
+	mov	d,m
+	xchg
+	shld	subs.pointer
+	pop	psw	;restore	converted country
+	lxi	h,base.bitmaps
+	lxi	d,size.bitmap
+..mult.loop:
+	ana	a
+	jrz	..we.point
+	dad	d
+	dcr	a
+	jmp	..mult.loop
+..we.point:
+;hl=	bitmap.pointer
+	xchg
+	lxi	h,Key.image
+;DE has the bitmap pointer, HL has the keytable pointer
+
+	mvi	b,size.keytable/8	;the number of lines
+j:
+	push	b
+	ldax	d
+	mvi	b,8
+i:
+	ral
+	jrnc	..no.substitute
+;we substitute
+	push	psw
+	push	h
+;get the substitution
+	lhld	subs.pointer	
+	mov	a,m
+	inx	h	;bump the subs pointer
+	shld	subs.pointer
+	pop	h	;restore the pointer to the keytable
+;substitute it
+	mov	m,a
+	pop	psw
+..no.substitute:
+	inx	h
+	djnz	i	
+	inx	d
+	pop	b
+	djnz	j
+	ret
+	
+bitmap.pointer:	dw	000
+subs.pointer:	dw	000
+
+;----------------------------------------------------------------------------
+setup.the.font:: ;according to the choice of the user
+	lxi	h,usa.font
+	lxi	d,our.font.image
+	lxi	b,size.font
+	ldir		;move the font into place
+	lda	highlt	;get the users choice
+	dcr	a
+	rm		;if was USA(0)
+	add	a
+	lxi	h,character.pointers
+	call	addhl
+	mov	e,m
+	inx	h
+	mov	d,m
+	mov	l,e
+	mov	h,d	;HL=DE=alter table
+	lxi	b,12
+	dad	b	;point to first font char
+..the.loop:
+;HL points to font char DE points to value
+	ldax	d
+	ana	a
+	rz		;all done
+	sui	" "
+	push	h
+	push	d
+	push	h
+	lxi	h,our.font.image
+..ch.loop:
+	lxi	b,8	;bytes per character
+	dad	b
+	dcr	a
+	jrnz	..ch.loop	
+;HL points to destination	
+	xchg
+	pop	h	;points to font char
+;DE = destination, HL= source
+	lxi	b,8	;bytes per character
+	ldir
+	pop	d
+	pop	h
+	lxi	b,8
+	dad	b
+	inx	d
+	jmp	..the.loop
+
+
+.z80
+;
+;kbdf1:			; 73h	F1
+;	db	12,4,'DIR '
+;	ds	12-($-kbdf1)+2
+
+;----------------------------------------------------------------;
+; table of pointers to programable function keys and cursor keys ;
+;----------------------------------------------------------------;
+our.pfk.pointer.image:
+	dw	000		; 10 function keys
+	dw	000
+	dw	000
+	dw	000
+	dw	000
+	dw	000
+	dw	000
+	dw	000
+	dw	000
+	dw	000
+	dw	000		; up arrow (1eh)
+	dw	000		; left arrow (1dh)
+	dw	000		; right arrow (1ch)
+	dw	000		; down arrow (1fh)
+	dw	000		; INS (12h)
+	dw	000		; HOME (0bh)
+	dw	000		; CLS (0ch)
+	dw	000		; numeric pad 000 (or 00 on german keyboard)
+	dw	000		; HELP
+	dw	000
+
+
+
+.8080
+
+GET.FIELD: ;HL should point to the first character
+;of the string, or the delimeting comma. It puts 
+;the string in location pointed to by DE, up to 
+;B bytes. Zero set if no good.
+
+	mov	a,b
+	ana	a
+	rz
+	MVI	C,'"'
+	MOV	A,M
+	ANA	A
+	RZ
+	INX	H
+	CPI	","
+	JNZ	..4on
+	MOV	A,M
+	CPI	","
+	JZ	null
+	inx	h
+..4on:	CMP	C
+	JZ	STORE.STRING
+	DCX	H
+..HOP2:	MVI	C,","
+
+STORE.STRING: ;stores the string pointed by HL
+;until delimeter stored in C. as a string pointed
+;to by DE up to B characters. Zero set if no good
+;     on exit, B= updated character count
+;              HL points to the end of the delimeted
+;	       DE points to the start of stored str.
+
+	MOV	A,B
+	ANA	A
+	JP	..ONTO
+	XRA	A
+	RET	
+..ONTO:	INX	D
+	PUSH	D
+..back4:	MOV	A,M
+	CMP	C
+	JZ	..5ON
+	ANA	A
+	JZ	..5ON
+	jm	..5on
+	push	h
+	lxi	h,maximum
+	dcr	m
+	pop	h
+	jm	..nogud
+	STAX	D
+	inx	d
+..nogud:
+	inx	h
+	DCR	B
+	JNZ	..back4
+
+..5ON:	mvi	a,'"'
+	cmp	c
+	jnz	..hop4
+	inx	h
+..hop4:	XRA	A
+	STAX	D	;top of stored string
+	MOV	A,B
+	MOV	C,L
+	MOV	B,H
+	POP	H
+	PUSH	PSW	
+	XCHG
+	CALL	DSUB	;HL=HL-DE
+	DCX	D
+	MOV	A,L
+	STAX	D
+	MOV	L,C	;save top of string
+	MOV	H,B
+	POP	PSW
+	MOV	B,A
+	ANA	A
+	RNZ		;ensure flags and A are nonz
+	INR	A
+	RET
+
+
+null:	xra	a
+	STAX	D
+	INX	D
+	STAX	D
+	DCX	D
+	INR	A
+	RET
+
+
+G.REC:: ;gets the PFK file from the
+;buffer and stores each field as a string in the 
+;array pointed to by a pointer table addressed by
+;Pointer.table
+;and sets the current image
+
+;first we set our pointer to point to the current pointer
+	lxi	h,our.pfk.pointer.image
+	shld	pointer.table
+
+	lxi	h,our.buffer	
+	mvi	a,0	;we have done this many
+	sta	..number.done
+	MOV	B,M		;get the count byte
+	inr	b
+	INR	B
+..5xloop:
+	INX	H		;point to start of PFK record
+	DCR	B		;all done?
+	RZ
+	RM
+	PUSH 	H
+	PUSH	B	
+
+;get the address of the next string into DE
+	LHLD	pointer.table
+	mov	e,m
+	inx	h
+	mov	d,m
+	inx	h
+	shld	pointer.table
+
+;get the MAX byte
+	xchg
+	shld	ad.of.pfkstring
+	call	find.bank.address
+	mov	a,m
+	sta	maximum
+	lxi	d,handy.buffer
+	POP	B
+	POP	h
+	CALL	GET.FIELD
+	rz
+	dcx	h
+	PUSH	H	;save pointer to PFK record
+	push	b
+	push	d
+	call	put.pfk
+	pop	d
+	lhld	ad.of.pfkstring
+	xchg
+	inx	d	;point to count byte
+	lxi	h,handy.buffer+16
+	mov	c,m	;no. to move
+	mvi	b,0
+	inx	b
+	call	put.to.sys		
+
+	pop	b
+	POP	H
+	lda	..number.done
+	inr	a
+	cpi	19
+	sta	..number.done
+	Jc	..5xloop
+	ret
+
+..number.done:	db	19
+
+
+	
+put.PFK::	;from the rec.address to the console
+
+
+
+;and set the pointer to the corrected (control char.) image
+	lxi	h,handy.buffer+16
+	shld	correct.image
+
+	mvi	a,ESC
+	call	putchar
+	mvi	a,'$'
+	call	putchar		;send out the preamble
+	lda	..number.done
+	call	putchar		;send out the function key no.
+	lxi	h,handy.buffer
+	MOV	c,M		;get the count byte of chars in string
+	mov	b,c
+	inx	h
+	push	h		;save pointer to string
+..BACK5:
+	MOV	A,M
+	cpi	'^'		;is there a control code?
+	jrnz	..1hoppity
+	dcr	c
+	inx	h
+	dcr	b
+	jrz	..not.double.hat
+ ..1hoppity:
+	INX	H
+	djnz	..BACK5	 
+..not.double.hat:
+;C has the real length
+	mov	a,c
+	ana	a
+	jrz	..1bad
+	jrc	..1bad
+	sta	handy.buffer+16	;and store it for the load image
+	mov	b,c
+	call	putchar		;send the real count
+	pop	h
+..once.more:
+	mov	a,m
+	cpi	'^'
+	jrnz	..easy
+	inx	h
+	mov	a,m
+	ani	00011111B	;convert to control
+..easy:	push	psw
+	call	putchar
+	pop	psw
+
+;and store it for sending to CPM3.SYS
+	push	h
+	lhld	correct.image
+	inx	h
+	mov	m,a
+	shld	correct.image
+	pop	h
+
+	inx	h
+	djnz	..once.more
+	RET
+..1bad:
+	pop	h
+	mvi	a,1
+	call	putchar
+	mvi	a,0		;fkey gives a null
+	call	putchar
+	ret
+
+
+	file 	ifile	;declare our input file
+	file	ofile	;and our output file
+
+
+fill.fcb:	;the file whose name is pointed to by HL
+	push	h
+	ifile		;make our input file the current one
+	pop	h
+	inx	h
+	shld	PFCB	;store pointer in the PFCB Block
+	fcb		;get our current FCB
+	shld	PFCB+2	;store pointer in the PFCB Block
+	lxi	d,PFCB
+	mvi	c,98H	;parse filename command
+	call	bdos
+	mov	a,h
+	ana	l
+	inr	a
+	rnz	
+	lxi	h,n.err
+	jmp	error
+
+
+
+PFCB:	dw	00
+	dw	00	
+
+
+	
+def.preamble:
+		db	3
+		db	ESC,"!"
+our.char:	db	" ",00
+
+..drop.out:
+	pop	b
+	jmp	..and.send
+
+tail:	db	'FNT'	;obligatory file type
+
+;----------------------------------------------------------------------------
+send.font::	;sends the font to the console and the sys file
+	call	fill.fcb	;the font file
+	ftad			;point to file type
+	lxi	d,tail
+	xchg
+	lxi	b,3
+	ldir
+	call	open
+	lxi	h,upstairs	;temporary buffer
+
+	mvi	b,0DAH-" "	;no. to do in B
+..a.loop:
+	push	b
+	mvi	b,16
+..an.inner.loop:
+	push	b
+	push	h
+	call	getbyte
+	mov	e,a	;put it in E
+	EOF?
+	mov	a,m
+	ana	a	;have we reached the end?
+	pop	h
+	pop	b
+	mov	m,e	;put byte in memory
+	jrnz	..drop.out
+	inx	h
+	djnz	..an.inner.loop
+	pop	b
+	inr	c
+	djnz	..a.loop	
+;now we send the font that we read to the console
+..and.send:
+	mvi	b,0DaH-" "	;no. to do in B
+	mvi	c," "
+	lxi	h,upstairs
+..b.loop:
+	mov	a,c		;get character
+	sta	our.char
+	push	b
+	push	h
+	lxi	h,def.preamble
+	call	msg
+	pop	h
+	mvi	b,16
+..b.inner.loop:
+	mov	a,m
+	call	putchar
+	inx	h
+	djnz	..b.inner.loop
+	pop	b
+	inr	c
+	djnz	..b.loop	
+;now we write it to disk
+	lhld	font		;address of font table
+	xchg
+	lxi	h,upstairs
+	lxi	b,(0DaH-" ")*16	;no. to do in BC
+	call	put.to.sys
+	ret	
+
+
+
+pfktail:	db	'PFK'
+;----------------------------------------------------------------------------
+fillit:	;fill the editing buffer with the PFKey file from the filename
+; pointed to by HL
+	call	fill.FCB
+	ftad			;point to file type
+	lxi	d,pfktail
+	xchg
+	lxi	b,3
+	ldir
+	call	open	;the file
+get.that.one:
+	lxi	h,Our.Buffer+1	;where the string itself starts
+	mvi	c,0	;count of gotten bytes from ASCII CR del. record
+..7xloop:
+	push	b
+	push	h
+	call	getbyte
+	pop	h
+	pop	b
+	cpi	eof
+	rz		;was it end of file or carriage return
+	cpi	cr
+	rz
+	cpi	lf	;was it a line feed?
+	rz
+	mov	m,a	;put byte in memory
+	inx	h
+	inr	c
+	mov	a,c
+	sta	our.buffer	;update the count
+	djnz	..7xloop	
+	ret	
+
+;
+;
+X	EQU	0FFH
+
+
+;===============================
+; Keyboard position coding table
+;===============================
+
+;============================================================================
+; @kbtab	; keyboard position table
+;
+; 1st table 00-2fh bias=000h (any key pos 00h-2fh)
+; 2nd table 30-7fh bias=000h (CTRL)
+; 3rd table 30-7fh bias=050h (GRPH)
+; 4th table 30-7fh bias=0a0h (un-shift, no caps)
+; 5th table 30-7fh bias=0f0h (shift, no caps)
+; 6th table 30-7fh bias=140h (un-shift, caps)
+; 7th table 30-7fh bias=190h (shift, caps)
+;============================================================================
+
+;-----;
+@kbtab:
+;-----;
+
+;---------------------------------------------------------------;
+; 1st table 00-2fh base=000h, length=02fh (any key pos 00h-2fh) ;
+;---------------------------------------------------------------;
+;		0	1	2	3	4	5	6	7
+;00h		;	F4;	F5;	F6;	F7;	F8;	F9;	F10;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+;08h		(A1);	BREAK;	PAUSE;	SCRN D;	HELP;	(A2);	(A3);	MF1;
+	db	0ffh,	003h,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+;10h		;	LF;	(A5);	;	'000';	return;	.;	0;
+	db	0ffh,	00ah,	0ffh,	0ffh,	0ffh,	00dh,	'.',	'0'
+;18h		+;	6;	5;	4;	;	MF4;	MF3;	MF2;
+	db	'+',	'6',	'5',	'4',	0ffh,	0ffh,	0ffh,	0ffh
+;20h		;	;	(A4);	;	;	3;	2;	1;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	'3',	'2',	'1'
+;28h		-;	9;	8;	7;	=;	*;	/;	,;
+	db	'-',	'9',	'8',	'7',	'=',	'*',	'/',	','
+
+;------------------------------------------------;
+; 2nd table 30-7fh base=000h, length=04fh (CTRL) ;
+;------------------------------------------------;
+;		0	1	2	3	4	5	6	7
+;30h		;	Caps;	Space;	^Z;	^X;	^C;	^V;	^B;
+	db	0ffh,	0ffh,	020h,	01Ah,	018h,	003h,	016h,	002h
+;38h		^N;	^M;	^,;	^.;	up;	left;	right;	down;
+	db	00eh,	00dh,	00ch,	00eh,	0ffh,	0ffh,	0ffh,	0ffh
+;40h		;	;	;	^A;	^S;	^D;	^F;	^G;
+	db	0ffh,	0ffh,	0ffh,	001h,	013h,	004h,	006h,	007h
+;48h		^H;	^J;	^K;	^L;	^;;	^:;	return;	^/;
+	db	008h,	00ah,	00bh,	00ch,	01bh,	01ah,	00dh,	00fh
+;50h		;	^Q;	^W;	^E;	^R;	^T;	^Y;	^U;
+	db	0ffh,	011h,	017h,	005h,	012h,	014h,	019h,	015h
+;58h		^I;	^O;	^P;	^@;	^[;	^];	INS;	DEL;
+	db	009h,	00fh,	010h,	000h,	01bh,	01dh,	0ffh,	07fh
+;60h		;	^2;	^3;	^4;	^5;	^6;	^7;	^8;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+;68h		^9;	^0;	^-;	^^;	^\;	BS;	HOME;	CLS;
+	db	0ffh,	0ffh,	0ffh,	01eh,	01ch,	008h,	0ffh,	0ffh
+;70h		;	F3;	F2;	F1;	;	ESC;	1;	TAB;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	01bh,	0ffh,	009h
+;78h		;	;	;	;	;	;	;	;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+
+;------------------------------------------------;
+; 3rd table 30-7fh base=080h, length=04fh (GRPH) ;
+;------------------------------------------------;
+;		0	1	2	3	4	5	6	7
+;30h		;	Caps;	Space;	>Z;	>X;	>C;	>V;	>B;
+	db	0ffh,	0ffh,	020h,	09Ah,	098h,	083h,	096h,	082h
+;38h		>N;	>M;	>,;	>.;	up;	left;	right;	down;
+	db	08eh,	08dh,	08ch,	08eh,	0ffh,	0ffh,	0ffh,	0ffh
+;40h		;	;	;	>A;	>S;	>D;	>F;	>G;
+	db	0ffh,	0ffh,	0ffh,	081h,	093h,	084h,	086h,	087h
+;48h		>H;	>J;	>K;	>L;	>;;	>:;	return;	>/;
+	db	088h,	08ah,	08bh,	08ch,	09bh,	09ah,	00dh,	08fh
+;50h		;	>Q;	>W;	>E;	>R;	>T;	>Y;	>U;
+	db	0ffh,	091h,	097h,	085h,	092h,	094h,	099h,	095h
+;58h		>I;	>O;	>P;	>@;	>[;	>];	INS;	DEL;
+	db	089h,	08fh,	090h,	080h,	09bh,	09dh,	0ffh,	07fh
+;60h		;	>2;	>3;	>4;	>5;	>6;	>7;	>8;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+;68h		>9;	>0;	>-;	>^;	>\;	BS;	HOME;	CLS;
+	db	0ffh,	0ffh,	0ffh,	09eh,	09ch,	008h,	0ffh,	0ffh
+;70h		;	F3;	F2;	F1;	;	ESC;	1;	TAB;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	01bh,	0ffh,	009h
+;78h		;	;	;	;	;	;	;	;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+
+;-------------------------------------------------------------;
+; 4th table 30-7fh base=0d0h, length=04fh (un-shift, no caps) ;
+;-------------------------------------------------------------;
+;		0	1	2	3	4	5	6	7
+;30h		;	Caps;	Space;	z;	x;	c;	v;	b;
+	db	0ffh,	0ffh,	020h,	07Ah,	078h,	063h,	076h,	062h
+;38h		n;	m;	,;	.   ;	up;	left;	right;	down;
+	db	06eh,	06dh,	02ch,	02eh,	0ffh,	0ffh,	0ffh,	0ffh
+;40h		;	;	;	a;	s;	d;	f;	g;
+	db	0ffh,	0ffh,	0ffh,	061h,	073h,	064h,	066h,	067h
+;48h		h;	j;	k;	l;	;;	:;	return;	/;
+	db	068h,	06ah,	06bh,	06ch,	03bh,	03ah,	00dh,	02fh
+;50h		;	q;	w;	e;	r;	t;	y;	u;
+	db	0ffh,	071h,	077h,	065h,	072h,	074h,	079h,	075h
+;58h		i;	o;	p;	@;	[;	];	INS;	DEL;
+	db	069h,	06fh,	070h,	040h,	05bh,	05dh,	0ffh,	07fh
+;60h		;	2;	3;	4;	5;	6;	7;	8;
+	db	0ffh,	032h,	033h,	034h,	035h,	036h,	037h,	038h
+;68h		9;	0;	-;	^;	\;	BS;	HOME;	CLS;
+	db	039h,	030h,	02dh,	05eh,	05ch,	008h,	0ffh,	0ffh
+;70h		;	F3;	F2;	F1;	;	ESC;	1;	TAB;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	01bh,	031h,	009h
+;78h		;	;	;	;	;	;	;	;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+
+;----------------------------------------------------------;
+; 5th table 30-7fh base=120h, length=04fh (shift, no caps) ;
+;----------------------------------------------------------;
+;		0	1	2	3	4	5	6	7
+;30h		;	Caps;	Space;	Z;	X;	C;	V;	B;
+	db	0ffh,	0ffh,	020h,	05Ah,	058h,	043h,	056h,	042h
+;38h		N;	M;	<;	>;	up;	left;	right;	down;
+	db	04eh,	04dh,	03ch,	03eh,	0ffh,	0ffh,	0ffh,	0ffh
+;40h		;	;	;	A;	S;	D;	F;	G;
+	db	0ffh,	0ffh,	0ffh,	041h,	053h,	044h,	046h,	047h
+;48h		H;	J;	K;	L;	+;	*;	return;	?;
+	db	048h,	04ah,	04bh,	04ch,	02bh,	02ah,	00dh,	03fh
+;50h		;	Q;	W;	E;	R;	T;	Y;	U;
+	db	0ffh,	051h,	057h,	045h,	052h,	054h,	059h,	055h
+;58h		I;	O;	P;	`;	{;	};	INS;	DEL;
+	db	049h,	04fh,	050h,	060h,	07bh,	07dh,	0ffh,	07fh
+;60h		;	";	#;	$;	%;	&;	';	(;
+	db	0ffh,	022h,	023h,	024h,	025h,	026h,	027h,	028h
+;68h		);	_;	=;	~;	|;	BS;	HOME;	CLS;
+	db	029h,	05fh,	03dh,	07eh,	07ch,	008h,	0ffh,	0ffh
+;70h		;	F3;	F2;	F1;	;	ESC;	'!';	TAB;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	01bh,	021h,	009h
+;78h		;	;	;	;	;	;	;	;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+
+;----------------------------------------------------------;
+; 6th table 30-7fh base=170h, length=04fh (un-shift, caps) ;
+;----------------------------------------------------------;
+;		0	1	2	3	4	5	6	7
+;30h		;	Caps;	Space;	Z;	X;	C;	V;	B;
+	db	0ffh,	0ffh,	' ',	05Ah,	058h,	043h,	056h,	042h
+;38h		N;	M;	,;	.;	up;	left;	right;	down;
+	db	04eh,	04dh,	02ch,	02eh,	0ffh,	0ffh,	0ffh,	0ffh
+;40h		;	;	;	A;	S;	D;	F;	G;
+	db	0ffh,	0ffh,	0ffh,	041h,	053h,	044h,	046h,	047h
+;48h		H;	J;	K;	L;	;;	:;	return;	/;
+	db	048h,	04ah,	04bh,	04ch,	03bh,	03ah,	00dh,	02fh
+;50h		;	Q;	W;	E;	R;	T;	Y;	U;
+	db	0ffh,	051h,	057h,	045h,	052h,	054h,	059h,	055h
+;58h		I;	O;	P;	@;	[;	];	INS;	DEL;
+	db	049h,	04fh,	050h,	040h,	05bh,	05dh,	0ffh,	07fh
+;60h		;	2;	3;	4;	5;	6;	7;	8;
+	db	0ffh,	032h,	033h,	034h,	035h,	036h,	037h,	038h
+;68h		9;	0;	-;	^;	\;	BS;	HOME;	CLS;
+	db	039h,	030h,	02dh,	05eh,	05ch,	008h,	0ffh,	0ffh
+;70h		;	F3;	F2;	F1;	;	ESC;	1;	TAB;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	01bh,	031h,	009h
+;78h		;	;	;	;	;	;	;	;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+
+;-------------------------------------------------------;
+; 7th table 30-7fh base=1c0h, length=04fh (shift, caps) ;
+;-------------------------------------------------------;
+;		0	1	2	3	4	5	6	7
+;30h		;	Caps;	Space;	z;	x;	c;	v;	b;
+	db	0ffh,	0ffh,	020h,	07Ah,	078h,	063h,	076h,	062h
+;38h		n;	m;	<;	>;	up;	left;	right;	down;
+	db	06eh,	06dh,	03ch,	03eh,	0ffh,	0ffh,	0ffh,	0ffh
+;40h		;	;	;	a;	s;	d;	f;	g;
+	db	0ffh,	0ffh,	0ffh,	061h,	073h,	064h,	066h,	067h
+;48h		h;	j;	k;	l;	+;	*;	return;	?;
+	db	068h,	06ah,	06bh,	06ch,	02bh,	02ah,	00dh,	03fh
+;50h		;	q;	w;	e;	r;	t;	y;	u;
+	db	0ffh,	071h,	077h,	065h,	072h,	074h,	079h,	075h
+;58h		i;	o;	p;	`;	{;	};	INS;	DEL;
+	db	069h,	06fh,	070h,	060h,	07bh,	07dh,	0ffh,	07fh
+;60h		;	";	#;	$;	%;	&;	';	(;
+	db	0ffh,	022h,	023h,	024h,	025h,	026h,	027h,	028h
+;68h		);	_;	=;	~;	|;	BS;	HOME;	CLS;
+	db	029h,	05fh,	03dh,	07eh,	07ch,	008h,	0ffh,	0ffh
+;70h		;	F3;	F2;	F1;	;	ESC;	'!';	TAB;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	01bh,	021h,	009h
+;78h		;	;	;	;	;	;	;	;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+
+;----------------------------------------------------------------------------
+size.keytable	Equ	$-@kbtab
+
+key.image:	ds	size.keytable
+
+;
+substitution.table:
+	DW	GERMANY
+	DW	FRANCE
+	DW	SPAIN
+	DW	DENMARK
+	DW	SWEDEN
+;
+;
+;
+;
+;
+
+base.bitmaps:
+;the german bitmap
+
+	DB	000H,000H,008H,000H,000H,001H
+	DB	010H,000H,000H,00DH,002H,01CH,020H,058H,000H,000H
+	db	00h,00h,00h,00h,00h,00h,00h,00h,00h,00h	;graph button
+	DB	010H,000H,000H,00DH,002H,01CH,000H,038H,000H,000H
+	DB	010H,030H,000H,00DH,002H,01CH,022H,078H,000H,000H
+	DB	010H,000H,000H,00DH,002H,01CH,000H,038H,000H,000H
+	DB	010H,030H,000H,00DH,002H,01CH,022H,078H,000H,000H
+
+size.bitmap Equ	$-base.bitmaps
+
+;french alteration bitmap
+;
+	DB	000H,000H,000H,000H,000H,000H
+	DB	010H,040H,010H,008H,060H,01CH,004H,0F8H,000H,000H
+	db	00h,00h,00h,00h,00h,00h,00h,00h,00h,00h	;graph button
+	DB	010H,070H,010H,00DH,060H,01CH,07FH,0F8H,002H,000H
+	DB	010H,070H,010H,00DH,060H,01CH,07FH,0F8H,002H,000H
+	DB	010H,070H,010H,00DH,060H,01CH,07FH,0F8H,002H,000H
+	DB	010H,070H,010H,00DH,060H,01CH,07FH,0F8H,002H,000H
+
+
+	;spanish keyboard bitmap
+;
+	DB	00H,00H,00H,00H,00H,00H
+	DB	00H,00H,00H,00H,00H,00H,00H,00H,00H,00H
+	db	00h,00h,00h,00h,00h,00h,00h,00h,00h,00h	;graph button
+	DB	00H,00H,00H,00H,00H,00H,00H,08H,00H,00H
+	DB	00H,00H,00H,00H,00H,00H,00H,08H,00H,00H
+	DB	00H,00H,00H,00H,00H,00H,00H,00H,00H,00H
+	DB	00H,00H,00H,00H,00H,00H,00H,00H,00H,00H
+;
+
+
+	;danisk keyboard bitmap
+;
+	DB	00H,00H,00H,00H,00H,00H
+	DB	00H,00H,00H,0CH,00H,1CH,00H,08H,00H,00H
+	db	00h,00h,00h,00h,00h,00h,00h,00h,00h,00h	;graph button
+	DB	00H,00H,00H,0CH,00H,1CH,00H,08H,00H,00H
+	DB	00H,00H,00H,0CH,00H,1CH,00H,08H,00H,00H
+	DB	00H,00H,00H,0CH,00H,1CH,00H,08H,00H,00H
+	DB	00H,00H,00H,0CH,00H,1CH,00H,08H,00H,00H
+
+;swedish keyboard bitmap
+
+	DB	00H,00H,00H,00H,00H,00H
+	DB	00H,00H,00H,00H,00H,00H,00H,00H,00H,00H
+	db	00h,00h,00h,00h,00h,00h,00h,00h,00h,00h	;graph button
+	DB	00H,00H,00H,00H,00H,1CH,00H,18H,00H,00H
+	DB	00H,00H,00H,00H,00H,1CH,00H,18H,00H,00H
+	DB	00H,00H,00H,00H,00H,00H,00H,00H,00H,00H
+	DB	00H,00H,00H,00H,00H,00H,00H,00H,00H,00H
+;
+
+
+GERMANY:	;german keyboard substitutions
+	DB	0F4H,5EH
+	DB	19H,1CH,1BH,1FH,1AH,1DH, X , X 
+	DB	00H, X , X ,1EH
+	DB	79H,7CH,7BH,2DH,7AH,7DH,2BH,3CH
+	DB	7EH,23H,5EH
+	DB	59H,3BH,3AH,5CH,5BH,5FH,5AH,5DH
+	DB	2AH,3EH,40H,2FH,3DH,3FH,27H,60H
+	DB	59H,5CH,5BH,2DH,5AH,5DH,2BH,3CH
+	DB	7EH,23H,5EH
+	DB	79H,3BH,3AH,7CH,7BH,5FH,7AH,7DH
+	DB	2AH,3EH,40H,2FH,3DH,3FH,27H,60H
+;
+
+FRANCE:	;french keyboard substitutions
+
+	DB	17H, X ,11H,0DH,01H,1AH,1EH, X 
+	DB	 X ,1DH,1CH,00H,1BH,1FH, X 
+	DB	77H,2CH,3BH,3AH,71H,6DH,7CH,3DH
+	DB	61H,7AH,5EH,60H,3CH,7BH,22H,27H
+	DB	28H,5DH,7DH,21H,5CH,40H,29H,2DH
+	DB	23H,26H
+	DB	57H,3FH,2EH,2FH,51H,4DH,25H,2BH
+	DB	41H,5AH,7EH,2AH,3EH,32H,33H,34H
+	DB	35H,36H,37H,38H,39H,30H,5BH,5FH
+	DB	24H,31H
+	DB	57H,2CH,3BH,3AH,51H,4DH,7CH,3DH
+	DB	41H,5AH,5EH,60H,3CH,32H,33H,34H
+	DB	35H,36H,37H,38H,39H,30H,29H,2DH
+	DB	23H,31H
+	DB	77H,3FH,2EH,2FH,71H,6DH,25H,2BH
+	DB	61H,7AH,7EH,2AH,3EH,7BH,22H,27H
+	DB	28H,5DH,7DH,21H,5CH,40H,5BH,5FH
+	DB	24H,26H
+;
+;
+SPAIN:	;spanish keyboard substitutions
+	DB	7CH
+	DB	5CH
+;
+DENMARK:;danish keyboard substitution
+	DB	1BH,1CH,1DH, X , X ,00H	
+	DB	7BH,7CH,7DH,3BH,3AH,40H	
+	DB	5BH,5CH,5DH,2BH,2AH,60H
+	DB	5BH,5CH,5DH,3BH,3AH,40H
+	DB	7BH,7CH,7DH,2BH,2AH,60H
+;
+SWEDEN:	;swedish substitution table
+	DB	60H,7BH,7DH,7EH,7CH
+	DB	40H,5BH,5DH,5EH,5CH
+;
+	
+
+
+
+character.pointers:
+
+dw	british.chars
+dw	german.chars
+dw	french.chars
+dw 	italian.chars
+dw	spanish.chars
+dw	danish.chars
+dw	swedish.chars
+
+
+
+;--------------------
+;*** French Chars ***
+;--------------------
+
+french.chars:
+
+db	40H,5BH,5CH,5DH
+db	7BH,7CH,7DH,7EH
+db	00h,00h,00h,00h
+
+;***** French	40H *****
+
+
+DB   	00000000b
+db   	01000000b
+DB	00111000b
+DB	01010100b
+DB  	01010110b
+DB   	01010101b
+DB   	00100000b
+DB   	00000000b
+
+;***** French 5BH *****
+
+
+DB	00000000b
+DB	00000000b
+DB	00000010b
+DB	00000101b
+DB	00000101b
+DB	00000010b
+DB	00000000b
+DB	00000000b
+
+;***** French 5cH *****
+
+
+DB   00000000b
+DB   00000000b
+DB   00100100b
+DB   01100100b
+DB   10100100b
+DB   10100100b
+DB   00011000b
+DB   00000000b
+
+;***** French 5DH ******
+
+DB	00000000b
+DB	00000000B
+db	00101001B
+db	01010101B
+db	01010101B
+db	01001010B
+db	00000000B
+db	00000000B
+
+;***** French 7bh ******
+
+
+DB   00000000b
+DB   01011000b
+DB   01010101b
+DB   01010110b
+DB   01010100b
+db   01010100b
+DB   00111000b
+DB   00000000b
+
+;***** French 7CH ******
+
+
+DB   00000000b
+DB   01111100b
+DB   00100000b
+DB   01000010b
+DB   01000001b
+DB   01000000b
+DB   00111100b
+DB   00000000b
+
+;***** French 7DH ******
+
+
+
+DB   00000000b
+DB   01011000b
+DB   01010100b
+DB   01010110b
+DB   01010101b
+db   01010100b
+DB   00111000b
+DB   00000000b
+
+;***** French 7EH ******
+
+
+DB	00000000b
+DB	00000000b
+DB	00000001b
+DB	00000000b
+DB	00000001b
+DB	00000000b
+DB	00000000b
+db	00000000B
+
+
+;--------------------
+;*** German Chars ***
+;--------------------
+
+german.chars:
+db	40H,5bH,5CH,5DH
+db	7BH,7CH,7DH,7EH
+db	00H,00H,00H,00H
+
+;***** German 40H ******
+
+DB	00000000b
+DB	00000000B
+db	00101001B
+db	01010101B
+db	01010101B
+db	01001010B
+db	00000000B
+db	00000000B
+
+;***** German 5BH *******
+
+
+
+DB   00000000b
+DB   01111000b
+DB   00010101b
+DB   00010010b
+DB   00010010b
+DB   00010101b
+DB   01111000b
+DB   00000000b
+
+;***** German 5CH ******
+
+
+DB   00000000b
+DB   00111000b
+DB   01000101b
+DB   01000100b
+DB   01000100b
+db   01000101b
+DB   00111000b
+DB   00000000b
+
+;***** German 5DH *****
+
+
+DB   00000000b
+DB   01111101b
+DB   00100000b
+DB   01000000b
+DB   01000000b
+DB   01000000b
+DB   00111101b
+DB   00000000b
+
+;***** German 7BH *****
+
+
+DB   	00000000b
+db   	01000000b
+DB	00111000b
+DB	01010101b
+DB  	01010100b
+DB   	01010101b
+DB   	00100000b
+DB   	00000000b
+
+;***** German 7cH *****
+
+DB   00000000b
+DB   00111000b
+DB   01000101b
+DB   01000100b
+DB   01000101b
+db   00111000b
+DB   00000000b
+DB   00000000b
+
+;***** German 7DH *****
+
+DB   00000000b
+DB   01111101b
+DB   00100000b
+DB   01000000b
+DB   01000000b
+DB   00111101b
+DB   00000000b
+DB   00000000b
+
+;***** German 7EH *****
+
+DB   00000000b
+DB   00110110b
+DB   01001001b
+DB   01001001b
+DB   00000001b
+DB   01111110b
+DB   00000000b
+DB   00000000b
+
+;---------------------
+;*** British Chars ***
+;---------------------
+
+british.chars:
+
+DB	23H,00H,00H,00H
+DB	00H,00H,00H,00H
+DB	00H,00H,00H,00H
+	
+;***** British Quid sign *****
+
+DB	00000000b
+DB	00000000b
+DB	01000010b
+DB	01001001b
+DB	01101001b
+DB	01111110b
+DB	01001000b
+DB	00000000b
+
+
+;--------------------
+;*** Danish Chars ***
+;--------------------
+
+;***** Danish 5bH sign *****
+
+danish.chars:
+DB	5BH,5CH,5DH,7BH
+DB	7CH,7DH,00H,00H
+DB	00H,00H,00H,00H
+
+
+DB	00000000b
+DB	01000001b
+DB	01001001b
+DB	01001001b
+DB	01111111b
+DB	00001010b
+DB	01111100b
+DB	00000000b
+
+;***** Danish 5cH sign *****
+
+
+DB   00000001b
+DB   00011110b
+DB   00100110b
+DB   01001001b
+DB   01010001b
+DB   00100010b
+DB   01011100b
+DB   00000000b
+
+;***** Danish 5DH sign *****
+
+
+DB   00000000b
+DB   01110000b
+DB   00101010b
+DB   00100101b
+DB   00100101b
+DB   00101010b
+DB   01110000b
+DB   00000000b
+
+;***** Danish 7BH sign *****
+
+
+
+DB	00000000b
+DB	01011000b
+DB	01010100b
+DB	00111000b
+DB	01010100b
+DB	00110100b
+DB	00000000b
+DB	00000000b
+
+;***** Danish 7cH sign *****
+
+
+DB   00000010b
+DB   00111100b
+DB   01001100b
+DB   01010100b
+DB   01100100b
+db   01000100b
+DB   10111000b
+DB   00000000b
+
+;***** Danish 7DH sign *****
+
+DB   	00000000b
+db   	01000000b
+DB	00111000b
+DB	01010100b
+DB  	01010101b
+DB   	01010100b
+DB   	00100000b
+DB   	00000000b
+
+
+
+;---------------------
+;*** Swedish Chars ***
+;---------------------
+
+swedish.chars:
+
+db	24H,40H,5BH,5CH
+db	5DH,5EH,60H,7BH
+db	7CH,7DH,7EH,00H
+
+;***** Swedish 24 sign *****
+
+
+DB	00000000b
+DB	10000001b
+DB	00011000b
+DB	00100100b
+DB	00100100b
+DB	00011000b
+DB	10000001b
+DB	00000000b
+
+
+;***** Swedish 40 sign *****
+
+DB	00000000b
+DB	01000100b
+DB	01010101b
+DB	01010110b
+DB	01010100b
+DB	01111100b
+DB	00000000b
+DB	00000000b
+
+;***Swedish 5BH sign *****
+
+
+DB   00000000b
+DB   01111000b
+DB   00010101b
+DB   00010010b
+DB   00010010b
+DB   00010101b
+DB   01111000b
+DB   00000000b
+
+;***Swedish 5CH sign *****
+
+
+DB   00000000b
+DB   00111000b
+DB   01000101b
+DB   01000100b
+DB   01000100b
+db   01000101b
+DB   00111000b
+DB   00000000b
+
+
+;***** svedish 5DH sign *****
+
+
+DB   00000000b
+DB   01110000b
+DB   00101010b
+DB   00100101b
+DB   00100101b
+DB   00101010b
+DB   01110000b
+DB   00000000b
+
+;***Swedish 5EH sign *****
+
+
+DB   00000000b
+DB   01111101b
+DB   00100000b
+DB   01000000b
+DB   01000000b
+DB   01000000b
+DB   00111101b
+DB   00000000b
+
+;***** swedish 60H ******
+
+
+
+DB   00000000b
+DB   01011000b
+DB   01010100b
+DB   01010101b
+DB   01010110b
+db   01010100b
+DB   00111000b
+DB   00000000b
+
+
+;***** Swedish 7BH sign *****
+
+DB   	00000000b
+db   	01000000b
+DB	00111000b
+DB	01010101b
+DB  	01010100b
+DB   	01010101b
+DB   	00100000b
+DB   	00000000b
+
+
+;***** Swedish 7CH *****
+
+
+DB   00000000b
+DB   00111000b
+DB   01000101b
+DB   01000100b
+DB   01000101b
+db   00111000b
+DB   00000000b
+DB   00000000b
+
+;***** Swedish 7DH *****
+
+
+DB   	00000000b
+db   	01000000b
+DB	00111000b
+DB	01010110b
+DB  	01010101b
+DB   	01010101b
+DB   	00100110b
+DB   	00000000b
+
+;***** Swedish 7EH *****
+
+DB   00000000b
+DB   01111101b
+DB   00100000b
+DB   01000000b
+DB   01000000b
+DB   00111101b
+DB   00000000b
+DB   00000000b
+
+
+
+
+;---------------------
+;*** Italian Chars ***
+;---------------------
+
+italian.chars:
+
+db	5BH,5DH,60H,7BH
+db	7CH,7DH,7EH,00H
+DB	00H,00H,00H,00H
+
+
+;italian 5bh
+
+db  00000000b
+db  00000000b
+db  00000000b
+db  00000100b
+db  00001010b
+db  00000100b
+db  00000000b
+db  00000000b
+
+
+;italian 05Dh
+
+DB   00000000b
+DB   01011000b
+DB   01010101b
+DB   01010110b
+DB   01010100b
+db   01010100b
+DB   00111000b
+DB   00000000b
+
+;italian 60H
+
+DB   00000000b
+DB   01111100b
+DB   00100000b
+DB   01000010b
+DB   01000001b
+DB   01000000b
+DB   00111100b
+DB   00000000b
+
+;italian 7bh
+
+DB   00000000b
+db   01000000b
+DB   00111000b
+DB   01010110b
+DB   01010101b
+DB   01010100b
+DB   00100000b
+DB   00000000b
+
+;italian 7ch
+
+DB   00000000b
+DB   00111000b
+DB   01000100b
+DB   01000110b
+DB   01000101b
+db   01000100b
+DB   00111000b
+DB   00000000b
+
+;italian 7dh
+
+DB   00000000b
+DB   01011000b
+DB   01010100b
+DB   01010110b
+DB   01010101b
+db   01010100b
+DB   00111000b
+DB   00000000b
+
+;italian 7eh
+
+DB   00000000b
+DB   00000000b
+DB   01000000b
+DB   01111010b
+DB   01000001b
+DB   00000000b
+DB   00000000b
+DB   00000000b
+
+
+;---------------------
+;*** Spanish Chars ***
+;---------------------
+
+spanish.chars:
+db	23H,5BH,5CH,5DH
+db	7BH,7CH,00H,00H
+DB	00H,00H,00H,00H
+
+
+;spanish 23H
+
+db   00000000b
+db   01010000B
+db   01111000B
+db   00010000B
+db   00000110B
+db   00001001B
+db   00001001B
+db   01111111B
+db   00000000B
+
+;spanish 5BH
+
+db   00000000B
+db   00000000B
+db   00000000B
+db   00000000B
+db   01111001B
+db   00000000B
+db   00000000B
+db   00000000B
+
+;spanish 5cH
+
+db   00000000B
+db   01111001B
+db   01000010B
+db   00100010B
+db   00010001B
+db   00001001B
+db   01111010B
+db   00000000B
+
+;spanish 5DH
+
+db   00000000B
+db   01000000B
+db   10000000B
+db   10000101B
+db   01001000B
+db   00110000B
+db   00000000B
+db   00000000B
+
+;spanish 7BH
+
+db   00000000B
+db   00000000B
+db   00000001B
+db   00000000B
+db   00000001B
+db   00000000B
+db   00000000B
+db   00000000B
+
+;Spanish 7CH
+
+db   00000000B
+db   01110001B
+db   00001010B
+db   00001010B
+db   00001001B
+db   00001001B
+db   01110010B
+db   00000000B
+
+usa.font:
+
+;***** space *****
+
+DB	00000000b
+DB	00000000b
+DB	00000000b
+DB	00000000b
+DB	00000000b
+DB	00000000b
+DB	00000000b
+DB	00000000b
+
+;***** ! *****
+
+DB	00000000b
+DB	00000000b
+DB	00000000b
+DB	00000000b
+DB	01011111b
+DB	00000000b
+DB	00000000b
+DB	00000000b
+
+;***** " *****
+
+DB	00000000b
+DB	00000000b
+DB	00000111b
+DB	00000000b
+DB	00000111b
+DB	00000000b
+DB	00000000b
+
+;***** # *****
+
+DB	00000000b
+DB	00000000b
+DB	00000000b
+DB	00001010b
+DB	00011111b
+DB	00001010b
+DB	00011111b
+DB	00001010b
+DB	00000000b
+
+;***** $ *****
+
+DB	00000000b
+DB	00010010b
+DB	00101010b
+DB	01111111b
+DB	00101010b
+DB	00100100b
+DB	00000000b
+DB	00000000b
+
+;***** % *****
+	
+DB	00000000b
+DB	01100010b
+DB	01100100b
+DB	00001000b
+DB	00010000b
+DB	00100110b
+DB	01000110b
+DB	00000000b
+
+;***** & *****
+
+DB   00000000b
+DB   01010000b
+DB   00100010b
+DB   01010101b
+DB   01001001b
+DB   00110110b
+DB   00000000b
+DB   00000000b
+
+;*** ' ***
+
+DB   00000000b
+DB   00000000b
+DB   00000000b
+DB   00000000b
+DB   00001011b
+DB   00000111b
+DB   00000000b
+DB   00000000b
+
+;***** ( *****
+
+DB   00000000b
+DB   00000000b
+DB   01000001b
+DB   00100010b
+DB   00011100b
+DB   00000000b
+DB   00000000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   00011100b
+DB   00100010b
+DB   01000001b
+DB   00000000b
+DB   00000000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   00101010b
+DB   00011100b
+DB   00011100b
+DB   00101010b
+DB   00000000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   00001000b
+DB   00001000b
+DB   00111110b
+DB   00001000b
+DB   00001000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   01110000b
+DB   10110000b
+DB   00000000b
+DB   00000000b
+DB   00000000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   00000100b
+DB   00000100b
+DB   00000100b
+DB   00000100b
+DB   00000100b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   00000000b
+DB   01100000b
+DB   01100000b
+DB   00000000b
+DB   00000000b
+DB   00000000b
+
+
+DB   00000001b
+DB   00000010b
+DB   00000100b
+DB   00001000b
+DB   00010000b
+DB   00100000b
+DB   01000000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00111110b
+DB   01000101b
+DB   01001001b
+DB   01001001b
+DB   01010001b
+DB   00111110b
+DB   00000000b
+
+
+DB   00000000b
+DB   01000000b
+DB   01000000b
+DB   01111111b
+DB   01000010b
+DB   01000100b
+DB   00000000b
+DB   00000000b
+
+
+DB   00000000b
+DB   01000110b
+DB   01001001b
+DB   01001001b
+DB   01010001b
+DB   01010001b
+DB   01100010b
+DB   00000000b
+
+
+DB   00000000b
+DB   00110110b
+DB   01001001b
+DB   01001001b
+DB   01001001b
+DB   01001001b
+DB   00100010b
+DB   00000000b
+
+
+DB   00000000b
+DB   00010000b
+DB   01111111b
+DB   00010010b
+DB   00010100b
+DB   00011000b
+DB   00010000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00010001b
+DB   00101001b
+DB   01000101b
+DB   01000101b
+DB   01000101b
+DB   00100111b
+DB   00000000b
+
+
+DB   00000000b
+DB   00110000b
+DB   01001001b
+DB   01001001b
+DB   01001001b
+DB   01001010b
+DB   00111100b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000011b
+DB   00000101b
+DB   00001001b
+DB   01110001b
+DB   00000001b
+DB   00000011b
+DB   00000000b
+
+
+DB   00000000b
+DB   00110110b
+DB   01001001b
+DB   01001001b
+DB   01001001b
+DB   01001001b
+DB   00110110b
+DB   00000000b
+
+
+DB   00000000b
+DB   00011110b
+DB   00101001b
+DB   01001001b
+DB   01001001b
+DB   01001001b
+DB   00000110b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   00000000b
+DB   00110110b
+DB   00110110b
+DB   00000000b
+DB   00000000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   00000000b
+DB   01110110b
+DB   10110110b
+DB   00000000b
+DB   00000000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   01000001b
+DB   01100011b
+DB   00110110b
+DB   00011100b
+DB   00001000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   00010100b
+DB   00010100b
+DB   00010100b
+DB   00010100b
+DB   00010100b
+DB   00000000b
+
+
+
+DB   00000000b
+DB   00000000b
+DB   00001000b
+DB   00011100b
+DB   00110110b
+DB   01100011b
+DB   01000001b
+DB   00000000b
+
+DB   00000000b
+DB   00000110b
+DB   00001001b
+DB   00001001b
+DB   01010001b
+DB   00000001b
+DB   00000010b
+DB   00000000b
+
+
+DB   00000000b
+DB   01001110b
+DB   01011001b
+DB   01010101b
+DB   01001001b
+DB   00100010b
+DB   00011100b
+DB   00000000b
+
+
+DB   00000000b
+DB   01111100b
+DB   00001010b
+DB   00001001b
+DB   00001001b
+DB   00001010b
+DB   01111100b
+DB   00000000b
+
+
+DB   00000000b
+DB   00110110b
+DB   01001001b
+DB   01001001b
+DB   01001001b
+DB   01001001b
+DB   01111111b
+DB   00000000b
+
+
+DB   00000000b
+DB   00100010b
+DB   01000001b
+DB   01000001b
+DB   01000001b
+DB   00100010b
+DB   00011100b
+DB   00000000b
+
+
+DB   00000000b
+DB   00011100b
+DB   00100010b
+DB   01000001b
+DB   01000001b
+DB   01111111b
+DB   01000001b
+DB   00000000b
+
+
+DB   00000000b
+DB   01000001b
+DB   01001001b
+DB   01001001b
+DB   01001001b
+DB   01001001b
+DB   01111111b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000001b
+DB   00000001b
+DB   00001001b
+DB   00001001b
+DB   00001001b
+DB   01111111b
+DB   00000000b
+
+
+DB   00000000b
+DB   00111010b
+DB   01001001b
+DB   01001001b
+DB   01000001b
+DB   00100010b
+DB   00011100b
+DB   00000000b
+
+
+DB   00000000b
+DB   01111111b
+DB   00001000b
+DB   00001000b
+DB   00001000b
+DB   00001000b
+DB   01111111b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   01000001b
+DB   01111111b
+DB   01000001b
+DB   00000000b
+DB   00000000b
+db   00000000b
+
+DB   00000000b
+DB   00000001b
+DB   00111111b
+DB   01000001b
+DB   01000000b
+DB   00100000b
+DB   00000000b
+DB   00000000b
+
+
+DB   00000000b
+DB   01000001b
+DB   00100010b
+DB   00010100b
+DB   00001000b
+DB   00001000b
+DB   01111111b
+DB   00000000b
+
+
+DB   00000000b
+DB   01000000b
+DB   01000000b
+DB   01000000b
+DB   01000000b
+DB   01000000b
+DB   01111111b
+DB   00000000b
+
+
+DB   00000000b
+DB   01111111b
+DB   00000010b
+DB   00001100b
+DB   00001100b
+DB   00000010b
+DB   01111111b
+DB   00000000b
+
+
+DB   00000000b
+DB   01111111b
+DB   00010000b
+DB   00001000b
+DB   00000100b
+DB   00000010b
+DB   01111111b
+DB   00000000b
+
+
+DB   00000000b
+DB   00011100b
+DB   00100010b
+DB   01000001b
+DB   01000001b
+DB   00100010b
+DB   00011100b
+DB   00000000b
+
+
+
+DB   00000000b
+DB   00000110b
+DB   00001001b
+DB   00001001b
+DB   00001001b
+DB   00001001b
+DB   01111111b
+DB   00000000b
+
+
+DB   00000000b
+DB   01011100b
+DB   00100010b
+DB   01010001b
+DB   01000001b
+DB   00100010b
+DB   00011100b
+DB   00000000b
+
+
+DB   00000000b
+DB   01000110b
+DB   00101001b
+DB   00011001b
+DB   00001001b
+DB   00001001b
+DB   01111111b
+DB   00000000b
+
+
+DB   00000000b
+DB   00110010b
+DB   01001001b
+DB   01001001b
+db   01001001b
+DB   01001001b
+DB   00100110b
+DB   00000000b
+
+
+DB   00000001b
+DB   00000001b
+DB   00000001b
+DB   01111111b
+DB   00000001b
+DB   00000001b
+DB   00000001b
+db   00000000b
+
+
+DB   00000000b
+DB   00111111b
+DB   01000000b
+DB   01000000b
+DB   01000000b
+DB   01000000b
+DB   00111111b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000111b
+DB   00011000b
+DB   01100000b
+DB   01100000b
+DB   00011000b
+DB   00000111b
+DB   00000000b
+
+
+DB   00000000b
+DB   01111111b
+DB   00100000b
+db   00011000b
+DB   00011000b
+DB   00100000b
+DB   01111111b
+DB   00000000b
+
+
+DB   00000000b
+DB   01100011b
+DB   00010100b
+DB   00001000b
+DB   00010100b
+DB   01100011b
+DB   00000000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000111b
+DB   00001000b
+DB   01110000b
+DB   00001000b
+DB   00000111b
+DB   00000000b
+DB   00000000b
+
+;***** Z *****
+
+DB   00000000b
+DB   01000011b
+DB   01000101b
+DB   01001001b
+DB   01010001b
+DB   01100001b
+DB   01000001b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   01000001b
+db   01000001b
+db   01000001b
+DB   01111111b
+DB   00000000b
+DB   00000000b
+
+
+DB   00000000b
+DB   01000000b
+DB   00100000b
+DB   00010000b
+DB   00001000b
+DB   00000100b
+DB   00000010b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   01111111b
+db   01000001b
+DB   01000001b
+DB   01000001b
+DB   00000000b
+DB   00000000b
+
+DB   00000000b
+DB   00000100b
+DB   00000010b
+DB   00000001b
+DB   00000010b
+DB   00000100b
+DB   00000000b
+DB   00000000b
+
+
+DB   10000000b
+DB   10000000b
+DB   10000000b
+DB   10000000b
+DB   10000000b
+DB   10000000b
+DB   10000000b
+DB   10000000b
+
+;***** ` *****
+
+DB   00000000b
+DB   00000000b
+DB   00000000b
+DB   00001011b
+DB   00000111b
+DB   00000000b
+DB   00000000b
+DB   00000000b
+
+;***** a *****
+
+DB   00000000b
+db   01000000b
+DB   00111000b
+DB   01010100b
+DB   01010100b
+DB   01010100b
+DB   00100000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00111000b
+DB   01000100b
+DB   01000100b
+DB   01000100b
+DB   00101000b
+DB   01111111b
+DB   00000000b
+
+
+DB   00000000b
+DB   00101000b
+DB   01000100b
+DB   01000100b
+DB   01000100b
+DB   01000100b
+DB   00111000b
+DB   00000000b
+
+;***** d *****
+
+DB   00000000b
+DB   01111111b
+db   00101000b
+DB   01000100b
+DB   01000100b
+DB   01000100b
+DB   00111000b
+DB   00000000b
+
+
+DB   00000000b
+DB   01011000b
+DB   01010100b
+DB   01010100b
+DB   01010100b
+db   01010100b
+DB   00111000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   00001001b
+DB   00001001b
+DB   11111110b
+DB   00001000b
+DB   00000000b
+DB   00000000b	
+
+DB   00000000b
+DB   01111100b
+DB   10011000b
+db   10100100b
+db   10100100b
+DB   10100100b
+DB   01011000b
+DB   00000000b
+
+
+DB   00000000b
+DB   01111000b
+db   00000100b
+DB   00000100b
+DB   00000100b
+DB   00001000b
+DB   01111111b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   01000000b
+DB   01111101b
+DB   01000100b
+DB   00000000b
+DB   00000000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   00111101b
+DB   01000000b
+db   01000000b
+db   01000000b
+DB   00100000b
+DB   00000000b
+
+
+db   00000000b
+db   00000000b
+DB   01000100b
+DB   00101000b
+DB   00010000b
+DB   00100000b
+DB   01111111b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   01000000b
+DB   01111111b
+DB   01000001b
+DB   00000000b
+DB   00000000b
+DB   00000000b
+
+
+DB   01111000b
+db   00000100b
+DB   00000100b
+DB   01111000b
+db   00000100b
+DB   00000100b
+DB   01111000b
+DB   00000000b
+
+
+DB   00000000b
+DB   01111000b
+DB   00000100b
+DB   00000100b
+DB   00000100b
+DB   00001000b
+DB   01111100b
+DB   00000000b
+
+
+DB   00000000b
+DB   00111000b
+DB   01000100b
+DB   01000100b
+DB   01000100b
+db   01000100b
+DB   00111000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00011000b
+DB   00100100b
+db   00100100b
+DB   00100100b
+db   00011000b
+DB   11111100b
+DB   00000000b
+
+
+DB   00000000b
+DB   01000000b
+DB   11111100b
+db   00100100b
+DB   00100100b
+DB   00100100b
+DB   00011000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00001000b
+DB   00000100b
+DB   00000100b
+DB   00000100b
+DB   00001000b
+DB   01111100b
+DB   00000000b
+
+
+DB   00000000b
+DB   00100100b
+DB   01010100b
+DB   01010100b
+DB   01010100b
+DB   01010100b
+DB   01001000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00100000b
+DB   01000100b
+db   01000100b
+db   00111111b
+DB   00000100b
+DB   00000100b
+DB   00000000b
+
+
+DB   00000000b
+DB   01111100b
+DB   00100000b
+DB   01000000b
+DB   01000000b
+DB   01000000b
+DB   00111100b
+DB   00000000b
+
+
+DB   00000000b
+DB   00011100b
+DB   00100000b
+DB   01000000b
+db   01000000b
+DB   00100000b
+DB   00011100b
+DB   00000000b
+
+
+DB   00111100b
+DB   01000000b
+DB   01000000b
+DB   00111100b
+DB   01000000b
+DB   01000000b
+DB   00111100b
+DB   00000000b
+
+
+DB   00000000b
+DB   01000100b
+DB   00101000b
+db   00010000b
+DB   00010000b
+DB   00101000b
+DB   01000100b
+DB   00000000b
+
+
+DB   00000000b
+DB   01111100b
+DB   10010000b
+DB   10100000b
+DB   10100000b
+DB   10100000b
+DB   00011100b
+DB   00000000b
+
+
+DB   00000000b
+DB   01000100b
+DB   01001100b
+db   01010100b
+DB   01010100b
+DB   01100100b
+DB   01000100b
+DB   00000000b
+
+
+
+DB   00000000b
+DB   00000000b
+DB   00000000b
+DB   10000010b
+DB   01101100b
+DB   00010000b
+DB   00000000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   00000000b
+DB   11111111b
+DB   00000000b
+DB   00000000b
+DB   00000000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00000000b
+DB   00010000b
+DB   01101100b
+DB   10000010b
+DB   00000000b
+DB   00000000b
+DB   00000000b
+
+
+DB   00000000b
+DB   00001000b
+DB   00010000b
+DB   00010000b
+DB   00001000b
+DB   00001000b
+DB   00010000b
+DB   00000000b
+
+
+DB   00000000b
+DB   01100000b
+DB   01011000b
+DB   01000110b
+DB   01011000b
+DB   01100000b
+DB   00000000b
+DB   00000000b
+   
+size.font	equ	$-usa.font
+our.font.image:	ds	size.font
+
+
+
+
+    
+
+Program.end:	;keep this here please
+end start	;with this
