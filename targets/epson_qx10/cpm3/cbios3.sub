@@ -1,0 +1,18 @@
+; MICROSOFT assembly
+m80 cbios3a3,=cbios3a3
+m80 =conout
+m80 =hardcopy
+m80 =translat
+m80 =grahooks
+m80 =graph
+m80 =list
+m80 =font
+m80 =fonta
+m80 =music
+; concatenate console driver rel files
+lib cbios3a3=cbios3a3(bios3a),conout,grahooks,graph,font,fonta,list,hardcopy,translat,music
+;---------------------------------
+; now ready to transfer  REL files
+; to main CP/M PLUS BIOS disc
+;viz   pip =b:cbios3a3.rel
+;---------------------------------
