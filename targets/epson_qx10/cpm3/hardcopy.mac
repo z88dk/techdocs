@@ -1,0 +1,746 @@
+title	"Hardcopy Driver for the ubiquitous PD7220 display chip---A.R.M.C."
+subttl	"A.Clarke, September 1983"
+NAME ('HCOPY')
+dseg		;as it goes in the system bank
+
+;***************************************************************
+;***************************************************************
+;********          Hardcopy Driver for the 7220         ********
+;***************************************************************
+;***************************************************************
+;********   Version 1.0     A.R.M.Clarke Sept 13 1983   ********
+;***************************************************************
+.comment	"
+History
+Sept 13th	coded the character screen dump
+Sept 14th	coded the graphics screen dump
+Feb  19th       corrected printer test and high intensity
+April 29th	did colour screendump
+"
+
+include	EQUSMACS
+;all our console equates and Z80 macros
+
+print.buffer.base	equ	0000H	;at the base of memory
+
+;*** Internal Variables ***
+passes:			db	000	;printer passes
+chars.to.do:		db	000	;in a line
+was.there.an.enhancement:	db	000
+Passes.To.Do:		dw	000	;the number of passes left to do
+Start.Ad.of.Line:	dw	000	;the pointer to the VRAM address
+Cursor.Position:	dw	000	;The current cursor position in VRAM
+cells.left.to.do:	dw	000	;The number of cells left to do
+no.cells.examined:	dw	000	;
+furthest.full.byte:	dw	000	;
+bitmask:		db	000	;for colour stuff
+buffer.pointer:		dw	000
+pass.count:		dw	000	;for a colour pass
+;----------------------------------------------------------------------------
+Lprint.a.string:	;print a string pointed to by HL. the string is
+;null terminated
+	push	h
+	call	pio$sot##
+	pop	h
+nu.loop:
+	mov	a,m
+	ana	a
+	rz
+	mov	c,a
+	push	h
+	call	pio$phys##	;print with status check
+	pop	h
+	inx	h
+	jmp	nu.loop
+
+
+..set.string:
+db	0AH	;send out a line feed
+db	ESC	;set the printer line feed distance
+db	"A"
+db	8	;set it to 8 78ths of an inch
+db	000
+
+..set.char.string:
+db	0AH	;send out a line feed
+db	ESC	;set the printer line feed distance
+db	"0"	;to 1/8 line spacing
+db	000
+
+..fx.jx.Bitimage.string:
+db	ESC
+db	"*"	;8-pin bit-image mode
+db	4	;CRT Graphics
+db	000
+
+..jx.colour.Bitimage.string:
+	db	8
+	db	ESC
+	db	"r"
+colour:	db	000
+	db	ESC
+	db	"*"	;8-pin bit-image mode
+	db	4	;CRT Graphics
+real.pass.count:
+	dw	000	;bytes in this colour pass.
+..pass.end:
+	db	000
+
+..MX.bitimage.string:
+db	ESC
+db	"L"
+db	000
+
+..reset.string:
+
+db	0DH	;carriage return
+db	esc	;set the printer line feed distance
+db	"2"	;to the default
+db	0AH	;line feed
+db	000
+
+Lprint.a.line:	;print out the contents of the Handy Buffer on the printer
+;firstly, we save printer time by finding out how many printable characters
+	mvi	b,columns
+	lxi	h,Handy.Buffer+((columns)*2)	;point to the end
+..loop2:
+	dcx	h	;decrement over the attribute byte
+	dcx	h
+	mov	a,m
+	cpi	" "+1
+	jrnc	..its.a.character
+	djnz	..loop2
+	jmp	..end.of.routine	;as there is no printable char.
+..its.a.character:
+	mov	a,b
+	sta	chars.to.do
+	lxi	h,Handy.Buffer##	;start at the beginning
+;B contains the count, HL points to handy buffer
+..once.more:
+	push	b
+	push	h
+	mov	a,m		;get the character from handy.buffer
+	mvi	c," "
+	cmp	c		;less than "space"
+	jc	..unprintable	;if so, substitute 20H
+	mov	c,a
+	call	untranslate.char##	;as it will have the internal code
+..unprintable:
+	call	pio$phys##	;print the character
+	pop	h
+	pop	b
+	inx	h	;increment to the attribute byte
+	lda	was.there.an.enhancement
+	ora	m
+	sta	was.there.an.enhancement
+	inx	h
+	djnz	..once.more
+	ana	a	;was there an enhancement
+	jz	..end.of.routine
+;a character was enhanced
+	mvi	a,3	;passes if enhanced
+	sta	passes
+..to.another.pass:
+	mvi	c,0dH
+	call	pio$phys			;do a carriage return
+	lxi	h,passes
+	dcr	m			;have we finished?
+	jz	..end.of.routine
+	lda	chars.to.do	
+	mov	b,a
+	lxi	h,Handy.Buffer##	;start at the beginning
+
+;B contains the count, HL points to handy buffer
+..pass.once.more:
+	push	b
+	push	h
+	mov	a,m		;
+	mvi	c," "
+	cmp	c		;less than "space"
+	jc	..pass.unprintable	;if so, substitute 20H
+	push	h
+	mov	c,a
+	call	untranslate.char##
+	pop	h
+..pass.unprintable:
+	inx	h
+	mov	a,m	;was there an enhancement?
+	ana	a
+	jrnz	..print.it
+	mvi	c," "
+..print.it:
+	call	pio$phys##	;print the character
+	pop	h
+	pop	b
+	inx	h	;increment to the attribute byte
+	inx	h
+	djnz	..pass.once.more
+	jmp	..to.another.pass
+..end.of.routine:
+	mvi	c,0AH
+	call	pio$phys##
+	call	pio$sot##
+	xra	a
+	sta	was.there.an.enhancement
+	ret
+
+;----------------------------------------------------------------------------
+screen.dump:	;Dump the contents of the VRAM in character mode
+;first we initialise the printer
+	lxi	h,..set.char.string
+	lda	printer
+	cpi	4
+	cnz	lprint.a.string	;only if EPSON printer
+;send out a line feed, set the printer line feed to 1/8ths of an inch
+
+;we print the contents of VRAM, line by line.
+	lhld	cursor.column##	;save line and column
+	push	h		;on the stack, so we can restore it later
+	call	IHome##		;home the cursor
+	lda	no.of.lines##
+	mov	b,a		;put the line count in B	
+..loop1:
+	push	b
+	call	get.a.line##	;into our handy buffer
+	call	Lprint.a.line
+	pop	b
+	dcr	b
+	jrz	..dun.it	;avoid doing a screen scroll
+	push	b
+	call	new.line##
+	pop	b
+	jmpr	..loop1
+..dun.it:	;so it has all been dumped
+	pop	h		;find the original cursor address
+	shld	cursor.column	;and move the cursor there
+	call	move.the.cursor##
+	ret
+
+;----------------------------------------------------------------------------
+read.it.in::	;read in the byte addressed by HL from VRAM. Returns byte in
+;A register
+
+	shld	..where.we.put.the.cursor
+	lda	cells.left.to.do
+	ani	01H
+	add	a
+	add	a
+	add	a	;shift bit to signal high byte read
+	ori	.RDAT or @LByte shl 3
+	sta	..read.type
+	lxi	h,..get.byte.orders
+	call	do.slow.orders##
+	call	inpar##
+	ret
+..get.byte.orders:
+	db	4	;orders in this sequence
+;*CURS*
+	db	4	;bytes in this order
+	DB	.Curs
+..where.we.put.the.cursor:
+	dw	000	;the place where we put the cursor
+	db	000	;the address within the word	
+;*FIGS*
+	db	4	;bytes in this order
+	db	.Figs
+	db	eastwards or is.rdat shl 3
+	db	1
+	db	000
+;*MASK*
+	db	3	;bytes in this order
+	db	.mask
+	dw	0FFFFH
+;*RDAT*
+	db	1
+..read.type:
+	db	.RDAT or @LByte	shl 3
+
+
+
+;----------------------------------------------------------------------------
+get.an.eight.by.eight:
+	lxi	d,handy.buffer##
+	call	are.we.monochrome##	;if so just get one plane
+	jrnz	..just.8.by.8
+	mvi	b,1
+	call	switch.colour.plane##	;store separately in case
+	call	..just.8.by.8		;we may have a colour printer
+	mvi	b,2
+	call	switch.colour.plane##
+	call	..just.8.by.8
+	mvi	b,4
+	call	switch.colour.plane##
+..just.8.by.8:
+	lhld	cursor.position
+	mvi	b,8
+..pass.loop:
+	push	d
+	push	h
+	push	b
+	call	read.it.in
+	pop	b
+	pop	h
+	lxi	d,40
+	dad	d	;bump the VRAM pointer
+	pop	d
+	stax	d	;store the byte that we wrested from VRAM
+	inx	d
+	djnz	..pass.loop
+	ret
+
+;----------------------------------------------------------------------------
+rotate.and.print:	;a byte in the HANDY BUFFER array
+	lxi	h,handy.buffer##
+	call	are.we.monochrome##
+	mvi	a,0
+	jrnz	..rotate.once
+;in colour, we OR each plane separately
+	call	..rotate.it
+	mov	a,c
+	push	psw
+	call	..rotate.it
+	pop	psw
+	ora	c
+..rotate.once:
+	push	psw
+	call	..rotate.it
+	pop	psw
+	ora	c
+	mov	c,a
+	call	pio$phys
+	ret
+..rotate.it:
+	mvi	b,8
+..dot.loop:
+	mov	a,m
+	rrc
+	mov	m,a
+	ralr	c
+	inx	h
+	djnz	..dot.loop	
+;the dot coded byte is in the C register
+	ret
+
+;----------------------------------------------------------------------------
+anything.there:	;at the cursor position. Returns non-zero if there is,
+;else zero
+	call	get.an.eight.by.eight	;from cursor.position
+;we get eight bytes into our HANDY BUFFER array,  now lets see what we got
+	call	are.we.monochrome##
+	mvi	b,8
+	jrnz	..just.8
+	mvi	b,8*3
+..just.8:
+	lxi	h,handy.buffer##
+	xra	a
+..examine.loop:
+	ora	m
+	rnz	
+	inx	h
+	djnz	..examine.loop
+	xra	a
+	ret
+
+;----------------------------------------------------------------------------
+Dot:	;send a representation of the HANDY BUFFER array to the printer, doing
+;the thing sideways, as it were
+
+	lda	printer##
+	cpi	01h
+	jrc	..dot.MX.series
+;we have a nice new FX or jX printer
+	call	easy
+	jz	..complex.dot
+	mvi	b,8
+..do.next.dot:
+	push	b
+	call	rotate.and.print
+	pop	b
+	djnz	..do.next.dot
+	ret	;the job is now done
+
+..Dot.MX.Series:
+;a mouldy old MX printer. At least he can put the paper in easily!
+	mvi	b,4
+..Dot.MX.Again:	;this was adapted from EPSON code and I dont understand it
+	push	b
+	call	rotate.and.print
+	call	rotate.and.print
+	mvi	c,0
+	call	pio$phys
+	pop	b
+	djnz	..Dot.MX.Again
+	ret
+
+..complex.dot:	;HL points to Dotpin byte
+;we put the rotated byte into a buffer instead of printing it
+	lxi	h,handy.buffer
+	mvi	b,8	;eight bytes in dotpin read
+;we rotate each 8*8 array for each colour-----------------------
+col.dotpin.loop:
+	push	b	;save the count for each VRAM byte
+;HL points to the current dotpin array byte being rotated 
+	push	h	;save the pointer to the handy buffer
+	mvi	a,10000000B	;initialise our mask for setting printbuffer 
+	sta	bitmask	;bitmask
+;we start with gathering this bit of the print buffer byte
+	mvi	b,8	;there are eight bits to set
+;
+col.byte.loop:		;HL points to the handy.buffer base byte
+	push	b	;save the count of the outer loop
+	lxi	d,8	;offset to next buffer-was 16+*+*+*+*
+	mvi	b,3
+	push	h	;save the pointer
+;hl points to byte in the handy buffer
+;we now sample the next bit for all three colours
+..col.bit.loop:
+	mov	a,m
+	rrc
+	mov	m,a	;test and rotate bit in memory
+	ralr	c
+	dad	d	;dotpin+16
+	djnz	..col.bit.loop
+
+;c now contains 00000XXXB where x are set for red green and blue 
+;we now interpret which planes need a corresponding bit set
+	mov	a,c
+	ani	00000111B
+	lxi	h,lookup.table
+	call	addhl##
+	mov	a,m
+;a now has similar flags to decide whether the bit should be set
+;we now set the bit in whichever array needs it
+	lhld	buffer.pointer	;get pointer to current place in buffer
+	xchg
+	lxi	h,bitmask
+	mvi	b,4		;we have four planes
+..set.buffer:	;HL=bitmask, DE=buffer.pointer, B=count
+	rar		;rotate the colour bit
+	jrnc	..not.set
+	push	psw	;save colour map
+	ldax	d	;get byte from the buffer
+	ora	m	;set the bit
+	stax	d	;put it back in the buffer	
+	pop	psw	;restore colour map
+..not.set:	;if there was no carry
+	inx	d	;to next plane
+	djnz	..set.buffer
+;that bit has now been set
+	lda	bitmask		
+	rrc		;rotate the bitmask
+	sta	bitmask	;restore the bitmask
+	pop	h	;save the pointer
+	inx	h	;to the next byte in the dotpin(cutting this sideways)
+	pop	b	;save the count
+	djnz	col.byte.loop	;do it eight times
+;bump the buffer pointer
+	lhld	buffer.pointer
+	inx	h
+	inx	h
+	inx	h	;point to next print position
+	inx	h
+	shld	buffer.pointer
+	pop	h	;restore the dotpin array pointer
+	pop	b	;are we done?
+	djnz	col.dotpin.loop
+	ret
+
+lookup.table:	;this needs to be altered in order to change the colour
+;mapping. You can alter this to taste. bit 0 =blue, 1=yellow, 2=red
+;and 3=black. they are mixed to get the best effects.
+
+.no.planes::
+	db	0	;=0 on screen white on black
+	db	6	;=1 red on screen-ok
+	db	3	;=2 green on screen-ok
+	db	2	;=3 yellow on screen
+	db	5	;=4 blue on screen-ok
+	db	4	;=5 magenta on screen
+	db	1	;=6 cyan on screen
+.all.planes::
+	db	8	;=7 white on screen-ok
+
+print.the.colour:	;print the strip in a certain colour. HL points to
+;the buffer strip. A has the colour
+	push	h	;save pointer to base
+	sta	colour
+	xchg	;DE= base of print array
+
+;compute the actual amount to do
+	lhld	pass.count
+	xchg
+;DE has the pass count, HL points to the base
+	dad	d
+	dad	d
+	dad	d
+	dad	d	;point to end of buffer
+;HL points to end, DE has count
+	xra	a	;clear the accumulator
+	mov	c,a
+..once.more.dear:
+	mov	a,c
+	ora	m
+	jnz	..summat
+	dcx	d
+	dcx	h
+	dcx	h
+	dcx	h
+	dcx	h
+	mov	a,e
+	ora	d
+	jnz	..once.more.dear
+..summat:	;we have to print DE bytes
+	pop	h	;from HL onwards
+	rz		;if we have zero set there is nowt to do
+	inx	d
+	push	h
+	push	d
+	xchg
+	shld	real.pass.count
+	lxi	h,..jx.colour.Bitimage.string
+	call	print.string##
+	pop	b	;restore the count
+	pop	h	;and the pointer to the base
+
+..dotprint.loop:
+	push	b	;save count
+	mov	c,m
+	push	h	;and pointer
+	call	pio$phys
+	pop	h	;restore pointer
+	pop	b	;restore count
+	inx	h
+	inx	h
+	inx	h
+	inx	h	;increment to next
+	dcx	b
+	mov	a,c
+	ora	b
+	jrnz	..dotprint.loop
+	mvi	c,0DH		;return the printhead
+	call	pio$phys	;do a carriage return
+	ret
+
+;----------------------------------------------------------------------------
+Graphic.screen.dump:	;if we are in graphics mode
+	lda	printer
+	cpi	4
+	rz				;cannot cope with this!
+	call	pio$sot##		;is the printer switched on?
+	lxi	h,..set.string
+	call	lprint.a.string
+;send out a line feed, set the printer line feed to 8 78ths of an inch
+	lda	upper.one##
+	ana	a			;are we in the upper screen
+	lda	line.of.split##		;calculate no. of lines to do
+	jrnz	..its.upper
+;calculate no. of lines in the lower screen
+	mov	b,a
+	mvi	a,lines
+	sub	b
+;we need to do this calculation as the screen might be a wide line one
+..its.upper:
+	add	a			;double it
+	sta	passes.to.do
+	lhld	Current.Screen##
+	mov	e,m
+	inx	h
+	mov	d,m
+	xchg
+	shld	Start.Ad.of.Line
+..another.pass:	
+	lhld	Start.Ad.of.Line
+	shld	cursor.position
+	
+;firstly, we see whether there is anything to do on this pass
+;initialise the temporaries
+	xra	a
+	sta	no.cells.examined
+	sta	furthest.full.byte
+
+	mvi	a,80	;we have 80 eight by eight Graphic characters
+;to examine per pass
+	sta	cells.left.to.do
+
+..repeat.loop:
+	call 	anything.there		;at the cursor position
+;returns non-zero if there is, else zero
+	lxi	h,no.cells.examined
+	jrnz	..sumpn.there
+	lda	.no.planes	;do we print everything, come what may?
+	ana	a		;is it set to eight
+	jrnz	..sumpn.there
+;so, there was nothing in the HANDY BUFFER array
+	inr	m
+	jmpr	..over
+;Hah! there was something in the HANDY BUFFER array
+..sumpn.there:
+	mov	a,m
+	inr	a
+	mov	m,a
+	sta	furthest.full.byte
+..over:
+	lda	cells.left.to.do
+	dcr	a
+	jrz	..job.done
+	sta	cells.left.to.do
+	ani	01h
+	jrnz	..repeat.loop
+	lhld	cursor.position
+	inx	h
+	shld	cursor.position
+	jmpr	..repeat.loop
+
+..job.done:
+	lda	furthest.full.byte	;round up the count to print
+	Bit	0,A
+	jrz	..over1
+	inr	a
+	sta	furthest.full.byte
+..over1:	;multiply the furthest.full.byte by 8 and put the result
+;in BC ready for transmission to the printer
+	mov	l,a
+	mvi	h,0
+	dad	h
+	dad	h
+	dad	h
+	mov	c,l
+	mov	b,h
+	mov	a,l
+	ora	h	;there is nothing there at all
+	shld	pass.count	;in case it is a colour screendump
+	jz	..line.done
+
+..done.it:
+;now B=parameter no.1, C=parameter no.2
+;now we send out the n1 and n2 parameters and the bit image escape code
+	call	easy		;is it a monochrome job
+	jrz	..skip.it
+	cpi	01H
+	jrnc	..fx.jx.printer
+;okay, so we have some sort of antiquated MX series printer
+	push	b
+	lxi	h,..MX.bitimage.string
+	call	Lprint.a.string
+	pop	b
+	mov	h,b
+	mov	l,c
+	srlr	H
+	Rarr	L
+	dad	b
+	mov	b,h
+	mov	c,l
+	push	b
+	call	pio$phys##
+	pop	b
+	mov	c,b
+	call	pio$phys##
+	jmp	..MX.done
+..fx.jx.Printer:
+;ah, a nice new FX or RX printer
+	push	b
+	lxi	h,..fx.jx.bitimage.string
+	call	Lprint.a.string
+	pop	b
+	push	b
+	call	pio$phys
+	pop	b
+	mov	c,b
+	call	pio$phys
+..MX.Done:
+..skip.it:
+	lda	furthest.full.byte
+	sta	cells.left.to.do
+	lhld	Start.Ad.of.Line
+	shld	cursor.position
+	call	.reset.pointers##	;in case it is a colour dump
+	lxi	h,print.buffer.base	;initialise colour array
+	shld	buffer.pointer
+
+;start at the beginning of the line, and print it out
+..line.print:
+	call	get.an.eight.by.eight	;from cursor.position
+	call	dot	;get the next block of eight cells
+	lda	cells.left.to.do
+	dcr	a
+	jz	..line.done
+	sta	cells.left.to.do
+	bit	0,a
+	jrnz	..line.print
+	lhld	cursor.position
+	inx	h
+	shld	cursor.position
+	jmpr	..line.print
+
+..line.done:	;if we have a JX and a colour system, then things start
+;to get complicated as we have to print out up to three buffers
+	call	easy	;is it easy?
+	jrnz	..its.easy	;relatively speaking!
+;printing must be in the order yellow-magenta-cyan-black
+	lhld	pass.count
+	mov	a,h
+	ora	l
+	jrz	..its.easy		;coss there aint nothing to do	
+	mvi	a,4			;yellow
+	lxi	h,print.buffer.base+1
+	call	print.the.colour	;print the strip in a certain colour
+
+	mvi	a,1			;magenta
+	lxi	h,print.buffer.base+2
+	call	print.the.colour	;print the strip in a certain colour
+
+	mvi	a,2			;cyan
+	lxi	h,print.buffer.base
+	call	print.the.colour	;print the strip in a certain colour
+
+	mvi	a,0			;black
+	lxi	h,print.buffer.base+3
+	call	print.the.colour	;print the strip in a certain colour
+	
+..its.easy:
+	call	pio$sot##
+	mvi	c,0AH
+	call	pio$phys	;do a carriage return
+	lhld	Start.Ad.of.Line
+	lxi	d,8*40
+	dad	d
+	shld	Start.Ad.of.Line
+	lda	passes.to.do
+	dcr	a
+	sta	passes.to.do
+	jnz	..another.pass
+	ret
+		
+easy:	;is it an easy monochrome affair?
+	lda	printer
+	cpi	2	;was it a jx?
+	rnz		;if not, then things are easy
+	call	are.we.monochrome
+	ret
+
+SCRND::	;module entry point
+;so, you wanna da screen dump?
+;firstly we switch the cursor off if it's on
+	lda	toggle.cursor##
+	ana	a	;if the cursor was on
+	push	psw
+	call	curoff##	;switch off the cursor
+
+	lxi	H,..Finito
+	push	h	;our shared ending routine
+	lda	graphics.mode##
+	ana	a	;are we in graphics mode?
+	jnz	Graphic.Screen.Dump	;if so, do it the graphics way
+	jmp	Screen.Dump	;otherwise do it the character way
+
+..finito:	;with luck we end here
+	pop	psw	;was the cursor originally on?
+	cnz	curon##	;if so, then turn it on
+	lxi	h,..reset.string	;and reset the printer
+	lda	printer
+	cpi	4
+	cnz	lprint.a.string		;with a suitable string
+;send out a carriage return, set the printer line feed to 6/78ths of an inch
+	ret
+
+	end
