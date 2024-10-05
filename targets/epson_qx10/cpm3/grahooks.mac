@@ -1,0 +1,379 @@
+
+title	"Hooks for transmitting multibyte parameters to the console. A.R.M.C."
+subttl	"A.Clarke, DEC 1983"
+NAME ('HOOKS')
+dseg		;as it resides in the system bank
+;***************************************************************
+;***************************************************************
+;********    Graphics Hooks Etc. module for the QX+	********
+;***************************************************************
+;***************************************************************
+;********   Version 1.0     A.R.M.Clarke Dec 9 1983	********
+;***************************************************************
+
+;revision to fix bug in music and pixel feb 20th
+
+dseg	;as it goes into the system bank
+
+;contains the following entry points
+entry DO.GRAPHICS
+entry FETCH.BYTE.PARAMS	
+entry MUSIC
+
+;and references the following externals
+extrn ADDHL
+extrn BAR
+extrn DOCIRCLE
+extrn DOLINE	
+extrn DOMARKER	
+extrn HANDY.BUFFER
+extrn LINESTYLE	
+extrn MKERTYPE	
+extrn MKERZOOM	
+extrn PIXEL	
+extrn POINT	
+extrn SET.INTERVAL	
+extrn SET.NOTE
+extrn SETFILL
+extrn SETFONTSIZE	
+extrn SIMPLE.OUTPUT	
+extrn SQUEAK
+extrn STRING	
+extrn TEXTDIR	
+extrn WHITHER.WANDEREST	
+extrn WRITEMODE
+
+
+
+;this module is the interface between the graphics package and the console
+;routine. It is inserted instead of directly coding the GRAPH module into
+;conout so as to allow GRAPH.MAC to be glued directly into GSX
+;A.R.M.C Nov 7 th
+
+music::		;we do a music function
+	lxi	h,mus.routine
+.z80
+	jr	..on
+.8080
+mus.routine:	;Come back with  parameter
+	mov	a,c
+	ani	03H
+	lxi	h,mus.command.table
+.z80
+	jr	lookup
+.8080
+
+mus.command.table:
+
+DW	.squeak		;reserved
+dw	.set.note	;set the note	
+dw	.squeak		;play the note
+dw	.set.interval	;set the time interval
+
+;----------------------------------------------------------------------------
+.squeak:
+	call	close.trap
+	jmp	squeak##
+
+;----------------------------------------------------------------------------
+.set.note:	;
+	lxi	h,set.note##
+.z80
+	jr	..jmp.to.it
+.8080
+
+;----------------------------------------------------------------------------
+.set.interval:	;specify time of note
+	lxi	h,set.interval##
+..jmp.to.it:
+	mvi	c,1		;bytes to get
+	jmp	fetch.byte.params
+
+;----------------------------------------------------------------------------
+do.graphics::	;we are doing a graphics routine
+	lxi	h,which.routine
+..on:	shld	whither.wanderest##		;set the points for the routine
+null:	ret
+..wasascii:	;entry if ascii digit A-F
+	ani	11011111b	;make upper case
+	sui	"7"
+	mov	c,a
+which.routine:
+	mov	a,c		;look at the byte
+	cpi	'A'
+.z80
+	jr	nc,..wasascii
+.8080
+	ani	0FH
+	lxi	h,graphic.command.table
+lookup:	add	a
+	call	addhl##
+	mov	e,m
+	inx	h
+	mov	d,m
+	xchg
+	pchl
+
+graphic.command.table:
+	DW	.point			;0
+	DW	.string			;1
+	DW	.line			;2
+	DW	.Marker			;3
+	DW	.Bar			;4
+	DW	null			;5
+	dw	null			;6
+	dw	.circle			;7
+	dw	.pixel			;8
+	dw	.mode			;9
+	dw	.linestyle		;10
+	dw	.markersize		;11
+	dw	.markertype		;12
+	dw	.textsize		;13
+	dw	.text.direction		;14
+	dw	.fill			;15
+
+;----------------------------------------------------------------------------
+.point:	;point to screen position
+	lxi	h,point##
+..leap.to.it:
+	mvi	c,4		;bytes to get
+	jmp	fetch.byte.params
+	
+;---------------------------------------------------------------------------
+.pixel:
+	call	close.trap
+	jmp	pixel##
+
+;---------------------------------------------------------------------------
+.string:	;writes a string in the specified direction and size
+	lxi	h,string.length
+	shld	whither.wanderest##		;reset the points 
+	ret
+string.length:	;Collect the length
+;bytes to get in C
+	mov	a,c
+	sta	byte.count
+	lxi	h,do.string		;where to go next
+	jmp	fetch.byte.params
+do.string:
+	lda	byte.count
+	mov	e,a
+	mvi	d,0
+	lxi	h,handy.buffer
+	jmp	string##
+
+
+;----------------------------------------------------------------------------
+.line:		;draws a line
+	lxi	h,do.line
+	mvi	c,10	;bytes to get
+	jmp	fetch.byte.params
+do.line:
+	lxi	d,handy.buffer
+	push	d
+	lxi	h,8
+	dad	d
+	mov	e,m
+	inx	h
+	mov	d,m
+	pop	h
+	jmp	doline##
+
+;----------------------------------------------------------------------------
+.marker:	;draw a marker
+	lxi	h,domarker##
+.z80
+	jr	..leap.to.it
+.8080
+
+
+;----------------------------------------------------------------------------
+.bar:	;draw a box
+	lxi	h,bar##
+	mvi	c,8		;bytes to get
+	jmp	fetch.byte.params
+
+
+;----------------------------------------------------------------------------
+.circle:	;draw a box
+	lxi	h,docircle##
+	mvi	c,2		;bytes to get
+	jmp	fetch.byte.params
+
+
+;----------------------------------------------------------------------------
+.mode:	;specify writing mode
+	lxi	h,writemode##
+.z80
+	jr	..go.to.it
+.8080
+
+
+;----------------------------------------------------------------------------
+.linestyle:	;specify line style
+	lxi	h,linestyle##
+.z80
+	jr	..go.to.it
+.8080
+;----------------------------------------------------------------------------
+.markersize:	;specify marker size
+	lxi	h,mkerzoom##
+.z80
+	jr	..go.to.it
+.8080
+
+;----------------------------------------------------------------------------
+.markertype:	;specify marker type
+	lxi	h,mkertype##
+.z80
+	jr	..go.to.it
+.8080
+
+;----------------------------------------------------------------------------
+.textsize:	;specify text size
+	lxi	h,setfontsize##
+.z80
+	jr	..go.to.it
+.8080
+
+
+;----------------------------------------------------------------------------
+.text.direction:	;specify text direction
+	lxi	h,textdir##
+.z80
+	jr	..go.to.it
+.8080
+
+
+;----------------------------------------------------------------------------
+.fill:	;specify figure fill
+	lxi	h,setfill##
+..go.to.it:
+	mvi	c,1		;bytes to get
+
+;and fall through
+;----------------------------------------------------------------------------
+
+
+fetch.byte.params::	;for graphics routines, defining characters, and doing
+;music. Gets C parameters into an byte array, and passes control to the 
+;routine in HL. Returns with a pointer to the
+;array in HL
+
+;and example of use might be:-
+;Music:	;C is first byte, the count of notes to do
+;	lxi	h,Do.music	;following routine in HL
+;	jmp	fetch.byte.params	;note, jump not call
+;do.music:	;must be at the function stack level!
+;	...	...
+;	...	....
+	shld	what.to.do.next
+	xra	a
+	sta	counter
+	mov	a,c
+	sta	to.do
+	lxi	h,Get.stuff
+	shld	whither.wanderest##		;set the points for the routine
+	ret
+close.trap:
+	lxi	h,simple.output##
+	shld	whither.wanderest##		;reset the points 
+	ret
+
+Get.Stuff:	;get the specified no. of bytes
+	lxi	h,counter
+	mov	a,m
+	inr	m		;increment counter
+	lxi	h,Handy.buffer##
+	call	addhl##
+	mov	m,c		;store the byte
+	lxi	h,to.do
+	dcr	m
+	rnz			;back to CP/M for more
+dunn.it:
+	call	close.trap
+	mov	a,c				;in case one parameter
+;we go to the next routine with last param in A and C
+	lhld	what.to.do.next
+	push	h		;jump to what is pointed to by What.to.do.next
+	lxi	h,handy.buffer##;but point to params
+	ret
+
+;----------------------------------------------------------------------------
+find.fun.ad:	;gets the address of the Cth function key
+	mov	a,c	;first byte is the fun key no.
+	ani	1fh	;prevent a foul
+	add	a	;as pointers to function keys are words
+	lxi	h,@pfntble##
+	cpi	37	;is it beyond end of table?
+	cc	addHL##	;only bump the pointer if possible
+	mov	e,m
+	inx	h
+	mov	d,m	;pick up pointers to string
+	xchg
+	shld	fun.key.address
+	ret
+
+
+;----------------------------------------------------------------------------
+Get.Function.key::
+	lxi	h,get.fun.address
+	shld	whither.wanderest##
+	ret
+get.fun.address:
+	call	find.fun.ad
+	lxi	h,get.fun.string
+	shld	whither.wanderest##
+	ret	
+get.fun.string:
+	mov	a,c
+	sta	byte.count
+	lxi	h,move.string
+	jmp	fetch.byte.params
+move.string:
+	lhld	fun.key.address
+	mov	c,m	;get count
+	inr	c
+	lda	byte.count
+	cmp	c
+	rnc		;beyond maximum
+	inx	h	;point to count byte
+	mov	m,a	;stash the byte count
+	inx	h	;point to string address
+	mov	c,a
+	mvi	b,0	;count in BC
+	lxi	d,handy.buffer##
+	xchg
+.z80
+	ldir		;move the function key
+.8080
+	ret		
+
+put.Function.key::
+	lxi	h,put.fun.address
+	shld	whither.wanderest##
+	ret
+put.fun.address:	;get the function key no.
+	call	close.trap
+	call	find.fun.ad
+;HL points to MAX byte
+	push	h
+	inx	h
+	mov	a,m	;get the count
+	call	kbdfifo##	;send it out to the keyboard buffer
+	pop	h
+	jmp	kbdstr##	;jump to uncle david's routine
+
+	
+	
+what.to.do.next:	dw	000
+
+counter:		db	000
+
+to.do:			db	000
+
+byte.count:		db	000
+
+fun.key.address:	dw	000
+end
+;yea, the module is finished
