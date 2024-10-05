@@ -1,0 +1,123 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS test baud rate setting
+
+	name	('TESTCLK')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; A	Jun 83 - Based on Xerox version C
+;
+;------------------------------------------------------------------
+
+	cseg		;GENCPM puts CSEG code in resident common memory
+
+;====================================================================
+; I/O Selector - MAIN SYSTEM
+; Device is selected by address lines A2, A3, A4, A5 with A6, A7 zero
+; Address lines A0 and A1 are optional used to control the device
+;====================================================================
+
+clk$a	equ	0000b shl 2	;8253 counter timer No1
+clk$b	equ	0001b shl 2	;8253 counter timer No2
+
+clk$as	equ	clk$a+00b	;CLK Speaker timer
+clk$a2	equ	clk$a+01b	;CLK Soft timer 2
+clk$a1	equ	clk$a+10b	;CLK Soft timer 1
+clk$ac	equ	clk$a+11b	;CLK 8253 command
+
+clk$bs	equ	clk$b+00b	;CLK Speaker frequency
+clk$bk	equ	clk$b+01b	;CLK Keyboard clock
+clk$br	equ	clk$b+10b	;CLK RS232C clock
+clk$bc	equ	clk$b+11b	;CLK 8253 command
+;	command register for counter timer (clk+11b)
+clk$c0	equ	0	; 0=Binary, 1=BCD
+clk$c1	equ	1	; Bit 0} 000=Count     011=Square wave
+clk$c2	equ	2	; Bit 1} 001=One shot  100=Soft trigger
+clk$c3	equ	3	; Bit 2} 010=Rep. wave 101=Hard trigger
+clk$c4	equ	4	; Bit 0} 00=Counter    10=MSB Rd/Wr
+clk$c5	equ	5	; Bit 1} 01=LSB Rd/Wr  11=2 byte Rd/Wr
+clk$c6	equ	6	; Bit 0} 00=Counter 0  10=counter 2
+clk$c7	equ	7	; Bit 1} 01=counter 1
+;
+clk$f	equ	7800	; frequency 1996800 = 7800 * 256 hertz
+
+
+	ld	c,8	; set up 1200 baud
+
+key$baud:
+	ld	b,0
+	ld	hl,cpm3b
+	add	hl,bc
+	add	hl,bc
+	ld	c,(hl)
+	inc	hl
+	ld	b,(hl)	; bc = required baud rate
+;
+	xor	a
+	ld	(vhb),a
+	ld	h,a
+	ld	l,a	; set count to zero
+	ld	d,a
+	ld	e,a	; set counter to zero
+keydvd:
+	add	hl,bc
+	ld	a,(vhb)
+	jp	nc,keync
+	inc	a
+	ld	(vhb),a
+keync:	inc	de
+	cp	clk$f/256
+	jp	c,keydvd
+	jp	nz,keycnt
+	ld	a,h
+	cp	clk$f and 0ffh
+	jp	c,keydvd
+	jp	nz,keycnt
+	inc	de
+keycnt:
+	dec	de	; count
+;
+	ld	a,01110110b	; main board KB timer
+	ld	c,clk$bc
+	out	(c),a	; set timer counter mode
+
+	ld	a,e
+	ld	c,clk$bk
+	out	(c),a	; set low bit rate
+
+	ld	a,d
+	out	(c),a	; set high bit rate
+
+	ret
+
+vhb:	db	0	; temp data for divide
+
+
+; CPM3 BAUD RATE TABLE
+cpm3b:	dw	0	;0
+	dw	50	;1
+	dw	75	;2
+	dw	110	;3
+	dw	135	;4
+	dw	150	;5
+	dw	300	;6
+	dw	600	;7
+	dw	1200	;8
+	dw	1800	;9
+	dw	2400	;10
+	dw	3600	;11
+	dw	4800	;12
+	dw	7200	;13
+	dw	9600	;14
+	dw	19200	;15
+
+
+	end
