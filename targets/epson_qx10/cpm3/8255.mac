@@ -1,0 +1,287 @@
+82	.z80
+	title	EPSON QX-10 CPM3 BIOS parallel i/o port
+
+	name	('u8255')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; ALPHA  Aug 8,83
+; BETA   Dec 5,83
+; BETA+  Jan 5,84
+; BETA++ March 3 84 A.R.M.C.
+; REV-A Apr 30,84
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+	cseg		;GENCPM puts CSEG code in resident common memory
+
+;=============================================
+; user defined parallel character I/O routines
+;=============================================
+
+;list - Centronics parallel port
+
+
+	public	pio$out,pio$sot,pio$phys
+
+	public	?pioinit	; Cold Boot initialisation
+
+;-------------------------------------------------------------
+; PUBLIC SYMBOLS IN EPSON QX-10 CPM3 BIOS
+;-------------------------------------------------------------
+
+; character i/o
+
+	extrn	crtout			; direct screen output
+
+;KEYBOARD - Main board serial port (1200 baud)
+
+	extrn	kbdst,kbdin
+
+; variables in system data page
+
+	extrn	@lecho			; Echo to List flag
+
+; BIOS entry points
+
+	extrn	?wboot
+
+;------------------------------------------------------------------
+
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+	maclib	CBIOS.EQU	; QX-10 hardware ports and equates
+
+	maclib	8255.EQU	;8255 ppi centronics printer port
+
+;-----------------------------------------------------------------
+ 
+	page
+
+;===============================
+;list - Centronics parallel port
+;===============================
+
+
+	dseg		; as system bank already selected
+
+;------;
+?pioinit:		; initialisation 8255 device
+;------;
+; NOTE IPL incorrectly sets ALF low so wire has to be cut on cable viz:
+
+;------	ld	a,10100010b	; MODE WORD - A:OUT,B:IN,C4-5:OUT
+;------	out	(ppi$cmd),a
+;------	ld	a,00001011b	; RST=1
+;------	out	(ppi$cmd),a
+;------	ld	a,00000001b	; STB=1
+;------	out	(ppi$cmd),a
+;------	ld	a,00001010b	; RST=0
+;------	out	(ppi$cmd),a
+
+; this sets ^ALF (pin 14) low
+	ld	a,00001001b	; ALF=1
+	out	(ppi$cmd),a
+
+	ret
+
+
+
+;------;
+pio$out:		;output to the printer
+;------;
+	ld	a,(printer##)
+	cp	4		;four=other 0123 are epson
+	jp	c,lyo##	;complicated driver
+
+;--------------------------------------------;
+; Centronics parallel output - simple driver ;
+;--------------------------------------------;
+
+pio$phys:
+	in	a,(ppi$bs)	; test status (should always be ready)
+	bit	ppi$rdy,a	; test ^ ready bit
+	jr	nz,pio$phys	; wait if not ready (just in case)
+
+	ld	a,c
+	out	(ppi$ad),a	;output character (>4*250 usec)
+
+	xor	a		; reset bit 0 (STB)
+	out	(ppi$cmd),a	; raise strobe (>4*250 usec)
+	inc	a		; set bit 0
+	out	(ppi$cmd),a	; terminate strobe (>4*250 usec)
+
+	ld	a,01100b or 1b	; (7T) set bit 6 (but ACK? is input)
+	out	(ppi$cmd),a	; (11T) enable PIO
+
+; optional delay of 40 uSec (to wait for BUSY to go true)
+
+	ld	b,4		; (7T) delay to allow printer to go BUSY
+pio$del:
+	in	a,(ppi$bs)	; (11T) test status
+	bit	ppi$rdy,a	; (8T) test ^ ready bit
+	ret	nz		; (5T) return when ^ ready
+	djnz	pio$del		; (13T) but is used by Balcones
+	ret			; delay 25T+3*(37T)+(32T)=150T=40uSec
+
+;---------------------------------------------;
+; Centonics parallel port - test READY status ;
+;---------------------------------------------;
+
+pio$sot:
+	in	a,(ppi$bs)	; read status
+	and	1 shl ppi$rdy	; test ^ ready bit
+	sub	1
+	sbc	a,a
+	ret	nz		; return TRUE (0ffh) if ready
+
+;----------------------------;
+; NOT READY - test for error ;
+;              ^ERR NPA ^PWF ;
+; Sw/off             X    X  ;
+; Disconnected       X       ;
+; No paper       X   X       ;
+; Off line       X           ;
+;----------------------------;
+
+	in	a,(ppi$bs)	; read status
+
+	bit	ppi$pef,a	; test for ^power failure
+	jr	z,pio$s1
+
+	bit	ppi$err,a	; test ^error
+	jr	z,pio$s2	; -error-
+
+				; Not ERROR
+	and	1 shl ppi$npa	; test no paper to indicate disconnected
+	ret	z		; return FALSE error status
+
+; ----------------- ;
+; display error msg ;
+; ----------------- ;
+
+lf	equ	0ah
+cr	equ	0dh
+bell	equ	07h
+esc	equ	27
+inslin	equ	('E' shl 8) + esc
+dellin	equ	('R' shl 8) + esc
+up	equ	11
+
+; Printer error - it appears printer is not connected
+	call	pmsgi
+	db	'NO PRINTER'
+	db	0
+	jr	pio$s4
+
+; Printer error: NO POWER
+pio$s1:
+	call	pmsgi
+	db	'SWITCHED OFF'
+	db	0
+	jr	pio$s4
+
+pio$s2:
+	bit	ppi$npa,a	; test no paper
+	jr	nz,pio$s3	; -yes-
+
+; Printer error: OFF-LINE	; only other error is OFF-LINE
+	call	pmsgi
+	db	'OFF LINE'
+	db	0
+	jr	pio$s4
+
+; Printer error: NO PAPER
+pio$s3:
+	call	pmsgi
+	db	'NO PAPER'
+	db	0
+
+;---------------------------------;
+; now send prompt and await reply ;
+;---------------------------------;
+
+pio$s4:
+	call	pmsg
+	db	' - Correct printer or press <CTRL-C> to abort'
+	db	0
+pio$s5:			; wait for printer READY or CTRL-C to happen
+	in	a,(ppi$bs)	; read status
+	and	1 shl ppi$rdy	; test ^ ready bit
+	jr	z,pio$s6	; printer is now ready
+
+	call	kbdst		; see if aborting
+	or	a
+	jr	z,pio$s5	; no character entered - so repeat
+
+	call	kbdin		; read character from keyboard
+	cp	03h		; [CTRL-C]
+	jr	nz,pio$s5	; ignore any other character	
+
+; also disable ctrl-P if set
+	xor	a		; 0 = not echoed, 1 = echoed
+	ld	(@lecho),a	; Disable echo to List flag
+
+	jp	?wboot		; Warm boot exit
+
+; -------------------- ;
+; PRINTER is NOW ready ;
+; - so remove text and ;
+;    return            ;
+; -------------------- ;
+
+pio$s6:
+	call	pmsg		;display following text terminated by '0'
+	db	cr
+	dw	dellin
+	db	up,0
+
+	or	-1		; set 'READY' return
+	ret
+
+;--------------------------------------;
+;pmsgi:	Insert message on current line ;
+;--------------------------------------;
+
+pmsgi:	call	pmsg		;display following text terminated by '0'
+	db	cr,lf
+	dw	inslin
+	db	0
+	jp	pmsg		;guess what happens now
+
+
+;----------------------------------------------------------------------
+; pmsg - (see ?pmsg) print message @<(SP)> terminated by a zero
+;	and continue processing at location after message
+; Entry:	<(SP)> = start of message terminated by a zero
+; Return:	Return to address after message
+;----------------------------------------------------------------------
+pmsg:	pop	hl
+	ld	a,(hl)
+	inc	hl
+	push	hl
+	or	a
+	ret	z		;if end of message
+	ld	c,a
+	call	crtout		;display message at CRT
+	jr	pmsg
+
+;----------------------------------------------------------------------
+
+	end
