@@ -1,0 +1,225 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS Keybaord table
+
+	name	('keypos')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; ALPHA Aug 8,83
+; BETA  Dec 5,83
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+
+;===============================
+; Keyboard position coding table
+;===============================
+
+;KEYBOARD - Main board serial port (1200 baud)
+
+	public	@kbtab			; Keyboard position table
+
+
+;------------------------------------------------------------------
+
+	page
+
+;============================================================================
+; @kbtab	; keyboard position table
+;
+; 1st table 00-2fh bias=000h (any key pos 00h-2fh)
+; 2nd table 30-7fh bias=000h (CTRL)
+; 3rd table 30-7fh bias=050h (GRPH)
+; 4th table 30-7fh bias=0a0h (un-shift, no caps)
+; 5th table 30-7fh bias=0f0h (shift, no caps)
+; 6th table 30-7fh bias=140h (un-shift, caps)
+; 7th table 30-7fh bias=190h (shift, caps)
+;============================================================================
+
+	dseg		; as system bank selected
+;-----;
+@kbtab:
+;-----;
+
+;---------------------------------------------------------------;
+; 1st table 00-2fh base=000h, length=02fh (any key pos 00h-2fh) ;
+;---------------------------------------------------------------;
+;		0	1	2	3	4	5	6	7
+;00h		;	F4;	F5;	F6;	F7;	F8;	F9;	F10;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+;08h		(A1);	BREAK;	PAUSE;	SCRN D;	HELP;	(A2);	(A3);	MF1;
+	db	0ffh,	003h,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+;10h		;	LF;	(A5);	;	'000';	return;	.;	0;
+	db	0ffh,	00ah,	0ffh,	0ffh,	0ffh,	00dh,	'.',	'0'
+;18h		+;	6;	5;	4;	;	MF4;	MF3;	MF2;
+	db	'+',	'6',	'5',	'4',	0ffh,	0ffh,	0ffh,	0ffh
+;20h		;	;	(A4);	;	;	3;	2;	1;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	'3',	'2',	'1'
+;28h		-;	9;	8;	7;	=;	*;	/;	,;
+	db	'-',	'9',	'8',	'7',	'=',	'*',	'/',	','
+
+;------------------------------------------------;
+; 2nd table 30-7fh base=000h, length=04fh (CTRL) ;
+;------------------------------------------------;
+;		0	1	2	3	4	5	6	7
+;30h		;	Caps;	Space;	^Z;	^X;	^C;	^V;	^B;
+	db	0ffh,	0ffh,	020h,	01Ah,	018h,	003h,	016h,	002h
+;38h		^N;	^M;	^,;	^.;	up;	left;	right;	down;
+	db	00eh,	00dh,	00ch,	00eh,	0ffh,	0ffh,	0ffh,	0ffh
+;40h		;	;	;	^A;	^S;	^D;	^F;	^G;
+	db	0ffh,	0ffh,	0ffh,	001h,	013h,	004h,	006h,	007h
+;48h		^H;	^J;	^K;	^L;	^;;	^:;	return;	^/;
+	db	008h,	00ah,	00bh,	00ch,	01bh,	01ah,	00dh,	00fh
+;50h		;	^Q;	^W;	^E;	^R;	^T;	^Y;	^U;
+	db	0ffh,	011h,	017h,	005h,	012h,	014h,	019h,	015h
+;58h		^I;	^O;	^P;	^@;	^[;	^];	INS;	DEL;
+	db	009h,	00fh,	010h,	000h,	01bh,	01dh,	0ffh,	07fh
+;60h		;	^2;	^3;	^4;	^5;	^6;	^7;	^8;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+;68h		^9;	^0;	^-;	^^;	^\;	BS;	HOME;	CLS;
+	db	0ffh,	0ffh,	0ffh,	01eh,	01ch,	008h,	0ffh,	0ffh
+;70h		;	F3;	F2;	F1;	;	ESC;	1;	TAB;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	01bh,	0ffh,	009h
+;78h		;	;	;	;	;	;	;	;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+
+;------------------------------------------------;
+; 3rd table 30-7fh base=080h, length=04fh (GRPH) ;
+;------------------------------------------------;
+;		0	1	2	3	4	5	6	7
+;30h		;	Caps;	Space;	>Z;	>X;	>C;	>V;	>B;
+	db	0ffh,	0ffh,	020h,	09Ah,	098h,	083h,	096h,	082h
+;38h		>N;	>M;	>,;	>.;	up;	left;	right;	down;
+	db	08eh,	08dh,	08ch,	08eh,	0ffh,	0ffh,	0ffh,	0ffh
+;40h		;	;	;	>A;	>S;	>D;	>F;	>G;
+	db	0ffh,	0ffh,	0ffh,	081h,	093h,	084h,	086h,	087h
+;48h		>H;	>J;	>K;	>L;	>;;	>:;	return;	>/;
+	db	088h,	08ah,	08bh,	08ch,	09bh,	09ah,	00dh,	08fh
+;50h		;	>Q;	>W;	>E;	>R;	>T;	>Y;	>U;
+	db	0ffh,	091h,	097h,	085h,	092h,	094h,	099h,	095h
+;58h		>I;	>O;	>P;	>@;	>[;	>];	INS;	DEL;
+	db	089h,	08fh,	090h,	080h,	09bh,	09dh,	0ffh,	07fh
+;60h		;	>2;	>3;	>4;	>5;	>6;	>7;	>8;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+;68h		>9;	>0;	>-;	>^;	>\;	BS;	HOME;	CLS;
+	db	0ffh,	0ffh,	0ffh,	09eh,	09ch,	008h,	0ffh,	0ffh
+;70h		;	F3;	F2;	F1;	;	ESC;	1;	TAB;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	01bh,	0ffh,	009h
+;78h		;	;	;	;	;	;	;	;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+
+;-------------------------------------------------------------;
+; 4th table 30-7fh base=0d0h, length=04fh (un-shift, no caps) ;
+;-------------------------------------------------------------;
+;		0	1	2	3	4	5	6	7
+;30h		;	Caps;	Space;	z;	x;	c;	v;	b;
+	db	0ffh,	0ffh,	020h,	07Ah,	078h,	063h,	076h,	062h
+;38h		n;	m;	,;	.   ;	up;	left;	right;	down;
+	db	06eh,	06dh,	02ch,	02eh,	0ffh,	0ffh,	0ffh,	0ffh
+;40h		;	;	;	a;	s;	d;	f;	g;
+	db	0ffh,	0ffh,	0ffh,	061h,	073h,	064h,	066h,	067h
+;48h		h;	j;	k;	l;	;;	:;	return;	/;
+	db	068h,	06ah,	06bh,	06ch,	03bh,	03ah,	00dh,	02fh
+;50h		;	q;	w;	e;	r;	t;	y;	u;
+	db	0ffh,	071h,	077h,	065h,	072h,	074h,	079h,	075h
+;58h		i;	o;	p;	@;	[;	];	INS;	DEL;
+	db	069h,	06fh,	070h,	040h,	05bh,	05dh,	0ffh,	07fh
+;60h		;	2;	3;	4;	5;	6;	7;	8;
+	db	0ffh,	032h,	033h,	034h,	035h,	036h,	037h,	038h
+;68h		9;	0;	-;	^;	\;	BS;	HOME;	CLS;
+	db	039h,	030h,	02dh,	05eh,	05ch,	008h,	0ffh,	0ffh
+;70h		;	F3;	F2;	F1;	;	ESC;	1;	TAB;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	01bh,	031h,	009h
+;78h		;	;	;	;	;	;	;	;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+
+;----------------------------------------------------------;
+; 5th table 30-7fh base=120h, length=04fh (shift, no caps) ;
+;----------------------------------------------------------;
+;		0	1	2	3	4	5	6	7
+;30h		;	Caps;	Space;	Z;	X;	C;	V;	B;
+	db	0ffh,	0ffh,	020h,	05Ah,	058h,	043h,	056h,	042h
+;38h		N;	M;	<;	>;	up;	left;	right;	down;
+	db	04eh,	04dh,	03ch,	03eh,	0ffh,	0ffh,	0ffh,	0ffh
+;40h		;	;	;	A;	S;	D;	F;	G;
+	db	0ffh,	0ffh,	0ffh,	041h,	053h,	044h,	046h,	047h
+;48h		H;	J;	K;	L;	+;	*;	return;	?;
+	db	048h,	04ah,	04bh,	04ch,	02bh,	02ah,	00dh,	03fh
+;50h		;	Q;	W;	E;	R;	T;	Y;	U;
+	db	0ffh,	051h,	057h,	045h,	052h,	054h,	059h,	055h
+;58h		I;	O;	P;	`;	{;	};	INS;	DEL;
+	db	049h,	04fh,	050h,	060h,	07bh,	07dh,	0ffh,	07fh
+;60h		;	";	#;	$;	%;	&;	';	(;
+	db	0ffh,	022h,	023h,	024h,	025h,	026h,	027h,	028h
+;68h		);	_;	=;	~;	|;	BS;	HOME;	CLS;
+	db	029h,	05fh,	03dh,	07eh,	07ch,	008h,	0ffh,	0ffh
+;70h		;	F3;	F2;	F1;	;	ESC;	'!';	TAB;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	01bh,	021h,	009h
+;78h		;	;	;	;	;	;	;	;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+
+;----------------------------------------------------------;
+; 6th table 30-7fh base=170h, length=04fh (un-shift, caps) ;
+;----------------------------------------------------------;
+;		0	1	2	3	4	5	6	7
+;30h		;	Caps;	Space;	Z;	X;	C;	V;	B;
+	db	0ffh,	0ffh,	' ',	05Ah,	058h,	043h,	056h,	042h
+;38h		N;	M;	,;	.;	up;	left;	right;	down;
+	db	04eh,	04dh,	02ch,	02eh,	0ffh,	0ffh,	0ffh,	0ffh
+;40h		;	;	;	A;	S;	D;	F;	G;
+	db	0ffh,	0ffh,	0ffh,	041h,	053h,	044h,	046h,	047h
+;48h		H;	J;	K;	L;	;;	:;	return;	/;
+	db	048h,	04ah,	04bh,	04ch,	03bh,	03ah,	00dh,	02fh
+;50h		;	Q;	W;	E;	R;	T;	Y;	U;
+	db	0ffh,	051h,	057h,	045h,	052h,	054h,	059h,	055h
+;58h		I;	O;	P;	@;	[;	];	INS;	DEL;
+	db	049h,	04fh,	050h,	040h,	05bh,	05dh,	0ffh,	07fh
+;60h		;	2;	3;	4;	5;	6;	7;	8;
+	db	0ffh,	032h,	033h,	034h,	035h,	036h,	037h,	038h
+;68h		9;	0;	-;	^;	\;	BS;	HOME;	CLS;
+	db	039h,	030h,	02dh,	05eh,	05ch,	008h,	0ffh,	0ffh
+;70h		;	F3;	F2;	F1;	;	ESC;	1;	TAB;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	01bh,	031h,	009h
+;78h		;	;	;	;	;	;	;	;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+
+;-------------------------------------------------------;
+; 7th table 30-7fh base=1c0h, length=04fh (shift, caps) ;
+;-------------------------------------------------------;
+;		0	1	2	3	4	5	6	7
+;30h		;	Caps;	Space;	z;	x;	c;	v;	b;
+	db	0ffh,	0ffh,	020h,	07Ah,	078h,	063h,	076h,	062h
+;38h		n;	m;	<;	>;	up;	left;	right;	down;
+	db	06eh,	06dh,	03ch,	03eh,	0ffh,	0ffh,	0ffh,	0ffh
+;40h		;	;	;	a;	s;	d;	f;	g;
+	db	0ffh,	0ffh,	0ffh,	061h,	073h,	064h,	066h,	067h
+;48h		h;	j;	k;	l;	+;	*;	return;	?;
+	db	068h,	06ah,	06bh,	06ch,	02bh,	02ah,	00dh,	03fh
+;50h		;	q;	w;	e;	r;	t;	y;	u;
+	db	0ffh,	071h,	077h,	065h,	072h,	074h,	079h,	075h
+;58h		i;	o;	p;	`;	{;	};	INS;	DEL;
+	db	069h,	06fh,	070h,	060h,	07bh,	07dh,	0ffh,	07fh
+;60h		;	";	#;	$;	%;	&;	';	(;
+	db	0ffh,	022h,	023h,	024h,	025h,	026h,	027h,	028h
+;68h		);	_;	=;	~;	|;	BS;	HOME;	CLS;
+	db	029h,	05fh,	03dh,	07eh,	07ch,	008h,	0ffh,	0ffh
+;70h		;	F3;	F2;	F1;	;	ESC;	'!';	TAB;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	01bh,	021h,	009h
+;78h		;	;	;	;	;	;	;	;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+
+;----------------------------------------------------------------------------
+
+	end
