@@ -1,0 +1,562 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS warm/cold boot
+
+	name	('BIOS3A8')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; ALPHA Aug 8,83
+; BETA  Dec 5,84
+; BETA+ Feb 14,84
+;       Feb 20,84  400k diskettes
+;	Feb 23,84  minor alteration
+;	Apr 28,84  search for m: added
+; REV-A Apr 30,84
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+;SYSTEM INITIALIZATION
+	public	boot,wboot
+	public	?abort			; abort process and warm boot
+
+
+; common memory
+
+	public	@cpage			; base page of common memory
+
+; External names for BIOS entry points defined in CBIOS.MAC
+
+	extrn	?boot,?wboot
+	extrn	?home,?sldsk,?sttrk,?stsec,?stdma,?read,?write
+	extrn	?sctrn
+	extrn	?dvtbl,?drtbl
+	extrn	?mltio,?flush,?mov,?tim,?bnksl,?stbnk,?xmov
+
+; External names for BIOS entry points which use COMMONSP
+
+	extrn	?const,?conin,?cono,?list,?auxo,?auxi
+	extrn	?lists
+	extrn	?conos,?auxis,?auxos,?devin
+
+; initialization
+
+	extrn	?init			; general initialization and signon
+	extrn	?sysint			; perform any one time initialisation
+	extrn	?biosptr		; return addres of table of pointers
+	extrn	?setsio			; initialise serial sio device in <B>
+	extrn	?dinit			; initialise disc routines
+	extrn	?crtinit		; initialise 7220 device
+	extrn	?pioinit		; initialisation 8255 device
+
+; variables in system data page
+
+	extrn	@covec,@civec,@aovec	; I/O redirection vectors
+	extrn	@aivec,@lovec		;  "       "        "
+	extrn	@mxtpa			; addr of system entry point
+	extrn	@bnkbf			; 128 byter scratch buffer
+	extrn	@sec,@date		; clock & date	
+
+; user defined character I/O routines
+
+	extrn	?cinit			; (re) initialize device in <C>
+	extrn	@ctbl			; physical character device table
+
+; disk communication data items
+
+	extrn	@dtbl			; table of pointers to XDPH's
+	extrn	@adrv,@trk,@sect	; parameters for disk I/O
+	extrn	@dma,@dbnk,@cnt,@multio	;    "       "    "    "
+	extrn	@seqsec			;    "       "    "    "
+	extrn	dph12			; DPH for memory drive
+
+; memory control
+
+	extrn	@cbnk,@sbnk,@tbnk	; current, system and tpa bank number
+	extrn	?xmove,?move,@xbc	; select move bank & block move
+	extrn	?tpabnk,?sysbnk		; select TPA or SYS bank
+	extrn	?bank			; select bank in <A>
+	extrn	@bnkno			; table of epson bank numbers (0-3)
+
+; clock support
+
+	extrn	?time			; signal time operation
+
+; general utility routines
+
+	extrn	?pmsg			; print message @<SP>
+	extrn	?pdec			; print 16 bit number in <HL>
+	extrn	?pderr			; print BIOS disk error message header
+	extrn	?idle			; called whenever function waiting
+
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+version	equ	31		; CP/M version number
+rev	equ	'A'		; BIOS version letter
+
+	maclib	CBIOS.EQU	; QX-10 Hardware definition
+	maclib	8259A.EQU	; Twin interrupt devices
+
+ccp	equ	0100h
+common	equ	0f000h		; start of smallest common memory
+
+
+	cseg
+
+;------------------------------------------------------------------------
+
+bit0	equ	1 shl 0
+bit1	equ	1 shl 1
+bit2	equ	1 shl 2
+bit3	equ	1 shl 3
+bit4	equ	1 shl 4
+bit5	equ	1 shl 5
+bit6	equ	1 shl 6
+bit7	equ	1 shl 7
+
+	page
+
+;-----------------------------------------------------------------
+;
+;	CP/M3 Bios Warm and Cold Boot
+;
+; boot		Cold boot
+; wboot		Warm boot
+;
+;-----------------------------------------------------------------
+
+
+;------------------------;
+; COLD BOOT              ;
+; Initialise I/O vectors ;
+; Display message        ;
+; then do a Warm Boot    ;
+;------------------------;
+	dseg		; can be in dseg, as CPMLDR is in SYSTEM bank
+
+boot:
+	di			; keep wolves away
+	ld	sp,0		; must have a stack somewhere
+
+	ld	de,?biosptr
+	ld	hl,?boot	; set up 'hidden' jump table
+	inc	hl
+	ld	(hl),e
+	inc	hl
+	ld	(hl),d
+
+; set up interrupts
+
+; -------------------------------
+; Taken from EPSON's BIOS modules
+; -------------------------------
+
+;				;reset 8259
+	LD	A,IcwM1		;Start interrupt command
+	OUT	(Icm0),A	; ICW1
+	LD	A,high INTTAB	; page of interrupt vectors
+	OUT	(Icm1),A	; ICW2
+	LD	A,IcwM3
+	OUT	(Icm1),A	; ICW3
+	LD	A,IcwM4
+	OUT	(Icm1),A	; ICW4
+
+	LD	A,not 11110001b	;mask-main [power down][KB][LP][FDD][slave]
+	OUT	(Icm1),A
+
+;
+	LD	A,IcwS5		;Start slave interrupt command
+	OUT	(Ics0),A	; ICW1
+	LD	A,high INTTAB
+	OUT	(Ics1),A	; ICW2
+	LD	A,IcwS7		; Slave ID=7
+	OUT	(Ics1),A	; ICW3
+	LD	A,IcwS8		; AEOI, Z80
+	OUT	(Ics1),A	; ICW4
+
+	LD	A,not 11011110b	;mask-slave [X1][calender][X2][X3][X4][X5]
+	OUT	(Ics1),A
+;
+	ld	hl,intret
+	ld	de,inttab
+	ld	bc,4		; length of interrupt responce
+	ld	a,intnos	; number of interrupt vectors
+nxtint:	push	hl
+	push	bc
+	ldir
+	pop	bc
+	pop	hl	
+	dec	a
+	jr	nz,nxtint	; and set all to dummy return
+
+; ------------------------------------------------ ;
+; set physical banks (current bank is system bank) ;
+; ------------------------------------------------ ;
+
+	ld	hl,@bnkno	; table of physical banks
+
+	in	a,(getbnk)
+	and	0f0h
+	ld	(hl),a		; initialise bank 0 (system)
+
+	inc	hl
+	xor	00110000b	; flip bits
+	ld	(hl),a		; and initialise bank 1 (tpa)
+
+; --------------------------------
+; check if banked or unbanked BIOS
+; --------------------------------
+
+	ld	hl,tstdseg	; address within DSEG
+	ex	de,hl
+	ld	hl,tstcseg	; address within CSEG
+	ld	a,h
+	cp	d
+	jr	c,nobanks	; cseg < dseg so must be unbanked BIOS	
+	jp	nz,bnkbios	; cseg > dseg so must be banked BIOS
+	ld	a,l
+	cp	e
+	jr	c,nobanks	; cseg < dseg so must be unbanked BIOS
+	jp	bnkbios		; cseg => dseg so must be banked BIOS
+tstdseg	equ	$
+	cseg			; COMMON AREA
+tstcseg	equ	$
+
+; ------------------------------
+; establish top of common memory
+; ------------------------------
+bnkbios:
+	ld	a,common shr 8	; absolute top of memory
+nxtcmn:	ld	(@cpage),a
+	ld	h,a
+	ld	l,0
+	dec	hl
+	call	switch		; switch banks and compare
+	jp	nz,inbank	; not same so must be in bank
+	ld	b,c		; save old value
+	ld	a,b
+	xor	-1
+	ld	(hl),a		; switch value
+	call	switch		; switch banks and compare
+	ld	(hl),b		; recover byte to original value
+	jp	nz,inbank	; not same so must be in bank
+	ld	a,(@cpage)
+	sub	010h		; reduce by 4k bytes
+	jr	nxtcmn
+switch:
+	ld	c,(hl)
+	in	a,(getbnk)
+	and	0f0h
+	ld	e,a		; and save
+	rla			; select next bank
+	out	(setbnk),a	; (and hope we are still here)
+	ld	a,(hl)
+	cp	c
+	ld	a,e
+	out	(setbnk),a	; recover bank
+	ret
+
+intret:	ei			; null interrupt code
+	ret			; copied throughout interrupt vector table
+	ret
+	ret			; must be 4 bytes in length
+
+;-----------------------------;
+; WARM & COLD BOOT STACK AREA ;
+; (uses COLD BOOT code area)  ;
+;-----------------------------;
+bootsp	equ	$
+
+	dseg		; can return to data segment
+
+; ------------------
+; check memory space
+; ------------------
+
+inbank:
+	ld	hl,(@mxtpa)	; make sure top of tpa is above common code
+	ld	a,(@cpage)	; page number
+	ld	d,a
+	ld	e,0		; base of common memory
+	ld	a,h		; tpa
+	cp	d		; common	
+	jr	nc,sysboot	; tpa ^< common (assume both on page boundary)
+
+; ------------------------------------------- ;
+; Unbanked system set tpa bank to system bank ;
+; ------------------------------------------- ;
+nobanks:			; no bank system available - assume unbanked
+
+	ld	hl,@bnkno	; table of physical banks
+	ld	a,(hl)
+	inc	hl
+	ld	(hl),a		; set tpa bank same as system bank
+
+; ----------------- ;
+; set bank pointers ;
+; ----------------- ;
+sysboot:			; (assume system bank already selected)
+	xor	a
+	ld	(@sbnk),a	; set up system bank to bank 0
+	ld	(@cbnk),a	; and set current bank to system bank
+	inc	a
+	ld	(@tbnk),a	; set TPA to bank 1
+	ld	(@dbnk),a	; and DMA bank to TPA bank
+
+; ------------------- ;
+; initialise hardware ;
+; ------------------- ;
+	ld	sp,bootsp	; now switch to COLD/WARM boot stack
+
+	call	?sysint		; perform any one time initialisation
+
+	call	?init		; initialise char I/O devices
+
+	call	?dinit		; initialise disk I/O device
+
+	call	?crtinit	; initialise 7220 device
+
+	call	?pioinit	; initialisation 8255 device
+
+	ei			; should be ok now
+
+	call	?pmsg		;Announce CP/M size and version
+	db	26,'        EPSON QX-10  CP/M Plus vers 3.1',rev,' (06:Nov:85)'
+	db	0ah,0dh
+;
+	db	0
+	jp	wboot		; do a warm boot
+
+	cseg
+@cpage:	db	common shr 8	; page number of base of common memory
+
+;----------------------------
+; abort process and warm boot
+;----------------------------
+?abort:				; 01jun84 new module
+	call	?tpabnk		; must be in TPA
+; reset disc system - this may cure system crash on removing disc in mid flight
+	ld	c,13		; BDOS Reset Disk System
+	call	bdos		; and call BDOS
+;----------------------------------------------------------------------
+; WARM BOOT
+; Load CCP from either ram disk file CCP.COM or from file A:CCP.COM
+; Initialise low memory
+; Pass control to the CCP at location 0100h in the TPA
+;----------------------------------------------------------------------
+	cseg		; must be in common memory
+wboot:
+	ld	sp,bootsp
+; Find logical drive allocated to ram disc
+
+	call	?sysbnk		; must be in SYSTEM bank
+	call	findram		; return ram disk drive number in RAMDSK
+
+;----------------------------------------------
+; Read CCP - Console command processor into TPA
+;----------------------------------------------
+	call	?tpabnk		; must be in TPA
+
+	ld	hl,-1
+	ld	(@xbc),hl	; de-select XMOVE function
+
+; Select user 0 for file activity
+	ld	e,0		; User = 0
+	ld	c,020h		; BDOS Set User Code
+	call	bdos
+
+; Set BDOS error mode to return errors
+	ld	e,0ffh		; Return Error Mode
+	ld	c,45		; BDOS Set error mode
+	call	bdos
+
+; Reset Drive M:
+	ld	a,(ramdsk)	; get logical drive no + 1
+	ld	hl,0000000000000001b	; start at A: drive
+rotate:	dec	a
+	jr	z,bitset
+	add	hl,hl
+	jr	rotate
+bitset:	ex	de,hl		; Drive M:
+	ld	c,025h		; BDOS Reset Drive
+	call	bdos
+; ---------------------------------
+; open file CCP.COM and copy to ram
+; 1st try  M: silicon ram for file
+; ---------------------------------
+	call	copyfcb		; <DE> -> dfcb (initialised to ram disk)
+	ld	c,0fh		; BDOS open file M:CCP.COM
+	call	bdos
+	cp	-1
+	jp	nz,ramccp
+
+; Reset Drive A:
+	ld	de,0000000000000001b	; Drive A:
+	ld	c,025h		; BDOS Reset Drive
+	call	bdos
+; ---------------------
+; 2nd try from A: drive
+; ---------------------
+	call	copyfcb		; <DE> -> dfcb
+	ld	a,0+1		; dr = A:
+	ld	(de),a
+	ld	c,0fh		; BDOS open file A:CCP.COM
+	call	bdos
+	cp	-1
+	jp	z,noccp
+
+ramccp:
+	ld	e,128		; maximum of 16k bytes for transfer
+	ld	c,44		; BDOS set up multi sector count
+	call	bdos
+
+	ld	de,ccp		; copy direct to CCP address
+	ld	c,26		; BDOS Set DMA address
+	call	bdos
+
+	ld	de,dfcb
+	ld	c,20		; BDOS read the file (assume reach eof)
+	call	bdos
+	cp	01		; test if reached eof
+	jp	nz,noccp	; -no- (CCP cant be as much as 16k, can it?)
+	ld	a,h		; number of records read (0-127)
+	or	a
+	jr	z,noccp		; nothing read
+	jp	m,noccp		; too much read
+	ld	e,a		; number of records to transfer
+	ld	c,44		; BDOS set up multi sector count
+	call	bdos
+
+	ld	de,dfcb
+	ld	c,16		; BDOS close file CCP.COM
+	call	bdos
+
+; if ccp read from A: then copy to M:
+
+	ld	hl,dfcb
+	ld	a,(hl)
+	dec	a		; test if A: drive
+	jp	nz,gocpm	; read from silicon disc so dont write
+
+	call	copyfcb		; <DE> -> dfcb (initialised to ram disk)
+	ld	c,22		; BDOS Make file M:CCP.COM
+	call	bdos
+	cp	-1
+	jp	z,gocpm		; error - cannot create file
+
+	ld	de,ccp		; copy from CCP address
+	ld	c,26		; BDOS Set DMA address
+	call	bdos
+
+	ld	de,dfcb
+	ld	c,21		; BDOS write the file to ram disc
+	call	bdos
+	or	a
+	jr	z,ramok
+	ld	c,19		; BDOS Erase file if write error
+	jr	ramera
+ramok:	ld	c,16		; BDOS Close file M:CCP.COM
+ramera:	ld	de,dfcb
+	call	bdos
+; ---------------------
+; initialise low memory
+; ---------------------
+gocpm:	ld	a,0c3h		;plant jumps
+
+	ld	hl,?wboot	;set warm boot address
+	ld	(0),a
+	ld	(1),hl
+
+	ld	hl,(@mxtpa)	; BDOS entry address
+	ld	(5),a
+	ld	(6),hl		;set address of jump to bdos
+
+	jp	ccp		; eof - goto CCP
+
+;-----------------------------------------
+; Find logical drive allocated to ram disc
+;-----------------------------------------
+	dseg			; as system bank selected
+findram:
+	ld	hl,@dtbl	; (as this table may be in system bank)
+	ld	bc,16*256
+	ld	de,dph12
+nxtdph:
+	ld	a,(hl)
+	inc	hl
+	cp	e
+	jr	nz,notdph
+	ld	a,(hl)
+	cp	d
+	jr	z,gotdph
+notdph:	inc	hl
+	inc	c
+	djnz	nxtdph
+	ld	c,12		; cant find DPH so default to M:
+gotdph:	ld	a,c
+	inc	a
+	ld	(ramdsk),a	; save logical drive + 1
+	ret
+	cseg
+
+; -----------------------------------------------
+; Copy contents of CCP FCB to default FCB at 05ch
+; -----------------------------------------------
+
+dfcb	equ	05ch		; default FCB data area
+copyfcb:
+	ld	hl,ccpfcb
+	ld	de,dfcb		; default FCB data area
+	ld	bc,33
+	ldir			; copy fcb
+	ld	de,dfcb		; return <DE> -> dfcb
+	ret
+
+noccp:
+	call	?sysbnk		; select system bank
+	jp	ccperr
+
+	dseg
+
+ccperr:	call	?pmsg
+	db	0ah,0dh,'*** CANNOT FIND FILE: A:CCP.COM'
+	db	0ah,0dh,'    INSERT DISK CONTAINING THIS FILE AND HIT <RETURN>'
+	db	0
+	call	?conin		; wait for any character
+	jp	wboot		; and (can we) try again
+
+;--------------------------------------------------------------------------
+	
+	cseg
+bdos:
+	ld	hl,(@mxtpa)
+	jp	(hl)
+
+;--------------------------------------------------------------------------
+	
+	cseg
+
+ramdsk:				; logical number for M: drive
+ccpfcb:
+	db	0,'CCP     COM',0,0,0,0	; dr not initialised
+	dw	0,0,0,0,0,0,0,0
+	db	0		; cr set to 0
+
+;--------------------------------------------------------------------------
+	
+	end
