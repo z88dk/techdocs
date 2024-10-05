@@ -1,0 +1,872 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS disk functions
+
+	name	('BIOS3A4')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; ALPHA Aug 8,83
+; BETA  Dec 5,83
+; BETA+ Jan 5,84
+; Altered ?SWAP March 22 84
+; REV-A Apr 30,84
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+
+; BIOS functions
+
+	public	seldsk,home,settrk
+	public	setsec,setdma,sectrn
+	public	read,write
+	public	setbnk
+	public	drvtbl,multio,flush
+
+; BIOS disc utilities
+
+	public	?pderr			; print BIOS disk error
+	public	?swap			; switch drive asignments
+
+; disk communication data items
+
+	public	@seqsec			; parameters for disk I/O
+	public	@dph.ptr,@dpb.ptr	;    "       "    "    "
+	public	@cnt,@multio		;    "       "    "    "
+
+;------------------------;
+; CP/M 3 CBIOS externals ;
+;------------------------;
+
+; disk communication data items
+
+	extrn	@dtbl			; table of pointers to XDPH's
+	extrn	@adrv,@trk,@sect,@scnt	; parameters for disk I/O
+	extrn	@dma,@dbnk		;    "       "    "    "
+
+	extrn	@retries		; Number of retries remaining
+	extrn	@rdwr			; disc READ or WRITE flag
+	extrn	@wrdc			; BDOS write deblocking codes
+
+
+; memory control
+
+	extrn	@cbnk,@sbnk,@tbnk	; current, system and tpa bank number
+	extrn	?tpabnk,?sysbnk		; select TPA or SYS bank
+	extrn	?bank			; select bank in <A>
+	extrn	?gosys		; Use system bank and local SP, (preserve <HL>)
+	extrn	?retsys		; return to callers bank and SP, (preserve <A>)
+
+; general utility routines
+
+	extrn	?pmsg			; print message @<SP>
+	extrn	?pdec			; print 16 bit number in <HL>
+	extrn	?idle			; called whenever waiting on hardware
+
+; External names for BIOS entry points defined in CBIOS.MAC
+
+	extrn	?boot,?wboot
+	extrn	?home,?sldsk,?sttrk,?stsec,?stdma,?read,?write
+	extrn	?sctrn
+	extrn	?dvtbl,?drtbl
+	extrn	?mltio,?flush,?mov,?tim,?bnksl,?stbnk,?xmov
+
+; External names for BIOS entry points which use COMMONSP
+
+	extrn	?cono,?conos
+
+;----------------------------------------------------------------
+
+lf	equ	0ah
+cr	equ	0dh
+
+bit0	equ	1 shl 0
+bit1	equ	1 shl 1
+bit2	equ	1 shl 2
+bit3	equ	1 shl 3
+bit4	equ	1 shl 4
+bit5	equ	1 shl 5
+bit6	equ	1 shl 6
+bit7	equ	1 shl 7
+
+;		===============
+;		DISC DATA AREAS
+;		===============
+
+;--------------------------------------------------------------
+;
+; Miscelleneous Physical Driver Data
+;
+;--------------------------------------------------------------
+
+	dseg		; may be in common
+
+@cnt:		db	-1	; Count of multiple sector I/O
+@multio:	db	-1	; Set true for multiple sector I/O
+@seqsec:	dw	-1	; current unskewed sector number
+
+; save current dph and dpb here
+
+@dph.ptr:	dw	0	; address of currently selected dph
+@dpb.ptr:	dw	0	; address of currently selected dpb
+
+@dphsel:			; save 25 bytes of currently selected DPH here
+@xlt.dphsel:	dw	-1	; of which first 2 bytes are address of XLT
+		ds	10
+@dpb.dphsel:	dw	-1	; 2 bytes is address of DPb
+		ds	11
+
+@dpbsel:			; save 17 bytes of currently selected DPB here
+@spt.dpbsel:	dw	-1	; of which first 2 bytes are number of logical
+				; sectors per track
+		ds	 13
+@psh.dpbsel:	db	-1	; 2 bytes of physical record  shift and mask
+@phm.dpbsel:	db	-1
+
+;------------------------------------------------------------------
+;
+;	Disk I/O 
+;	Note: All disk drivers may reside in system memory
+;	except the physical driver which must be in common
+;	to transfer data with any bank or common memory.
+;
+;------------------------------------------------------------------
+; home		home selected disk and clear read buffers
+; seldsk	select logical disk
+; settrk	set track number
+; setsec	set sector number
+; setdma	set DMA address
+; read		read selected record
+; write		write selected record
+; sectrn    	sector translate subroutine
+; drvtbl	Disk drive table (only used by GENCPM)
+; multio	multiple record disk i/o
+; flush		flush deblock if used
+;------------------------------------------------------------------
+
+;	CP/M Write Types (not used in this implementation)
+
+wrall	equ	0		;normal write to allocated sector
+wrdir	equ	1		;write to directory sector
+wrual	equ	2		;first write to unallocated block
+
+;	================================================
+	dseg	; Disk drive routines are in system bank
+;	================================================
+
+;------------------------------------------------------------------
+;
+; (9)	SELDSK entry point in CBIOS
+;	Select the drive specified in register C
+;	Register E bit 0 is zero if the drive has not been
+;	selected previously - must identify media.
+;
+; Entry:	<C> contains drive number (0 = drive A)
+; Returns:	<HL> contains address of selected DPH
+;		<HL> = 0 if cannot select drive
+;
+;------------------------------------------------------------------
+
+
+seldsk:
+	ld	hl,0		; in case in error
+	ld	a,c		; test disk range
+	cp	16		; maximum number of drives
+	ret	nc		; outside range (A: - P:)
+
+	ld	b,h
+	ld	hl,@dtbl	;table of remembered dph's
+	add	hl,bc		;index by words
+	add	hl,bc
+	ld	a,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,a
+	or	h
+	ret	z		; no entry in @dtbl
+
+	ld	a,c
+	ld	(@adrv),a	; Save new disc drive
+	ld	(@dph.ptr),hl	; and associated dph
+
+	bit	0,e		; first time log-in ?
+	call	z,?seldr	; -no- select drive with <HL> -> drives dph
+	ld	a,l		; returns HL unchanged or
+	or	h		; returns <HL> = 0 if unable to select drive
+	ret	z
+
+;------------------------------------------------;
+; Set up data areas for currently selected drive ;
+; Entry:	<HL> -> dph for drive selected   ;
+; Initialise:	@MULTIO = 0 for single sectors   ;
+;		@DPHSEL = Copy of drive DPH      ;
+;		@DPB.PTR -> address of DPB       ;
+;		@DPBSEL = Copy of drive DPB      ;
+; Preserve:	<HL>                             ;
+;------------------------------------------------;
+
+	push	hl		; and save
+
+	xor	a
+	ld	(@multio),a	; set multi/o inactive
+
+	ld	de,@dphsel	; copy 14 of 25 bytes of DPH into our area
+	ld	bc,14		; for use by MULTIO
+	ldir
+
+	ld	hl,(@dpb.dphsel)
+	ld	(@dpb.ptr),hl	; and save for disc read/write
+
+	ld	de,@dpbsel	; also save copy of dpb selected
+	ld	bc,17		; length of CP/3 DPB
+	ldir			; copy 17 bytes of DPB into our area
+
+	pop	hl		; recover address of dph
+	ret
+
+;------------------------------------------------------------------
+; (22)	DRIVE TABLE
+;
+; Input		none
+; Returns	hl = drive table address
+; Function:	This function is not accessed by BDOS and
+;		is only accessed by GENCPM to configure
+;		the disk buffers as required.
+;		 
+; NOTE: the first instruction must be LXI H,<address> as this is used
+; by GENCPM procedure. If drive table address is returned, GENCPM locates
+; the disk parameter data structures to allocate the HASH tables
+; only if A/ drive table > 0 and B/ hash parameter = 0FFFEh
+;------------------------------------------------------------------
+drvtbl:
+	ld	hl,@dtbl
+	ret
+
+;--------------------------------------------------------;
+;							 ;
+; home, set sector, set track, set dma, sector translate ;
+;							 ;
+;--------------------------------------------------------;
+
+;------------------------------------------------------------------
+; (8)	HOME - Clear read buffers if deblocking within BIOS
+;------------------------------------------------------------------
+home:	ld	bc,0		;seek track zero and fall into settrk
+
+;------------------------------------------------------------------
+; (10)	SETTRK - select track given by BC
+;------------------------------------------------------------------
+settrk:	ld	(@trk),bc	;set track to seek
+	ret
+
+;------------------------------------------------------------------
+; (11)	SETSEC - select sector given by BC
+;------------------------------------------------------------------
+setsec:	dec	bc		; adjust sector to base 0
+	ld	(@sect),bc	; set sector to seek
+	ret
+
+;------------------------------------------------------------------
+; (12)	SETDMA - Set DMA address for disk transfer to BC
+; In a banked system, SETDMA must save the currently selected
+; bank as the bank to use for any following DMA operations.
+; In other words, the DMA buffer is in the current bank (the one
+; specified by the last call to SELMEM before this SETDMA) unless
+; the call is made to SETBNK after the SETDMA. 
+;------------------------------------------------------------------
+setdma:	ld	(@dma),bc
+
+	ld	a,(@cbnk)	; set up default bank
+				; and fall through to set DMA bank
+
+;------------------------------------------------------------------
+;
+; (28)	SETBNK	Select bank for DMA operation
+;
+; Entry:	<A> = Logical Memory bank
+; Returns:	none
+; Destroyed:	none - ALL REGISTERS UNCHANGED
+; Function:	Specifies the bank for the subsequent READ or WRITE
+;
+;------------------------------------------------------------------
+setbnk:	ld	(@dbnk),a
+	ret
+
+;------------------------------------------------------------------
+;
+; (16) 	 SECTRN - Logical to Physical sector translation
+;
+; Entry:	<BC>  = Unskewed sector number (base 0)
+;	        <DE>  = Translate Table Address or 0 if none
+; Returns:	<HL>  = Physical Sector Number (base 1) IMPORTANT
+;------------------------------------------------------------------
+sectrn:	ld	l,c		;set untranslated sector
+	ld	h,b
+	ld	(@seqsec),hl	; save for multiple i/o 
+	inc	hl		;return <HL> = <BC> + 1 if no XLATE
+	ld	a,d
+	or	e
+	ret	z		;if no translate table
+	ex	de,hl
+	add	hl,bc		; <HL> = (<DE>+<BC>)
+	ld	l,(hl)		;single byte translate
+	ld	h,b		;(b must be zero)
+	ret
+
+;------------------------------------------------------------;
+;							     ;
+; multio	Set number of logically consequitive sectors ;
+; flush		For CPM2 type deblocking, to flush buffers   ;
+;							     ;
+;------------------------------------------------------------;
+
+;---------------------------------------------------------------------------
+;
+; (23)	MULTIO	Multiple Sector I/O
+;
+; Input		<A> = Multi-Sector count
+; Returns	none
+; Function:	To transfer logically consecutive disk sectors to
+;		or from contiguous memory locations.
+;		The maximum size of transfer is 16k
+;		(128 * 128 byte sectors, or 4 * 4096 byte sectors)
+;		Sets @multio > 0 to signal to rdwr routines to use
+;		multiple I/O. NB BDOS does not check for track boundary.
+;---------------------------------------------------------------------------
+multio:	ld	(@cnt),a	; count of sectors to be copied
+	ld	(@multio),a	; flag multiple I/O in operation
+	ret
+
+;------------------------------------------------------------------
+;
+; (24)	FLUSH	Flush BIOS deblock buffers
+;
+; Input		none
+; Returns	a = 0 (Disk IO = no errors)
+; NB if deblocking performed by CP/M3 BDOS then return
+;------------------------------------------------------------------
+flush:	xor	a		; i.e. return 'NO ERRORS' to disk access
+	ret
+
+	page
+
+;------------------------------------------------------------------
+;
+; disk read/write
+;
+; Seldsk, Sectrn, Settrk, Setsec, Setdma and Sebnk must have been 
+; called prior to a disk read/write
+;
+; Reg In	- C (write only) write type, no longer used
+;
+; Reg returned	- A = 000h if no error occured
+;		  A = 001h if physical error occurred
+;		  A = 002h if disk is Read Only during write
+;		  A = 0ffh if media has changed		
+;  		
+; Be sure to read/write into the bank that was switched
+; in at the time SETDMA was called or the override bank
+; specified by SETBANK.
+;------------------------------------------------------------------
+
+;------------------------------------------------------------------
+; (13)	READ - read a physical sector
+;------------------------------------------------------------------
+read:	xor	a
+	inc	a		;set read operation
+	jr	rdwr
+
+;------------------------------------------------------------------
+; (14)	WRITE - write a physical sector
+;------------------------------------------------------------------
+write:	ld	a,c		; BDOS deblocking codes
+	ld	(@wrdc),a	; and save
+	xor	a		;set write operation
+
+;***;
+rdwr:
+;***;
+	ld	(@rdwr),a	; save rd/wr flag
+	ld	hl,0		; @SCNT is calculated later
+	ld	(@scnt),hl	; set physical sector count to zero
+	ld	hl,@multio	; check for multiple I/O
+	ld	a,(hl)
+	or	a
+	jp	z,?rdwr		; no multiple counts left
+
+;-----------------------------------------------------;
+; multiple sector i/o                                 ;
+; 1. decrement @multio for each call to rdwr routine  ;
+; 2. decrement @cnt for each sector read              ;
+; 3. If @cnt = 0, then have done all sectors          ;
+;-----------------------------------------------------;
+
+; ---------------------------------------------- ;
+; multiple physical sector transfers implemented ;
+; ---------------------------------------------- ;
+
+	dec	(hl)		; decrement count by 1 for each read
+
+	ld	a,(@cnt)	; see how many sectors to handle
+	or	a
+	ret	z		; done all sectors so return
+
+; ----------------------------------------------- ;
+; test for software sector interleaving (XLT > 0) ;
+; ----------------------------------------------- ;
+
+	ld	hl,(@xlt.dphsel)	; translate table
+	ld	a,h
+	or	l
+	jp	nz,il.sect	; XLT > 0
+
+; -------------------------------------------------- ;
+; test sectors count with sectors remaining on track ;
+; -------------------------------------------------- ;
+
+nexttrk:
+	ld	de,(@sect)	; next sector to read (base 0)
+
+	call	pack.spt	; returns sectors per track (base 1) in HL
+	or	a
+	sbc	hl,de		; HL = remaining sectors
+
+	ld	bc,@cnt		; count of sectors to transfer
+	ld	a,h
+	or	a		; if H > 0 then as @cnt < 128 do @cnt
+	jr	nz,gocnt
+	ld	a,(bc)		; sectors to transfer
+	sub	l		; test if sectors to copy exceed spt
+	jr	z,gocnt		; count = spt
+	jr	nc,goeot	; spt < count
+
+;--------------------------------------------------------------; 
+; count in @cnt is less or equal to sectors remaining on track ;
+;--------------------------------------------------------------; 
+
+gocnt:	ld	a,(bc)		; transfer remaining sectors on track
+	ld	(@scnt),a	; set multiple sector count
+	xor	a
+	ld	(bc),a		; and set count to zero
+	jp	?rdwr		; and do multi sector transfer
+
+;--------------------------------------------------;
+; count in @cnt exceeds sectors remaining on track ;
+;--------------------------------------------------;
+
+goeot:	ld	(bc),a		; reduce count by sectors left on track
+	ld	a,l		; transfer remaining sectors on track
+	ld	(@scnt),a	; set multiple sector count
+	ld	(savcnt),a	; and save locally
+
+;------------------------;
+; transfer @scnt sectors ;
+;------------------------;
+
+	call	?rdwr		; and do multi sector transfer
+	or	a
+	jp	nz,multerr	; if error then return
+
+;--------------------------------------------;
+; prepare track and sector for next transfer ;
+;--------------------------------------------;
+
+	ld	hl,(@trk)
+	inc	hl
+	ld	(@trk),hl	; move to next track
+
+	ld	hl,0
+	ld	(@sect),hl	; and 1st sector
+
+;---------------------------;
+; calculate new DMA address ;
+;---------------------------;
+
+	call	shift		; return <HL> = physical sector size
+	ex	de,hl
+	ld	a,(savcnt)
+	ld	hl,(@dma)
+updma:	add	hl,de		; increment @DMA for each sector
+	dec	a
+	jr	nz,updma
+	ld	(@dma),hl
+
+	jp	nexttrk		; and repeat for next track
+
+savcnt:	db	0		; save multi sector count
+
+
+; ----------------------------- ;
+; returns physical sectors size ;
+; ----------------------------- ;
+
+shift:	ld	hl,128
+	ld	a,(@psh.dpbsel)	; physical record shift factor (0,1,2,3 etc)
+	or	a
+	ret	z		; return 128 bytes
+shift1:	add	hl,hl
+	dec	a
+	jr	nz,shift1
+	ret			; return <HL> = sector size
+
+; --------------------------------- ;
+; return physical sectors per track ;
+;    <HL> = S.P.T (destroys <B>)    ;
+; --------------------------------- ;
+
+pack.spt:
+	ld	hl,(@spt.dpbsel); logical sectors per track (base 1)
+	ld	a,(@psh.dpbsel)	; physical record shift factor (0,1,2,3 etc)
+	ld	b,a
+	or	a
+	ret	z		; return HL =sectors/track
+pack:	ld	a,h		; convert logical sectors per track
+	rra
+	ld	h,a
+	ld	a,l
+	rra
+	ld	l,a
+	djnz	pack		; into physical sectors per track
+	ret			; return HL = sectors per track
+
+;---------------------------------------;
+; Interleaved sectors multisector i/o   ;
+; as XLT > 0 must do a sector at a time ;
+;---------------------------------------;
+
+il.sect:
+	ld	hl,@cnt		; see how many sectors to handle
+	ld	a,(hl)
+	or	a
+	ret	z		; done all sectors so return
+	dec	(hl)		; reduce count by one
+
+;-----------------;
+; Read one sector ;
+;-----------------;
+
+	call	?rdwr
+	or	a
+	jr	nz,multerr	; if error then return
+
+; -------------------------------------- ;
+; increment unskewed sector number count ;
+; -------------------------------------- ;
+
+	ld	hl,(@seqsec)	; unskewed sector number (base 0)
+	inc	hl		; update by 1
+	ex	de,hl		; save in <DE>
+
+	call	pack.spt	; returns sectors per track (base 1) in HL
+	dec	hl		; now base 0
+	or	a		; (may not be necessary)
+	sbc	hl,de		; hl = s.p.t - next sector
+	jr	nc,nxtsec
+	ld	de,0		; set sector number to zero
+	ld	hl,(@trk)
+	inc	hl
+	ld	(@trk),hl	; track = track + 1
+nxtsec:	ld	b,d
+	ld	c,e		; <BC> = unskewed sector count
+	ld	de,(@xlt.dphsel)	; translate table
+	call	sectrn		; and update @seqsec
+	dec	hl		; adjust to base 0
+	ld	(@sect),hl	; update sector number
+
+; ------------------------------------------ ;
+; increment @DMA address by length of sector ;
+; ------------------------------------------ ;
+
+	call	shift		; return <HL> = physical sector size
+	ex	de,hl
+	ld	hl,(@dma)
+	add	hl,de
+	ld	(@dma),hl	; update @dma address
+
+; ------------------------------------------ ;
+; now @trk, @sect & @dma incremented, repeat ;
+; ------------------------------------------ ;
+
+	jr	il.sect		; and do another sector
+
+; ------------------------------------------ ;
+; Error mid way during multiple sector reads ;
+; BIOS can either reset the multiple sector  ;
+; counters in the BIOS and return the error  ;
+; immediately, or save the error status and  ;
+; return it to the BDOS on the last READ or  ;
+; WRITE of the MULTIO operation.             ;
+; ------------------------------------------ ;
+
+multerr:
+	ld	b,0
+	ld	hl,multio
+	ld	(hl),b		; clear multio conditin
+	ld	hl,@scnt
+	ld	(hl),b		; clear multi sector count
+	ret			; with <A> <> 0
+
+	page
+
+;------------------------------------------------------------------;
+;                    *********************                         ;
+;                    DISC DRIVER SELECTION                         ;
+;                    *********************                         ;
+;------------------------------------------------------------------;
+
+;----------------------------------------------------------------------;
+; ?SELDR                                                               ;
+; Entry:	@dph.ptr  -> CP/M 3 DPH + 2 byte physical data         ;
+; Returns:	<HL> = (@dph.ptr), DPH updated with DPB if valid drive ;
+;	        <HL> = 0 If unable to select drive                     ;
+; Function:	Called to login and identify a physical drive          ;
+;----------------------------------------------------------------------;
+
+	dseg
+?seldr:
+	ld	a,-1
+	ld	(@rdwr),a	; set rd/wr flag to indicate select
+	ld	a,2		; should be 2 or greater
+	ld	(@retries),a	; number of retries
+
+seldr:
+	ld	de,-5		; offset to select drivers from @dph.ptr
+	call	driver		; select drive, return <A> = 0 if no errors
+	or	a
+	ret	z		; assume <HL> set up
+	ld	de,-9		; offset to error drivers from @dph.ptr
+	call	driver		; dispay <A> error message or retry
+	or	a		; test for retry required
+	jp	m,seldr
+
+; otherwise report error regardless
+
+selerr:				; Select Error - cannot read disc
+	xor	a
+	ld	l,a
+	ld	h,l		; return Unable to select
+	ret			; return with <A> = 0
+
+
+;----------------------------------------------------------------------;
+;?rdwr - Read or Write.                                                ;
+;                                                                      ;
+; Entry:	@rdwr = 0 to write                                     ;
+;		@rdwr = 1 to read                                      ;
+;		@dph.ptr  -> dph                                       ;
+;                                                                      ;
+; Returns:	<A> =   0  - if no errors                              ;
+;		<A> =   1  - if errors                                 ;
+;		<A> =   2  - if disk write protect (write only)        ;
+;		<A> = 0ffh - if media has changed	               ;
+;		Flags = condition of A reg                             ;
+;----------------------------------------------------------------------;
+
+	dseg
+?rdwr:
+	ld	a,3		; should be 10
+	ld	(@retries),a	; number of retries
+
+rdwr1:				; entry point for retries	
+	ld	de,-7		; offset to rd/wr drivers from @dph.ptr
+	call	driver
+
+	or	a
+	ret	z		; succesful read
+
+	bit	7,a		; was it 'NOT READY'
+	jr	nz,rwerr
+
+	bit	6,a		; was it write protect
+	jr	nz,wrprot
+
+	bit	4,a		; seek error or record not found
+	jr	nz,mftst	; test for media change
+
+rwerr:	ld	de,-9		; offset to error drivers from @dph.ptr
+	call	driver		; dispay <A> error message or retry
+	or	a		; test return
+	ret	z		; Ignore error (dodgy)
+	jp	m,rdwr1
+	call	?pderr		; report BIOS error message (SELECT error?)
+	ld	a,1		; BIOS error return
+	ret
+
+wrprot:				; DISC is WRITE PROTECT
+	ld	a,2		; set write protect flag
+	ret
+
+;---------------------------------------------------------------------------
+; AUTO DENSITY SUPPORT
+; If an error is detected and the driver determines that the media has been
+; changed to another format, it must return the value 0FFH in register A.
+; The next call to this drive will be an initial SELDSK call. Do not modify
+; the drive DPH's or DPB until the initial SELDSK call is made.
+;---------------------------------------------------------------------------
+
+mftst:				; Test for possible change in media (FDC only)
+	ld	hl,(@dph.ptr)
+	dec	hl
+	ld	h,(hl)		; disc format type
+	ld	l,a		; save condition
+	ld	(rdwrerrs),hl	; save error condition and MF
+
+	ld	a,(@retries)	; number of retries
+	dec	a
+	jr	z,nomfst	; dont test for media change on last retry
+
+	ld	de,-5		; offset to select drivers from @dph.ptr
+	call	driver		; reselect drive (@rdwr <> -1)
+
+nomfst:	ld	hl,(rdwrerrs)	; recover error condition and MF
+	ex	de,hl
+	or	a		; select error ?
+	jr	nz,mftst1	; -yes-
+
+	ld	hl,(@dph.ptr)
+	dec	hl
+	ld	a,(hl)		; new format style
+	ld	(hl),d		; and recover to original value
+	cp	d		; compare with previous disc format
+	jr	nz,setMF	; -different- so set MF flag
+mftst1:	ld	a,e		; -same- so must be genuine error
+	jr	rwerr		; recover error condition and report error
+
+rdwrerrs:
+	dw	0		; save (stack may be full)
+
+setMF:	or	0ffh
+	ret
+
+
+;-----------------------------------------------------------------------;
+; DRIVER								;
+; Fetch driver code for specified driver				;
+; Input: @DPH.PTR -> DPH						;
+;	 DE -> Offset to HIGH BYTE of required routine			;
+;    		-9	Address of ERROR PROCESSING routine		;
+;     		-7	Address of DISC RD/WR routine			;
+;     		-5	Address of DISC SELECT routine			;
+;     		-3	Address of COLD BOOT INIT routine		;
+;	<A> (Error routine only) - Disk error code                      ;
+;	<C> (Select routine only) - CP/M disk number                    ;
+;									;
+; function:	Fetches contencts of @DPH.PTR and sets			;
+;		<HL> = (@DPH.PTR) + (DE)				;
+;		<DE> = (@DPH.PTR)					;
+;		Destroys <B>						;
+;		Performs a JUMP to address in <HL>			;
+;									;
+; return:	Registers as defined by each routine function		;
+;		Usually register <A> is returned as follows             ;
+;		<A> = 0 - completed					;
+;			bit 7 - Drive not ready				;
+;			bit 6 - Drive write protected			;
+;			bit 4 - Posibble media change			;
+;			bit 1 - track/sector id error			;
+;       		bit 0 -	Fatal error				;
+;-----------------------------------------------------------------------;
+
+	cseg
+	ds	24*2		; 24 levels of stack should be sufficient
+stack:	dw	0
+
+	dseg
+driver:
+	ld	(stack),sp	; save callers stack
+	ld	sp,stack	; use local stack
+
+	ld	hl,(@dph.ptr)
+	ex	de,hl
+	add	hl,de
+	ld	b,(hl)
+	dec	hl
+	ld	l,(hl)
+	ld	h,b		; Disc select driver
+	call	jphl		; & <DE> -> DPH
+
+	ld	sp,(stack)	; recover callers stack
+	ret
+
+jphl:
+	jp	(hl)
+
+;----------------------------------------------------------------------
+	page
+
+	dseg
+
+;-------------------------------------------;
+; ?pderr - Print general BIOS ERROR message ;
+;-------------------------------------------;
+
+?pderr:	call	?pmsg
+	db	cr,lf,'BIOS Error on ',0
+	ld	a,(@adrv)
+	add	a,'A'
+	ld	c,a
+	call	?cono
+	call	?pmsg
+	db	': T-',0
+	ld	hl,(@trk)
+	call	?pdec
+	call	?pmsg
+	db	', S-',0
+	ld	hl,(@sect)
+	call	?pdec
+	or	-1		; set error number to -1
+	ret
+
+	page
+
+;----------------------------------------------------------------------;
+; ?SWAP                                                                ;
+; Entry:	C = first drive index (0-15)                           ;
+; 		L = Second drive index (0-15)                          ;
+; Result:	swap two byte entry in @DTBL                           ;
+;-----------------------------------------------------------------------
+	cseg		; should be in common for direct BIOS calls
+?swap:
+	call	?gosys		; switch to system bank saving callers bank
+	jp	swap1
+
+	dseg		; as now in DSEG
+swap1:	xor	a
+	ld	b,a		; <BC> = first drive number
+	ld	h,a		; <HL> = first drive number
+;
+	ld	de,@dtbl	; table of dph's
+	add	hl,hl
+	add	hl,de		; <HL> -> first drive dph
+	ex	de,hl
+	add	hl,bc
+	add	hl,bc		; <HL> -> second drive dph
+;HL points to first entry, DE to second
+;
+	ld	b,2		; exchange 2 bytes in table     
+nxt$swap:                                                       
+	ld	c,(hl)          ; from first drive              
+	ld	a,(de)          ; from second drive		
+	ld	(HL),a
+	ld	a,c
+	ld	(de),a
+	inc	hl
+	inc	de
+	djnz	nxt$swap	; exchange both dph's
+
+	jp	?retsys		; recover bank and return
+
+;-----------------------------------------------------------------------
+
+	end
