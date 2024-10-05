@@ -1,0 +1,306 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS test baud rate
+
+	name	('BAUDTST')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; ALPHA Aug 8,83
+; BETA  Dec 5,83
+; BETA+ Jan 5,84
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+	cseg
+
+;====================================
+; user defined character I/O routines
+;====================================
+
+	public	?baud		; set baud rate for device in <B>
+	public	@cpm3b		; CP/M 3 baud rate table
+
+;---------------------------------------------------------------------
+; PUBLIC SYMBOLS IN EPSON QX-10 CPM3 BIOS
+;---------------------------------------------------------------------
+
+	public	ser1baud	; set serial baud rate
+	public	baudrate	; set baud rate
+	public	set$baud	; set baud rate in <C>
+
+;---------------------------------------------------------------------
+;
+;	Various equates
+;
+;---------------------------------------------------------------------
+
+	maclib	CBIOS.EQU	; QX-10 hardware ports and equates
+
+	maclib	8253.EQU	; CTC hardware ports and equates
+xclk$f	equ	6000		; frequency 1536000 = 6000 * 256 hertz
+
+;************************************;
+;* EQUATES for MODE byte bit fields *;
+;************************************;
+
+mb$input	equ	00000001b	; device may do input
+mb$output	equ	00000010b	; device may do output
+mb$in$out	equ	mb$input + mb$output
+mb$softbaud	equ	00000100b	; software selectable baud rate
+mb$serial	equ	00001000b	; device may use protocol
+mb$xonxoff	equ	00010000b	; XON/XOFF protocol enabled
+
+baud$none	equ	0	; no baud rate associated with device
+baud$50		equ	1	; 50 baud
+baud$75		equ	2	; 75 baud
+baud$110	equ	3	; 110 baud
+baud$134	equ	4	; 134 baud
+baud$150	equ	5	; 150 baud
+baud$300	equ	6	; 300 baud
+baud$600	equ	7	; 600 baud
+baud$1200	equ	8	; 1,200 baud
+baud$1800	equ	9	; 1,800 baud
+baud$2400	equ	10	; 2,400 baud
+baud$3600	equ	11	; 3,600 baud
+baud$4800	equ	12	; 4,800 baud
+baud$7200	equ	13	; 7,200 baud
+baud$9600	equ	14	; 9,600 baud
+baud$19200	equ	15	; 19,200 baud
+
+;--------------------------------------------------------------------------
+	page
+
+	cseg
+
+bdos	equ	0005h
+
+start:	ld	de,msg1
+	ld	c,9
+	call	bdos
+
+	ld	de,cbuff
+	ld	c,10		; BDOS console input
+	call	bdos
+
+	ld	hl,cbuff+1
+	ld	a,(hl)
+	or	a
+	jp	z,0
+
+	ld	b,a
+	xor	a
+	ld	c,a
+
+nxtdig:	ld	a,c
+	add	a,a		; *2
+	add	a,a		; *4
+	add	a,c		; *5
+	add	a,a		; *10
+	ld	c,a
+
+	inc	hl
+	ld	a,(hl)
+
+	sub	'0'
+	jr	c,digerr
+	cp	10
+	jr	nc,digerr
+	add	a,c
+	ld	c,a
+	djnz	nxtdig
+
+	call	?baud
+	jp	start
+
+digerr:	ld	de,msg2
+	ld	c,9
+	call	bdos
+	jp	start
+
+msg1:	db	0dh,0ah,'Enter baud rate no (1-16) ? ','$'
+cbuff:	db	255
+	db	0
+	ds	255
+msg2:	db	0dh,0ah,' ? only number 0-9 allowed','$'
+
+;---------------------------------------------------------------------
+; ?baud
+; Entry:	<B> = device number
+;		<C> = baud rate number
+; Returns:	-none-	
+; Function:	Set the device <B> to the baud rate given in <C>
+;---------------------------------------------------------------------
+
+?baud:	ld	a,c		; = baud rate
+	or	a		; l test for baud rate > 0
+	jr	z,null$baud	;  baud rate not assigned
+	cp	16		; 2 test for baud rate < 16
+	jr	nc,null$baud	;  baud rate out of range
+	ld	hl,ser1baud
+jphl:	jp	(hl)		; Main Serial I/O baud rate
+null$baud:
+	ret
+
+;-----------------------------------------------------------------------------
+; CPM3 BAUD RATE TABLE
+@cpm3b:
+;		0	1	2	3	4	5	6	7
+	dw	0,	50,	75,	110,	135,	150,	300,	600
+;		8	9	10	11	12	13	14	15
+	dw	1200,	1800,	2400,	3600,	4800,	7200,	9600,	19200
+;-----------------------------------------------------------------------------
+
+	page
+
+;			-----------------------
+;			extracted from 7201.mac
+;			-----------------------
+
+
+; ===================================
+; set baud rates for main SIO devices
+; <C> = CP/M Plus baud rate number
+; <A> -> SIO register 4
+; ===================================
+
+set$baud:		; <A> -> SIO register 4
+	call	baudrate	; returns <D>, <BC> clock rate
+sb$dvd:
+	push	hl
+	ld	hl,(sb$div)
+	inc	hl
+	ld	(sb$div),hl
+	pop	hl
+	add	hl,bc
+	adc	a,d
+	cp	clk$f/256	; timer clock
+	jr	c,sb$dvd
+	jr	nz,sb$cnt
+	ld	e,a		; save <A>
+	ld	a,h
+	cp	clk$f and 0ffh	; timer clock (* 256)
+	ld	a,e		; recover <A>
+	jr	c,sb$dvd
+sb$cnt:
+	ld	hl,(sb$div)
+	ex	de,hl		; count
+;
+	ld	hl,clk$no	; required port
+	ld	a,(hl)
+	or	11b		; change to command port
+	ld	c,a
+	ld	a,(hl)		; required port
+	and	11b		; mask port number
+	rrca
+	rrca			; move to bit 6 & 7
+	or	110110b		; and add clock command
+	out	(c),a		; set timer counter mode
+
+	ld	c,(hl)		; required port
+	ld	a,e
+	out	(c),a		; set low bit rate
+
+	ld	a,d
+	out	(c),a		; set high bit rate
+
+	ret
+
+; --------------------------------------------
+; common module for main & optional baud rates
+; <C> = CP/M Plus baud rate number
+; <A> -> SIO register 4 (for clock multiple)
+; --------------------------------------------
+baudrate:		; <A> -> SIO register 4
+	ld	b,0
+	ld	hl,@cpm3b
+	add	hl,bc
+	add	hl,bc
+	ld	c,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,c		; <hl> = required baud rate
+
+	and	11000000b	; 00 = X1, 01 = X16, 10 = X32, 11 = X64
+	rlca
+	rlca			; = 0, 16, 32 or 64
+	jr	z,retrate
+;------------------------------------
+; adjust baud rate for clock multiple
+;------------------------------------
+	add	a,3		; 04 = X16, 05 = X32, 06 = X64
+	ld	b,a		; save X clock
+	xor	a
+nxtclk:	add	hl,hl
+	adc	a,a		; *2
+	djnz	nxtclk
+
+retrate:			; <AHL> = baud rate
+	ld	b,h
+	ld	c,l		; ABC = baud rate adjusted for multiple
+	ld	d,a		; very high byte
+
+	xor	a
+	ld	h,a
+	ld	l,a		; set count to zero
+	ld	(sb$div),hl	; set counter to zero
+	ret
+
+
+clk$no:	db	0		; set to keyboard or RS232 clock port number
+sb$div:	dw	0		; temp data for divide
+
+; -------------------------------
+; set serial i/o baud rate to <C>
+; -------------------------------
+
+ser1baud:
+	ld	a,clk$br	; RS232 clock port
+	ld	(clk$no),a
+
+	push	bc
+;----	ld	de,biospb
+;----	ld	a,30
+;----	ld	(de),a		; user bios function
+;----	ld	c,50		; BDOS direct bios call
+;----	call	bdos
+
+	ld	hl,(1)
+	ld	de,3*(30-1)
+	add	hl,de
+	call	jphl		; BDOS direct bios call
+
+	cp	'A'
+	jr	nz,badbios
+	call	jphl		; 1st entry is privaledge routine
+;				; returns <HL> -> parameter table
+	ld	de,6*2		; offset to main serial sio table
+	add	hl,de
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	ex	de,hl
+	pop	bc
+	ld	de,4
+	add	hl,de
+	ld	a,(hl)		; (@sio0b+4) main serial register 4
+	jp	set$baud	; and set baud rate
+
+badbios:
+	pop	bc
+	ret
+
+biospb:	db	0
+
+	end
