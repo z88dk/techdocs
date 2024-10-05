@@ -1,0 +1,1957 @@
+
+title	"Multifonts output processor for the QX-10 A.R.M.C."
+subttl	"A.Clarke, October 1983"
+NAME ('LISTER')
+dseg		;as it resides in the system bank
+;***************************************************************
+;***************************************************************
+;********    List and Multifonts Driver for the QX+	********
+;***************************************************************
+;***************************************************************
+;********   Version 1.0     A.R.M.Clarke Oct 3 1983	********
+;***************************************************************
+include	EQUSMACS
+
+.comment	"
+History
+Oct 3rd   Wrote the module using some Epson code
+Oct 28th  Rewrote it and expurgated Epson code
+Oct 29th  Added proportional spacing and corrected tab function
+Nov 22nd  merged the console multifonts processor
+Nov 23rd  Added correct character code lookup tables
+nov 23rd  Multifont list national character translation added
+Dec 4th   Changed list character codes to double escape for all but tab etc
+Dec 6th   Added line spacing switch for screen equivalence
+Dec 15th  Added FX driver
+March 18th added hardy mode and made gap between letters variable
+April 14th added LQ driver
+April 20th added colour drivers
+May 1st	  asked when will it end
+"
+;*** Booleans ***
+
+testing equ false
+
+
+
+;*** Public Variables ***
+
+Public	.Yes.Proportional	;switch to proportional spacing  
+Public	.No.Proportional        ;switch to unproportional spacing
+Public	.test.sequence		;do the test sequence
+Public	.yes.graphic		;switch to graphic chars
+Public	.no.graphic		;switch from graphic chars
+Public	.screen.lf		;switch to screen linefeed equivalence
+Public	.normal.lf		;switch from screen linefeed equivalence
+Public	.Multifont		;ESC / -Switch to multifont characters
+Public	.Not.Multifont		;ESC \ -Switch from multifont characters
+public	.reset.pointers		;reset the pointer into the buffer
+
+;*** Equates ***
+GR.letter.length	Equ	8*3
+MF.letter.length	Equ	2aH
+Mfsize			Equ	MF.letter.length*80
+.print.buffer		equ	0000H	;address of print buffer
+pointer.maximum		equ	960*3
+
+.test.sequence:
+	call	line.F
+	call	erase.buffer
+	mvi	c,0ch	;form feed
+	call	outlist
+
+	lxi	h,0
+	mvi	c,58
+	call	outer.loop
+	mvi	c,6
+
+outer.loop:
+	mvi	b,48
+test.loop:
+	push	b
+	push	h
+	call	get.the.multifonts.char
+	call	rotate.and.place
+	call	summat	;in the buffer
+	pop	h
+	pop	b
+	inx	h
+	djnz	Test.loop
+	push	b
+	push	h
+	call	line.f
+	pop	h
+	pop	b
+	dcr	c
+	jrnz	outer.loop
+	mvi	c,0ch	;form feed
+	call	outlist
+	ret
+.comment	"
+	lda	.multifont.mode		;are we in multifont mode?
+	ana	a
+	rz
+	mvi	a,64
+	sta	chars.per.line
+	xra	a	;start with style 0
+	dcr	a
+	sta	opt.for.proportional
+	sta	test.style
+..t.loop:
+	lxi	h,test.style
+	mov	a,m
+	inr	a
+	cpi	19
+	jnz	.do.the.set
+	call	line.f
+	jmp	exit
+.do.the.set:
+	mov	m,a
+	push	psw
+	lxi	h,.switch.style
+	call	do.string
+	pop	psw
+	mvi	b,no.chars
+	cpi	16
+	jrc	..chosen
+	mvi	a,58
+	sta	chars.per.line
+	mvi	b,192+32
+	jrz	..chosen
+	mvi	b,160+32
+..chosen:
+	mov	a,b
+	sta	disable.translation	;ensure translation disabled
+	sta	no.of.characters
+	jnc	..surpress
+	lxi	h,.test.message
+	call	do.string
+	lda	test.style
+	adi	'A'
+	mov	c,a
+	call	internal.lyo
+..surpress:
+	call	line.f
+	call	line.f
+	mvi	c,' '
+..Iloop:
+	lda	chars.per.line
+	mov	b,a
+..jloop:
+	lda	no.of.characters
+	cmp	c
+	mov	a,c
+	jz	..t.loop
+	push	b
+	call	internal.lyo
+	pop	b
+	inr	c
+	djnz	..jloop
+	push	b
+	call	line.f
+	pop	b
+	jmpr	..iloop
+"
+		
+outlist:	;listout with status check
+	push	h
+	push	d
+	push	b
+	call	pio$sot##
+	pop	b
+	pop	d
+	pop	h
+
+;----------------------------------------------------------------------------
+listout::	;send character in C out to the parallel printer
+	push	h
+	push	d
+	push	b
+	call	pio$phys##
+	pop	b
+	pop	d
+	pop	h
+	ret
+
+;----------------------------------------------------------------------------
+print.string::	;HL points to the string, first character is byte count
+;sends the string out to the printer
+	mov	a,m
+	ana	a		;if the byte count is zero, then return
+	rz
+	mov	b,a		;byte count in B
+	inx	h		;point to the first character
+
+..another:			;to print out 
+	mov	c,m		;get the character
+	call	outlist		;blast it out to the Epson printer
+	inx	h		;point to the next character
+	djnz	..another
+	ret			;job done
+
+
+
+;----------------------------------------------------------------------------
+LYO::		;the BIOS list driver entry point for character output
+;This is the module entry point. Sends the byte in C to the printer
+;corrupts all registers but leaves your morals intact
+
+
+internal.lyo:
+	mov	a,c		;put character in A
+	sta	list.character	;save character input
+
+	LHLD	Where.To.Jump	;defaults to simple.list.output
+	PCHL			;go to the relevant sevice routine
+
+;in normal circumstances, this will be either
+;simple.list.output		the simple list output
+;to.Escape.Sequence	to send the escape code
+;or the current data collection routine
+
+
+;This is a software device to enable the preprocessing of escape sequences
+
+;----------------------------------------------------------------------------
+simple.list.output:	;Sends the character out to the printer
+	CPI	esc			;is it a control character
+	Jz	esc.seq			;if so, then look it up
+	Call	send.character		;send out the character 
+	lxi	h,column		;increment the column number
+	inr	m
+	RET				;wasn't that simple?
+
+
+;----------------------------------------------------------------------------
+send.character:	;does the current character output operation
+	lhld	output.operation	;pointer to the current routine
+	pchl				;and do it
+
+output.operation:	dw	outlist	;the address of current routine
+
+
+;----------------------------------------------------------------------------
+Send.Multifont:	;character to our print buffer. This is the kernel of
+;the multifont handling routines. The routine converts the ascii character to
+;its multifont code and then gets the bit representation from the multifont
+;card into a buffer. It then converts this into a form that enables easy
+;bit image printing and places it in the print buffer, performing any
+;proportional spacing
+	cpi	" "+1
+	jc	filter			;control character
+	Call	do.translation		;do any character translation
+	call	ascii.to.multifont
+	call	get.the.multifonts.char
+	call	rotate.and.place
+	jmpr	summat
+
+;----------------------------------------------------------------------------
+filter:	;filters out the meaninful control characters and passes the rest
+;to the printer
+	pop	h			;drop a stack level
+	cpi	0dH			;carriage.return
+	jz	carr.ret
+	cpi	0ah			;line feed
+	jz	line.f
+	cpi	09H			;tab
+	jz	do.a.tab
+	cpi	" "
+	jz	do.space		;andrew hardies request
+	jmp	outlist
+
+;----------------------------------------------------------------------------
+send.graphic.char:	;this accesses the graphic character array and uses
+;the general multifont method to convert it into a bit image printer string
+	cpi	" "
+	jc	filter			;no control characters allowed
+	Call	do.translation		;do any character translation
+	call	point.to.character
+	call	get.the.graphic.char
+	call	.rotate.the.graphic.char
+summat:	xra	a
+	dcr	a
+	sta	summat.in.buffer
+	ret
+
+;----------------------------------------------------------------------------
+Point.to.character:	;in the font array
+	lda	list.character
+	sui	" "
+	mov	l,a
+	mvi	h,0
+	dad	h	;*2
+	dad	H	;*4
+	Dad	H	;*8
+	dad	H	;*16
+	lxi	D,font##
+	dad	d
+	ret
+
+;----------------------------------------------------------------------------
+get.the.graphic.char:	;into the multifont buffer. On entry, the HL pair
+;points to the character
+	push	h
+	call	clear.Mfont.Array
+	pop	h
+	lxi	d,handy.buffer##+5	;formerly 6
+	mvi	b,16
+..get.loop:
+	mov	a,m
+	stax	d
+	inx	d		;increment twice as half width only
+	inx	d
+	inx	h
+	djnz	..get.loop
+	ret
+
+	
+;----------------------------------------------------------------------------
+a.control.char.perhaps:	;search for the character in the lookup table
+	LXI	H,COMTBL	; POINT TO COMMAND TABLE
+;
+
+;----------------------------------------------------------------------------
+LOOKUP:	;looks up char in A in the table whose base is addressed by HL
+;The Bth entry is the correct one. The routine jumps to the appropriate 
+;subroutine. In order to cope with them wot is not in the list, the first
+;byte of the code array must contain the count (number of bytes in the code
+;array
+	call	conuc##	;convert to upper case
+	mov	c,m
+	mov	e,c	;save count to work out offset
+	mvi	b,0
+	inx	h
+	ccir
+	jnz	just.send	;if not on the list
+	inr	c
+	mov	a,e	;how many to start with?
+	sub	c	;we have done A (E-C) so jump to the Ath subroutine
+	lxi	h,default.table
+	add	a
+	mov	c,a
+	mvi	b,0
+	dad	b	;point to table entry
+	mov	e,m
+	inx	h
+	mov	d,m
+	xchg	;to get address in HL
+	pchl
+
+just.send:	;job done if unspecified double sequence sequence
+	mvi	c,ESC		;send the ESCs
+	call	outlist
+	mvi	c,ESC
+	call	listout
+	lda	list.character	;and blast out the current character
+	mov	c,a
+	call	listout
+shut.door:
+	lxi	h,simple.list.output
+	shld	where.to.jump	;ensure next character interpreted properly
+	ret
+
+
+
+;----------------------------------------------------------------------------
+do.translation:	; We substitute the character in 
+;the variable List.character
+;for the translate in list.character. We use an exception table as all 
+;192 characters are theoretically
+;displayable. This is in an external module
+	lxi	d,listout
+	lhld	output.operation	
+	call	cmp16			;are we doing a simple output?
+	Rz				;in case nowt to do
+	lda	pr.style
+	cpi	3
+	rc				;do not translate these
+	lda	list.character
+	mov	c,a
+	call	Translate.character##	;
+	mov	a,c
+	sta	list.character
+	ret
+	
+;----------------------------------------------------------------------------
+ESC.SEQ: 		;Start to process a possible escape sequence
+	lxi	h,Do.Escape.Sequence
+	shld	where.to.jump	;next character is escape parameter
+	ret
+
+
+;----------------------------------------------------------------------------
+Do.Escape.Sequence:	;Process an escape sequence
+	mov	a,c	;examine escape character
+	cpi	'r'	;is it colour?
+	jrz	colour.request
+	cpi	ESC	;was it a double escape?
+	jrnz	not.ours
+	lxi	h,it.is.double
+	shld	where.to.jump
+	ret
+it.is.double:
+	call	shut.door	;next character probably treated normally
+;This shuts the door behind me
+	MOV	A,C		; CHARACTER TO [A] FOR LOOKUP
+	lxi	h,comtbl
+	jmp	lookup
+not.ours:			;must be single escape sequence
+	push	b
+	mvi	c,ESC
+	call	outlist
+	pop	b
+	call	listout
+;ESC 3(1),!(1),%(2),&(n),*(3),^(n),(/)1,: will fail
+	jmp	shut.door	;next character treated normally
+colour.request:
+	lda	.multifont.mode
+	lxi	h,.graphic.mode
+	ora	m
+	jrz	not.ours	;it wasnt in fancy mode
+	lda	summat.in.buffer
+	ana	a
+	jrz	not.ours	;as it need not be stored in the buffer
+	lxi	h,register.colour
+	shld	where.to.jump
+	ret
+register.colour:
+	mov	a,c
+	ani	00000111B
+	inr	a
+	mov	c,a
+	lhld	pointer
+	dcx	h		;this is OK as there must be something there
+	mov	a,m
+	ora	c		;'OR' in the colour
+	mov	m,a
+	jmp	shut.door
+
+
+;============================================================================
+;*** This is the main lookup table for escape sequences ***
+ComTbl:	;our table is examined by LOOKUP
+
+db	comtop-comtbl	;the no of bytes to search	
+db	"A"		;switch to proportional spacing
+db	"B"		;switch to unproportional spacing
+db	"C"		;do the test sequence
+db	"D"		;switch to graphic characters
+db	"E"		;switch from graphic.chars
+db	"F"		;switch to screen eqivalence
+db	"G"		;switch from screen equivalence to normal spacing
+db	"H"		;switch to variable spacing (A Hardie request )
+db	"I"		;switch from variable spacing
+db	"J"		;specify multifonts letter gap
+db	"K"		;specify letter length
+db	"/"	;ESC / -	Switch to multifont characters
+db	"\"	;ESC \ -	Switch from multifont characters
+db	"#"	;ESC # -	Select Multifont style
+db	"$"		;set printer type
+
+comtop:
+
+;*** This is our table of pointers to subroutines ***
+
+default.table:
+DW	.Yes.Proportional	;switch to proportional spacing  
+DW	.No.Proportional        ;switch to unproportional spacing
+DW	.test.sequence		;do the test sequence
+dw	.yes.graphic		;switch to graphic chars
+dw	.no.graphic		;switch from graphic chars
+dw	.screen.lf		;switch to screen linefeed equivalence
+dw	.normal.lf		;switch from screen linefeed equivalence
+dw	.to.hardie.mode		;switch to variable spacing
+dw	.from.hardie.mode	;switch from variable spacing
+dw	.Set.gap		;set the inter letter microspace
+dw	.set.space		;set the spacing factor
+Dw	.Multifont		;ESC / -Switch to multifont characters
+Dw	.Not.Multifont		;ESC \ -Switch from multifont characters
+Dw	.Do.Style     		;ESC # -Select Multifont style
+dw	.set.printer.type	;set printer type
+
+;This is a simple check for the programmers benefit
+if( ( $-default.table)/2) NE ((comtop-comtbl)-1)
+ .printx "Lookup table fault"
+endif
+
+
+;	*** Escape function processing routines ***
+
+;----------------------------------------------------------------------------
+.Yes.proportional:	;switch to proportional mode
+	xra	a
+	dcr	a
+..backwards:
+	sta	opt.for.proportional	;flag that we print proportionally
+	ret
+
+;----------------------------------------------------------------------------
+.no.proportional:
+	xra	a
+	jmpr	..backwards
+
+;----------------------------------------------------------------------------
+.set.printer.type:
+	lxi	h,get.printer.type
+	shld	where.to.jump
+	ret
+get.printer.type:
+	mov	a,c
+	ani	00001111b	;allow sixteen types
+	sta	printer
+	jmp	shut.door	;next character probably treated normally
+;This shuts the door behind me
+
+	
+;----------------------------------------------------------------------------
+.yes.graphic:	;switch to multifont mode
+	lxi	h,.graphic.mode	;are we already in this mode?
+	mov	a,m			;
+	ana	a
+	rnz				;we are in this mode already
+	dcr	a			;set the boolean properly
+	mov	m,a
+	mvi	c,0dH			;flush the printer buffer
+	call	listout			;of all pending characters
+	call	.reset.pointers		;set up the buffer
+	lxi	h,send.graphic.char	;and switch the character output
+	shld	output.operation	;poke into the function pointer
+	lxi	h,gr.letter.length
+	shld	letter.length
+	xra	a
+	sta	.multifont.mode
+	ret
+
+;----------------------------------------------------------------------------
+.No.graphic:	;switch back to normal mode
+	lxi	h,listout
+	shld	output.operation	;switch back to character output	
+	lxi	h,.graphic.mode		;are we in normal mode?
+	xra	a
+	sta	.multifont.mode		;in case
+	mov	a,m
+	ana	a
+	rz	;we are not in this mode so return
+	xra	a
+	mov	m,a			;flag that we are no graphic
+	call	write.and.reset		;write out the buffer and reset
+	jmpr	.normal.lf
+		
+;----------------------------------------------------------------------------
+.multifont:	;switch to multifont mode
+	lxi	h,.multifont.mode	;are we already in this mode?
+	mov	a,m			;
+	ana	a
+	rnz				;we are in this mode already
+	dcr	a			;set the boolean properly
+	mov	m,a
+	mvi	c,0dH			;flush the printer buffer
+	call	listout			;of all pending characters
+	call	.reset.pointers		;set up the buffer
+	lxi	h,send.multifont	;and switch the character output
+	shld	output.operation	;poke into the function pointer
+	lxi	h,MF.Letter.length
+	shld	letter.length
+	xra	a
+	sta	.graphic.mode
+	ret
+
+;----------------------------------------------------------------------------
+.Not.multifont:	;switch back to normal mode
+	lxi	h,.multifont.mode	;are we in normal mode?
+	mov	a,m
+	ana	a
+	rz	;we are in this mode already so return
+	xra	a
+	sta	.graphic.mode		;just in case!
+	mov	m,a			;flag that we are in multifont mode
+	call	write.and.reset		;write out the buffer and reset
+	lxi	h,listout
+	shld	output.operation	;switch back to character output
+;and fall through
+;----------------------------------------------------------------------------
+.normal.lf:
+	mvi	a,33
+	sta	lf.quantity
+	mvi	a,36
+	sta	lf.amount		;otherwise 27	
+	mvi	a,30
+	sta	lf.param
+	ret
+
+;----------------------------------------------------------------------------
+.Do.Style:	;set the style
+	lxi	h,get.style		;next character is the new style
+	shld	where.to.jump
+	ret
+get.style:				;he's back with the style number
+	mov	a,c
+	ani	00011111B		;convert to a sensible number
+	adi	3			;
+	cpi	19			;and our internal representation
+	jc	..not.extras
+	sui	16+3			;the unaccessable but, nice, codes
+..not.extras:
+	sta	PR.Style		;store the code
+	jmp	shut.door
+;and put things to rights
+;for normal characters
+
+
+;----------------------------------------------------------------------------
+.screen.lf:	;set the distance between lines so that graphic or MF
+;characters are contiguous (down as well as across)
+	mvi	b,23	;graphics mode distance in pixels
+	lda	.graphic.mode
+	mov	c,a
+	lda	.multifont.mode
+	ana	a
+	jrnz	..was.mf
+	ora	c
+	rz		;not allowed in normal mode
+	mvi	b,21
+..was.mf:
+	mov	a,b
+	sta	lf.quantity
+	adi	3			;we must compensate for 3 minilfs
+	sta	lf.amount		;	
+	sui	7
+	sta	lf.param
+	ret
+
+;----------------------------------------------------------------------------
+.to.hardie.mode:		;switch to variable spacing
+	xra	a
+	dcr	a
+..hardy:
+	sta	hardy.mode
+	ret
+
+.from.hardie.mode:		;switch from variable spacing
+	xra	a
+	jmpr	..hardy	
+
+
+;----------------------------------------------------------------------------
+carr.ret:	;do a carriage return
+	xra	a
+	sta	column			;zero the column count
+	call	get.highest.point	;of buffer in HL
+	shld	old.tide.mark		;of the print buffer
+	lxi	h,.print.buffer
+	shld	pointer
+	ret
+
+;----------------------------------------------------------------------------
+line.F:		;Do a line feed
+	lda	summat.in.buffer	;we got something there?
+	ana	a
+	jnz	write.and.reset
+	jmp	cr.lf			;put out the Line feed
+
+;----------------------------------------------------------------------------
+Do.a.Tab:
+	lxi	h,pointer.maximum-(MF.letter.length*7)
+	xchg				;are we tabbing off the buffer end?
+	LHLD	pointer			;get the first pointer
+	CALL	cmp16##			;is it greater than allowed?
+	rnc				;if so, then return
+;HL= pointer to end of contents 
+	LXI	D,.print.buffer		;
+	call	dsub			;HL is now the buffer length
+;find the modulus of 8*letter.length
+	push	h
+	lhld	letter.length
+	dad	h
+	dad	h
+	dad	h
+	call	HL.Negate##
+	xchg
+	pop	h		;DE=-letter.length*8	
+..Mod:					;compute the count
+	dad	d
+	jrc	..mod			;a modulus loop
+	xchg				;DE is the number to add
+	lhld	pointer
+	call	dsub			;subtraction of a negative number
+	shld	pointer			;smart, eh?
+;lastly we bump the column count in case we are in hardy mode
+	lda	column
+	ori	00000111B
+	inr	a
+	sta	column
+	ret
+
+;----------------------------------------------------------------------------
+do.space:	;do a space, Why worry the multifonts card?
+	lda	hardy.mode
+	ana	a
+	jrnz	hardy			;get columns lined up
+	lhld	pointer			;get the buffer pointer
+	xchg
+	lhld	letter.length		;
+	dad	d			;update the pointer
+	shld	pointer			
+	ret
+
+Hardy:	;we use space as a sort of TAB. Requested by A Hardie
+	lxi	h,column
+	inr	m
+	mov	a,m
+	lhld	letter.length
+	xchg
+	lxi	h,.print.buffer
+..loop1:	dad	d
+	dcr	a
+	jrnz	..loop1
+	lxi	d,pointer.maximum+.print.buffer
+	call	cmp16
+	rnc		;if greater than maximum. then return
+	shld	pointer
+	ret
+
+.set.gap:
+	lxi	h,get.gap
+	shld	where.to.jump
+	ret
+get.gap:	;allow the user to specify the inter-letter gap
+	mov	a,c
+	ani	00001111b	;allow sixteen bars
+	mov	c,a
+	add	a
+	add	c		;*3 as our buffer is a 2D array
+	sta	gap.between.letters
+	jmp	shut.door
+;next character probably treated normally
+;This shuts the door behind me
+	
+.set.space:	;between words
+	lxi	h,get.space
+	shld	where.to.jump
+	ret
+get.space:	;allow the user to specify the length of a space
+	mov	a,c
+	ani	00011111b	;allow 31 bars
+	mov	c,a
+	add	a
+	add	c		;*3 as our buffer is a 2D array
+	mov	l,a
+	mvi	h,0
+	shld	letter.length
+	jmp	shut.door
+;This shuts the door behind me
+
+
+;	*** The multifont card interaction module ***
+
+;*** Multifont card equates ***
+extend.up	Equ	bit3		;status byte flags
+extend.right	Equ	bit2
+extend.left	Equ	bit1
+extend.down	Equ	bit0
+
+
+status.1	Equ	0f9H		;The ROM card status ports
+status.2	equ	0fbH
+status.3	Equ	0fdH
+status.4	Equ	0ffH
+
+data.3		Equ	0FCH
+
+bad.situation	equ	00000010B	;error in ROM card function
+write.disabled	equ	00000001B	;the Character code is write disabled
+readout.enabled	equ	10000000B	;character pattern readout enabled
+
+valid		Equ	bit7
+crt.pattern	Equ	bit6
+
+.comment	"
+The variable PR.Style contains a code as follows
+0= (0D0H)	-various graphics
+1= (0D2H)	-japanese characters
+2- (0D4H)	-greek characters and roman numerals
+3= (0B0H)	-OCR B-Font
+4= (0B2H)	-Bodini
+5= (0B4H)	-Old English
+6= (0B6H)	-Flash Bold
+7= (0B8H)	-Commercial Script
+8= (0BAH)	-Helvetica light
+9= (0BCH)	-Helvetica light italic
+10=(0BEH)	-Helvetica Medium italic
+11=(0C0H)	-Broadway
+12=(0C2H)	-American Typewriter Medium
+13=(0C4H)	-Light italic
+14=(0C6H)	-Helvetica Medium
+15=(0C8H)	-Bodini Italic
+16=(0CAH)	-Sans Serif Shadad
+17=(0CCH)	-Micrograma Extended
+18=(0CEH)	-Old Germany
+"
+;----------------------------------------------------------------------------
+out.to.rom.card:	;send the byte in C out to the ROM card
+	in	status.3
+	mov	b,a	;save the status for reexamination later
+	ani	write.disabled
+	jnz	..on1
+	mov	a,c
+	out	data.3
+	ret
+
+;find out why it is not write enabled and try again
+..on1:	mov	a,b
+	ani	readout.enabled		;is the problem a readout mode?
+	jz	out.to.ROM.card		;if not, then try again
+	in	data.3			;otherwise flush the port by reading
+	jmpr	out.to.ROM.card		;and try again
+
+;----------------------------------------------------------------------------
+in.from.ROM.card:	;get a byte from the ROM card into the C register
+	in	status.3
+	mov	c,a
+	ani	readout.enabled
+	jz	..on2	;oh dear, the card thinks we should be writing
+	in	data.3
+	mov	c,a	
+	ret
+;find out why it is read disabled and try again
+;
+..on2:	mov	a,c	;get the status
+	ani	bad.situation
+	jz	in.from.ROM.card
+	ret	;scrap the read if there is a bad situation
+
+;----------------------------------------------------------------------------
+ASCII.to.Multifont:	;converts the character in CHARACTER to the native 
+;multifonts character code.
+
+;examine for complications
+	call	adjust	;replace character with corrected code
+;or abort style calculation and do an absolute lookup
+
+		;control characters are filtered out already
+;we start at 0 for the printable characters. the formula is:-
+;(ASCII-32)+((PR.Style)*160)
+
+	lda	PR.Style
+	mov	l,a
+	mvi	h,0		;who'se for multiplication?
+	dad	h	;*2
+	dad	h	;*4
+	dad	H	;*8
+	Dad	h	;*16
+	Dad	h	;*32
+	mov	e,l
+	mov	d,h	;save *32
+	DAD	H	;*64
+	DAD	h	;*128
+	dad	d	;*160	;its dirty but effortless
+	mov	a,l
+	ora	h
+	lda	list.character
+	jrnz	..no.sub
+	sui	" "
+..no.sub:
+	add	l		;HL=(HL*160)+CHAR
+	mov	l,a
+	rnc
+	inr	h
+	ret			;return with the value in HL
+
+;examine for complications
+Adjust:	;replace character with corrected code or abort style calculation 
+;and do an absolute lookup
+	lda	pr.style
+	cpi	3
+	rc				;do not adjust these
+	lda	list.character
+	cpi	80h
+	rc	;as anything below 80 is ok
+	cpi	0A0H
+	jc	absolute	;80-9F is messy
+	cpi	0E0H
+	jnc	its.absolute	;E0-FF is nasty
+	cpi	0bfH		;these are ok	
+	jrnc	.sub20	
+	cpi	0bdh
+	jrnc	.sub2c
+	cpi	0bch
+	jrnc	.sub2e
+	cpi	0bah
+	jrnc	.sub2b
+	cpi	0b9H
+	jrnc	.sub2c		;there was a mistake in the order
+	cpi	0b3H
+	jrnc	.sub1A
+	cpi	0AFH
+	jrnc	.sub26
+	cpi	0a9H
+	jrnc	.sub16
+;A0-A8 falls through
+.sub20:	sui	20H
+..go.backwards:
+	sta	list.character
+	ret
+.sub2e:	dcr	a
+	dcr	a
+.sub2c:	dcr	a
+.sub2b:	sui	2bH
+	jmpr	..go.backwards
+.sub1A:	sui	1AH
+	jmpr	..go.backwards
+.sub26:	sui	26H
+	jmpr	..go.backwards
+.sub16:	sui	16H
+	jmpr	..go.backwards
+
+its.absolute:	;E0-FF
+	sui	040H		;to give us a contiguous lookup
+absolute:
+	ani	01111111B	;start at 0
+	add	a		;double A as lookup is a word
+	lxi	h,lookup.table	
+	call	addhl##
+;point to entry
+	mov	e,m
+	inx	h
+	mov	d,m
+	xchg
+	pop	d	;junk our return address to ASCII.TO.MF
+	ret		;return to calling program with MF code in HL
+
+lookup.table:		;entry of 0001 denotes a missing character
+;80-87
+	dw	01f0H,01Ech,01eeH,01efh,01edH,01eaH,01ebh,01e6H
+;88-8F
+	dw	01e7h,01e8h,01e9h,0001h,0063H,0001H,0001H,005ch
+;90-97
+	dw	005Bh,01cfh,01ceh,01d0h,01cdh,0001h,0001h,0001h
+;98-a0
+	dw	0001h,0001h,0001h,006ch,006dh,003fh,0040h,003ch
+;e0-e7
+	dw	01fdh,01f9h,01fbh,01fch,01fah,01f7h,01f8h,01f3h
+;e8-ef
+	dw	01f4h,01f5h,01f6h,0001h,0001h,01a1h,01a3h,01b0h
+;f0-f7
+	dw	0192h,01b2h,01ach,01b3h,01a8h,0198h,01a4h,0001h
+;f8-ff
+	dw	0001h,0001h,0006h,0001h,01a7h,0001h,0023h,0022h
+
+
+
+;----------------------------------------------------------------------------
+Clear.Mfont.Array:	;in case we have to abort
+	xra	a
+	lxi	h,handy.buffer##
+	lxi	d,handy.buffer##+1	
+	mov	m,a
+	lxi	b,40	;bytes to clear
+	ldir
+	ret
+
+
+;----------------------------------------------------------------------------
+get.the.multifonts.char:	;gets the multifont character from the
+;slave card and puts it into the Multifont Array
+;we enter with the native character code in HL
+	push	h
+	LXI	H,0FE7FH		;value for no proportional info
+	SHLD	proportional.info	;default to no proportion
+	pop	h		;restore the character code
+	shld	temp	;internal code
+	xra	a
+	out	status.1	;find out where the card is
+	out	status.2	;by writing to the port and thereby firing
+	dcr	a		;an interrupt
+	out	status.3
+	out	status.4
+	in	status.3	;and clear by reading status
+;actually, we do not seem to use this information at all
+	mvi	c,0c0h		;CRT mode, non DMA
+;now we have woken the board up, and we send it the command
+	call	out.to.ROM.card
+	mov	c,l		;and then the character code
+	call	out.to.ROM.card
+	mov	c,h
+	call	out.to.ROM.card
+;the command and the two byte character code has been sent
+	call	in.from.ROM.card	;read status and clear interrupts
+	sta	status			;remember the status
+	ani	valid or crt.pattern
+	xri	crt.pattern		;was it a bad business
+	jnz	Clear.Mfont.Array	;if so, then abort the operation
+	call	in.from.ROM.card	;get the proportional info
+	mov	e,c	;save the info temporarily in a spare register
+	call	in.from.ROM.card	;
+	mov	d,c			;DE has proportional info
+	lhld	temp	;internal code
+	push	d	;save proportional info/top line
+	lxi	d,0200H
+	call	dsub##	; no proportional spacing for these
+	pop	d
+	mvi	b,34	;bytes to read in
+	lxi	h,handy.buffer##+3	;set the input buffer pointer
+;styles 0,1 and 2 are handled slightly different
+	jrc	..its.Kanji
+
+;the proportional code is in DE
+	xchg	;proportional info in HL
+	mvi	a,01111111B
+	ana	l
+	mov	l,a	;mask out high bit of low byte
+	mvi	a,11111110B
+	ana	h
+	mov	h,a	;mask out low bit of high byte
+	shld	proportional.info
+	xchg		;restore multifont array pointer
+	lxi	d,0	;no top line for normal characters
+..its.kanji:
+;Ah, now these two bytes are part of the character
+	mov	m,e	;store the first Kanji byte
+	inx	h
+	mov	m,d	;and the second one
+..loop:
+	call	in.from.ROM.card	;read in the character information
+	inx	h
+	mov	M,c
+	djnz	..loop			;thirtyfour times
+
+	in	status.3	;flush things
+
+	lda	status	;get the saved status byte
+	rar		;sample next status bit to examine whether to extend
+	push	psw
+	cc	move.down	;extend the character if necessary
+	pop	psw
+	rar
+	push	psw
+	cc	move.left	;in any of four directions
+	pop	psw
+	rar
+	push	psw
+	cc	move.right
+	pop	psw
+	rar
+	cc	move.up
+abort:	ret
+
+	
+move.up:	;expand character upwards
+	lxi	h,handy.buffer##+4
+	lxi	d,handy.buffer##
+	mov	a,m
+	stax	d
+	inx	h
+	inx	d
+	mov	a,m
+	stax	d
+	dcx	h
+	inx	d
+	mov	a,m
+	stax	d
+	inx	h
+	inx	d
+	mov	a,m
+	stax	d
+	ret
+
+move.left:	;expand the character leftwards
+	lxi	h,handy.buffer##
+	mvi	b,20
+..loop.left:
+	bit	6,M
+	jrz	..on.left
+	setb	7,M
+..on.left:
+	inx	h
+	inx	h
+	djnz	..loop.left
+	ret
+
+move.down:	;expand the character downwards
+	lxi	h,handy.buffer##+36
+	lxi	d,handy.buffer##+38
+	mov	a,m
+	stax	d
+	inx	h
+	inx	d
+	mov	a,m
+	stax	d
+	ret
+
+move.right:
+	lxi	h,handy.buffer##+1
+	mvi	b,20
+..loop.right:
+	bit	1,M
+	jrz	..on.right
+	setb	0,M
+..on.right:
+	inx	h
+	inx	h
+	djnz	..loop.right
+	ret
+
+
+
+
+;	*** Routines to transfer the character to the print buffer      ***
+;	*** converting it into a bit array that the printer understands ***
+
+;----------------------------------------------------------------------------
+.rotate.the.graphic.char:	;;we get the bit representation from the font
+;array buffer, and put a rotated and chopped form into the print buffer, 
+	lxi	h,pointer.maximum-MF.letter.length
+	xchg
+	LHLD	pointer		;get the pointer
+	CALL	cmp16##		;is it greater than allowed?
+	JRC	..hop4		;if so print over
+	XCHG
+..hop4:	;HL= pointer to end if we are full up. 
+	push	h
+	lxi	d,handy.buffer##+3
+	call	printer.16.by.18	;get the character and rotate it
+	lhld	letter.length
+	xchg
+	pop	h
+	dad	d			;update the pointer
+	shld	pointer
+	ret
+
+
+;----------------------------------------------------------------------------
+rotate.and.place:	;we get the bit representation from the font array
+;buffer, and put a rotated and chopped form into the print buffer, performing
+;any proportional spacing
+
+	lxi	h,pointer.maximum-MF.letter.length
+	xchg
+	LHLD	pointer		;get the pointer
+	CALL	cmp16##		;is it greater than allowed?
+	JRC	..hop3		;if so print over
+	XCHG
+..hop3:	;HL= pointer to end if we are full up. 
+
+	call	make.it.proportional
+	push	h
+	lxi	d,handy.buffer##+3
+	call	printer.16.by.18	;get the character and rotate it
+	pop	h
+	lxi	d,MF.letter.length
+	dad	d			;update the pointer
+	shld	pointer
+	lda	opt.for.proportional
+	ana	a
+	rz
+;HL is the new pointer position, 
+	lda	proportional.info+1	;get the high byte
+back.off:
+	stc		;so we never hang up
+	rar		;as we have only a fourteen bit wide character
+
+..prop.loop:
+	rar
+	jrc	..update.pointer
+	dcx	h	;so we back up the pointer
+	dcx	h
+	dcx	h
+	jmpr	..prop.loop
+
+..update.pointer:	;we must add the correct gap between letters
+	lda	gap.between.letters
+	call	addhl##	;HL=HL+A
+	shld	pointer	;and store the updated pointer
+	ret
+	
+
+make.it.proportional:
+	lda	opt.for.proportional
+	ana	a
+	rz		;if not proportional, then return
+	lda	proportional.info	;low byte is character start
+	stc		;so we never hang up
+	ral		;as we have only a fourteen bit wide character
+
+..loop.prop:
+	ral
+	rc
+	dcx	h
+	dcx	h
+	dcx	h
+	jmpr	..loop.prop
+
+;----------------------------------------------------------------------------
+do.rotation:	;set bits according to mask in C in array pointed to by HL
+;using the bit pattern in E. sets the C bit in the following eight bytes
+;in DE
+;on exit, E is corrupted, HL is updated, C remains
+
+	mvi	b,8		;eight bits to do
+..loop0:
+	mov	a,e
+	ral			;rotate most sig bit into carry
+	mov	e,a
+	jnc	..no.set	;nothing to do to (HL) bit
+	mov	a,c		;get the mask
+	ora	m		;get what is in (HL)
+	mov	m,a		;store altered byte
+..no.set:
+	inx	h
+	inx	h
+	inx	h
+	djnz	..loop0		;do the next in the (HL) array
+	ret
+
+;----------------------------------------------------------------------------
+set.sixteen.bytes:	;of the buffer.array pointed to by HL using the 
+;information in the array pointed to by DE
+;transfers to the mask in C
+;HL is updated, DE is updated, the rest is corrupted
+	push	d
+;	INX	D		;do the second byte
+	ldax	d		;get the first byte
+	mov	e,a		;put it in E
+	call	do.rotation	;to put it in the C bit of HL array
+	pop	d		;then the first
+	inx	d
+	ldax	d		;get the first byte
+	push	d
+	mov	e,a		;put it in E
+	call	do.rotation
+	pop	d		;restore updated pointer
+	inx	d		;
+	ret
+
+;----------------------------------------------------------------------------
+;set a 16 byte strip pointed to by HL according to the information pointed
+;to by DE. updates DE does B bit positions starting from mask in C
+do.strip:
+	push	b		;save count and mask
+	push	H		;save the pointer to the printer array
+	call	set.sixteen.bytes
+	pop	h
+	pop	b		;restore the count and mask
+	mov	a,c
+	ana	a		;reset the carry
+	rar
+	mov	c,a		;shift the mask bit to next position
+	djnz	do.strip	
+	ret
+
+
+;----------------------------------------------------------------------------
+;set a 16 byte strip pointed to by HL according to the information pointed
+;to by DE. updates DE does B bit positions starting from mask in C
+do.a.staggered.strip:
+..first.loop:	;do the high nibble
+	push	b
+	push	H		;save the pointer to the printer array
+	push	h
+	call	set.sixteen.bytes
+	pop	h
+	inx	h		;do next byte section
+	call	set.sixteen.bytes
+	pop	h
+	pop	b
+	mov	a,c
+	ana	a
+	rar
+	mov	c,a		;shift the mask bit to next position
+	djnz	..first.loop	
+	ret
+
+;----------------------------------------------------------------------------
+printer.16.by.18:	;array HL is prepared for the printer from CRT
+;character in DE
+;do the first 16 bit strip
+	mvi	b,8
+	mvi	c,10000000B	;we start with the MSB of the strip
+	call	do.a.staggered.strip
+	inx	h
+	inx	h
+	mvi	b,2		;only 2 bytes in the final strip
+	mvi	c,10000000B
+	call	do.strip
+	ret
+
+;----------------------------------------------------------------------------
+write.and.reset:
+	call	write
+;and fall through
+;----------------------------------------------------------------------------
+.reset.pointers:		;reset the buffer pointers and clear the buffer 
+;clear the first buffer to nulls
+	lxi	h,.print.buffer
+	shld	pointer
+	shld	old.tide.mark
+erase.buffer:
+	lxi	h,.print.buffer
+	MVI	M,0
+	LXI	D,.print.buffer+1
+	LXI	B,mfsize-1		;800*3 per line
+	LDIR
+	xra	a
+	sta	summat.in.buffer
+	RET
+
+;*** printer strings
+fx.start:	db	5	;bytes in the string
+;lets do some nine pin dual-density bit-image mode setting
+		db	1bH
+		db	'^'	;9 pin stuff
+		db	1	;dual printing
+;and now we must tell the FX80 how many bits follow
+strip.1.count:	dw	000
+
+lq.start:	db	5
+		db	1bh
+		db	'*'
+		db	33	;double density
+strip.2.count:	dw	000	;bytes to send
+		
+colour.string:	db	3
+		db	1bH,'r'
+colour.ribbon:	db	0
+		db	0
+	
+mx.start:	db	4	;bytes in the string
+;lets do some dual-density bit-image mode setting
+		db	1bH
+		db	'L'
+;and now we must tell the MX80 how many bits follow
+strip.count:	dw	000
+
+Mx.down:	db	3	;byte count
+		db	ESC
+		db	'J'
+		db	1
+
+
+MX.line.feed:	db	3
+		db	ESC	;rest of line feed down 
+		db	'J'	;
+lf.quantity:	db	'!'	;
+
+lq.lf.cr:	db	4
+		db	0dh
+		db	esc
+		db	'J'
+lf.param:	db	30	;or 20	
+
+
+do.cr.lf:	db	3
+		db	esc
+		db	'J'
+lf.amount:	db	36	;or 27	
+
+;---------------------------------------------------------------------------- 
+CR.LF:	;do a normal carriage return/ line feed sequence
+	lxi	h,do.cr.lf
+	lda	printer
+	cpi	3	;was it an lq?
+	jnz	print.string
+	lxi	h,lq.lf.cr	;epson keep you on your toes
+	jmp	print.string
+
+;----------------------------------------------------------------------------
+start.bit.image:	;initialise the MX and sends the bit image count
+	lxi	H,mx.start
+	lda	printer	;0 if MX, 1 if FX etc
+	ana	a	;was it an MX
+	jz	print.string
+	lxi	h,fx.start
+	cpi	3	;was it an LQ?
+	jnz	print.string
+	lxi	h,lq.start
+	jmp	print.string
+
+;----------------------------------------------------------------------------
+down.a.bit:	;with the MX series printers
+	lxi	H,MX.Down
+	jmp	print.string
+
+;---------------------------------------------------------------------------
+do.line.feed:	;for MX printers
+	lxi	h,MX.line.feed
+	jmp	print.string
+
+
+;----------------------------------------------------------------------------
+how.much:	;do we need to print
+;DE points to the buffer strip start
+	lhld	buffer.length
+	dad	d		;point to buffer end
+	lda	mask		;to say which bytes are of interest
+	mov	e,a		;put mask in E 
+	lbcd	count		;get the maximum count
+..how.much.loop:
+	dcx	h
+	dcx	h
+	dcx	h
+	mov	a,m
+	ana	e		;apply mask in E
+	rnz			;something there
+	dcx	b
+	mov	a,c
+	ora	b
+	rz			;zero if nothing to do
+	jmpr	..how.much.loop
+
+get.highest.point:
+	lhld	pointer
+	xchg
+	lhld	old.tide.mark
+	call	cmp16##
+;choose the greater so that we can cope with CRs sensibly
+	rnc
+	xchg
+	ret
+
+;----------------------------------------------------------------------------
+WRITE:	;write out the contents of the multifonts buffer 
+	call	pio$sot##		;Right, has he got paper etc
+	call	get.highest.point	;in the buffer into HL
+	lxi	d,pointer.maximum
+	CALL	cmp16##			;is it greater than allowed?
+	JRC	..hop2		;if so print to maximum
+	XCHG
+..hop2:	;HL= pointer to end of contents 
+	LXI	D,.print.buffer	;
+	call	dsub
+	jz	CR.LF			;return if nothing to do
+	shld	buffer.length
+;as we have a 3 byte wide array, then value is count*3
+	lxi	d,-3
+	lxi	b,0
+..divide:		;compute the count
+	dad	d
+	inX	B
+	jrc	..divide
+	dcx	b
+	mov	l,c
+	mov	h,b
+	shld	jx.count
+	ShlD	COUNT		;
+
+;*** printer handler ***
+;do the first pass
+	mvi	a,0FFH	;we print out all bits at first
+	sta	mask
+	mvi	a,80H	;fx mask for first pass
+	sta	fx.mask	;are we pointing at fx descender
+	LXI	H,.print.buffer	;
+	CALL	WTBUFF	;write out the first buffer
+
+	call	down.a.bit
+;and the second
+	mvi	a,40H	;fx mask for second pass
+	sta	fx.mask	;in case we have an FX printer
+	LXI	H,.print.buffer+1	;
+	call	wtbuff	;write out buffer	
+
+	call	down.a.bit
+;now the third
+	lxi	h,.print.buffer+2
+	mvi	a,80H
+	sta	mask
+	CALL	WTBUFf	;write out descender
+
+	call	down.a.bit
+;maybe even a fourth
+	mvi	a,40H
+	sta	mask
+	lxi	h,.print.buffer+2
+	CALL	WTBUFf	;write out other descender
+	jmp	do.line.feed
+
+
+WTBUFF:		;write out the buffer pointed to by HL 
+	push	h	;DE points to buffer start
+	lda	printer
+	ani	00000011B
+	add	a
+	lxi	h,different.ways
+	call	addhl##
+	mov	e,m
+	inx	h
+	mov	d,m
+	xchg
+	pop	d	;DE points to buffer start
+	pchl
+
+different.ways:	;of printing a pass
+
+dw	mx.print
+dw	fx.print
+dw	jx.print
+dw	lq.print
+
+
+mx.print:	;do the printing the MX way
+	push	d	;save the buffer start pointer
+	call	how.much
+	sbcd	strip.count	;to tell the printer
+	sbcd	strip.1.count
+	pop	h
+	rz	;we returned zero, so nothing to do
+	push	h
+	push	b
+	call	start.bit.image
+;DE has the count of the buffer print
+	pop	b	;save the count
+	pop	h	;
+	lda	mask
+	cpi	0FFH	;if not the main passes, handle differently
+	jnz	descender.print
+
+..print.loop:
+	push	b
+	MOV	C,M	;get the next byte
+	CALL	listout	;out she goes
+	pop	b
+	inx	h
+	inx	h
+	INX	H	;increment the pointer
+	DCX	b	;decrement the counter
+	mov	a,c
+	ora	b
+	jrnz	..print.loop	;and loop
+
+done.writing.it:		;the job is done 
+	MVI	C,0DH	;do a carriage return
+	CALL	listout	;
+	RET
+
+descender.print:
+	mov	e,a	;transfer the mask to E from A
+..loop.descender:
+	push	b
+	MOV	a,M	;get the next byte
+	mvi	c,0
+	ana	e	;mask out the undesired bits
+	jrz	..no.bit
+	mvi	c,01H
+..no.bit:
+	CALL	listout	;out she goes
+	pop	b
+	inx	h
+	inx	h
+	INX	H	;increment the pointer
+	DCX	b
+	mov	a,c
+	ora	b
+	jrnz	..loop.descender
+	jmp	done.writing.it		;the job is done 
+
+jx.print:	;jx pass ratsnest
+	lda	mask
+	cpi	0FFH	;is it a descender pass
+	rnz		;we do not do descender passes
+	push	d	;save the pass pointer
+	lhld	jx.count	;the actual count
+	mov	c,l
+	mov	b,h
+	lxi	h,.print.buffer+2
+;TOS=pass pointer into buffer, BC=count, HL points to first descender byte
+..loop2:
+	lxi	d,0	;initialise the count
+..loop3:		;B has the no left in the buffer
+	mov	a,m
+	ani	00001111B	;has there been a change in colour?
+	jrz	..nothing
+	dcr	a
+;DE has the count to do, top of stack has the address
+	sta	colour.ribbon
+	mov	a,e
+	ora	d		;anything to print?
+	jrz	.do.nowt
+	xchg
+	shld	count
+	pop	d		;get the buffer pointer
+	push	b		;save the real count
+	call	fx.pass
+	push	h		;save updated pass pointer
+	lxi	h,colour.string
+	call	print.string
+	pop	h		;restore pass pointer
+	pop	b		;restore the count
+	push	h		;put new buffer pointer on the stack
+	inx	h		;and point to next descender
+	inx	h
+	inx	h
+	inx	h
+	lda	fx.mask
+	cpi	40h	;was it the second pass
+	jrz	..loop2
+	inx	h	;point to descender pass
+	jmp	..loop2
+.do.nowt:
+	push	h
+	push	b
+	lxi	h,colour.string
+	call	print.string
+	pop	b
+	pop	h
+
+;hl has the updated pointer	
+..nothing:
+	inx	h
+	inx	h
+	inx	h
+	inx	d
+	dcx	b
+	mov	a,c
+	ora	b
+	jrnz	..loop3
+;fall through			
+	xchg
+	shld	count
+	pop	d
+
+fx.print:	;FX pass print ratsnest
+	lda	mask
+	cpi	0FFH	;is it a descender pass
+
+	rnz		;we do not do descender passes
+	call	fx.pass
+	jmp	done.writing.it		;the job is done 
+
+fx.pass:
+	lbcd	count	;we cannot optimise the pass due to underline
+	sbcd	strip.1.count
+	push	b		;1
+	push	d		;2
+	call	start.bit.image
+	pop	h		;1
+	pop	b		;0
+
+fx.print.loop:
+	push	b	;no.to do******
+	MOV	C,M	;get the next byte
+	CALL	listout	;out she goes
+	inx	h	;now to deal with the second byte
+	mvi	c,80H	;we send either this or a null
+	lda	fx.mask	;are we pointing at fx descender
+	push	psw
+	ani	40H	;is it the second (we would be pointing at desc.)
+	ana	m
+	mov	b,a		;save the status for later
+	cnz	listout		;if first and descender there
+	pop	psw
+	inx	h
+	ani	80H	;is it the first (we would be pointing at descender)
+	ana	m
+	push	psw
+	cnz	listout		;if first and descender there
+	pop	psw		;restore the truth of whether we sent anything 
+	mvi	c,0		;in anticipation of sending a null
+	ora	b		;have we sent a second byte?
+	cz	listout		;if not, then now is the time
+	INX	H		;increment the pointer to next byte
+	pop	b
+	DCX	b		;decrement the counter
+	mov	a,c
+	ora	b
+	jrnz	fx.print.loop	;and loop
+	ret
+
+
+lq.print:	;does this work? (LQ driver)
+	lbcd	count	;we cannot optimise the pass due to underline
+	sbcd	strip.2.count
+
+	push	b		;
+	push	d		;
+	call	start.bit.image	;passing count as the parameter
+	pop	h		;
+	pop	b		;
+
+lq.print.loop:
+	push	b	;no.to do******
+	MOV	a,M	;get the next byte
+	inx	h
+	mov	c,m	;and the next
+	inx	h
+	push	h	;and save the pointer to the descender
+;spread the first byte
+	mvi	b,8
+..lq.loop:
+	ral
+	dadc	h
+	dad	h
+	djnz	..lq.loop
+	xchg
+	mov	a,c
+;and spread the second
+	mvi	b,8
+..lq.2.loop:			;spread the byte
+	dad	h
+	ral
+	dadc	h
+	djnz	..lq.2.loop
+	mov	a,h
+	ora	d
+	mov	c,a
+	call	listout
+	mov	a,l
+	ora	e
+	mov	c,a
+	call	listout
+	pop	h		;restore buffer pointer
+	mov	a,m
+	ani	11100000B	;strip off colour information
+	mov	c,a
+	call	listout
+	INX	H		;increment the pointer to next byte
+	pop	b
+	DCX	b		;decrement the counter
+	mov	a,c
+	ora	b
+	jrnz	lq.print.loop	;and loop
+	pop	h		;go down one stack level
+	lxi	h,lq.lf.cr
+	jmp	print.string
+
+
+;----------------------------------------------------------------------------
+fancy.spacing:	;proportional screen spacing!
+lxi	h,our.dot.address##
+	lda	proportional.info
+	stc
+	ral
+..anuva.loop:
+	ral
+	rc
+	dcr	m
+	jp	..anuva.loop
+	lhld	our.ead.address##
+	dcx	h
+	shld	our.ead.address##
+	lxi	h,our.dot.address##
+	mvi	m,0fH
+	jmp	..anuva.loop	
+
+
+put.multifont:
+	xra	a
+	sta	colour##+1		;assume monochrome
+	lda	screen.proportional	;are we doing any fancy stuff?
+	ana	a
+	cnz	fancy.spacing
+	lda	mask.graphics##
+	sta	..grp			;set the graphics mask accordingly
+	call	are.we.monochrome##
+	jnz	write.character
+	lhld	our.Ead.Address##	;remember where to start
+	lda	our.dot.address##
+	shld	temp2			;so as to write it 3 times
+	sta	temp3
+
+	xra	a
+	inr	a			;set bit 1
+	
+colour.loop:	;to write it three times
+	sta	colour##+1
+	call	colour.write
+	lda	colour##+1
+	rlc
+	cpi	bit3
+	jrc	colour.loop
+	ret
+
+colour.write:
+	lhld	temp2
+	lda	temp3
+	shld	our.Ead.Address##
+	sta	our.dot.address##
+
+write.character:	;do it simply
+	call	arrange.colour##	;set the current colour
+	sta	self.modifying.code
+	lxi	h,handy.buffer##+37
+	call	put.half.multifont
+	lxi	h,handy.buffer##+38
+	call	put.half.multifont
+	lda	screen.proportional	;are we doing any fancy stuff?
+	ana	a
+	rz				;if not
+	lxi	h,our.dot.address##
+	lda	proportional.info+1
+	stc
+	rar
+..yet.anuva.loop:
+	rar
+	rc
+	dcr	m
+	jp	..yet.anuva.loop
+	lhld	our.ead.address##
+	dcx	h
+	shld	our.ead.address##
+	lxi	h,our.dot.address##
+	mvi	m,0fH
+	jmp	..yet.anuva.loop	
+
+
+
+put.half.multifont:	;onto the screen
+;HL contains the position (pointer) in the multifonts array to start
+
+;save the multifonts array pointer
+	shld	temp
+	lhld	our.Ead.Address##
+	lda	our.dot.address##
+;find out where we are on the screen
+;now calculate where we should be
+	adi	8
+	mov	b,a
+	ani	0f0h	
+	jrz	..on.a.bit
+	inx	h
+..on.a.bit:
+	mov	a,b
+	ani	0FH
+	shld	our.Ead.address##
+	sta	our.Dot.address##
+
+	call	PutCur##	;now we are in the right place to end
+	lhld	temp
+	push	h
+	lxi	d,-4
+	dad	d
+	push	h
+	lxi	d,-16
+	dad	d
+	call	stick.8.out
+	pop	h
+	call	stick.8.out
+	pop	h
+	call	stick.2.out
+	;now we are in the right place to end
+	ret
+
+stick.8.out:
+	mvi	a,7
+	sta	..dc
+	mvi	a,.Pram+8	;into character ram
+	call	tochip##
+	mvi	b,8
+	jmpr	..out.loop
+
+stick.2.out:
+	mvi	a,1
+	sta	..DC
+	mvi	a,.pram+0eh
+	call	tochip##
+	mvi	b,2
+
+..out.loop:
+	call	til.fifo.not.full##
+	mov	a,m
+	stc
+self.modifying.code:
+	nop	
+	out	g.parameter
+	dcx	h
+	dcx	h
+	djnz	..out.loop			
+;all the graphics character is now defined
+	push	h
+	lxi	h,mfont.orders
+	call	Do.Orders##
+	pop	h	;preserve the pointer
+	ret
+
+;these are the multifont orders
+MFont.Orders:
+	db	3	;orders in this array
+;*Wdat*
+	db	1
+write.type::		;what difference does one more crime make?
+	db	.wdat or @replace
+;*Figs*
+	db	6	;bytes in this order
+	db	.figs
+	db	westwards or is.Gcharacter shl 3	
+..DC:	db	03h
+..grp:	db	40h	;graphics bit set
+	db	08h
+	db	00h
+;*GChrD
+	db	01	;byte in this order
+	db	.GChrD	;write out the defined graphic character
+
+
+MFOUT::	;place the multifont character on the screen according to the
+;values of STYLE and CHARACTER at the current screen location
+	lda	Pr.Style
+	push	psw
+	lda	style
+	sta	Pr.Style		;clumsy, should revise
+	lda	character##
+	sta	list.character		;to use common code
+	call	ASCII.to.Multifont	;value in HL
+	call	Get.the.Multifont.Char	;into the multifont array
+	call	Put.Multifont		;onto the screen
+	pop	psw
+	sta	Pr.Style
+	lda	screen.proportional	;are we doing any fancy stuff?
+	ana	a
+	rz				;if not
+	lxi	h,cursor.column##
+	dcr	m			;as we do not maintain this!
+	ret	;because the job is done 	
+
+style::		db	003	;the style of Console character
+fx.mask:
+Temp:		dw	000	;Temporary store
+temp2:		dw	000	;ditto
+temp3:		dw	000	;ditto
+
+his.stack:		dw	000
+
+jx.count:		dw	000
+
+proportional.info:	dw	0FFFFH
+
+PR.Style::		db	003	;the style of character
+
+status:			db	000	;the slave CPU status
+
+list.character:		db	000	;the character being listed
+
+Where.To.Jump:		dw	simple.list.output
+					;the address of the current routine
+escape.flag:		db	000	;is an escape sequence in progress		
+		
+pointer:		dw	.print.buffer	;current locus of print buffer end
+
+mask:			db	000	;the mask for multifont print
+
+count:			dW	000	;the number of characters cols in line
+
+.multifont.mode:	db	000	;are we in multifont mode?
+
+.Graphic.mode:		db	000		;are we in graphic mode
+
+summat.in.buffer:	db	000		;anything in the buffer
+
+column:			db	000	;current cursor column
+
+opt.for.proportional:	db	0ffH		;proportional flag
+
+letter.length:		dw	MF.Letter.Length
+
+Gap.Between.Letters:	dw	6
+
+old.tide.mark:		dw	.print.buffer
+
+printer::		db	001h
+
+buffer.length:		dw	000h	;the current length of the buffer
+
+hardy.mode:		db	000h	;do we do variable spacing?
+
+screen.proportional::	db	000h	;do we do our multifonts screen-prop.
+
+;*** End of the Module ***
+
+	END
