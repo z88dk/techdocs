@@ -1,0 +1,176 @@
+	.z80	
+	title	EPSON QX-10 CPM3 BIOS memory move
+
+	name	('TESTDMA')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; A	Jun 83 - Based on Xerox version C
+; ALPHA Aug 8,83
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+
+;-----------------------------------------------------------------
+; I/O devices - additional devices
+; Device is selected by address lines A2, A3, A4, A5 with A6 or A7 non zero
+; Address lines A0 and A1 are optional used to control the device
+;-----------------------------------------------------------------
+
+dma$1	equ	010000b shl 2	; 8237 dma controller #1
+dma$2	equ	010100b shl 2	; 8237 dma controller #2
+
+
+	ld	hl,buff1
+	ld	b,128
+	ld	a,0
+fill:	ld	(hl),a
+	inc	hl
+	inc	a
+	djnz	fill	; fill memory with incrementing numbers
+	nop
+	nop
+	nop
+	ld	hl,0		; do loop 65,000 times
+loop1:
+	push	hl
+	ld	bc,128
+	ld	hl,buff1
+	ld	de,buff2
+	call	memdma
+	xor	a
+	out	(dma1$Mc),a	; clear (reset) dma
+	pop	hl
+	dec	hl
+	ld	a,h
+	or	l
+	jr	nz,loop1
+	nop
+	nop
+	nop
+	ld	hl,0		; do loop 65,000 times
+loop2:
+	push	hl
+	ld	bc,128
+	ld	hl,buff1
+	ld	de,buff2
+	ldir
+	pop	hl
+	dec	hl
+	ld	a,h
+	or	l
+	jr	nz,loop2
+	nop
+	nop
+	nop
+	jp	0
+
+;
+; set up DMA device for floppy i/o
+;
+writeDMA	equ	01001000b ; write dma mode Chn 0 single mode
+readDMA		equ	01000100b ; read dma mode Chn 0 single mode
+
+dma1$b0	equ	dma$1 or 0000b	; Channel 0 Base address
+dma1$w0	equ	dma$1 or 0001b	; Channel 0 Word address
+dma1$b1	equ	dma$1 or 0010b	; Channel 1 Base address
+dma1$w1	equ	dma$1 or 0011b	; Channel 1 Word address
+dma1$b2	equ	dma$1 or 0100b	; Channel 2 Base address
+dma1$w2	equ	dma$1 or 0101b	; Channel 2 Word address
+dma1$b3	equ	dma$1 or 0110b	; Channel 3 Base address
+dma1$w3	equ	dma$1 or 0111b	; Channel 3 Word address
+dma1$c	equ	dma$1 or 1000b	; DMA command (w/o)
+dma1$St	equ	dma$1 or 1000b	; Status register (r/o)
+dma1$Rq	equ	dma$1 or 1001b	; Request register (r/o)
+dma1$Sm	equ	dma$1 or 1010b	; Single mask register (w/o)
+dma1$Md	equ	dma$1 or 1011b	; Set mode (w/o)
+dma1$Pt	equ	dma$1 or 1100b	; Clear byte pointer (w/o)
+dma1$Tr	equ	dma$1 or 1101b	; Temporary register (r/o)
+dma1$Mc	equ	dma$1 or 1101b	; Master clear (reset) (w/o)
+dma1$x	equ	dma$1 or 1110b	; not assigned
+dma1$Am	equ	dma$1 or 1111b	; All mask register (w/o)
+
+; Entry:	<BC> - length of transfer
+;		<HL> - source of transfer
+;		<DE> - destination of transfer
+;Memory to memory: Program a bit in command reg selects
+; channel 0 as source and channel 1 as destination. The
+; transfer is initiated by by setting the software DREQ for
+; channel 0. 
+memdma:
+	dec	bc		; decrement length of transfer
+	xor	a
+	out	(dma1$Mc),a	; clear (reset) dma
+;
+	ld	a,01100001b	; Memory to memory enable (ext write if poss)
+	out	(dma1$c),a	; command
+;
+	ld	a,10001000b	; Chn 0 (Read mem,) incr block transfer
+	out	(dma1$Md),a
+	ld	a,10000101b	; Chn 1 (Write mem,) incr block transfer
+	out	(dma1$Md),a
+;
+	ld	a,l
+	out	(dma1$b0),a	; LOW source address
+	ld	a,h
+	out	(dma1$b0),a	; HIGH source address
+	ld	a,c		; this may not be needed
+	out	(dma1$w0),a	; LOW sector length -1
+	ld	a,b
+	out	(dma1$w0),a	; HIGH sector length -1
+;
+	ld	a,e
+	out	(dma1$b1),a	; LOW destination address
+	ld	a,d
+	out	(dma1$b1),a	; HIGH destination address
+	ld	a,c
+	out	(dma1$w1),a	; LOW sector length -1
+	ld	a,b
+	out	(dma1$w1),a	; HIGH sector length -1
+;
+	ld	a,00000100b	; Start DREQ channel 0
+	out	(dma1$Rq),a
+
+; lets see what happened
+	nop
+	nop
+	in	a,(dma1$b0)	; LOW source address
+	ld	l,a
+	in	a,(dma1$b0)	; HIGH source address
+	ld	h,a
+	in	a,(dma1$w0)	; LOW sector length -1
+	ld	c,a		; this may not be needed
+	in	a,(dma1$w0)	; HIGH sector length -1
+	ld	b,a
+;
+	in	a,(dma1$b1)	; LOW destination address
+	ld	e,a
+	in	a,(dma1$b1)	; HIGH destination address
+	ld	d,a
+	in	a,(dma1$w1)	; LOW sector length -1
+	ld	c,a
+	in	a,(dma1$w1)	; HIGH sector length -1
+	ld	b,a
+;
+	in	a,(dma1$St)	; status
+	nop
+	in	a,(dma1$Tr)	; temporary register
+	nop
+	ret
+
+buff1:	ds	128
+buff2:	ds	128	
+
+	end
