@@ -1,0 +1,576 @@
+	.z80
+	title	EPSON QX-10 CPM3 Test TOD functions
+
+	name	('TESTTOD')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; A	Jun 83 - Based on Xerox version C
+; ALPHA Aug 8,83
+; 	Oct16 83
+;	Oct 29,83 XMOVE goes live
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+	public	mod7
+	public	weekday,ddmmyy,dd,mm,yy,month
+	public	@hour,@min,@sec,@date,@weekd
+	public	?time,wrclk,rdtime,tod1,tod2,tod3,tod4
+	public	rdclk
+	public	?tinit,timint,second,tick60,tick
+
+
+;--------------------------------------------------------------------------
+
+bit0	equ	1 shl 0
+bit1	equ	1 shl 1
+bit5	equ	1 shl 5
+bit6	equ	1 shl 6
+bit7	equ	1 shl 7
+
+	maclib	CBIOS.EQU	; QX-10 Hardware definition
+
+	page
+
+	dseg
+
+@hour:	db	0	; CP/M hour (BCD)
+@min:	db	0	; CP/M min (BCD)
+@sec:	db	0	; CP/M sec (BCD)
+@date:	dw	0	; CP/M date (1=1st jan 78)
+@weekd:	db	0	; CP/M week day (0-6)
+
+scb.hr	equ	5ah	; CP/M hour (BCD)
+scb.min	equ	5bh	; CP/M min (BCD)
+scb.sec	equ	5ch	; CP/M sec (BCD)
+scb.date	equ	58h	; CP/M date (1=1st jan 78)
+
+	cseg
+
+start:	
+
+	ld	c,00	; BDOS read time and date
+	call	?time
+
+	ld	hl,(@date)
+	call	mod7
+	ld	(@weekd),a
+
+	nop
+	nop
+
+	ret
+
+mod7:		; produce <A> = MOD(<HL>,7) (cf PLI MOD)
+	ld	c,7
+	call	divide		; <HL> = <HL> /<C>, <A> = remainder
+	ret
+
+divide:				; <HL> = number, <C> = 7
+	ld	a,0		; <HL> = number, <C> = 7, <A> = 0
+	ld	b,16		; shift 16 bits
+; now shift bits of <HL> into <A> and test if <A> => 7 for each bit
+; if <A> => 7 then <HL> = <HL> + 1, <A> = <A> -7.
+div.1:				; <HL> = f(number), <C> = 7, <A> = remain
+	add	a,a		; <HL> = f(number), <C> = 7, <A> = <A>*2
+	add	hl,hl		; <HL> = <HL>*2,    <C> = 7, <A> = remain
+	jp	nc,div.2
+	inc	a		; <HL> = f(number), <C> = 7, <A> = <A>+1
+div.2:	cp	c		; <HL> = f(number), <C> = 7, <F> = <A>-7
+	jp	c,div.3		; jp if <A> < 7
+	inc	hl		; <HL> = <HL>+1,    <C> = 7, <A> = remain
+	sub	c		; <HL> = <HL>+1,    <C> = 7, <A> = <A>-7
+div.3:	dec	b		; <HL> = f(number), <C> = 7, <A> = remain
+	jp	nz,div.1	; <HL> = f(number), <C> = 7, <A> = remain
+
+; shifted 16 bits, and <A> contains remainder of divide by 7
+	ret			; returns <HL>=<HL>/7, <A> = remainder
+
+
+
+
+
+	page
+
+;-----------------------------------------------------------------------------
+; TIME	 (26)	Clock support function
+; Input		<C> Set/Get Time Flag
+; Returns	none
+; Destroyed:	only <A>, <BC> may be destroyed. ALL OTHER REGISTERS UNCHANGED
+; Function:	TIME is called to indicate to the BIOS either:
+;		<C> = 00h/ BDOS is to read the time and date fields in the SCB
+;		<C> = FFh/ BDOS has set time and date fields in the SCB
+;		If the time and date fields are maintained by interrupts, then
+;		there is no need to do anything.
+;		Else BIOS should access its own (hardware) clock
+;-----------------------------------------------------------------------------
+
+	cseg
+
+weekday:	db	0
+ddmmyy:
+dd:	db	0
+mm:	db	0
+yy:	db	0
+month:	dw	0,31,59,90,120,151,181,212,243,273,304,334,365
+bin_bcd:	db	0
+
+time:
+?time:
+	push	hl		; save registers
+	push	de
+
+	call	timer
+
+	pop	hl
+	pop	de
+
+	ret
+
+timer:
+	di
+	ld	a,0bh		; read current mode
+	out	(clk$c),a
+	in	a,(clk$d)
+	ei
+	and	100b		; mask BIN-not BCD bit
+	ld	(bin_bcd),a	; and save mode used
+
+	ld	a,c
+	or	a
+	jp	z,rdtime
+
+;Update C-MOS clock with BDOS clock
+
+	ld	bc,@hour	; address of @hour,@min,@sec
+	ld	a,04h		; access hour
+	call	wrbcdclk
+
+	inc	bc		; -> @min
+	ld	a,02h		; access min
+	call	wrbcdclk	; update
+
+	inc	bc		; -> @sec
+	ld	a,00h		; access seconds
+	call	wrbcdclk	; update
+
+	ld	bc,@hour	; address of @hour,@min,@sec
+	ld	a,04h		; access hour
+	call	wrbcdclk
+
+;--------------------------------------------------------------;
+; convert date with day 1 = jan 1st 1978 into day month & year ;
+;--------------------------------------------------------------;
+
+	ld	hl,(@date)	; BDOS days
+; now subtract 365 or 366 for each year after 1978
+	ld	bc,1978
+dmy1:	ld	de,-365
+	ld	a,c
+	and	011b		; check if divisible by 4
+	jr	nz,dmy2
+	dec	de		; yes so year has 365 days
+dmy2:	add	hl,de
+	jr	nc,dmy3		; result less than 0
+	inc	bc
+	jr	dmy1
+dmy3:	or	a
+	sbc	hl,de		; subtracty 1 year so <HL> > 0
+	ex	de,hl		; <DE> -> days remaining in year
+
+	push	de
+	ld	hl,-1900
+	add	hl,bc		; <HL> = years > 1900
+	ld	de,-100		; but if <HL> > 99, subtract 100
+dmy4:	ld	a,h
+	or	a
+	jr	nz,dmy5
+	ld	a,l
+	cp	100		; check range
+	jr	c,dmy6
+dmy5:	add	hl,de		; adjust by 100
+	jr	dmy4
+dmy6:	ld	(yy),a		; save year
+	pop	de
+; on entry <BC> = absolute year, <DE> days remaining in year
+	ld	hl,month+12*2-1
+	ld	b,12
+	ld	a,c
+	and	11b		; test  if current year is a leap year
+	jr	nz,dmy7
+	dec	de		; so decrement days to allow for Feb 29th
+dmy7:	ld	a,(hl)
+	dec	hl
+	cp	d		; test (days to months) with <DE>
+	jr	c,dmy9		; have month
+	jr	nz,dmy8
+	ld	a,(hl)
+	cp	e
+	jr	c,dmy9
+	jr	z,dmy9
+dmy8:	dec	b		; decrement month
+	dec	hl		; decrement days in month pointer
+	ld	a,b
+	cp	2		; are we into FEB
+	jr	nz,dmy7
+	ld	a,c
+	and	11b		; are we in leap year
+	jr	nz,dmy7
+	inc	de		; YES so correct days adjustment
+	jp	dmy7
+dmy9:	ld	a,b
+	ld	(mm),a		; save month
+	ld	a,e
+	sub	(hl)		; p.s. who cares about <D> - (hl+1)
+	ld	(dd),a		; save day
+
+	ld	bc,ddmmyy	; address of day, month & year
+	ld	a,07h		; access day (1-31)
+	call	wrbinclk	; update
+
+	inc	bc		; -> mm
+	ld	a,08h		; access month (1-12)
+	call	wrbinclk	; update
+
+	inc	bc		; -> yy
+	ld	a,09h		; access year (0-99)
+	call	wrbinclk	; update
+
+	pop	hl
+	pop	de
+
+	ret
+
+;-------;
+wrbinclk:			; Convert BIN number in (BC) to clk mode in <E>
+;-------;
+	push	af
+	ld	a,(bc)
+	ld	e,a
+
+	ld	a,(bin_bcd)
+	or	a
+	ld	a,e
+	call	z,bintobcd	; CLOCK requires BCD data
+	ld	e,a
+	pop	af
+	jp	wrclk
+
+;-------;
+wrbcdclk:			; Convert BCD number in (BC) to clk mode in <E>
+;-------;
+	push	af
+	ld	a,(bc)
+	ld	e,a
+
+	ld	a,(bin_bcd)
+	or	a
+	ld	a,e
+	call	nz,bcdtobin	; CLOCK requires BIN data
+	ld	e,a
+	pop	af
+
+wrclk:				; write hr, min, sec, or date
+	push	af		; but first check device not busy
+wrwait:	di			; in an update
+	ld	a,0ah		; as during update it may not work
+	out	(clk$c),a
+	in	a,(clk$d)
+	ei
+	or	a		; test update bit
+	jp	m,wrwait	; wait till update finished
+	pop	af
+
+	di
+	out	(clk$c),a
+	ld	a,e		; Update
+	out	(clk$d),a
+	ei
+	ret
+
+;------------------------------------;
+; BINTOBCD                           ;
+; Entry:	<A> = Binary byte    ;
+; Returns:	<A> = BCD number     ;
+; Destroys:	<DE>                 ;
+;------------------------------------;
+
+bintobcd:
+	cp	10
+	ret	c		; as less than 10, also BCD
+	ld	de,-10
+	ld	l,a
+	xor	a
+	ld	h,a
+tobcd1:	add	hl,de
+	jr	nc,tobcd2
+	add	a,10h
+	jr	tobcd1
+tobcd2:	ld	de,10
+	add	hl,de
+	add	a,l
+	ret
+
+;------------------------------------;
+; BCDTOBIN                           ;
+; Entry:	<A> = BCD number     ;
+; Returns:	<A> = Binary byte    ;
+; Destroys:	<DE>                 ;
+;------------------------------------;
+
+bcdtobin:
+	ld	e,a
+	and	0f0h		; mask high BCD byte
+	jr	z,tobin2	; as less than 10, also BIN
+	rrca
+	rrca
+	rrca
+	rrca			; shift into low nibble
+	ld	d,a
+	xor	a
+tobin1:	add	a,10
+	dec	d
+	jr	nz,tobin1
+	ld	d,a		; save high nibble x 10
+	ld	a,e
+	and	0fh		; mask low nibble
+	add	a,d
+	ld	e,a
+tobin2: ld	a,e
+	ret
+
+;------------------------------------;
+; Update BDOS clock with C-MOS clock ;
+;------------------------------------;
+rdtime:
+	ld	bc,@hour	; address of @hour,@min,@sec
+	ld	a,04h		; access hour
+	call	rdclk
+	call	rdclkbcd	; convert <A> in CLK mode into BCD in (BC)
+
+	inc	bc		; -> @min
+	ld	a,02h		; access min
+	call	rdclk		; update
+	call	rdclkbcd	; convert <A> in CLK mode into BCD in (BC)
+
+	inc	bc		; -> @sec
+	ld	a,00h		; access seconds
+	call	rdclk		; update
+	call	rdclkbcd	; convert <A> in CLK mode into BCD in (BC)
+
+	ld	bc,weekday	; address of weekday
+	ld	a,06h		; access day-of-week
+	call	rdclk
+	call	rdclkbcd	; convert <A> in CLK mode into BCD in (BC)
+
+	ld	bc,ddmmyy	; address of day, month & year
+	ld	a,07h		; access day (1-31)
+	call	rdclk
+	call	rdclkbin	; convert <A> in CLK mode into BIN in (BC)
+
+	inc	bc		; -> mm
+	ld	a,08h		; access month (1-12)
+	call	rdclk		; update
+	call	rdclkbin	; convert <A> in CLK mode into BIN in (BC)
+
+	inc	bc		; -> yy
+	ld	a,09h		; access year (0-99)
+	call	rdclk		; update
+	call	rdclkbin	; convert <A> in CLK mode into BIN in (BC)
+
+;--------------------------------------------------------------;
+; convert day month & year into date with day 1 = jan 1st 1978 ;
+;--------------------------------------------------------------;
+
+	ld	hl,ddmmyy
+	xor	a
+	ld	d,a
+	ld	e,(hl)		; <DE> = Day (1-31)
+	inc	hl
+	ld	b,a
+	ld	c,(hl)		; <BC> = Month (1-12)
+	dec	c		; Month (0-11)
+	inc	hl
+	ld	a,(hl)		; Year (0-99)
+	inc	hl		; HL -> month
+	add	hl,bc
+	add	hl,bc		; Word wide
+	ld	c,(hl)
+	inc	hl
+	ld	b,(hl)		; <BC> = days to start of month
+	ex	de,hl		; <HL> = Day (1-31)
+	add	hl,bc		; <HL> = days in year excluding leap day
+
+; now add 365 or 366 for each year after 1978
+
+	ld	de,365
+	sub	78		; subtract 78 from year
+	jr	nc,tod0		; test years 0-77
+	add	a,100		; if yes assume 0 = 2000, thus add 100
+tod0:	ld	bc,1978		; <C> is set to low bits of 1978
+	ld	b,a
+	or	a
+	jr	z,tod3		; actually 1978
+tod1:	add	hl,de		; add 365 for each year
+	ld	a,c
+	and	011b		; check if divisible by 4
+	jr	nz,tod2
+	inc	hl		; yes so add further 1 year
+tod2:	inc	c		; increment low byte of base year
+	djnz	tod1
+tod3:	ld	a,c
+	and	011b		; see if current year is a leap year
+	jr	nz,tod4
+	ld	a,(mm)
+	cp	3		; is it jan or feb
+	jr	c,tod4
+	inc	hl		; -nos- so add in FEB 29th
+tod4:	ld	(@date),hl
+	ret
+
+;-------;
+rdclkbcd:			; convert <A> in CLK mode into BCD in (BC)
+;-------;
+	ld	e,a
+
+	ld	a,(bin_bcd)
+	or	a
+	ld	a,e
+	call	nz,bintobcd	; CLOCK supplies BIN data
+	ld	(bc),a
+	ret
+
+;-------;
+rdclkbin:			; convert <A> in CLK mode into BIN in (BC)
+;-------;
+	ld	e,a
+
+	ld	a,(bin_bcd)	; Clock mode
+	or	a
+	ld	a,e
+	call	z,bcdtobin	; CLOCK supplies BCD data
+	ld	(bc),a
+	ret
+
+
+;----;
+rdclk:				; read hr, min, sec, or date
+;----;
+	push	af		; but first check device not busy
+rdwait:	di			; in an update
+	ld	a,0ah		; as during update the data is
+	out	(clk$c),a	; suspect.
+	in	a,(clk$d)
+	ei
+	or	a		; test update bit
+	jp	m,rdwait	; wait till update finished
+	pop	af
+	out	(clk$c),a
+	in	a,(clk$d)
+	ei
+	ret
+
+;----------------------------------------------------
+; TIMINT
+; Interrupt called procedure to update CP/M clock
+;----------------------------------------------------
+	cseg
+timint:
+
+	ld	(savesp),sp
+	ld	sp,savesp
+	push	af
+	push	hl
+	ld	a,0ch		; select clock interrupt status register
+	out	(clk$c),a
+	in	a,(clk$d)	; read clock interrupt status
+	ld	c,10010000b	; mask interrupt and 1 second update bit
+	and	c
+	cp	c
+	call	z,second	; 1 second interrupt so do it
+	pop	hl
+	pop	af
+	ld	sp,(savesp)
+	ei
+	ret
+	ds	8*2		; 8 levels of stack
+
+savesp:	dw	0
+;----------------------------------------------------
+; SECOND
+; Interrupt called procedure to update CP/M clock
+; Must maintain registers <BCDEF>
+; and RET back to interrupt handler
+;----------------------------------------------------
+second:		; update CP/M 3 clock each second
+	and	a		; clear carry flag
+	ld	hl,@sec
+	call	tick60		; update @sec
+	ret	c
+	dec	hl
+	call	tick60		; update @min
+	ret	c
+	dec	hl
+
+	ld	a,(hl)
+	inc	a
+	daa
+	cp	24h
+	call	tick		; update @hour
+	ret	c
+	ld	hl,(@date)
+	inc	hl
+	ld	(@date),hl	; update @date
+	ret
+
+tick60:	ld	a,(hl)		; increment BCD byte
+	inc	a
+	daa
+	cp	60h
+tick:	ld	(hl),a
+	ret	c
+	ld	(hl),0
+	ret
+
+;--------------------------------------------------------
+; TINIT
+; Initialising procedure to use 1 second update interrupt
+; Called from COLD BOOT
+; and RET back to interrupt handler
+;--------------------------------------------------------
+	cseg
+?TINIT:
+	di
+	ld	hl,int818	; address of interrupt jump vector
+	ld	a,0c3h		; JUMP instruction
+	ld	(int818),a	; address of interrupt jump vector
+	ld	hl,timint
+	ld	(int818+1),hl	; place address of 1 second timer here
+	ld	a,0bh		; select clock mode register
+	out	(clk$c),a
+	in	a,(clk$d)	; read clock mode
+	ld	b,a
+	ld	a,0bh		; select clock mode register
+	out	(clk$c),a
+	ld	a,b
+	and	not 01110000b	; remove interrupt mode
+	or	00010000b	; enable update interrupts
+	out	(clk$d),a	; update clock mode
+	ei
+	call	rdtime		; initialise BDOS clock to CMOS
+	ret			; all ok now
+
+	end
+
