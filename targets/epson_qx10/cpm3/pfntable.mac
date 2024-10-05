@@ -1,0 +1,228 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS Special & PFK table
+
+	name	('PFNTAB')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; ALPHA Aug 8,83
+; BETA  Dec 5,83
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+
+;===============================
+; Keyboard position coding table
+;===============================
+
+;KEYBOARD - Main board serial port (1200 baud)
+
+	public	@pfntble		; table of PF Key pointers
+	public	@complex		; Special Keyboard position table
+
+
+; Special keybaord functions
+
+	extrn	kbdret			; keyboard function return
+	extrn	set$sd$flag		;set flag for later screendump
+	extrn	sf1$key			; set multifont key 1
+	extrn	sf2$key			; set multifont key 2
+	extrn	sf3$key			; set multifont key 3
+	extrn	sf4$key			; set multifont key 4
+	extrn	xchee			; caps lock
+
+;------------------------------------------------------------------
+
+	page
+
+	dseg		; as system bank selected
+;-----------------------
+; special function table
+;-----------------------
+
+; special table 00-7fh base=000h, length=07fh (CTRL and any key pos 00h-2fh)
+
+;-------;
+@complex:
+;-------;
+;00h			F4	F5	F6	F7	F8	F9	F10
+	dw	kbdnull,kbdf4,	kbdf5,	kbdf6,	kbdf7,	kbdf8,	kbdf9,	kbdf10
+;08h		(A1)	BREAK	PAUSE	HELP    SCRN D	(A2)	(A3)	MF1
+	dw	kbdnull,kbdnull,kbdpse,	kbdhelp,kbdscrn,kbdnull,kbdnull,kbdmf1
+;10h			LF	(A5)		'000'	return
+	dw	kbdnull,kbdnull,kbdnull,kbdnull,kbd000,	kbdnull,kbdnull,kbdnull
+;18h							MF4	MF3	MF2
+	dw	kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdmf4,	kbdmf3,	kbdmf2
+;20h				(A4)
+	dw	kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdnull
+;28h
+	dw	kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdnull
+
+;30h			Caps	Space	^Z	^X	^C	^V	^B
+	dw	kbdnull,kbdcaps,kbdnull,kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh
+;38h		^N	^M	^,	^.	up	left	right	down
+	dw	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdup,	kbdleft,kbdrght,kbddown
+;40h					^A	^S	^D	^F	^G
+	dw	kbdnull,kbdnull,kbdnull,kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh
+;48h		^H	^J	^K	^L	^;	^:	return	^/
+	dw	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdnull,kbdffh
+;50h			^Q	^W	^E	^R	^T	^Y	^U
+	dw	kbdnull,kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh
+;58h		^I	^O	^P	^@	^[	^]	INS	DEL
+	dw	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdins,	kbdnull
+;60h			^2	^3	^4	^5	^6	^7	^8
+	dw	kbdnull,kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh
+;68h		^9	^0	^-	^^	^\	BS	HOME	CLS
+	dw	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdhome,kbdcls
+;70h			F3	F2	F1		ESC	1	TAB
+	dw	kbdnull,kbdf3,	kbdf2,	kbdf1,	kbdnull,kbdffh,	kbdffh,	kbdffh
+;78h
+	dw	kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdnull
+
+	page
+
+;------------------------------------------------------------------------;
+; format of strings are
+; A/ character strings
+; 	byte 1 - maximum length of string
+; 	byte 2 - actual length of string
+; 	byte 3..n string
+; B/ special functions
+; 	byte 1 = 0
+; 	byte 2,3 - address of special processing
+;------------------------------------------------------------------------;
+
+kbdnull:		; 00h
+	db	0
+	dw	kbdret
+
+kbdpse:			; 0ah	PAUSE
+	db	0
+	dw	kbdret
+
+kbdscrn:		; 0bh	SCRN DUMP
+	db	0
+	dw	set$sd$flag	;set flag for later screendump
+
+kbdmf1:			; 0fh	MF1
+	db	0
+	dw	sf1$key
+kbdmf2:			; 1fh	MF2
+	db	0
+	dw	sf2$key
+kbdmf3:			; 1eh	MF3
+	db	0
+	dw	sf3$key
+kbdmf4:			; 1dh	MF4
+	db	0
+	dw	sf4$key
+kbdcaps:		; 31h	Caps lock
+	db	0
+	dw	xchee
+
+;-------------------------------------------------------------;
+; programable function keys (maximum length of 12 characters) ;
+;-------------------------------------------------------------;
+kbdf1:			; 73h	F1
+	db	12,4,'DIR '
+	ds	12-($-kbdf1)+2
+kbdf2:			; 72h	F2
+	db	12,5,'TYPE '
+	ds	12-($-kbdf2)+2
+kbdf3:			; 71h	F3
+	db	12,6,'ERASE '
+	ds	12-($-kbdf3)+2
+kbdf4:			; 01h	F4
+	db	12,5,'SHOW '
+	ds	12-($-kbdf4)+2
+kbdf5:			; 02h	F5
+	db	12,4,'SID '
+	ds	12-($-kbdf5)+2
+kbdf6:			; 03h	F6
+	db	12,3,'PIP'
+	ds	12-($-kbdf6)+2
+kbdf7:			; 04h	F7
+	db	12,5,'DUMP '
+	ds	12-($-kbdf7)+2
+kbdf8:			; 05h	F8
+	db	12,7,'SETDEF '
+	ds	12-($-kbdf8)+2
+kbdf9:			; 06h	F9
+	db	12,7,'DEVICE '
+	ds	12-($-kbdf9)+2
+kbdf10:			; 07h	F10
+	db	12,7,'MBASIC '	; NOTE cannot use MFBASIC
+	ds	12-($-kbdf10)+2
+
+kbdup:			; 3ch   up arrow
+	db	3,1,1eh,0,0	; ^^
+
+kbdleft:		; 3dh   left arrow
+	db	3,1,1dh,0,0	; ^]
+
+kbdrght:		; 3eh   right arrow
+	db	3,1,1ch,0,0	; ^\
+
+kbddown:		; 3fh	down arrow
+	db	3,1,1fh,0,0	; ^_
+
+kbdins:			; 5eh	INS
+	db	3,1,12h,0,0	; ^R
+
+kbdhome:		; 6eh	HOME
+	db	3,1,0bh,0,0	; ^K
+
+kbdcls:			; 6fh	CLS
+	db	3,1,0ch,0,0	; ^L
+
+kbd000:			; 14h	'000'
+	db	3,3,'000'	; ('00' on german keyboard)
+
+kbdhelp:		; 0ch	HELP
+	db	12,6,'HELP',0DH,0AH
+	ds	12-($-kbdhelp)+2
+
+kbdffh:			; (position unknown)
+	db	1,1,0ffh	; in case 0ffh is a valid keyboard character
+
+;----------------------------------------------------------------;
+; table of pointers to programable function keys and cursor keys ;
+;----------------------------------------------------------------;
+@pfntble:
+	dw	kbdf1		; 10 function keys
+	dw	kbdf2
+	dw	kbdf3
+	dw	kbdf4
+	dw	kbdf5
+	dw	kbdf6
+	dw	kbdf7
+	dw	kbdf8
+	dw	kbdf9
+	dw	kbdf10
+	dw	kbdup		; up arrow (1eh)
+	dw	kbdleft		; left arrow (1dh)
+	dw	kbdrght		; right arrow (1ch)
+	dw	kbddown		; down arrow (1fh)
+	dw	kbdins		; INS (12h)
+	dw	kbdhome		; HOME (0bh)
+	dw	kbdcls		; CLS (0ch)
+	dw	kbd000		; numeric pad 000 (or 00 on german keyboard)
+	dw	kbdhelp		; HELP
+	dw	00
+
+
+;----------------------------------------------------------------------------
+
+	end
