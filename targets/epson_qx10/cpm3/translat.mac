@@ -1,0 +1,226 @@
+
+title	"Character Translation Module for the QX+      A.R.M.C."
+subttl	"A.Clarke, October 1983"
+NAME ('TRANS')
+dseg		;as it resides in the system bank
+;***************************************************************
+;***************************************************************
+;********    Character Translation Module for the QX+	********
+;***************************************************************
+;***************************************************************
+;********   Version 1.0     A.R.M.Clarke Oct 3 1983	********
+;***************************************************************
+
+
+
+Country::	db	0	;the country index
+
+.comment	"
+	0 = The United states
+	1 = The United Kingdom
+	2 = Germany
+	3 = France
+	4 = Italy
+	5 = Spain
+	6 = Denmark
+	7 = Sweden
+
+"
+set.country:: 	;with the country in A as a wretched QX code
+;(the second character only)
+
+; Internal code		QX code		country name
+; -------------    	-------		------------
+;	0 		CU or Cu	The United states
+;	1 		CE or Ce	The United Kingdom
+;	2		CG or Cg	Germany
+;	3 		CF or Cf	France
+;	4  		CI or Ci	Italy
+;	5 		CS or Cs	Spain
+;	6 		CD or Cd	Denmark
+;	7 		CW or Cw	Sweden
+
+	call	conuc
+	lxi	b,table.length
+	lxi	h,country.table
+;	ccir
+	db	0edh,0b1h
+	rnz
+	mvi	a,table.length
+	inr	c
+	sub	c	
+	sta	country
+init.country:
+	rz		;no	translation if ASCII
+	dcr	a
+	rz		;or British
+	dcr	a	;translatable countries are 0 to 5
+	add	a
+;to index into pointer table
+	mov	c,a
+	mvi	b,0
+	lxi	h,table	;of pointers to the real tables
+	dad	b
+	mov	e,m
+	inx	h
+	mov	d,m
+	xchg		;get translation pointer into HL
+	shld	table.pointer
+	ret
+
+table.length	equ	8
+
+country.table:
+db	"UEGFISDW"
+
+do.country::	;to the value in COUNTRY on initialisation
+	lda	country
+	ana	a
+	jmp	init.country
+
+
+untranslate.character::	;from the byte in the VRAM.  Exits and entry
+;as with the following routine
+;character to be translated in A
+	lxi	h,country
+	mov	e,m
+	inr	e	;DCR instruction does not affect the carry
+	dcr	e
+	jz	strip.naughty.bits	;its ASCII
+	dcr	e	;is it UK
+	jnz	..not.UK
+	cpi	0DaH
+	jnz	strip.naughty.bits
+; # is the only character to substitute
+	mvi	a,"#"	;change to hash sign
+	mov	c,a
+	ret
+;only if not english speaking do we translate
+..not.UK:
+	lhld	table.pointer
+	mov	c,m	;get count of characters needing translation
+	mov	e,c	;save count
+	mvi	b,0	
+	mov	d,b	;DE=count
+	inx	h	;point to characters to be substituted
+	dad	d	;point to second table
+;	ccir
+	0EDH,0B1H
+	jnz	strip.naughty.bits	;my god, could it be graphic?
+	dcx	h	;point back to the match
+	xchg
+	call	HL.Negate##
+	dad	d	;find translation
+	mov	a,m
+	mov	c,a	;restore all registers;	
+	ret
+
+strip.naughty.bits:
+	cpi	80H	;the printer does not support graphics
+	mov	c,a
+	rc		;leave normal characters
+	mvi	a," "	;so substitute a space
+	mov	c,a
+	ret
+
+translate.character::	;our entry point for character translation
+;entry with character in A and C. Exits with the translated character
+;in both registers
+
+	lxi	h,country
+	mov	e,m
+	inr	e	;DCR instruction does not affect the carry
+	dcr	e
+	rz		;nothing to do if ASCII
+	dcr	e	;is it UK
+	jnz	..not.british
+	cpi	"#"
+	rnz
+; # is the only character to substitute
+	mvi	a,0DAH	;international sterling sign
+	mov	c,a
+	ret
+;only if not english speaking do we translate
+..not.british:
+	lhld	table.pointer
+	mov	c,m	;get count of characters needing translation
+	mov	e,c	;save count
+	mvi	b,0	
+	mov	d,b
+	inx	h	;point to characters to be substituted
+;	ccir
+	0EDH,0B1H
+	jnz	..hop	;no translation needed
+	dcx	h	;point back to the match
+	dad	d	;find translation
+	mov	a,m
+..hop:	mov	c,a	;restore all registers;	
+	ret
+
+
+;----------------------------------------------------------------------------
+conuc:	cpi	7bh
+	rnc
+	cpi	61h
+	rc
+	ani	5fh
+	ret
+
+	
+;----------------------------------------------------------------------------
+table.pointer:	dw	germany
+
+table:
+	dw	Germany
+	dw	France
+	dw	Italy
+	dw	Spain
+	dw	Denmark
+	dw	Sweden  
+
+Germany:
+	db	8	;characters need translation
+
+	db	040h,05bh,05ch,05dh,07bh,07ch,07dh,07eh
+
+	db	0cfh,0a1h,0b3h,0b9h,0a4h,0b4h,0bah,0c5h
+ 
+France:
+	db	8
+
+	db	040h,05bh,05ch,05dh,07bh,07ch,07dh,07eh
+
+	db	0a6h,0d5h,0d1h,0cfh,0abh,0bdh,0adh,0d7h
+	 
+Italy:
+	db	7
+
+	db	05bh,05dh,060h,07bh,07ch,07dh,07eh
+
+	db	0d5h,0abh,0bch,0a6h,0b6h,0adh,0b1h
+
+Spain:
+	db	6
+
+	db	023h,05bh,05ch,05dh,07bh,07ch
+
+	db	0ceh,0c2h,0bfh,0c3h,0d7h,0c0h
+
+Denmark:
+	db	6
+
+	db	05bh,05ch,05dh,07bh,07ch,07dh
+	
+	db	0c9h,0c6h,0a0h,0cah,0c7h,0a2h
+
+Sweden:
+	db	11
+	
+	db	024h,040h,05bh,05ch,05dh,05eh,060h,07bh,07ch,07dh,07eh
+
+	db	0c8h,0a9h,0a1h,0b3h,0a0h,0b9h,0ach,0a4h,0b4h,0a2h,0bah
+
+
+	END
+
+
