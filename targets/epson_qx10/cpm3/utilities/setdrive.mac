@@ -1,0 +1,1284 @@
+	.z80
+	title	EPSON QX-10 - SET DISK DRIVE HEAD LOAD TIME & STEP RATE
+
+	name	('SETDRIVE')
+	.Comment"
+
+	Thió  prograí waó originallù writteî bù Andre÷ Clarkå  oæ 
+MMÌ  undeò  contracô  tï  Epsoî 'the check is in the post'(UK© 
+Limited®  Iô  waó  very slightlù modified by Alastair Mackintosh of EUL.
+
+Copyright (C) EUL 25th April 1984
+
+Revision History
+
+ver	date	author	location	comments
+-----------------------------------------------------------------
+1.0	25/4/84	AM	EUL		First release version
+1.1	30/4/84 AC      Suffolk         Knows current head
+
+
+	"
+	page
+
+	vers	Equ	11	;current version
+;------------------------------------------------------------------
+; EPSON QX-10 Utility to change the disk drive head load timeriver
+;
+; Copyright 1984 D. Powys-Lybbe
+; Author: D. Powys-Lybbe, 11 Sun Street, London E.C.2.
+; Date: 10th January 1984
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+;
+; Breathed on by A.R.M.C.  
+; Author: A. Clarke, 11 Sun Street, London E.C.2.
+; Date: 15th February 1984
+;
+; Latest BIOS stores head rate for 5.25 and 3.5 in
+; Author: D. Powys-Lybbe, 11 Sun Street, London E.C.2.
+; Date: 19th May 1984
+;------------------------------------------------------------------
+
+	cseg
+
+
+
+
+
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+vers22	equ	22h	; CP/M version number
+vers31	equ	31h	; CP/M version number
+rev	equ	'A'	; Utility version
+
+bios	Equ	0001h
+bdos	Equ	0005h
+boot	Equ	0000h
+dfcb	Equ	005ch
+dbuf	Equ	0080h
+intfdc	equ	0fe18h	; interrupt vector for floppy disc
+
+
+;*** logical constants ***
+false	Equ	0000h		;not true
+true	Equ	0ffh		;not exactly false
+
+
+;*** ascii codes ***
+cr	Equ	0dh		;carriage return
+lf	Equ	0ah		;line feed
+eof	Equ	1ah		;end of file code
+ff	Equ	0ch
+esc	Equ	1bh		;escape char for cursor control
+bspace	Equ	08		;backspace
+tab	Equ	09h		;tab
+
+;*** Arrow Key Assignments ***
+
+Up.Arrow	Equ	1eh
+Down.Arrow	Equ	1fh
+Left.Arrow	Equ	1dh
+Right.Arrow	Equ	1ch
+
+;*** Direct BIOS commands ***
+
+CI	Equ	6
+CO	Equ	9
+
+;---------------------------------------------------------------
+;Variables
+;--------------------------------------------------------------
+	
+column:	db	00		;column on vdu
+line:	db	00		;line on vdu
+margin:	db	00
+startline:db	00
+str.array:DW	00
+offset:	DW	00
+highlt:	db	00
+flip.flop:db	0ffh
+Ch.Starting:	db	' '
+Ch.Finishing:	db	' '
+HL.Select:	db	00	;currently selected head load
+Stp.Select:	db	00	;current select step rate
+we.highlight:	db	000	;no we do not highlight choices
+
+;---------------------------------------------------------------
+;
+;Machine-specific graphics and console routines
+;
+;---------------------------------------------------------------
+
+;*** cursor control codes ***
+	db	'Copyright MML Ltd (c) 1983'
+
+;*** all patches as in wordstar ***
+clear:	defb	02,27,'+',00,00,00;clear screen string
+clead1:	defb	02,27,61,00	;yx cursor addressing lead-in
+linoff:	defb	20h		;offset to add
+coloff:	defb	20h
+
+
+
+;*** other vdu patches in addition ***
+char.starting.highlight:
+	DB	'('
+;for menu selection
+char.finishing.highlight:
+	DB	')'
+;for menu selection
+	
+uscore:	db	'_'
+ivonº	db	02,27,"0",00,00,00,00
+ivoff:	db	04,27,"1",27,"7",00,00
+ivon2:	db	02,27,"6",00,00,00,00 
+
+
+;cursor turn off/on strings
+on.cursor:defb	02,1bh,'3',00	;switch on the cursor
+off.cursor:defb	02,1bh,'2',00	;switch off the cursor
+
+;screen switching strings
+upper.screen:defb	2,1bh,"u",00;switch to upper screen
+lower.screen:defb	2,1bh,"v",00;switch to lower screen
+
+;mode switching strings
+grfiks:	defb	2,1bh,'g',00	;enter graphics
+no.grfix:defb	2,1bh,'h',00	;exit graphics mode
+
+	
+
+
+
+;*** hilton turns the terminal highlight ***
+;*** specified by ivon, on; hiltoff off   ***
+hilton:	push	hl
+	push	de
+	push	bc
+	ld	a,(char.starting.highlight)
+	ld	(ch.starting),a
+	ld	a,(char.finishing.highlight)
+	ld	(ch.finishing),a	;set the first and last characters
+	ld	hl,ivon	;inverse video on string
+	ld	a,(we.highlight)	;only switch on if boolean set
+	and	a
+	call	nz,msg		;do we do inverse video
+	ld	hl,ivon2	;do highlight anyway
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+hiltoff:push	hl
+	push	de
+	push	bc
+	ld	a," "
+	ld	(ch.starting),a
+	ld	(ch.finishing),a
+	ld	hl,ivoff
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+alton:	push	hl
+	push	de
+	push	bc
+	ld	hl,ivon2
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+
+;---------------------------------------------------------------------------
+yxpos:	;sends the character cursor to the location in line Column
+	push	hl
+	push	de
+	push	bc		;save everything
+	ld	hl,clead1	;print lead-in
+	call	msg
+	ld	a,(line)	;get line no.
+	ld	b,a
+	ld	a,(linoff)
+	Add	a,b		;addin line offset
+	call	putchar		;out it goes
+	ld	a,(Column)	;get column
+	ld	c,a
+	ld	a,(coloff)	;add in offset
+	add	a,c
+	call	putchar		;send it out
+	pop	bc		;restore the world
+	pop	de
+	pop	hl
+	ret			;and go home
+
+
+
+;---------------------------------------
+gra.off:;turn into character mode
+	push	hl		;save the world
+	push	de
+	push	bc
+	ld	hl,no.grfix	;the no graphics string
+	call	msg		;to switch into character mode
+	pop	bc		;restore the world
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------	
+curon:		;switch on the cursor
+	push	hl
+	push	de
+	push	bc
+	ld	hl,on.cursor	;switch cursor on 
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------
+into.graphics:;lets enter graphics mode
+	
+	push	hl
+	push	de
+	push	bc
+	ld	hl,grfiks	;switch into graphics
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------	
+curoff:	;switch off the cursor
+	push	hl
+	push	de
+	push	bc
+	ld	hl,off.cursor	;string to tell the console
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------
+screen.clear:;clear the whole damned screen
+	push	hl
+	push	de
+	push	bc
+	ld	hl,clear
+	call	msg		;send out clear-screen string
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+	page
+
+	subttl  'DIRECT BIOS SUBROUTINES'
+
+;----------------------
+;-- BIOS Interaction --
+;----------------------
+
+BIOSPB:	ds	8		; Bios parameter block
+
+CONIN:
+	call	curon		;switch on the cursor
+	LD	DE,CI		;console input
+	CALL	dir_bios
+	push	af
+	call	curoff		;switch it back off
+	pop	af
+	CP	'A' OR 20H
+	RET	C
+	CP	('Z' OR 20H)+1
+	RET	NC
+	AND	5FH		;small alph -> large alph
+	RET
+;
+conout:
+	ld	de,co
+	jr	dir_bios
+;
+;
+dir_bios:
+	LD	hl,(bios)	;entry BIOS
+	ADD	hl,DE
+	JP	(hl)		; direct BIOS call
+
+
+
+
+;------------------------
+;-- BDOS Character I/O --
+;------------------------
+
+subttl  'BDOS CHARACTER SUBROUTINES'
+
+;-----;
+strout:
+;-----;
+	ld	a,(hl)
+	or	a
+	ret	z
+;
+;
+	push	hl
+	call	putchar
+	pop	hl
+	inc	hl
+	jp	strout
+
+;------;
+putchar:
+;------;
+	ld	e,a
+	ld	c,2
+	call	bdos		;conout
+	ret
+
+
+;-------;
+Msg:
+;-------;
+	
+	ld	a,(hl)		;print string preceded by a count byte
+	ld	b,a		;get count byte
+	or	a		;is it a null string
+	ret	z		;if null string, then go home
+..loop:	inc	hl		;point to next ascii byte
+	ld	a,(hl)		;get it
+	push	hl
+	push	bc
+	call	putchar		;send it to the console
+	pop	bc
+	pop	hl
+	dec	b		;any more to do
+	ret	z		;if not go home
+	jr	..loop		;otherwise do the next byte
+
+
+
+prompt:	push	hl
+	push	de
+	push	bc
+	ex	de,hl
+	call	strout
+waitkb:	ld	c,6		; BDOS Direct Console i/o
+	ld	e,0ffh		; input
+	call	bdos
+	or	a
+	jr	z,waitkb	; wait for character to be entered
+	pop	bc
+	pop	de
+	pop	hl
+	ret
+
+bell:	push	hl
+	push	de
+	push	bc
+	push	af
+	ld	e,07h		; BELL
+	ld	c,6		; BDOS Direct Console output
+	call	bdos
+	pop	af
+	pop	bc
+	pop	de
+	pop	hl
+	ret
+
+getchar:
+	ld	c,1		;conin
+	call	bdos
+	cp	'a'
+	ret	c
+	cp	'z'+1
+	ret	nc
+	and	5fh		; remove case bits
+	ret
+
+;-------------------------
+;-- String message area --
+;-------------------------
+
+prompt.string:		;at the top of the page
+
+	db	esc,"=",1+32,27+32,ESC,'('
+	DB	'EPSON QX+ SETDRIVE   ver '
+	db	vers/10+'0','.',vers mod 10+'0',ESC,')'
+	db	esc,"=",2+32,15+32
+	db	'Utility to modify disk drive timings. Use the cursor'
+	db	esc,"=",3+32,15+32
+	db	'keys to  select  timings.  Press <CR> or <ESC>  when'
+ 	db	esc,"=",4+32,15+32
+	db	'finished. Press <BREAK> to abort.'
+	db	000
+
+
+st.prompt:
+
+	db	esc,"=",6+32,5+32
+	db	'Choose the Step Rate (default 16 ms)'
+	db	00
+
+
+Wipe.st.prompt:
+
+	db	esc,"=",6+32,5+32
+	db	'                                    '
+	db	00
+
+
+
+hlt.prompt:
+
+	db	esc,"=",6+32,36+32
+	db	'Choose the Settle time (default 16 ms)'
+	db	00
+
+
+Wipe.hlt.prompt:
+
+	db	esc,"=",6+32,36+32
+	db	'                                      '
+	db	00
+
+
+
+done:	db	cr,lf,lf,'-- Thank you; Drive step rate and'
+	db	' head load time have been respecified --'
+	db	cr,lf,00
+
+abortmsg:
+	db	cr,lf,lf,'** Program terminated ** no action taken.'
+	db	cr,lf,000
+	
+
+errmsg:	db	cr,lf,lf,'** ERROR - cannot program driver device'
+	db	cr,lf,000
+
+
+instruct:
+db	cr,lf 
+db	'		This utility enables you to change the time delay allowed'
+db	cr,lf 
+db	'	for  the  heads on the floppy disk drives to settle and the  head'
+db	cr,lf 
+db	'	stepping  rate. In the QX+ system they are set to a sensible  but'
+db	cr,lf 
+db	"	conservative value according to the manufacturer's specification."
+db	cr,lf 
+db	'	However you may change this to achieve increased disk performance'
+db	cr,lf 
+db	'	for  your particular machine. Beware that this may  produce  disk'
+db	cr,lf 
+db	'	errors  if  set too low. If in doubt, do not  use  this  utility.'
+db	cr,lf 
+db	'	Experience  will show the  best values for your  hardware.  It is'
+db	cr,lf
+db	'	possible  to specify  the desired  values in a command line.  The'
+db	cr,lf
+db	'	syntax is  SETDRIVE  <step rate>,<head load time>   -   a typical'
+db	cr,lf
+db	'	example might be SETDRIVE 8,4'
+db	cr,lf 
+	db	000,000
+
+
+hello.string:
+	defb	..end - $	;length of the string
+	defb	1bh,",","g",5,"c";define split screen
+	defb	1bh,"u"		;go to the upper
+	defb	1bh,"/"		;make multifont
+	defb	1bh,"#",6	;style 4
+	defb	1bh,'X'
+	defb	'              QX+ Disk Drive Timing Utility'
+	defb	1bh,'S'
+	defb	1bh,"v"		;enter the lower screen
+	defb	1BH,"+"		;blank the screen
+	defb	1bh,')'
+..end:	defb	000,000
+
+ok:	defb	..end1 - $
+
+	db	ESC,'=',(18+' '),(26+' ')	;bottom centre
+	defb	1bh,'('		;full intensity
+	defb	1bh,"^"		;blink
+	defb	"<press any key to continue>"
+	defb	1bh,"q"		;cancel blink
+	defb	1bh,')'		;half intensity
+..end1:	defb	00,00
+
+
+tidy.up:;set the screen to rights
+	defb	..end2 - $
+	defb	1bh,"+"
+	defb	1bh,"u",1bh,"\"
+	defb	1bh,"v",1bh,"u"	;dont ask
+	defb	1bh,",","C",26,"C"
+	defb	1bh,"+"
+..end2:	defb	000,000
+
+
+
+;-----------------------
+;---    Utilities    ---
+;-----------------------
+
+
+;----------------------------------------------------------------------------
+addhl:	;adds a to hl and leaves the result in hl
+	add	a,l
+	ld	l,a
+	ret	nc
+	inc	h
+	ret	
+
+;----------------------------------------------------------------------------
+cmp16:	;sixteen bit compare de with hl
+	ld	a,h
+	sub	d
+	ret	nz
+	ld	a,l
+	sub	e
+	ret	
+
+;----------------------------------------------------------------------------
+drawdown:;the whole screen a double line
+	ld	b,23		;the number of lines
+..downloop:
+	push	bc
+	ld	hl,line	;get where we are
+	inc	(hl)		;increment it
+	call	yxpos		;and point the cursor there
+	ld	a,086h		;down line
+	call	putchar		;output the byte
+	pop	bc
+	djnz	..downloop	;and do another until b=0
+	ret			;the job is all done
+;----------------------------------------------------------------------------
+nice.box:;around the screen
+	xor	a
+	ld	(line),a	;zap the line position
+	ld	(Column),a	;and the column position
+	call	yxpos		;home the cursor
+;draw the top border	
+	ld	a,087h		;a top left border
+	call	putchar		;send a top-left bracket
+	ld	b,77
+..toploop:;now do the top line across
+	ld	a,085h		;do a top line
+	push	bc
+	call	putchar		;out goes a line character
+	pop	bc
+	djnz	..toploop
+	ld	a,088h		;a top right border
+	call	putchar		;do a top right character
+;go to bottom line	
+	ld	a,24		;now do likewise for the bottom
+	ld	(line),a
+	xor	a
+	ld	(Column),a	;go to the bottom left
+	call	yxpos
+;draw the bottom border	
+	ld	a,089h		;a bottom left border
+	call	putchar
+	ld	b,77		;and now a nice horizontal line
+..botloop:
+	ld	a,085h		;do a bottom line
+	push	bc
+	call	putchar
+	pop	bc
+	djnz	..botloop
+	ld	a,08ah		;a bottom right border
+	call	putchar
+	xor	a
+	ld	(Column),a
+	ld	(line),a	;home again
+	call	drawdown
+	ld	a, 78		;we have drawn a vertical line
+	ld	(Column),a
+	xor	a		;go to the top right
+	ld	(line),a
+	call	drawdown	;and do the second vertical line
+	
+	ret	
+
+
+
+
+;*** findst points hl to the count ***
+;*** byte of the string array      ***
+;*** element specified in c.       ***
+	
+findst:	
+	inc	c
+..loop5:	dec	c
+	ret	z
+	push	bc
+	ld	b,0
+	ld	c,(hl)
+	add	hl,bc
+	inc	hl
+	inc	hl
+	pop	bc
+	jp	..loop5
+
+;*** typest types the bc'th string ***
+;*** in the array addressed by hl  ***
+typest:	call	findst
+	call	msg
+	ret	
+
+;----------------------------------------------------
+matchst:	;find out if string pointed to
+;by HL matches the one pointed to by DE
+;takes account of abbreviations
+	xor	a
+	ld	b,(hl)
+	cp	b
+	ret	z
+	ex	de,hl
+	ld	c,(hl)
+	cp	c
+	ret	z
+	ex	de,hl
+;check for null strings
+..back1:
+	inc	hl
+	inc	de
+	ld	a,(de)
+	xor	(hl)
+	and	0dfh
+	jr	nz,..bad
+	dec	c
+	jr	z,..good
+	djnz	..back1
+..good:
+	xor	a
+	dec	a
+	ret
+..bad:
+	xor	a
+	ret
+			
+
+
+
+;----------------------------------------------------
+in.list::	;finds out if the string addressed
+;by DE is in the string array in HL.
+;non-zero if a match, C points to element no.
+;HL points to the element
+
+	ld	a,(hl)
+	and	a		;examine length
+	ret	z		;null string array
+;so no match for string
+	ld	b,a
+	inc	hl
+	xor	a
+	ld	c,a		;B has number to do
+..loop9:
+	push	bc	;C has number done
+	push	hl
+	call	findst
+;HL points to the count byte of the string
+;DE points to the count byte of the match
+	push	de
+	call	matchst
+	pop	de
+	pop	hl
+	pop	bc
+	and	a
+	ret	nz			;return non-zero if match
+;element no. in C
+	inc	c
+	djnz	..loop9
+	xor	a
+	ret			;failure to match
+
+
+
+;*** typelist types, in the form    ***
+;*** of a vertical list, an array   ***
+;*** pointed to by str.array.	    ***
+;*** top of list at screen position ***
+;*** dictated by \ine and column    ***
+;*** zero set if last list passed   ***
+typelist:
+
+;start by finding out where we start to type the list
+	ld	a,(line)
+	ld	(startline),a
+	ld	a,(column)
+	ld	(margin),a
+;Str.array points to the start of the string array
+	ld	hl,(str.array)
+	ld	a,(hl)
+	and	a		;examine length
+	ret	z		;null string array
+
+	ld	b,a
+	inc	hl
+	xor	a
+	ld	c,a
+..loop6:	push	bc
+	push	hl
+	ld	a,(margin)
+	and	a
+	jp	z,..over
+	dec	a
+..over:	ld	(column),a
+	call	yxpos
+	ld	a,(highlt)
+	cp	c
+	push	af
+	call	z,hilton
+	ld	a,(ch.starting)
+	push	bc	
+	push	hl
+	call	putchar
+	pop	hl
+	pop	bc
+	call	typest
+	ld	a,(ch.finishing)
+	call	putchar
+	pop	af
+	call	z,hiltoff
+	pop	hl
+	pop	bc
+	ld	a,(line)
+	inc	a
+	ld	(line),a
+	inc	c
+	dec	b
+	jp	nz,..loop6
+	ld	a,(margin)
+	ld	(column),a
+	ld	a,(startline)
+	ld	(line),a
+	call	yxpos
+	ret	nz
+	inc	a
+	ret	
+
+	
+choose.it:	;make a selection from the available choices
+;using the string array pointed to by str.array. Returns non
+;zero if successful and character pressed in A reg.
+;Highlt is a byte variable that, on entry, describes the default
+;choice and on exit describes the user choice
+	xor	a
+	dec	a		;set boolean to show highlight
+	ld	(we.highlight),a
+	call	typelist
+	ret	z
+	call	getchar
+	cp	03h
+	jp	z,aborted
+	cp	esc
+	jp	z,..exit
+	cp	up.arrow
+	jp	z,..up
+	cp	down.arrow
+	jp	z,..down
+	cp	right.arrow
+	jp	z,..exit
+	cp	left.arrow
+	jp	z,..exit
+	cp	0dh
+	jp	z,..exit
+	jp	..updn
+..exit:	;he positivel wanted out
+	push	af
+	xor	a
+	;set boolean to repress highlight
+	ld	(we.highlight),a
+	call	typelist	;retype the list removing the highlight
+	pop	af	;save the character that he typed
+	and	a	;set flags
+	ret	
+..down:	ld	a,false
+	ld	(flip.flop),a
+	ld	hl,(str.array)
+	ld	b,(hl)
+	dec	b
+	ld	a,(highlt)
+	cp	b
+	jp	z,choose.it
+	inc	a
+	ld	(highlt),a
+	ld	a,true
+	ld	(flip.flop),a
+	jp	choose.it
+..up:	ld	a,true
+	ld	(flip.flop),a
+	ld	a,(highlt)
+	and	a
+	jp	z,choose.it
+	dec	a
+	ld	(highlt),a
+	ld	a,false
+	ld	(flip.flop),a
+	jp	choose.it
+	
+..updn:	ld	a,(flip.flop)
+	and	a
+	jp	z,..up
+	jp	..down
+
+
+
+
+
+;---------------------------------------------------------------------------;
+
+
+	subttl  'H E A D     main'
+	page
+
+
+parameter:	db	2
+		dw	00
+		db	00
+;passed from the CCP is put into a string here
+
+start:
+	ld	c,12	; BDOS Return Version Number
+	call	bdos
+	cp	vers22
+	ld	(cpmvers),a	; 19may84
+	jr	z,tstMPM
+	cp	vers31
+	jr	nz,vererr
+tstMPM:	ld	a,b
+	or	a
+	jr	z,the.start
+vererr:	ld	de,notmpm
+	jp	strout
+cpmvers:
+	db	0		; save CP/M version number here
+
+the.start:
+
+;now we set the stack
+	ld	hl,(0006h)
+	ld	sp,hl		; use top of memory as stack
+	dec	sp
+	dec	sp
+	dec	sp
+;check for QX+
+	ld	c,50		; BDOS Direct BIOS calls
+	ld	de,BIOSPB
+	ld	a,30		; Customised BIOS entry point
+	ld	(de),a		; requires no other registers
+	call	BDOS		; Check that the right machine 
+	cp	'A'		; Epson BIOS returned version
+	jp	z,onwards.confidently
+;-----------------------------------------;
+; Program not loaded under CP/M3 on Epson ;
+;-----------------------------------------;
+notcpm3:
+	ld	hl,cpm3msg
+	call	strout
+
+	ld	c,0
+	jp	bdos		; and terminate program
+
+cpm3msg:
+	db	'HEAD - Requires CP/M + on Epson QX-10',cr,lf,0
+
+
+onwards.confidently:
+;
+;----------------------------------;
+; test for BIOS holding step rates ;
+;----------------------------------;
+	ld	a,(cpmvers)
+	cp	31h
+	jp	nz,step
+;----------------------------------------;
+; find location of HEAD specify in CBIOS ;
+;----------------------------------------;	
+
+	ld	hl,(intfdc+2)	; recover address of specify command
+	ld	a,(hl)		; (hl = NECspec in customised BIOS)
+	cp	22h		; test for ld (),hl
+	jr	nz,wrongbios	; test specify = necspec + 8
+	inc	hl
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	ld	a,(de)		; (de -> current specify bytes in BIOS)
+	and	01111b
+	cp	01111b		; test HUT set to max
+	jr	nz,wrongbios
+	ld	bc,6
+	add	hl,bc
+	ld	a,h
+	cp	d
+	jr	nz,wrongbios
+	ld	a,l
+	cp	e
+	jr	nz,wrongbios	; test specify = necspec + 8
+	ex	de,hl
+	ld	(hl),01111b	; set SRT to zero to force re init in BIOS
+
+	ld	(biosptr),hl	; save location
+	ld	de,specify	; and copy to this program
+	ld	bc,3+2+2
+	ldir
+	jp	step
+
+wrongbios:	; could not find SPECIFY structure in BIOS
+	jp	step
+
+biosptr:
+	dw	0	; pointer to structure containing head rates in BIOS
+specify:
+	dw	0	; current setting
+	ret
+specify5:
+	dw	0	; 5.25 in setting
+specify3:
+	dw	0	; 3.5 in setting
+
+
+;now we check to see if it was a batch mode job
+step:
+	ld	hl,dfcb+1
+	ld	a,(HL)
+	cp	' '
+	jr	z,interactive
+;assume a one-digit number
+	ld	e,a
+	inc	hl
+	ld	a,(hl)
+	ld	d,a
+	cp	" "
+	jr	nz,two.digits
+	ld	d,e
+	ld	e,a		;space justify
+two.digits:
+;e has the second possible digit, d has the first
+	ex	de,hl
+	ld	(parameter+1),hl
+	ld	de,parameter
+	ld	hl,stptble
+	call	in.list
+	jp	z,interactive	;a boner
+	ld	a,c		;get element no.
+	ld	hl,stp.values
+	call	addhl
+	ld	a,(HL)
+; select head step rate ;
+	ld	(nec.st),a
+	ld	(specify5),a
+;now the second parameter
+	ld	hl,dfcb+17
+	ld	a,(HL)
+	cp	' '
+	jr	z,interactive
+;assume a one-digit number
+	ld	e,a
+	inc	hl
+	ld	a,(hl)
+	ld	d,a
+	cp	" "
+	jr	nz,twin.digits
+	ld	d,e
+	ld	e,a		;space justify
+twin.digits:
+;e has the second possible digit, d has the first
+	ex	de,hl
+	ld	(parameter+1),hl
+	ld	de,parameter
+	ld	hl,HLTtble
+	call	in.list
+	jp	z,interactive	;a boner
+	ld	a,c		;get element no.
+	ld	hl,hlt.values
+	call	addhl
+	ld	a,(HL)
+; select head step rate ;
+	ld	(nec.hl),a
+	ld	(specify5+1),a
+	jp	we.done.it
+	
+interactive:	
+;now we do the fancy screen stuff
+	ld	hl,hello.string
+	call	msg		;split the screen and print title
+	call	CUROFF		;Turn off the cursor
+	ld	hl,instruct
+	call	strout		;print the instructions
+	ld	hl,OK
+	call	msg
+ 	call	getchar		;and throw it away
+	push	af
+	ld	hl,tidy.up
+	call	msg
+	pop	af
+	cp	03h		;was it control c?
+	jp	z,aborted
+	call	curoff		;switch off the cursor
+	call	nice.box	;round the screen
+	ld	hl,prompt.string
+	call	strout
+;set things up with either the default values or the current values
+ugh::	ld	hl,stp.values+stpmax
+	ld	b,stpmax
+step0:	ld	a,(specify5)
+	cp	(hl)
+	jr	z,step1	; found current entry
+	dec	hl
+	djnz	step0
+
+	ld	b,8	; default drive value
+step1:			; on entry <B> -> frst entry
+	ld	a,b		;start with the step value selected
+	ld	(stp.select),a
+	ld	hl,hlt.values+hltmax
+	ld	b,hltmax
+load0:	ld	a,(specify5+1)
+	cp	(hl)
+	jr	z,load1	; found current entry
+	dec	hl
+	djnz	load0
+	ld	b,8	; default drive value
+load1:			; on entry <B> -> frst entry
+	ld	a,b
+	ld	(Hl.select),a
+step.select:	
+;select the step rate
+
+	ld	hl,st.prompt
+	call	strout
+	ld	a,8	;line five
+	ld	(line),a
+	ld	a,20
+	ld	(column),a
+	ld	hl,stptble
+	ld	(str.array),hl
+
+	ld	a,(stp.select)		;start with the eighth selected
+	ld	(highlt),a
+	call	choose.it
+	cp	3
+	jp	z,aborted
+	push	psw
+	ld	a,(highlt)
+	ld	(stp.select),a
+eh::	ld	hl,stp.values
+	call	addhl
+	ld	a,(HL)
+
+	ld	(nec.st),a
+	ld	(specify5),a
+
+
+; select head step rate ;
+	ld	hl,wipe.st.prompt
+	call	strout
+	pop	psw			;what arrow did he press
+	cp	left.arrow
+	jp	z,step.select
+;------------------------------;
+; select head load settle time ;
+;------------------------------;
+
+load:	ld	hl,hlt.prompt
+	call	strout
+	
+;select the head load settle time
+
+	ld	a,8	;line five
+	ld	(line),a
+	ld	a,60
+	ld	(column),a
+	ld	hl,hlttble
+	ld	(str.array),hl
+
+	ld	a,(hl.select)		;
+	ld	(highlt),a
+	call	choose.it
+	cp	3
+	jp	z,aborted
+	push	psw
+	ld	a,(highlt)
+	ld	(hl.select),a
+	ld	hl,hlt.values
+huh::
+	call	addhl
+	ld	a,(hl)
+	ld	(nec.hl),a
+	ld	(specify5+1),a
+	ld	hl,Wipe.hlt.prompt
+	call	strout
+	pop	psw
+	cp	left.arrow
+	jp	z,step.select
+	cp	right.arrow
+	jp	z,load
+
+;--------------------;
+; update BIOS rates  ;
+;--------------------;
+we.done.it:
+	ld	hl,(biosptr)
+	ld	a,h
+	or	l
+	jr	z,nobios
+	ld	(hl),0fh	; flag new step rate
+;
+	ex	de,hl
+	ld	hl,specify
+	ld	bc,3+2+2
+	ldir			; update BIOS with new value
+
+	jr	success
+
+;--------------------;
+; specify NEC device ;
+;--------------------;
+nobios:				; no pointer to BIOS update
+	call	NECcmnd		; so specify directly
+	db	3		; length of command
+	db	00000011b	; SPECIFY command
+nec.st:	db	0
+nec.hl:	db	0
+	jr	nz,necerr
+success:
+	call	screen.clear
+	call	curon		;cursor on
+	ld	hl,done
+	call	strout
+	jp	finish
+
+necerr:
+	call	screen.clear
+	call	curon
+	ld	hl,errmsg
+	call	strout
+	jp	finish
+
+
+NECcmnd:
+	pop	hl
+	ld	b,(hl)		; count of bytes to send
+	inc	hl
+NECwr:	in	a,(34h)		; floppy status register
+	add	a,a
+	jr	nc,NECwr	; wait till ready
+	jp	m,NECphs	; ERROR
+	ld	a,(hl)
+	out	(35h),a
+	inc	hl
+	djnz	NECwr		; do <B> bytes
+	xor	a
+	jp	(hl)		; and return
+
+NECphs:	inc	hl
+	djnz	NECwr		; skip <B> bytes
+	or	-1		; error flag
+	jp	(hl)		; and return
+
+	jr	nz,necerr
+
+
+aborted:
+	call	screen.clear
+	call	curon
+	ld	hl,abortmsg
+	call	strout
+;and fall through
+;-----;
+finish:
+	ld	c,0		; BDOS system reset
+	jp	bdos
+
+
+notmpm:	db	'MML:HEAD      Must use CP/M 2.2 or CP/M 3.3',0
+
+;----------------------------------------------------------------------------
+stptble:	;string array of possible stepping values
+
+	db	16	;strings follow
+
+	db	02,'32',00
+	db	02,'30',00
+	db	02,'28',00
+	db	02,'26',00
+	db	02,'24',00
+	db	02,'22',00
+	db	02,'20',00
+	db	02,'18',00
+	db	02,'16',00
+	db	02,'14',00
+	db	02,'12',00
+	db	02,'10',00
+	db	02,' 8',00
+	db	02,' 6',00
+	db	02,' 4',00
+	db	02,' 2',00
+
+
+stp.Values:	;that go to the NEC chip
+
+	db	00fh,01fh,02fh,03fh,04fh,05fh
+	db	06fh,07fh,08fh,09fh,0afh,0bfh
+	db	0cfh,0dfh,0efh,0ffh
+
+stpmax	equ	$-stp.values
+
+
+
+
+Hltmsg:	db	cr,lf,'            Settle time (default 15 ms) - ??'
+       db	'$'
+
+Hlttble:
+	db	12		;entries in the string array
+
+	db	02,'48',00
+	db	02,'44',00
+        db	02,'40',00
+        db	02,'36',00
+        db	02,'32',00
+        db	02,'28',00
+	db	02,'24',00
+	db	02,'20',00
+	db	02,'16',00
+       db	02,'12',00
+       db	02,' 8',00
+       db	02,' 4',00
+
+
+Hlt.values:	db	24,22,20,18,16,14,12,10,8,6,4,2
+
+hltmax	equ	$-hlt.values
+
+
+
+	ds	16*2
+stack	equ	$
+
+
+;---------------------------------------------------------------
+
+	end	start
