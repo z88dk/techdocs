@@ -1,0 +1,72 @@
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+; 'EPSON QX-10 CPM3 BIOS Hardware equates'
+;
+;		====================================
+;		QX-10  8255 CENTRONICS PRINTER (PPI)
+;		====================================
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+;       Nov 1983 - Device equate files created
+;
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+
+;====================================;
+; 8255 CENTRONICS PRINTER DEVICE PPI ;
+; Set to MODE 1                      ;
+; Channel A - 8 data lines           ;
+; Channel B - 8 status line          ;
+; Channel C - 8 control lines        ;
+;=====================================;
+
+ppi$ad	equ	ppi+00b		;PIO data port (port A)
+ppi$bs	equ	ppi+01b		;PIO status port (port B)
+ppi$cc	equ	ppi+10b		;PIO control port (port C)
+ppi$cmd	equ	ppi+11b		;PIO 8255 command
+;-----------------------------------------------;
+; status bits for Centronix Interface (ppi+01b) ;
+;-----------------------------------------------;
+ppi$dsr	equ	0		; DSR - not used
+ppi$err	equ	3		; input: ERR: error signal from printer
+ppi$npa	equ	4		; input: NPA: no paper signal from printer
+ppi$rdy	equ	5		; input: RDY: ready for output to printer
+ppi$pef	equ	6		; input: PWF: printer power down detect
+ppi$slo	equ	7		; input: SLO: printer operational (not error)
+;------------------------------------------------;
+; control bits for Centronix Interface (ppi+10b) ;
+;------------------------------------------------;
+ppi$c0	equ	0		; output: strobe pulse generated when data sent
+ppi$c3	equ	3		; interrupt: connected to 8259A controller
+ppi$c4	equ	4		; output: ALF: force line feed after printing data
+ppi$c5	equ	5		; output: RST: reset printer
+ppi$c6	equ	6		; input: ACK: printer acknowledges reset of data
+;------------------------------------------------;
+; command bits for Centronix Interface (ppi+11b) ;
+;------------------------------------------------;
+ppi$m0	equ	0		; Port C/L set 0=output (1=Input)
+ppi$m1	equ	1		; Port B set 1=Input (0=output)
+ppi$m2	equ	2		; Port B Mode 0=Bit Mode (1=byte mode)
+ppi$m3	equ	3		; Port C/H set 0=output (1=Input)
+ppi$m4	equ	4		; Port A set 1=Input (0=output)
+ppi$m5	equ	5		; Port A Mode 1=byte mode (0=Bit mode)
+ppi$m6	equ	6		; Port A dual 0=one way (1=dual direction;&bit mode)
+ppi$m7	equ	7		; 1= Mode select
+;------------------------------------------------------;
+; port C bit control for Centronix Interface (ppi+11b) ;
+;------------------------------------------------------;
+ppi$b0	equ	0		; 1= Set, 0=Reset
+ppi$b1	equ	1		; Bit number 0-7, bit 0 of 3 bit number
+ppi$b2	equ	2		; Bit number 0-7, bit 1 of 3 bit number
+ppi$b3	equ	3		; Bit number 0-7, bit 2 of 3 bit number
+ppi$b7	equ	7		; 0= bit control
+
+;----------------------------------------------------------------------
+
