@@ -1,0 +1,73 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS crt driver
+
+	name	('BIOS3A3')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; ALPHA Aug 8,83
+; BETA  Dec 5,83
+; BETA+ Jan 5,84
+; REV-A Apr 30,84
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+	cseg		;GENCPM puts CSEG code in resident common memory
+
+;====================================
+; user defined character I/O routines
+;====================================
+
+;CRT
+	public	crtout,crtsot	; (Note crtout also used by loader bios)
+	public	?crtinit	; Cold boot initialisation
+
+	extrn	TYO		; Entry into 7220 conout
+;******	extrn	TYOinit		; Entry into 7220 conout
+
+;------------------------------------------------------------------
+
+	page
+
+;                           ======================
+;                           PHYSICAL DEVICE DRIVER
+;                           ======================
+
+;===
+;CRT
+;===
+	dseg	; as system bank already selected
+;---------------------------------------------
+?crtinit:	; CRT cold boot initialisation
+;---------------------------------------------
+	nop			; Currently no initialisation
+	nop
+	ret
+
+;---------------------------------
+crtsot:		; CRT ouput status
+;---------------------------------
+	ld	a,-1		; CONSOLE is always ready for output
+	ret
+
+;-------------------------------------------------------
+crtout:		;CRT character output (character in <C>)
+;-------------------------------------------------------
+
+	jp	TYO		; start of crt driver
+
+;---------------------------------------------------------------
+
+	end
