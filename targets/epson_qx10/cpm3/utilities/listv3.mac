@@ -1,0 +1,587 @@
+	page 45
+	title 'MML: utility LIST'
+;
+;     DP-L VERSION to LIST on console TELETYPE
+;     28 april 1981
+;	Version: DSC4 using CP/M 2.2
+;		 Using MICROPLAN-MML bios version 5/81
+;
+; Amendments
+; ----------
+; 25aug81	Printer parameters held in data block starting 0104h
+; 15sept81	BIOS jumps amended for upgrade from BIOS 5 to BIOS 9
+; 14may82	Masks parity bit on testing for <return> & <line feed>
+;
+CIN	EQU	1	; BDOS I/O for READ from CONSOLE
+COUT	EQU	2	; BDOS I/O for WRITE to CONSOLE
+CMSG    EQU     9       ; BDOS I/O to write string to CONSOLE
+LOUT	EQU	5	; BDOS I/O for WRITE to LIST DEVICE
+CSTAT	EQU	11	; BDOS test for character ready
+;
+;------------------------------------------------------------------------
+;
+;			BIOS.LIB contains BIOS JUMP VECTORS
+;
+;
+	MACLIB	BIOS
+;
+;
+;---------------------------------------------------------------------------
+	ORG	100H	;PROGRAM TO READ FILE AND PRINT ON LIST DEVICE
+	JMP     PRINT
+; Printer parameters (may be changed)
+WIDTH	DB	132	; WIDTH of page = 132 characters
+PAGELN  DB     51      ; Length of page is default 51, print 47 lines
+MISS	DB	4	; No of lines skipped at bottom of page
+NUMBER	DB	not 0	; Set to zero to suppress line numbers
+FORMFEED	DB	not 0	; Set to zero if printer does not support form feed;
+CRWT:   DB     'COPYWRITE D. POWYS-LYBBE MML 28th APRIL 1981'
+PAGE$L:   DS	1;      PAGELN
+LEN:    DS	1;      PAGELN-MISS
+LINEF:  DB     '    0'  ; Default first line to be printed
+LINEL:  DB     '99999'  ; Default last line to be printed
+SKIP:   DB     0	; When Skip is non-zero then do not print
+;
+FFCC	EQU	0CH	; Form Feed control character
+LFCC	EQU	0AH	; Line Feed control character
+CRCC	EQU	0DH	; Carriage Return control character
+;
+PRINT:
+; Set up print parameters
+	lda	MISS
+	mov	b,a
+	lda	PAGELN
+	sta	PAGE$L
+	sub	b
+	JC      MSSG7
+	JZ      MSSG7
+	sta	LEN
+	LXI	H,0
+	DAD	SP
+	SHLD	OLDSP	;SAVE CALLER'S STACK POINTER
+	LXI	SP,OLDSP	;SET UP OURS
+;
+	LXI     H,DMA
+	MOV     A,M
+	ORA     A
+	MOV     C,A
+	JZ      NOMSG   ; No message passedfrom CP/M
+	JM	NOMSG
+	INR	C
+	MVI	A,' '
+MSSG2:	INX	H	; Skip leading spaces
+	DCR	C
+	JZ	NOMSG
+	CMP	M
+	JZ	MSSG2
+MSSG3:	INX	H	; SKip file name
+	DCR	C
+	JZ	NOOPT
+	CMP	M
+	JNZ	MSSG3
+MSSG4:	INX	H	; Skip leading spaces
+	DCR	C
+	JZ	NOOPT
+	CMP	M
+	JZ	MSSG4
+	MOV     A,C     ; Check option <= 6 characters
+	CPI     7
+	JNC     MSSG7
+	MOV     A,M
+	DCR     C
+	JZ      MSSG7
+;
+	CPI     'S'     ; Select start number
+	JZ      START
+	CPI     'L'     ; Select lines per page
+	JZ      LINES
+	CPI     'F'     ; Finish line number
+	JZ      LAST
+MSSG7:  LXI     D,OPTERR
+	MVI     C,CMSG
+	CALL    BDOS
+	JMP     RETURN
+OPTERR: DB      'Illegal option',CRCC,LFCC,'$'
+;
+NOMSG:	LXI	D,NOMSSG
+	MVI	C,CMSG
+	CALL	BDOS
+	JMP	RETURN
+NOMSSG: DB      'No file name entered',CRCC,LFCC,'$'
+;
+START:  LXI     D,LINEF
+STRT1:
+	MVI     B,0
+	DAD     B       ; H,L moved to end of option
+	XCHG	    ; Line count set to '     '
+	MVI     B,5
+	MVI     A,' '
+STRT2:  MOV     M,A
+	INX     H
+	DCR     B
+	JNZ     STRT2
+STRT3:  DCX     H       ; Line number copied into LINE?
+	LDAX    D       ; Starting with rightmost digit
+	DCX     D
+	CPI     '0'
+	JC      MSSG7     ; Character must be numeric
+	CPI     '9'+1
+	JNC     MSSG7
+	MOV     M,A
+	DCR     C
+	JNZ     STRT3
+	JMP     NOOPT
+;
+LAST:   LXI     D,LINEL
+	JMP     STRT1
+;
+LINES:  SUB     A
+LINES1: MOV     B,A
+	RLC
+	RLC
+	ADD     B
+	RLC	   ;  Multiply by ten
+	MOV     B,A
+	DCX     H
+	MOV     A,M
+	SBI     '0'
+	JC      MSSG7
+	ADD     B
+	DCR     C
+	JNZ     LINES1
+	JMP     NOOPT
+;
+NOOPT:	LXI	D,DMA
+	MVI	C,26
+	CALL	BDOS	;SET DMA ADDRESS
+	LXI	D,FCB
+	MVI	C,15
+	CALL	BDOS	;OPEN FILE
+	CPI	255
+	JNZ	PR05
+	LXI	D,NOTFOUND
+	MVI	C,9
+	CALL	BDOS
+	JMP	RETURN	;FILE NOT FOUND
+PR05:
+;	Add user/drive number to filename
+	lda	fcb	; Drive no +1
+	ora	a
+	jz	pr06
+	dcr	a
+	jmp	pr07
+pr06:	mvi	c,25
+	call	bdos	; find defualt drive
+pr07:	adi	'A'
+	sta	headisk
+;
+	mvi	e,0ffh
+	mvi	c,32
+	call	bdos	; find user number
+	mov	b,a
+	lxi	h,headuser
+	mvi	m,' '
+	inx	h
+	mvi	m,'0'
+	inr	b
+pr08:	dcr	b
+	jz	pr10
+	inr	m
+	cpi	'9'+1
+	jc	pr08
+	mvi	m,'0'
+	dcx	h
+	mvi	a,'0'
+	cmp	m
+	jnc	pr09
+	mov	m,a
+pr09:	inr	m
+	inx	h
+	jmp	pr08
+;
+pr10:	LXI	D,FCB+1
+	LXI	H,HEADFL
+	MVI	B,11
+	MVI     C,4
+PR11:		;SET UP FILENAME IN PAGE HEADLN
+	LDAX	D
+	MOV	M,A
+	INX	D
+	INX	H
+	MOV     A,C
+	CMP     B
+	JNZ      PR12
+	INX     H
+PR12:	DCR	B
+	JNZ	PR11
+	lda	formfeed
+	ora	a
+	jz	pr13
+	MVI	E,FFCC	; SEND FORM FEED OUT
+	MVI	C,LOUT
+	CALL	BDOS
+PR13:	LDA     PAGE$L
+	STA	LINECT	; Set line count to page size
+	SUB	A
+	MOV	C,A	; Set character count to zero
+	LXI	H,HEADLN
+	CALL	DATES	;SET DATE, TIME IN PAGE HEADLN
+	CALL    NEWPG
+;
+NXTBUF:		;READ NEXT BUFFER FROM DISK
+	PUSH	B
+	LXI	D,FCB
+	MVI	C,20
+	CALL	BDOS	;READ RECORD
+	LXI	H,DMA	;GET BUFFER ADDRESS
+	POP	B	;GET BACK CHAR COUNT IN C
+	MVI	B,128	;BUFFER LENGTH
+	ORA	A
+	JNZ	DONE	;HAD EOF OR NON-ASCII FILE (MISSING RECORD)
+	LDA	CKSUM	;FORM CHECKSUM FOR ALL 128 CHARACTERS IN BUFFER
+CALCCK:
+	RLC		;CHECKSUM IF FORMED BY
+	XRA	M	;  ROTATING LEFT PREVIOUS CHECKSUM VALUE
+	INX	H	;  (STARTING WITH ZERO) AND EXCLUSIVE-ORING
+	DCR	B	;  NEXT BYTE FROM BUFFER
+	JNZ	CALCCK
+	STA	CKSUM
+	LXI	H,DMA	;SET B, HL FOR FOLLOWING CODE
+	MVI	B,128
+NXTCHAR:
+	PUSH	H	;SEE IF CONSOLE CHARACTER WAITING
+	PUSH	B	;  IF SO, TERMINATE PRINT
+	LXI	D,BCONST
+	CALL	BIOS
+	POP	B
+	POP	H
+	ORA	A
+	JNZ	ABORT
+	MOV	A,M	;GET CHARACTER
+	CPI	1AH	;SEE IF CNTL-Z
+	JZ	NXTBUF
+	MOV	E,A
+	ani	07fh
+	CPI	LFCC
+	JZ	NOTAB
+	MOV	A,C	;Test for first character in line
+	CPI	0
+	CZ	LINE
+	MOV	A,E
+	ani	07fh
+	CPI	09H	;SEE IF TAB
+	JNZ	NOTAB
+	MOV	A,C	;SEE HOW MANY SPACES TO WRITE
+	ADI	8
+	ANI	0F8H
+	SUB	C	;A HAS NUMBER OF BLANKS TO WRITE
+MORESP:
+	MVI	E,' '
+	PUSH	PSW	;Save count
+	CALL	CHAR
+	POP	PSW	;Recover count in A
+	DCR	A
+	JNZ	MORESP
+	JMP	NOLF
+NOTAB:
+	CALL	CHAR	;WRITE CHARACTER TO LIST
+NOLF:
+	INX	H	;ADVANCE TO NEXT CHAR IN DISK BUFFER
+	DCR	B
+	JNZ	NXTCHAR
+	JMP	NXTBUF
+;
+ABORT:
+	PUSH	H	; READ CONSOLE CHARACTER TO CLEAR BUFFER
+	PUSH	B
+	LXI	D,BCONIN
+	CALL	BIOS
+	POP	B
+	POP	H
+DONE:			;GOT EOF
+	LDA	CKSUM	;WRITE OUT CHECKSUM TO LISTING
+	ANI	0F0H
+	RRC
+	RRC
+	RRC
+	RRC
+	ADI	'A'
+	STA	CK1
+	LDA	CKSUM
+	ANI	0FH
+	ADI	'A'
+	STA	CK2
+	LXI	H,CKMSG
+	CALL	NEWPG3
+	CALL    NEWPG4  ; Move to TOP of page
+	MVI	E,CRCC	;PUT OUT CR SO TTY40 MOTOR WILL TURN OFF
+	CALL	CHAR
+;
+RETURN:			;NORMAL RETURN
+	LHLD	OLDSP	;GIVE BACK CALLER'S STACK
+	SPHL
+	RET
+;
+;
+;
+NEWPG:			;ADVANCE TO NEW PAGE
+	CALL    NEWPG4   ;MOVE TO TOP OF PAGE
+	LXI	H,HEADPG
+	DCX     H
+NEWPG1:	CALL	DIGIT	; Increment page number
+NEWPG2:			;PUT OUT PAGE HEADER LINE
+	LXI	H,HEADER
+NEWPG3:
+	MOV	A,M
+	ORA	A
+	RZ
+	MOV	E,A
+	CALL	CHAR
+	INX	H
+	JMP	NEWPG3
+NEWPG4:			; MOVE TO TOP OF PAGE
+	LDA     PAGE$L
+	LXI     H,LINECT	;INCREMENT LINE COUNT
+	SUB	M	;CHECK NOT ALREADY AT TOP OF PAGE
+	MOV     M,A
+	INR     M
+	RZ
+NEWPG5: DCR     M
+	RZ	; LOOP UNTIL AT TOP OF PAGE
+	LDA	FORMFEED	; TEST IF WE FORM FEED OR LINE COUNT
+	ORA	A
+	JNZ	NEW1A
+	LDA     SKIP
+	ORA     A
+	JNZ     NEWPG6
+	MVI	E,LFCC	;PUT OUT LINE FEED
+	MVI	C,LOUT
+	PUSH    H
+	CALL	BDOS
+	POP     H
+NEWPG6: JMP     NEWPG5
+NEW1A:
+	MVI	E,FFCC	;PUT OUT FORM FEED
+	MVI	C,LOUT
+	CALL	BDOS
+	MVI	E,CRCC	;PUT OUT CARRIAGE RETURN
+	MVI	C,LOUT
+	CALL	BDOS
+	ret
+CHAR:
+	MOV	A,E
+	CPI	' '
+	JC	CXHAR0
+	lda	width
+	cmp	c
+	cc	NL
+	INR	C
+CXHAR0:	LDA     SKIP
+	ORA     A
+	JNZ     CHAR4
+	PUSH    B
+	PUSH    D
+	PUSH	H
+	MOV     A,E
+	ani	07fh
+	CPI	FFCC
+	JZ	CHAR0
+	CPI     LFCC
+	JNZ     CHAR3
+	LDA     LEN
+	LXI	H,LINECT;LINE COUNT
+	SUB	M	;SEE IF TIME FOR NEW PAGE
+	SBI     2
+	JNC     CHAR1
+CHAR0:	CALL    NEWPG
+	POP     H
+	POP     D
+	POP     B
+	RET
+CHAR1:
+	INR	M	;Increment line count
+CHAR3:
+	MVI	C,LOUT
+	CALL	BDOS
+	POP	H
+	POP     D
+	POP     B
+CHAR4:	MOV	A,E
+	ani	07fh
+	CPI     CRCC
+	RNZ
+CR:     MVI     C,0     ; SET to 0
+	RET
+NL:     MVI     C,0
+	PUSH    D
+	MVI     E,CRCC   ;C/R
+	CALL    CHAR
+	MVI     E,LFCC   ;L/F
+	CALL    CHAR
+	POP     D
+	RET
+LINE:	PUSH	H
+	PUSH	D
+	LXI	H,LINENO+4
+LINE1:	CALL	DIGIT	; Increment line number
+	LXI     H,LINENO ; Test if NO < start or > finish
+	LXI     D,LINEF
+	CALL    COMP	; Set SKIP flag according to result
+	ORA     A
+	JNZ     LINE2
+	LXI     D,LINENO
+	LXI     H,LINEL
+	CALL    COMP	; Set SKIP flag according to result
+LINE2:
+	lda	number; check if line numbers to be displayed
+	ora	a
+	jz	LINE3
+	LXI     H,LINENO
+	CALL	NEWPG3
+line3:	POP	D
+	POP	H
+	RET
+DIGIT:	INR	M	; Increment decimal number
+	MOV	A,M
+	CPI	'9'+1
+	RC
+	MVI	M,'0'
+	DCX	H
+	MOV	A,M
+	CPI	' '
+	JNZ	DIGIT
+	MVI	M,'1'
+	RET
+;
+COMP:   PUSH    B
+	MVI     C,5
+COMP1:  LDAX    D
+	CMP     M
+	JNZ     COMP3
+	INX     D
+	INX     H
+	DCR     C
+	JNZ     COMP1
+COMP2:  SUB     A
+	JMP     COMP4
+COMP3:  JC      COMP2
+	MVI     A,1
+COMP4:  STA     SKIP
+	POP     B
+	RET
+;
+FCB	EQU	5CH
+DMA	EQU	80H
+BDOS	EQU	5
+	DS	128
+OLDSP:	DW	0
+HEADER:	DB	CRCC,LFCC,LFCC,LFCC,LFCC
+;		 0123456789012345678901234567890123456789   01234567890123456789012345678901234567890
+HEADLN:	DB	'                 '
+	db	'                 '
+headuser:	db	'  '
+headisk:	db	' :'
+HEADFL:	DB	'filename.typ'
+	db	'                 PAGE    0'
+HEADPG:	DB	CRCC,LFCC,LFCC,LFCC,0
+CKMSG:	DB	LFCC,CRCC,LFCC,'CHECKSUM = '
+CK1:	DS	1
+CK2:	DS	1
+	DB	CRCC,0
+CKSUM:	DB	0
+LINECT:	DB	0
+NOTFOUND:	DB	'FILE NOT FOUND',CRCC,LFCC,'$'
+LINENO	DB	'    0:  ',0
+;
+;
+;
+;	DATES - RETURN ASCII DATE, TIME TO AREA ADDRESSED BY HL ON ENTRY
+;
+DATES:
+	PUSH	H
+	LXI	D,XRD60
+	CALL	XBIOS	;READ TIME/DATE
+	XCHG		;(DE) -> Month
+	POP	H
+	inx	d
+	ldax	d	;GET Day
+	CALL	NUMTOCON
+	MVI	M,'/'
+	INX	H
+	dcx	d
+	ldax	D	;GET Month
+	CALL	NUMTOCON
+	MVI	M,'/'
+	INX	H
+	inx	D
+	inx	D
+	ldax	D	;GET Year
+	CALL	NUMTOCON
+	MVI	M,' '
+	INX	H
+	PUSH	H
+	LXI	D,XRD60
+	CALL	XBIOS	;READ 60HZ CLOCK
+	POP	H	;TIME IN BCD
+	MOV	A,B	;GET HOURS
+	CALL	NUMTOCON
+	MVI	M,':'
+	INX	H
+	MOV	A,C	;GET MINUTES
+	CALL	NUMTOCON
+	MVI	M,':'
+	INX	H
+	MOV	A,D
+	CALL	NUMTOCON	;SECONDS
+	INX	H
+	RET		;HL LEFT SET AFTER LAST CHARACTER IN TIME
+;
+;
+NUMTOCON:
+	ORA	A	; Convert binary to BCD
+	JZ	NUM1
+	MOV	B,A
+	XRA	A
+NUM0:	INR	A
+	DAA
+	DCR	B
+	JNZ	NUM0
+NUM1:
+	PUSH	PSW
+	ANI	0F0H	;CONVERT PACKED DECIMAL NUMBER AND PUT IN BUFFER
+	RRC
+	RRC
+	RRC
+	RRC
+	CALL	NUM2
+	POP	PSW
+	ANI	0FH
+NUM2:	ADI	'0'
+	CPI	'9'+1
+	JC	NUM3
+	ADI	'A'-('9'+1)
+NUM3:	MOV	M,A
+	INX	H
+	RET
+;-------
+; Entry to BIOS
+WBOOT	EQU	0
+;
+; NORMAL BIOS JUMPS
+; *****************
+BIOS:
+	lhld	WBOOT+1
+	mvi	d,0
+	dad	d
+	pchl
+;
+; EXTENDED BIOS JUMPS
+; *******************
+XBIOS:
+	lhld	WBOOT+1
+	mvi	l,0
+	pchl
+;
+;
+;
+	END
