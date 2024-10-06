@@ -1,0 +1,2229 @@
+	title	'Dis-assembled CCP.COM using DISZ80.COM'
+	.z80
+
+cr	equ	0dh
+lf	equ	0ah
+
+	aseg
+	org	0000h
+;-----------------------------------------------------------------------|
+; Page Zero areas	;	SET - Initialised by CCP		|
+;-----------------------------------------------------------------------|
+WBOOT	EQU	$    	;						|
+SET_DSK	EQU	$+0004H	;	Set to default DSK/USR			|
+BDOS	EQU	$+0005H	;						|
+SET_DR	EQU	$+0050H	;	Set to FCB.DR of file loaded		|
+SET_PA1	EQU	$+0051H	;	Set to password of first filename	|
+SET_PL1	EQU	$+0053H	;	Set to length of first password		|
+SET_PA2	EQU	$+0054H	;	Set to password of 2nd filename		|
+SET_PL2	EQU	$+0056H	;	Set to length of 2nd password		|
+SET_FCB	EQU	$+005CH	;	Set to first filename			|
+SET_F2	EQU	$+006CH	;	Set to second filename			|
+SET_CMD	EQU	$+0080H	;	Set to command line tail		|
+;-----------------------------------------------------------------------|
+
+	org	0100h
+;---------------------
+; TPA load address
+;---------------------
+tpa	EQU	$
+
+;-----------------------------------------------------------------------|
+; CP/M Plus BDOS SYSTEM CONTROL BLOCK					|
+;-----------------------------------------------------------------------|
+lenscb	equ	100		;					|
+scb	equ	low -lenscb	; Under 3.1 LOW(SCB) is always 9CH	|
+;-----------------------------------------------------------------------|
+xscb	equ	scb-12		; Xtended SCB				|
+xscb00	equ	scb-12		; CCP sets to zero before overlay load	|
+xscb01	equ	scb-11		; CCP sets to zero before overlay load	|
+xscb02	equ	scb-10		; CCP sets to zero before overlay load	|
+xscb03	equ	scb-9		; CCP sets to zero before overlay load	|
+xscb08	equ	scb-4		; Address of BDOSE (word)		|
+;-----------------------------------------------------------------------|
+scb_05	equ	scb+(0A1h-09ch)	; BDOS version number			|
+scb_0F	equ	scb+(0ABh-09ch)	; Reserved				|
+scb_10	equ	scb+(0ACh-09ch)	; Program Error return code (2 bytes)	|
+scb_12	equ	scb+(0AEh-09ch)	; Reserved - Page of multiple line RSX	|
+scb_13	equ	scb+(0AFh-09ch)	; Reserved - Default Disk		|
+scb_14	equ	scb+(0B0h-09ch)	; Reserved - Default User Number	|
+scb_15	equ	scb+(0B1h-09ch)	; Reserved - Ptr to multiple line RSX	|
+scb_17	equ	scb+(0B3h-09ch)	; Reserved				|
+scb_18	equ	scb+(0B4h-09ch)	; Reserved				|
+scb_19	equ	scb+(0B5h-09ch)	; Reserved				|
+scb_1A	equ	scb+(0B6h-09ch)	; Console Width				|
+scb_1C	equ	scb+(0B8h-09ch)	; Console Page Length			|
+scb_1E	equ	scb+(0BAh-09ch)	; Reserved - Address of text		|
+scb_20	equ	scb+(0BCh-09ch)	; Reserved - Address of text		|
+scb_2C	equ	scb+(0C8h-09ch)	; Page Mode				|
+scb_2D	equ	scb+(0C9h-09ch)	; Reserved				|
+scb_33	equ	scb+(0CFh-09ch)	; Console Mode (2 bytes)		|
+scb_37	equ	scb+(0D3h-09ch)	; Output Delimiter			|
+scb_3E 	equ	scb+(0DAh-09ch)	; Current Disk				|
+scb_44 	equ	scb+(0E0h-09ch)	; Current User Number			|
+scb_4A 	equ	scb+(0E6h-09ch)	; BDOS Multi-Sector Count		|
+scb_4B 	equ	scb+(0E7h-09ch)	; BDOS Error Mode			|
+scb_4C	equ	scb+(0E8h-09ch)	; Drive Search Chain (4 bytes)		|
+scb_50	equ	scb+(0ECh-09ch)	; Temporary File Drive			|
+scb_5D	equ	scb+(0F9h-09ch)	; Common Memory Base Address (2 bytes)	|
+scb_62	equ	scb+(0FEh-09ch)	; Reserved (2 bytes) OS Base Address	|
+;-----------------------------------------------------------------------|
+; scb_17 bit flags 							|
+; Bit 0 - Set by BDOS if submit file $$$.SUB is on directory		|
+;       - Cleared when file $$$.SUB is deleted				|
+; Bit 1 - Loader Sets if COM program starts with a RET			|
+;	 (GENCOM defines NULL COM program)				|
+; Bit 2 - Set as part of CCP SCB initialisation				|
+; Bit 6 - Set if COM program starts with a RET				|
+;       - Cleared before calling LOADER FUNCTION 59 - LOAD OVERLAY	|
+;	  if BIT 7 set							|
+;	- If set USER set to current not default			|
+;	- and DISK set to current disk not 0FFH				|
+; Bit 7 - Set by BDOS FUNCTION 47, and use command line at 0080h	|
+;       - Cleared before calling LOADER FUNCTION 59 - LOAD OVERLAY	|
+;-----------------------------------------------------------------------|
+; scb_18 bits								|
+; Bit 3-4 = 00 - No TYPE assumed					|
+;         = 01 - ASSUME COM if none specified				|
+;         = 10 - ASSUME SUB if none specified				|
+;         = 11 - ASSUME PRL if none specified				|
+; Bit 5   - If set CCP resets disk					|
+;         - Set before CCP prompt, Cleared after CCP line entered	|
+; Bit 6   - If set CCP does not copy SCB_2D to SCB_2C (Page Mode)	|
+; Bit 7   - Set before CCP prompt, Cleared after CCP line entered	|
+;         - except cleared before CCP line read if SCB_1E/1F contains	|
+;	  - valid text address from SCB_15/16 (multiple line RSX)	|
+;-----------------------------------------------------------------------|
+; scb_19 bits								|
+; Bit 0 - Set if submit file active					|
+; Bit 1 - Set after first time CCP loaded (first time PROFILE.S run)	|
+;-----------------------------------------------------------------------|
+; scb_10 (word)								|
+;  - Cleared to 0000H before calling BDOS FUNCTION 59 if		|
+;    SCB_17 BIT 7 zero							|
+;-----------------------------------------------------------------------|
+
+;----------------------
+; CCP program entry and
+; Start of LOADER RSX
+;----------------------
+	cseg
+CCP:	jp	START
+	ds	3
+LOADER:	jp	LOAD_MAIN	; RSX START
+nx_rsx:	jp	BDOS+1		; RSX NEXT
+pr_rsx:	DW	BDOS+2		; RSX PREV
+	DB	0,0		; RSX REMOVE & NONBANK FLAGS
+	DB	'LOADER  '	; RSX NAME
+	DB	0FFH		; RSX LOADER FLAG
+	DB	0,0		; RSX RESERVED AREA
+LOAD_MAIN:
+	ld	a,c
+	cp	59		; BDOS Load Overlay
+	jp	nz,nx_rsx
+;-----------------------------------------------------------------------;
+; (BDOS) FUNCTION 59 - LOAD OVERLAY (COM or PRL with or without RSX)	;
+;-----------------------------------------------------------------------;
+; On entry:								; 
+;	 C = 3BH							;
+;	DE = 'opened' FCB with bytes R0 R1 -> load address, or		;
+;	   = 0000h							;
+;	(SP) = 0100H if loaded by CCP.COM				;
+; If DE = 0000h, then no file read, but RSX'S deleted			;
+; If (SP) = 0100h and loaded file does not contain RSX'S, then		;
+;	jump vector at 6,7 and at SCB offset 99 moved above loader	;
+; Returns:								;
+; If (SP) = 0100H, then executes loaded program if successful		;
+;                    or displays error message and warm boots		;
+; if (SP) ^= 0100H, then 						;
+;        A = 00H if successful						;
+;        A = 0FEH if bad address or no memory				;
+;        A = 0FFH if physical error and extended errors enabled		;
+; NB If the program loaded overlays the calling program, then the	;
+; address in the stack (SP) should be set to a valid (i.e. 0100H)	;
+; address.								;
+;-----------------------------------------------------------------------;
+
+	pop	bc		; <BC> = return address
+	push	bc
+	ld	hl,0
+	add	hl,sp
+	ld	sp,load_sp
+	ld	(save_sp),hl
+	push	bc		; Place CALLERS return address on STACK
+	ex	de,hl
+	ld	(save_de),hl
+	ld	a,h
+	or	l
+	push	af
+	call	z,era_rsx	; if DE = 0 then erase RSX's
+	pop	af
+	call	nz,load_ovly	; DE > 0
+	pop	de		; recover CALLERS address from stack
+	ld	hl,tpa
+	ld	a,(hl)
+	cp	0C9H		; Test for RSX at 0C9H
+	jp	z,load_GENCOM
+
+	ld	a,d		; test for return address of 0100H
+	dec	a
+	or	e
+	jp	nz,ret_ok	; -no-
+
+	ld	a,(pr_rsx + 1)	; test for RSX loaded
+	or	a		; by testing HIGH (6,7)
+	jp	nz,ret_ok	; -yes-
+
+;----------------------------
+; 'REMOVE' loader from TPA as
+; 1. Return address = 0100H
+; 2. and no RSX loaded
+;----------------------------
+	ld	hl,(nx_rsx+1)
+	ld	(BDOS+1),hl
+	ld	(OS_BASE),hl
+	call	set_62
+;--------------------------
+; load operation successful
+; Return A = 0 & H = 0
+;--------------------------
+ret_ok:	ld	hl,(save_sp)
+	ld	sp,hl
+	xor	a
+	ld	l,a
+	ld	h,a
+	ret			; This may return to loaded program
+
+;--------------------------
+; load operation failed
+; Return A = FEH & H = 0
+; or as in DE
+;--------------------------
+mem_err:
+	ld	de,00FEH	; bad load address or no memory
+err_load:
+	ld	hl,(save_sp)
+	ld	sp,hl
+	pop	hl
+	push	hl
+	dec	h
+	ld	a,h
+	or	l
+	ex	de,hl
+	ld	a,l
+	ld	b,h
+	ret	nz		; return if return address not 0100H
+
+Bad_load:
+	ld	c,9		; Print String
+	ld	de,msg_bl
+	call	BDOS
+	jp	WBOOT
+
+;---------------------------------------
+; LOAD RSX
+; File containing an RSX is preceeded
+; with a header record created by GENCOM
+;---------------------------------------
+load_RSX:
+	inc	hl		; GENCOM_16+2
+	ld	c,(hl)
+	inc	hl		; GENCOM_16+3
+	ld	b,(hl)		; BC = length of MODULE
+	ld	a,(sav_scb_5E)	; test HIGH COMMON BASE
+	or	a
+	jp	z,l_rsx1	; -unbanked system-
+	inc	hl		; GENCOM_16+4
+	inc	(hl)
+	jp	z,l_rsx2
+l_rsx1:	push	de		; save GENCOM_16+0 word
+	call	top_less_b	; return DE = load address for RSX
+	pop	hl
+	call	page_reloc	; from HL to DE length BC
+	call	init_rsx
+l_rsx2:	pop	hl		; recover next 16 byte header
+
+load_GENCOM:
+	ld	de,16		; offset in GENCOM header
+	add	hl,de
+	push	hl
+	ld	e,(hl)		; GENCOM_16+0 word
+	inc	hl
+	ld	d,(hl)
+	ld	a,e
+	or	d
+	jp	nz,load_RSX
+	call	tpa + 0003H	; what does this do ? - Sets SCB etc.
+	ld	a,(tpa+0100h)
+	cp	0C9H		; test for COM program having a RET
+	jp	nz,l_gen1
+	ld	hl,(PTR_SCB)
+	ld	l,scb_17
+	ld	a,(hl)
+	or	00000010B	; yes so set scb_17 bit1
+	ld	(hl),a
+l_gen1:	ld	hl,(TPA+1)	; length to load
+	ld	b,h
+	ld	c,l
+	ld	hl,tpa+0100h
+	ld	de,tpa
+	call	ldir
+	jp	ret_ok
+
+;----------------------------
+; Initialise RSX header items
+;----------------------------
+init_rsx:
+	ld	hl,(BDOS+1)	; address of next RSX or this LOADER
+	ld	l,0
+	ld	bc,6		; copy serial number into RSX
+	call	ldir
+	ld	e,018H		; set RSX offset LOADER FLAG
+	ld	(de),a		; = 0
+	ld	e,00DH		; set RSX offset PREV HIGH
+	ld	(de),a		; = 0
+	dec	de		; set RSX offset PREV LOW
+	ld	a,7		; (i.e. into page zero)
+	ld	(de),a		; = 7
+	ld	l,e
+	ld	e,00BH
+	ld	(hl),e		; set NEXT RSX PREV LOW = 00BH
+	inc	hl
+	ld	(hl),d		; set NEXT RSX PREV HIGH = HIGH RSX
+link_rsx:
+	ex	de,hl
+	ld	(hl),d		; set RSX OFFSDET NEXT HIGH = HIGH NEXT RSX
+	dec	hl
+	ld	(hl),6		; set RSX OFFSDET NEXT LOW = 06H
+enable_rsx:
+	ld	l,6
+	ld	(BDOS+1),hl	; set page zero to point to RSX
+	ld	(OS_BASE),hl	; and dont forget this as well
+set_62:
+	ld	de,scb_62_pb	; set SCB (6,7) to HL
+ld_scb:	ld	c,49		; Get/Set SCB
+	jp	BDOS
+
+;---------------------------
+; Remove any removable RSX's
+;---------------------------
+era_rsx:
+	ld	hl,(BDOS+1)
+	ld	b,h
+nxt_rsx:
+	ld	h,b
+	ld	l,018H		; test byte at offset 0018H in BDOS
+	inc	(hl)		; this is RSX loader flag
+	dec	(hl)
+	ret	nz		; and is 0FFH for loader, 0 for any other RSX
+; Have RSX
+	ld	l,00BH		; HIGH next RSX module
+	ld	b,(hl)		; fetch HIGH byte at offset 000BH
+	ld	l,00EH		; REMOVE FLAG
+	ld	a,(hl)		; if 0FFH then removed from memory
+	or	a
+	jp	z,nxt_rsx	; dont remove
+; Remove RSX from MEMORY
+	ld	l,00CH		; LOW previous module
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)	; <DE> = address of previous RSX module or 00007H
+	ld	a,b		; B = HIGH address of next RSX
+	ld	(de),a	
+	dec	de
+	ld	a,6		; LOW address is always 06H
+	ld	(de),a
+	inc	de
+	ld	h,b
+	ld	l,00CH		; set PREV of next RSX to PREV address
+	ld	(hl),e
+	inc	hl
+	ld	(hl),d
+	ld	a,d
+	or	a		; test for PREV -> ZERO PAGE
+	push	bc
+	call	z,enable_rsx	; YES
+	pop	bc
+	jp	nxt_rsx
+
+;-------------------------------------
+; Load overlay from FCB already opened
+;-------------------------------------
+load_ovly:
+	push	hl
+	ld	de,scb_3c_pb
+	call	ld_scb		; Get Current DMA address
+	ex	de,hl
+	pop	hl
+	push	hl		; save FCB
+	ld	bc,32
+	add	hl,bc
+	ld	(hl),0		; set FCB_CR = 0
+	inc	hl
+	ld	c,(hl)		; r0
+	inc	hl
+	ld	h,(hl)		; r1
+	ld	l,c		; hl = load address
+	dec	h
+	inc	h
+	jp	z,mem_err	; r1 = 01h
+	push	hl		; save load address
+	push	de		; save current DMA address
+	push	hl
+	call	set_scb_4A	; BDOS Multi-Sector Count
+	pop	hl
+	push	af		; save previous Multi-Sector Count
+	ld	e,128		; maximum number of sectors
+load_more:
+	ld	a,(BDOS+2)
+	dec	a		; A = page below BDOS
+	sub	h
+	jp	c,load4		; Load PAGE is > BDOS
+	inc	a
+	cp	040H
+	jp	nc,load2	; Load PAGE is > 16K of BDOS
+	rlca			; Load PAGE is within 4000H of BDOS
+	ld	e,a		; Set Multi Sector count = pages * 2
+	ld	a,l
+	or	a
+	jp	z,load2		; if L = 0 Set Multi Sector count = pages * 2
+	ld	b,2
+	dec	a
+	jp	m,load1		; L is 2 sector lengths
+	dec	b		; L is 1 sector length
+load1:	ld	a,e
+	sub	b
+	jp	z,load4		; Load address overlaps BDOS
+	ld	e,a		; Set Multi Sector count = pages * 2 - B
+load2:	push	de
+	push	hl
+	call	put_scb_4A	; BDOS Multi-Sector Count
+	pop	hl
+	push	hl
+	call	ms_read
+	pop	hl
+	pop	de		; Recover Multi Sector count used
+	push	af		; save error code
+	ld	a,e
+	inc	a
+	rra
+	add	a,h
+	ld	h,a		; adjust H by sectors read
+	ld	(top_ovly),hl	; (ASSUMES WHOLE PAGES)
+	pop	af
+	jp	z,load_more	; no errors
+load3:	pop	bc		; recover previous Multi-Sector Count
+	dec	a		; error code at EOF
+	ld	e,b
+	call	put_scb_4A	; BDOS Multi-Sector Count
+	ld	c,26		; Set DMA address
+	pop	de		; recover previous current DMA address
+	push	af
+	call	BDOS
+	pop	af
+	ld	hl,(phys_err)
+	ex	de,hl
+	jp	nz,err_load	; not at EOF
+	pop	de		; recover load address
+	pop	hl		; recover FCB
+	ld	bc,9		; offset to file type
+	add	hl,bc
+	ld	a,(hl)
+	and	07FH		; mask attribute bit
+	cp	'P'
+	ret	nz
+	inc	hl
+	ld	a,(hl)
+	and	07FH
+	cp	'R'
+	ret	nz
+	inc	hl
+	ld	a,(hl)
+	and	07FH
+	sub	'L'
+	ret	nz
+;-----------
+; loaded PRL
+;-----------
+	ld	a,e		; load address
+	or	a		; must be on page boundary
+	jp	nz,mem_err
+	ld	h,d
+	ld	l,e
+	inc	hl
+	ld	c,(hl)
+	inc	hl
+	ld	b,(hl)		; BC = program size
+	ld	l,e
+;------------------------
+; Page relocation
+; HL -> PRL type header
+; DE -> load address
+; BC -> length of program
+;------------------------
+page_reloc:
+	inc	h		; to start of page
+	push	de		; load address
+	push	bc		; program size
+	call	ldir
+	pop	bc
+	pop	de
+	push	de		; load address
+	ld	e,d
+	dec	e
+	push	hl		; start of bit map
+	ld	h,e		; H = load address - 01h (page relocation)
+	ld	e,0		; DE = load address
+prl_bit:
+	ld	a,b
+	or	c
+	jp	z,done_prl	; length of program
+	dec	bc		; -1
+	ld	a,e
+	and	7
+	jp	nz,prl_bit1
+	ex	(sp),hl
+	ld	a,(hl)		; hl -> bit map
+	inc	hl
+	ex	(sp),hl
+	ld	l,a
+prl_bit1:
+	ld	a,l
+	rla
+	ld	l,a
+	jp	nc,prl_bit2	; 0 = no page relocation
+	ld	a,(de)
+	add	a,h		; relocate by H
+	ld	(de),a
+prl_bit2:
+	inc	de
+	jp	prl_bit
+done_prl:
+	pop	de
+	pop	de
+	ret
+
+load4:	call	set_scb_4A	; BDOS Multi-Sector Count
+	ld	hl,SET_CMD
+	call	ms_read
+	jp	nz,load3
+	ld	hl,00FEH
+	ld	(phys_err),hl
+	jp	load3
+
+;-----------------------------------------------------------------------
+; Return DE -> address of page BC bytes below page address at 0007h
+; also checks that page  not less than 0F00H and not less than top_ovly
+;-----------------------------------------------------------------------
+top_less_b:
+	ld	a,(BDOS+2)
+	dec	a
+	dec	bc
+	sub	b
+	inc	bc
+	cp	00FH
+	jp	c,Bad_load
+	ld	hl,(top_ovly)
+	cp	h
+	jp	c,Bad_load
+	ld	d,a
+	ld	e,0
+	ret
+
+ldir:	ld	a,b
+	or	c
+	ret	z
+	dec	bc
+	ld	a,(hl)
+	ld	(de),a
+	inc	de
+	inc	hl
+	jp	ldir
+
+set_scb_4A:
+	ld	e,1		; set Multi-Sector Count to 1
+put_scb_4A:
+	ld	hl,(PTR_SCB)
+	ld	l,scb_4A
+	ld	a,(hl)		; BDOS Multi-Sector Count
+	ld	(hl),e		; set to <E>
+	ret			; returns previous value in <A>
+
+ms_read:
+	ex	de,hl
+	ld	c,26		; Set DMA address
+	push	hl
+	call	BDOS
+	ld	c,20		; Read Sequential
+	ld	hl,(save_de)
+	ex	de,hl
+	call	BDOS
+	ld	(phys_err),hl
+	pop	de		; recover E = multi sector count
+	or	a
+	ret	z
+	ld	e,h		; set E = sectors read
+	ret
+
+msg_bl:	DB	cr		; p.s. this message is not correctly terminated
+	DB	lf
+	DB	'Cannot load Program 221282  COPYR ''82 DRI '
+	DS	14
+PTR_SCB:	DW	00000H
+sav_scb_5E:	DB	000H	; HIGH common page (0000 = unbanked)
+
+scb_3c_pb:
+	DB	03CH
+	DB	000H		; GET current DMA address
+
+scb_62_pb:
+	DB	062H		; SET OS_BASE in reserved area
+	DB	0FEH		; (word)
+	;continues overlaying bit map 	  
+
+;----------------------------;
+; PRL BIT map for loader RSX ;
+;----------------------------;
+BITMAP	equ	$
+
+	DB	00H,80H,00H,00H,80H,48H,41H,10H
+	DB	04H,12H,24H,12H,40H,08H,00H,10H
+	DB	00H,88H,44H,48H,00H,20H,04H,80H
+	DB	00H,09H,00H,20H,00H,00H,01H,20H
+	DB	00H,00H,10H,00H,00H,11H,12H,00H
+	DB	00H,41H,00H,10H,40H,82H,08H,21H
+	DB	00H,22H,08H,01H,10H,00H,00H,00H
+	DB	20H,01H,00H,04H,08H,01H,02H,08H
+	DB	24H,12H,00H,24H,40H,00H,84H,00H
+	DB	02H,04H,00H,00H,00H,00H,00H,00H
+	DB	00H,00H,00H,1AH,1AH,1AH,1AH,1AH
+	DB	1AH,1AH,1AH,1AH,1AH,1AH,1AH,1AH
+	DB	1AH,1AH,1AH,1AH,1AH,1AH,1AH,1AH
+	DB	1AH,1AH,1AH,1AH
+
+;--------------------------
+; Data Area overlays BITMAP
+;--------------------------
+
+OS_BASE		equ	BITMAP		; lowest of RSX_E or LOADER_E or BDOS_E
+top_ovly	equ	OS_BASE + 2	; Location above top of overlay loaded
+save_de		equ	top_ovly + 2	; save callers DE here
+save_sp		equ	save_de + 2	; save callers SP here
+phys_err	equ	save_sp + 2	; save BDOS physical error here (WORD)
+load_stack	equ	phys_err + 2
+load_sp		equ	load_stack + 32	; 16 levels of stack
+
+;--------------- end of loader program (page boundary) ----------------------
+
+
+	ds	10
+
+patch:	jp	z,c_not4	; NULL character
+	cp	' '		; SPACE
+	jp	z,c_not4
+	cp	9		; TAB
+	jp	z,c_not4
+	jp	c_nxt4
+
+;---------------------
+; Start of CCP process
+;---------------------
+START:	ld	sp,Top_sp
+	ld	hl,ccp_prompt
+	push	hl
+
+	ld	de,SCB_3A	; SCB_PB to get word at offset 3A
+	ld	c,49		; Get/Set SCB
+	call	BDOS
+	ld	(PTR_SCB),hl	; save base address of SCB
+
+	ld	l,scb_5D+1	; HIGH common page
+	ld	a,(hl)
+	ld	(sav_scb_5E),a
+	ld	l,xscb08+1	; Data 3 bytes BELOW SCB - HIGH BDOSE
+	ld	a,(hl)
+	ld	(bdos_pg),a
+
+	ld	a,(BDOS+2)	; Does zero page
+	sub	(hl)		; point to BDOSE
+	jp	nz,rdy59	; -no- so RSX's and/or loader RSX are present
+;---------------------------
+; Relocate loader below BDOS
+;---------------------------
+	ld	bc,BITMAP-CCP
+	call	top_less_b	; NB this tests TOP_OVLY - currently bit map
+	ld	h,e		; (returns E = 0, & D = page)
+	ld	l,e
+	call	page_reloc	; from HL to DE length BC
+	ld	hl,(BDOS+1)
+	ld	l,e
+	ld	c,6
+	call	copy_c		; copies serial number
+	ld	e,00BH
+	call	link_rsx
+
+rdy59:
+	ld	c,98		; Free temporary blocks
+	call	BDOS
+
+;------------------------
+; Read and initialise SCB
+;------------------------
+	ld	b,scb_1A
+	call	get_scb		; Return A = Console Width (base 0)
+	inc	a		; +1
+	rrca			; /2
+	rrca			; /4
+	rrca			; /8
+	rrca			; /16
+	and	00FH
+	ld	de,mod_scb_1A
+	ld	(de),a		; number of 16 byte fields in console width
+	ld	l,scb_1C
+	ld	a,(hl)		; Console Page Length
+	dec	a
+	inc	de
+	ld	(de),a
+	xor	a
+	inc	de
+	ld	(de),a		; set y_curs to zero
+
+	ld	a,'$'		; Default terminator
+	inc	de
+	ld	(de),a
+
+	ld	l,scb_37
+	ld	(hl),a
+	ld	l,scb_4A
+	ld	(hl),1		; Default Multi Sector Count
+	inc	hl
+	xor	a
+	ld	(hl),a		; scb_4B Disk error mode
+	ld	l,scb_33
+	ld	(hl),1		; Default Console Mode
+	inc	hl
+	ld	(hl),a		; 2nd byte
+	ld	l,scb_05
+	ld	(hl),031H	; CP/M version number
+	ld	l,scb_18
+	ld	a,(hl)
+	and	00100000B
+	ld	c,13		; Reset Disk System
+	push	hl
+	call	nz,BDOS		; if scb_18 bit 5 set
+	pop	hl
+	ld	l,scb_17
+	ld	a,(hl)
+	and	00000010B	; test for NULL COM file loaded
+	push	hl
+	call	z,era_rsx	; -NO-
+	pop	hl
+	ld	a,(hl)		; scb_17
+	and	11111101B	; clear NULL COM file flag
+	ld	(hl),a		; scb_17
+	and	01000000B	; Test BIT 6
+	push	hl
+	ld	l,scb_14
+	ld	bc,user
+	ld	d,h
+	ld	e,scb_44
+	ld	a,(de)		; Current User number
+	ld	(bc),a
+	ld	a,(hl)		; Default User number
+	jp	nz,cr_usr	; If SCB_17 bit 6 set, set USER = current
+	ld	(bc),a		; else set USER = default user no
+cr_usr:
+	ld	(de),a		; Set Current to Default User number
+	inc	bc
+	ld	e,scb_3E
+	ld	a,(de)		; Current Disk
+	jp	nz,cr_disk	; SCB_17 bit 6 set set DISK = current
+	ld	a,0FFH		; else to 0FFH
+cr_disk:
+	ld	(bc),a		; Set DISK = current or 0FFH
+	dec	hl		; SCB_13
+	inc	bc
+	ld	a,(hl)
+	ld	(bc),a		; Set USE_DSK to default disk
+	ld	(de),a		; Set Current to Default Disk number
+
+	ld	l,scb_50
+	inc	bc
+	ld	a,(hl)
+	ld	(bc),a		; Temporary disk (0 = default)
+
+	pop	hl
+	ld	a,(hl)		; scb_17
+	and	10000000B	; test for BDOS FUNCTION 47 - Program chain
+	jp	z,test_19	; -no-
+
+;---------------------------------
+; BDOS FUNCTION 47 - Program chain
+;---------------------------------
+	ld	hl,SET_CMD	; Read CCP command from default buffer
+copy_cmd:
+	ld	de,c_buff+1
+	ld	c,127		; copy 127 bytes even though command terminate
+	ld	a,c		; by a NULL
+	ld	(de),a
+	inc	de
+	call	copy_c		; copy command line from buffer
+	jp	command_line		; and process
+
+;---------------------
+; Test for PROFILE.SUB
+;---------------------
+test_19:
+	ld	l,scb_19
+	ld	a,(hl)
+	and	00000010B	; test for first time load
+	jp	nz,no_chain
+	ld	a,(hl)	; scb_19
+	or	00000010B	; set not first time load
+	ld	(hl),a
+	ld	(sav_scb_19),a	; and save locally
+	ld	hl,prof_s
+	jp	copy_cmd
+
+prof_s:	DB	'PROFILE.S'
+	DB	000H		; terminator
+
+no_chain:
+quit:	call	set_scb_18	; Return HL -> scb_18 after setting bits 5&7
+	call	crlf
+;----------------------------------------
+; Start of CCP-PROMPT procedure
+; leading to > and request of CCP command
+;----------------------------------------
+ccp_prompt:
+	ld	hl,Top_sp-2
+	ld	sp,hl
+	xor	a
+	ld	(y_curs),a
+	ld	hl,ccp_prompt
+	push	hl
+	call	set_scb_18	; Return HL -> scb_18 after setting bits 5&7
+	dec	hl
+	ld	a,(hl)		; scb_17
+	and	1
+	jp	z,show_prompt
+;------------------------------------------;
+; $$$.SUB file present as scb_17 bit 0 set ;
+;------------------------------------------;
+	ld	de,c_buff+1
+	call	set_dma
+	ld	c,15		; BDOS Open File
+	call	BDOS_dol	; NB FCB.CR is uninitialised
+;*****	jp	nz,no_sub	; -no file-
+	ld	c,11		; BDOS Get Console Status
+	call	z,BDOS_dol	; (why not call bdos_tst)
+	jp	nz,quit_sub	; character entered or no file
+	ld	hl,sub_fcb + 35
+	ld	(hl),a		; R2=0
+	dec	hl
+	ld	(hl),a		; R1=0
+	dec	hl
+	push	hl
+	ld	a,(sub_fcb + 15)
+	dec	a
+	ld	(hl),a		; R0=RC-1
+	ld	c,33		; BDOS Read Random
+	call	p,BDOS_dol	; if RC > 0
+	pop	hl
+	dec	(hl)		; R0 = R0 -1
+	ld	c,19		; BDOS Delete File
+	call	m,BDOS_dol	; if R0 < 0 
+	or	a
+quit_sub:
+	push	af		; ZF result of OPEN/READ or DELETE
+	ld	c,99		; BDOS Truncate File
+	call	BDOS_dol	; to R0,R1,R2
+	pop	af
+	jp	z,command_line	; $$$.SUB record read
+NO_SUB:
+	ld	bc,scb_17 SHL 8 + 00000001B
+	call	clr_scb		; clear $$$.SUB flag
+	ld	c,19		; BDOS Delete File
+	call	BDOS_dol	; if it exists
+
+;--------------------------------------
+; Display CCP prompt and wait for input
+;--------------------------------------
+show_prompt:
+	ld	a,(user)
+	or	a
+	call	nz,dsp_usr
+	call	vdu_cr_dsk
+	ld	a,'>'
+	call	vdu_out
+	ld	de,scb_15 SHL 8 + scb_1E
+	call	copy2SCB	; copy scb_15/16 to scb_1E/1F
+	or	a		; test scb_16
+	push	af
+	ld	bc,scb_18 SHL 8 + 10000000B
+	call	nz,clr_scb	; clear scb_18 bit 7
+	call	get_con_buff
+	call	clr_scb_18	; clear scb_18 bits 5&7
+	pop	af
+	call	nz,CCP_RSX	; multiple line is in RSX
+;------------------------;
+; command line in c_buff ;
+;------------------------;
+command_line:
+	call	tst_scb_18	; test SCB_18 bit 6
+	jp	nz,command_line1
+	ld	l,scb_2D
+	ld	a,(hl)
+	dec	hl
+	ld	(hl),a		; copy scb_2D to scb_2C
+command_line1:
+	ld	l,scb_2C
+	ld	a,(hl)
+	ld	(sav_scb_2C),a
+	call	scan_ccp
+	ret	z
+	ld	de,fcb1usr
+	call	command
+
+	ld	a,(fcb1_t)
+	cp	' '		; is file TYPE a blank
+	jp	nz,go_command	; -no-
+
+	ld	hl,fcb1usr
+	ld	a,(hl)		; test if user number specified
+	inc	hl
+	or	(hl)		; or drive specified
+	inc	hl
+	ld	a,(hl)		; 1st character in file name
+	jp	nz,colon	; -yes-
+
+; no drive or user specified so scan BUILT IN commands first
+
+	ld	hl,CCP_BI	
+	ld	de,fcb1_n	; start of FILENAME
+	ld	a,(fcb1_N+2)	; 3rd character
+	cp	' '+1		; test for non blank
+	call	nc,cmp_set	; -YES-
+	jp	nz,command_type	; less then 3 char or not B.I.
+	ld	a,(flag_5B)	; open square bracket flag
+	or	a
+	ld	a,b		; BI function found
+	ld	hl,(ptr_line)
+	ld	(ptr_bi),hl
+	ld	hl,BI_PROC
+	jp	z,jp_hl_a	; no square bracket - execute B.I.F.
+	cp	4		; test for DIR TYPE ERASE RENAME
+	jp	c,go_XBI	; -yes- execute COM file
+; Perhaps USER and DIRS may exist as PRL'S (from MP/M maybe)
+	ld	hl,fcb1_N+3	; 4th character in filename
+; Test for DIRSYS built in function with square bracket
+	jp	nz,command_type	; -no- execute USER COM file
+	ld	(hl),' '	; set to blank for DIRS.S built in filename
+;-------------------------------
+; Search for COM SUB or PRL file
+;-------------------------------
+command_type:
+	ld	bc,scb_18 SHL 8 + 00011000B
+	call	tst_scb
+	jp	z,go_command	; if zero then use file type supplied
+	ld	b,8
+	sub	b
+	jp	z,type_search	; if 01B then try COM followed by SUB
+	ld	b,0		; else try SUB or PRL followed by COM
+type_search:
+	push	bc
+	call	search_type	; use COM SUB or PRL for A = 0, 8 or 16
+	call	load_tp		; load transient prog and go to TPA if ok
+	pop	af
+	call	search_type	; then try COM or SUB for B = 0 or 8
+go_command:
+	call	load_tp		; load transient prog and go to TPA if ok
+	jp	tst_quit
+
+;-----------------------------------------------
+; command contains user number and or drive name
+;-----------------------------------------------
+colon:	cp	' '		; test if file name specified
+	jp	nz,command_type	; -yes-
+	call	tst_cmd_end	; make sure no more in command line (unless SUB)
+	ld	a,(fcb1usr)
+	sub	1		; test for user number specified
+	jp	c,new_dsk	; -no-
+new_usr:
+	ld	(user),a
+	ld	b,scb_14	; Default User Number
+	call	put_scb
+	call	set_usr		; Current User Number
+new_dsk:
+	ld	a,(fcb1)
+	dec	a		; test for drive number specified
+	ret	m		; -no-
+	push	af
+	call	login_dsk	; BDOS select disk in <A>
+	pop	af
+	ld	(use_dsk),a
+	ld	b,scb_13	; default disk
+	jp	put_scb
+
+;--------------------------
+; CP/M 3 Built-in Commands
+; (also COM filename except
+; for DIRSYS which is DIRS)
+;--------------------------
+CCP_BI:
+	DB	'DIR '
+	db	'TYPE '
+	db	'ERASE '
+	db	'RENAME '
+	db	'DIRSYS '
+	db	'USER '
+	DB	000H
+
+BI_PROC:
+	DW	BI_DIR
+	DW	BI_TYP
+	DW	BI_ERA
+	DW	BI_REN
+	DW	BI_DRS
+	DW	BI_USR
+
+;----------------------------------------------------------------------
+; Display logical disk name
+; CMD_DSK - disk entered from command into zero page FCB (0 -> default)
+; DSK     - disk supplied in A (0 -> default)
+; CR_DSK  - default disk
+;----------------------------------------------------------------------
+vdu_cmd_dsk:
+	ld	a,(SET_FCB)
+vdu_dsk:
+	dec	a
+	jp	p,vdu_dsk1
+vdu_cr_dsk:
+	ld	a,(use_dsk)
+vdu_dsk1:
+	add	a,'A'
+	jp	vdu_a
+
+;------------------------------------------------------------
+; BUILT IN FUNCTION - DIR - List directory with DIR attribute
+;------------------------------------------------------------
+BI_DIR:	ld	c,0		; t2' match (SYS attribute not set)
+	ld	de,msg_sf
+	jp	BI_DS
+
+;-------------------------------------------------------------
+; BUILT IN FUNCTION - DIRS - List directory with SYE attribute
+;-------------------------------------------------------------
+BI_DRS:	ld	c,080H		; t2' match (SYS attribute set)
+	ld	de,msg_ns
+BI_DS:	push	de
+	call	BI_DS1
+	pop	de
+	jp	z,err_fn
+	ld	a,l
+	cp	b
+	call	nc,crlf
+	ld	hl,BI_D_FLAG	; test flag
+	dec	(hl)
+	inc	(hl)
+	ret	z
+	dec	(hl)		; clear flag
+	jp	lineout		; display message in DE
+
+BI_DS1:	push	bc
+	call	set_def_dma
+	call	get_def_fcb	; returns CF=Z if no FCB returned
+	ld	de,set_fcb+1	; (DE already = 005CH)
+	ld	a,(de)
+	cp	' '
+	ld	b,11
+	call	z,fill_3F
+	call	tst_cmd_end	; make sure no more in command line (unless SUB)
+	call	search_first	; DE -> FCB found
+	pop	bc
+	ret	z		; no FCB found
+	ld	a,(mod_scb_1A)	; number of 16 byte fields in console width
+	ld	l,a
+	ld	b,a
+	inc	b
+BI_DS2:	push	hl
+	ld	hl,10		; offset to T2'
+	add	hl,de
+	ld	a,(hl)
+	pop	hl
+	and	080H		; test for SYS file attribute
+	cp	c		; against <C> (DIR or DIRS)
+	jp	z,BI_DS3	; -yes-
+	ld	a,1
+	ld	(BI_D_FLAG),a	; set SYS/DIR FILES FOUND flag
+	jp	BI_DS4
+
+BI_DS3:	dec	b
+	call	z,crlf_b	; return with B = L
+	ld	a,b
+	cp	l
+	call	z,vdu_cmd_dsk
+	ld	a,':'
+	call	vdu_a
+	call	vdu_bl
+	call	vdu_fn
+	call	vdu_bl
+BI_DS4:	push	bc
+	push	hl
+	call	console_abort
+	call	search_next
+	pop	hl
+	pop	bc
+	jp	nz,BI_DS2
+	inc	a
+	ret
+
+;------------------------------------------------------------
+; BUILT IN FUNCTION - TYPE - Display file in ASCII on console
+;------------------------------------------------------------
+BI_TYP:	ld	hl,quit
+	push	hl
+	call	get_def_fcb	; returns DE -> SET_FCB
+	ld	a,128-1		; set pointer in record to E.O.R.
+	ld	(bi_rec_ptr),a	; (this forces read next record)
+	ld	c,15	; BDOS Open File
+	call	BI_bdos
+BI_TYP1:
+	call	console_abort
+	call	type_char
+	ret	nz
+	cp	01AH
+	ret	z
+	call	vdu_out
+	jp	BI_TYP1
+
+;--------------------------------------------------
+; BUILT IN FUNCTION - USER - Set user number (0-15)
+;--------------------------------------------------
+BI_USR:	ld	de,msg_us
+	call	get_tail	; get command tail or prompt for it
+	call	validate_usr
+	ret	z
+	jp	new_usr
+
+;-------------------------------------
+; BUILT IN FUNCTION - ERA - Erase file
+;-------------------------------------
+BI_ERA:	call	get_def_fcb
+	jp	z,BI_ERA1	; no fcb found
+	call	tst_wildcard
+	jp	nz,BI_ERA1	;-none found-
+	ld	de,msg_er
+	call	strout
+	ld	hl,(ptr_tok)
+	ld	c,' '		; Blank terminates string
+	call	vdumsg
+	ld	de,msg_yn
+	call	prompt
+	call	crlf
+	ld	a,l
+	and	01011111B	; mask lower case
+	cp	'Y'
+	ret	nz		; not 'Y' or 'y'
+	or	a
+BI_ERA1:
+	ld	c,19		; BDOS Delete File
+	jp	BI_bdos
+
+;--------------------------------------
+; BUILT IN FUNCTION - REN - Rename file
+;--------------------------------------
+BI_REN:	call	get_def_fcb	; returns DE -> SET_FCB
+	push	af
+	ld	hl,16
+	add	hl,de
+	ex	de,hl
+	push	de		; DE -> 2nd half of FCB
+	push	hl		; HL -> SET_FCB
+	ld	c,16
+	call	copy_c		; copy 1st filename to 2nd half of FCB
+	call	get_def_fcb	; fetch 2nd filename, returns DE = SET_FCB
+	pop	hl		; HL -> SET_FCB	   (2nd filename) 	
+	pop	de		; DE -> SET_FCB+16 (1st filename)
+	call	BI_REN_DSK
+	ld	c,23	; BDOS Rename File
+	pop	af
+BI_bdos:			; if ZF = 0, then no FCB passed
+	push	af
+	call	nz,tst_cmd_end	; make sure no more in command line (unless SUB)
+	pop	af
+	ld	de,SET_FCB
+	ld	b,0FFH
+	ld	h,1
+	call	nz,fdos		; C -> BDOS FNC, DE -> FCB
+	ret	nz		; FCB entered, found and function completed
+	dec	h
+	jp	m,err_fn
+	ld	hl,(ptr_bi)
+	ld	(ptr_line),hl
+;----------------------------------------------------------
+; EXTENDED BUILT IN FUNCTION
+; Load COM file for built in function
+; as either BI command tail contains an open square bracket
+; or BI function failed
+;----------------------------------------------------------
+go_XBI:
+	call	load_tp		; load transient prog and go to TPA if ok
+	call	vdu_fn
+	ld	de,msg_rq
+	jp	err_msg
+
+;------------------------------------------------------------
+; Set disk for source and destination fcb for rename function
+; On entry: DE -> destination filename, HL -> source filename 
+;------------------------------------------------------------
+BI_REN_DSK:
+	ld	a,(de)
+	cp	(hl)
+	ret	z		; ok as both the same
+	or	a
+	ret	z		; ok as destination set to default
+	inc	(hl)
+	dec	(hl)		; test source for default
+	jp	nz,tst_quit	; bad as different and neither default
+	ld	(hl),a		; set source to destination drive
+	ret
+
+tst_wildcard:			; search filename & type for wild card
+	ld	b,8+3
+nxt_wc:	inc	de		; FCB+1
+	ld	a,(de)
+	cp	'?'
+	ret	z
+	dec	b
+	jp	nz,nxt_wc
+	dec	b
+	ret			; return NZ for none
+
+;---------------------------------------------------------------
+; BI_USER - Fetch command tail, or prompt for it if none entered
+; On entry register DE -> prompt message
+;---------------------------------------------------------------
+get_tail:
+	call	ccp_ns		; scan command for start of token
+	ret	nz		; -token found-                  
+	call	strout
+	call	get_con_buff
+	jp	scan_ccp
+
+err_fn:	ld	de,msg_nf
+err_msg:
+	call	lineout
+	jp	ccp_prompt
+
+fn_sub:	DB	000H
+	DB	'SUBMIT  COM'
+
+;-------------------------------------------------------
+; Insert SUBMIT.COM into CCP comand to execute .SUB file
+;-------------------------------------------------------
+SUBMIT:	ld	a,(de)
+	ld	b,scb_0F
+	call	put_scb
+	ld	hl,fn_sub
+	ld	c,12
+	call	copy_c
+	ld	hl,c_buff+1
+	ld	(hl),020H;' '
+	inc	hl
+	ld	(ptr_line),hl
+
+;--------------------------------------------------------------------------
+; Search for COM SUB or PRL file on specified drive or through search chain
+; If successful then load and go to TPA
+;--------------------------------------------------------------------------
+load_tp:
+	ld	de,fcb1_t	; Source string
+	ld	hl,com_sub_prl	; Compare with COM SUB PRL
+	call	cmp_set		; return B = 0, 1 or 2 for COM SUB PRL
+	ret	nz		; not found
+
+	ld	de,fcb1usr
+	ld	a,(de)
+	or	a
+	ret	nz
+
+	inc	de
+	ld	a,(de)
+	ld	c,a
+	push	bc
+	ld	c,0		; Set 0 drives to be search
+	or	a
+	jp	nz,l_tp4
+; search for file on up to 4 drives specified
+	ld	bc,+(scb_4C-1) SHL 8 + 04H	; 4 Drive Search Chain
+	ld	a,(use_dsk)
+	inc	a		; A = drive + 1
+	ld	h,a
+	ld	l,1
+l_tp1:	inc	b
+	dec	c		; decrement drives to be searched
+	ld	a,c
+	push	hl
+	call	p,get_scb
+	pop	hl
+	or	a
+	jp	m,l_tp6		; not found as no more drives to search
+	jp	z,l_tp2
+	cp	h
+	jp	nz,l_tp3
+l_tp2:	ld	a,h
+	dec	l
+	jp	m,l_tp1
+l_tp3:	ld	(de),a
+
+l_tp4:	push	bc
+	push	hl
+	call	open_fcb1		; Open file
+	pop	hl
+	pop	bc
+	jp	z,l_tp1
+
+	ld	bc,scb_18 SHL 8 + 00000011B
+	call	tst_scb
+	jp	z,l_tp5		; dont display file loaded
+	ld	a,(de)		; fcb1 dr
+	call	vdu_dsk
+	ld	a,':'
+	call	vdu_a
+	push	de
+	call	vdu_fn
+	pop	de
+	push	de
+	ld	hl,8
+	add	hl,de
+	ld	a,(hl)		; f8
+	and	080H		; test reserved flag
+	ld	de,msg_u0
+	call	nz,strout	; -set-
+	call	crlf
+	pop	de
+l_tp5:	pop	af		; recover B into A ( 0,1, or 2)
+	ld	hl,type_proc
+;-----------------------------------
+; jump to A'th vector in table at HL
+;-----------------------------------
+jp_hl_a:
+	add	a,a
+	call	a2hl
+	push	de
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	ex	de,hl
+	pop	de
+	jp	(hl)
+
+com_sub_prl:
+	DB	'COM '
+	DB	'SUB '
+	DB	'PRL '
+	DB	000H
+
+type_proc:
+	DW	OVERLY
+	DW	SUBMIT
+	DW	OVERLY
+
+l_tp6:	pop	bc
+	ld	a,c
+	ld	(de),a
+	ret
+
+search_type:	rrca
+	ld	hl,com_sub_prl
+	call	a2hl
+	ld	de,fcb1_t
+	ld	c,3
+	jp	copy_c
+
+;----------------------------------------------------------
+; USE BDOS LOAD OVERLAY to load and execute COM or PRL file
+; On entry DE -> FCB
+; NB this uses parts of loader area for copy of FCB and stack
+;     FCB - page below BDOS + C0H (35 bytes)
+;     SP  - TOP at base page of BDOS (space for 29 bytes)
+;----------------------------------------------------------
+OVERLY:	ld	hl,tpa
+	ld	(tp_base),hl
+
+	ld	hl,(bdos_pg-1)
+	dec	h
+	ld	l,0C0H
+	push	hl		; save address of FCB
+	ld	a,(de)
+	ld	(SET_DR),a
+	ex	de,hl
+	ld	c,35
+	call	copy_c		; copy FCB into top of loader
+
+	ld	hl,sav_scb_19
+	inc	(hl)
+
+	ld	hl,(ptr_line)
+	dec	hl
+	ld	de,SET_CMD+1
+	ex	de,hl
+	ld	(ptr_line),hl	; just in case it dont work
+	call	copy_tail
+	ld	(SET_CMD),a	; length of command tail copied
+
+	call	get_def_fcb	; if password B > 0 & HL -> password
+	ld	(SET_PA1),hl	; save start of 1st password
+	ld	a,b
+	ld	(SET_PL1),a	; set 1st password length
+
+	ld	de,SET_F2
+	call	get_fcb		; if password B > 0 & HL -> password
+	ld	(SET_PA2),hl	; save start of 2nd password
+	ld	a,b
+	ld	(SET_PL2),a	; set 2nd password length
+
+	ld	hl,disk
+	ld	a,(hl)
+	or	a
+	call	p,login_dsk	; BDOS select disk in <A>
+
+	ld	a,(user)
+	call	set_usr
+	add	a,a
+	add	a,a
+	add	a,a
+	add	a,a
+	ld	l,scb_3E
+	or	(hl)
+	ld	(set_dsk),a	; Set zero page DSK & USR
+
+	pop	de		; restore address of FCB
+;---------------------------------------------------------
+; Set stack and initialise for execution starting at 0100H
+; and for RET from TPA program to 0000H
+;---------------------------------------------------------
+	ld	hl,(bdos_pg-1)
+	xor	a
+	ld	l,a
+	ld	sp,hl		; set stack to top of LOADER program
+	ld	h,a
+	push	hl		; top of stack = 0000H
+	inc	h
+	push	hl		; next entry   = 0100H
+	ld	(set_fcb+32),a	; set CR to zero
+	ld	b,scb_33
+	call	put_scb
+	ld	l,xscb		; 12th byte below SCB
+	ld	(hl),a
+	inc	hl
+	ld	(hl),a		; 11th byte below SCB
+	inc	hl
+	ld	(hl),a		; 10th byte below SCB
+	inc	hl
+	ld	(hl),a		;  9th byte below SCB
+
+	ld	l,scb_17
+	ld	a,(hl)
+	and	10000000B	; Bit 7 - Also Set by BDOS FUNCTION 47
+	jp	nz,overl1
+	ld	l,scb_10	; Program Error return code (2 bytes)
+	ld	(hl),a		; set to zero
+	inc	hl
+	ld	(hl),a
+overl1:	ld	a,(hl)
+	and	not 11000000b
+	ld	(hl),a
+	ld	c,59		; Load Overlay (DE -> FCB)
+	jp	BDOS		; and start execution at TPA
+
+;-----------------------------------------
+; output to VDU of character in register A
+;-----------------------------------------
+vdu_out:			; Output to screen
+	cp	00AH		; test for line feed
+	jp	nz,a_out
+	ld	hl,sav_scb_1C	; YES test for bottom of screen
+	ld	a,(hl)
+	inc	hl
+	inc	(hl)
+	sub	(hl)
+	jp	nz,lf_out
+	ld	(hl),a
+	inc	hl
+	ld	a,(hl)
+	or	a
+	ld	de,msg_rt	; Press RETURN to continue
+	call	z,prompt
+	cp	3		; test for CTRL-C
+	jp	z,quit		; yes - QUIT
+	ld	e,cr
+	call	conout
+lf_out:	ld	a,lf
+a_out:	ld	e,a
+conout:	ld	c,2		; Console output
+	jp	BDOS
+
+prompt:	call	strout
+	ld	c,1		; Console Input
+	jp	BDOS
+
+strout:	ld	c,9		; Print String
+	jp	BDOS
+
+get_con_buff:
+	ld	hl,c_buff
+	ld	(hl),0E7H	; (maximum length)
+	ex	de,hl
+	ld	c,10		; Read Console Buffer
+	call	BDOS
+	ld	hl,c_buff+1
+	ld	a,(hl)
+	inc	hl
+	call	a2hl
+	ld	(hl),0		; add NULL to end of string
+	jp	crlf
+
+console_abort:
+	call	conin		; see if anything typed at console
+	ret	z		; -no-
+	jp	quit		; -yes- so abort built in function
+
+conin:
+	ld	c,11		; BDOS Console Status
+	call	bdos_tst	; Call BDOS and TST result
+	ret	z		; -Not ready-
+	ld	c,1		; BDOS Console Input
+	jp	bdos_tst	; Call BDOS and TST result
+
+set_def_dma:
+	ld	de,SET_CMD
+set_dma:
+	ld	c,26		; Set DMA address
+	jp	BDOS
+
+login_dsk:
+	ld	e,a
+	ld	c,14		; Select disk in E
+	jp	BDOS
+
+set_usr:
+	ld	b,scb_44
+	jp	put_scb
+
+open_fcb1:
+	ld	bc,15		; BDOS: Open File
+	ld	de,fcb1
+fdos:	ld	hl,32		; offset to CR
+	add	hl,de
+	ld	(hl),0
+	push	bc
+	push	de
+	ld	a,(de)
+	and	b
+	dec	a
+	call	p,login_dsk	; BDOS select disk in <A>
+	ld	de,psword
+	call	set_dma
+	pop	de
+	pop	bc
+	push	de
+	ld	hl,(PTR_SCB)
+	ld	l,scb_4B
+	ld	(hl),b
+	push	hl
+	call	BDOS
+	pop	de
+	xor	a
+	ld	(de),a
+	ld	a,(use_dsk)
+	ld	e,scb_3E
+	ld	(de),a
+	push	hl
+	call	set_def_dma
+	pop	hl
+	inc	l
+	pop	de
+	ret
+
+search_first:
+	ld	c,17		; Search for first
+	jp	search_fcb
+search_next:
+	ld	c,18		; Search for next
+search_fcb:
+	ld	de,SET_FCB
+	call	BDOS		; Search first/next
+	inc	a
+	ret	z		; -no (more) fcb found
+	dec	a
+	add	a,a
+	add	a,a
+	add	a,a
+	add	a,a
+	add	a,a
+	ld	hl,SET_CMD	; default DMA area
+	call	a2hl
+	ex	de,hl
+	xor	a
+	dec	a
+	ret			; return DE -> FCB found, A > 0
+
+bi_read:	xor	a
+	ld	(bi_rec_ptr),a
+	ld	c,20		; Read Sequential
+	ld	de,SET_FCB
+bdos_tst:
+	call	BDOS		; Call BDOS and TST result
+	or	a
+	ret
+
+BDOS_dol:
+	ld	de,sub_fcb
+	jp	bdos_tst	; Call BDOS and TST result
+
+;---------------------------------------------------------------
+;Scan CCP Command Line for comments, multiple command and blanks
+;---------------------------------------------------------------
+scan_ccp:
+	call	clr_scb_18	; and return <HL> -> byte
+	ex	de,hl
+	xor	a
+	ld	(flag_5B),a
+	ld	hl,c_buff+2
+	call	nxt_ns		; return HL -> to NULL or non blank/tab char.
+	ex	de,hl
+	cp	';'		; test for comment
+	ret	z
+	cp	021H		; test for multiple command as first character
+	jp	z,skip_c
+	cp	':'		; test for colon as first character
+	jp	nz,chr_ok
+	ld	l,scb_10
+	inc	(hl)
+	inc	(hl)
+	jp	z,skip_c	; (+scb_10) was = 0FEH
+	inc	hl
+	inc	(hl)		; test HIGH scb_10 (error return code)
+	ret	z
+skip_c:	inc	de		; skip to next character in CCP command
+chr_ok:	ex	de,hl
+	ld	(ptr_line),hl	; and save
+nxt_ccp:
+	ld	a,(hl)
+	cp	'['		; Test for [
+	jp	nz,not_5B
+	ld	(flag_5B),a	; YES so set flag
+not_5B:	cp	'a'
+	jp	c,not_lc
+	cp	'z'+1
+	jp	nc,not_lc
+	sub	'a'-'A'		; Convert LCASE to UCASE
+	ld	(hl),a
+not_lc:	cp	021H		; explanation mark
+	call	z,multiple	
+	inc	hl
+	or	a
+	jp	nz,nxt_ccp
+;----------------------------------------------------------------------------
+; Move command line pointers passed any spaces or tabs
+; Return Z if end of command NULL founcd
+; Return NZ if character found and set ptr_line and ptr_tok to this character
+; Registers DE and BC unchanged
+;----------------------------------------------------------------------------
+ccp_ns:
+	ld	hl,(ptr_line)	; search for non space or tab
+nxt_ns:	ld	(ptr_line),hl
+	ld	(ptr_tok),hl
+	ld	a,(hl)
+	or	a
+	ret	z		; return Z if NULL found
+	cp	' '
+	jp	z,skip_b
+	cp	9
+	ret	nz		; return NZ if any other character found
+skip_b:	inc	hl
+	jp	nxt_ns
+
+;-------------------------------
+; CCP command line contains an !
+;-------------------------------
+multiple:
+	ld	e,l
+	ld	d,h
+	inc	de
+	ld	a,(de)		; test next character for !
+	cp	021H
+	push	af
+	push	hl
+	call	z,copy_tail	; -yes- replace double !! by single !
+	pop	hl
+	pop	af
+	ret	z		; so quit
+	ld	(hl),0		; make this location into a NULL
+	ex	de,hl
+;--------------------------------------;
+; Create an RSX in the page below BDOS ;
+;--------------------------------------;
+	ld	hl,(BDOS+1)
+	dec	h
+	ld	l,018H		; 'loader' flag (00 for RSX or FF for loader)
+	ld	(hl),a		; but first character goes in here
+	push	hl
+m_rsx1:	inc	hl
+	inc	de
+	ld	a,(de)
+	ld	(hl),a
+	cp	021H
+	jp	nz,m_rsx2
+	ld	(hl),00DH	; replace any further ! by <RETURN>
+m_rsx2:	or	a
+	jp	nz,m_rsx1	; loop till NULL
+	ld	(hl),00DH	; insert <RETURN>
+	inc	hl
+	ld	(hl),a		; before NULL
+
+	ld	l,6
+	ld	(hl),0C3H
+	inc	hl
+	ld	(hl),9
+	inc	hl
+	ld	(hl),h		; initialise RSX+06 to JUMP RSX+09
+	inc	hl
+	ld	(hl),0C3H	; initialise RSX+09 to JUMP
+	ld	l,00EH
+	ld	(hl),a		; initialise RSX+0E to 0 (REMOVE = false)
+	ld	l,a
+	ex	de,hl
+	call	init_rsx	; initialise as for standard RSX
+	ld	hl,(PTR_SCB)
+	ld	l,scb_15
+	pop	de
+	inc	de		; start at RSX+19
+	ld	(hl),e
+	inc	hl
+	ld	(hl),d		; set word at scb_15 to start of RSX line
+	ld	l,scb_12	; and set scb_12 flag non-zero
+	ld	(hl),d
+	xor	a
+	ret
+
+;---------------------------------------------------------;
+; Multiple line RSX existed prior to read of command line ;
+;---------------------------------------------------------;
+CCP_RSX:			; (on entry H -> page of SCB)
+	ld	de,scb_1E SHL 8 + scb_15
+	call	copy2SCB	; Copy scb_1E/1F back to scb_15/16
+	or	a		; test scb_1F
+	ld	de,scb_20 SHL 8 + scb_15
+	call	z,copy2SCB	; -empty so copy scb_20/21 to scb_15/16
+	push	hl
+	call	conin		; and set nz if input
+	pop	hl
+	ld	l,scb_15
+	jp	nz,era_cmd_rsx	; -input-
+	ld	e,(hl)		; LOW scb_15
+	inc	hl
+	ld	d,(hl)		; HIGH scb_15
+	inc	(hl)
+	dec	(hl)		; test for ZERO HIGH page
+	dec	hl
+	jp	z,era_cmd_rsx
+	ld	a,(de)		; start of multiple line command
+	or	a		; test for NULL
+	ret	nz		; -no so ok-
+era_cmd_rsx:			; delete RSX
+	xor	a
+	ld	(hl),a		; LOW scb_15
+	inc	hl
+	ld	(hl),a		; HIGH scb_15
+
+	ld	l,scb_12	; find address of scb
+	ld	h,(hl)		; page address
+	ld	l,00EH		; offset to REMOVE flag
+	dec	(hl)		; set TRUE
+	jp	era_rsx		; and erase
+
+get_def_fcb:
+	ld	de,SET_FCB
+get_fcb:
+	call	ccp_ns		; scan command for start of token
+	push	af
+	call	parse_fcb
+	pop	af
+	ret		   	; ZF = true if no token found    
+
+;-----------------------------------------------
+; parse filename and get result
+; On entry:	DE -> FCB
+;		HL -> start of CCP command token
+; Returns:	B -> length of password or zero if none
+;		HL -> start of password
+;		DE -> FCB
+;-----------------------------------------------
+parse_fcb:
+	ld	(ptr_line),hl	; (CCP_NS also does this)
+	ld	(ptr_tok),hl	; (CCP_NS also does this)
+	push	de
+	ld	de,pfcb152
+	ld	c,152		; Parse Filename
+	call	BDOS		; into P_FCB
+	pop	de
+	ld	a,h
+	or	l		; test for zero
+	ld	b,(hl)		; B = delimiter (or 0CDH for 0000)
+	inc	hl
+	jp	nz,parse1	; NOT ZERO
+	ld	hl,null_tok	; as ZERO set delimeter address to null_tok
+parse1:	ld	a,h
+	or	l		; test for 0FFFFH	
+	jp	nz,parse2	; -NO-
+	ld	hl,null_tok	; as ERROR set delimeter address to null_tok
+	call	tst_quit	; quit if (sav_scb_19) zero
+parse2:	ld	a,b
+	cp	'.'		; test for POINT delimiter
+	jp	nz,not_fs	; -NO-
+	dec	hl		; yes- so go back one character
+not_fs:	ld	(ptr_line),hl	; update start of remainder of line
+	ld	c,16
+	ld	hl,P_FCB	; FCB created
+	push	de
+	call	copy_c		; copy 16 bytes to (DE)
+	ld	de,psword	; (password is only 8 bytes)
+	ld	c,10		; (next 2 bytes are reserved and unknown)
+	call	copy_c		; and copy next 10 bytes to psword
+	pop	de
+	ld	a,(hl)		; reserved area - length of password
+	ld	hl,0
+null_tok	EQU	$-1	; default delimeter address -> 0 (naughty code)
+	or	a		; test reserved byte 26 of P_FCB
+	ld	b,a		; saved byte from reserved area
+	jp	z,parse4
+	ld	hl,(ptr_tok)
+parse3:	ld	a,(hl)
+	cp	';'		; scan field for password
+	inc	hl
+	jp	nz,parse3	; HL -> start of password
+parse4:	ret
+
+;------------------------------------------------
+; extract COMMAND from command line and file FCB1
+;------------------------------------------------
+command:
+	push	de
+	xor	a
+	ld	(de),a		; initialise USER to default
+	inc	de
+	ld	(de),a		; initilaise DR to default
+	inc	de
+	call	ccp_ns		; scan command for start of token
+	ld	hl,(ptr_line)
+	pop	de
+	push	de
+; Test first four characters searching for a colon
+; stop this search when space or tab found
+; abort this search if < 020h found
+	ld	b,4
+c_1st4:	ld	a,(hl)
+	cp	':'
+	jp	z,c_colon
+	or	a
+	jp	patch
+c_nxt4:	dec	b
+	inc	hl
+	jp	nz,c_1st4
+
+c_not4:	pop	de
+	xor	a
+	ld	(de),a
+	ld	hl,(ptr_line)
+c_name:	inc	de
+	ld	a,(de)		; FCB DR
+	push	af
+	call	parse_fcb	; If password B > 0, & HL -> start of password
+	pop	af
+	ld	(de),a		; restore FCB DR
+	ret
+
+c_colon:
+	ld	hl,(ptr_line)
+	ld	a,(hl)
+c_col1:	cp	'0'
+	jp	c,c_col2
+	cp	'9'+1
+	jp	nc,c_col2
+	call	asc2bin
+	pop	de
+	push	de
+	ld	a,(de)
+	or	a
+	jp	nz,c_not4
+	ld	a,b
+	inc	a
+	ld	(de),a
+	jp	c_col3
+c_col2:	cp	'A'
+	jp	c,c_not4
+	cp	'P'+1
+	jp	nc,c_not4
+	pop	de
+	push	de
+	inc	de
+	ld	a,(de)
+	or	a
+	jp	nz,c_not4
+	ld	a,(hl)
+	sub	'A'-1
+	ld	(de),a
+	inc	hl
+c_col3:	ld	a,(hl)
+	cp	':'
+	jp	nz,c_col1
+	inc	hl
+	pop	de
+	jp	c_name
+
+copy2SCB:			; Copy 2 bytes of SCB from offset D to offset E
+	ld	hl,(PTR_SCB)
+	ld	l,d
+	ld	d,h
+	ld	c,2
+copy_c:				; copy C bytes from (hl) to (de)
+	ld	a,(hl)
+	ld	(de),a
+	inc	hl
+	inc	de
+	dec	c
+	jp	nz,copy_c
+	ret
+
+copy_tail:
+	ld	c,0		; Copy from (DE) to (HL)
+nxt_copy:
+	ld	a,(de)
+	ld	(hl),a
+	or	a		; Stop after (DE) = 0
+	ld	a,c		; Return length of copy in C
+	ret	z
+	inc	hl
+	inc	de
+	inc	bc
+	jp	nxt_copy
+
+;--------------------------------
+; Return next character from file
+;--------------------------------
+type_char:	xor	a
+	ld	hl,bi_rec_ptr
+	inc	(hl)		; test 07fH or greater
+	call	m,bi_read	; after open do a read and set flag = 0
+	or	a
+	ret	nz
+	ld	a,(bi_rec_ptr)
+	ld	hl,SET_CMD
+	call	a2hl
+	xor	a
+	ld	a,(hl)		; return next character (ZF=1)
+	ret
+
+tst_scb_18:			; test SCB_18 bit 6
+	ld	bc,scb_18 SHL 8+01000000b
+tst_scb:
+	ld	hl,(PTR_SCB)
+	ld	l,b
+	ld	a,(hl)
+	and	c
+	ret
+
+set_scb_18:			; Set bits 5&7 in scb_18
+	ld	bc,scb_18 SHL 8+10100000b
+	call	tst_scb
+	ld	a,c
+	or	(hl)		; set bits
+	ld	(hl),a
+	ret
+
+clr_scb_18:			; clear bits 5&7 in scb_18
+	ld	bc,scb_18 SHL 8+10100000b
+clr_scb:
+	call	tst_scb
+	ld	a,c
+	cpl
+	and	(hl)		; clear bits
+	ld	(hl),a
+	ret
+
+;---------------------------------
+; Put <A> into SCB byte at low (B)
+;---------------------------------
+put_scb:
+	ld	hl,(PTR_SCB)
+	ld	l,b
+	ld	(hl),a
+	ret
+
+;---------------------------------
+; Get SCB byte at low (B) into <A>
+;---------------------------------
+get_scb:
+	ld	hl,(PTR_SCB)
+	ld	l,b
+	ld	a,(hl)
+	ret
+
+;--------------------------------------------------------------
+; Display string in <DE> followed by cr & lf, return with B = L
+;--------------------------------------------------------------
+lineout:
+	call	strout
+crlf_b:	ld	b,l
+crlf:	ld	a,cr
+	call	vdu_a
+	ld	a,lf
+	jp	vdu_a
+
+;------------------------------------------------------
+; Display User number in decimal with one or two digits
+;------------------------------------------------------
+dsp_usr:
+	sub	10		; Display Number in <A>
+	jp	c,dsp_dig
+	ld	e,'0'
+dsp_ten:
+	inc	e
+	sub	10
+	jp	nc,dsp_ten
+	push	af
+	call	conout
+	pop	af
+dsp_dig:
+	add	a,'0'+10
+	jp	vdu_out
+
+;------------------------------------------------------------------------
+; Display message at HL on screen up to NULL terminator or = C terminator
+;------------------------------------------------------------------------
+vdumsg:	ld	a,(hl)
+	or	a
+	ret	z
+	cp	c
+	ret	z
+	call	vdu_a
+	inc	hl
+	jp	vdumsg
+
+;----------------------------------------------------------------------
+; Test for any more tokens from command line
+; Return if no more, or display the next token followed by '?' and quit
+; Special case: if no more and sav_scb_19 > 0 then return even if more
+;               but with CF = NZ (scb_19 is submit/config flag)
+;----------------------------------------------------------------------
+tst_cmd_end:
+	call	ccp_ns		; scan command for start of token
+	ret	z     		; -no token found-
+tst_quit:
+	ld	hl,sav_scb_19
+	ld	a,(hl)
+	or	a
+	ld	(hl),0		; set (sav_scb_19) zero for next time
+	ret	nz		; (sav_scb_19) not zero
+	ld	hl,(ptr_tok)
+	ld	c,' '		; Blank terminates string
+	call	vdumsg
+	ld	a,'?'
+	call	vdu_out
+	jp	quit
+
+;--------------------------------------------
+; extract user number from command line and
+; validate numeric string in range 0-15
+;--------------------------------------------
+validate_usr:
+	call	ccp_ns		; scan command for start of token
+	ld	hl,(ptr_line)
+	ld	(ptr_tok),hl	; (this is already done in ccp_ns)
+	ret	z	   	; -no token found-
+	ld	a,(hl)
+	cp	'0'
+	jp	c,tst_quit
+	cp	'9'+1
+	jp	nc,tst_quit
+	call	asc2bin
+	ld	(ptr_line),hl	; update pointer to first non numeric
+	or	1
+	ld	a,b
+	ret
+
+;-------------------------------------------------------
+; Convert ASCII input in (HL) into binary number in <B>
+; string terminated by first character outside range 0-9
+; if binary number exceeds 15 - then error
+;-------------------------------------------------------
+asc2bin:
+	ld	b,0
+nxt_no:	ld	a,(hl)
+	sub	'0'
+	ret	c
+	cp	9+1
+	ret	nc
+	push	af
+	ld	a,b
+	add	a,a
+	add	a,a
+	add	a,b
+	add	a,a
+	ld	b,a		; b = b * 10
+	pop	af
+	inc	hl
+	add	a,b
+	ld	b,a
+	cp	15+1
+	jp	c,nxt_no
+	jp	tst_quit
+
+vdu_fn:	inc	de
+	ld	h,8
+	call	vdu_de
+	call	vdu_bl
+	ld	h,3
+vdu_de:	ld	a,(de)
+	and	07FH		; mask parity
+	call	vdu_a
+	inc	de
+	dec	h
+	jp	nz,vdu_de
+	ret
+
+vdu_bl:	ld	a,' '
+vdu_a:	push	bc
+	push	de
+	push	hl
+	call	vdu_out
+	pop	hl
+	pop	de
+	pop	bc
+	ret
+
+a2hl:	add	a,l		; hl = hl + a
+	ld	l,a
+	ret	nc
+	inc	h
+	ret
+
+fill_3F:
+	ld	a,03FH;'?'
+nxt_3F:	ld	(de),a
+	inc	de
+	dec	b
+	jp	nz,nxt_3F
+	or	a
+	ret
+
+;---------------------------------------------------------------
+; Compare filename in DE against HL -> multiple matching strings
+; Returns:	ZF = 1 if match found
+;               A = pattern number found
+; Note: source string may contain blanks (or less) which are not matched
+;---------------------------------------------------------------
+cmp_set:
+	ld	bc,255		; set C to -1
+cmp_set1:
+	push	de
+	push	hl
+cmp_set2:
+	ld	a,(de)
+	and	07FH		; mask parity
+	cp	' ' + 1		; test for blank (or less)
+	jp	c,cmp_set3	; -yes-
+	cp	(hl)		; test against patterns
+	jp	nz,cmp_set4	; -no-
+cmp_set3:
+	inc	de
+	inc	c
+	ld	a,' '		; pattern delimiter
+	cp	(hl)		; test end of pattern
+	inc	hl
+	jp	nz,cmp_set2	; -no-
+	pop	hl
+	pop	de
+	call	copy_c		; copy pattern to 
+	ld	a,b		; return A -> 
+	ret
+
+cmp_set4:
+	ld	a,' '		; pattern delimiter
+cmp_set5:
+	cp	(hl)		; test end of pattern
+	inc	hl
+	jp	nz,cmp_set5	; -no- loop till found
+	pop	de		; (drop HL on stack)
+	pop	de
+	inc	b
+	ld	c,-1
+	ld	a,(hl)		; test end of all patterns
+	sub	1
+	jp	nc,cmp_set1
+	ret			; -yes- return ZF = 0, CF = 1
+
+msg_us:		db	'Enter User #: $'
+msg_nf:		db	'No File$'
+msg_rq:		db	' required$'
+msg_er:		db	'ERASE $'
+msg_yn:		db	' (Y/N)? $'
+msg_rt:		db	cr,lf,cr,lf
+		db	'Press RETURN to Continue $'
+msg_u0:		db	'  (User 0)$'
+
+BI_D_FLAG:	DB	000H	; DIR/DIRS flag set if files found & not listed
+
+msg_ns:		db	'NON-'
+msg_sf:		db	'SYSTEM FILE(S) EXIST$'
+
+sav_scb_19:	DB	0	; Bit 1 set for profile, Bit 0 set by OVERLY
+		db	0,0
+
+SCB_3A:		db	03AH	; Offset within SCB
+		db	000H	; Get
+
+pfcb152:			; Parsed File Control Block
+ptr_line:	DW	00000H	; -> first character in CCP command line
+		DW	P_FCB	; -> target FCB
+
+user:		db	000H
+disk:		db	000H
+use_dsk:	DB	000H
+tmp_dsk:
+sub_fcb:	db	001H
+		db	'$$$     SUB'
+		db	000H
+
+; remainder continues beyond end of file
+
+end_fcb		equ	sub_fcb+35
+mod_scb_1A	EQU	end_fcb + 1	; (screen width+1)/16
+sav_scb_1C	EQU	end_fcb + 2	; max lines on screen - 1
+y_curs		equ	end_fcb + 3	;current line number
+sav_scb_2C	equ	end_fcb + 4	; PAGEing flag 
+ptr_tok		equ	end_fcb + 5	; Pointer to start of token in command line
+ptr_bi		equ	end_fcb + 7	
+bi_rec_ptr	equ	end_fcb + 9	; Pointer in record used by BI_TYPE
+bdos_pg		equ	end_fcb + 10
+flag_5B		equ	end_fcb + 11	; Set > 0 when [ detected
+psword		equ	end_fcb + 12	; 8+2 bytes of password
+fcb1usr		equ	end_fcb + 22	; User + 1, 0 = use default
+fcb1		equ	end_fcb + 23	; Drive + 1, 0 = use default
+fcb1_n		equ	end_fcb + 24	; Filename
+fcb1_t		equ	end_fcb + 32	; Filetype
+tp_base		equ	end_fcb + 56	; OVERLY sets this to 0100H 
+P_FCB		equ	end_fcb + 58	; target FCB (36 bytes)
+
+c_buff		equ	end_fcb + 94	; Max EAH = 1+1+E7+1 bytes
+
+stack		equ	end_fcb + 94 + 236
+
+Top_sp		equ	end_fcb + 94 + 236 + 77
+
+	END
+
+; Last disassembly October 1985 - D. Powys-lybbe
