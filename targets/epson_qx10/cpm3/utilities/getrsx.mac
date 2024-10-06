@@ -1,0 +1,574 @@
+	.z80
+	title	GETRSX - Disassembled RSX part of GET.COM
+
+cr	equ	0dh
+lf	equ	0ah
+eof	equ	1ah
+
+scb_10	equ	256-100+10h	; 0ACH 2 byte program return code
+scb_18	equ	256-100+18h	; 0B4H LOW in SCB for reserved RO area
+scb_33	equ	256-100+33h	; 0CFH 2 byte Console Mode
+
+; Console Mode:
+;	Bit 0	-  If set F11 returns true only if CTRL-C entered
+;	Bit 1	-  Disable stop/start scrolling on function 2, 9 & 111
+;	           Passes CTRL-S, CTRL-Q & CTRL-P on function 1 and 11
+;	Bit 2	-  Disbale tabs & echo on functions 2, 9 & 11
+;	Bit 3	-  Disables CTRL-C interception
+;	bit 8&9	-> GET RSX redirection control
+;	=   0 0	-  Conditional status
+;	=   0 1 -  FALSE status
+;	=   1 0 -  TRUE status
+;	=   1 1 -  No redirection
+;		   In conditional status mode: 
+;		   GET responds false to all status requests
+;		   except for a status call preceded immediately
+;		   by another status call. On the second call GET responds
+;		   with a TRUE result. Thus programs that makes status
+;		   calls periodically to see if the user wants to stop
+;	    	   is not signalled.
+
+
+	cseg
+
+wboot	EQU	00000H
+bdose	EQU	00005H
+
+;------------;
+; RSX HEADER ;
+;------------; 
+		ds	6
+rsx_start:	jp	get_start
+rsx_bdos:	jp	0006H	; CCP loader fills with next address
+rsx_prev:	DW	0007H	; CCP loader fills with previous address
+rsx_remove:	DB	0FFH	; Set to zero to keep RSX
+rsx_nonbnk:	DB	000H
+rsx_name:	DB	'GET     '
+rsx_loader:	db	0	; set to zero by CCP loader
+		db	0,0	; reserved area
+
+
+X011BH:	ld	a,(X03CCH)
+	inc	a
+	ret	z
+	ld	hl,(X03CAH)
+	ex	de,hl
+	ld	hl,(X03C8H)
+	call	X03CDH
+	ret	m
+	ld	hl,(scb_ptr)
+	ld	l,06EH;'n'
+	ld	(hl),0C3H	; Force RET instruction
+	ret	pe
+	ld	l,074H;'t'
+	ld	(hl),0C3H	; Force RET instruction
+	ret
+
+CONST:	ld	bc,4 shl 8 + 11	; Function 11 - CONST
+	jp	bdos_e
+
+D_CONIN:
+	ld	bc,6 shl 8 + 6	; FUnction 6 - Direct I/O
+	ld	e,0FDH		; Return CONSOLE INPUT
+	jp	bdos_e
+
+get_start:
+	ld	hl,X0490H
+	ld	b,0
+	ld	(hl),b
+bdos_e:	pop	hl
+	push	hl
+	ld	a,(rsx_start+2)	; HIGH address of this RSX
+	cp	h		; HIGH return address from BDOS call
+	jp	c,jp_table		; Caller is from even higher address
+	ld	a,c
+	cp	11		; Console input status
+	jp	z,bdos_io
+	cp	6		; Console direct I/O
+	jp	z,bdos_io
+	ld	hl,scb_33_c_status
+	ld	(hl),0		; Set Conditiona status FALSE
+	cp	1		; Console input
+	jp	z,bdos_io
+	cp	10		; Console input buffer
+	jp	z,bdos_io
+	cp	60		; Call RSX
+	jp	z,f60RSX
+	cp	26		; Set DMA
+	jp	nz,jp_table
+	ex	de,hl
+	ld	(save_dma),hl
+	ex	de,hl
+jp_table:
+	ld	a,b
+	ld	hl,table
+	call	hl_a
+	ld	b,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,b
+	jp	(hl)
+
+;-------------------;
+; RSX function call ;
+; 080H - Return address of SCB_PTR
+; 082H - Return address of GET_FCB
+; 081H - 
+; 08CH - 
+;-------------------;
+f60RSX:	ld	a,(de)
+	ld	hl,scb_ptr
+	cp	080H		; RSX function number for GET
+	ret	z
+	ld	a,(rsx_remove)	; test if GET installed
+	or	a
+	jp	nz,jp_table	; -no- Jmp to 'B'th offset in table
+	ld	a,(de)
+	cp	082H		; RSX function number for GET
+	ld	hl,get_fcb
+	ret	z
+	cp	08CH		; RSX function number for get
+rsx_f8C	EQU	$-1
+	jp	nz,f60rsx1
+	ld	hl,X0481H
+	ld	a,081H
+	sub	(hl)
+	ld	(hl),a
+f60rsx1:
+	cp	081H		; RSX function number for GET
+	jp	nz,jp_table
+era_rsx:			; Remove RSX
+	ld	a,(X0481H)	; Unless X0481H is zero
+	or	a
+	ret	z
+	call	X011BH
+	ld	hl,rsx_remove
+	dec	(hl)		; 0 -> 0ffH
+	ex	de,hl
+	ld	hl,(scb_ptr)
+	ld	l,scb_18
+	ld	a,(hl)
+	and	10111111b	; set bit 6 to zero
+	ld	(hl),a
+	ld	a,(bdose+2)	; test if this RSX is at bottom
+	cp	d		; of RSX list
+	ret	nz		; -no-
+	ld	c,59		; BDOS FUNCTION 59 - Load overlay
+	ld	de,0		; Flag to remove all RSX's
+	jp	rsx_bdos
+
+bdos_io:			; BDOS function is i/o
+	ld	a,(rsx_remove)	; Test if RSX in use
+	or	a
+	jp	nz,jp_table	; -no-
+	ld	hl,0
+	add	hl,sp
+	ld	(save_sp),hl
+	ld	sp,stack
+	push	bc
+	push	de
+	call	get_scb_33	; Get SCB_33 Console mode, 2nd byte
+	cp	2		; Test bits 8&9
+	jp	z,get_eof	; -no redirection-
+	ld	a,(X03DAH)
+	or	a
+	ld	l,scb_18	; SCB_18
+	ld	a,(hl)
+	jp	z,bdos_io1
+	and	020H;' '	; Bit 5 - CCP reset disk flag
+	jp	z,bdos_io2
+	ld	hl,X0493H
+	dec	(hl)
+	call	m,era_rsx
+	ld	de,rsx_f8C	; RSX function 8C
+	ld	c,03CH		; RSX BDOS function
+	call	rsx_bdos
+	jp	get_eof
+
+bdos_io1:
+	or	040H;'@'
+	ld	(hl),a		; Set bit 6 of SCB_18
+	ld	l,0C8H
+	ld	(hl),h		; Cancel console output page mode - SCB_2C
+bdos_io2:
+	call	tst_keyboard	; Test for actual console input
+	pop	de
+	pop	bc
+	push	bc
+	push	de
+	ld	a,c
+	ld	hl,get_return
+	push	hl
+	cp	10		; BDOS FUNCTION 10: Read Console Buffer
+	jp	z,F10
+	cp	1		; BDOS FUNCTION  1: Console Input
+	jp	z,F1
+	cp	11		; BDOS FUNCTION 11: Get Console Input Status
+	jp	z,get_rsx_mode
+; Must be BDOS function 6 - Direct I/O
+	ld	a,e
+	inc	a
+	jp	z,F6_FF		; E=0FFH - Console Status or Input
+	inc	a
+	jp	z,get_rsx_mode	; E=0FEH - Console Status
+	ld	hl,scb_33_c_status
+	ld	(hl),0		; set FALSE
+	inc	a
+	jp	z,F6_FD		; E=0FDH - Console Input
+	jp	not_get_function	; Console output
+
+tst_keyboard:				; Test Console input status
+	ld	c,11		; BDOS function 11 - Console input status
+	call	bdose_2
+	or	a		; If NOT READY
+	ret	z		; Then return
+	pop	hl		; ELSE ABORT THIS RSX 
+	call	era_rsx		; 1/ Erase this RSX
+
+	ld	c,6
+	ld	e,0FFH
+	call	rsx_bdos	; 2/ Read character from keyboard
+get_eof:
+	call	get_scb_33	; Return <HL> -> 2nd byte of console mode
+	dec	hl
+	ld	a,(hl)
+	and	0FEH		; Reset bit 0 of 1st byte to zero
+	ld	(hl),a
+	pop	de
+	pop	bc
+not_get_function:
+	ld	hl,(save_sp)
+	ld	sp,hl
+	jp	jp_table
+
+get_return:
+	cp	eof
+	jp	z,get_eof
+	ld	hl,(save_sp)
+	ld	sp,hl
+	ld	l,a
+	ret
+
+F6_FF:	call	get_rsx_mode	; Direct I/O Console Input/Status
+	or	a
+	ret	z		; -not ready-
+F6_FD:	xor	a		; Direct I/O Console Input
+	ld	hl,get_buff_ptr
+	inc	(hl)
+	call	m,read
+	or	a
+	ld	b,eof
+	jp	nz,F6_FD_EOF	; Read error
+	ld	a,(get_buff_ptr)
+	ld	hl,get_buff
+	call	hl_a
+	ld	b,(hl)		; <B> = Next character from buffer
+F6_FD_EOF:
+	ld	a,b
+	cp	eof
+	push	bc
+	call	z,era_rsx
+	pop	bc
+	ld	hl,X03FEH
+	ld	a,(hl)		; test previous character
+	cp	cr		; for <RETURN>
+	ld	(hl),b		; and update with current character
+	ret	nz		; -no- so return previous character
+	ld	a,b
+	cp	lf		; test for <RETURN>, <LINE FEED> combination
+	call	z,F6_FD		; -yes- so lose <LINE FEED>
+	ld	a,cr		; and return previous character <RETURN>
+	ret
+
+set_dma:
+	ld	c,26		; Set DMA to <DE>
+	jp	rsx_bdos
+
+read:	ld	c,20		; BDOS Read sequential
+	push	bc
+	ld	de,get_buff
+	call	set_dma
+	ld	hl,(scb_ptr)
+	ld	de,save_scb
+	pop	bc
+	push	hl
+	push	de
+	call	copy_hl_de
+	ld	l,0E0H
+	call	copy_hl_de
+	dec	hl
+	ld	(hl),1		; Set single record count
+	ld	de,fcb_usr
+	ld	l,0E0H
+	ld	a,(de)
+	ld	(hl),a		; Set User
+	inc	de		; -> FCB
+	call	rsx_bdos
+	pop	hl
+	pop	de
+	push	af
+	call	copy_hl_de
+	ld	e,0E0H
+	call	copy_hl_de
+	ld	hl,(save_dma)
+	ex	de,hl
+	call	set_dma
+	xor	a
+	ld	(get_buff_ptr),a
+	pop	af
+	or	a
+	ret
+
+abort_ctrl_c:
+	ld	hl,(scb_ptr)
+	ld	l,scb_10	; Set Program Return Code
+	ld	(hl),0FEH	; to 0FFFE
+	inc	hl
+	ld	(hl),0FFH	; (Program terminated as user typed CTRL-C)
+	jp	wboot
+
+get_scb_33:			; Return CONSOLE MODE 
+	ld	hl,(scb_ptr)
+	ld	l,scb_33	; Get Console Mode (2 bytes)
+	ld	a,(hl)
+	or	1
+	ld	(hl),a		; AND SET BIT 1 TRUE 
+	inc	hl
+	ld	a,(hl)
+	and	3		; Mask bits 8&9
+	dec	a		; Return 0ffh, 0, 1, or 2
+	ret
+
+copy_hl_de:
+	ld	b,7
+nxt_hl_de:
+	ld	a,(hl)
+	ld	(de),a
+	inc	hl
+	inc	de
+	dec	b
+	jp	nz,nxt_hl_de
+	ret
+
+hl_a:	add	a,l
+	ld	l,a
+	ret	nc
+	inc	h
+	ret
+
+F1:				; BDOS FUNCTION  1: Console Input
+	call	F6_FD
+	call	tst_ctrl
+	ret	c
+	push	af
+	call	echo1
+	pop	af
+	ret
+
+tst_ctrl:
+	ld	hl,X03D9H
+	dec	(hl)
+	inc	(hl)
+	ret	z
+	cp	cr	; <RETURN>
+	ret	z
+	cp	lf	; <LINE FEED>
+	ret	z
+	cp	9	; <BACK SPACE>
+	ret	z
+	cp	8	; <BELL>
+	ret	z
+	cp	' '	; Return CF=1 for other control characters
+	ret
+
+get_rsx_mode:			; Return CONSOLE STATUS (BDOS FUNCTION 11)
+	ld	hl,scb_33_c_status
+	ld	b,(hl)
+	ld	(hl),0FFH	; set to TRUE for next time
+	call	get_scb_33	; Return <A> = bits 8&9 - 1
+	cp	1		; test for FALSE status
+	ret	z		; -yes-
+	or	a		; test for TRUE status
+	ret	z		; -yes-
+	ld	a,b		; Return conditional status
+	ret
+
+echo:	call	tst_ctrl
+	jp	nc,echo1	; not control code
+	push	af
+	ld	a,'^'		; add to echo
+	call	echo1
+	pop	af
+	or	040H		; Convert to alphabet
+echo1:	ld	e,a
+	ld	a,(echo_flag)	; Test echo flag
+	or	a
+	ret	z		; -dont echo-
+	ld	c,2		; BDOS Console output
+	jp	rsx_bdos
+
+F10:				; BDOS FUNCTION 10: Read Console Buffer
+	ex	de,hl
+	ld	c,(hl)
+	inc	hl
+	push	hl
+	ld	b,0
+nxt_10:	push	bc
+	push	hl
+	call	F6_FD		; Console Input
+	pop	hl
+	pop	bc
+	cp	eof		; Test for End Of File
+	jp	nz,not_eof
+	dec	b
+	inc	b		; test for buffer empty
+	jp	z,f10_ret	; -yes-
+	ld	a,cr
+not_eof:
+	cp	cr		; <RETURN> terminates F10
+	jp	z,f10_ret
+	cp	lf
+	jp	z,f10_ret	; <LINE FEED> terminates F10
+	cp	010H		; test for CTRL-P
+	jp	nz,F10_add
+; Ctrl-P in input
+	push	hl
+	push	bc
+	ld	hl,(scb_ptr)
+	ld	l,0D4H		; SCB_38
+	ld	a,1		; Toggle list output flag
+	sub	(hl)
+	ld	(hl),a
+	pop	bc
+	pop	hl
+	jp	nxt_10
+
+F10_add:
+	inc	hl
+	ld	(hl),a
+	inc	b
+	push	bc
+	push	hl
+	call	echo
+	pop	hl
+	pop	bc
+	ld	a,(hl)
+	cp	3		; Test for CTRL-C
+	ld	a,b
+	jp	nz,not_ctrl_c
+	cp	1		; Test for CTRL-C on 1st character
+	jp	z,abort_ctrl_c	; -yes-
+not_ctrl_c:
+	cp	c		; test for buffer full
+	jp	c,nxt_10	; -no-
+f10_ret:
+	pop	hl		; Buffer completed
+	ld	(hl),b		; Enter characters returned
+	push	af
+	ld	a,cr
+	call	echo1		; Send <RETURN> to screen
+	pop	af
+	ret
+
+scb_33_c_status:		; RSX conditional status
+	DB	000H		; Initialise to FALSE
+
+table:		dw	rsx_bdos	; B=0
+scb_ptr:	DW	X010EH		; B=2
+X03C8H:		DW	X0138H		; B=4
+X03CAH:		DW	X013EH		; B=6
+
+X03CCH:	DB	000H
+
+X03CDH:	ld	(wboot),hl
+	ex	de,hl
+	ld	(wboot),hl
+	ret
+
+bdose_2:	jp	bdose
+echo_flag:	DB	001H
+X03D9H:		DB	000H
+X03DAH:		DB	000H
+
+fcb_usr:	DB	000H
+get_fcb:
+	DB	001H
+	DB	'SYSIN   SUB'
+	DS	0015H
+
+get_buff_ptr:	DB	080H
+X03FEH:	DB	00DH
+get_buff:
+	rept	128
+	db	3
+	endm
+
+
+save_dma:	DW	00080H
+X0481H:	DB	081H
+
+save_scb:
+	rept	14
+	db	068h
+	endm
+
+X0490H:	DB	000H
+save_sp:	DW	00000H
+
+X0493H:	DB	001H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	' 151282  COPYR ''82 DRI '
+
+	rept	30
+	db	067h
+	endm
+stack:
+
+	END
