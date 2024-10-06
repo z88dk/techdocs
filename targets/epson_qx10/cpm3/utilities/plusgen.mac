@@ -1,0 +1,677 @@
+	.z80
+	title	PLUSGEN - Generate CP/M Plus system tracks for QX-10
+
+	name	('PLUSGEN')
+
+;------------------------------------------------------------------
+; Generate System tracks with BOOT and SYSLDR programs
+;
+; Copyright 1983 D. Powys-Lybbe
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 11th November 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+;
+;------------------------------------------------------------------
+; Function
+; ========
+;
+; Copies BOOT program onto the first 12 sectors of the first track
+; ready for the IPL to copy to address 0F000h and there to start
+; execution.
+;
+; Copies SYSLDR program onto the system tracks starting with the
+; first sector of the second side of the first track, and continuing
+; on first side second track, second side second track, first side
+; third track, second side third track, first side fourth track,
+; and finally the second side of the fourth track.
+;
+; The BOOT program copies all the above SYSLDR tracks into memory
+; commencing at 0100h
+;
+;------------------------------------------------------------------
+
+	public	stack,msg0,msg1,msg2,msg3,msg4,msg5,msg6,msg7,msg8
+	public	cbuff,cbuff1,cbuff2
+	public	s1.dsk,s2.dsk,d.dsk,dsk,trk,sct,dma
+	public	dpb,dpb.psh,fcb1,fcb2
+	public	systble,pbk1,pbk2,pbk3,pbk4,pbk5,pbk6,pbk7,pbk8
+	public	start,again1,again2,again3,error1,error2,error3,error
+	public	space,mark,rderr1,rderr2,wrerr3,nofile
+	public	badvers,finish
+	public	use_fcb,use_dma,rdfile,nxtrdf,rdfeof,rdferr
+	public	write,sftsec,sec128,sftcnt,cnt128,nxtsector,sftdma,seclen
+	public	bios,biospb,func,areg,bcreg,dereg,hlreg
+	public	getdsk,saveno,onechr,nxtchr,adderr,ucse,skipsp,sksp1
+	public	chkdsk,len1,len2,dma1,dma2
+
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+version	equ	31	; CP/M version number
+rev	equ	'A'	; BIOS version letter
+
+bdos	equ	5
+cr	equ	0dh
+lf	equ	0ah
+bs	equ	09h
+
+
+bit0	equ	1 shl 0
+bit1	equ	1 shl 1
+bit2	equ	1 shl 2
+bit3	equ	1 shl 3
+bit4	equ	1 shl 4
+bit5	equ	1 shl 5
+bit6	equ	1 shl 6
+bit7	equ	1 shl 7
+
+;------------------------------------------------------------------
+
+
+;-----------------------------------------------------------------
+;
+;	Data items
+;
+;-----------------------------------------------------------------
+
+
+	dseg
+	ds	64
+stack:	dw	0
+msg0:	db	cr,lf,'  PLUSGEN:  Sorry, but you must use CP/M Plus with this utility','$'
+msg1:	db	cr,lf,'  PLUSGEN:    Generate QX-10 System track for CP/M Plus','$'
+msg2:	db	cr,lf,'  Enter            Source Drive containing PLUSBOOT.COM ? ','$'
+msg3:	db	cr,lf,'  Enter              Source Drive containing SYSLDR.COM ? ','$'
+msg4:	db	cr,lf,'  Enter  Destination Drive (A, B, C, or D), or <RETURN> ? ','$'
+msg5:	db	cr,lf,'----------------------------------------------------Error ','$'
+msg6:	db	cr,lf,'--------------------------------No file or disc i/o error ','$'
+msg7:	db	' Hit any character to continue ? ','$'    	
+msg8:	db	cr,lf,'               <<< SYSTEM TRACKS WRITTEN >>> ','$'    	
+cbuff:	db	128	; Maximum length of buffer
+cbuff1:	db	0	; Length of text
+cbuff2:	ds	128	; Text
+
+s1.dsk:	db	0	; Drive containing PLUSBOOT.COM
+s2.dsk:	db	0	; Drive containing SYSLDR.COM
+d.dsk:	db	0	; Drive to be SYSGENed
+
+
+dsk:	db	0	; disk (0-15)
+trk:	dw	0	; track (0-79)
+sct:	dw	0	; sector (1-16)
+dma:	dw	0	; DMA address
+
+dpb:
+dpb.spt:	ds	2
+dpb.bsh:	ds	1
+dpb.blm:	ds	1
+dpb.exm:	ds	1
+dpb.dsm:	ds	2
+dpb.drm:	ds	2
+dpb.al0:	ds	1
+dpb.al1:	ds	1
+dpb.cks:	ds	2
+dpb.off:	ds	2
+dpb.psh:	ds	1
+dpb.phm:	ds	1
+
+fcb1:	db	0,'PLUSBOOTCOM',0,0,0,0
+	db	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+	db	0,0,0,0
+
+fcb2:	db	0,'SYSLDR  COM',0,0,0,0
+	db	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+	db	0,0,0,0
+
+systble:
+	dw	pbk1
+	dw	pbk2
+	dw	pbk3
+	dw	pbk4
+	dw	pbk5
+	dw	pbk6
+	dw	pbk7
+	dw	pbk8
+	dw	0
+
+
+
+pbk1:	db	0,1,24	; Track, Sector, Sector count, DMA address
+	dw	dma1
+pbk2:	db	1,1,32	; Track, Sector, Sector count, DMA address
+	dw	dma2
+pbk3:	db	2,1,32
+	dw	dma2+128*32
+pbk4:	db	3,1,32
+	dw	dma2+128*32*2
+pbk5:	db	4,1,32
+	dw	dma2+128*32*3
+pbk6:	db	5,1,32
+	dw	dma2+128*32*4
+pbk7:	db	6,1,32
+	dw	dma2+128*32*5
+pbk8:	db	7,1,32
+	dw	dma2+128*32*6
+
+;------------------------;
+; PLUSGEN                ;
+;------------------------;
+
+	cseg
+start:	ld	sp,stack
+
+	ld	c,12		; BDOS Return Version Number
+	call	bdos
+	ld	a,h
+	cp	00h		; CP/M code
+	jp	nz,badvers
+	ld	a,l
+	cp	31h		; Version 3.1
+	jp	nz,badvers
+
+	ld	de,msg1
+	ld	c,9		; BDOS Print String
+	call	bdos
+
+again1:	ld	de,msg2
+	ld	c,9		; BDOS Print String
+	call	bdos
+
+	ld	de,cbuff
+	ld	c,10		; BDOS Read Console Buffer
+	call	bdos
+
+	ld	hl,cbuff1
+	ld	a,(hl)
+	or	a		; test for null string
+	jp	z,finish
+
+	ld	b,a		; length of text
+	inc	hl		; <HL> -> start of text
+
+	ld	de,s1.dsk
+	call	getdsk
+	jr	c,error1
+	call	chkdsk
+	jr	c,error1
+
+	ld	hl,pbk1
+	ld	de,fcb1
+	call	rdfile
+	jp	c,rderr1
+
+again2:	ld	de,msg3
+	ld	c,9		; BDOS Print String
+	call	bdos
+
+	ld	de,cbuff
+	ld	c,10		; BDOS Read Console Buffer
+	call	bdos
+
+	ld	hl,cbuff1
+	ld	a,(hl)
+	or	a		; test for null string
+	jp	z,finish
+
+	ld	b,a		; length of text
+	inc	hl		; <HL> -> start of text
+
+	ld	de,s2.dsk
+	call	getdsk
+	jr	c,error2
+	call	chkdsk
+	jr	c,error2
+
+	ld	hl,pbk2
+	ld	de,fcb2
+	call	rdfile
+	jp	c,rderr2
+
+again3:	ld	de,msg4
+	ld	c,9		; BDOS Print String
+	call	bdos
+
+	ld	de,cbuff
+	ld	c,10		; BDOS Read Console Buffer
+	call	bdos
+
+	ld	hl,cbuff1
+	ld	a,(hl)
+	or	a		; test for null string
+	jp	z,finish
+
+	ld	b,a		; length of text
+	inc	hl		; <HL> -> start of text
+
+	ld	de,d.dsk
+	call	getdsk
+	jr	c,error3
+	call	chkdsk
+	jr	c,error3
+
+	ld	hl,systble
+	call	write
+	jp	nz,wrerr3
+
+	ld	de,msg8
+	ld	c,9		; BDOS Print String
+	call	bdos
+
+	jp	again3
+
+
+error1:	call	error
+	jp	again1
+
+error2:	call	error
+	jp	again2
+
+error3:	call	error
+	jp	again3
+
+
+error:	push	bc
+	ld	de,msg5
+	ld	c,9		; BDOS Print String
+	call	bdos
+	pop	bc
+	ld	a,(cbuff1)
+	sub	b		; <C> - <B>
+space:	or	a
+	jr	z,mark
+	push	af
+	ld	e,' '
+	ld	c,2		; BDOS Console Output
+	call	bdos
+	pop	af
+	dec	a
+	jr	space
+mark:	ld	e,'$'
+	ld	c,2		; BDOS Console Output
+	call	bdos
+	ret
+
+rderr1:	call	nofile
+	jp	again1
+
+rderr2:	call	nofile
+	jp	again2
+
+wrerr3:	call	nofile
+	jp	again3
+
+nofile:	ld	de,msg6
+	ld	c,9		; BDOS Print String
+	call	bdos
+
+badvers:
+	ld	de,msg0
+	ld	c,9		; BDOS Print String
+	call	bdos
+
+finish:
+	ld	c,0		; BDOS System Reset
+	jp	bdos
+
+
+
+;---------------------------------------------------
+; Entry:	dsk  =  Disk (0-15)
+;		<hl> -> pbk specifying trk, sct, cnt, and dma
+;		<de> -> fcb for file
+; Return:
+;		len  -> Length of sector contents
+;---------------------------------------------------
+
+	dseg
+use_fcb:	dw	0
+use_dma:	dw	0
+	cseg
+rdfile:
+	ex	de,hl
+	ld	(use_fcb),hl
+	ex	de,hl
+
+	inc	hl	; -> sct
+	inc	hl	; -> cnt
+	ld	a,(hl)
+	inc	hl	; -> dma
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	ex	de,hl
+	ld	(use_dma),hl
+
+	ld	hl,(use_fcb)
+	ex	de,hl
+	ld	c,15		; BDOS Open file
+	call	BDOS
+	cp	0ffh
+	jr	z,rdferr
+
+	ld	e,128		; set maximum value
+	ld	c,44		; BDOS Set Multi-Sector count
+	call	BDOS
+
+nxtrdf:
+	ld	hl,(use_dma)
+	ex	de,hl
+	ld	c,26		; BDOS Set DMA address
+	call	BDOS
+
+	ld	hl,(use_fcb)
+	ex	de,hl
+	ld	c,20		; BDOS Read Sequential
+	call	BDOS
+	or	a
+	jr	nz,rdfeof
+
+	ld	hl,(use_dma)
+	ld	de,128*128	; size of 128 sector reads
+	add	hl,de
+	ld	(use_dma),hl
+
+	jr	nxtrdf
+
+rdfeof:	
+	push	af
+	ld	e,1		; reset multi sector count
+	ld	c,44		; BDOS Set Multi-Sector count
+	call	BDOS
+	pop	af
+	cp	1		; end of file reached
+	ret	z
+rdferr:	scf
+	ret	c
+
+;---------------------------------------------------
+; Entry:	hl -> table of pbk's terminated by 0
+; Return:	NZF   = 1 if error
+;---------------------------------------------------
+
+write:
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	inc	hl
+	ld	a,e
+	or	d
+	ret	z		; done write
+
+	push	hl		; save table of pbk's
+	ex	de,hl
+
+	ld	a,(d.dsk)
+	ld	(dsk),a
+
+	ld	d,0
+	ld	e,(hl)
+	ld	(trk),de	; Save TRACK number
+
+	inc	hl
+	ld	e,(hl)		; <DE> = 128 byte sector number (base 1)
+	dec	e		; base 0
+	ld	c,0		; bucket for any remainder
+	ld	a,(dpb.psh)
+	or	a
+	jr	z,sec128
+	ld	b,a
+sftsec:	ld	a,e
+	rrca
+	ld	e,a
+	ld	a,c
+	rra
+	ld	c,a
+	djnz	sftsec
+sec128:	ld	a,c
+	or	a
+	ret	nz		; 1st sector not on physical sector boundary
+	inc	de		; base 1
+	ld	(sct),de	; Save Physical sector no.
+
+	inc	hl
+	ld	e,(hl)		; number of sectors to write
+	ld	c,0		; bucket for any remainder
+	ld	a,(dpb.psh)
+	or	a
+	jr	z,cnt128
+	ld	b,a
+sftcnt:	ld	a,e
+	rrca
+	ld	e,a
+	ld	a,c
+	rra
+	ld	c,a
+	djnz	sftcnt
+cnt128:	ld	a,c
+	or	a
+	ret	nz		; count not whole no of physical sectors
+	ld	b,e		; count of physical sectors
+	ld	a,b
+	or	a
+	ret	z		; none to transfer
+
+	inc	hl
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)		; <DE> -> DMA address
+	ld	(DMA),de
+
+	call	nxtsector	; do <B> sectors
+	pop	hl
+	ret	nz
+	jr	write		; repeat for next PBK
+
+
+
+nxtsector:
+	push	bc		; save physical sector count
+
+	ld	a,(sct)		; sector number
+	ld	c,a
+	ld	b,0
+	call	bios
+	db	11		; BIOS Set sector
+
+	xor	a		; multi sectors
+	ld	c,a
+	call	bios
+	db	23		; BIOS Set multi sector count
+
+	ld	a,(trk)		; track number
+	ld	c,a
+	ld	b,0
+	call	bios
+	db	10		; BIOS Set track
+
+	ld	bc,(dma)	; DMA address
+	call	bios
+	db	12		; BIOS Set DMA address
+
+	ld	a,1		; DMA bank = 1
+	call	bios
+	db	28		; BIOS Set DMA bank
+
+	call	bios
+	db	14		; BIOS Write
+	pop	bc		; recover sector count
+	or	a
+	ret	nz
+
+	dec	b
+	ret	z		; done all sectors
+
+; Done a sector, up DMA for next sector
+
+	ld	hl,128
+	ld	a,(dpb.psh)
+	or	a
+	jr	z,seclen
+sftdma:	add	hl,hl
+	dec	a
+	jr	nz,sftdma
+seclen:	ex	de,hl
+	ld	hl,(dma)
+	add	hl,de
+	ld	(dma),hl	; increment DMA for next sector
+
+	ld	hl,sct		; sector number
+	inc	(hl)		; incremented to next sector
+
+	jp	nxtsector
+
+
+;---;
+bios:
+;---;
+	ld	(hlreg),hl
+	ld	hl,biospb
+
+	inc	hl
+	ld	(hl),a
+	inc	hl
+	ld	(hl),c
+	inc	hl
+	ld	(hl),b
+	inc	hl
+	ld	(hl),e
+	inc	hl
+	ld	(hl),d
+	pop	de
+	ld	a,(de)		; retrieve BIOS function number
+	inc	de
+	push	de		; save return address
+	ld	de,biospb
+	ld	(de),a		; and save in BIOS parameter block
+	ld	c,50		; BDOS Direct BIOS calls
+	jp	bdos
+
+biospb:
+func:	db	0	; BIOS function number
+areg:	db	0	; A register contents
+bcreg:	dw	0	; BC register contents
+dereg:	dw	0	; HL register contents
+hlreg:	dw	0	; DE register contents
+
+
+;---------------------------------------------------
+; Entry:	<HL> -> Text
+;		<B>  -> Length of text
+;		<DE> -> Word to hold result
+; Return:	<HL> -> Remaining text
+;		<B>  -> Remaining character count
+;		<CF> -> True if error
+;---------------------------------------------------
+getdsk:
+	call	skipsp
+	ret	c
+	call	onechr
+	ret	c
+	ld	a,c
+	ld	(de),a	
+	ret
+
+saveno:	db	0
+onechr:	ld	c,0
+	ld	a,b
+	cp	c
+	jr	z,adderr
+	ld	a,(hl)
+	call	ucse
+	sub	'A'
+	ret	c	; error
+	cp	16
+	jp	nc,adderr
+	ld	c,a
+nxtchr:	inc	hl
+	and	a	; (clear carry flag)
+	dec	b
+	ret	z	; at end of string
+	ld	a,(hl)
+	cp	':'
+	jp	z,nxtchr
+adderr:	scf
+	ret	c
+
+
+ucse:	cp	'a'
+	ret	c
+	cp	'z'+1
+	ret	nc
+	add	a,'A'-'a'
+	ret
+
+skipsp:	ld	a,(hl)
+	cp	' '
+	jr	z,sksp1
+	and	a	; clear carry flag
+	ret	nc
+sksp1:	inc	hl
+	djnz	skipsp
+	scf		; no characters left so RETURN ERROR
+	ret	c
+
+;---------------------------------------------------
+; Entry:	<DE> -> Number to be validated
+; Preserved:	<B>  -> Length of text
+;		<DE> -> Word to hold result
+; Return:	<CF> -> True if error
+; Function:	dsk  =  Disk (0-15)
+;---------------------------------------------------
+chkdsk:
+	push	hl
+	push	de
+	push	bc
+	ld	c,13		; BDOS Reset Disk System
+	call	bdos
+	pop	bc
+	pop	de
+	pop	hl
+
+	ld	a,(de)		; drive selected
+	ld	e,a
+	ld	a,15
+	cp	e
+	ret	c		; outside range
+
+	push	hl
+	push	bc
+	ld	c,14		; BDOS Select Disk
+	call	bdos
+	pop	bc
+	pop	hl
+	ld	e,a
+	xor	a
+	cp	e
+	ret	c		; Select error
+
+	push	hl
+	push	bc
+	ld	c,31		; BDOS Get Addr DPB
+	call	bdos
+	ld	de,DPB
+	ld	bc,17
+	ldir			; copy over
+	pop	bc
+	pop	hl
+
+	xor	a
+	ret
+
+	dseg
+
+len1:	dw	0		; actual length of PLUSBOOT.COM
+len2:	dw	0		; actual length of SYSLDR.COM
+dma1	equ	$		; BUffer for PLUSBOOT.COM
+dma2	equ	dma1+12*256	; Buffer for SYSLDR.COM
+	end
+
+;--------------------------------------------------------------------------
+	
+	end
