@@ -1,0 +1,37 @@
+;	=========================================
+;	QX-10 CP/M PLUS USERF BIOS JUMP EXTENSION
+;	(userf - reserved for system implementor)
+;	=========================================
+
+;-------------------------------------------------------;
+; BIOS JUMP VECTOR - USERT                              ;
+; Returns:                                              ;
+;	Register	<A>  Bios version number	;
+;	Register	<B>  Number of jump vectors	;
+;	Register	<HL> Table of jump vectors	;
+;-------------------------------------------------------;
+; No.	Name		Description                     ;
+; 1	?biosptr	returns BIOS POINTERS           ;
+; 2	?swap		swaps DPH allocation            ;
+;-------------------------------------------------------;
+
+;-----------------------------------------------;
+;Function ?biosptr				;
+; Returns:	<HL> -> table of vectors	;
+;		<A>  =  number of vectors	;
+;-----------------------------------------------;
+
+;-------------------------------------------------------;
+; No.	Name		Description			;
+; 1	@kbtab		Keyboard translation table	;
+; 2	@pfntble	Table of PF Key pointers	;
+; 3 			-not used-			;
+; 4 			-not used-			;
+; 5 			-not used-			;
+; 6	@sio0a		Keyboard device command table   ;
+; 7	@sio0b		Main RS232 device command table ;
+; 8	@sio1a		1st opt. RS232-A command table  ;
+; 9	@sio1b		1st opt. RS232-B command table  ;
+;10	@sio2a		2nd opt. RS232-A command table	;
+;11	@sio2b		2nd opt. RS232-B command table	;
+;-------------------------------------------------------;
