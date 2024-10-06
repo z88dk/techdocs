@@ -1,0 +1,1701 @@
+	TITLE	*  QX-10 CP/M Plus BOOT LOADER  *
+;
+;
+;     
+;
+;
+;	base:		QX-10 59k CP/M boot loader
+;			ver3.0  1982. 8.31  by K.Kobayashi
+;	updated		QX-10 63K MF-CP/M boot loader
+;		 	 1983. 3.10  by Chisato Kobayashi
+;	updated		QX-10 CP/M Plus boot loader
+;		 	 1983.11.11  by David Powys-Lybbe
+;
+;
+;
+;
+;
+	.phase	0E000H
+	.Z80
+;
+;
+;
+BOOT:
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	A,1		;				I
+	OUT	(1CH),A		;PROM disable			I
+	LD	HL,0F000H	;				I
+	LD	DE,0E000H	;				I
+	LD	BC,800H		;				I
+	LDIR			;				I
+	JP	START		;				I
+;
+;
+;
+;
+;
+	PAGE	60
+;................................................
+;.						.
+;.	CP/M SYSTEM FUNDAMENTAL CONSTANTS	.
+;................................................
+;
+;VERS	EQU	31 		;CP/M VERSION 3.1 (D.P-L)
+;
+;(D.P-L)MSIZE	EQU	63		;CP/M MEMORY SIZE
+;(D.P-L)BIAS	EQU	(MSIZE-20)*1024 ;BIAS FROM 20K SYSTEM
+;(D.P-L)CCP	EQU	3400H+BIAS	;CP/M BASE ADDRESS
+;(D.P-L)BDOS0	EQU	CCP+800H	;
+;(D.P-L)BDOS	EQU	CCP+806H	;BDOS ADDRESS
+;(D.P-L)BIOS	EQU	CCP+1600H	;BIOS START ADDRESS
+;(D.P-L)CCPL	EQU	08H		;
+;(D.P-L)BDOSL	EQU	0EH		;
+;(D.P-L)OS1L	EQU	0AH		;
+;(D.P-L)OS2L	EQU	58H		;
+;
+PRMTAB	EQU	BOOT+700H	;
+INTTAB	EQU	BOOT+780H	;
+;
+;
+;........................................
+;.					.
+;.	CP/M TO HOST DISK CONSTANTS	.
+;........................................
+;
+;(D.P-L)BLKSIZ	EQU	2048		;CP/M ALLOCATION SIZE
+;(D.P-L)HSTSIZ	EQU	256		;HOST DISK SECTOR SIZE
+;(D.P-L)HSTSPT	EQU	32		;32*256/HSTSIZ ;HOST DISK SECTORS/TRK
+;(D.P-L)HSTBLK	EQU	2		;HSTSIZ/128 ;CP/M SECTS/HOST BUFFER
+;(D.P-L)CPMSPT	EQU	40H		;HSTBLK*HSTSPT ;CP/M SECTORS/TRACK
+;(D.P-L)SECMSK	EQU	HSTBLK-1	;SECTOR MASK
+;(D.P-L);SECSHF	EQU	1		;LOG2(HSTBLK)
+;
+;
+;................................................
+;.						.
+;.	BDOS CONSTANT ON ENTRY TO WRITE		.
+;................................................
+;
+;(D.P-L);WRALL	EQU	0		;WRITE with allocation
+;(D.P-L)WRDIR	EQU	1		;WRITE to DIRECTORY
+;(D.P-L)WRUAL	EQU	2		;WRITE without allocation
+;
+;
+;................................
+;.				.
+;.	OTHER CONSTANTS		.
+;................................
+;
+;	CP/M SYSTEM ADDRESS
+;
+SDRV	EQU	0
+;
+;
+;	CP/M 0 PAGE WORK
+;
+;(D.P-L)IOBYT	EQU	0003H		;CP/M I/O BYTE
+;(D.P-L)CDISK	EQU	0004H		;CP/M CURRENT DISK #
+;(D.P-L)NDISKS	EQU	2		;ON-LINE DISKS
+;
+;
+;	LOADER STACK
+;
+INITSTK	EQU	0E800H		;
+;
+;
+;	CONTROL CHARACTER
+;
+CR	EQU	0DH
+LF	EQU	0AH
+;
+;
+;
+;(D.P-L)TOP	EQU	0100H		
+;(D.P-L)TMOD	EQU	0200H		
+;
+;
+;(D.P-L)DREADF	EQU	14H		;read file function
+;(D.P-L)OPENF	EQU	0FH		;open file function
+;(D.P-L)DMAF	EQU	1AH		;set DMA function
+;(D.P-L)RESF	EQU	0DH		;system reset function
+;(D.P-L)SELF	EQU	0EH		;select drive function
+;
+;
+;*****
+;(D.P-L)BINTSP	EQU	0
+;(D.P-L)HSTACT	EQU	0FC69H
+;(D.P-L)UNACNT	EQU	0FC6BH
+;(D.P-L)BINTAB	EQU	0FD80H
+;*****
+;
+;
+;
+;
+;
+	SUBTTL	***  BOOT main  ***
+	PAGE
+;	"  BOOT BEGINS HERE !! "
+;
+;
+START:
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	LD	SP,INITSTK	;				I
+;								I
+	LD	A,10H		;reset memory bank number in RAM
+	LD	(MEMBANK),A	;				I
+	LD	(SAVEM),A	;				I
+;				;reset 8259			I
+	LD	A,95H		;set interrupt vector address	I
+	OUT	(8),A		;				I
+	LD	A,high INTTAB	;				I
+	OUT	(9),A		;				I
+	LD	A,80H		;				I
+	OUT	(9),A		;				I
+	LD	A,2		;				I
+	OUT	(9),A		;				I
+	LD	A,2EH		;MASK-MAIN pwdwn,KB,FDD,slave	I
+	OUT	(9),A		;				I
+;								I
+	LD	A,0B5H		;				I
+	OUT	(0CH),A		;				I
+	LD	A,high INTTAB	;				I
+	OUT	(0DH),A		;				I
+	LD	A,7		;				I
+	OUT	(0DH),A		;				I
+	LD	A,2		;				I
+	OUT	(0DH),A		;				I
+	LD	A,0FBH		;MASK-SLAVE calender		I
+	OUT	(0DH),A		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+;
+;
+	LD	A,0AH		;
+	OUT	(3DH),A		;
+	LD	A,28H		;set FDD motor intervel (16sec).
+	OUT	(3CH),A		;
+;
+;
+;(D.P-L) read CP/M Plus SYSLDR
+;
+	LD	HL,RDPAR4
+	CALL	LDNSEC		;read SYSLDR to 0100h
+	JP	NZ,WBFAIL	;GO TO WARM BOOT ERROR ROUTINE
+;
+	LD	HL,RDPAR5
+	CALL	LDNSEC		;read SYSLDR to 0100h+256*16
+	JP	NZ,WBFAIL	;GO TO WARM BOOT ERROR ROUTINE
+;
+	LD	HL,RDPAR6
+	CALL	LDNSEC		;read SYSLDR to 0100h+256*16*2
+	JP	NZ,WBFAIL	;GO TO WARM BOOT ERROR ROUTINE
+;
+	LD	HL,RDPAR7
+	CALL	LDNSEC		;read SYSLDR to 0100h+256*16*3
+	JP	NZ,WBFAIL	;GO TO WARM BOOT ERROR ROUTINE
+;
+	LD	HL,RDPAR8
+	CALL	LDNSEC		;read SYSLDR to 0100h+256*16*4
+	JP	NZ,WBFAIL	;GO TO WARM BOOT ERROR ROUTINE
+;
+	LD	HL,RDPAR9
+	CALL	LDNSEC		;read SYSLDR to 0100h+256*16*5
+	JP	NZ,WBFAIL	;GO TO WARM BOOT ERROR ROUTINE
+;
+	LD	HL,RDPARa
+	CALL	LDNSEC		;read SYSLDR to 0100h+256*16*6
+	JP	NZ,WBFAIL	;GO TO WARM BOOT ERROR ROUTINE
+;
+;(D.P-L);
+;(D.P-L); read CCP, BDOS, BIOS1
+;(D.P-L);
+;(D.P-L)	LD	HL,RDPAR1
+;(D.P-L)	CALL	LDNSEC		;read CCP to TMOD
+;(D.P-L)	JP	NZ,WBFAIL	;GO TO WARM BOOT ERROR ROUTINE
+;
+;(D.P-L)	LD	HL,RDPAR2	;read BDOS, BIOS1
+;(D.P-L)	CALL	LDNSEC		;0E800H - 0FEFFH
+;(D.P-L)	JP	NZ,WBFAIL
+;
+;(D.P-L)	LD	A,(MEMBANK)
+;(D.P-L)	AND	0FH
+;(D.P-L)	OR	20H
+;(D.P-L)	LD	(MEMBANK),A
+;(D.P-L)	OUT	(18H),A
+;(D.P-L)	LD	HL,RDPAR3
+;(D.P-L)	CALL	LDNSEC		;read BIOS2
+;(D.P-L)	LD	A,(SAVEM)
+;(D.P-L)	LD	(MEMBANK),A
+;(D.P-L)	OUT	(18H),A
+;(D.P-L)	JP	NZ,WBFAIL
+;
+;
+;
+;*****
+; BIOS COLD BOOT
+;
+;(D.P-L)	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+;(D.P-L)	LD	SP,BINTSP	;				I
+;(D.P-L)	LD	A,95H		;				I
+;(D.P-L)	OUT	(8),A		;				I
+;(D.P-L)	LD	A,high BINTAB	;				I
+;(D.P-L)	OUT	(9),A		;				I
+;(D.P-L)	LD	A,80H		;				I
+;(D.P-L)	OUT	(9),A		;				I
+;(D.P-L)	LD	A,2		;				I
+;(D.P-L)	OUT	(9),A		;				I
+;(D.P-L)	LD	A,2EH		;				I
+;(D.P-L)	OUT	(9),A		;				I
+;(D.P-L);								I
+;(D.P-L)	LD	A,0B5H		;				I
+;(D.P-L)	OUT	(0CH),A		;				I
+;(D.P-L)	LD	A,high BINTAB	;				I
+;(D.P-L)	OUT	(0DH),A		;				I
+;(D.P-L)	LD	A,7		;				I
+;(D.P-L)	OUT	(0DH),A		;				I
+;(D.P-L)	LD	A,2		;				I
+;(D.P-L)	OUT	(0DH),A		;				I
+;(D.P-L)	LD	A,0FBH		;				I
+;(D.P-L)	OUT	(0DH),A		;				I
+;(D.P-L)	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+;
+;(D.P-L)	XOR	A
+;(D.P-L)	LD	(CDISK),A
+;(D.P-L)	LD	(HSTACT),A
+;(D.P-L)	LD	(UNACNT),A
+;
+;
+;(D.P-L)	LD	C,RESF		;reset system
+;(D.P-L)	CALL	BDOS
+;(D.P-L)	LD	C,SELF		;select drive
+;(D.P-L)	LD	E,0		;drive A
+;(D.P-L)	CALL	BDOS
+;
+; read SYSTEM files
+;
+;(D.P-L)	LD	HL,FILTAB	
+;(D.P-L)M30:
+;(D.P-L)	LD	A,(HL)
+;(D.P-L)	AND	A
+;(D.P-L)	JR	Z,M50
+;(D.P-L)	PUSH	HL
+;(D.P-L)	CALL	RDFILE
+;(D.P-L)	POP	HL
+;(D.P-L)	JP	C,WBFAIL
+;(D.P-L)	LD	DE,13
+;(D.P-L)	ADD	HL,DE
+;(D.P-L)	JR	M30
+;(D.P-L);
+;(D.P-L)M50:
+;(D.P-L)	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+;(D.P-L)	LD	HL,FILTAB+11	;				I
+;(D.P-L)	LD	E,(HL)		;				I
+;(D.P-L)	INC	HL		;				I
+;(D.P-L)	LD	D,(HL)		;				I
+;(D.P-L)	LD	HL,0C300H	;				I
+;(D.P-L)	XOR	A		;				I
+;(D.P-L)	SBC	HL,DE		;				I
+;(D.P-L)	LD	B,H		;				I
+;(D.P-L)	LD	C,L		;				I
+;(D.P-L)	EX	DE,HL		;				I
+;(D.P-L)M60:				;				I
+;(D.P-L)	LD	A,10H		;				I
+;(D.P-L)	OUT	(18H),A		;				I
+;(D.P-L)	LD	A,(HL)		;				I
+;(D.P-L)	EX	AF,AF'		;				I
+;(D.P-L)	LD	A,20H		;				I
+;(D.P-L)	OUT	(18H),A		;				I
+;(D.P-L)	EX	AF,AF'		;				I
+;(D.P-L)	LD	(HL),A		;				I
+;(D.P-L)	INC	HL		;				I
+;(D.P-L)	DEC	BC		;				I
+;(D.P-L)	LD	A,B		;				I
+;(D.P-L)	OR	C		;				I
+;(D.P-L)	JR	NZ,M60		;				I
+;(D.P-L);								I
+;(D.P-L)	LD	A,(SAVEM)	;				I
+;(D.P-L)	OUT	(18H),A		;				I
+;								I
+OVER:				;				I
+	CALL	BUZZPU		;				I
+;								I
+;(D.P-L)	LD	HL,MOVE		;				I
+;(D.P-L)	LD	DE,TOP		;				I
+;(D.P-L)	LD	BC,TEND-MOVE	;				I
+;(D.P-L)	LDIR			;				I
+;(D.P-L)	JP	TOP		; . . . . . . . . . . . . . . . I
+;(D.P-L);						
+;(D.P-L)MOVE:				; . . . . . . . . . . . . . . . I
+;(D.P-L)	LD	HL,TMOD		;				I
+;(D.P-L)	LD	DE,CCP		;				I
+;(D.P-L)	LD	BC,256*CCPL	;				I
+;(D.P-L)	LDIR			;copy CCP from TMOD to CCP address
+;(D.P-L)	DI			;###############################I
+;(D.P-L)	JP	BIOS		;goto cp/m boot routine . . . . I
+;(D.P-L)TEND:
+
+	jp	0100h		; D.P-L Jump to SYSLDR
+;
+;
+;
+; D.P-L Read parameter block
+; 0	-	Track number
+; 1	-	Head number
+; 2	-	First Sector
+; 3	-	Sector count
+; 4&5	-	DMA address
+;(D.P-L)RDPAR1:	DB	0,0,9,CCPL
+;(D.P-L)	DW	TMOD
+;(D.P-L)RDPAR2:	DB	0,1,1,BDOSL+OS1L
+;(D.P-L)	DW	BDOS0
+;(D.P-L)RDPAR3:	DB	1,0,9,OS2L
+;(D.P-L)	DW	0
+RDPAR4:	DB	0,1,1,16
+	DW	0100h
+RDPAR5:	DB	1,0,1,16
+	DW	0100h+16*256
+RDPAR6:	DB	1,1,1,16
+	DW	0100h+16*256*2
+RDPAR7:	DB	2,0,1,16
+	DW	0100h+16*256*3
+RDPAR8:	DB	2,1,1,16
+	DW	0100h+16*256*4
+RDPAR9:	DB	3,0,1,16
+	DW	0100h+16*256*5
+RDPARa:	DB	3,1,1,16
+	DW	0100h+16*256*6
+;
+;
+;(D.P-L)FILTAB:
+;(D.P-L)	DB	'.FOREIGN','SYS'
+;(D.P-L)	DW	7600H
+;(D.P-L)	DB	'.OSTAB  ','SYS'
+;(D.P-L)	DW	8E00H
+;(D.P-L)	DB	'.PFKTAB ','SYS'
+;(D.P-L)	DW	0A100H
+;(D.P-L)	DB	'.GAIJI  ','SYS'
+;(D.P-L)	DW	0A300H
+;(D.P-L)	DB	0
+;
+;
+SAVEM:	DB	10H
+;
+;
+;
+; WARM BOOT ERROR
+;
+WBFAIL:	
+	LD	HL,WBFMS
+	CALL	PRMSG		;PRINT "WBOOT" ERROR MESSAGE
+	CALL	BUZZON
+	JR	$		;LOOP FOREVER
+;
+;
+;
+;
+;
+	PAGE
+PRNIR:				;8255 intr.
+	PUSH	AF
+PRN10:
+	IN	A,(15H)		;read status
+	BIT	5,A
+	JR	NZ,PRN10
+	XOR	A
+	LD	(PRNFLG),A
+	LD	A,0CH		;PIO disable
+	OUT	(17H),A
+	LD	A,20H
+	OUT	(08H),A
+	OUT	(0CH),A
+	POP	AF
+	EI
+	RETI
+;
+;
+;
+;
+;
+;	PRINT MESSAGE AT HL TO FOUND 0
+;
+PRMSG:	
+	LD	A,(HL)
+	OR	A		;FOUND 0 ?
+	RET	Z		;YES
+;
+; MORE TO PRINT
+;
+	PUSH	HL
+	LD	C,A
+	CALL	CONOUT
+	POP	HL
+	INC	HL
+	JR	PRMSG
+;
+;
+;
+; WARM BOOT ERROR MESSAGE
+;
+WBFMS:	
+	DB	'CAN NOT COLD BOOT !!'
+	DB	CR,LF,0
+;
+;
+;
+;
+;
+	SUBTTL	***  FDD ROUTINES  ***
+;	PAGE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;	FDD ROUTINES
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;
+;	C O N S T A N T S
+;
+;
+;	FDC COMMAND
+;
+RECAL	EQU	07		;RECALIBRATE COMMAND
+SEEKC	EQU	0FH		;SEEK COMMAND
+SDS	EQU	04H		;SENSE DRIVE STATUS
+RDCM	EQU	46H		;READ COMMAND
+WRCM	EQU	45H		;WRITE COMMAND
+;
+;
+;	FDC STATUS DATA
+;
+CBSY	EQU	00010000B	;FDC BUSY FLAG
+NSEEK	EQU	00001111B	;IN SEEK FLAG
+USX	EQU	00001001B	;UNIT SELECT OFF
+US0	EQU	00001010B	;SELECT DRIVE 00
+US1	EQU	00001100B	;SELECT DRIVE 1
+READY	EQU	00100000B
+;
+;
+;	FDC STATUS BIT
+;
+RQM	EQU	7		;REQUEST FOR MASTER
+DIO	EQU	6		;DATA IN/ OUT
+;
+;
+RSLTBUF:	DW	0,0,0,0,0,0,0,0,0,0,0,0
+;
+;
+; RE-TRY COUNT IF OPERATION CAUSE ERROR
+;
+RETRY	EQU	10		;10 TIMES
+;
+;
+;
+;
+	PAGE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; MAKE SURE DEVICE IS READY
+; ON RETURN, ACC HAS STATUS BYTE
+; AND Z=0 IF READY
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+DDRDY:	
+;
+; FDD DRIVE SELECT
+; ON CALL, DRIVE # IS STORED IN "DRIVE"
+;
+	CALL	ST1ML
+DRDY:	
+	LD	HL,2000H
+DR00:	
+	OUT	(FDMOTR),A	;MOTOR ON
+	DEC	HL
+	LD	A,H
+	OR	L
+	JR	Z,TIMEOUT
+;
+; FDC BUSY CHECK (ON WRITING COMMAND)
+;
+	IN	A,(FDCST)	;READ FDC STATUS
+	AND	CBSY		;BUSY ?
+	JR	NZ,DR00		;FDC BUSY
+	IN	A,(FDCST)
+	AND	NSEEK
+	JR	NZ,DR00	
+;
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+DR10:				;				I
+	IN	A,(FDCST)	;				I
+	BIT	RQM,A		;				I
+	JR	Z,DR10		;				I
+	BIT	DIO,A		;				I
+	JR	NZ,DR80		;				I
+;								I
+	LD	A,SDS		;				I
+	OUT	(FDCDT),A	;SENSE DRIVE STATUS COMMAND WRITE
+DR20:				;				I
+	IN	A,(FDCST)	;				I
+	BIT	RQM,A		;				I
+	JR	Z,DR20		;				I
+	BIT	DIO,A		;				I
+	JR	NZ,DR80		;				I
+;								I
+	LD	A,(DRIVE)	;GET DRIVE # TO SELECT		I
+	AND	3		;				I
+	OUT	(FDCDT),A	;				I
+DR30:				;				I
+	IN	A,(FDCST)	;				I
+	BIT	RQM,A		;				I
+	JR	Z,DR30		;				I
+	BIT	DIO,A		;				I
+	JR	Z,DR10		;				I
+	IN	A,(FDCDT)	;				I
+	LD	(ST3),A		;				I
+	BIT	5,A		;				I
+	JR	Z,DRDY		;READY				I
+	BIT	7,A		;				I
+	JR	NZ,DRDY		;FAULT				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RET
+;
+;
+DR80:				;				I
+	IN	A,(FDCDT)	;				I
+	CALL	HEXA		;				I
+	CALL	BUZZPU		;				I
+	LD	C,20H		;				I
+	CALL	CONOUT		;				I
+DR90:				;				I
+	IN	A,(FDCST)	;				I
+	BIT	RQM,A		;				I
+	JR	Z,DR90		;				I
+	BIT	DIO,A		;				I
+	JR	NZ,DR80		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	JR	DRDY
+;
+;
+;
+;
+;
+TIMEOUT:	
+	LD	HL,MEST0
+	CALL	PRMSG
+	IN	A,(FDCST)
+	CALL	HEXA
+	CALL	BUZZPU
+	JP	DDRDY
+;
+;
+MEST0:	DB	'? FDD TIMEOUT -',0
+;
+;
+;
+;
+;
+	PAGE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;    ;
+; FDD COMMAND OUT ROUTINES ;
+; SEEK,CALIBRATE,READ,WRITE ;
+;    ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;;
+; CARIBRATION COMMAND
+;
+CALBRT:	
+	PUSH	BC
+	CALL	DDRDY
+	LD	A,(DRIVE)	;READ DRIVE # TO CALIBRATE
+	AND	3		;%%%
+	LD	(PDRIVE),A	;STORE IT IN COMMAND PARM. BLOCK
+	LD	(CURDRIV),A	;]]]]]]
+	LD	HL,FDBSY	;%%%
+	RES	1,(HL)		; RESET ERROR
+	SET	2,(HL)		; SET BUSY SEEK/CALIBRATE
+	LD	A,RECAL
+	LD	(FDCOM),A	;RECALIBRATE COMMAND SET
+	LD	B,2		;SET PARAMETER COUNT
+	CALL	COMMD		;FDD COMMAND OUT
+	POP	BC
+	RET
+;
+;
+;
+;
+;
+; SEEK COMMAND OUT
+;
+SEEK:	
+	PUSH	BC
+	CALL	DDRDY		;]]]]
+	LD	A,SEEKC
+	LD	(FDCOM),A	;SET SEEK COMMAND
+	CALL	SETPDRV		;SET HD,US1,US0 TO PDRIVE
+	LD	HL,FDBSY	;%%%
+	RES	1,(HL)		; RESET ERROR
+	SET	2,(HL)		; SET BUSY SEEK/CALIBRATE
+	LD	A,(TRACK)
+	LD	(PTRACK),A
+	LD	B,3		;SET PARAMETER COUNT 3
+	CALL	COMMD		;OUT COMMAND AND PARAMETER
+	POP	BC
+	RET
+;
+;
+;
+;
+;
+; FDD READ COMMAND OUT
+;
+READCM:	
+	PUSH	HL
+	PUSH	DE
+	PUSH	BC
+	ld	c,44h
+	ld	b,60h
+	call	dmaset
+	LD	A,RDCM		;SET READ COMMAND
+;
+;
+; READ COMMAND OUT
+;
+RWCMD:	
+	LD	(FDCOM),A	;PUT READ/WRITE COMMAND
+	LD	HL,FDBSY	;%%%
+	RES	5,(HL)		; RESET ERROR
+	SET	6,(HL)		; SET BUSY READ/WRITE    
+	CALL	SETPDRV		;SET HD,US1,US0 TO "PDRIVE"
+	LD	HL,TRACK
+	LD	DE,PTRACK
+	LD	BC,3
+	LDIR
+	LD	B,9		;COMMAND BYTE COUNT 9
+	CALL	COMMD		;COMMAND OUT
+;
+	POP	BC
+	POP	DE
+	POP	HL
+	RET
+;
+;
+;
+;
+;
+;;;;;
+;
+; FDD COMMAND OUT
+; ON CALL, B REG. HAS COMMAND BYTE NUMBER
+; AND ALL COMMAND DATA IS SET ALREADY
+; IN FDCOM,PDRIVE,PHEAD, ETC.
+;
+;;;;
+;
+;
+COMMD:	
+	PUSH	BC
+	LD	HL,2000H
+COM10:	
+	DEC	HL
+	LD	A,H
+	OR	L
+	JR	Z,COM70		;TIMEOUT
+;
+	IN	A,(FDCST)
+	AND	CBSY
+	JR	NZ,COM10
+;
+	LD	HL,FDCOM
+;
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+COM20:				;				I
+	IN	A,(FDCST)	;				I
+	BIT	RQM,A		;				I
+	JR	Z,COM20		;				I
+	BIT	DIO,A		;				I
+	JR	NZ,COM30	;				I
+	LD	A,(HL)		;				I
+	OUT	(FDCDT),A	;				I
+	INC	HL		;				I
+	DJNZ	COM20		;				I
+	POP	BC		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	RET
+;
+;
+;
+COM30:				;				I
+	IN	A,(FDCDT)	;				I
+	CALL	HEXA		;				I
+	CALL	BUZZPU		;				I
+	LD	C,20H		;				I
+	CALL	CONOUT		;				I
+COM40:				;				I
+	IN	A,(FDCST)	;				I
+	BIT	RQM,A		;				I
+	JR	Z,COM40		;				I
+	BIT	DIO,A		;				I
+	JR	NZ,COM30	;				I
+	POP	BC		;				I
+	EI			;>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	JR	COMMD
+;
+;
+;
+COM70:	
+	LD	HL,MESTOC
+	CALL	PRMSG
+	IN	A,(FDCST)
+	CALL	HEXA
+	LD	HL,FDBSY
+	SET	5,(HL)
+	RES	6,(HL)
+	SET	1,(HL)
+	RES	2,(HL)
+	CALL	BUZZPU
+	POP	BC
+	RET
+;
+;
+MESTOC:	DB	'? FD TIME OUT =',0
+;
+;
+;
+;
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;     ;
+; EXECUTE FDD COMAND ROUTINES  ;
+; SEEK,CALIBRATE,READ,WRITE  ;
+; ON RETURN, Z=0 IF ERROR OCCURED ;
+; Z=1, IF SUCCESSFUL   ;
+;     ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;;
+; EXECUTE SEEK COMMAND
+;
+FDSEEK:	
+	CALL	SEEK		;SEEK COMMAND OUT
+	JR	CHKEND
+;
+;
+;
+FDCALB:	
+	CALL	CALBRT		;CALIBRATE COMMAND OUT
+	CALL	CHKEND
+	JR	NZ,FDCALB
+	CALL	ST1ML		; WAIT FOR ATTEN INT
+	CALL	CALBRT		;CALIBRATE COMMAND OUT
+CHKEND:	
+	LD	A,(FDBSY)
+	BIT	2,A
+	JR	NZ,CHKEND	; WAIT UNTIL SEEK/RECAL END
+	BIT	1,A
+	RET
+;
+;
+;
+; EXCUTE READ DISK
+;
+FDREAD:	
+	CALL	READCM		;OUT READ COMMAND
+;
+; get read command result
+; Z=1: normal end, Z=0: abnormal end
+;
+FDRSLT:	
+	LD	A,(FDBSY)
+	BIT	6,A		;EXCUTION COMPLETE ?
+	JR	NZ,FDRSLT	;NO, WAIT
+	BIT	5,A		;CHECK NORMAL END
+	RET
+;
+;
+;
+;
+;
+	SUBTTL	***  FDD utility routines  ***
+	PAGE
+;................................................
+;.						.
+;.	read data from disk			.
+;.	on return,  Z=1: if function complete	.
+;.		    Z=0: if error		.
+;................................................
+;
+LDNSEC:
+	LD	A,SDRV
+	LD	(DRIVE),A	;set drive
+	LD	B,(HL)		;track
+	INC	HL
+	LD	C,(HL)		;head
+	INC	HL
+	LD	D,(HL)		;sector
+	INC	HL
+	LD	E,(HL)		;sector count
+	INC	HL
+	LD	A,(HL)
+	INC	HL
+	LD	H,(HL)
+	LD	L,A		;read address
+LNS10:
+	LD	A,B
+	LD	(TRACK),A	;set TRACK
+	LD	A,C
+	LD	(HEAD),A	;set HEAD
+	LD	A,D
+	LD	(SECTOR),A	;set SECTOR
+	LD	A,E
+	LD	(SECTCT),A	;set SECTOR count
+	LD	(DBADDR),HL	;set DISK BUFFER address
+;
+	ADD	A,D
+	DEC	A
+	CP	17
+	JR	C,LNS30
+	LD	A,17
+	SUB	D
+	LD	(SECTCT),A
+	LD	D,A
+	LD	A,E
+	SUB	D
+	LD	E,A
+	LD	D,1
+	LD	A,C
+	CPL
+	AND	1
+	LD	C,A
+	AND	A
+	JR	NZ,LNS20
+	INC	B
+LNS20:
+	PUSH	BC
+	PUSH	DE
+	LD	A,(SECTCT)
+	LD	D,A
+	LD	E,0
+	ADD	HL,DE
+	PUSH	HL		;next load address
+	XOR	A		;clear carry
+LNS30:
+	PUSH	AF
+	CALL	NSECRD
+	JR	Z,LNS40
+LNSERR:
+	POP	AF
+	JR	C,LNS35
+	POP	HL
+	POP	DE
+	POP	BC
+LNS35:
+	LD	A,1
+	AND	A		;Z=0
+	RET
+LNS40:
+	POP	AF
+	JR	NC,LNS50
+	XOR	A		;read over Z=1
+	RET
+LNS50:
+	POP	HL
+	POP	DE
+	POP	BC
+	JR	LNS10		;continue
+;
+;
+;
+;;;
+; READ n sectors
+; but n sectors must be in same HEAD, same TRACK
+; parameters are set already in DRIVE, HEAD, SECTOR, SECTCT, DBADDR
+;
+;
+NSECRD:	
+	LD	E,RETRY
+DOREAD:	
+	CALL	DOSEEK		;SEEK THE TRACK
+	JR	NZ,RDERR	;SEEK ERROR
+	CALL	ST50ML		;WAIT 50 MS
+	CALL	FDREAD		;
+	JR	Z,RDENDX	;NORMAL END
+;
+; READ ERROR occurs, re-try
+;
+CKRETRY:	
+	DEC	E		;decrement RE-TRY COUNT
+	JR	Z,RDERR		;RETRY END, READ/WRITE ERROR
+	LD	A,E
+	AND	3
+	JR	NZ,DOREAD
+	CALL	DOCALIB		;RECALIBRATE DONE
+	JR	NZ,RDERR	;CAN'T	RECALIBRATE
+	JR	DOREAD
+;
+; READ operation end, set result code
+; clear Acc if no error
+;
+RDERR:	
+	DB	3EH		;ERROR-- GIVE [ LD A,0AFH ]
+RDENDX:	XOR	A
+	OR	A
+	RET
+;
+;
+;
+;;;;;
+;
+; SEEK THE TRACK
+; RE-TRY 10 TIMES
+; ON RETURN: Z=1 IF NO ERROR, Z=0 IF ERROR OCCURS
+;
+;;;;
+;
+DOSEEK:	
+	LD	B,RETRY
+DSEEK:	
+	CALL	FDSEEK		;DO SEEK THE TRACK
+	RET	Z		;NO ERROR
+	DJNZ	DSEEK		;TRY AGAIN
+	JR	GIVERR
+;
+;
+;
+;;;;
+; RECALIBRATE THE DRIVE
+; RE-TRY 10 TIMES
+; ON RETURN: Z=1 IF NO ERROR, Z=0 TF ERROR OCCURED
+;
+;;;;
+;
+DOCALIB:	
+	LD	B,RETRY
+DCALIB:	
+	CALL	FDCALB		;RECALIBRATE THE DRIVE
+	JR	Z,DCAL1		;NO,ERROR RETURN
+	DJNZ	DCALIB		;TRY AGAIN
+	JR	GIVERR		;ERROR OCCURED
+;
+;
+DCAL1:	
+	XOR	A
+	RET
+;
+;
+;
+; IF ERROR, Z FLAG CLEAR
+;
+GIVERR:	
+	LD	A,1
+	OR	A
+	RET
+;
+;
+;
+;
+;
+	subttl	***  FDD OTHER SUBROUTINES  ***
+	PAGE
+;;;
+; GET TRACK,HEAD THEN CONSTRACT HD,US1,US0 BYTE
+; AND PUT IT TO "PDRIVE"
+; US1,US0=00---DRIVE 0
+; US1,US0=01---DRIVE 1
+;;;;
+;
+SETPDRV:	
+	LD	A,(HEAD)
+	AND	1		;%%%
+	RLCA			;SHIFT LEFT 2 TIMES
+	RLCA
+	LD	B,A		;DATA SAVE
+	LD	A,(DRIVE)
+	AND	3		;%%%
+	LD	(CURDRIV),A
+	OR	B		;CREATE HD,US1,US0
+	LD	(PDRIVE),A
+	RET
+;
+;
+;;;;;;
+; SOFTWARE INTERVAL TIMER BETWEEN
+; SEEK OPARATION AND READ/WRITE OPERATION
+; ABOUT 50 MILL SECOND
+;;;;;
+;
+ST50ML:	
+	PUSH	BC
+	PUSH	AF
+	LD	BC,5910
+	JR	ST8MIC
+;
+;
+;;;
+; SOFTWARE INTERVAL TIMER 2
+; ABOUT 1 MILLI SECOND
+;;;;
+;
+ST1ML:	
+	PUSH	BC
+	PUSH	AF
+	LD	BC,106
+;
+;
+; SOFT TIMER LOOP
+; THIS LOOP TAKE 26 STAES SO IT IS
+; 26*1/3.072 (ABOUT 8.46 MICRO SEC)
+;
+ST8MIC:	
+	DEC	BC
+	LD	A,B
+	OR	C
+	JR	NZ,ST8MIC
+	POP	AF
+	POP	BC
+	RET
+;
+;
+;
+;
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;     ;
+; Z-80 DMA PARAMETER SET FOR READ/WRITE ;
+; DISK     ;
+; TRANSFER MEMORY TO PORT  ;
+; ON CALL, ACC HAS TRANSFER DIRECTION ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+DMASET:	
+	xor	a
+	out	(4dh),a		;master clear command
+	ld	a,c
+	out	(4bh),a		;DMA mode set
+	ld	hl,(dbaddr)
+	ld	a,l
+	out	(40h),a		;start address
+	ld	a,h
+	out	(40h),a
+	ld	a,0ffh
+	out	(41h),a
+	ld	a,(sectct)
+	dec	a		;
+	out	(41h),a
+;
+	ld	a,b		;command
+	out	(48h),a
+	ld	a,0eh
+	out	(4fh),a		;DMA mask reset
+	ret
+;
+;
+;
+;
+;
+HEXA:
+	PUSH	AF
+	RLCA
+	RLCA
+	RLCA
+	RLCA
+	CALL	DIGIT
+	POP	AF
+DIGIT:
+	AND	0FH
+	CP	0AH
+	JR	C,DG10
+	ADD	A,7
+DG10:
+	ADD	A,30H
+	LD	C,A
+	CALL	CONOUT
+	RET
+;
+;
+;
+;
+;
+	SUBTTL	***  INTERRUPT HANDLE ROUTINES  ***
+	PAGE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;     ;
+; INTERRUPT HANDLE ROUTINES  ;
+;     ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;
+;	C O N S T A N T S
+;
+;
+;	FDC PORT ADDRESS
+;
+FDCST	EQU	34H		;FDC STATUS
+FDCDT	EQU	35H		;FDC DATA
+FDMOTR	EQU	30H		;FD MOTOR
+;
+;
+;	FDC COMMAND
+;
+SINTS	EQU	08H		;SENSE INTERRUPT STATUS
+;
+;
+;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; FDD INTERRUPT ROUTINE
+; ON RETURN, SET BIT OF "FDBSY" 
+;  BIT 6 --- 1= NOT EXECUTE COMMAND, 0= EXECUTE
+;  BIT 5 --- 1= ERROR OCCURS, 0= NO ERROR
+; AND STORE RESULT STATUS BYTE IN "ST0"
+;
+;
+FDCIR:
+	PUSH	HL
+	PUSH	DE
+	PUSH	BC
+	PUSH	AF
+;
+	LD	HL,RSLTBUF	;RESULT BUFFER=FF
+	LD	B,8
+RSTR00:	
+	LD	(HL),0FFH
+	INC	HL
+	DJNZ	RSTR00
+;
+;
+	LD	HL,RSLTBUF
+RSTR0:	
+	IN	A,(FDCST)
+	BIT	RQM,A
+	JR	Z,RSTR0
+	BIT	DIO,A
+	JR	NZ,RSTR2
+	LD	A,SINTS		;DIO=0 SENSE INT STS
+	OUT	(FDCDT),A
+RSTR1:	
+	IN	A,(FDCST)
+	BIT	RQM,A
+	JR	Z,RSTR1
+	BIT	DIO,A
+	JR	Z,RSTR3
+RSTR2:	
+	IN	A,(FDCDT)
+	LD	(HL),A
+	INC	HL
+	JR	RSTR1
+;
+;
+;
+RSTR3:	
+	LD	A,(RSLTBUF)
+	AND	3
+	LD	B,A
+	LD	A,(CURDRIV)
+	CP	B
+	JR	NZ,FDWRNG
+;
+;
+	LD	A,(RSLTBUF)
+	BIT	5,A
+	JR	Z,RWEND
+;
+; SEEK END
+;
+	LD	A,(RSLTBUF)
+	LD	HL,FDBSY
+	AND	0C0H
+	JR	Z,SINT10
+	CP	0C0H
+	JR	Z,FDEND
+;
+SEEKERR:	
+	LD	HL,FDBSY
+	SET	1,(HL)
+SINT10:	
+	RES	2,(HL)
+	JR	FDEND
+;
+;
+;
+;
+;
+RWEND:	
+	xor	a
+	out	(4dh),a		;DMA disable
+	cpl
+	out	(4fh),a		;DMA mask set
+	LD	A,(RSLTBUF)	;GET RESULT STATUS            
+	AND	0C0H
+	JR	Z,FDEN1		;COMMAND NORMAL TERM.
+	CP	0C0H
+	JR	Z,FDEND		;ATTENTION INT.
+;
+;  ABNORMAL TERM OR INVALID CMD. 
+;
+	LD	HL,FDBSY
+	SET	5,(HL)
+FDEN1:	
+	LD	HL,FDBSY
+	RES	6,(HL)		;COMMAND EXECUTE FLAG SET
+FDEND:	
+;
+;
+;
+; RESULT BUFFER=FF
+;
+	LD	HL,RSLTBUF	
+	LD	B,8
+FDTR00:	
+	LD	(HL),0FFH
+	INC	HL
+	DJNZ	FDTR00
+;
+	LD	HL,RSLTBUF
+FDTR0:	
+	IN	A,(FDCST)
+	BIT	RQM,A
+	JR	Z,FDTR0
+	BIT	DIO,A
+	JR	NZ,FDTR2
+	LD	A,SINTS		;DIO=0 SENSE INT STS
+	OUT	(FDCDT),A
+FDTR1:	
+	IN	A,(FDCST)
+	BIT	RQM,A
+	JR	Z,FDTR1
+	BIT	DIO,A
+	JR	Z,FDTR3
+FDTR2:	
+	IN	A,(FDCDT)
+	LD	(HL),A
+	INC	HL
+	JR	FDTR1
+;
+;
+;
+FDTR3:	
+	LD	A,(RSLTBUF)
+	CP	80H		;INVALID COMMAND
+	JR	NZ,FDWRNG
+	ld	a,20h		;normal EOI
+	out	(08h),a
+	POP	AF
+	POP	BC
+	POP	DE
+	POP	HL
+	EI
+	RETI
+;
+;
+;
+FDWRNG:	
+	LD	A,(RSLTBUF)
+	AND	0C0H
+	CP	0C0H
+	JR	Z,FDEND
+;
+	LD	HL,FDBSY
+	SET	1,(HL)
+	RES	2,(HL)
+	SET	5,(HL)
+	RES	6,(HL)
+	JR	FDEND
+;
+;
+;
+; ERROR,  WAIT FOREVER
+;
+FDABORT:	
+	DI			;<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+	CALL	BUZZON		;				I
+	JR	FDABORT		; . . . . . . . . . . . . . . . I
+;
+;
+;
+;
+;
+BUZZPU:	
+	ld	a,(membank)
+	set	2,a
+	out	(18h),a		; Speaker continuous ON
+	push	af
+	pop	af
+	res	2,a		; Speaker continuous OFF
+	out	(18h),a
+	ret
+;
+;
+;
+BUZZON:	
+	ld	a,(membank)
+	set	2,a		; Speaker continuous ON
+	ld	(membank),a
+	out	(18h),a
+	ret
+;
+;
+;
+;
+;
+PWDWN:
+	xor	a
+	out	(20h),a		;CMOS RAM disable
+	out	(4dh),a		;DMA reset
+	halt
+	halt
+;
+;
+;
+;
+;
+	SUBTTL	***  INPUT ROUTINES  ***
+	PAGE
+sioir:
+	push	af
+	push	bc
+	push	de
+	push	hl
+;
+	in	a,(12h)		;read status
+	ld	(kbsts),a
+	bit	0,a		;rx avil.
+	jr	z,sioend
+;
+	ld	a,1		;rr1
+	out	(12h),a
+	in	a,(12h)		;read status 2
+	ld	(kbsts+1),a
+	and	70h
+	jr	nz,sioerr	;read error
+	in	a,(10h)		;read data
+	ld	(kbdata),a
+;
+; stack kb data
+;
+	ld	hl,(intptr)
+	ld	(hl),a		;put stack
+	inc	hl
+	ld	a,l
+	cp	low kbufend
+	jr	nz,siord3
+	ld	hl,kbuf
+siord3:
+	ld	(intptr),hl
+;
+;
+sioend:
+	in	a,(10h)
+	ld	a,(kbsts)
+	bit	2,a
+	jr	nz,sioen0	;not tx.end
+	ld	a,28h		;reset tx intr.
+	out	(12h),a
+	xor	a
+	ld	(kbobf),a
+sioen0:
+	ld	a,30h		;error reset
+	out	(12h),a
+	ld	a,38h		;end of intr.
+	out	(12h),a
+	ld	a,20h		;normal eoi for 8259
+	out	(08),a
+;
+	pop	hl
+	pop	de
+	pop	bc
+	pop	af
+	ei
+	reti
+;
+;
+;
+sioerr:
+	in	a,(10h)
+	ld	(kbdata),a	;error data read
+	ld	a,0
+	out	(4),a
+	ld	a,10h
+	out	(4),a
+	ld	a,(membank)
+	and	0feh
+	or	4
+	out	(18h),a
+	ld	(membank),a
+	jr	sioend
+;
+;
+;
+;
+;
+	SUBTTL	***  C O N O U T  ***
+	PAGE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; "CONOUT"				;
+; OUTPUT CHARACTER IN C REG. TO CONSOLE ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;
+CONOUT:	
+	ld	a,c
+	cp	20h
+	jp	nc,cout
+	cp	0ah
+	ret	nz
+	ld	a,(hpos)
+ct10:
+	sub	80
+	jr	nc,ct10
+	cpl
+ct20:
+	push	af
+	ld	c,' '
+	call	cout
+	pop	af
+	dec	a
+	jr	nz,ct20
+	xor	a
+	ld	(hpos),a
+	ret
+;
+;
+;
+cout:
+	in	a,(38h)		;read crt status
+	and	6
+	xor	4		;FIFO empty check
+	jr	nz,cout
+	ld	hl,(crtpos)
+	ld	a,49h
+	out	(39h),a		;csrw
+	ld	a,l
+	out	(38h),a		;ead
+	ld	a,h
+	out	(38h),a
+	ld	a,0	
+	out	(38h),a		;dad
+	ld	a,4ah
+	out	(39h),a		;maskw
+	ld	a,0ffh
+	out	(38h),a
+	out	(38h),a	
+co10:
+	in	a,(38h)
+	and	6
+	xor	4
+	jr	nz,co10
+	ld	a,20h
+	out	(39h),a
+	ld	a,c
+	out	(38h),a
+	ld	a,000h
+	out	(38h),a
+	inc	hl
+	ld	(crtpos),hl
+	ld	a,(hpos)
+	inc	a
+	ld	(hpos),a
+	ret
+;
+;
+;
+;
+;
+	PAGE
+;(D.P-L)RDFILE:
+;(D.P-L)	LD	DE,FCB
+;(D.P-L)	XOR	A
+;(D.P-L)	LD	(DE),A
+;(D.P-L)	INC	DE
+;(D.P-L)	LD	BC,8+3
+;(D.P-L)	LDIR
+;(D.P-L)	PUSH	HL
+;(D.P-L);
+;(D.P-L)	EX	DE,HL
+;(D.P-L)	LD	(HL),A		;ex
+;(D.P-L)	INC	HL
+;(D.P-L)	INC	HL
+;(D.P-L)	LD	(HL),A		;s2
+;(D.P-L)	INC	HL
+;(D.P-L)	LD	(HL),A		;rc
+;(D.P-L)	LD	(FCBCR),A	;cr
+;(D.P-L)	LD	C,OPENF
+;(D.P-L)	LD	DE,FCB
+;(D.P-L)	CALL	BDOS
+;(D.P-L)	POP	HL
+;(D.P-L);
+;(D.P-L)	INC	A
+;(D.P-L)	JR	NZ,RDF10
+;(D.P-L);
+;(D.P-L)	SCF
+;(D.P-L)	RET
+;(D.P-L);
+;(D.P-L)RDF10:
+;(D.P-L)	LD	E,(HL)
+;(D.P-L)	INC	HL
+;(D.P-L)	LD	D,(HL)
+;(D.P-L)	XOR	A
+;(D.P-L)	LD	(FCBCR),A
+;(D.P-L)RDF20:
+;(D.P-L)	PUSH	DE		;read address
+;(D.P-L)	LD	C,DMAF
+;(D.P-L)	CALL	BDOS		;set DMA
+;(D.P-L)	LD	DE,FCB
+;(D.P-L)	LD	C,DREADF
+;(D.P-L)	CALL	BDOS		;read 1 sector
+;(D.P-L)	POP	DE
+;(D.P-L)	AND	A
+;(D.P-L)	RET	NZ		;end of file
+;(D.P-L)	LD	HL,128
+;(D.P-L)	ADD	HL,DE
+;(D.P-L)	EX	DE,HL
+;(D.P-L)	JR	RDF20
+;(D.P-L);
+;(D.P-L);
+;(D.P-L)FCB:	DS	36
+;(D.P-L)FCBCR	EQU	FCB+32
+;
+;
+;
+;
+;
+	PAGE
+;---------------------------------------+
+;	not using interrupt		|	
+;---------------------------------------+
+;
+SOFT1:
+SOFT2:
+	RET
+;
+INTX1:
+INTX2:
+INTX4:
+INTX5:
+INTX6:
+INTX7:
+INTX8:
+CRTIR:
+CLKIR:
+	HALT
+;
+;
+;
+;
+;				;must be address < 0E700H
+	SUBTTL	***  COMMON DATA AREA  ***
+	page
+;................................
+;.				.
+;.	COMMON DATA AREA	.
+;.				.
+;................................
+;
+	ds	prmtab-$
+;
+;
+;>>>>>>>>>> DATA AREA FOR DISK ROUTINE <<<<<<<<<<
+;
+;
+;	* LOGICAL DISK PARAMETER *
+;
+DRIVE:	DS	1		;DRIVE #
+TRACK:	DS	1
+HEAD:	DS	1
+SECTOR:	DS	1
+SECTCT:	DS	1		;NUMBER OF SECTORS
+DBADDR:	DS	2		;DISK BUFFER ADDRESS
+;
+;	* DISK COMMAND PARAMETER *
+;
+FDCOM:	DS	1		;DISK COMMAND
+PDRIVE:	DS	1		;HD, US1, US0
+PTRACK:	DS	1
+PHEAD:	DS	1		;PHYSICAL HEAD
+PSECTOR:DS	1
+FDPRM:	DB	01H		;N
+	DB	10H		;EOT
+	DB	0EH		;GPL
+	DB	0FFH		;DTL
+;
+;	* RESULT STATUS *
+;
+FDBSY:	DB	0		;FDD COMMAND RESULT
+ST3:	DB	0		;RESULT STATUS REG.3
+;
+;
+;
+;>>>>>>>>>> DATA FOR INPUT KEY DATA ROUTINE <<<<<<<<<<
+;
+;
+INTPTR:		DW	KBUF		;KEY PUT POINTER
+KEYPTR:		DW	KBUF		;KEY GET POINTER
+;
+CURDRIV:	DB	1
+;
+KBUF:		DS	16		;KEY DATA BUFFE
+KBUFEND:	DB	0FFH
+;
+MEMBANK:	db	10h
+;
+KBSTS:		db	0,0
+KBDATA:		db	0
+KBOBF:		db	0
+;
+PRNFLG:		db	0
+;
+HPOS:		DB	0
+CRTPOS:		DW	0
+;
+;
+;
+;
+;
+	SUBTTL	***  INTERRUPT VECTOR  ***
+	PAGE
+;................................
+;.				.
+;.	INTERRUPT VECTOR	.
+;................................
+;
+	ds	inttab-$
+;
+;inttab::
+	nop
+	jp	pwdwn		;power down intr.
+	ei
+	jp	soft1		;soft timer (fast)
+	nop
+	jp	intx1		;ext. intr. -1
+	nop
+	jp	intx2		;ext. intr. -2
+	nop
+	jp	sioir		;7201 intr.
+	nop
+	jp	crtir		;7220 intr.
+	nop
+	jp	fdcir		;765 intr.
+	nop
+	nop
+	nop
+	nop
+	nop
+	jp	prnir		;8255 intr.
+	nop
+	jp	intx4		;ext. intr. -4
+	nop
+	jp	clkir		;46818 intr.
+	nop
+	jp	intx5		;ext. intr. -5
+	nop
+	jp	intx6		;ext. intr. -6
+	ei
+	jp	soft2		;soft timer (slow)
+	nop
+	jp	intx7		;ext. intr. -7
+	nop
+	jp	intx8		;ext. intr. -8
+;
+;
+;
+;
+;
+;
+;
+	END
