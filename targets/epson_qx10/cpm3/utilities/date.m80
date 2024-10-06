@@ -1,0 +1,1346 @@
+	.z80
+	aseg
+
+BASE	EQU	$
+
+BDOS	EQU	0005H
+dfcb	EQU	005CH
+dbuff	EQU	0080H
+
+	cseg
+	ld	sp,top_sp
+	jp	start
+
+U0106H:	DB	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+	DB	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+	DB	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+	DB	0,0,0,0,0,0,0,0,0,0,043H,050H,02FH,04DH,020H,056H
+	DB	065H,072H,073H,069H,06FH,06EH,020H,033H,02EH,030H,043H,04FH,050H,059H,052H,049H
+	DB	047H,048H,054H,020H,031H,039H,038H,032H,02CH,020H,044H,049H,047H,049H,054H,041H
+	DB	04CH,020H,052H,045H,053H,045H,041H
+X016DH:	DB	'R'
+X016EH:	DB	'CH151282'
+	DB	0,0,0,0
+	DB	'654321'
+X0180H:	DB	01FH
+	DB	01CH
+	DB	01FH
+	DB	01EH
+	DB	01FH
+	DB	01EH
+	DB	01FH
+	DB	01FH
+	DB	01EH
+	DB	01FH
+	DB	01EH
+	DB	01FH
+X018CH:	DB	0
+	DB	0
+	DB	01FH
+	DB	0
+	DB	03BH;';'
+	DB	0
+	DB	05AH;'Z'
+	DB	0
+	DB	078H;'x'
+	DB	0
+	DB	097H
+	DB	0
+	DB	0B5H
+	DB	0
+	DB	0D4H
+	DB	0
+	DB	0F3H
+	DB	0
+	DB	011H
+	DB	001H
+	DB	030H;'0'
+	DB	001H
+	DB	04EH;'N'
+	DB	001H
+wd_txt:
+	DB	'Sun$Mon$Tue$Wed$Thu$Fri$Sat$'
+X01C0H:	DB	01AH
+	DB	0,0,0,0,0,0,0
+scb_pb1:
+	DB	03AH
+	DB	0
+scb_pb2:
+	DB	03AH
+	DB	0
+mdy_txt:
+	DB	'Enter today''s date (MM/DD/YY): $'
+init_buff:
+	DB	0	; null initialised buffer string
+hms_txt:
+	DB	'Enter the time (HH:MM:SS):     $'
+X020DH:	DB	0
+press_txt:
+	DB	'Press any key to set time $'
+X0229H:	DB	01AH
+	DB	0
+	DB	0FFH
+	DB	0,0,0,0,0,0
+strike_txt:
+	DB	'Strike key to set time$'
+X0249H:	DB	01AH
+	DB	0
+	DB	0FFH
+	DB	0,0,0,0,0,0
+use_msg:
+	DB	'ERROR:  Requires CP/M3.$'
+bad_msg:
+	DB	'ERROR: Illegal time/date specification.$
+
+	db	'1_'
+	DB	00BH
+
+start:
+	ld	sp,top_sp
+	call	bdos_vers
+	ld	(cpm_vers),hl
+	ld	hl,(cpm_vers)
+	ld	a,l
+	ld	hl,use_vers
+	sub	(hl)
+	sbc	a,a
+	cpl
+	ld	hl,(cpm_vers)
+	push	af
+	ld	a,h
+	ld	hl,use_vers+1
+	sub	(hl)
+	add	a,-1
+	sbc	a,a
+	pop	bc
+	ld	c,b
+	and	c
+	rra
+	jp	nc,bad_cpm
+
+	ld	de,scb_pb1
+	ld	c,49
+	call	BDOS
+	ld	(ptr_scb),hl
+
+	ld	de,scb_pb2
+	ld	c,49
+	call	BDOS
+	ld	de,58h
+	add	hl,de
+	ld	(ptr_tod),hl
+
+	ld	a,(dfcb+1)
+	cp	'C'
+	jp	nz,date_f
+date_c:			; Display date contineously until conin
+	ld	a,(dfcb+1)
+	cp	'C'
+	jp	nz,quit_date_c
+	ld	c,5
+	push	bc
+	ld	hl,(ptr_tod)
+	ld	b,h
+	ld	c,l
+	ld	de,X0BACH
+	call	X0A43H
+	cp	0
+	jp	nz,date_c1
+	call	display
+date_c1:
+	call	bdos_const
+	rra
+	jp	nc,more_c
+	call	bdos_cin
+	ld	l,a
+	ld	h,0
+	ld	(X0BCBH),hl
+	ld	hl,dfcb+1
+	ld	(hl),0
+more_c:	jp	date_c
+quit_date_c:
+	jp	finish
+
+date_f:
+	ld	a,(dfcb+1)
+	cp	' '
+	jp	nz,X0324H
+	call	display
+	jp	finish
+
+X0324H:
+	ld	a,(dfcb+1)
+	cp	053H;'S'
+	jp	nz,date_tail
+;				REQUEST DATE TO SET
+	call	X04E7H
+	ld	bc,mdy_txt
+	call	bdos_strout
+
+	ld	l,21
+	ld	de,c_buff+2
+	ld	bc,init_buff
+copy1.bc.de:
+	ld	a,(bc)
+	ld	(de),a
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,copy1.bc.de
+
+	ld	bc,c_buff
+	call	bdos_cin_buff
+
+	ld	a,0
+	ld	hl,c_buff+1
+	cp	(hl)
+	jp	nc,X0396H
+	ld	l,21
+	ld	de,tod_txt
+	ld	bc,c_buff+2
+copy2.bc.de:
+	ld	a,(bc)
+	ld	(de),a
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,copy2.bc.de
+
+	ld	hl,X0BABH
+	ld	(X0B7BH),hl
+
+	ld	bc,6
+	ld	hl,(X0B7BH)
+	add	hl,bc
+	ld	(X0B7DH),hl
+
+	ld	hl,X0B7FH
+	ld	(hl),0
+
+	ld	hl,(X0B7DH)
+	ld	a,(hl)
+	ld	(X0B88H),a
+
+	call	X070CH
+
+	ld	l,2
+	push	hl
+	ld	hl,(ptr_tod)
+	ex	de,hl
+	ld	bc,X0BACH
+	pop	hl
+copy3.bc.de:
+	ld	a,(bc)
+	ld	(de),a
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,copy3.bc.de
+
+X0396H:	call	X04E7H
+	ld	bc,hms_txt
+	call	bdos_strout
+	ld	l,21
+	ld	de,c_buff+2
+	ld	bc,X020DH
+copy4.bc.de:
+	ld	a,(bc)
+	ld	(de),a
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,copy4.bc.de
+
+	ld	bc,c_buff
+	call	bdos_cin_buff
+	ld	a,0
+	ld	hl,c_buff+1
+	cp	(hl)
+	jp	nc,X041CH
+	ld	l,21
+	ld	de,tod_txt
+	ld	bc,c_buff+2
+copy5.bc.de:
+	ld	a,(bc)
+	ld	(de),a
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,copy5.bc.de
+
+	ld	hl,X0BABH
+	ld	(X0B7BH),hl
+
+	ld	bc,6
+	ld	hl,(X0B7BH)
+	add	hl,bc
+	ld	(X0B7DH),hl
+
+	ld	hl,X0B7FH
+	ld	(hl),0
+
+	ld	hl,(X0B7DH)
+	ld	a,(hl)
+	ld	(X0B88H),a
+
+	call	X07C4H
+	call	X04E7H
+
+	ld	bc,press_txt
+	call	bdos_strout
+	call	bdos_cin
+	ld	l,a
+	ld	h,0
+	ld	(X0BCBH),hl
+	ld	l,3
+	push	hl
+	ld	hl,(ptr_tod)
+	inc	hl
+	inc	hl
+	ex	de,hl
+	ld	bc,X0BAEH
+	pop	hl
+copy6.bc.de:
+	ld	a,(bc)
+	ld	(de),a
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,copy6.bc.de
+
+	ld	de,X0229H
+	ld	c,50
+	call	BDOS
+X041CH:	call	X04E7H
+	jp	finish
+
+date_tail:
+	ld	l,21
+	ld	de,tod_txt
+	ld	bc,dbuff+1
+copy7.bc.de:
+	ld	a,(bc)
+	ld	(de),a
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,copy7.bc.de
+
+	ld	hl,X0BABH
+	ld	(hl),1
+
+	ld	bc,X0BABH
+	call	X0980H
+	call	X04E7H
+	ld	bc,strike_txt
+	call	bdos_strout
+	call	bdos_cin
+	ld	l,a
+	ld	h,0
+	ld	(X0BCBH),hl
+	ld	l,5
+	push	hl
+	ld	hl,(ptr_tod)
+	ex	de,hl
+	ld	bc,X0BACH
+	pop	hl
+copy8.bc.de:
+	ld	a,(bc)
+	ld	(de),a
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,copy8.bc.de
+
+	ld	de,X0249H
+	ld	c,50
+	call	BDOS
+	call	X04E7H
+finish:	call	bdos_reset
+	jp	X0482H
+
+bad_cpm:
+	call	X04E7H
+	ld	bc,use_msg
+	call	bdos_strout
+	call	X04E7H
+	call	bdos_reset
+
+X0482H:
+	ld	sp,top_sp
+	call	X04E7H
+	ld	bc,bad_msg
+	call	bdos_strout
+	call	bdos_reset
+	ei
+	halt
+bdos_vers:
+	ld	de,0
+	ld	c,12
+	call	BDOS
+	ret
+bdos_cin:
+	ld	de,0
+	ld	c,1
+	call	BDOS
+	ret
+bdos_cout:
+	ld	hl,char_out
+	ld	(hl),c
+	ld	hl,(char_out)
+	ld	h,0
+	ex	de,hl
+	ld	c,2
+	call	BDOS
+	ret
+bdos_strout:
+	ld	hl,ptr_str+1
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	hl,(ptr_str)
+	ex	de,hl
+	ld	c,9
+	call	BDOS
+	ret
+bdos_cin_buff:
+	ld	hl,ptr_buff+1
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	hl,(ptr_buff)
+	ex	de,hl
+	ld	c,10
+	call	BDOS
+	ret
+bdos_const:
+	ld	de,0
+	ld	c,00BH
+	call	BDOS
+	ret
+bdos_reset:
+	ld	de,0
+	ld	c,0
+	call	BDOS
+	ret
+X04E7H:	ld	c,00DH
+	call	bdos_cout
+	ld	c,00AH
+	call	bdos_cout
+	ret
+X04F2H:	ld	hl,X0B80H
+	ld	(hl),c
+	ld	a,(X0B7FH)
+	inc	a
+	ld	(X0B7FH),a
+	ld	c,a
+	ld	b,0
+	ld	hl,(X0B7DH)
+	add	hl,bc
+	ld	a,(X0B80H)
+	ld	(hl),a
+	ret
+X0509H:	ld	hl,X0B82H
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+X050FH:	ld	hl,(X0B81H)
+	ld	a,(hl)
+	cp	024H;'$'
+	jp	z,X0537H
+	ld	hl,(X0B81H)
+	ld	a,(X0B7FH)
+	inc	a
+	ld	(X0B7FH),a
+	ld	c,a
+	ld	b,0
+	push	hl
+	ld	hl,(X0B7DH)
+	add	hl,bc
+	pop	bc
+	ld	a,(bc)
+	ld	(hl),a
+	ld	hl,(X0B81H)
+	inc	hl
+	ld	(X0B81H),hl
+	jp	X050FH
+X0537H:	ret
+X0538H:	ld	hl,X0B83H
+	ld	(hl),c
+	ld	a,(X0B83H)
+	add	a,030H;'0'
+	ld	c,a
+	call	X04F2H
+	ret
+X0546H:	ld	hl,X0B84H
+	ld	(hl),c
+	ld	a,(X0B84H)
+	and	0F8H
+	rra
+	rra
+	rra
+	rra
+	ld	c,a
+	call	X0538H
+	ld	a,(X0B84H)
+	and	00FH
+	ld	c,a
+	call	X0538H
+	ret
+X0561H:	ld	hl,X0B85H
+	ld	(hl),c
+	ld	hl,(X0B85H)
+	ld	c,l
+	call	X0546H
+	ld	c,03AH;':'
+	call	X04F2H
+	ret
+X0572H:	ld	hl,X0B86H
+	ld	(hl),c
+	ld	hl,(X0B86H)
+	ld	h,0
+	ex	de,hl
+	ld	hl,10
+	call	DIV_DE_HL
+	ld	c,e
+	call	X0538H
+	ld	hl,(X0B86H)
+	ld	h,0
+	ex	de,hl
+	ld	hl,10
+	call	DIV_DE_HL
+	ld	c,l
+	call	X0538H
+	ret
+X0597H:	ld	hl,X0B87H
+	ld	(hl),c
+	ld	hl,(X0B87H)
+	ld	c,l
+	call	X0572H
+	ld	c,02FH;'/'
+	call	X04F2H
+	ret
+X05A8H:	ld	a,(X0B88H)
+	cp	0
+	jp	nz,X05B1H
+	ret
+X05B1H:	ld	a,(X0B7FH)
+	cp	014H
+	jp	nz,X05BFH
+	ld	hl,X0B88H
+	ld	(hl),0
+	ret
+X05BFH:	ld	a,(X0B7FH)
+	inc	a
+	ld	(X0B7FH),a
+	ld	c,a
+	ld	b,0
+	ld	hl,(X0B7DH)
+	add	hl,bc
+	ld	a,(hl)
+	ld	(X0B88H),a
+	ret
+X05D2H:	ld	a,(X0B88H)
+	cp	020H;' '
+	jp	nz,X05E0H
+	call	X05A8H
+	jp	X05D2H
+X05E0H:	ret
+X05E1H:	ld	a,(X0B88H)
+	sub	030H;'0'
+	sub	00AH
+	sbc	a,a
+	ret
+X05EAH:	ld	hl,X0B8AH
+	ld	(hl),e
+	dec	hl
+	ld	(hl),c
+	ld	hl,X0B8BH
+	ld	(hl),0
+	call	X05D2H
+	call	X05E1H
+	rra
+	jp	c,X0602H
+	jp	X0482H
+X0602H:	call	X05E1H
+	rra
+	jp	nc,X0647H
+	ld	a,(X0B8BH)
+	and	0E0H
+	cp	0
+	jp	z,X0616H
+	jp	X0482H
+X0616H:	ld	a,(X0B8BH)
+	add	a,a
+	add	a,a
+	add	a,a
+	push	af
+	ld	a,(X0B8BH)
+	add	a,a
+	pop	bc
+	ld	c,b
+	add	a,c
+	ld	(X0B8BH),a
+	sbc	a,a
+	rra
+	jp	nc,X062FH
+	jp	X0482H
+X062FH:	ld	a,(X0B88H)
+	sub	030H;'0'
+	ld	hl,X0B8BH
+	add	a,(hl)
+	ld	(hl),a
+	sbc	a,a
+	rra
+	jp	nc,X0641H
+	jp	X0482H
+X0641H:	call	X05A8H
+	jp	X0602H
+X0647H:	ld	hl,X0B89H
+	ld	a,(X0B8BH)
+	sub	(hl)
+	sbc	a,a
+	inc	hl
+	push	af
+	ld	a,(hl)
+	ld	hl,X0B8BH
+	sub	(hl)
+	sbc	a,a
+	pop	bc
+	ld	c,b
+	or	c
+	rra
+	jp	nc,X0661H
+	jp	X0482H
+X0661H:	ld	a,(X0B8BH)
+	ret
+X0665H:	ld	hl,X0B8EH
+	ld	(hl),e
+	dec	hl
+	ld	(hl),c
+	dec	hl
+	pop	de
+	pop	bc
+	ld	(hl),c
+	push	de
+	call	X05D2H
+	ld	hl,X0B8CH
+	ld	a,(X0B88H)
+	cp	(hl)
+	jp	z,X0680H
+	jp	X0482H
+X0680H:	call	X05A8H
+	ld	hl,(X0B8DH)
+	ld	c,l
+	ld	hl,(X0B8EH)
+	ex	de,hl
+	call	X05EAH
+	ret
+X068FH:	ld	hl,X0B90H
+	ld	(hl),e
+	dec	hl
+	ld	(hl),c
+	ld	a,(X0B8FH)
+	and	0FEH
+	rra
+	rra
+	ld	(X0B91H),a
+	ld	a,(X0B8FH)
+	and	3
+	sub	0
+	sub	1
+	sbc	a,a
+	ld	hl,(X0B90H)
+	ld	h,0
+	ld	bc,X018CH
+	add	hl,hl
+	add	hl,bc
+	ex	de,hl
+	push	af
+	ld	a,03BH;';'
+	call	WSUB.DE_A	; returns HL = (DE) - A
+	sbc	a,a
+	pop	bc
+	ld	c,b
+	and	c
+	rra
+	jp	nc,X06C7H
+	ld	a,(X0B91H)
+	dec	a
+	ret
+X06C7H:	ld	a,(X0B91H)
+	ret
+X06CBH:	ld	hl,(X0B92H)
+	ex	de,hl
+	ld	hl,10
+	call	DIV_DE_HL
+	ex	de,hl
+	ld	hl,X0B94H
+	ld	(hl),e
+	ld	hl,(X0B92H)
+	ex	de,hl
+	call	DIV_DE_BC
+	ex	de,hl
+	ld	(X0B92H),hl
+	ld	a,(X0B94H)
+	ret
+X06E9H:	ld	hl,X0B95H
+	ld	(hl),c
+	ld	hl,(X0B95H)
+	ld	h,0
+	ex	de,hl
+	ld	hl,10
+	call	DIV_DE_HL
+	ex	de,hl
+	add	hl,hl
+	add	hl,hl
+	add	hl,hl
+	add	hl,hl
+	push	hl
+	ld	hl,(X0B95H)
+	ld	h,0
+	ex	de,hl
+	call	DIV_DE_BC
+	pop	bc
+	add	hl,bc
+	ld	a,l
+	ret
+
+X070CH:
+	ld	e,00CH
+	ld	c,1
+	call	X05EAH
+	dec	a
+	ld	(month),a
+	ld	a,(month)
+	sub	1
+	sub	1
+	sbc	a,a
+	ld	(X0B9DH),a
+	rra
+	jp	nc,X072EH
+	ld	hl,X0B9CH
+	ld	(hl),01DH
+	jp	X073BH
+X072EH:
+	ld	hl,(month)
+	ld	h,0
+	ld	bc,X0180H
+	add	hl,bc
+	ld	a,(hl)
+	ld	(X0B9CH),a
+X073BH:	ld	c,02FH;'/'
+	push	bc
+	ld	hl,(X0B9CH)
+	ex	de,hl
+	ld	c,1
+	call	X0665H
+	ld	(day),a
+	ld	c,02FH;'/'
+	push	bc
+	ld	e,063H;'c'
+	ld	c,04EH;'N'
+	call	X0665H
+	ld	(year),a
+
+	ld	a,(day)
+	sub	01DH
+	sub	1
+	sbc	a,a
+	ld	hl,X0B9DH
+	and	(hl)
+	push	af
+	ld	a,(year)
+	and	3
+	sub	0
+	add	a,0FFH
+	sbc	a,a
+	pop	bc
+	ld	c,b
+	and	c
+	rra
+	jp	nc,X0778H
+	jp	X0482H
+X0778H:	ld	hl,(month)
+	ld	h,0
+	ld	bc,X018CH
+	add	hl,hl
+	add	hl,bc
+	ld	a,(year)
+	sub	04EH;'N'
+	ld	e,a
+	ld	d,0
+	push	hl
+	ld	hl,X016DH
+	call	MUL_HL_DE	; return HL = HL * DE
+	pop	de
+	call	WADD_HL.DE	; returns HL = HL + (DE)
+	push	hl
+	ld	hl,(day)
+	ld	h,0
+	pop	bc
+	add	hl,bc
+	push	hl
+	ld	e,0
+	ld	c,04EH;'N'
+	call	X068FH
+	pop	de
+	call	WSUB_DE_A	; returns HL = DE - A
+	push	hl
+	ld	hl,(year)
+	ld	c,l
+	ld	hl,(month)
+	ex	de,hl
+	call	X068FH
+	ld	e,a
+	ld	d,0
+	pop	hl
+	add	hl,de
+	push	hl
+	ld	hl,(X0B7BH)
+	inc	hl
+	pop	bc
+	ld	(hl),c
+	inc	hl
+	ld	(hl),b
+	ret
+X07C4H:	ld	e,017H
+	ld	c,0
+	call	X05EAH
+	ld	c,a
+	call	X06E9H
+	ld	bc,3
+	ld	hl,(X0B7BH)
+	add	hl,bc
+	ld	(hl),a
+	ld	c,03AH;':'
+	push	bc
+	ld	e,03BH;';'
+	ld	c,0
+	call	X0665H
+	ld	c,a
+	call	X06E9H
+	ld	bc,4
+	ld	hl,(X0B7BH)
+	add	hl,bc
+	ld	(hl),a
+	ld	hl,(X0B7BH)
+	ld	a,(hl)
+	cp	2
+	jp	nz,X0817H
+	ld	a,(X0B88H)
+	cp	03AH;':'
+	jp	nz,X080BH
+	ld	c,03AH;':'
+	push	bc
+	ld	e,03BH;';'
+	ld	c,0
+	call	X0665H
+	ld	(X0BCAH),a
+X080BH:	ld	bc,5
+	ld	hl,(X0B7BH)
+	add	hl,bc
+	ld	(hl),0
+	jp	X082DH
+X0817H:	ld	c,03AH;':'
+	push	bc
+	ld	e,03BH;';'
+	ld	c,0
+	call	X0665H
+	ld	c,a
+	call	X06E9H
+	ld	bc,5
+	ld	hl,(X0B7BH)
+	add	hl,bc
+	ld	(hl),a
+X082DH:	ret
+X082EH:	ld	hl,X0B9FH
+	ld	(hl),e
+	dec	hl
+	ld	(hl),c
+	ld	a,(X0B9EH)
+	add	a,a
+	add	a,a
+	add	a,a
+	add	a,a
+	ld	hl,X0B9FH
+	or	(hl)
+	ret
+X0840H:	ld	hl,year
+	ld	(hl),04EH;'N'
+X0845H:	ld	hl,X016DH
+	ld	(X0BA0H),hl
+	ld	a,(year)
+	and	3
+	cp	0
+	jp	nz,X085BH
+	ld	hl,X016EH
+	ld	(X0BA0H),hl
+X085BH:	ld	de,X0BA0H
+	ld	bc,X0B92H
+	call	WSUB.DE.HL	; returns HL = (DE) - (HL)
+	jp	c,X0868H
+	ret
+X0868H:	ld	bc,X0BA0H
+	ld	de,X0B92H
+	call	WSUB.DE.HL	; returns HL = (DE) - (HL)
+	ex	de,hl
+	dec	hl
+	ld	(hl),e
+	inc	hl
+	ld	(hl),d
+	ld	hl,year
+	inc	(hl)
+	jp	X0845H
+X087DH:	ret
+X087EH:	ld	hl,month
+	ld	(hl),00CH
+X0883H:	ld	a,0
+	ld	hl,month
+	cp	(hl)
+	jp	nc,X08BBH
+	ld	a,(month)
+	dec	a
+	ld	(month),a
+	cp	2
+	jp	nc,X089DH
+	ld	hl,X0BA3H
+	ld	(hl),0
+X089DH:	ld	hl,(month)
+	ld	h,0
+	ld	bc,X018CH
+	add	hl,hl
+	add	hl,bc
+	ld	a,(X0BA3H)
+	call	WADD.HL_A	; returns HL = (HL) + A
+	ex	de,hl
+	ld	hl,X0B92H
+	call	WSUB_DE.HL	; returns HL = DE - (HL)
+	jp	nc,X08B8H
+	ret
+X08B8H:	jp	X0883H
+X08BBH:	ret
+X08BCH:	ld	bc,3
+	ld	hl,(X0B7BH)
+	add	hl,bc
+	ld	a,(hl)
+	ld	(X0B99H),a
+	ld	hl,(X0B7BH)
+	inc	bc
+	add	hl,bc
+	ld	a,(hl)
+	ld	(X0B9AH),a
+	ld	hl,(X0B7BH)
+	inc	bc
+	add	hl,bc
+	ld	a,(hl)
+	ld	(X0B9BH),a
+	ld	hl,(X0B7BH)
+	inc	hl
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	ex	de,hl
+	ld	(X0B92H),hl
+	dec	hl
+	ex	de,hl
+	ld	hl,7
+	call	DIV_DE_HL
+	ex	de,hl
+	ld	hl,X0BA2H
+	ld	(hl),e
+	call	X0840H
+	ld	hl,X0BA3H
+	ld	(hl),0
+	ld	a,(year)
+	and	3
+	sub	0
+	sub	1
+	sbc	a,a
+	push	af
+	ld	a,03BH;';'
+	ld	hl,X0B92H
+	call	WSUB_A.HL	; returns HL =  A - (HL)
+	sbc	a,a
+	pop	bc
+	ld	c,b
+	and	c
+	rra
+	jp	nc,X0919H
+	ld	hl,X0BA3H
+	ld	(hl),1
+X0919H:	call	X087EH
+	ld	hl,(month)
+	ld	h,0
+	ld	bc,X018CH
+	add	hl,hl
+	add	hl,bc
+	ld	a,(X0BA3H)
+	call	WADD.HL_A	; returns HL = (HL) + A
+	ld	de,X0B92H
+	call	WSUB.DE_HL	; returns HL = (DE) - HL
+	ex	de,hl
+	ld	hl,day
+	ld	(hl),e
+	dec	hl
+	inc	(hl)
+	ret
+X093AH:	ld	a,(X0BA2H)
+	add	a,a
+	add	a,a
+	ld	c,a
+	ld	b,0
+	ld	hl,wd_txt
+	add	hl,bc
+	ld	b,h
+	ld	c,l
+	call	X0509H
+	ld	c,020H;' '
+	call	X04F2H
+	ld	hl,(month)
+	ld	c,l
+	call	X0597H
+	ld	hl,(day)
+	ld	c,l
+	call	X0597H
+	ld	hl,(year)
+	ld	c,l
+	call	X0572H
+	ld	c,020H;' '
+	call	X04F2H
+	ld	hl,(X0B99H)
+	ld	c,l
+	call	X0561H
+	ld	hl,(X0B9AH)
+	ld	c,l
+	call	X0561H
+	ld	hl,(X0B9BH)
+	ld	c,l
+	call	X0546H
+	ret
+X0980H:	ld	hl,X0BA8H
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	hl,0
+	ld	(X0BA9H),hl
+	ld	hl,(X0BA7H)
+	ld	(X0B7BH),hl
+	ld	bc,6
+	add	hl,bc
+	ld	(X0B7DH),hl
+	ld	hl,(X0B7BH)
+	ld	a,(hl)
+	cp	0
+	jp	nz,X09B0H
+	call	X08BCH
+	ld	hl,X0B7FH
+	ld	(hl),0FFH
+	call	X093AH
+	jp	X09ECH
+X09B0H:	ld	hl,(X0B7BH)
+	ld	a,(hl)
+	sub	1
+	sub	1
+	sbc	a,a
+	push	af
+	ld	a,(hl)
+	sub	2
+	sub	1
+	sbc	a,a
+	pop	bc
+	ld	c,b
+	or	c
+	rra
+	jp	nc,X09E9H
+	ld	hl,X0B7FH
+	ld	(hl),0
+	ld	hl,(X0B7DH)
+	ld	a,(hl)
+	ld	(X0B88H),a
+	call	X070CH
+	call	X07C4H
+	ld	hl,(X0B7FH)
+	ld	h,0
+	ex	de,hl
+	ld	hl,(X0B7DH)
+	add	hl,de
+	ld	(X0BA9H),hl
+	jp	X09ECH
+X09E9H:	jp	X0482H
+X09ECH:	ret
+
+display:	ld	hl,X0BABH
+	ld	(hl),0
+	ld	de,X01C0H
+	ld	c,50
+	call	BDOS
+	ld	l,5
+	push	hl
+	ld	hl,(ptr_tod)
+	ld	b,h
+	ld	c,l
+	ld	de,X0BACH
+	pop	hl
+copy9.bc.de:
+	ld	a,(bc)
+	ld	(de),a
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,copy9.bc.de
+
+	ld	bc,X0BABH
+	call	X0980H
+
+	ld	c,00DH
+	call	bdos_cout
+
+	ld	hl,X0BCAH
+	ld	(hl),0
+X0A1EH:	ld	a,014H
+	ld	hl,X0BCAH
+	cp	(hl)
+	jp	c,X0A42H
+	ld	hl,(X0BCAH)
+	ld	h,0
+	ld	bc,6
+	add	hl,bc
+	ld	bc,X0BABH
+	add	hl,bc
+	ld	c,(hl)
+	call	bdos_cout
+	ld	a,(X0BCAH)
+	inc	a
+	ld	(X0BCAH),a
+	jp	nz,X0A1EH
+X0A42H:	ret
+
+X0A43H:
+	ld	hl,X0BD1H
+	ld	(hl),d
+	dec	hl
+	ld	(hl),e
+	dec	hl
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	dec	hl
+	pop	de
+	pop	bc
+	ld	(hl),c
+	push	de
+	ld	hl,X0BD2H
+	ld	(hl),0
+X0A57H:	ld	a,(X0BCDH)
+	dec	a
+	ld	hl,X0BD2H
+	cp	(hl)
+	jp	c,X0A8AH
+	ld	hl,(X0BD2H)
+	ld	h,0
+	ex	de,hl
+	ld	hl,(X0BCEH)
+	add	hl,de
+	push	hl
+	ld	hl,(X0BD2H)
+	ld	h,0
+	ex	de,hl
+	ld	hl,(X0BD0H)
+	add	hl,de
+	pop	bc
+	ld	a,(bc)
+	cp	(hl)
+	jp	z,X0A80H
+	ld	a,0
+	ret
+X0A80H:	ld	a,(X0BD2H)
+	inc	a
+	ld	(X0BD2H),a
+	jp	nz,X0A57H
+X0A8AH:	ld	a,0FFH
+	ret
+
+WADD.DE_A:			; returns HL = (DE) + A
+	ex	de,hl
+WADD.HL_A:			; returns HL = (HL) + A
+	ld	e,a
+	ld	d,0
+	ex	de,hl
+WADD_HL.DE:			; returns HL = HL + (DE)
+	ld	a,(de)
+	add	a,l
+	ld	l,a
+	inc	de
+	ld	a,(de)
+	adc	a,h
+	ld	h,a
+	ret
+
+DIV_DE_HL:			; returns HL = DE / HL
+	ld	b,h
+	ld	c,l
+DIV_DE_BC:			; returns HL = DE / BC
+	ld	hl,0
+	ld	a,16
+nxt_div:
+	push	af
+	add	hl,hl
+	ex	de,hl
+	sub	a
+	add	hl,hl
+	ex	de,hl
+	adc	a,l
+	sub	c
+	ld	l,a
+	ld	a,h
+	sbc	a,b
+	ld	h,a
+	inc	de
+	jp	nc,no_div
+	add	hl,bc
+	dec	de
+no_div:	pop	af
+	dec	a
+	jp	nz,nxt_div
+	ret
+
+MUL_HL_DE:			; return HL = HL * DE
+	ld	b,h
+	ld	c,l
+	ld	hl,0
+	ld	a,16
+nxt_mul:
+	add	hl,hl
+	ex	de,hl
+	add	hl,hl
+	ex	de,hl
+	jp	nc,no_mul
+	add	hl,bc
+no_mul:	dec	a
+	jp	nz,nxt_mul
+	ret
+
+WSUB_DE_A:		; returns HL = DE - A
+	ld	c,a
+	ld	b,0
+	ld	a,e
+	sub	c
+	ld	l,a
+	ld	a,d
+	sbc	a,b
+	ld	h,a
+	ret
+
+WSUB.DE.HL:		; returns HL = (DE) - (HL)
+	ld	l,c
+	ld	h,b
+	ld	c,(hl)
+	inc	hl
+	ld	b,(hl)
+	ld	a,(de)
+	sub	c
+	ld	l,a
+	inc	de
+	ld	a,(de)
+	sbc	a,b
+	ld	h,a
+	ret
+
+WSUB.DE_A:
+	ld	l,a	; returns HL = (DE) - A
+	ld	h,0
+WSUB.DE_HL:
+	ld	a,(de)	; returns HL = (DE) - HL
+	sub	l
+	ld	l,a
+	inc	de
+	ld	a,(de)
+	sbc	a,h
+	ld	h,a
+	ret
+
+WSUB_A.HL:
+	ld	e,a	; returns HL =  A - (HL)
+	ld	d,0
+WSUB_DE.HL:
+	ld	a,e	; returns HL = DE - (HL)
+	sub	(hl)
+	ld	e,a
+	ld	a,d
+	inc	hl
+	sbc	a,(hl)
+	ld	d,a
+	ex	de,hl
+	ret
+
+stack:	DS	0064H
+top_sp 	equ	$
+
+char_out:	DB	0
+ptr_str:	DW	0
+ptr_buff:	DW	0
+c_buff:		DB	21
+c_buff+1:	DB	0
+c_buff+2:	DS	21
+X0B7BH:	DW	0
+X0B7DH:	DW	0
+X0B7FH:	DB	0
+X0B80H:	DB	0
+X0B81H:	DB	0
+X0B82H:	DB	0
+X0B83H:	DB	0
+X0B84H:	DB	0
+X0B85H:	DB	0
+X0B86H:	DB	0
+X0B87H:	DB	0
+X0B88H:	DB	0
+X0B89H:	DB	0
+X0B8AH:	DB	0
+X0B8BH:	DB	0
+X0B8CH:	DB	0
+X0B8DH:	DB	0
+X0B8EH:	DB	0
+X0B8FH:	DB	0
+X0B90H:	DB	0
+X0B91H:	DB	0
+X0B92H:	DW	0
+X0B94H:	DB	0
+X0B95H:	DB	0
+month:	DB	0
+day:	DB	0
+year:	DB	0
+X0B99H:	DB	0
+X0B9AH:	DB	0
+X0B9BH:	DB	0
+X0B9CH:	DB	0
+X0B9DH:	DB	0
+X0B9EH:	DB	0
+X0B9FH:	DB	0
+X0BA0H:	DW	0
+X0BA2H:	DB	0
+X0BA3H:	DB	0,0,0,0
+X0BA7H:	DB	0
+X0BA8H:	DB	0
+X0BA9H:	DW	0
+X0BABH:	DB	0
+X0BACH:	DB	0,0
+X0BAEH:	DB	0,0,0
+tod_txt:	DB	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+ptr_scb:	DW	0
+ptr_tod:	DW	0
+X0BCAH:	DB	0
+X0BCBH:	DB	0
+	DB	0
+X0BCDH:	DB	0
+X0BCEH:	DW	0
+X0BD0H:	DB	0
+X0BD1H:	DB	0
+X0BD2H:	DW	0
+cpm_vers:
+	DW	0
+use_vers:
+	DB	030H
+	DB	001H
+
+	END
