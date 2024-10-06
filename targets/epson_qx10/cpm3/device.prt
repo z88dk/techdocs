@@ -1,0 +1,17 @@
+;	=================================
+;	QX-10 CP/M PLUS DEVICE ALLOCATION
+;	=================================
+
+;-------------------------------------------------------------;
+; No.   NAME    INPUT/OUPUT     PORT MODE   XON-XOFF   BAUD   ;
+;                                                             ;
+; 0	KEYB	Input		Serial		-	-     ;
+; 1	CRT	Output		Parallel	-	-     ;
+; 2	PRINT	Input/Output	Parallel	-	-     ;
+; 3	RS232	Input/Output	Serial		yes	9600  ;
+; 4	CMOS	Input/Output	Parallel	-	-     ;
+; 5	RS232A	Input/Output	Serial		yes	9600  ;
+; 6	RS232B	Input/Output	Serial		yes	9600  ;
+; 7	RS232C	Input/Output	Serial		yes	9600  ;
+; 8	RS232D	Input/Output	Serial		yes	9600  ;
+;-------------------------------------------------------------;
