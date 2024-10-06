@@ -1,0 +1,652 @@
+	page 45
+	title 'MML: utility SETLIST'
+;------------------------------------------------------------------------
+;	MML: utility SETLIST to set up LIST parameters on file LIST.COM
+;	25 aug 1981
+;	Version: General CP/M Plus system
+;
+; Amendments
+; ----------
+; 25aug81	Printer parameters held in data block starting 0104h
+; 15 sept 81	No change for change from bios 5 to bios 9
+; 12jan84	converted into CP/M Plus
+; 18may84	Check sum now optional
+;
+;------------------------------------------------------------------------
+
+CIN	EQU	1	; BDOS I/O for READ from CONSOLE
+COUT	EQU	2	; BDOS I/O for WRITE to CONSOLE
+CMSG    EQU     9       ; BDOS I/O to write string to CONSOLE
+LOUT	EQU	5	; BDOS I/O for WRITE to LIST DEVICE
+CSTAT	EQU	11	; BDOS test for character ready
+;
+BDOS	EQU	0005h	; bdos jump vector
+ccpdsk	equ	0050h	; drive this program loaded from
+FCB	EQU	005CH	; default FCB address
+DMA	EQU	0080H	; default (DMA) transfer address
+;
+FFCC	EQU	0CH	; Form Feed control character
+LFCC	EQU	0AH	; Line Feed control character
+CRCC	EQU	0DH	; Carriage Return control character
+BELL	equ	07H	; BELL
+;
+	aseg
+
+	ORG	100H	;PROGRAM TO READ FILE AND PRINT ON LIST DEVICE
+	JMP     setlist
+;---------------------------------------------------------------------------;
+; Printer parameters (may be changed by SETLIST)                            ;
+;---------------------------------------------------------------------------;
+WIDTH:	db	132	; WIDTH of page = 132 characters
+PAGELN:	db	51      ; Length of page is default 51, print 47 lines
+MISS:	db	4	; No of lines skipped at bottom of page
+NUMBER:	db	not 0	; Set to zero to suppress line numbers
+FORMFEED:
+	db	not 0	; Set to zero if printer does not support form feed
+CHKSUM:	db	not 0	; Set to zero to supress check sum display
+;---------------------------------------------------------------------------;
+
+CRWT:   DB     'COPYRIGHT D. POWYS-LYBBE MML 25th AUGUST 1981'
+;
+;----------;
+; Messages ;
+;----------;
+msg1:	db	'MML:SETLIST initialise LIST printer parameters',crcc,lfcc
+	db	lfcc,'--- Enter new value against each item or <return> -->'
+	db	crcc,lfcc,'$'
+msgerr:	db	bell,'$'
+;
+msg2:	db crcc,lfcc,'                      Printer width ('
+msg2a:	db	'   )','$'
+msg3:	db crcc,lfcc,'                     Lines per page ('
+msg3a:	db	'   )','$'
+msg4:	db crcc,lfcc,'                       Lines skipped ('
+msg4a:	db	'  )','$'
+msg5:	db crcc,lfcc,'            Suppress lines <0-Y, 1-N> ('
+msg5a:	db	' )','$'
+msg6:	db crcc,lfcc,'        Suppress form feed <0-Y, 1-N> ('
+msg6a:	db	' )','$'
+msg7:	db crcc,lfcc,'        Suppress check sum <0-Y, 1-N> ('
+msg7a:	db	' )','$'
+crlf:	db crcc,lfcc,'$'
+msgok:	db	crcc,lfcc,lfcc,'OK to update LIST.COM (Y/N) ? ','$'
+use31:	db	crcc,lfcc,'MML:SETLIST Must use CP/M Plus V3.1','$'
+binerr: 	db	crcc,lfcc,'ASCII to BINARY ERROR',crcc,lfcc,'$'
+NOTFOUND:	DB	'FILE NOT FOUND',CRCC,LFCC,'$'
+
+;------------;
+; FCB - LIST ;
+;------------;
+FCB$LIST:
+	DB	0
+	DB	'LIST    ','COM'
+FCB$LIST$EX:	DB	0,0,0,0
+	DS	16
+FCB$LIST$CR:	DB	0
+FCB$LIST$R:	DB	0,0,0
+
+;---------------------------------------;
+; 128 bytes for 1 sector (DMA) transfer ;
+;---------------------------------------;
+
+DMA$LIST:	ds	128
+
+
+;---------------;
+; START PROGRAM ;
+;---------------;
+
+setlist:
+	LXI	H,0
+	DAD	SP
+	SHLD	OLDSP	;SAVE CALLER'S STACK POINTER
+
+	mvi	c,12	; BDOS Return Version number
+	call	bdos
+	cpi	031h
+	jnz	notcpm3
+	mov	a,b
+	ora	a
+	jz	cpm31
+notcpm3:
+	lxi	d,use31
+	mvi	c,9	; BDOS Print String
+	jmp	bdos	; and exit
+;------------------------;
+; set drive for LIST.COM ;
+;------------------------;
+cpm31:	lda	ccpdsk		; drive this program loaded from
+	sta	fcb$list	; used for finding LIST.COM
+
+;==============;
+; MAIN PROGRAM ;
+;==============;
+
+START:
+	LXI	SP,OLDSP	;SET UP OURS
+;
+	lxi	d,msg1
+	mvi	c,cmsg
+	call	bdos
+
+	call	rd$list		; Read 1st sector of LIST.COM
+
+	call	settings	; display and change parameter settings
+
+	call	update		; display and confirm
+
+	cz	wr$list		; Write 1st sector of LIST.COM
+
+	jmp	finish
+
+;-------------
+;NORMAL RETURN
+;-------------
+finish:
+	LHLD	OLDSP	;GIVE BACK CALLER'S STACK
+	SPHL
+	mvi	c,0
+	jmp	bdos
+
+;----------------------------
+;	Read in LIST.COM file
+;----------------------------
+rd$list:
+	xra	a
+	sta	fcb$list$cr
+	sta	fcb$list$ex
+	LXI	D,FCB$LIST
+
+	MVI	C,15
+	CALL	BDOS	;OPEN FILE
+	CPI	0ffh
+	JNZ	FRST$REC
+
+	LXI	D,NOTFOUND
+	MVI	C,9
+	CALL	BDOS
+	JMP	finish	;FILE NOT FOUND
+;
+FRST$REC:		;READ 1st sector FROM DISK
+	LXI	D,DMA$LIST
+	MVI	C,26
+	CALL	BDOS	;SET DMA ADDRESS
+
+	LXI	D,FCB$LIST
+	MVI	C,20
+	CALL	BDOS	;READ RECORD
+
+	LXI	H,DMA$LIST	;GET BUFFER ADDRESS
+	inx	h
+	inx	h
+	inx	h
+	mov	a,m
+	sta	WIDTH
+	inx	h
+	mov	a,m
+	sta	PAGELN
+	inx	h
+	mov	a,m
+	sta	MISS
+	inx	h
+	mov	a,m
+	sta	NUMBER
+	inx	h
+	mov	a,m
+	sta	FORMFEED
+
+	inx	h
+	mov	a,m
+	sta	CHKSUM
+
+	ret
+
+;---------------------------------------;
+; display and change parameter settings ;
+;---------------------------------------;
+settings:
+	lxi	h,msg2a
+	lxi	d,msg2
+	mvi	c,3
+	lda	width
+	call	setup
+	call	binary
+	sta	width
+;
+	lxi	h,msg3a
+	lxi	d,msg3
+	mvi	c,3
+	lda	pageln
+	call	setup
+	call	binary
+	sta	pageln
+;
+;
+	lxi	h,msg4a
+	lxi	d,msg4
+	mvi	c,2
+	lda	miss
+	call	setup
+	call	binary
+	sta	miss
+;
+;
+	lxi	h,msg5a
+	lxi	d,msg5
+	lda	number
+	ani	1
+	call	setYN
+	call	binary
+	ani	1
+	sta	number
+;
+;
+	lxi	h,msg6a
+	lxi	d,msg6
+	lda	FORMFEED
+	ani	1
+	call	setYN
+	call	binary
+	ani	1
+	sta	FORMFEED
+;
+;
+	lxi	h,msg7a
+	lxi	d,msg7
+	lda	CHKSUM
+	ani	1
+	call	setYN
+	call	binary
+	ani	1
+	sta	CHKSUM
+;
+	ret
+
+;---------------------------;
+;display and confirm update ;
+;---------------------------;
+update:
+	lxi	d,crlf
+	mvi	c,cmsg
+	call	bdos
+;
+;	Check if o.k. to update
+;
+;
+	lxi	h,msg2a
+	lxi	d,msg2
+	mvi	c,3
+	lda	width
+	call	show
+;
+	lxi	h,msg3a
+	lxi	d,msg3
+	mvi	c,3
+	lda	pageln
+	call	show
+;
+;
+	lxi	h,msg4a
+	lxi	d,msg4
+	mvi	c,2
+	lda	miss
+	call	show
+;
+;
+	lxi	h,msg5a
+	lxi	d,msg5
+	mvi	c,1
+	lda	number
+	ani	1
+	call	show
+;
+;
+	lxi	h,msg6a
+	lxi	d,msg6
+	mvi	c,1
+	lda	FORMFEED
+	ani	1
+	call	show
+;
+;
+	lxi	h,msg7a
+	lxi	d,msg7
+	mvi	c,1
+	lda	CHKSUM
+	ani	1
+	call	show
+;
+	lxi	d,msgok
+	mvi	c,cmsg
+	call	bdos
+	mvi	c,cin
+	call	bdos
+	cpi	'Y'
+	jz	ok
+	cpi	'y'
+	jz	ok
+	cpi	'N'
+	jz	abort
+	cpi	'n'
+	jz	abort
+	lxi	d,msgerr
+	mvi	c,cmsg
+	call	bdos
+	jmp	update
+
+ok:	xra	a
+	ret
+
+abort:	ori	-1
+	ret
+
+;-------------------------------
+;	Write back LIST.COM file
+;-------------------------------
+
+wr$list:			; write first record back to disc
+	LXI	H,DMA$LIST	;GET BUFFER ADDRESS
+	inx	h
+	inx	h
+	inx	h
+	lda	WIDTH
+	mov	m,a
+	inx	h
+	lda	PAGELN
+	mov	m,a
+	inx	h
+	lda	MISS
+	mov	m,a
+	inx	h
+	lda	NUMBER
+	mov	m,a
+	inx	h
+	lda	FORMFEED
+	mov	m,a
+	inx	h
+	lda	CHKSUM
+	mov	m,a
+;
+	SUB	a
+	sta	fcb$list$cr
+	sta	fcb$list$ex
+	sta	fcb$list$r
+	sta	fcb$list$r+1
+	sta	fcb$list$r+2
+;
+	LXI	D,DMA$LIST
+	MVI	C,26
+	CALL	BDOS	;SET DMA ADDRESS
+	LXI	D,FCB$LIST
+	MVI	C,34
+	CALL	BDOS	;WRITE RANDOM
+;
+	lxi	d,fcb$list
+	mvi	c,16	; CLOSE file
+	call	bdos
+	ret
+
+	page
+
+;--------------------------
+;		subroutines
+;--------------------------
+
+
+;
+;-----------------------------------------------;
+; SETUP                                         ;
+; Entry:	<hl> -> lsd of ascii digits     ;
+;               <de> -> message for display     ;
+;         	<c> - number of ascii digits    ;
+; Returns:	<c> - number of ascii digits    ;
+;		<hl> -> start of ascii digits   ;
+; Function:     Displays message line and       ;
+;               inputs up to <C> characters  	;
+;-----------------------------------------------;
+setup:
+	push	psw
+	call	show
+	push	h
+	push	b
+	push	d
+;
+	mvi	d,0
+	mov	e,c
+	dad	d
+	dcx	h	;(hl) -> lsd of ascii digits
+	mov	b,c	; save count
+	inr	c
+;
+setup1:
+	push	h
+	push	b
+	mvi	c,cin
+	call	bdos
+	pop	b
+	pop	h
+	cpi	crcc
+	jz	setup4
+	cpi	'0'
+	jc	seterr
+	cpi	'9'+1
+	jnc	seterr
+	dcr	c
+	jz	seterr
+	push	h
+	push	b
+	mov	d,m
+setup2:	dcr	b	; Shift each digit to right
+	jz	setup3
+	dcx	h
+	mov	e,m
+	mov	m,d
+	mov	d,e
+	jmp	setup2
+setup3:	pop	b
+	pop	h
+	mov	m,a
+	jmp	setup1
+setup4:
+	mov	a,c
+	pop	d
+	pop	b
+	mov	b,c	; use b to count past digits
+	dcr	a
+	cmp	b
+	jz	setup7	; Unchanged
+setup5:	cmp	b
+	jz	setup6
+	dcr	b
+	jz	setup7
+	dcx	h
+	jmp	setup5
+setup6:	mvi	m,' '
+	dcx	h
+	dcr	b
+	jnz	setup6
+setup7:	pop	h
+	pop	psw
+	ret
+
+;-----------------------------------------------;
+; SETYN                                         ;
+; Entry:	<hl> -> lsd of ascii digits     ;
+;               <de> -> message for display     ;
+; Returns:	<c> - number of ascii digits    ;
+;		<hl> -> start of ascii digits   ;
+; Function:     Displays message line and       ;
+;               inputs 1 char of 0, 1, Y or N	;
+;-----------------------------------------------;
+setYN:
+	mvi	c,1
+	push	psw
+	call	show
+	push	h
+	push	b
+	push	d
+;
+;(hl) -> lsd of ascii digits
+;
+setYN1:
+	push	h
+	push	b
+	mvi	c,cin
+	call	bdos
+	pop	b
+	pop	h
+	cpi	crcc
+	jz	setYN4
+
+	cpi	'Y'
+	jz	setY
+	cpi	'y'
+	jz	setY
+	cpi	'0'
+	jz	setY
+
+	cpi	'N'
+	jz	setN
+	cpi	'n'
+	jz	setN
+	cpi	'1'
+	jz	setN
+	jmp	YNerr
+setN:	mvi	m,'1'
+	jmp	setYN2
+setY:	mvi	m,'0'
+setYN2:	push	h
+	push	b
+	mvi	c,cin
+	call	bdos
+	pop	b
+	pop	h
+	cpi	crcc
+	jnz	YNerr
+setYN4:
+	pop	d
+	pop	b
+	pop	h
+	pop	psw
+	ret
+
+;--------------;
+; display line ;
+;--------------;
+show:
+	push	h
+	push	b
+	push	d
+	call	ascii
+	pop	d
+	push	d
+	mvi	c,cmsg
+	call	bdos
+	pop	d
+	pop	b
+	pop	h
+	ret
+
+seterr:
+	lxi	d,msgerr
+	mvi	c,cmsg
+	call	bdos
+	pop	d
+	pop	b
+	pop	h
+	pop	psw
+	jmp	setup
+YNerr:
+	lxi	d,msgerr
+	mvi	c,cmsg
+	call	bdos
+	pop	d
+	pop	b
+	pop	h
+	pop	psw
+	jmp	setYN
+;-----
+; ASCII
+; REG IN:	a - 8 bit unsigned binary number
+;		c - number of ascii digits
+;		(hl) -> address of ascii text
+; Subroutine asc03 is re-entrant
+;
+ascii:
+	mov	b,a
+	mov	a,c
+asc01:	dcr	a
+	jz	asc02
+	mvi	m,' '
+	inx	h
+	jmp	asc01
+asc02:	mvi	m,'0'
+	inr	b
+asc08:	dcr	b
+	rz	; Finished count down
+	call	asc03
+	jmp	asc08
+; re-entrant routine to increment ascii character
+asc03:	inr	m
+	mov	a,m
+	cpi	'9'+1
+	rc
+	mvi	m,'0'
+	dcr	c
+	jz	asc04	; overflow ......
+	dcx	h
+	mvi	a,'0'
+	cmp	m
+	jc	asc09
+	mov	m,a
+asc09:	call	asc03
+	inx	h
+asc04:	inr	c
+	ret
+;
+;------
+;BINARY
+; Reg in	(HL) -> address of ascii text
+;		c    -  Number of ascii digits
+; Reg out	a    -  Binary value
+; Error         aborts to start of program
+;
+BINARY:	push	h
+	push	b
+	inr	c
+	sub	a
+bin01:	dcr	c
+	jz	bin09
+	mov	b,a	; multiply a by ten
+	rlc
+	rlc
+	add	b
+	rlc
+	mov	b,a
+	mov	a,m
+	cpi	' '
+	jz	bin03
+	sbi	'0'
+	jc	bin04
+	cpi	10
+	jnc	bin04
+	add	b
+bin02:	inx	h
+	jmp	bin01
+bin03:	mov	a,b
+	jmp	bin02
+bin04:	lxi	d,binerr	; error in text
+	mvi	c,cmsg
+	call	bdos
+	jmp	start		; and crash to start
+bin09:	pop	b
+	pop	h
+	ret
+;-------;
+; stack ;
+;-------;
+
+	DS	32
+OLDSP:	DW	0
+;
+	END
