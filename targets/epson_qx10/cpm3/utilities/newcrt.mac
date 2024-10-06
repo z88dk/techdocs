@@ -1,0 +1,1782 @@
+	page 54
+	title 'NEWCRT'
+	.Z80
+
+vers	equ	10	; current version
+
+;******* SYSTEM EQUATES
+
+CIN	equ	1	; BDOS I/O for READ from CONSOLE
+COUT	equ	2	; BDOS I/O for WRITE to CONSOLE
+CMSG    equ     9       ; BDOS I/O to write string to CONSOLE
+LOUT	equ	5	; BDOS I/O for WRITE to LIST DEVICE
+CSTAT	equ	11	; BDOS test for character ready
+
+WARM.BOOT equ	0
+FCB	equ	5CH
+DMA	equ	80H
+BDOS	equ	5
+bios	equ	0001h	; pointer to BIOS jump table
+
+
+vers22	equ	22h	; CP/M version number
+vers31	equ	31h	; CP/M version number
+rev	equ	'A'	; Utility version
+
+;*** logical constants ***
+false	equ	0000h		;not true
+true	equ	0ffh		;not exactly false
+
+
+;*** ascii codes ***
+BREAK	equ	3		;BREAK (control C)
+BELL	equ	7		;BELL code
+BSPACE	equ	08		;backspace
+TAB	equ	09H		;tab
+LF	equ	0AH		;line feed
+FF	equ	0CH		;form feed
+CR	equ	0DH		;carriage return
+EOF	equ	1AH		;end of file code
+ESC	equ	1BH		;escape char for cursor control
+
+;*** Arrow Key Assignments ***
+
+Up.Arrow	equ	1eh
+Down.Arrow	equ	1fh
+Left.Arrow	equ	1dh
+Right.Arrow	equ	1ch
+	;these are the default settings!
+;*** Direct BIOS offsets ***
+
+CI	equ	6	;conin
+CO	equ	9	;conout
+LI	equ	12	;listout
+
+	page
+;******* PROGRAM EQUATES
+
+YP1.1	equ	10+32
+XP1.1	equ	25+32
+YP1.2	equ	YP1.1+2
+XP1.2	equ	XP1.1
+YP1.3	equ	YP1.2+2
+XP1.3	equ	XP1.1
+YP1.4	equ	YP1.3+2
+XP1.4	equ	XP1.1
+
+YP2.1	equ	8+32
+XP2.1	equ	25+32
+YP2.2	equ	10+32
+XP2.2	equ	10+32
+YP2.3	equ	YP2.2+1
+XP2.3	equ	XP2.2
+YP2.4	equ	YP2.3+1
+XP2.4	equ	XP2.2
+YP2.5	equ	YP2.4+1
+XP2.5	equ	XP2.2
+YP2.6	equ	YP2.5+1
+XP2.6	equ	XP2.2
+YP2.7	equ	YP2.6+1
+XP2.7	equ	XP2.2
+YP2.8	equ	YP2.7+1
+XP2.8	equ	XP2.2
+YP2.9	equ	YP2.8+1
+XP2.9	equ	XP2.2
+YP2.10	equ	YP2.9+1
+XP2.10	equ	XP2.2
+YP2.11	equ	YP2.10+1
+XP2.11	equ	XP2.2
+YP2.12	equ	YP2.11+1
+XP2.12	equ	XP2.2
+YP2.13	equ	YP2.2
+XP2.13	equ	XP2.2+40
+YP2.14	equ	YP2.3
+XP2.14	equ	XP2.13
+YP2.15	equ	YP2.4
+XP2.15	equ	XP2.13
+YP2.16	equ	YP2.5
+XP2.16	equ	XP2.13
+YP2.17	equ	YP2.6
+XP2.17	equ	XP2.13
+YP2.18	equ	YP2.7
+XP2.18	equ	XP2.13
+YP2.19	equ	YP2.8
+XP2.19	equ	XP2.13
+YP2.20	equ	YP2.9
+XP2.20	equ	XP2.13
+YP2.21	equ	YP2.10
+XP2.21	equ	XP2.13
+YP2.22	equ	YP2.11
+XP2.22	equ	XP2.13
+YP2.23	equ	YP2.12
+XP2.23	equ	XP2.13
+
+YP3.1	equ	8+32
+XP3.1	equ	25+32
+YP3.2	equ	10+32
+XP3.2	equ	22+32
+YP3.3	equ	YP3.2+1
+XP3.3	equ	XP3.2
+YP3.4	equ	YP3.3+1
+XP3.4	equ	XP3.2
+YP3.5	equ	YP3.4+1
+XP3.5	equ	XP3.2
+YP3.6	equ	YP3.5+1
+XP3.6	equ	XP3.2
+YP3.7	equ	YP3.6+1
+XP3.7	equ	XP3.2
+YP3.8	equ	YP3.7+1
+XP3.8	equ	XP3.2
+
+YP4.1	equ	8+32
+XP4.1	equ	25+32
+YP4.2	equ	10+32
+XP4.2	equ	25+32
+YP4.3	equ	YP4.2+1
+XP4.3	equ	XP4.2
+YP4.4	equ	YP4.3+1
+XP4.4	equ	XP4.2
+YP4.5	equ	YP4.4+1
+XP4.5	equ	XP4.2
+
+YP5.1	equ	8+32
+XP5.1	equ	25+32
+YP5.2	equ	10+32
+XP5.2	equ	25+32
+YP5.3	equ	YP5.2+1
+XP5.3	equ	XP5.2
+YP5.4	equ	YP5.3+1
+XP5.4	equ	XP5.2
+YP5.5	equ	YP5.4+1
+XP5.5	equ	XP5.2
+YP5.6	equ	YP5.5+1
+XP5.6	equ	XP5.2
+YP5.7	equ	YP5.6+1
+XP5.7	equ	XP5.2
+YP5.8	equ	YP5.7+1
+XP5.8	equ	XP5.2
+YP5.9	equ	YP5.8+1
+XP5.9	equ	XP5.2
+
+	aseg
+	page
+
+	org	100H
+
+;First we check to see if we have the correct version of CP/M
+;in the correct machine.
+
+START::	ld	c,12		; BDOS return version number
+	call	bdos
+	cp	031h		; Check for the right version of CP/M
+	jp	nz,notcpm3
+	ld	a,h
+	or	a
+	jp	nz,notcpm3	; Complain if it's the wrong version
+	ld	hl,0
+	add	hl,sp
+	ld	(OLDSP),hl	; Save caller's stack pointer
+	ld	sp,OLDSP	; Set up ours
+	ld	hl,(0006h)
+	ld	sp,hl		; use top of memory as stack
+;check for QX+
+	ld	c,50		; BDOS Direct BIOS calls
+	ld	de,BIOSPB
+	ld	a,30		; Customised BIOS entry point
+	ld	(de),a		; requires no other registers
+	call	BDOS		; Check for the right machine 
+	cp	'A'		; Epson BIOS returned version
+	jp	z,ALL.OK
+
+;-----------------------------------------;
+; Program not loaded under CP/M3 on Epson ;
+;-----------------------------------------;
+notcpm3:
+	ld	hl,cpm3msg	; Complain to user
+	call	strout
+	ld	c,0
+	jp	bdos		; and terminate program
+
+;Everything seems OK so now we can begin the program proper.
+	page
+;*****************************************************************************
+;*                                                                           *
+;*   Print the multifont heading and instructions and wait for the user to   *
+;*   press a key. If it is the BREAK key then we abort the program. If it is *
+;*   any other key then continue.                                            *
+;*                                                                           *
+;*****************************************************************************
+
+ALL.OK::ld	hl,HELLO.STRING
+	call	MSG		;split the screen and print title
+	ld	hl,INSTRUCT
+	call	STROUT		;print the instructions
+	ld	hl,OK
+	call	MSG
+	call	CUROFF		;Stop the cursor flashing everywhere
+  	call	CONIN		;Wait for user to press a key
+	push	af
+	ld	hl,TIDY.UP
+	call	MSG		;Tidy up the screen
+	pop	af
+	cp	3		;If user pressed break
+	jp	z,ABORT		;then abort
+	call	INITBUFF	;else initialise the control buffer,
+	call	SPLIT		;split the screen,
+	call	SHOWIT		;show the example,
+	call	CUROFF		;cursor off and continue
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*   LEVEL1 prints MENU1 on the screen and allows the user to select a sub- *
+;*   menu, finish or abort. The cursor keys and <CR> are used to select sub-*
+;*   menus, <ESC> to finish and <BREAK> to abort.                           *
+;*                                                                          *
+;****************************************************************************
+
+LEVEL1::ld	hl,CLEAR.SCREEN
+	call	STROUT
+	call	NICE.BOX	;Put the nice box on the screen
+	ld	bc,M1.STR.TAB	;Point at menu 1 string table
+	ld	de,M1.JMP.TAB	;and menu 1 jump table
+	ld	hl,M1.PRMPT	;and menu 1 prompt
+	call	DO.MENU		;Make a selection from menu 1
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*   LEVEL2 prints MENU2 on the screen and allows the user to select a      *
+;*   font, finish or abort. The cursor keys and <CR> are used to select     *
+;*   fonts, <ESC> to finish and <BREAK> to abort.                           *
+;*                                                                          *
+;****************************************************************************
+
+LEVEL2::ld	hl,CLEAR.SCREEN
+	call	STROUT
+	call	NICE.BOX	;Put the nice box on the screen
+	ld	bc,M2.STR.TAB	;Point at menu 2 string table
+	ld	de,M2.JMP.TAB	;and menu 2 jump table
+	ld	hl,M2.PRMPT	;and menu 2 prompt
+	call	DO.MENU		;Make a selection from menu 2
+
+L2A::	ld	hl,M2.CTL.TAB	;Come here from menu selection
+	dec	a		;Lose main menu option
+	ld	e,a
+	ld	d,0
+	add	hl,de
+	add	hl,de		;Point to address of relevant control string
+	ld	e,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,e		;HL points to control string
+	ld	c,(hl)
+	ld	b,0		;BC has length of string
+	inc	hl		;HL points to string proper
+	ld	de,FNT.BUFF	;DE points to font buffer
+	ldir			;Put string in buffer
+	call	SHOWIT		;Show the example
+	ld	a,(CURRENT)
+	jp	DO.MX		;Back to menu
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*   LEVEL3 prints MENU3 on the screen and allows the user to select screen *
+;*   attributes, finish or abort. The cursor keys and <CR> are used to      *
+;*   select attributes, <ESC> to finish and <BREAK> to abort.               *
+;*                                                                          *
+;****************************************************************************
+
+LEVEL3::ld	hl,CLEAR.SCREEN
+	call	STROUT
+	call	NICE.BOX	;Put the nice box on the screen
+	ld	bc,M3.STR.TAB	;Point at menu 3 string table
+	ld	de,M3.JMP.TAB	;and menu 3 jump table
+	ld	hl,M3.PRMPT	;and menu 3 prompt
+	call	DO.MENU		;Make a selection from menu 3
+
+L3A::	ld	hl,M3.CTL.TAB	;Come here from menu selection
+	dec	a		;Lose main menu option
+	ld	e,a
+	ld	d,0
+	add	hl,de
+	add	hl,de		;Point to address of relevant control string
+	ld	e,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,e		;HL points to control string
+	ld	c,(hl)
+	ld	b,0		;BC has length of string
+	inc	hl		;HL points to string proper
+	ld	de,(buff.ptr)	;DE points to control buffer
+	ldir			;Put string in buffer
+	dec	de		;Back up pointer to allow overwrite of 0
+	ld	(buff.ptr),de	;Store pointer away
+	call	SHOWIT		;Show the example
+	ld	a,(CURRENT)
+	jp	DO.MX		;Back to menu
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*   LEVEL4 prints MENU4 on the screen and allows the user to select a      *
+;*   cursor mode, finish or abort. The cursor keys and <CR> are used to     *
+;*   select cursor modes, <ESC> to finish and <BREAK> to abort.             *
+;*                                                                          *
+;****************************************************************************
+
+LEVEL4::ld	hl,CLEAR.SCREEN
+	call	STROUT
+	call	NICE.BOX	;Put the nice box on the screen
+	ld	bc,M4.STR.TAB	;Point at menu 4 string table
+	ld	de,M4.JMP.TAB	;and menu 4 jump table
+	ld	hl,M4.PRMPT	;and menu 4 prompt
+	call	DO.MENU		;Make a selection from menu 5
+
+L4A::	ld	hl,M4.CTL.TAB	;Come here from menu selection
+	dec	a		;Lose main menu option
+	ld	e,a
+	ld	d,0
+	add	hl,de
+	add	hl,de		;Point to address of relevant control string
+	ld	e,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,e		;HL points to control string
+	ld	c,(hl)
+	ld	b,0		;BC has length of string
+	inc	hl		;HL points to string proper
+	ld	de,CUR.BUFF	;DE points to cursor mode buffer
+	ldir			;Put string in buffer
+	call	SHOWIT		;Show the example
+	ld	a,(CURRENT)
+	jp	DO.MX		;Back to menu
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*   LEVEL5 prints MENU5 on the screen and allows the user to select a      *
+;*   nationality, finish or abort. The cursor keys and <CR> are used to     *
+;*   select nationalities, <ESC> to finish and <BREAK> to abort.            *
+;*                                                                          *
+;****************************************************************************
+
+LEVEL5::ld	hl,CLEAR.SCREEN
+	call	STROUT
+	call	NICE.BOX	;Put the nice box on the screen
+	ld	bc,M5.STR.TAB	;Point at menu 5 string table
+	ld	de,M5.JMP.TAB	;and menu 5 jump table
+	ld	hl,M5.PRMPT	;and menu 5 prompt
+	call	DO.MENU		;Make a selection from menu 5
+
+L5A::	ld	hl,M5.CTL.TAB	;Come here from menu selection
+	dec	a		;Lose main menu option
+	ld	e,a
+	ld	d,0
+	add	hl,de
+	add	hl,de		;Point to address of relevant control string
+	ld	e,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,e		;HL points to control string
+	ld	c,(hl)
+	ld	b,0		;BC has length of string
+	inc	hl		;HL points to string proper
+	ld	de,NAT.BUFF	;DE points to nationality buffer
+	ldir			;Put string in buffer
+	call	SHOWIT		;Show the example
+	ld	a,(CURRENT)
+	jp	DO.MX		;Back to menu
+
+	page
+;*****************************************************************************
+;*                                                                           *
+;*    GETOUT tidies up the screen, writes the control buffer to the console  *
+;*    and exits to CP/M.                                                     *
+;*                                                                           *
+;*****************************************************************************
+
+GETOUT::ld	hl,MND.SPL
+	call	STROUT			;Mend the split in the screen
+	ld	hl,CLEAR.SCREEN
+	call	STROUT			;Tidy up the screen
+	call	CURON			;Cursor on again
+	ld	hl,NAT.BUFF
+	call	STROUT			;Send nationality string to console
+	ld	hl,FNT.BUFF
+	call	STROUT			;Send the Font string to the console
+	ld	c,0
+	call	CONOUT			;Then a 0 just in case
+	ld	hl,CUR.BUFF
+	call	STROUT			;Send cursor mode string to console
+	ld	hl,CNTL.BUFF
+	call	STROUT			;Send the control buffer to the console
+	ld	hl,DONE.MSG
+	call	STROUT			;Tell the user that we finished OK
+	jp	WARM.BOOT		;Back to CP/M
+
+
+	page
+;*****************************************************************************
+;*                                                                           *
+;*   ABORT clears the screen, prints a termination message and exits.        *
+;*                                                                           *
+;*****************************************************************************
+
+ABORT::	
+	ld	hl,MND.SPL
+	call	STROUT			;Mend the split in the screen
+	ld	hl,CLEAR.SCREEN
+	call	STROUT			;Tidy up the screen
+	call	CURON			;Cursor on again
+	ld	hl,ABORT.MSG
+	call	STROUT			;Tell the user that we aborted
+	jp	WARM.BOOT		;Back to CP/M
+
+	page
+;**************************************************************************
+;*                                                                        *
+;*   Some Useful Routines                                                 *
+;*                                                                        *
+;**************************************************************************
+;-----
+; ASCII
+; REG IN:	a - 8 bit unsigned binary number
+;		c - number of ascii digits
+;		(hl) -> address of ascii text
+; Subroutine asc03 is re-entrant
+;
+ascii:
+	ld	b,a
+	ld	a,c
+asc01:	dec	a
+	jp	z,asc02
+	ld	(hl),'0'
+	inc	hl
+	jp	asc01
+asc02:	ld	(hl),'0'
+	inc	b
+asc08:	dec	b
+	ret	z	; Finished count down
+	call	asc03
+	jp	asc08
+; re-entrant routine to increment ascii character
+asc03:	inc	(hl)
+	ld	a,(hl)
+	cp	'9'+1
+	ret	c
+	ld	(hl),'0'
+	dec	c
+	jp	z,asc04	; overflow ......
+	dec	hl
+	ld	a,'0'
+	cp	(hl)
+	jp	c,asc09
+	ld	(hl),a
+asc09:	call	asc03
+	inc	hl
+asc04:	inc	c
+	ret
+;
+;------
+;BINARY
+; Reg in	(HL) -> address of ascii text
+;		c    -  Number of ascii digits
+; Reg out	a    -  Binary value
+; Error         aborts by rebooting
+;
+BINARY:	push	hl
+	push	bc
+	inc	c
+	sub	a
+bin01:	dec	c
+	jp	z,bin09
+	ld	b,a	; multiply a by ten
+	rlca
+	rlca
+	add	a,b
+	rlca
+	ld	b,a
+	ld	a,(hl)
+	cp	' '
+	jp	z,bin03
+	sub	'0'
+	jp	c,bin04
+	cp	10
+	jp	nc,bin04
+	add	a,b
+bin02:	inc	hl
+	jp	bin01
+bin03:	ld	a,b
+	jp	bin02
+bin04:	ld	de,binerr	; error in text
+	ld	c,cmsg
+	call	bdos
+	jp	0		; and crash reboot
+bin09:	pop	bc
+	pop	hl
+	ret
+binerr:	db	CR,LF,'ASCII to BINARY ERROR','$'
+
+	page
+
+;---------------------------------------------------------------
+;
+;Machine-specific graphics and console routines
+;
+;---------------------------------------------------------------
+
+;*** cursor control codes ***
+	db	'Copyright MML Ltd (c) 1983'
+
+;*** all patches as in wordstar ***
+CLEAR:	db	02,ESC,'Z',0
+CLEAD1:	db	02,27,61,00	;yx cursor addressing lead-in
+LINOFF:	db	20h		;offset to add
+COLOFF:	db	20h
+
+
+
+;*** other vdu patches in addition ***
+char.starting.highlight:
+	DB	'['	;additional emphasis for selected option
+;for menu selection
+char.finishing.highlight:
+	DB	']'	;see above
+;for menu selection
+	
+uscore:	db	'_'	;not used
+ivonº	db	02,27,"0",00,00,00,00	;string to switch on inverse
+ivoff:	db	04,27,"1",27,"7",00,00	;string to switch off all highlighting
+ivon2:	db	02,27,"6",00,00,00,00 	;string to switch on intensity
+
+
+;cursor turn off/on strings
+on.cursor:db	02,1bh,'3',00	;switch on the cursor
+off.cursor:db	02,1bh,'2',00	;switch off the cursor
+
+;screen switching strings
+upper.screen:db	2,1bh,"u",00;switch to upper screen
+lower.screen:db	2,1bh,"v",00;switch to lower screen
+
+;mode switching strings
+grfiks:	db	2,1bh,'g',00	;enter graphics
+no.grfix:db	2,1bh,'h',00	;exit graphics mode
+
+	page
+
+yxpos:	;sends the character cursor to the location in line/Column
+	push	hl
+	push	de
+	push	bc		;save everything
+	ld	hl,clead1	;print lead-in
+	call	msg
+	ld	a,(line)	;get line no.
+	ld	b,a
+	ld	a,(linoff)
+	Add	a,b		;addin line offset
+	call	putchar		;out it goes
+	ld	a,(Column)	;get column
+	ld	c,a
+	ld	a,(coloff)	;add in offset
+	add	a,c
+	call	putchar		;send it out
+	pop	bc		;restore the world
+	pop	de
+	pop	hl
+	ret			;and go home
+
+
+
+;---------------------------------------
+gra.off:;turn into character mode
+	push	hl		;save the world
+	push	de
+	push	bc
+	ld	hl,no.grfix	;the no graphics string
+	call	msg		;to switch into character mode
+	pop	bc		;restore the world
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------	
+curon:		;switch on the cursor
+	push	hl
+	push	de
+	push	bc
+	ld	hl,on.cursor	;switch cursor on 
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------
+into.graphics:;lets enter graphics mode
+	
+	push	hl
+	push	de
+	push	bc
+	ld	hl,grfiks	;switch into graphics
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------	
+curoff:	;switch off the cursor
+	push	hl
+	push	de
+	push	bc
+	ld	hl,off.cursor	;string to tell the console
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------
+screen.clear:;clear the whole damned screen
+	push	hl
+	push	de
+	push	bc
+	ld	hl,clear
+	call	msg		;send out clear-screen string
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+	page
+
+	subttl  'DIRECT BIOS SUBROUTINES'
+
+;----------------------
+;-- BIOS Interaction --
+;----------------------
+
+
+CONIN:
+	LD	DE,CI		;console input
+	CALL	dir_bios
+	RET
+
+CONOUT:	ld	de,co
+	jr	dir_bios
+
+dir_bios:
+	LD	hl,(bios)	;entry BIOS
+	ADD	hl,DE
+	JP	(hl)		; direct BIOS call
+
+	page
+;------------------------
+;-- BDOS Character I/O --
+;------------------------
+
+subttl  'BDOS CHARACTER SUBROUTINES'
+
+;-----;
+strout:
+;-----;
+	ld	a,(hl)
+	or	a
+	ret	z
+	push	hl
+	call	putchar
+	pop	hl	;send out null-terminated string
+	inc	hl
+	jr	strout	;to console
+
+;------;
+putchar:
+;------;
+	ld	c,a	;to the console by direct bios call
+	call	conout		;conout
+	ret
+
+
+;-------;
+Msg:
+;-------;
+	
+	ld	a,(hl)		;print string preceded by a count byte
+	ld	b,a		;get count byte
+	or	a		;is it a null string
+	ret	z		;if null string, then go home
+.loop::	inc	hl		;point to next ascii byte
+	ld	a,(hl)		;get it
+	push	hl
+	push	bc
+	call	putchar		;send it to the console
+	pop	bc
+	pop	hl
+	dec	b		;any more to do
+	ret	z		;if not go home
+	jr	.loop		;otherwise do the next byte
+
+RING::	push	hl		; Ring the bell
+	push	de
+	push	bc
+	push	af
+	ld	e,BELL		; BELL
+	ld	c,6		; BDOS Direct Console output
+	call	bdos
+	pop	af
+	pop	bc
+	pop	de
+	pop	hl
+	ret
+
+	page
+NICE.BOX::			;around the screen
+	xor	a
+	ld	(line),a	;zap the line position
+	ld	(Column),a	;and the column position
+	call	yxpos		;home the cursor
+;draw the top border	
+	ld	a,087h		;a top left border
+	call	putchar		;send a top-left bracket
+	ld	b,78
+..toploop:;now do the top line across
+	ld	a,085h		;do a top line
+	push	bc
+	call	putchar		;out goes a line character
+	pop	bc
+	djnz	..toploop
+	ld	a,088h		;a top right border
+	call	putchar		;do a top right character
+;go to bottom line	
+	ld	a,21		;now do likewise for the bottom
+	ld	(line),a
+	xor	a
+	ld	(Column),a	;go to the bottom left
+	call	yxpos
+;draw the bottom border	
+	ld	a,089h		;a bottom left border
+	call	putchar
+	ld	b,78		;and now a nice horizontal line
+..botloop:
+	ld	a,085h		;do a bottom line
+	push	bc
+	call	putchar
+	pop	bc
+	djnz	..botloop
+	ld	a,08ah		;a bottom right border
+	call	putchar
+	xor	a
+	ld	(Column),a
+	ld	(line),a	;home again
+	call	drawdown
+	ld	a, 79		;we have drawn a vertical line
+	ld	(Column),a
+	xor	a		;go to the top right
+	ld	(line),a
+	call	drawdown	;and do the second vertical line
+	ret	
+;----------------------------------------------------------------------------
+drawdown:;the whole screen a double line
+	ld	b,20		;the number of lines
+..downloop:
+	push	bc
+	ld	hl,line	;get where we are
+	inc	(hl)		;increment it
+	call	yxpos		;and point the cursor there
+	ld	a,086h		;down line
+	call	putchar		;output the byte
+	pop	bc
+	djnz	..downloop	;and do another until b=0
+	ret			;the job is all done
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*   SPLIT splits the screen, the top 22 are used by the utility in         *
+;*   character mode while the bottom line is put in various modes and used  *
+;*   print an example string.                                               *
+;*                                                                          *
+;****************************************************************************
+
+SPLIT::	ld	hl,SPL.STR
+	call	STROUT			;Send the split defining string
+	ret
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*    SHOWIT prints an example string in the current mode on the lower      *
+;*    screen.                                                               *
+;*                                                                          *
+;****************************************************************************
+
+SHOWIT::ld	hl,LOWER
+	call	STROUT			;Go to lower screen
+	ld	hl,NAT.BUFF
+	call	STROUT			;Set nationality
+	ld	hl,FNT.BUFF
+	call	STROUT			;Set font
+	ld	hl,CUR.BUFF
+	call	STROUT			;Set cursor mode
+	ld	hl,CNTL.BUFF
+	call	STROUT			;Set screen attributes
+	ld	hl,EX.STR
+	call	STROUT			;Print the example
+	ld	hl,UPPER
+;bugfix
+	call	STROUT			;Go to upper screen
+	ld	hl,ivoff+1
+	call	strout
+	ret
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*   DO.MENU puts a menu on the screen, allows the user to move a cursor    *
+;*   around this menu and make selections. If up.arrow or down.arrow are    *
+;*   pressed then the cursor moves to another choice in the menu. If CR is  *
+;*   pressed then the current choice is selected and an appropriate routine *
+;*   is jumped to. If ESC is pressed then the program is exited via a jump  *
+;*   to GETOUT If BREAK is pressed then the program is terminated via a jump*
+;*   to ABORT. Any other character causes the bell to ring and is ignored.  *
+;*   Entry -	HL -> Menu prompt string                                    *
+;*		DE -> Menu jump table                                       *
+;*		BC -> Menu string table                                     *
+;*   Exit -	A = value of selected menu option (0=first, 1=second etc.)  *
+;*              Jumps to address in jump table corresponding to             *
+;*		currently selected menu option                              *
+;*                                                                          *
+;****************************************************************************
+
+DO.MENU::
+	xor	a
+	ld	(CURRENT),a
+	ld	a,(bc)
+	ld	(TABLEN),a		;Store away the table length
+	inc	bc
+	ld	(STR.TAB),bc		;Store away the string table address
+	ld	(JMP.TAB),de		;Store away the jump table address
+	call	STROUT			;Print the menu prompt string
+DO.MX::	ld	a,(TABLEN)
+	ld	b,a			;Number of table entries in B
+	ld	de,(STR.TAB)		;Point at string table with DE
+DO.M1::	ld	a,(de)
+	ld	l,a
+	inc	de
+	ld	a,(de)			;Get an entry from the string table
+	ld	h,a
+	inc	de			;and bump the pointer
+	push	bc
+	push	de
+	call	STROUT			;Put a string on the screen
+	pop	de
+	pop	bc
+	djnz	DO.M1			;Repeat for all menu strings
+	ld	a,(CURRENT)
+DO.M2::	ld	(CURRENT),a		;Set current selection to 0
+	ld	hl,(STR.TAB)
+	ld	a,(CURRENT)
+	ld	e,a
+	ld	d,0
+	add	hl,de
+	add	hl,de			;Point at current string pointer
+	ld	e,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,e			;Point at current string
+	push	hl
+	call	REVIT			;Put it in reverse video
+	call	GETSEL			;Get user's selection
+	pop	hl
+	cp	CR
+	jr	z,DO.M4			;If CR go get jump vector
+	call	TRUIT			;else put selection back in true
+	cp	UP.ARROW
+	jr	z,DO.M3			;Deal with up.arrow
+	ld	a,(TABLEN)		;else it must be down.arrow
+	ld	c,a
+	ld	a,(CURRENT)
+	inc	a			;so increment CURRENT
+	cp	c			;if not past table end OK
+	jr	nz,DO.M2
+	xor	a			;else reset to start of table
+	jr	DO.M2
+DO.M3::	ld	a,(CURRENT)		;If it was up.arrow
+	dec	a			;then decrement CURRENT
+	jp	p,DO.M2			;If not back too far then OK.
+	ld	a,(TABLEN)
+	dec	a
+	jr	DO.M2			;Else reset to end of table
+DO.M4::	ld	hl,(JMP.TAB)		;If it was CR then
+	ld	a,(CURRENT)
+	ld	e,a
+	ld	d,0
+	add	hl,de
+	add	hl,de			;Point at jump vector
+	ld	e,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,e			;Point at routine to jump to
+	jp	(hl)			;Jump there
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*   GETSEL gets an input from the keyboard. If it is up.arrow, down.arrow  *
+;*   or CR it returns. If it is ESC it jumps to a routine called GETOUT,    *
+;*   if it is BREAK it jumps to a routine called ABORT. If it is any other  *
+;*   character it rings the bell and waits for the next character.          *
+;*   	Entry - None                                                        *
+;*	Exit  - A = character causing return                                *
+;*                                                                          *
+;****************************************************************************
+
+GETSEL::call	CONIN			;Get a character
+	cp	UP.ARROW
+	ret	z			;Return if up.arrow
+	cp	DOWN.ARROW
+	ret	z			;down.arrow
+	cp	CR
+	jr	z,GETS1			;Do some music and return for CR
+	cp	ESC
+	jp	z,GETOUT		;Get out if ESC
+	cp	BREAK
+	jp	z,ABORT			;Abort if BREAK
+	call	RING
+	jr	GETSEL			;else ring bell and repeat
+GETS1::	push	af
+	ld	hl,MUSIC.STR
+	call	STROUT			;Play a tune
+	pop	af
+	ret
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*   REVIT puts a string onto the screen in reverse video mode.             *
+;*   Entry -	HL -> String to be printed                                  *
+;*   Exit -	None                                                        *
+;*                                                                          *
+;****************************************************************************
+
+REVIT::	push	af
+	push	hl
+	call	RVID			;Into reverse video
+	pop	hl
+	call	STROUT			;Print the string
+	pop	af
+	ret
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*   TRUIT puts a string onto the screen in true video mode.                *
+;*   Entry -	HL -> String to be printed                                  *
+;*   Exit -	None                                                        *
+;*                                                                          *
+;****************************************************************************
+
+TRUIT::	push	af
+	push	hl
+	call	TVID			;Into true video
+	pop	hl
+	call	STROUT			;Print the string
+	pop	af
+	ret
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*    INITBUFF initialises the control buffer to all nulls (0)              *
+;*                                                                          *
+;****************************************************************************
+
+INITBUFF::
+	ld	hl,NAT.BUFF
+	ld	de,NAT.BUFF+1
+	ld	bc,9
+	ld	(hl),0			;Put a 0 in the nationality buffer
+	ldir				;Move it right through the buffer
+	ld	hl,CUR.BUFF
+	ld	de,CUR.BUFF+1
+	ld	bc,9
+	ld	(hl),0			;Put a 0 in the cursor mode buffer
+	ldir				;Move it right through the buffer
+	ld	hl,FNT.BUFF
+	ld	de,FNT.BUFF+1
+	ld	bc,19
+	ld	(hl),0			;Put a 0 in the font buffer
+	ldir				;Move it right through the buffer
+	ld	hl,CNTL.BUFF
+	ld	de,CNTL.BUFF+1
+	ld	bc,BUFFLEN-1
+	ld	(hl),0			;Put a zero in the control buffer
+	ldir				;Move it right through the buffer
+	ld	hl,CNTL.BUFF
+	ld	(BUFF.PTR),hl		;Set the buffer pointer
+	ret
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*   GETNUM gets a number echoed from the keyboard, echoes it to the screen *
+;*   and converts it to binary. It exits if up.arrow, down.arrow, ESC or    *
+;*   BREAK are pressed. If any other character is pressed, or an attempt is *
+;*   made to enter a number larger than 255 then the bell is rung and the   *
+;*   input is rejected.                                                     *
+;*   Entry -	HL -> ASCII copy of number                                  *
+;*		DE -> binary copy of number                                 *
+;*   Exit -	A = character causing exit                                  *
+;*                                                                          *
+;****************************************************************************
+
+GETNUM::ld	a,0
+	ld	(POSITION),a		;Zero position in string
+	ld	(SSTART),hl		;Set string start
+	ld	(SPOS),hl		;Set string position
+	ld	(NUMBER),de		;Set pointer to number
+GETN1::	call	CONIN			;Get a character
+	cp	ESC
+	ret	z			;Get out if ESCape
+	cp	BREAK
+	ret	z			;Get out if BREAK
+	cp	UP.ARROW
+	ret	z			;Get out if up.arrow
+	cp	DOWN.ARROW
+	ret	z			;Get out if down.arrow
+	cp	LEFT.ARROW
+	jr	nz,GETN2		;Continue if not left.arrow
+	ld	a,(POSITION)
+	or	a			;Check current position
+	jr	z,GETN1			;Ignore if already at left
+	call	LEFT			;else move cursor left
+	ld	hl,(SPOS)
+	dec	hl
+	ld	(SPOS),hl
+	ld	a,(POSITION)
+	dec	a
+	ld	(POSITION),a		;decrement current position
+	jr	GETN1			;and repeat
+GETN2::	cp	RIGHT.ARROW
+	jr	nz,GETN3		;Continue if not right.arrow
+	ld	a,(POSITION)
+	cp	2			;Check current position
+	jr	z,GETN1			;Ignore if already at right
+	call	RIGHT			;else move character right
+	ld	hl,(SPOS)
+	inc	hl
+	ld	(SPOS),hl
+	ld	a,(POSITION)
+	inc	a
+	ld	(POSITION),a		;increment current position
+	jr	GETN1			;and repeat
+GETN3::	cp	'0'
+	jr	c,GETN4
+	cp	'9'+1
+	jr	c,GETN5			;Jump if it's a number
+GETN4::	call	RING			;If we got here it isn't a number
+	jp	GETN1			;So ring the bell & get more input
+GETN5::	ld	hl,(SPOS)
+	ld	(hl),a			;Put new digit in number string
+	ld	c,a
+	call	CONOUT			;Put character on string
+	ld	a,(POSITION)
+	cp	2			;Check position
+	jr	nz,GETN6		;If at right
+	call	LEFT			;then move cursor left to compensate
+	jr	GETN7			;for CONOUT
+GETN6::	inc	a
+	ld	(POSITION),a		;else increment position
+	ld	hl,(SPOS)
+	inc	hl
+	ld	(SPOS),hl
+GETN7::	ld	hl,(SSTART)
+	ld	c,3
+	call	BINARY			;Convert string to binary
+	ld	hl,(NUMBER)
+	ld	(hl),a			;Put binary number away
+	jp	GETN1
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*    YESNO gets a character from the keyboard. It exits if ESC, BREAK,     *
+;*    up.arrow or down.arrow are pressed. If y or Y are pressed it writes   *
+;*    Yes on the screen and sets the byte (DE) true, if n or N are pressed  *
+;*    it writes No on the screen and sets the byte (DE) false. If any other *
+;*    character is pressed then the bell is rung and the input is rejected. *
+;*    Entry -	HL -> ASCII string for yes or no                            *
+;*    		DE -> true/false flag                                       *
+;*    Exit -	A = character causing exit                                  *
+;*                                                                          *
+;****************************************************************************
+
+YESNO::	ld	(SPOS),hl		;Save string position
+	ld	(NUMBER),de		;Save pointer to t/f flag
+YESNO1::call	CONIN			;Get a character
+	cp	ESC
+	ret	z			;Return if it was an ESCape
+	cp	BREAK
+	ret	z			;Return if it was BREAK
+	cp	UP.ARROW
+	ret	z			;Return if it was up.arrow
+	cp	DOWN.ARROW
+	ret	z			;Return if it was down.arrow
+	and	5FH			;Lower case -> upper case
+	cp	'Y'
+	jr	z,YESNO2		;If it was Y or y then deal with it
+	cp	'N'
+	jr	z,YESNO3		;If it was N or n then deal with it
+	call	RING			;else ignore it, ring the bell
+	jr	YESNO1			;and get the next character
+YESNO2::ld	hl,(NUMBER)
+	ld	(hl),TRUE		;Yes, so set flag true
+	ld	de,(SPOS)
+	ld	hl,AYES
+	ld	bc,3
+	ldir				;Put Yes in the string
+	ld	hl,(SPOS)
+	call	STROUT			;and on the screen
+	call	LEFT
+	call	LEFT
+	call	LEFT			;Correct the cursor
+	jp	YESNO1			;And get another character
+YESNO3::ld	hl,(NUMBER)
+	ld	(hl),FALSE		;Yes, so set flag false
+	ld	de,(SPOS)
+	ld	hl,ANO
+	ld	bc,3
+	ldir				;Put No in the string
+	ld	hl,(SPOS)
+	call	STROUT			;and on the screen
+	call	LEFT
+	call	LEFT
+	call	LEFT			;Correct the cursor
+	jp	YESNO1			;And get another character
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*   Silly but useful little routines                                       *
+;*                                                                          *
+;****************************************************************************
+
+LEFT::	ld	hl,LEFSTR
+	call	STROUT			;Move cursor left
+	ret
+
+RIGHT::	ld	hl,RTSTR
+	call	STROUT			;Move cursor right
+	ret
+
+RVID::	ld	hl,REVSTR
+	call	STROUT			;Switch to reverse video
+	ret
+
+TVID::	ld	hl,TRUSTR
+	call	STROUT			;Switch to true video
+	ret
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*           C O N S T A N T S                                              *
+;*                                                                          *
+;****************************************************************************
+
+AYES:	db	'Yes'			;An ASCII string saying Yes
+ANO:	db	'No '			;An ASCII string saying No
+
+REVSTR:	db	ESC,'J',ESC,'(',0	;String for reverse video,full
+TRUSTR:	db	ESC,'K',ESC,')',0	;String for true video,half
+LEFSTR:	db	8,0			;String for cursor left
+RTSTR:	db	0CH,0			;String for cursor right
+
+MUSIC.STR::db	ESC,'-C',10,ESC,'-Ac',ESC,'-B',ESC,'-Ae',ESC,'-B',0
+
+TIDY.UP:				;set the screen to rights
+	db	..end2 - $
+	db	1bh,"+"
+	db	1bh,"u",1bh,"\"
+	db	1bh,"v",1bh,"u"	;dont ask
+	db	1bh,",","C",26,"C"
+	db	1bh,"+"
+..end2:	db	000,000
+
+CLEAR.SCREEN:
+	db	ESC,'K'			;Non inverse, character mode
+	db	ESC,'Z',ESC,')',0	;half intensity and clear screen
+
+SPL.STR::				;Split the screen - 24 to 1
+	db	ESC,',','C',22,'G',0
+
+MND.SPL::				;Mend the split
+	db	ESC,'V',ESC,'\',ESC,'U',ESC,',','C',25,'C',0	;Don't ask
+
+LOWER::	db	ESC,'V',0		;To lower screen
+
+UPPER::	db	ESC,'U',0		;To upper screen
+
+EX.STR::db	CR,'Example text',0	;formerly ESC,'\',0
+
+	page
+
+M1.STR.TAB:				;Table of strings for menu 1
+	db	4			;Number of entries
+	dw	M1.1
+	dw	M1.2
+	dw	M1.3
+	dw	M1.4
+
+M1.JMP.TAB:				;Table of jumps for menu 1
+	dw	LEVEL2
+	dw	LEVEL3
+	dw	LEVEL4
+	dw	LEVEL5
+
+	page
+M2.STR.TAB::				;Table of strings for menu 2
+	db	23			;Number of entries
+	dw	M2.1
+	dw	M2.2
+	dw	M2.3
+	dw	M2.4
+	dw	M2.5
+	dw	M2.6
+	dw	M2.7
+	dw	M2.8
+	dw	M2.9
+	dw	M2.10
+	dw	M2.11
+	dw	M2.12
+	dw	M2.13
+	dw	M2.14
+	dw	M2.15
+	dw	M2.16	
+	dw	M2.17
+	dw	M2.18
+	dw	M2.19
+	dw	M2.20
+	dw	M2.21
+	dw	M2.22
+	dw	M2.23
+
+M2.JMP.TAB::				;Jump table for menu 2
+	dw	LEVEL1
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+	dw	L2A
+
+M2.CTL.TAB::				;Table of control string pointers for menu 2
+	dw	M2C1
+	dw	M2C2
+	dw	M2C3
+	dw	M2C4
+	dw	M2C5
+	dw	M2C6
+	dw	M2C7
+	dw	M2C8
+	dw	M2C9
+	dw	M2C10
+	dw	M2C11
+	dw	M2C12
+	dw	M2C13
+	dw	M2C14
+	dw	M2C15
+	dw	M2C16
+	dw	M2C17
+	dw	M2C18
+	dw	M2C19
+	dw	M2C20
+	dw	M2C21
+	dw	M2C22
+
+	page
+M3.STR.TAB::				;Table of strings for menu 3
+	db	8			;Length of table
+	dw	M3.1
+	dw	M3.2
+	dw	M3.3
+	dw	M3.4
+	dw	M3.5
+	dw	M3.6
+	dw	M3.7
+	dw	M3.8
+
+M3.JMP.TAB::				;Table of jumps for menu 4
+	dw	LEVEL1
+	dw	L3A
+	dw	L3A
+	dw	L3A
+	dw	L3A
+	dw	L3A
+	dw	L3A
+	dw	L3A
+
+M3.CTL.TAB::				;Table of control strings for menu 3
+	dw	M3C1
+	dw	M3C2
+	dw	M3C3
+	dw	M3C4
+	dw	M3C5
+	dw	M3C6
+	dw	M3C7
+
+	page
+M4.STR.TAB::				;Table of strings for menu 4
+	db	5			;Length of table
+	dw	M4.1
+	dw	M4.2
+	dw	M4.3
+	dw	M4.4
+	dw	M4.5
+
+M4.JMP.TAB::				;Table of jumps for menu 4
+	dw	LEVEL1
+	dw	L4A
+	dw	L4A
+	dw	L4A
+	dw	L4A
+
+M4.CTL.TAB::				;Table of control strings for menu 4
+	dw	M4C1
+	dw	M4C2
+	dw	M4C3
+	dw	M4C4
+
+	page
+M5.STR.TAB::				;Table of strings for menu 5
+	db	9			;Length of table
+	dw	M5.1
+	dw	M5.2
+	dw	M5.3
+	dw	M5.4
+	dw	M5.5
+	dw	M5.6
+	dw	M5.7
+	dw	M5.8
+	dw	M5.9
+
+M5.JMP.TAB::				;Table of jumps for menu 5
+	dw	LEVEL1
+	dw	L5A
+	dw	L5A
+	dw	L5A
+	dw	L5A
+	dw	L5A
+	dw	L5A
+	dw	L5A
+	dw	L5A
+
+M5.CTL.TAB::				;Table of control strings for menu 5
+	dw	M5C1
+	dw	M5C2
+	dw	M5C3
+	dw	M5C4
+	dw	M5C5
+	dw	M5C6
+	dw	M5C7
+	dw	M5C8
+
+	page
+;Menu 2 control strings
+
+M2C1:	db	3,ESC,'H',0
+M2C2:	db	7,ESC,'B',ESC,'\',ESC,'G',0
+M2C3:	db	6,ESC,'/',ESC,'#',1,0
+M2C4:	db	6,ESC,'/',ESC,'#',5,0
+M2C5:	db	6,ESC,'/',ESC,'#',11,0
+M2C6:	db	6,ESC,'/',ESC,'#',9,0
+M2C7:	db	6,ESC,'/',ESC,'#',3,0
+M2C8:	db	6,ESC,'/',ESC,'#',14,0
+M2C9:	db	6,ESC,'/',ESC,'#',2,0
+M2C10:	db	6,ESC,'/',ESC,'#',13,0
+M2C11:	db	6,ESC,'/',ESC,'#',18,0
+M2C12:	db	7,ESC,'\',ESC,'G',ESC,'A',0
+M2C13:	db	6,ESC,'/',ESC,'#',0,0
+M2C14:	db	6,ESC,'/',ESC,'#',12,0
+M2C15:	db	6,ESC,'/',ESC,'#',6,0
+M2C16:	db	6,ESC,'/',ESC,'#',7,0
+M2C17:	db	6,ESC,'/',ESC,'#',10,0
+M2C18:	db	6,ESC,'/',ESC,'#',4,0
+M2C19:	db	6,ESC,'/',ESC,'#',8,0
+M2C20:	db	6,ESC,'/',ESC,'#',15,0
+M2C21:	db	6,ESC,'/',ESC,'#',16,0
+M2C22:	db	6,ESC,'/',ESC,'#',17,0
+
+	page
+;Menu 3 control strings	
+
+M3C1::	db	3,ESC,'0',0
+M3C2::	db	3,ESC,'1',0
+M3C3::	db	3,ESC,')',0
+M3C4::	db	3,ESC,'(',0
+M3C5::	db	3,ESC,'8',0
+M3C6::	db	3,ESC,'_',0
+M3C7::	db	3,ESC,'q',0
+
+	page
+;Menu 4 control strings
+
+M4C1::	db	3,ESC,"'",0
+M4C2::	db	3,ESC,'&',0
+M4C3::	db	3,ESC,'[',0
+M4C4::	db	3,ESC,'}',0
+
+	page
+;Menu 5 control strings
+
+M5C1::	db	4,ESC,'CU',0
+M5C2::	db	4,ESC,'CE',0
+M5C3::	db	4,ESC,'CG',0
+M5C4::	db	4,ESC,'CF',0
+M5C5::	db	5,ESC,'CI',0
+M5C6::	db	5,ESC,'CS',0
+M5C7::	db	5,ESC,'CD',0
+M5C8::	db	5,ESC,'CW',0
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*           V A R I A B L E S                                              *
+;*                                                                          *
+;****************************************************************************
+
+BIOSPB::ds	6			;Space for a bios parameter block
+
+	DS	128			;Space for a stack
+OLDSP:	DW	0			;Store CP/M stack pointer
+
+LINE:	db	0			;Current line
+COLUMN:	db	0			;Current column
+
+SSTART::ds	2	; String start position
+SPOS::	ds	2	; String current position
+NUMBER::ds	2	; Position of binary version of number
+POSITION::
+	ds	1	; Position in string - 0 = start etc.
+
+STR.TAB:ds	2	; Start address of string table
+JMP.TAB:ds	2	; Start address of jump table
+TABLEN:	ds	1	; Length of tables
+CURRENT:ds	1	; Current menu option
+
+BUFF.PTR:ds	2	; Pointer to next free location in control buffer
+FNT.BUFF:ds	20	; Buffer for font control string
+NAT.BUFF:ds	10	; Buffer for nationality control string
+CUR.BUFF:ds	10	; Buffer for cursor mode control string
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*           T E X T   A R E A                                              *
+;*                                                                          *
+;****************************************************************************
+
+hello.string:
+	db	..1end - $		;length of the string
+	db	ESC,'1',ESC,'q'		;True video, no blink/blank
+	db	1bh,",","g",5,"c"	;define split screen
+	db	1bh,"u"			;go to the upper
+	db	1bh,"/"			;make multifont
+	db	1bh,"#",6		;style 6
+	db	'    QX+ CRT Configuration Utility'
+	db	1bh,"v"			;enter the lower screen
+	db	1BH,"+"			;blank the screen
+	db	1bh,')'
+..1end:	db	000,000
+
+
+instruct:
+db	0DH,0AH		;carriage return, linefeed
+db	'    This utility allows the user to configure the CRT to display a variety'
+db	0DH,0AH		;carriage return, linefeed
+db	'    of different fonts. These are the normal font, small font, redefinable'
+db	0DH,0AH		;carriage return, linefeed
+db	'    font  and the various  multifonts.  The nationality of these fonts may'
+db	0DH,0AH		;carriage return, linefeed
+db	'    be selected.  Additionally  screen attributes  such as inverse or true'
+db	0DH,0AH		;carriage return, linefeed
+db	'    video and full or half  intensity may be set and the type of cursor to'
+db	0DH,0AH		;carriage return, linefeed
+db	'    be displayed may be defined.  These changes are only temporary. CONFIG'
+db	0DH,0AH		;carriage return , linefeed
+db	'    should be used where permanent changes to the system are required.'
+db	000
+
+OK:	db	..end1 - $
+	db	ESC,'=',(18+' '),(22+' ')	;bottom centre
+	db	ESC,'('				;full intensity
+	db	ESC,"^"				;blink
+	db	"<press any key to continue>"
+	db	ESC,"q"				;cancel blink
+	db	ESC,')'				;half intensity
+..end1:	db	00,00
+
+	page
+;Strings for menu 1
+
+M1.PRMPT::					;Prompt for menu 1
+	db	ESC,"=",1+32,15+32,ESC,'('
+	db	'QX+ CRT Configurator   ver '
+	db	vers/10+'0','.',vers mod 10+'0',' --- Main Menu',ESC,')'
+	db	ESC,"=",3+32,19+32
+	db	'Use the arrow keys to move the cursor.'
+ 	db	ESC,"=",4+32,19+32
+	db	'Press <CR> to select the cursor option.'
+ 	db	ESC,"=",6+32,6+32
+	db	'Press <ESC> to configure CRT and exit ---  Press <BREAK> to abort.'
+	db	0
+
+M1.1::	db	ESC,'=',YP1.1,XP1.1
+	db	'Select.....Character Font'
+	db	0
+M1.2::	db	ESC,'=',YP1.2,XP1.2
+	db	'Select..Screen Attributes'
+	db	0
+M1.3::	db	ESC,'=',YP1.3,XP1.3
+	db	'Select........Cursor Mode'
+	db	0
+M1.4::	db	ESC,'=',YP1.4,XP1.4
+	db	'Select........Nationality'
+	db	0
+
+	page
+;Strings for menu 2
+
+M2.PRMPT::					;Prompt for menu 2
+	db	ESC,"=",1+32,15+32,ESC,'('
+	db	'QX+ CRT Configurator   ver '
+	db	vers/10+'0','.',vers mod 10+'0',' --- Font Menu',ESC,')'
+	db	ESC,"=",3+32,19+32
+	db	'Use the arrow keys to move the cursor.'
+ 	db	ESC,"=",4+32,19+32
+	db	'Press <CR> to select the cursor option.'
+ 	db	ESC,"=",6+32,6+32
+	db	'Press <ESC> to configure CRT and exit ---  Press <BREAK> to abort.'
+	db	000
+
+M2.1::	db	ESC,'=',YP2.1,XP2.1
+	db	'Return to Main Menu'
+	db	0
+M2.2::	db	ESC,'=',YP2.2,XP2.2
+	db	'Normal Font'
+	db	0
+M2.3::	db	ESC,'=',YP2.3,XP2.3
+	db	'Redefinable Font'
+	db	0
+M2.4::	db	ESC,'=',YP2.4,XP2.4
+	db	'Bodoni'
+	db	0
+M2.5::	db	ESC,'=',YP2.5,XP2.5
+	db	'Helvetica Light'
+	db	0
+M2.6::	db	ESC,'=',YP2.6,XP2.6
+	db	'Helvetica Medium'
+	db	0
+M2.7::	db	ESC,'=',YP2.7,XP2.7
+	db	'American Typewriter Medium'
+	db	0
+M2.8::	db	ESC,'=',YP2.8,XP2.8
+	db	'Flash Bold'
+	db	0
+M2.9::	db	ESC,'=',YP2.9,XP2.9
+	db	'Micrograma Extended'
+	db	0
+M2.10::	db	ESC,'=',YP2.10,XP2.10
+	db	'Old English'
+	db	0
+M2.11::	db	ESC,'=',YP2.11,XP2.11
+	db	'Sans Serif Shaded'
+	db	0
+M2.12::	db	ESC,'=',YP2.12,XP2.12
+	db	'Greek & Roman Characters'
+	db	0
+M2.13::	db	ESC,'=',YP2.13,XP2.13
+	db	'Small Font'
+	db	0
+M2.14::	db	ESC,'=',YP2.14,XP2.14
+	db	'OCR B Font'
+	db	0
+M2.15::	db	ESC,'=',YP2.15,XP2.15
+	db	'Bodoni Italic'
+	db	0
+M2.16::	db	ESC,'=',YP2.16,XP2.16
+	db	'Helvetica Light Italic'
+	db	0
+M2.17::	db	ESC,'=',YP2.17,XP2.17
+	db	'Helvetica Medium Italic'
+	db	0
+M2.18::	db	ESC,'=',YP2.18,XP2.18
+	db	'Light Italic'
+	db	0
+M2.19::	db	ESC,'=',YP2.19,XP2.19
+	db	'Commercial Script'
+	db	0
+M2.20::	db	ESC,'=',YP2.20,XP2.20
+	db	'Broadway'
+	db	0
+M2.21::	db	ESC,'=',YP2.21,XP2.21
+	db	'Old Germany'
+	db	0
+M2.22::	db	ESC,'=',YP2.22,XP2.22
+	db	'Various Graphics'
+	db	0
+M2.23::	db	ESC,'=',YP2.23,XP2.23
+	db	'Japanese Characters'
+	db	0
+
+	page
+;Strings for menu 3
+
+M3.PRMPT::					;Prompt for menu 3
+	db	ESC,"=",1+32,15+32,ESC,'('
+	db	'QX+ CRT Configurator   ver '
+	db	vers/10+'0','.',vers mod 10+'0',' --- Screen Menu',ESC,')'
+	db	ESC,"=",3+32,19+32
+	db	' Use the arrow keys to move the cursor.'
+ 	db	ESC,"=",4+32,19+32
+	db	' Press <CR> to select screen attributes.'
+ 	db	ESC,"=",6+32,6+32
+	db	'Press <ESC> to configure CRT and exit ---  Press <BREAK> to abort.'
+	db	000
+
+M3.1::	db	ESC,'=',YP3.1,XP3.1
+	db	'Return to Main Menu'
+	db	0
+M3.2::	db	ESC,'=',YP3.2,XP3.2
+	db	'Select......Inverse Video'
+	db	0
+M3.3::	db	ESC,'=',YP3.3,XP3.3
+	db	'Select.........True Video'
+	db	0
+M3.4::	db	ESC,'=',YP3.4,XP3.4
+	db	'Select.....Half Intensity'
+	db	0
+M3.5::	db	ESC,'=',YP3.5,XP3.5
+	db	'Select.....Full Intensity'
+	db	0
+M3.6::	db	ESC,'=',YP3.6,XP3.6
+	db	'Select........Blink Field'
+	db	0
+M3.7::	db	ESC,'=',YP3.7,XP3.7
+	db	'Select........Blank Field'
+	db	0
+M3.8::	db	ESC,'=',YP3.8,XP3.8
+	db	'End.....Blink/Blank Field'
+	db	0
+
+	page
+;Strings for menu 4
+
+M4.PRMPT::					;Prompt for menu 4
+	db	ESC,"=",1+32,15+32,ESC,'('
+	db	'QX+ CRT Configurator   ver '
+	db	vers/10+'0','.',vers mod 10+'0',' --- Cursor Menu',ESC,')'
+	db	ESC,"=",3+32,19+32
+	db	' Use the arrow keys to move the cursor.'
+ 	db	ESC,"=",4+32,19+32
+	db	' Press <CR> to select the cursor style.'
+ 	db	ESC,"=",6+32,6+32
+	db	'Press <ESC> to configure CRT and exit ---  Press <BREAK> to abort.'
+	db	000
+
+M4.1::	db	ESC,'=',YP4.1,XP4.1
+	db	'Return to Main Menu'
+	db	0
+M4.2::	db	ESC,'=',YP4.2,XP4.2
+	db	'Cursor...Underline'
+	db	0
+M4.3::	db	ESC,'=',YP4.3,XP4.3
+	db	'Cursor.......Block'
+	db	0
+M4.4::	db	ESC,'=',YP4.4,XP4.4
+	db	'Cursor.........Off'
+	db	0
+M4.5::	db	ESC,'=',YP4.5,XP4.5
+	db	'Cursor..........On'
+	db	0
+
+	page
+;Strings for menu 5
+
+M5.PRMPT::					;Prompt for menu 5
+	db	ESC,"=",1+32,13+32,ESC,'('
+	db	'QX+ CRT Configurator   ver '
+	db	vers/10+'0','.',vers mod 10+'0',' --- Nationality Menu',ESC,')'
+	db	ESC,"=",3+32,19+32
+	db	'Use the arrow keys to move the cursor.'
+ 	db	ESC,"=",4+32,19+32
+	db	' Press <CR> to select a nationality.'
+ 	db	ESC,"=",6+32,6+32
+	db	'Press <ESC> to configure CRT and exit ---  Press <BREAK> to abort.'
+	db	000
+
+M5.1::	db	ESC,'=',YP5.1,XP5.1
+	db	'Return to Main Menu'
+	db	0
+M5.2::	db	ESC,'=',YP5.2,XP5.2
+	db	'Select..United States'
+	db	0
+M5.3::	db	ESC,'=',YP5.3,XP5.3
+	db	'Select.United Kingdom'
+	db	0
+M5.4::	db	ESC,'=',YP5.4,XP5.4
+	db	'Select........Germany'
+	db	0
+M5.5::	db	ESC,'=',YP5.5,XP5.5
+	db	'Select.........France'
+	db	0
+M5.6::	db	ESC,'=',YP5.6,XP5.6
+	db	'Select..........Italy'
+	db	0
+M5.7::	db	ESC,'=',YP5.7,XP5.7
+	db	'Select..........Spain'
+	db	0
+M5.8::	db	ESC,'=',YP5.8,XP5.8
+	db	'Select........Denmark'
+	db	0
+M5.9::	db	ESC,'=',YP5.9,XP5.9
+	db	'Select.........Sweden'
+	db	0
+
+	page
+done.msg:db	'--- The CRT has been configured ---'
+	db	cr,lf,00
+
+abort.msg:
+	db	'*** Program terminated  -  no action taken ***'
+	db	cr,lf,000
+	
+cpm3msg:
+	db	BELL,'CRT Configuration Utility -'
+	db	' Requires CP/M + on Epson QX-10',cr,lf,0
+
+	page
+;*** Put the buffer here so that it doesn't take up any space in the COM file
+
+CNTL.BUFF	equ	$
+BUFFLEN	equ	255			;That should be enough
+
+	END
