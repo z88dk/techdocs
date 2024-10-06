@@ -1,0 +1,38 @@
+MICROPLAN                                        MML Ltd.
+=========                                        11 Sun Street
+                                                 London E.C.2.
+                                                 Tel: 01-247 0691
+COPYRIGHT SEPTEMBER 1981
+
+------------------------------------------------------------------
+
+			RELMAP RELDUMP RELDEL
+			=====================
+
+Three utilities to assist in the analysis of .REL files created to
+the MICROSOFT/DIGITAL RESEARCH format.
+
+RELMAP displays the full list of all NAMES defined in a .REL file.
+
+RELDUMP displays each REL statement split int0 each field.
+
+RELDEL allows superfluous entry statements to be removed.
+Users should run RELMAP first.
+
+Refer to the Digital Research LINK manual or the Microsoft L80
+manual for details of the statements.
+
+--------------------------------------------------------------
+Format
+======
+
+RELMAP <filename>
+
+RELDUMP <filename>
+
+RELDEL <filename>
+
+where <filename> is the name of a .REL file
+If a file type is specified it is ignored.
+
+==============================================================
