@@ -1,0 +1,1225 @@
+	page 54
+	title 'SETLIST'
+	.Z80
+
+vers	equ	10	; current version
+
+;******* SYSTEM EQUATES
+
+CIN	equ	1	; BDOS I/O for READ from CONSOLE
+COUT	equ	2	; BDOS I/O for WRITE to CONSOLE
+CMSG    equ     9       ; BDOS I/O to write string to CONSOLE
+LOUT	equ	5	; BDOS I/O for WRITE to LIST DEVICE
+CSTAT	equ	11	; BDOS test for character ready
+
+WARM.BOOT equ	0
+FCB	equ	5CH
+DMA	equ	80H
+BDOS	equ	5
+bios	equ	0001h	; pointer to BIOS jump table
+
+
+vers22	equ	22h	; CP/M version number
+vers31	equ	31h	; CP/M version number
+rev	equ	'A'	; Utility version
+
+;*** logical constants ***
+false	equ	0000h		;not true
+true	equ	0ffh		;not exactly false
+
+
+;*** ascii codes ***
+BREAK	equ	3		;BREAK (control C)
+BELL	equ	7		;BELL code
+BSPACE	equ	08		;backspace
+TAB	equ	09H		;tab
+LF	equ	0AH		;line feed
+FF	equ	0CH		;form feed
+CR	equ	0DH		;carriage return
+EOF	equ	1AH		;end of file code
+ESC	equ	1BH		;escape char for cursor control
+
+;*** Arrow Key Assignments ***
+
+Up.Arrow	equ	1eh
+Down.Arrow	equ	1fh
+Left.Arrow	equ	1dh
+Right.Arrow	equ	1ch
+	;these are the default settings!
+;*** Direct BIOS offsets ***
+
+CI	equ	6	;conin
+CO	equ	9	;conout
+LI	equ	12	;listout
+
+	page
+;******* PROGRAM EQUATES
+
+WPOSY	equ	10+32		;Y position of line Width string in menu
+WPOSX	equ	20+32		;X position of line Width string in menu
+LPOSY	equ	12+32		;Y position of page Length string in menu
+LPOSX	equ	20+32		;X position of page Length string in menu
+SPOSY	equ	14+32		;Y position of lines Skipped string in menu
+SPOSX	equ	20+32		;X position of lines Skipped string in menu
+LNPOSY	equ	16+32		;Y position of Line Number string in menu
+LNPOSX	equ	20+32		;X position of Line Number string in menu
+FFPOSY	equ	18+32		;Y position of FF suppress string in menu
+FFPOSX	equ	20+32		;X position of FF suppress string in menu
+HPOSY	equ	20+32		;Y position of HEADS string in menu
+HPOSX	equ	20+32		;X position of HEADS string in menu
+OFFSET	equ	30		;Offset to position of value on screen
+
+FFCC	equ	0CH	; Form Feed control character
+LFCC	equ	0AH	; Line Feed control character
+CRCC	equ	0DH	; Carriage Return control character
+BELL	equ	07H	; BELL
+
+	aseg
+	page
+
+	org	100H
+
+;First we check to see if we have the correct version of CP/M
+;in the correct machine.
+
+START::	ld	c,12		; BDOS return version number
+	call	bdos
+	cp	031h		; Check for the right version of CP/M
+	jp	nz,notcpm3
+	ld	a,h
+	or	a
+	jp	nz,notcpm3	; Complain if it's the wrong version
+	ld	hl,0
+	add	hl,sp
+	ld	(OLDSP),hl	; Save caller's stack pointer
+	ld	sp,OLDSP	; Set up ours
+	ld	hl,(0006h)
+	ld	sp,hl		; use top of memory as stack
+;check for QX+
+	ld	c,50		; BDOS Direct BIOS calls
+	ld	de,BIOSPB
+	ld	a,30		; Customised BIOS entry point
+	ld	(de),a		; requires no other registers
+	call	BDOS		; Check for the right machine 
+	cp	'A'		; Epson BIOS returned version
+	jp	z,all.OK
+
+;-----------------------------------------;
+; Program not loaded under CP/M3 on Epson ;
+;-----------------------------------------;
+notcpm3:
+	ld	hl,cpm3msg	; Complain to user
+	call	strout
+	ld	c,0
+	jp	bdos		; and terminate program
+
+	page
+;	Read in first record of LIST.COM file
+
+all.OK::xor	a
+	ld	(fcb_cr),a
+	ld	(fcb_ex),a
+	ld	de,FCB_LIST
+	ld	C,15
+	CALL	BDOS			;Open file on default drive
+	cp	0FFH
+	jp	nz,FRST_REC		;Go and read buffer if file found
+	ld	a,(50H)			;else try the drive we loaded from
+	ld	(FCB_LIST),a
+	xor	a
+	ld	(fcb_cr),a
+	ld	(fcb_ex),a
+	ld	de,FCB_LIST
+	ld	C,15
+	CALL	BDOS			;Open file
+	cp	0FFH
+	jp	nz,FRST_REC		;Go and read buffer if file found
+	jp	BOMB.OUT		;else bomb out
+
+FCB_LIST:
+	DB	0
+	DB	'LIST    ','COM'
+FCB_EX:	DB	0,0,0,0
+	DS	16
+FCB_CR:	DB	0
+FCB_R:	DB	0,0,0
+DMA_LIST:	ds	128
+
+	page
+FRST_REC:			;READ NEXT BUFFER FROM DISK
+	ld	de,DMA_LIST
+	ld	C,26
+	CALL	BDOS		;SET DMA ADDRESS
+	ld	de,FCB_LIST
+	ld	C,20
+	CALL	BDOS		;READ RECORD
+
+;First record of LIST.COM now in DMA_LIST
+
+	page
+;*****************************************************************************
+;*                                                                           *
+;*   Print the multifont heading and instructions and wait for the user to   *
+;*   press a key. If it is the BREAK key then we abort the program. If it is *
+;*   any other key then we continue.                                         *
+;*                                                                           *
+;*****************************************************************************
+
+	ld	hl,HELLO.STRING
+	call	MSG		;split the screen and print title
+	ld	hl,INSTRUCT
+	call	STROUT		;print the instructions
+	ld	hl,OK
+	call	MSG
+	call	CUROFF		;Stop the cursor flashing everywhere
+  	call	CONIN		;Wait for user to press a key
+	push	af
+	ld	hl,TIDY.UP
+	call	MSG		;Tidy up the screen
+	pop	af
+	cp	3		;If user pressed break
+	jp	z,ABORT		;then abort
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*   Now that the user has decided to continue we put a nice box around the *
+;*   screen and print up the menu of possibilities.                         *
+;*                                                                          *
+;****************************************************************************
+
+	call	NICE.BOX	;Put the nice box on the screen
+	call	MENU		;Put menu on the screen
+	call	CURRENT		;Put the current values on the screen
+	call	CURON		;Turn the cursor on again
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*    The main loop starts here.                                            *
+;*                                                                          *
+;****************************************************************************
+
+GETWID:	call	RVID		;Switch to reverse video
+	ld	hl,WIDSTR
+	call	STROUT
+	ld	hl,AWIDTH
+	call	STROUT		;Write WIDTH in reverse video
+	ld	hl,WIDSTR
+	call	STROUT
+	ld	hl,AWIDTH
+	ld	de,WIDTH
+	call	GETNUM		;Get new value
+	cp	ESC		;If the user entered ESCape
+	jp	z,update	;then update LIST.COM and leave
+	cp	BREAK		;If the user entered BREAK
+	jp	z,ABORT		;then abort
+	push	af
+	call	TVID		;Switch to true video
+	ld	hl,WIDSTR
+	call	STROUT
+	ld	hl,AWIDTH
+	call	STROUT		;Write WIDTH in true video
+	pop	af
+	cp	UP.ARROW	;If the user pressed up.arrow
+	jp	z,GETFFS	;then go get FFS
+	jp	GETLEN		;else it must be down.arrow
+				;so go get LENGTH
+
+	page
+GETLEN:	call	RVID		;Switch to reverse video
+	ld	hl,LENSTR
+	call	STROUT
+	ld	hl,ALENGTH
+	call	STROUT		;Write LENGTH in reverse video
+	ld	hl,LENSTR
+	call	STROUT
+	ld	hl,ALENGTH
+	ld	de,LENGTH
+	call	GETNUM		;Get new value
+	cp	ESC		;If the user entered ESCape
+	jp	z,update	;then update LIST.COM and leave
+	cp	BREAK		;If the user entered BREAK
+	jp	z,ABORT		;then abort
+	push	af
+	call	TVID		;Switch to true video
+	ld	hl,LENSTR
+	call	STROUT
+	ld	hl,ALENGTH
+	call	STROUT		;Write LENGTH in true video
+	pop	af
+	cp	UP.ARROW	;If the user pressed up.arrow
+	jp	z,GETWID	;then go get WIDTH
+	jp	GETSKIP		;else it must be down.arrow
+				;so go get SKIP
+
+	page
+GETSKIP:call	RVID		;Switch to reverse video
+	ld	hl,SKIPSTR
+	call	STROUT
+	ld	hl,ASKIP
+	call	STROUT		;Write SKIP in reverse video
+	ld	hl,SKIPSTR
+	call	STROUT
+	ld	hl,ASKIP
+	ld	de,SKIP
+	call	GETNUM		;Get new value
+	cp	ESC		;If the user entered ESCape
+	jp	z,update	;then update LIST.COM and leave
+	cp	BREAK		;If the user entered BREAK
+	jp	z,ABORT		;then abort
+	push	af
+	call	TVID		;Switch to true video
+	ld	hl,SKIPSTR
+	call	STROUT
+	ld	hl,ASKIP
+	call	STROUT		;Write SKIP in true video
+	pop	af
+	cp	UP.ARROW	;If the user pressed up.arrow
+	jp	z,GETLEN	;then go get LENGTH
+	jp	GETLNS		;else it must be down.arrow
+				;so go get LNUMS
+
+	page
+GETLNS:	call	RVID		;Switch to reverse video
+	ld	hl,LNSTR
+	call	STROUT
+	ld	hl,ALNUMS
+	call	STROUT		;Write LNUMS in reverse video
+	ld	hl,LNSTR
+	call	STROUT
+	ld	hl,ALNUMS
+	ld	de,LNUMS
+	call	YESNO		;Get new value
+	cp	ESC		;If the user entered ESCape
+	jp	z,UPDATE	;then update LIST.COM and leave
+	cp	BREAK		;If the user entered BREAK
+	jp	z,ABORT		;then abort
+	push	af
+	call	TVID		;Switch to true video
+	ld	hl,LNSTR
+	call	STROUT
+	ld	hl,ALNUMS
+	call	STROUT		;Write LNUMS in true video
+	pop	af
+	cp	UP.ARROW	;If the user pressed up.arrow
+	jp	z,GETSKIP	;then go get SKIP
+	jp	GETFFS		;else it must be down.arrow
+				;so go get FFS
+
+	page
+GETFFS:	call	RVID		;Switch to reverse video
+	ld	hl,FFSTR
+	call	STROUT
+	ld	hl,AFFS
+	call	STROUT		;Write FFS in reverse video
+	ld	hl,FFSTR
+	call	STROUT
+	ld	hl,AFFS
+	ld	de,FFS
+	call	YESNO		;Get new value
+	cp	ESC		;If the user entered ESCape
+	jp	z,UPDATE	;then update LIST.COM and leave
+	cp	BREAK		;If the user entered BREAK
+	jp	z,ABORT		;then abort
+	push	af
+	call	TVID		;Switch to true video
+	ld	hl,FFSTR
+	call	STROUT
+	ld	hl,AFFS
+	call	STROUT		;Write FFS in true video
+	pop	af
+	cp	UP.ARROW	;If the user pressed up.arrow
+	jp	z,GETLNS	;then go get LNUMS
+	jp	GETHDS		;else it must be down.arrow
+				;so go get HEADS
+
+	page
+GETHDS:	call	RVID		;Switch to reverse video
+	ld	hl,HEADSTR
+	call	STROUT
+	ld	hl,AHEADS
+	call	STROUT		;Write HEADS in reverse video
+	ld	hl,HEADSTR
+	call	STROUT
+	ld	hl,AHEADS
+	ld	de,HEADS
+	call	YESNO		;Get new value
+	cp	ESC		;If the user entered ESCape
+	jp	z,UPDATE	;then update LIST.COM and leave
+	cp	BREAK		;If the user entered BREAK
+	jp	z,ABORT		;then abort
+	push	af
+	call	TVID		;Switch to true video
+	ld	hl,HEADSTR
+	call	STROUT
+	ld	hl,AHEADS
+	call	STROUT		;Write HEADS in true video
+	pop	af
+	cp	UP.ARROW	;If the user pressed up.arrow
+	jp	z,GETFFS	;then go get FFS
+	jp	GETWID		;else it must be down.arrow
+				;so go get WIDTH
+
+	page
+;*****************************************************************************
+;*                                                                           *
+;*    UPDATE updates the LIST.COM file and then exits.                       *
+;*                                                                           *
+;*****************************************************************************
+
+update:	ld	hl,DMA_LIST	;GET BUFFER ADDRESS
+	inc	hl
+	inc	hl
+	inc	hl
+	ld	a,(WIDTH)
+	ld	(hl),a
+	inc	hl
+	ld	a,(LENGTH)
+	ld	(hl),a
+	inc	hl
+	ld	a,(SKIP)
+	ld	(hl),a
+	inc	hl
+	ld	a,(LNUMS)
+	ld	(hl),a
+	inc	hl
+	ld	a,(FFS)
+	ld	(hl),a
+	inc	hl
+	ld	a,(HEADS)
+	ld	(hl),a
+	xor	a
+	ld	(fcb_cr),a
+	ld	(fcb_ex),a
+	ld	(fcb_r),a
+	ld	(fcb_r+1),a
+	ld	(fcb_r+2),a
+	ld	de,DMA_LIST
+	ld	c,26
+	call	BDOS	;SET DMA ADDRESS
+	ld	de,FCB_LIST
+	ld	C,34
+	call	BDOS	;WRITE RANDOM
+	ld	de,FCB_LIST
+	ld	c,16	; CLOSE file
+	call	BDOS
+	jp	GETOUT
+
+	page
+;*****************************************************************************
+;*                                                                           *
+;*    GETOUT, ABORT and BOMB.OUT all clear the screen and exit. They print   *
+;*    different termination messages.                                        *
+;*                                                                           *
+;*****************************************************************************
+
+ABORT::	ld	hl,CLEAR.SCREEN
+	call	STROUT			;Tidy up the screen
+	ld	hl,ABORT.MSG
+	call	STROUT			;Tell the user that we aborted
+	jp	WARM.BOOT		;Back to CP/M
+
+GETOUT::ld	hl,CLEAR.SCREEN
+	call	STROUT			;Tidy up the screen
+	ld	hl,DONE.MSG
+	call	STROUT			;Tell the user that we finished
+	jp	WARM.BOOT		;Back to CP/M
+
+BOMB.OUT:
+	ld	hl,CLEAR.SCREEN
+	call	STROUT			;Tidy up the screen
+	ld	hl,NOFILE.MSG
+	call	STROUT			;Tell the user of the problem
+	jp	WARM.BOOT		;Back to CP/M
+
+	page
+;**************************************************************************
+;*                                                                        *
+;*   Some Useful Routines                                                 *
+;*                                                                        *
+;**************************************************************************
+;-----
+; ASCII
+; REG IN:	a - 8 bit unsigned binary number
+;		c - number of ascii digits
+;		(hl) -> address of ascii text
+; Subroutine asc03 is re-entrant
+;
+ascii:
+	ld	b,a
+	ld	a,c
+asc01:	dec	a
+	jp	z,asc02
+	ld	(hl),'0'
+	inc	hl
+	jp	asc01
+asc02:	ld	(hl),'0'
+	inc	b
+asc08:	dec	b
+	ret	z	; Finished count down
+	call	asc03
+	jp	asc08
+; re-entrant routine to increment ascii character
+asc03:	inc	(hl)
+	ld	a,(hl)
+	cp	'9'+1
+	ret	c
+	ld	(hl),'0'
+	dec	c
+	jp	z,asc04	; overflow ......
+	dec	hl
+	ld	a,'0'
+	cp	(hl)
+	jp	c,asc09
+	ld	(hl),a
+asc09:	call	asc03
+	inc	hl
+asc04:	inc	c
+	ret
+;
+;------
+;BINARY
+; Reg in	(HL) -> address of ascii text
+;		c    -  Number of ascii digits
+; Reg out	a    -  Binary value
+; Error         aborts by rebooting
+;
+BINARY:	push	hl
+	push	bc
+	inc	c
+	sub	a
+bin01:	dec	c
+	jp	z,bin09
+	ld	b,a	; multiply a by ten
+	rlca
+	rlca
+	add	a,b
+	rlca
+	ld	b,a
+	ld	a,(hl)
+	cp	' '
+	jp	z,bin03
+	sub	'0'
+	jp	c,bin04
+	cp	10
+	jp	nc,bin04
+	add	a,b
+bin02:	inc	hl
+	jp	bin01
+bin03:	ld	a,b
+	jp	bin02
+bin04:	ld	de,binerr	; error in text
+	ld	c,cmsg
+	call	bdos
+	jp	0		; and crash reboot
+bin09:	pop	bc
+	pop	hl
+	ret
+binerr:	db	crcc,lfcc,'ASCII to BINARY ERROR','$'
+
+	page
+
+;---------------------------------------------------------------
+;
+;Machine-specific graphics and console routines
+;
+;---------------------------------------------------------------
+
+;*** cursor control codes ***
+	db	'Copyright MML Ltd (c) 1983'
+
+;*** all patches as in wordstar ***
+clear:	defb	02,27,'+',00,00,00;clear screen string
+clead1:	defb	02,27,61,00	;yx cursor addressing lead-in
+linoff:	defb	20h		;offset to add
+coloff:	defb	20h
+
+
+
+;*** other vdu patches in addition ***
+char.starting.highlight:
+	DB	'['	;additional emphasis for selected option
+;for menu selection
+char.finishing.highlight:
+	DB	']'	;see above
+;for menu selection
+	
+uscore:	db	'_'	;not used
+ivonº	db	02,27,"0",00,00,00,00	;string to switch on inverse
+ivoff:	db	04,27,"1",27,"7",00,00	;string to switch off all highlighting
+ivon2:	db	02,27,"6",00,00,00,00 	;string to switch on intensity
+
+
+;cursor turn off/on strings
+on.cursor:defb	02,1bh,'3',00	;switch on the cursor
+off.cursor:defb	02,1bh,'2',00	;switch off the cursor
+
+;screen switching strings
+upper.screen:defb	2,1bh,"u",00;switch to upper screen
+lower.screen:defb	2,1bh,"v",00;switch to lower screen
+
+;mode switching strings
+grfiks:	defb	2,1bh,'g',00	;enter graphics
+no.grfix:defb	2,1bh,'h',00	;exit graphics mode
+
+	page
+
+yxpos:	;sends the character cursor to the location in line/Column
+	push	hl
+	push	de
+	push	bc		;save everything
+	ld	hl,clead1	;print lead-in
+	call	msg
+	ld	a,(line)	;get line no.
+	ld	b,a
+	ld	a,(linoff)
+	Add	a,b		;addin line offset
+	call	putchar		;out it goes
+	ld	a,(Column)	;get column
+	ld	c,a
+	ld	a,(coloff)	;add in offset
+	add	a,c
+	call	putchar		;send it out
+	pop	bc		;restore the world
+	pop	de
+	pop	hl
+	ret			;and go home
+
+
+
+;---------------------------------------
+gra.off:;turn into character mode
+	push	hl		;save the world
+	push	de
+	push	bc
+	ld	hl,no.grfix	;the no graphics string
+	call	msg		;to switch into character mode
+	pop	bc		;restore the world
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------	
+curon:		;switch on the cursor
+	push	hl
+	push	de
+	push	bc
+	ld	hl,on.cursor	;switch cursor on 
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------
+into.graphics:;lets enter graphics mode
+	
+	push	hl
+	push	de
+	push	bc
+	ld	hl,grfiks	;switch into graphics
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------	
+curoff:	;switch off the cursor
+	push	hl
+	push	de
+	push	bc
+	ld	hl,off.cursor	;string to tell the console
+	call	msg
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+;---------------------------------------
+screen.clear:;clear the whole damned screen
+	push	hl
+	push	de
+	push	bc
+	ld	hl,clear
+	call	msg		;send out clear-screen string
+	pop	bc
+	pop	de
+	pop	hl
+	ret	
+
+	page
+
+	subttl  'DIRECT BIOS SUBROUTINES'
+
+;----------------------
+;-- BIOS Interaction --
+;----------------------
+
+
+CONIN:
+	LD	DE,CI		;console input
+	CALL	dir_bios
+	RET
+
+CONOUT:	ld	de,co
+	jr	dir_bios
+
+dir_bios:
+	LD	hl,(bios)	;entry BIOS
+	ADD	hl,DE
+	JP	(hl)		; direct BIOS call
+
+	page
+;------------------------
+;-- BDOS Character I/O --
+;------------------------
+
+subttl  'BDOS CHARACTER SUBROUTINES'
+
+;-----;
+strout:
+;-----;
+	ld	a,(hl)
+	or	a
+	ret	z
+	push	hl
+	call	putchar
+	pop	hl	;send out null-terminated string
+	inc	hl
+	jr	strout	;to console
+
+;------;
+putchar:
+;------;
+	ld	c,a	;to the console by direct bios call
+	call	conout		;conout
+	ret
+
+
+;-------;
+Msg:
+;-------;
+	
+	ld	a,(hl)		;print string preceded by a count byte
+	ld	b,a		;get count byte
+	or	a		;is it a null string
+	ret	z		;if null string, then go home
+.loop::	inc	hl		;point to next ascii byte
+	ld	a,(hl)		;get it
+	push	hl
+	push	bc
+	call	putchar		;send it to the console
+	pop	bc
+	pop	hl
+	dec	b		;any more to do
+	ret	z		;if not go home
+	jr	.loop		;otherwise do the next byte
+
+ring::	push	hl		; Ring the bell
+	push	de
+	push	bc
+	push	af
+	ld	e,BELL		; BELL
+	ld	c,6		; BDOS Direct Console output
+	call	bdos
+	pop	af
+	pop	bc
+	pop	de
+	pop	hl
+	ret
+
+	page
+;-----------------------
+;---    Utilities    ---
+;-----------------------
+drawdown:;the whole screen a double line
+	ld	b,23		;the number of lines
+..downloop:
+	push	bc
+	ld	hl,line	;get where we are
+	inc	(hl)		;increment it
+	call	yxpos		;and point the cursor there
+	ld	a,086h		;down line
+	call	putchar		;output the byte
+	pop	bc
+	djnz	..downloop	;and do another until b=0
+	ret			;the job is all done
+;----------------------------------------------------------------------------
+nice.box:;around the screen
+	xor	a
+	ld	(line),a	;zap the line position
+	ld	(Column),a	;and the column position
+	call	yxpos		;home the cursor
+;draw the top border	
+	ld	a,087h		;a top left border
+	call	putchar		;send a top-left bracket
+	ld	b,78
+..toploop:;now do the top line across
+	ld	a,085h		;do a top line
+	push	bc
+	call	putchar		;out goes a line character
+	pop	bc
+	djnz	..toploop
+	ld	a,088h		;a top right border
+	call	putchar		;do a top right character
+;go to bottom line	
+	ld	a,24		;now do likewise for the bottom
+	ld	(line),a
+	xor	a
+	ld	(Column),a	;go to the bottom left
+	call	yxpos
+;draw the bottom border	
+	ld	a,089h		;a bottom left border
+	call	putchar
+	ld	b,78		;and now a nice horizontal line
+..botloop:
+	ld	a,085h		;do a bottom line
+	push	bc
+	call	putchar
+	pop	bc
+	djnz	..botloop
+	ld	a,08ah		;a bottom right border
+	call	putchar
+	xor	a
+	ld	(Column),a
+	ld	(line),a	;home again
+	call	drawdown
+	ld	a, 79		;we have drawn a vertical line
+	ld	(Column),a
+	xor	a		;go to the top right
+	ld	(line),a
+	call	drawdown	;and do the second vertical line
+	ret	
+
+	page
+;*****************************************************************************
+;*                                                                           *
+;*   MENU puts a menu of choices on the screen ready for the user to select  *
+;*                                                                           *
+;*****************************************************************************
+
+MENU::	ld	hl,PR.STRING		;Point at the menu prompt
+	call	STROUT			;Put it on the screen
+	ld	hl,MENU.STRING		;Point at the menu string
+	call	MSG			;Print it out
+	ret
+
+	page
+;*****************************************************************************
+;*                                                                           *
+;*  CURRENT reads the current values of the settable parameters out of the   *
+;*  record read from LIST.COM and writes them on the screen adjacent to the  *
+;*  relevant menu entries.                                                   *
+;*                                                                           *
+;*****************************************************************************
+
+CURRENT::
+	ld	hl,DMA_LIST		;Get address of buffer containing first
+	inc	hl			;record of LIST.COM
+	inc	hl
+	inc	hl
+	ld	a,(hl)
+	ld	(WIDTH),a
+	inc	hl
+	ld	a,(hl)
+	ld	(LENGTH),a
+	inc	hl
+	ld	a,(hl)
+	ld	(SKIP),a
+	inc	hl
+	ld	a,(hl)
+	ld	(LNUMS),a
+	inc	hl
+	ld	a,(hl)
+	ld	(FFS),a			;Read values into variables
+	inc	hl
+	ld	a,(hl)
+	ld	(HEADS),a
+	ld	a,(WIDTH)
+	ld	c,3
+	ld	hl,AWIDTH
+	call	ASCII			;Make ASCII version of WIDTH
+	ld	a,(LENGTH)
+	ld	c,3
+	ld	hl,ALENGTH
+	call	ASCII			;Make ASCII version of LENGTH
+	ld	a,(SKIP)
+	ld	c,3
+	ld	hl,ASKIP
+	call	ASCII			;Make ASCII version of SKIP
+	ld	de,ALNUMS
+	ld	hl,AYES
+	ld	bc,3
+	ld	a,(LNUMS)
+	or	a
+	jr	nz,X1
+	ld	hl,ANO
+X1::	ldir				;Make ASCII version of LNUMS
+	ld	de,AFFS
+	ld	hl,AYES
+	ld	bc,3
+	ld	a,(FFS)
+	or	a
+	jr	nz,X2
+	ld	hl,ANO
+X2::	ldir				;Make ASCII version of FFS
+	ld	de,AHEADS
+	ld	hl,AYES
+	ld	bc,3
+	ld	a,(HEADS)
+	or	a
+	jr	nz,X3
+	ld	hl,ANO
+X3::	ldir				;Make ASCII version of HEADS
+	ld	hl,WIDSTR
+	call	STROUT			;Put cursor in width position
+	ld	hl,AWIDTH
+	call	STROUT			;Put ASCII width on screen
+	ld	hl,LENSTR
+	call	STROUT			;Put cursor in length position
+	ld	hl,ALENGTH
+	call	STROUT			;Put ASCII length on screen
+	ld	hl,SKIPSTR
+	call	STROUT			;Put cursor in skip position
+	ld	hl,ASKIP
+	call	STROUT			;Put ASCII skip on screen
+	ld	hl,LNSTR
+	call	STROUT			;Put cursor in LNUMS position
+	ld	hl,ALNUMS
+	call	STROUT			;Put ASCII LNUMS on screen
+	ld	hl,FFSTR
+	call	STROUT			;Put cursor in FFS position
+	ld	hl,AFFS
+	call	STROUT			;Put ASCII FFS on screen
+	ld	hl,HEADSTR
+	call	STROUT			;Put cursor in HEADS position
+	ld	hl,AHEADS
+	call	STROUT			;Put ASCII HEADS on screen
+	ret
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*   GETNUM gets a number echoed from the keyboard, echoes it to the screen *
+;*   and converts it to binary. It exits if up.arrow, down.arrow, ESC or    *
+;*   BREAK are pressed. If any other character is pressed, or an attempt is *
+;*   made to enter a number larger than 255 then the bell is rung and the   *
+;*   input is rejected.                                                     *
+;*   Entry -	HL -> ASCII copy of number                                  *
+;*		DE -> binary copy of number                                 *
+;*   Exit -	A = character causing exit                                  *
+;*                                                                          *
+;****************************************************************************
+
+GETNUM::ld	a,0
+	ld	(POSITION),a		;Zero position in string
+	ld	(SSTART),hl		;Set string start
+	ld	(SPOS),hl		;Set string position
+	ld	(NUMBER),de		;Set pointer to number
+GETN1::	call	CONIN			;Get a character
+	cp	ESC
+	ret	z			;Get out if ESCape
+	cp	BREAK
+	ret	z			;Get out if BREAK
+	cp	UP.ARROW
+	ret	z			;Get out if up.arrow
+	cp	DOWN.ARROW
+	ret	z			;Get out if down.arrow
+	cp	LEFT.ARROW
+	jr	nz,GETN2		;Continue if not left.arrow
+	ld	a,(POSITION)
+	or	a			;Check current position
+	jr	z,GETN1			;Ignore if already at left
+	call	LEFT			;else move cursor left
+	ld	hl,(SPOS)
+	dec	hl
+	ld	(SPOS),hl
+	ld	a,(POSITION)
+	dec	a
+	ld	(POSITION),a		;decrement current position
+	jr	GETN1			;and repeat
+GETN2::	cp	RIGHT.ARROW
+	jr	nz,GETN3		;Continue if not right.arrow
+	ld	a,(POSITION)
+	cp	2			;Check current position
+	jr	z,GETN1			;Ignore if already at right
+	call	RIGHT			;else move character right
+	ld	hl,(SPOS)
+	inc	hl
+	ld	(SPOS),hl
+	ld	a,(POSITION)
+	inc	a
+	ld	(POSITION),a		;increment current position
+	jr	GETN1			;and repeat
+GETN3::	cp	'0'
+	jr	c,GETN4
+	cp	'9'+1
+	jr	c,GETN5			;Jump if it's a number
+GETN4::	call	RING			;If we got here it isn't a number
+	jp	GETN1			;So ring the bell & get more input
+GETN5::	ld	hl,(SPOS)
+	ld	(hl),a			;Put new digit in number string
+	ld	c,a
+	call	CONOUT			;Put character on string
+	ld	a,(POSITION)
+	cp	2			;Check position
+	jr	nz,GETN6		;If at right
+	call	LEFT			;then move cursor left to compensate
+	jr	GETN7			;for CONOUT
+GETN6::	inc	a
+	ld	(POSITION),a		;else increment position
+	ld	hl,(SPOS)
+	inc	hl
+	ld	(SPOS),hl
+GETN7::	ld	hl,(SSTART)
+	ld	c,3
+	call	BINARY			;Convert string to binary
+	ld	hl,(NUMBER)
+	ld	(hl),a			;Put binary number away
+	jp	GETN1
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*    YESNO gets a character from the keyboard. It exits if ESC, BREAK,     *
+;*    up.arrow or down.arrow are pressed. If y or Y are pressed it writes   *
+;*    Yes on the screen and sets the byte (DE) true, if n or N are pressed  *
+;*    it writes No on the screen and sets the byte (DE) false. If any other *
+;*    character is pressed then the bell is rung and the input is rejected. *
+;*    Entry -	HL -> ASCII string for yes or no                            *
+;*    		DE -> true/false flag                                       *
+;*    Exit -	A = character causing exit                                  *
+;*                                                                          *
+;****************************************************************************
+
+YESNO::	ld	(SPOS),hl		;Save string position
+	ld	(NUMBER),de		;Save pointer to t/f flag
+YESNO1::call	CONIN			;Get a character
+	cp	ESC
+	ret	z			;Return if it was an ESCape
+	cp	BREAK
+	ret	z			;Return if it was BREAK
+	cp	UP.ARROW
+	ret	z			;Return if it was up.arrow
+	cp	DOWN.ARROW
+	ret	z			;Return if it was down.arrow
+	and	5FH			;Lower case -> upper case
+	cp	'Y'
+	jr	z,YESNO2		;If it was Y or y then deal with it
+	cp	'N'
+	jr	z,YESNO3		;If it was N or n then deal with it
+	call	RING			;else ignore it, ring the bell
+	jr	YESNO1			;and get the next character
+YESNO2::ld	hl,(NUMBER)
+	ld	(hl),TRUE		;Yes, so set flag true
+	ld	de,(SPOS)
+	ld	hl,AYES
+	ld	bc,3
+	ldir				;Put Yes in the string
+	ld	hl,(SPOS)
+	call	STROUT			;and on the screen
+	call	LEFT
+	call	LEFT
+	call	LEFT			;Correct the cursor
+	jp	YESNO1			;And get another character
+YESNO3::ld	hl,(NUMBER)
+	ld	(hl),FALSE		;Yes, so set flag false
+	ld	de,(SPOS)
+	ld	hl,ANO
+	ld	bc,3
+	ldir				;Put No in the string
+	ld	hl,(SPOS)
+	call	STROUT			;and on the screen
+	call	LEFT
+	call	LEFT
+	call	LEFT			;Correct the cursor
+	jp	YESNO1			;And get another character
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*   Silly but useful little routines                                       *
+;*                                                                          *
+;****************************************************************************
+
+LEFT::	ld	hl,LEFSTR
+	call	STROUT			;Move cursor left
+	ret
+
+RIGHT::	ld	hl,RTSTR
+	call	STROUT			;Move cursor right
+	ret
+
+RVID::	ld	hl,REVSTR
+	call	STROUT			;Switch to reverse video
+	ret
+
+TVID::	ld	hl,TRUSTR
+	call	STROUT			;Switch to true video
+	ret
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*           C O N S T A N T S                                              *
+;*                                                                          *
+;****************************************************************************
+
+AYES:	db	'Yes'			;An ASCII string saying Yes
+ANO:	db	'No '			;An ASCII string saying No
+WIDSTR:	db	ESC,'=',WPOSY,WPOSX+OFFSET,0	;WIDTH positioning string
+LENSTR:	db	ESC,'=',LPOSY,LPOSX+OFFSET,0	;LENGTH positioning string
+SKIPSTR:db	ESC,'=',SPOSY,SPOSX+OFFSET,0	;SKIP positioning string
+LNSTR:	db	ESC,'=',LNPOSY,LNPOSX+OFFSET,0	;LNUMS positioning string
+FFSTR:	db	ESC,'=',FFPOSY,FFPOSX+OFFSET,0	;FFS positioning string
+HEADSTR:db	ESC,'=',HPOSY,HPOSX+OFFSET,0	;HEADS positioning string
+
+REVSTR:	db	ESC,'J',ESC,'(',0	;String for reverse video,full
+TRUSTR:	db	ESC,'K',ESC,')',0	;String for true video,half
+LEFSTR:	db	8,0			;String for cursor left
+RTSTR:	db	0CH,0			;String for cursor right
+
+TIDY.UP:				;set the screen to rights
+	defb	..end2 - $
+	defb	1bh,"+"
+	defb	1bh,"u",1bh,"\"
+	defb	1bh,"v",1bh,"u"	;dont ask
+	defb	1bh,",","C",26,"C"
+	defb	1bh,"+"
+..end2:	defb	000,000
+
+CLEAR.SCREEN:
+	db	ESC,'K',ESC,'H'		;Non inverse, character mode
+	db	ESC,'Z',ESC,')',0	;half intensity and clear screen
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*           V A R I A B L E S                                              *
+;*                                                                          *
+;****************************************************************************
+
+AWIDTH:	db	'   ',0			;ASCII version of WIDTH
+ALENGTH:db	'   ',0			;ASCII version of LENGTH
+ASKIP:	db	'   ',0			;ASCII version of SKIP
+ALNUMS:	db	'   ',0			;ASCII version of LNUMS
+AFFS:	db	'   ',0			;ASCII version of FFS
+AHEADS:	db	'   ',0			;ASCII version of HEADS
+
+BIOSPB::ds	6			;Space for a bios parameter block
+
+	DS	128			;Space for a stack
+OLDSP:	DW	0			;Store CP/M stack pointer
+
+LINE:	db	0			;Current line
+COLUMN:	db	0			;Current column
+
+			; Printer parameters
+
+WIDTH::	db	80	; WIDTH of page = 132 characters
+LENGTH:	db	66      ; Length of page is default 51, print 47 lines
+SKIP::	db	4	; No of lines skipped at bottom of page
+LNUMS::	db	false	; Set true to print line numbers
+FFS::	db	true	; Set false if printer does not support form feed
+HEADS::	db	false	; Set true to print headers
+
+SSTART::ds	2	; String start position
+SPOS::	ds	2	; String current position
+NUMBER::ds	2	; Position of binary version of number
+POSITION::
+	ds	1	; Position in string - 0 = start etc.
+
+	page
+;****************************************************************************
+;*                                                                          *
+;*           T E X T   A R E A                                              *
+;*                                                                          *
+;****************************************************************************
+
+hello.string:
+	defb	..1end - $		;length of the string
+	defb	1bh,",","g",5,"c"	;define split screen
+	defb	1bh,"u"			;go to the upper
+	defb	1bh,"/"			;make multifont
+	defb	1bh,"#",6		;style 6
+	defb	'QX+ LIST Program Configuration Utility'
+	defb	1bh,"v"			;enter the lower screen
+	defb	1BH,"+"			;blank the screen
+	defb	1bh,')'
+..1end:	defb	000,000
+
+
+instruct:
+db	0dH,0aH		;carriage return, linefeed
+db	'    This utility allows the user to  configure the program "LIST.COM" to'
+db	0dH,0aH		;carriage return, linefeed
+db	'    correctly  reflect the  current printer  settings and  type of paper'
+db	0dH,0aH		;carriage return, linefeed
+db	'    being used. The user may set -'
+db	0DH,0AH,0AH	;carriage return, linefeed,linefeed
+db	'                    Number of characters per line' 
+db	0dH,0aH		;carriage return, linefeed
+db	'                      Number of lines  per page'
+db	0DH,0AH		;carriage return linefeed
+db	'                       Number of lines to skip'
+db	0DH,0AH		;carriage return linefeed
+db	'                 Whether or not to print line numbers'
+db	0dH,0aH		;carriage return, linefeed
+db	'                   Whether or not to use line feeds'
+db	0DH,0AH		;carriage return, linefeed
+db	'                   Whether or not to print headings'
+db	000
+
+OK:	defb	..end1 - $
+	db	ESC,'=',(18+' '),(22+' ')	;bottom centre
+	defb	1bh,'('				;full intensity
+	defb	1bh,"^"				;blink
+	defb	"<press any key to continue>"
+	defb	1bh,"q"				;cancel blink
+	defb	1bh,')'				;half intensity
+..end1:	defb	00,00
+
+MENU.STRING:
+	db	..end3 - $		;Length of string
+	db	ESC,'=',WPOSY,WPOSX	;Position cursor for width string
+	db	'Page width.............'
+	db	ESC,'=',LPOSY,LPOSX	;Position cursor for length string
+	db	'Page length............'
+	db	ESC,'=',SPOSY,SPOSX	;Position cursor for skip string
+	db	'Lines skipped..........'
+	db	ESC,'=',LNPOSY,LNPOSX	;Position cursor for line number string
+	db	'Print line numbers.....'
+	db	ESC,'=',FFPOSY,FFPOSX	;position cursor for form feed string
+	db	'Use form feeds.........'
+	db	ESC,'=',HPOSY,HPOSX	;Position cursor for heads string
+	db	'Print headings.........'
+..end3:	db	0,0			;Terminator
+
+pr.string:				;Prompt string
+	db	ESC,"=",1+32,15+32,ESC,'('
+	db	'       QX+ LIST Program Configurator   ver '
+	db	vers/10+'0','.',vers mod 10+'0',ESC,')'
+	db	ESC,"=",3+32,15+32
+	db	'Use the cursor control keys to edit the parameters.'
+ 	db	ESC,"=",4+32,15+32
+	db	'     Press <ESC> to update LIST.COM and exit.'
+	db	ESC,"=",6+32,15+32
+	db	'            Press <BREAK> to abort.'
+	db	000
+
+done.msg:db	'--- The LIST program has been configured ---'
+	db	cr,lf,00
+
+abort.msg:
+	db	'*** Program terminated  -  no action taken ***'
+	db	cr,lf,000
+	
+cpm3msg:
+	db	'LIST Program Configuration Utility -'
+	db	' Requires CP/M + on Epson QX-10',cr,lf,0
+
+NOFILE.MSG: DB	'*** Can''t find LIST.COM  -  Please check ***',0AH,0DH,BELL,0
+
+	END
