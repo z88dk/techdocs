@@ -1,0 +1,597 @@
+	.z80
+	title	EPSON QX-10 CPM3 Read Sector & Track
+
+	name	('RDTRACK')
+
+	public	stack,msg1,msg2,msg3,cbuff,cbuff1,cbuff2
+	public	dsk,trk,sct,dpb
+	public	start,again,error,space,mark,finish
+	public	read,shift,seclen,bios,biospb,func,areg,bcreg,dereg,hlreg
+	public	display,disp1,disph,dispa,hexchr,hex2,crlf,gap,chrout
+	public	getdsk,gettrk,getsct,chkdsk,chktrk,chksct
+	public	saveno,addnos,nxtnos,adderr,onechr,ucse,skipsp,sksp1
+	public	len,dma
+
+
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date:   10th November 1983
+
+bdos	equ	5
+cr	equ	0dh
+lf	equ	0ah
+bs	equ	09h
+
+	dseg
+	ds	64
+stack:	dw	0
+msg1:	db	cr,lf,'  Physical Track and Sector Read','$'
+msg2:	db	cr,lf,'  Enter D T S (Drive, Track, & Sector) ? ','$'
+msg3:	db	cr,lf,'-----------------------------------Error ','$'
+msg4:	db	' Hit any character to continue ? ','$'    	
+cbuff:	db	128	; Maximum length of buffer
+cbuff1:	db	0	; Length of text
+cbuff2:	ds	128	; Text
+
+dsk:	db	0	; disk (0-15)
+trk:	dw	0	; track (0-79)
+sct:	dw	0	; sector (1-16)
+
+dpb:
+dpb.spt:	ds	2
+dpb.bsh:	ds	1
+dpb.blm:	ds	1
+dpb.exm:	ds	1
+dpb.dsm:	ds	2
+dpb.drm:	ds	2
+dpb.al0:	ds	1
+dpb.al1:	ds	1
+dpb.cks:	ds	2
+dpb.off:	ds	2
+dpb.psh:	ds	1
+dpb.phm:	ds	1
+
+	cseg
+start:	ld	sp,stack
+	ld	de,msg1
+	ld	c,9		; BDOS Print String
+	call	bdos
+again:	ld	de,msg2
+	ld	c,9		; BDOS Print String
+	call	bdos
+
+	ld	de,cbuff
+	ld	c,10		; BDOS Read Console Buffer
+	call	bdos
+
+	ld	hl,cbuff1
+	ld	a,(hl)
+	or	a		; test for null string
+	jp	z,finish
+
+	ld	b,a		; length of text
+	inc	hl		; <HL> -> start of text
+
+	ld	de,dsk
+	call	getdsk
+	jr	c,error
+	call	chkdsk
+	jr	c,error
+
+	ld	de,trk
+	call	gettrk
+	jr	c,error
+	call	chktrk
+	jr	c,error
+
+	ld	de,sct
+	call	getsct
+	jr	c,error
+	call	chksct
+	jr	c,error
+
+	call	read
+	call	display
+	jp	again
+
+error:	push	bc
+	ld	de,msg3
+	ld	c,9		; BDOS Print String
+	call	bdos
+	pop	bc
+	ld	a,(cbuff1)
+	sub	b		; <C> - <B>
+space:	or	a
+	jr	z,mark
+	push	af
+	ld	e,' '
+	ld	c,2		; BDOS Console Output
+	call	bdos
+	pop	af
+	dec	a
+	jr	space
+mark:	ld	e,'$'
+	ld	c,2		; BDOS Console Output
+	call	bdos
+	jp	again
+
+finish:
+	ld	c,0		; BDOS System Reset
+	jp	bdos
+
+;---------------------------------------------------
+; Entry:	dsk  =  Disk (0-15)
+;		trk  =  track (0-79)
+;		sct  =  sector (1-16)
+; Return:	dma  -> Sector buffer
+;		len  -> Length of sector contents
+;---------------------------------------------------
+read:
+	ld	hl,0
+	ld	(len),hl		; Zero length indicates error
+
+	ld	a,(sct)		; sector number
+	ld	c,a
+	ld	b,0
+	call	bios
+	db	11		; BIOS Set sector
+
+	xor	a		; multi sectors
+	ld	c,a
+	call	bios
+	db	23		; BIOS Set multi sector count
+
+	ld	a,(trk)		; track number
+	ld	c,a
+	ld	b,0
+	call	bios
+	db	10		; BIOS Set track
+
+	ld	bc,dma		; DMA address
+	call	bios
+	db	12		; BIOS Set DMA address
+
+	ld	a,1		; DMA bank = 1
+	call	bios
+	db	28		; BIOS Set DMA bank
+
+	call	bios
+	db	13		; BIOS Read
+	or	a
+	ret	nz
+
+	ld	hl,128
+	ld	a,(dpb.psh)
+	or	a
+	jr	z,seclen
+shift:	add	hl,hl
+	dec	a
+	jr	nz,shift
+seclen:	ld	(len),hl
+	ret
+
+;---;
+bios:
+;---;
+	ld	(hlreg),hl
+	ld	hl,biospb
+	ld	(hl),a
+	inc	hl
+	ld	(hl),a
+	inc	hl
+	ld	(hl),c
+	inc	hl
+	ld	(hl),b
+	inc	hl
+	ld	(hl),e
+	inc	hl
+	ld	(hl),d
+	pop	de
+	ld	a,(de)		; retrieve BIOS function number
+	inc	de
+	push	de		; save return address
+	ld	de,biospb
+	ld	(de),a		; and save in BIOS parameter block
+	ld	c,50		; BDOS Direct BIOS calls
+	jp	bdos
+
+biospb:
+func:	db	0	; BIOS function number
+areg:	db	0	; A register contents
+bcreg:	dw	0	; BC register contents
+dereg:	dw	0	; HL register contents
+hlreg:	dw	0	; DE register contents
+
+;---------------------------------------------------
+; Entry:	dma  -> Sector buffer
+;		len  -> Length of sector contents
+;---------------------------------------------------
+display:
+	ld	a,1
+	ld	(rows),a
+
+	ld	hl,scbpb
+	ld	(hl),1ch	; Offset to console page length
+	inc	hl
+	ld	(hl),0		; Get byte
+
+	ld	c,49		; BDOS Get/Set System Control Block
+	ld	de,scbpb
+	call	bdos
+	ld	(maxrow),a
+
+	ld	hl,scbpb
+	ld	(hl),2ch	; Offset to page mode
+	inc	hl
+	ld	(hl),0		; Get byte
+
+	ld	c,49		; BDOS Get/Set System Control Block
+	ld	de,scbpb
+	call	bdos
+	sub	1		; test <A> = 0 if PAGE mode ?
+	sbc	a,a		; <A> = 0 if > 0, <A> = 0ff if = 0
+	ld	hl,maxrow
+	and	(hl)
+	ld	(hl),a		; maxrow = 0 if not page mode
+
+	ld	hl,(len)
+	ld	a,h
+	or	l
+	ret	z		; nothing to display
+	ex	de,hl		; <DE> = length of sector
+
+	ld	hl,dma
+disp1:	push	hl
+	push	de
+	ld	b,16		; bytes per line
+	call	crlf
+	call	disph
+	pop	de
+	pop	hl
+	ld	b,16
+	call	gap
+	call	dispa
+	ld	a,d
+	or	e
+	jr	nz,disp1
+	ret
+
+
+disph:	ld	a,(hl)
+	rrca
+	rrca
+	rrca
+	rrca
+	call	hexchr
+	ld	a,(hl)
+	call	hexchr
+	inc	hl
+	dec	de
+	ld	a,d
+	or	e
+	ret	z
+	dec	b
+	ret	z
+	call	gap
+	jr	disph
+
+hexchr:	and	0fh
+	cp	10
+	jr	c,hex2
+	add	a,'A'-'9'-1
+hex2:	add	a,'0'
+	jp	chrout
+
+dispa:	ld	a,(hl)
+	or	a
+	jp	m,dotchr
+	cp	' '
+	jp	c,dotchr
+	call	chrout
+	jr	dispa1
+dotchr:	ld	a,'.'
+	call	chrout
+dispa1:	inc	hl
+	dec	de
+	ld	a,d
+	or	e
+	ret	z
+	dec	b
+	ret	z
+	jr	dispa
+
+crlf:	ld	a,cr
+	call	chrout
+	ld	a,lf
+	call	chrout
+	push	hl
+	push	de
+	push	bc
+	ld	hl,(rows)	; <L> = row, <H> = max rows
+	inc	l
+	ld	(rows),hl
+	jr	z,nopause
+	ld	a,l
+	cp	h
+	call	z,pause
+nopause:
+	pop	bc
+	pop	de
+	pop	hl
+	ret
+
+pause:	ld	l,1
+	ld	(rows),hl
+	ld	de,msg4
+	ld	c,9		; BDOS Send String
+	call	bdos
+	ld	c,1		; BDOS Console Input
+	call	bdos		; wait for any character
+
+erase:	ld	hl,scbpb
+	ld	(hl),1bh	; Console Column Position
+	inc	hl
+	ld	(hl),0		; Get byte
+
+	ld	c,49		; BDOS Get/Set System Control Block
+	ld	de,scbpb
+	call	bdos
+	cp	2
+	ret	c
+
+	ld	e,bs
+	ld	c,2
+	call	bdos		; BDOS Console Output
+	jr	erase
+
+	dseg
+rows:	db	0
+maxrow:	db	0
+scbpb:	db	0		; offset in SCB table
+	db	0		; Get byte
+	dw	0		; not used
+	cseg
+
+gap:	ld	a,' '
+chrout:	push	hl
+	push	de
+	push	bc
+	ld	e,a
+	ld	c,2
+	call	bdos
+	pop	bc
+	pop	de
+	pop	hl
+	ret
+
+
+;---------------------------------------------------
+; Entry:	<HL> -> Text
+;		<B>  -> Length of text
+;		<DE> -> Word to hold result
+; Return:	<HL> -> Remaining text
+;		<B>  -> Remaining character count
+;		<CF> -> True if error
+;---------------------------------------------------
+getdsk:
+	call	skipsp
+	ret	c
+	call	onechr
+	ret	c
+	ld	a,c
+	ld	(de),a	
+	ret
+
+gettrk:
+	call	skipsp
+	ret	c
+	call	addnos
+	ret	c
+	ld	a,c
+	ld	(de),a	
+	ret
+
+getsct:
+	call	skipsp
+	ret	c
+	call	addnos
+	ret	c
+	ld	a,c
+	ld	(de),a	
+	ret
+
+saveno:	db	0
+addnos:	ld	c,0
+	ld	a,b
+	cp	c
+	jr	z,adderr
+nxtnos:	ld	a,(hl)
+	cp	' '
+	ret	z
+	cp	','
+	ret	z
+	sub	'0'
+	ret	c	; error
+	cp	10
+	jp	nc,adderr
+	ld	(saveno),a
+	ld	a,c
+	add	a,a	;*2
+	ret	c
+	add	a,a	;*4
+	ret	c
+	add	a,c	;*5
+	ret	c
+	add	a,a	;*10
+	ret	c
+	ld	c,a
+	ld	a,(saveno)
+	add	a,c
+	ret	c
+	ld	c,a
+	inc	hl
+	dec	b
+	ret	z	; at end of string
+	jr	nxtnos
+adderr:	scf
+	ret	c
+
+onechr:	ld	c,0
+	ld	a,b
+	cp	c
+	jr	z,adderr
+	ld	a,(hl)
+	call	ucse
+	sub	'A'
+	ret	c	; error
+	cp	16
+	jp	nc,adderr
+	ld	(saveno),a
+	ld	a,c
+	add	a,a	;*2
+	ret	c
+	add	a,a	;*4
+	ret	c
+	add	a,c	;*5
+	ret	c
+	add	a,a	;*10
+	ret	c
+	ld	c,a
+	ld	a,(saveno)
+	add	a,c
+	ret	c
+	ld	c,a
+	inc	hl
+	dec	b
+	ret	z	; at end of string
+	ld	a,(hl)
+	cp	' '
+	ret	z
+	cp	','
+	ret	z
+	cp	':'
+	jp	nz,adderr
+	and	a
+	inc	hl
+	dec	b
+	ret
+
+ucse:	cp	'a'
+	ret	c
+	cp	'z'+1
+	ret	nc
+	add	a,'A'-'a'
+	ret
+
+skipsp:	ld	a,(hl)
+	cp	' '
+	jr	z,sksp1
+	cp	','
+	jr	z,sksp1
+	and	a	; clear carry flag
+	ret	nc
+sksp1:	inc	hl
+	djnz	skipsp
+	scf		; no characters left so RETURN ERROR
+	ret	c
+
+;---------------------------------------------------
+; Entry:	<DE> -> Number to be validated
+; Preserved:	<B>  -> Length of text
+;		<DE> -> Word to hold result
+; Return:	<CF> -> True if error
+; Function:	dsk  =  Disk (0-15)
+;		trk  =  track (0-79)
+;		sct  =  sector (1-16)
+;---------------------------------------------------
+chkdsk:
+	push	hl
+	push	bc
+	ld	c,13		; BDOS Reset Disk System
+	call	bdos
+	pop	bc
+	pop	hl
+
+	ld	a,(dsk)
+	ld	e,a
+	ld	a,15
+	cp	e
+	ret	c		; outside range
+
+	push	hl
+	push	bc
+	ld	c,14		; BDOS Select Disk
+	call	bdos
+	pop	bc
+	pop	hl
+	ld	e,a
+	xor	a
+	cp	e
+	ret	c		; Select error
+
+	push	hl
+	push	bc
+	ld	c,31		; BDOS Get Addr DPB
+	call	bdos
+	ld	de,DPB
+	ld	bc,17
+	ldir			; copy over
+	pop	bc
+	pop	hl
+
+	xor	a
+	ret
+
+; check track ^> (dsm*block size/sectors per track)+off-1
+chktrk:
+	push	hl
+	push	bc
+	ld	hl,(dpb.dsm)	; number of data blocks -1
+	inc	hl
+	ld	a,(dpb.bsh)
+upbyt:	add	hl,hl
+	dec	a
+	jr	nz,upbyt
+; <HL> = 128 byte sectors on disc
+	ld	bc,(dpb.spt)	; sectors per track
+	ld	a,16
+; divide <DEHL> by <DPB.SPT>
+
+	pop	bc
+	pop	hl
+	and	a
+	ret
+
+; check sectors > 0 and ^> sectors per track
+chksct:
+	ld	a,(de)
+	sub	1
+	ret	c		; sector = 0
+	push	hl
+	push	bc
+	ld	l,a
+	ld	h,0
+	ld	a,(dpb.psh)
+	or	a
+	jr	z,sec128
+pshsct:	add	hl,hl
+	dec	a
+	jr	nz,pshsct
+sec128:	ex	de,hl
+	ld	hl,(dpb.spt)
+	ld	a,h
+	cp	d
+	ld	a,l
+	pop	bc
+	pop	hl
+	ret	c	; High Sector > High sectors per track
+	ret	nz
+	cp	e
+	ret	c	; Low Sector > Low sectors per track
+	ret
+
+	dseg
+
+len:	dw	0	; actual length
+dma:	ds	1024	; buffer for sector
+
+	end
