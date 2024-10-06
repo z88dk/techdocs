@@ -1,0 +1,117 @@
+                        MML: LIST
+                        =========
+
+A utility program to list any text file to the LST: device using
+the CP/M Plus time and date.
+
+
+The file is listed with the following features
+1.      Heading on each page with date time and file name
+	The filename is preceeded by the user numer if not zero,
+	and the disk device name.
+2.      An incrementing page number.
+3.	If time stamping implemented, the file TOD stamp is
+	displayed as part of the heading.
+4.      An optional line number before each line
+	This line number will be the same as the line number
+        used by the CP/M editor ED.
+5.      Lines are skipped at the bottom of each page
+	providing room for punch holes.
+6.      Lines which would extend over the maximum number of
+	characters, are continued on the next line. The line number
+	is not incremented for a continuation.
+7.      The checksum is optionally printed at the end of the listing
+
+A number of the printing parameters including the page size may be
+altered using the utility SETLIST.
+
+
+INSTRUCTIONS
+============
+
+A/ LIST
+-------
+
+1.      Type on the console:
+		LIST <filename>
+	or
+                LIST <filename> <option>
+	
+        <filename>
+             	this is the full name of the file to be printed,
+		and may be preceded by the disk drive device
+	<option>
+		The optional control instruction consist of a single
+		character key (S, F, or L) followed by a numeric value.
+             	One (and only one) of the following control instructions
+		may be included to provide additional control of the listing:
+                    S<lineno>     -   Start at lineno (default 0)
+                    F<lineno>     -   Finish at lineno (default 9999)
+                    L<lines>      -   Number of lines per page (default = PAGE)
+	For example:
+	1.	List a complete file
+		LIST <filename>
+
+	2.	To start the listing at line 1,240
+		LIST <filename> S1240
+
+	3.	To finish the listing at the 2,000 line
+		LIST <filename> F1240
+
+	4.	To specify a file MYFILE.BAS on disk drive G
+		LIST g:myfile.bas
+		
+2.      The printing may be stopped by typing any character on the
+        console.  There may be a little delay before printing
+        actually stops.
+
+B/ SETLIST
+----------
+
+The utility SETLIST alters the following parameters in the
+program file LIST.COM:
+1.	WIDTH	Number of characters to a line
+2.	LINES	Number of lines per page
+3.	SKIP	Number of lines to skip at bottom of page
+4.	NUMBER	Enables or disables the printing of line numbers
+5.	FORMFEED	Enables or disables the use of form feed characters
+6.	CHKSUM	Enables or disables the display of a file checksum
+
+The utility makes a permanent change to LIST.COM.
+As supplied LIST.COM has the following settings. 
+1.	WIDTH		80
+2.	LINES		66
+3.	SKIP		6
+4.	NUMBER		Disabled
+5.	FORMFEED	Enables
+6.	CHKSUM		Disabled
+
+Operation:
+----------
+1.      Type on the console:
+		SETLIST
+
+2.	The program will display each of the above parameters
+	and either:
+	1/	Hit <RETURN> to leave unchanged
+	or
+	2/	Enter <new value> followed by <RETURN>
+
+3.	If any character is not acceptable, the <BELL> will be rung
+	and the question repeated
+
+4.	On completion of the amendments, the new values will be displayed
+
+5.	The program will request confirmation to the alterations
+	enter <Y> to update LIST.COM file, or <N> to abandon changes.
+
+DATE/TIME
+---------
+
+These utilities use Date & time features which are not part of the
+CPM2.2 BDOS, but are included in the CP/M Plus BDOS. Consequently
+these utilities can only be used with CP/M Plus and cannot be used
+with CP/M 2.2.
+
+=====================================================================
+
