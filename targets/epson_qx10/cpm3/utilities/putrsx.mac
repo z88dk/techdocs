@@ -1,0 +1,573 @@
+	.z80
+
+cr	equ	0dh
+lf	equ	0ah
+eof	equ	1ah
+
+scb_44	equ	256-100+44h	; 0E0H LOW in SCB for user number
+scb_18	equ	256-100+18h	; 0B4H LOW in SCB for reserved RO area
+scb_37	equ	256-100+37h	; 0D3H LOW in SCB for output delimiter char
+scb_38	equ	256-100+38h	; 0D4H LOW in SCB for List output flag
+
+	aseg
+BASE	EQU	$
+	cseg
+
+;----------------;
+; The RSX Prefix ;
+;----------------;
+	db	0,0,0,0,0,0
+rsx_start:	jp	start
+rsx_bdos:	jp	0006H		; CCP Loader fills with next address
+rsx_prev:	DW	0007H		; CCP loader fills with prev address
+rsx_remove:	DB	0FFH		; Set to zero to keep RSX
+rsx_nonbnk:	DB	000H
+rsx_name:	DB	'PUT     '
+rsx_loader:	db	0		; Set to zero by CCP loader
+		db	0,0			; Reserved area
+
+
+
+pad_eof:			; Pad buffer with EOF's until record filled
+	ld	a,(buff_ptr)
+	or	a
+	jp	z,X029CH	; Empty
+	ld	e,eof		; Pad record with EOF's
+	call	add_e_buff
+	jp	pad_eof
+
+bios_char:			; BIOS character jmps are re-directed here
+	ld	e,c
+	ld	a,(put_bdos_func)	; Equivalent BDOS function
+	ld	c,a
+	ld	a,1		; Entry number in table
+	jp	bios_e
+
+;--------------------------;
+; Start entry point in RSX ;
+;--------------------------;
+start:	xor	a
+bios_e:	ld	(tble_no),a
+	pop	hl
+	push	hl
+	ld	a,(rsx_start+2)	; HIGH address of this RSX
+	cp	h
+	jp	c,jp_tble1	; Caller is from even higher address
+	ld	a,c
+	cp	60		; Call RSX
+	jp	z,f60RSX
+	cp	26		; Set DMA
+	jp	z,f26DMA
+	cp	14		; Select Disk
+	jp	c,not_dsk_bdos
+	cp	98		; Free Blocks
+	jp	nc,not_dsk_bdos
+	cp	37		; Reset Drive
+	jp	z,not_dsk_bdos
+jp_tble1:
+	ld	a,(tble_no)
+	ld	hl,tble1
+jp_tble:
+	add	a,a
+	call	hl_a	; HL=HL+A
+	ld	b,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,b
+	jp	(hl)
+
+;-----------------------------------------------------------;
+; Function not a disk bdos function - so might be character ;
+;-----------------------------------------------------------;
+not_dsk_bdos:
+	ld	hl,char_tble
+	ld	b,0
+nxt_charF:
+	ld	a,(hl)
+	cp	c		; test for BDOS function
+	jp	z,not_dsk_bdos_1
+	inc	b
+	inc	hl
+	inc	a		; Test fo 0FFH
+	jp	nz,nxt_charF	; -not at end of table-
+	jp	jp_tble1	; could not find match on char_tble
+
+not_dsk_bdos_1:
+			; On entry B = offset in char_tble, C = bdos function
+	ld	hl,0
+	add	hl,sp
+	ld	(stack),hl
+	ld	sp,stack
+	push	de
+	push	bc		; save calling registers
+	ld	hl,(scb_ptr)
+	ld	a,(X03EDH)
+	or	a
+	call	nz,tst18scb	; Return scb_18 and 020h
+	jp	z,X01A6H
+	ld	a,c
+	cp	10		; BDOS FUNCTION 10 - Read Console buffer
+	jp	nz,ret_echo
+	ld	hl,X0499H
+	dec	(hl)
+	call	m,pad_eof
+	jp	ret_echo
+
+X01A6H:	ld	a,(X03E6H)
+	or	a
+	jp	z,X01BAH
+	ld	l,scb_38
+	ld	a,(hl)		; Test for 0 -> no echo, 1 -> echo con: to lst:
+	or	a
+	jp	nz,con2lst	; -echo-
+	ld	a,b
+	cp	2
+	jp	nc,ret_echo
+X01BAH:	ld	a,(X03E7H)
+con2lst:
+	ld	(put_echo),a
+	ld	hl,X0209H
+	push	hl
+	ld	a,b		; Offset into tble2
+	ld	hl,tble2
+	jp	jp_tble
+
+X01CBH:	ld	a,e
+	cp	0FDH
+	jp	c,X0219H
+	cp	0FEH
+	ret	z
+	jp	c,X01E1H
+	call	rsx_bdos
+	or	a
+	jp	z,ret_noecho
+	jp	X01E4H
+X01E1H:	call	jp_tble1
+X01E4H:	ld	e,a
+	push	af
+	call	put_e_buff
+	pop	af
+	cp	cr
+	jp	nz,ret_noecho
+	push	af
+	ld	a,(put_echo)
+	or	a
+	ld	e,lf
+	ld	c,2
+	call	z,rsx_bdos
+	ld	a,(X03E5H)
+	or	a
+	call	nz,put_e_buff
+	pop	af
+ret_noecho:	ld	hl,(stack)
+	ld	sp,hl
+	ld	l,a		; Set return code
+X0208H:	ret
+;----------------------------;
+; Return here after function ;
+;----------------------------;
+X0209H:	ld	a,(put_echo)
+	or	a
+	jp	z,ret_noecho
+ret_echo:
+	pop	bc		; Restore registers
+	pop	de
+	ld	hl,(stack)
+	ld	sp,hl
+	jp	jp_tble1	; and continue
+
+X0219H:	ld	a,(X03E5H)
+	or	a
+	ret	nz
+put_e_buff:	ld	a,e
+	cp	eof
+	jp	z,add_ctrl_buff
+	call	tst_filter	; Is it control code to be filtered
+	jp	nc,add_e_buff	; -no-
+add_ctrl_buff:
+	push	af
+	ld	e,'^'		; Control code lead-in
+	call	add_e_buff
+	pop	af
+	or	040H		; Make into printable character
+	ld	e,a
+add_e_buff:
+	ld	hl,buff_ptr
+	ld	a,(hl)
+	push	hl
+	inc	hl
+	call	hl_a	; HL=HL+A
+	ld	(hl),e
+	pop	hl
+	inc	(hl)	; Test for end of record
+	ret	p	; -no-
+
+	ld	c,21		; Write sequentially
+	call	buffer_bdos
+	call	nz,X029CH
+	xor	a
+	ld	(buff_ptr),a
+	ld	hl,X03EBH
+	dec	(hl)
+	ret	p
+	call	close_fcb
+	call	nz,X029CH
+	ld	hl,X03ECH
+	ld	a,(hl)
+	dec	hl
+	ld	(hl),a
+	ret
+
+close_fcb:
+	ld	c,010H		; Close file
+
+buffer_bdos:
+	push	bc
+	ld	de,buffer
+	call	set_dma
+	pop	bc
+	ld	hl,(scb_ptr)
+	push	hl
+	ld	de,save_scb
+	push	de
+	call	copy_7		; copy 7 bytes from HL to DE
+	ld	l,scb_44
+	call	copy_7		; copy 7 bytes from HL to DE
+
+	dec	hl
+	ld	(hl),1		; Set Multi sector count to 1
+
+	ld	l,scb_44
+	ld	de,tmp_usr
+	ld	a,(de)
+	ld	(hl),a		; Set required user number
+	inc	de
+	call	rsx_bdos	; and do BDOS disk function in <C>
+
+	pop	hl
+	pop	de
+	push	af
+	call	copy_7		; Restore 7 bytes from HL to DE
+	ld	e,scb_44
+	call	copy_7		; Restore 7 bytes from HL to DE
+
+	ld	hl,(save_dma)
+	ex	de,hl
+	call	set_dma		; Restore DMA
+	pop	af
+	or	a
+	ret
+
+X029CH:	call	close_fcb
+	ld	de,X04A8H
+	call	nz,strout
+	ld	hl,-1
+	ld	(X03E9H),hl
+	ld	hl,rsx_remove
+	ld	(hl),0FFH
+	ld	a,(0007H)
+	cp	h
+	ld	c,03BH
+	ld	de,0000H
+	call	z,rsx_bdos
+	ld	a,(X03D7H)
+	inc	a
+	ret	z
+	ld	hl,(X03CFH+1)	; Warm boot jump
+	ex	de,hl
+	ld	hl,(X03D2H)
+	ld	(hl),e
+	inc	hl
+	ld	(hl),d
+	ld	hl,(X03C8H+1)
+	ex	de,hl
+	ld	hl,(X03CBH)
+	ld	(hl),e
+	inc	hl
+	ld	(hl),d
+	ret	m
+	ld	hl,(X03D4H)
+	ld	(hl),0C3H
+	ld	hl,(X03CDH)
+	ld	(hl),0C3H
+	ret
+
+set_dma:
+	ld	c,26
+	jp	rsx_bdos
+
+strout:	ld	c,9
+	jp	rsx_bdos
+
+copy_7:	ld	b,7
+copy:	ld	a,(hl)
+	ld	(de),a
+	inc	hl
+	inc	de
+	dec	b
+	jp	nz,copy
+	ret
+
+hl_a:	add	a,l	; HL=HL+A
+	ld	l,a
+	ret	nc
+	inc	h
+	ret
+
+tst18scb:				; Return scb_18 and 020h
+	ld	hl,(scb_ptr)
+	ld	l,scb_18
+	ld	a,(hl)
+	and	020H
+	ret
+
+f26DMA:	ex	de,hl
+	ld	(save_dma),hl
+	ex	de,hl
+	jp	rsx_bdos
+
+wboot_jmp:			; BIOS Warm boot patched to jump in here
+	ld	sp,stack
+	call	close_fcb
+	jp	X03CFH
+
+f60RSX:
+	ld	a,(de)
+	cp	084H
+	ld	hl,scb_ptr
+	ret	z
+
+	ld	b,a
+	ld	a,(X03EAH)
+	cp	b
+	ld	hl,tmp_fcb
+	ret	z
+	ld	a,(X03E9H)
+	cp	b
+	jp	z,pad_eof
+
+	jp	jp_tble1
+
+tst_filter:			; Return carry set to display as printable control char
+	ld	a,(put_filter)
+	or	a
+	ld	a,e
+	ret	z	; Dont filter control characters
+	cp	cr
+	ret	z	; nor cr
+	cp	lf
+	ret	z	; nor lf
+	cp	9
+	ret	z	; nor TAB
+	cp	8
+	ret	z	; nor BS
+	cp	' '	; nor >= ' '
+	ret
+
+put9file:			; BDOS function 9 - Print String
+	ld	hl,(scb_ptr)
+	ld	l,scb_37
+	ld	a,(de)
+	cp	(hl)		; Compare with output delimiter
+	ret	z		; Reached terminator
+	inc	de
+	push	de
+	ld	e,a
+	call	put_e_buff
+	pop	de
+	jp	put9file
+
+X0356H:	ld	a,(put_echo)
+	or	a
+	jp	nz,X0367H
+	push	de
+	ld	de,X04C3H
+	call	strout
+	pop	de
+	ld	c,lf
+X0367H:	pop	hl
+	push	de
+	call	rsx_bdos
+	pop	hl
+	inc	hl
+	ld	b,(hl)
+	inc	b
+X0370H:	dec	b
+	jp	z,X0380H
+	inc	hl
+	ld	e,(hl)
+	push	bc
+	push	hl
+	call	put_e_buff
+	pop	hl
+	pop	bc
+	jp	X0370H
+X0380H:	ld	a,(X03E5H)
+	or	a
+	push	af
+	ld	e,cr
+	call	nz,put_e_buff
+	pop	af
+	ld	e,lf
+	call	nz,put_e_buff
+	jp	ret_noecho
+X0393H:	ex	de,hl
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	inc	hl
+	ld	c,(hl)
+	inc	hl
+	ld	b,(hl)
+	ex	de,hl
+X039CH:	ld	a,b
+	or	c
+	ret	z
+	push	bc
+	push	hl
+	ld	e,(hl)
+	call	put_e_buff
+	pop	hl
+	inc	hl
+	pop	bc
+	dec	bc
+	jp	X039CH
+
+tble_no:
+	DB	000H	; count in table
+
+tble2:	dw	put_e_buff	
+	dw	X0393H
+	dw	put_e_buff
+	dw	X0208H
+	dw	X01CBH
+	dw	put9file	; BDOS function 9 - Print String
+	dw	X01E1H
+	dw	X0356H
+	dw	close_fcb
+	dw	close_fcb
+	dw	close_fcb
+	dw	X0393H
+
+scb_ptr:	DW	0010EH
+
+restore_bios_f:
+	ld	c,e		; Move character from BDOS E to BIOS C
+X03C8H:	jp	bios_char	; replace with real BIOS jump vector
+
+X03CBH:	DW	0030CH
+X03CDH:	DW	00000H
+X03CFH:	jp	0000H		; warm boot
+X03D2H:	DW	00000H
+X03D4H:	DW	00000H
+put_bdos_func:	DB	002H
+X03D7H:	DB	000H
+
+char_tble:			; THis table contains list of BDOS functions
+				; to match with TBLE2
+	DB	0FFH		; Enf of table flag
+	DS	12		; SPace for up to 12 entries
+
+X03E5H:	DB	000H
+X03E6H:	DB	000H
+X03E7H:	DB	001H
+put_filter:	DB	000H	; Set to 0FFH to filter control characters
+X03E9H:	DB	0FFH
+X03EAH:	DB	0FFH
+X03EBH:	DB	000H
+X03ECH:	DB	000H
+X03EDH:	DB	000H
+
+tmp_usr:	DB	000H		; User number
+tmp_fcb:	DB	0FFH
+	DB	'SYSOUT  $$$'
+	DS	0015H
+
+buff_ptr:
+	DB	000H	; Count
+buffer:	rept	128
+	DB	003H
+	endm
+
+tble1:	dw	rsx_bdos
+	dw	restore_bios_f
+
+save_dma:	DW	00080H
+U0497H:	DS	0001H
+put_echo:	DB	000H	; Set to zero if no echo to character device
+X0499H:	DB	001H
+
+save_scb:
+	rept	7
+	DB	068H;'h'
+	endm
+	rept	7		; Save SCB from offset 44 thru offset 4A
+	DB	068H;'h'
+	endm
+X04A8H:
+	DB	cr
+	DB	lf
+	DB	'PUT ERROR: FILE ERASED'
+	DB	cr
+	DB	lf
+	DB	'$'
+X04C3H:	DB	cr
+	DB	lf
+	DB	'PUT>$'
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	000H
+	DB	' 151282  COPYR ''82 DRI '
+
+	rept	16	; 16 levels of stack
+	DW	06767h
+	endm
+
+stack:	DW	0	; save callers stack
+
+	END
