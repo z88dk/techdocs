@@ -1,0 +1,3 @@
+; link unbanked cbios3 modules
+a:lib lbios=cbios,lbios3a0,lbios3a3,cbios3a4,lbios3a5,nec765,lbios3a6,lbios3a8
+a:link sysldr=sysldr,sysdos,lbios
