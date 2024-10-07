@@ -1,0 +1,103 @@
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;------------------------------------------------------------------
+
+; External names for BIOS entry points defined in CBIOS.MAC
+
+	extrn	?boot,?wboot,?const,?conin,?cono,?list,?auxo,?auxi
+	extrn	?home,?sldsk,?sttrk,?stsec,?stdma,?read,?write
+	extrn	?lists,?sctrn
+	extrn	?conos,?auxis,?auxos,?dvtbl,?devin,?drtbl
+	extrn	?mltio,?flush,?mov,?tim,?bnksl,?stbnk,?xmov
+
+
+; BIOS jump tables
+
+;SYSTEM INITIALIZATION
+	extrn	boot,wboot
+	extrn	devtbl,devini	; character I/O
+	extrn	drvtbl		; Disc I/O
+
+;CHARACTER I/O
+	extrn	conin,const
+	extrn	conost,conout
+	extrn	listst,list
+	extrn	auxist,auxin
+	extrn	auxout,auxost
+
+;DISK I/O
+	extrn	seldsk
+	extrn	home,settrk,setsec,setdma,sectrn
+	extrn	read,write
+	extrn	multio,flush
+
+;MEMORY SELECTS AND MOVES
+	extrn	move,xmove
+	extrn	selmem,setbnk
+
+;CLOCK SUPPORT
+	extrn	time
+
+;-------------------------------------------------------------
+
+; PUBLIC SYMBOLS IN EPSON QX-10 CP/M 3 BIOS
+;------------------------------------------
+
+; variables in system data page
+
+	extrn	@covec,@civec,@aovec	; I/O redirection vectors
+	extrn	@aivec,@lovec		;  "       "        "
+	extrn	@mxtpa			; addr of system entry point
+	extrn	@bnkbf			; 128 byter scratch buffer
+	extrn	@sec,@date		; clock & date	
+
+; initialization
+
+	extrn	?biosptr	; return addres of table of pointers
+	extrn	?init			; general initialization and signon
+	extrn	?ldccp,?rlccp		; load and reload CCP for BOOT & WBOOT
+
+; user defined character I/O routines
+
+	extrn	?ci,?co,?cist,?cost	; each take device in <B>
+	extrn	?cinit			; (re) initialize device in <C>
+	extrn	?baud			; set baud rate for device in <B>
+	extrn	?setsio			; initialise serial sio device in <B>
+	extrn	@ctbl			; physical character device table
+	extrn	?kbdint			; interrupt routine (debug only)
+
+; disk communication data items
+
+	extrn	@dtbl			» table of pointers to XDPH's
+	extrn	@adrv,@trk,@sect	; parameters for disk I/O
+	extrn	@dma,@dbnk,@cnt,@multio	;    "       "    "    "
+	extrn	@seqsec			;    "       "    "    "
+	extrn	@dph.ptr,@dpb.ptr	;    "       "    "    "
+	extrn	@dphsel,@xlt.dphsel,@dpb.dphsel
+	extrn	@dpbsel,@spt.dpbsel,@phm.dpbsel
+	extrn	?rdwr,?seldr		; ROM disc driver
+	extrn	?dinit			; initialize device drivers
+	extrn	?selram,?ram		; Silicon RAM drivers
+	extrn	?selnec765,?nec765	; NEC 765 drivers
+
+; memory control
+
+	extrn	@cbnk,@sbnk		; current bank and system bank number
+	extrn	?xmove,?move		; select move bank & block move
+	extrn	?tpabnk,?sysbnk,?crnbnk	; select TPA, SYS or current bank
+	extrn	?bank			; select bank in <A>
+
+; clock support
+
+	extrn	?time			; signal time operation
+
+; general utility routines
+
+	extrn	?pmsg			; print message @<SP>
+	extrn	?pdec			; print 16 bit number in <HL>
+	extrn	?pderr			; print BIOS disk error message header
+	extrn	?idle			; called whenever function waiting
+	extrn	@commonsp		; stack in common memory
+
+;--------------------------------------------------------------------------
