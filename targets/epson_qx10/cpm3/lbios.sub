@@ -1,0 +1,13 @@
+; MICROSOFT assembly
+a:m80 cbios,=cbios
+a:m80 lbios3a0,=lbios3a0
+; CHAR I/O CBIOS.SUB
+a:m80 lbios3a3,=lbios3a3
+; Disc drivers
+a:m80 cbios3a4,=cbios3a4
+a:m80 lbios3a5,=lbios3a5
+a:m80 nec765,=nec765
+; Memory
+a:m80 lbios3a6,=lbios3a6
+; Cold & Warm boot
+a:m80 lbios3a8,=lbios3a8
