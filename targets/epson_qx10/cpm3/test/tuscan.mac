@@ -49,16 +49,20 @@ INIT	;THE 8251 USART FOR ACTION
 	LD	B,8              	;B=NO OF BYTES TO SEND
 	LD	HL,INITBY		;HL= THE INIT ARRAY
 	
+loop
+
         PUSH    B               ;SAVE ON STACK    
-LOOP    LD      B,0      	;SET UP DELAY
-	DJNZ	LOOP
+delay	LD      B,0      	;SET UP DELAY
+	DJNZ	delay		;FOR VERY SLOW HARDWARE
 	POP	B
+
 	LD	A,(HL)
 	OUT	(STATUS),A
 	INC	H
 	DJNZ	LOOP
 	RET
 
+;---------------------------------------------------------------
 INITBY	;NEEDED TO INITALISE THE USART
 	DB	80,00,00,00,40H
 	DB	6EH,37H,27H
