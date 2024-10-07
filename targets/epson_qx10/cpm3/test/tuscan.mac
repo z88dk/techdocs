@@ -1,0 +1,74 @@
+;--------------------------------------------------;      	
+;USART TEST PROGRAM FOR DAVE			   ;
+;USING THE 8251                                    ;
+;--------------------------------------------------;
+
+
+
+;*** UART ADDRESSES ***
+DATA	EQU	1FH
+STATUS	EQU	3FH
+
+;***    THE MAIN PROGRAM LOOP   ***
+
+;WE ENTER HERE
+
+
+	CALL	INIT	;INITALISE THE USART
+	CALL	SEND	;SEND THE MESSAGE
+	RET
+
+;----------------------------------------------
+;SEND OUR TEST MESSAGE
+
+SEND	LD	B,MSGLEN       
+	LD	HL,MSG      
+
+;SEND B BYTES TO THE USART STARTING FROM HL
+
+MSGLP   LD      C,(HL)          ;GET THE NEXT BYTE
+	CALL	SEROUT		;BLAST IT OUT
+	INC	H	        ;INC NOT INX ON SPECTRUM ASSEM    
+	DJNZ	MSGLP    	;LOOP TILL B=0
+	RET
+
+
+;--------------------------------------------------------------
+
+SEROUT	;SEND THE BYTE IN C TO THE USART
+	IN	A,(STATUS)	;READ THE UART STATUS
+	AND	1		;IS TX READY FLAG SET
+	JP	Z,SEROUT	;IF NOT TRY AGAIN
+	LD	A,C
+	OUT	(DATA),A
+	RET
+
+;--------------------------------------------------------------
+
+INIT	;THE 8251 USART FOR ACTION
+	LD	B,8              	;B=NO OF BYTES TO SEND
+	LD	HL,INITBY		;HL= THE INIT ARRAY
+	
+        PUSH    B               ;SAVE ON STACK    
+LOOP    LD      B,0      	;SET UP DELAY
+	DJNZ	LOOP
+	POP	B
+	LD	A,(HL)
+	OUT	(STATUS),A
+	INC	H
+	DJNZ	LOOP
+	RET
+
+INITBY	;NEEDED TO INITALISE THE USART
+	DB	80,00,00,00,40H
+	DB	6EH,37H,27H
+
+                                          
+
+;-----------------------------------------------------------
+
+;*** STRING AREA ***
+MSG    	DM	'TUSCAN NOW LINKED '     
+MSGLEN  EQU $-MSG         
+
+END	
