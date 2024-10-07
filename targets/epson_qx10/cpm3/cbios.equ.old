@@ -1,0 +1,190 @@
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+; 'EPSON QX-10 CPM3 BIOS Hardware equates'
+;
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+;       Oct 1983 - Disk drivers created
+;
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+;				=====
+;				QX-10
+;				=====
+
+
+;====================================================================
+; I/O Selector - MAIN SYSTEM
+; Device is selected by address lines A2, A3, A4, A5 with A6, A7 zero
+; Address lines A0 and A1 are optional used to control the device
+;====================================================================
+
+clk$a	equ	0000b shl 2	;8253 counter timer No1
+clk$b	equ	0001b shl 2	;8253 counter timer No2
+
+clk$as	equ	clk$a+00b	;CLK Speaker timer
+clk$a2	equ	clk$a+01b	;CLK Soft timer 2
+clk$a1	equ	clk$a+10b	;CLK Soft timer 1
+clk$ac	equ	clk$a+11b	;CLK 8253 command
+
+clk$bs	equ	clk$b+00b	;CLK Speaker frequency
+clk$bk	equ	clk$b+01b	;CLK Keyboard clock
+clk$br	equ	clk$b+10b	;CLK RS232C clock
+clk$bc	equ	clk$b+11b	;CLK 8253 command
+;	command register for counter timer (clk+11b)
+clk$c0	equ	0		; 0=Binary, 1=BCD
+clk$c1	equ	1		; Bit 0} 000=Count     011=Square wave
+clk$c2	equ	2		; Bit 1} 001=One shot  100=Soft trigger
+clk$c3	equ	3		; Bit 2} 010=Rep. wave 101=Hard trigger
+clk$c4	equ	4		; Bit 0} 00=Counter    10=MSB Rd/Wr
+clk$c5	equ	5		; Bit 1} 01=LSB Rd/Wr  11=2 byte Rd/Wr
+clk$c6	equ	6		; Bit 0} 00=Counter 0  10=counter 2
+clk$c7	equ	7		; Bit 1} 01=counter 1
+;
+clk$f	equ	7800		; frequency 1996800 = 7800 * 256 hertz
+
+int$a	equ	0010b shl 2	;8259 interrupt controller
+int$b	equ	0011b shl 2	;8253 interrupt controller
+
+Š;---------------------------------------------------------------------
+; Main board serial ports (PPI) - keyboard/rs-232C
+; Channel A - Keyboard (1200 baud), Channel B - RS-232C
+sio	equ	0100b shl 2	;7201 sio
+sio$ad	equ	sio+00b		;SIO keyboard data (port A)
+sio$bd	equ	sio+01b		;SIO rs232 data (port B)
+sio$ac	equ	sio+10b		;SIO write: keyboard command (port A)
+sio$bc	equ	sio+11b		;SIO write: rs232 command (port B)
+sio$as	equ	sio+10b		;SIO read: keyboard status(port A)
+sio$bs	equ	sio+11b		;SIO read: rs232 status (port B)
+
+
+;---------------------------------------------------------------------
+; Centronix Parallel Output Port (PPI) - printer
+; Set to MODE 1: 2 channels of 8 data lines + 4 control lines 
+ppi	equ	0101b shl 2	;8255 ppi centronics printer port
+ppi$ad	equ	ppi+00b		;PIO data port (port A)
+ppi$bs	equ	ppi+01b		;PIO status port (port B)
+ppi$cc	equ	ppi+10b		;PIO control port (port C)
+ppi$cmd	equ	ppi+11b		;PIO 8255 command
+;	status bits for Centronix Interface (ppi+01b)
+ppi$dsr	equ	0		; DSR - not used
+ppi$err	equ	3		; input: ERR: error signal from printer
+ppi$npa	equ	4		; input: NPA: no paper signal from printer
+ppi$rdy	equ	5		; input: RDY: ready for output to printer
+ppi$pef	equ	6		; input: PWF: printer power down detect
+ppi$slo	equ	7		; input: SLO: printer operational (not error)
+;	control bits for Centronix Interface (ppi+10b)
+ppi$c0	equ	0		; output: strobe pulse generated when data sent
+ppi$c3	equ	3		; interrupt: connected to 8259A controller
+ppi$c4	equ	4		; output: ALF: force line feed after printing data
+ppi$c5	equ	5		; output: RST: reset printer
+ppi$c6	equ	6		; input: ACK: printer acknowledges reset of data
+;	command bits for Centronix Interface (ppi+11b)
+ppi$m0	equ	0		; Port C/L set 0=output (1=Input)
+ppi$m1	equ	1		; Port B set 1=Input (0=output)
+ppi$m2	equ	2		; Port B Mode 0=Bit Mode (1=byte mode)
+ppi$m3	equ	3		; Port C/H set 0=output (1=Input)
+ppi$m4	equ	4		; Port A set 1=Input (0=output)
+ppi$m5	equ	5		; Port A Mode 1=byte mode (0=Bit mode)
+ppi$m6	equ	6		; Port A dual 0=one way (1=dual direction;&bit mode)
+ppi$m7	equ	7		; 1= Mode select
+;	port C bit control for Centronix Interface (ppi+11b)
+ppi$b0	equ	0		; 1= Set, 0=Reset
+ppi$b1	equ	1		; Bit number 0-7, bit 0 of 3 bit number
+ppi$b2	equ	2		; Bit number 0-7, bit 1 of 3 bit number
+ppi$b3	equ	3		; Bit number 0-7, bit 2 of 3 bit number
+ppi$b7	equ	7		; 0= bit control
+;-----------------------------------------------------------------
+
+setbnk	equ	0110b shl 2	;Write Memory bank and timers register
+getbnk	equ	1100b shl 2	;Read Memory bank and FDD status register
+prom	equ	0111b shl 2	;PROM memory select
+cmos	equ	1000b shl 2	;CMOS memory select
+
+crt$a	equ	1011b shl 2	;7220 CRT driver
+
+motor	equ	1100b shl 2	;Motor timer
+fdc	equ	1101b shl 2	;765A floppy disc controller
+
+clock	equ	1111b shl 2	;clock (battery powered)
+clk$c	equ	clock or 1	; clock command (write only)
+clk$d	equ	clock		; clock date (read/write)
+
+;-----------------------------------------------------------------
+; I/O devices - additional devices
+; Device is selected by address lines A2, A3, A4, A5 with A6 or A7 non zero
+; Address lines A0 and A1 are optional used to control the device
+;-----------------------------------------------------------------
+
+dma$1	equ	010000b shl 2	; 8237 dma controller #1
+dma$2	equ	010100b shl 2	; 8237 dma controller #2
+
+gpib	equ	100010b shl 2	; GPIB Interface Q101E
+
+fiber	equ	100101b shl 2	; Optical fiber interface Q10OF
+pulse	equ	100111b shl 2	; Pulse transformer interface Q10PT
+adda	equ	101000b shl 2	; AD/DA interface Q10AD
+Xrs232	equ	101001b shl 2	; Expansion RS-232 interface Q10RS
+modem	equ	101100b shl 2	; MODEM Interface Q10DM
+
+;-----------------------------------------------------------------
+;Epson interrupt vectors
+
+;EPSON inttab	equ	0fd80h	; base of interrupt vector
+
+	aseg
+	org	0fe00h
+inttab:				; 128 bytes for interrupts
+intpwr	equ	inttab+0	; power down
+intstm	equ	inttab+4	; soft timer
+intx1	equ	inttab+8	; ext int 1
+intx2	equ	inttab+12	; ext int 2
+int201	equ	inttab+16	; 7201 interrupt
+int220	equ	inttab+20	; 7220 interrupt
+intfdc	equ	inttab+24	; 765 fdc interrupt
+
+intslv	equ	inttab+32
+int255	equ	inttab+32	; 8255 interrupt
+intx3	equ	inttab+36	; ext int 3
+int818	equ	inttab+40	; 46818 interrupt
+intx4	equ	inttab+44	; ext int 4
+intx5	equ	inttab+48	; ext int 5
+inttm2	equ	inttab+52	; soft timer 2
+intx6	equ	inttab+56	; ext int 6
+Šintx7	equ	inttab+60	; ext int 7
+
+inttop	equ	inttab+64	; top of interrupts
+intnos	equ	(inttop-inttab)/4
+
+
+;***** INTERRUPT CONTROLER *****
+;
+IcwM1	EQU	(low inttab and 0e0h) or 00010101B ; EDGE,4BYTE,MULTI
+IcwM2	EQU	0feh 	  ; ADDR. HIGH
+IcwM3	EQU	10000000B ; IR7. = SLV
+IcwM4	EQU	00000010B ; AEOI,Z80
+IcwS5	EQU	(low intslv and 0e0h) or 00010101B ; A=EDGE,4BYTE,MULTI
+IcwS6	EQU	0feh 	  ; ADDR. HIGH
+IcwS7	EQU	00000111B ; SLAVE ID=7
+IcwS8	EQU	00000010B ; AEOI,Z80
+OCW2    EQU	20H 	  ; NORMAL EOI (not needed as AEOI set)
+;
+;
+;  I/O PORT ADDRESS MAP
+;
+ICM0	EQU	08H ; 8259 NO.1
+ICM1	EQU	09H
+ICS0	EQU	0CH ; 8259 NO.2
+ICS1	EQU	0DH
+
+	cseg
+
+;----------------------------------------------------------------------
+
