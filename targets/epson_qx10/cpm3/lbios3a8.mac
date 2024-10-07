@@ -1,0 +1,330 @@
+	.z80
+	title	EPSON QX-10 CPM3 LDRBIOS warm/cold boot
+
+	name	('LBIOS3A8')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; A	July 83 - Extracted from CBIOS3A8 and CBIOS3A9
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+	public	boot,wboot
+
+	extrn	?drtbl	; return address of disk drive table
+
+;-----------------------
+; CP/M 3 CBIOS externals
+;-----------------------
+
+; disk communication data items
+
+	public	?dinit			; initialize device drivers
+
+;------------------------------------------------------------------
+
+
+; External names for BIOS entry points defined in CBIOS.MAC
+
+	extrn	?boot,?wboot,?const,?conin,?cono,?list,?auxo,?auxi
+	extrn	?home,?sldsk,?sttrk,?stsec,?stdma,?read,?write
+	extrn	?lists,?sctrn
+	extrn	?conos,?auxis,?auxos,?dvtbl,?devin,?drtbl
+	extrn	?mltio,?flush,?mov,?tim,?bnksl,?stbnk,?xmov
+
+; initialization
+
+	extrn	?biosptr	; return addres of table of pointers
+
+; disk communication data items
+
+	extrn	@dtbl			; table of pointers to XDPH's
+	extrn	@cnt,@multio,@dbnk	;    "       "    "    "
+
+; memory control
+
+	extrn	@cbnk,@sbnk,@tbnk	; current, system and tpa bank number
+	extrn	?xmove,?move		; select move bank & block move
+	extrn	?bank			; select bank in <A>
+	extrn	@bnkno			; table of epson bank numbers (0-3)
+
+; clock support
+
+	extrn	?time			; signal time operation
+
+; general utility routines
+
+	extrn	?pmsg			; print message @<SP>
+	extrn	?pdec			; print 16 bit number in <HL>
+	extrn	?pderr			; print BIOS disk error message header
+	extrn	?idle			; called whenever function waiting
+
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+version	equ	31	; CP/M version number
+rev	equ	'A'	; BIOS version letter
+cr	equ	0dh
+lf	equ	0ah
+
+bit0	equ	1 shl 0
+bit1	equ	1 shl 1
+bit2	equ	1 shl 2
+bit3	equ	1 shl 3
+bit4	equ	1 shl 4
+bit5	equ	1 shl 5
+bit6	equ	1 shl 6
+bit7	equ	1 shl 7
+
+;-----------------------------------------------------------------
+;Epson interrupt vectors
+
+;epsons: inttab	equ	0fd80h	; base of interrupt vector
+inttab	equ	0fe00h	; base of interrupt vector
+intpwr	equ	inttab+0	; power down
+intstm	equ	inttab+4	; soft timer
+intx1	equ	inttab+8	; ext int 1
+intx2	equ	inttab+12	; ext int 2
+int201	equ	inttab+16	; 7201 interrupt
+int220	equ	inttab+20	; 7220 interrupt
+intfdc	equ	inttab+24	; 765 fdc interrupt
+
+int255	equ	inttab+32	; 8255 interrupt
+intx3	equ	inttab+36	; ext int 3
+int818	equ	inttab+40	; 46818 interrupt
+intx4	equ	inttab+44	; ext int 4
+intx5	equ	inttab+48	; ext int 5
+inttm2	equ	inttab+52	; soft timer 2
+intx6	equ	inttab+56	; ext int 6
+intx7	equ	inttab+60	; ext int 7
+
+;------------------------------------------------------------------------
+
+
+;-----------------------------------------------------------------
+;
+;	CP/M3 Loader Bios Warm and Cold Boot
+;
+; boot		Cold boot
+; wboot		Warm boot
+;
+;-----------------------------------------------------------------
+
+
+;--------------
+; COLD and WARM BOOT
+;
+; Function:
+; CPMLDR calls the BOOT entry point at the beginning of the LDRBIOS
+; to allow it to perform any necessary hardware initialization.
+; The COLD boot may optionally display a message
+; Note:
+; i) The BOOT entry point of the LDRBIOS should return to its caller
+; instead of loading and branching to the CCP as a normal BIOS
+; does.
+; ii) Interrupts are enabled when the LDRBIOS BOOT routine is called
+;--------------------
+	cseg		; could be in dseg, except that CPMLDR is in TPA
+
+boot:
+;29jul83 disable both 8259's
+	di
+	LD	A,not 00000000b	;mask-main [no interrupts]
+	OUT	(Icm1),A
+
+	LD	A,not 00000000b	;mask-slave [no interrupts]
+	OUT	(Ics1),A
+;
+	ei
+
+;  8259 I/O PORT ADDRESS MAP
+
+ICM0    EQU     08H ; 8259 NO.1
+ICM1    EQU     09H
+ICS0    EQU     0CH ; 8259 NO.2
+ICS1    EQU     0DH
+
+	ld	(cpmsp),sp	; use our own stack as CPMLDR
+	ld	sp,oursp	; only suppies a few levels
+
+	ld	a,0		; use EPSON TPA bank for everything
+	ld	(@tbnk),a
+	ld	(@sbnk),a
+	ld	(@dbnk),a
+	ld	(@cbnk),a
+
+	ld	a,0		; set multi sector count to zero
+	ld	(@cnt),a
+	ld	(@multio),a
+
+	call	?pmsg	; optionally announce us
+	db	26,   '  Epson QX-10 CP/M Plus Loader'
+	db	cr,lf,'  Supplied by MML Systems Ltd.'
+	db	0
+
+; -------------------------------------------------------------
+; Must imitate GENCPM and allocate any required buffers
+; (Note: ALLOC and CSUM vectors are not allocated as never used
+; -------------------------------------------------------------
+
+	call	?drtbl	; return address of disk drive table
+	ld	a,h
+	cp	0ffh
+	jr	nz,gencpm
+	ld	a,l
+	cp	0feh
+	jr	c,nogencpm
+
+;-----;
+gencpm:
+;-----;
+
+	ld	b,16
+	ld	c,0	; <C> = drive number (0-15)
+nxtdph:	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	inc	hl
+	ld	a,d
+	or	e
+	jr	z,nodph
+	push	hl
+	push	bc
+	call	makedph
+	pop	bc
+	pop	hl
+	inc	c
+nodph:	djnz	nxtdph
+nogencpm:
+	call	?dinit
+	ld	sp,(cpmsp)	; recover callers stack
+
+wboot:
+	ret		; what else can we do
+
+; -------------------------------------------------------------
+; GENCPM may allocate CSV, ALV, DIRBCB, DTABCB, and HASH tables
+; -------------------------------------------------------------
+
+;------;
+makedph:	; on entry <C> -> logical drive number, <DE> -> dph
+;------;
+	ld	hl,18
+	add	hl,de	; <HL> -> dirbcb
+	ld	bc,dirbcb
+	call	makebcb
+	ld	bc,dirbcb
+	call	makebcb
+
+; allocate hash tables
+
+	push	hl
+	ld	hl,(buffptr)
+	ex	de,hl
+	ld	hl,128*2	; size of hash tables
+	add	hl,de
+	ld	(buffptr),hl
+	pop	hl
+
+	ld	(hl),e	; address of hash tables
+	inc	hl
+	ld	(hl),d
+	inc	hl
+
+	ld	(hl),0	; no bank
+	ret
+
+;------;
+makebcb:	; on entry <HL> -> offset in dph, <BC> -> BCB record
+;------;
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	inc	hl
+	ld	a,d
+	cp	0ffh
+	ret	nz	; GENCPM flag not set
+	ld	a,e
+	cp	0feh
+	ret	nz	; GENCPM flag not set
+	push	hl
+	dec	hl
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	pop	hl
+	ret
+
+	page
+
+;------------------------------------------------------------------------
+; ?DINIT
+; Entry:	-none-
+; Returns:	-none-
+; Function:	Initialises FDD interrupt vector
+;------------------------------------------------------------------------
+	dseg
+
+?dinit:
+	di
+	ld	hl,(intret)
+	ld	(intfdc),hl
+intret:	ei
+	ret
+
+
+	page
+
+;                 ----------
+;                 Data areas
+;                 ----------
+
+;-----;
+;stack;
+;-----;
+cpmsp:	dw	0	; save callers stack here
+	ds	20	; lets have 10 levels
+oursp	equ	$	; of stack
+
+
+
+;----------------------------------;
+;buffer area for allocation by BOOT;
+;----------------------------------;
+
+	dseg	; this should put it at end of BIOS
+
+buffptr:
+	dw	assign	; point to start of GENCPM assigned data area
+dirbcb:	db	0ffh	; dummy directory bcb
+	ds	9
+	dw	dirbuff
+dtabcb:	db	0ffh	; dummy data bcb
+	ds	9
+	dw	dtabuff
+dirbuff:
+	ds	1024	; maximum record size
+dtabuff:
+	ds	1024	; maximum record size
+assign:
+	ds	8*(128*2)+8*(255/4+2)+8*(128/4)
+
+;---------------------------------------------------------------------
+
+
+	end
