@@ -1,0 +1,4 @@
+; MICROSOFT assembly
+a:m80 =sysldr
+; link cmpldr with cbios3 modules
+a:link sysldr[l100]=sysldr,sysdos,cbios,lbios3a0,lbios3a3,cbios3a4,lbios3a5,nec765,lbios3a6,lbios3a8
