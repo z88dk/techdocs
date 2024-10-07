@@ -1,0 +1,275 @@
+	.z80
+	title	EPSON QX-10 CPM3 L/BIOS character i/o
+
+	name	('BIOS3A0')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; A	July 83 - Extracted from CBIOS3A0 Rev A
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+	cseg		;GENCPM puts CSEG code in resident common memory
+
+;===========================
+; Character I/O BIOS modules
+;===========================
+
+	public	const,conin,conout
+	public	list,listst
+	public	auxin,auxout
+	public	conost,auxist,auxost
+	public	devtbl,devini	; character I/O
+
+
+;====================================
+; user defined character I/O routines
+;====================================
+
+	public	?cinit			; (re) initialize device in <C>
+	public	@ctbl			; physical character device table
+
+;=========================
+; general utility routines
+;=========================
+
+	public	?pmsg	; print message @<SP> terminated with a zero
+	public	?pdec	; print <HL> as ascii unsigned number
+	public	?idle	; called whenever function waiting
+
+;-----------------------------------------------------------------
+; PUBLIC SYMBOLS IN EPSON QX-10 CP/M 3 BIOS
+;
+; BIOS entry points
+
+	extrn	?boot,?wboot,?const,?conin,?cono,?list,?auxo,?auxi
+	extrn	?boot,?wboot,?const,?conin,?cono,?list,?auxo,?auxi
+	extrn	?home,?sldsk,?sttrk,?stsec,?stdma,?read,?write
+	extrn	?lists,?sctrn
+	extrn	?conos,?auxis,?auxos,?dvtbl,?devin,?drtbl
+	extrn	?mltio,?flush,?mov,?tim,?bnksl,?stbnk,?xmov
+
+;-----------------------------------------------------------------
+; SPECIAL PUBLIC SYMBOLS IN EPSON QX-10 CP/M 3 BIOS
+;
+; Direct Console output
+
+	extrn	crtout	; module in CBIOS3A3
+
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+cr	equ	0dh
+lf	equ	0ah
+ctlQ	equ	'Q'-'@'	;XON
+ctlS	equ	'S'-'@'	;XOFF
+
+;-----------------------------------------------------------------
+;
+;	Charactor device selection
+;	All character entry must be in common memory
+;	and may only use bank 0 code if bank is restored on exit
+;	Warning: RESIDENT calls may change currently selected bank
+;-----------------------------------------------------------------
+ 
+;----------------------------------------------
+; BIOS character OUTPUT jump table
+;
+; (4)	conout	;CONSOLE OUTPUT
+;		;Send character in <C> to all selected devices
+; (5)	list	;LIST OTPUT
+;		;Send character in <C> to all selected devices
+; (6)	auxout	;AUXILIARY OUTPUT
+;		;Send character in <C> to all selected devices
+;
+; Entry:	<C> = character
+; Returned:	none
+; Function:	Send the character to the any assigned devices. The
+;		character is in ASCII with no parity.
+;
+;----------------------------------------------
+
+conout:	jp	crtout		; go straight to 7220 driver
+list:	ret
+auxout:	ret
+
+;----------------------------------------
+; BIOS character OUTPUT STATUS jump table
+;
+; (17)	conost	; CONSOLE OUTPUT STATUS
+;		; Return true if all selected console ouput devices are ready
+; (15)	listst	; LIST STATUS
+;		; Return true if all selected list ouput devices are ready
+; (19)	auxost	; AUXILIARY OUTPUT STATUS
+;		; Return true if all selected aux. ouput devices are ready
+;
+; Entry:	none
+; Returned:	<A> = -1 if ready, <A> = 0 if not ready
+; Function:	Return the ready status of assigned device
+;
+;----------------------------------------
+
+conost:	ld	a,-1
+	ret
+listst:	ld	a,0
+auxost:	ret
+
+;----------------------------------------
+; BIOS character INPUT STATUS jump table
+;
+; (2)	const	; CONSOLE INPUT STATUS
+;		; Return true if ANY selected console input devices are ready
+; (18)	auxist	; AUXILIARY INPUT STATUS
+;		; Return true if ANY selected aux. input devices are ready
+;
+; Entry:	none
+; Returned:	<A> = -1 if ready, <A> = 0 if not ready
+; Function:	Return the ready status of assigned device
+;
+;----------------------------------------
+
+const:
+auxist:	ld	a,0
+	ret
+
+;----------------------------------------------
+; BIOS character input jump table
+;
+; (3)	conin	;CONSOLE INPUT
+;		;Return character from first ready console input device
+; (7)	auxin	;AUXILIARY INPUT
+;		;Return character from first ready aux. input device
+;
+;
+; Entry:	none
+; Returned:	<A> = character
+; Function:	Read the next character with no parity. Wait until a
+;		character is available before returning. A returned
+;		ASCII CTRL-Z (1Ah) reports an end of file for 'auxin'.
+;
+;----------------------------------------------
+
+conin:
+auxin:	ld	a,01ah	; EOF = ctrl-z
+	ret
+
+;----------------------------------------
+; BIOS Utility subroutines
+;
+;	?pmsg		; print message @<SP> terminated with a zero
+;			; <DE> = number of entries in table.
+;	?pdec		; print <HL> as ascii unsigned number (0-65535)
+; NOTE: These routines may be in bank 0 as they are only called from bank 0
+;----------------------------------------
+
+
+;--------
+;?pmsg - print message @<(SP)> terminated by a zero
+;	and continue processing at location after message
+; Entry:	<(SP)> = start of message terminated by a zero
+; Return:	Return to address after message
+;
+?pmsg:	pop	hl
+	ld	a,(hl)
+	inc	hl
+	push	hl
+	or	a
+	ret	z	;if end of message
+	ld	c,a
+	call	?cono	;display message at current console
+	jr	?pmsg
+
+;-------
+; ?pdec
+; Called by disk error routines only
+; 
+
+?pdec:		; print 16 bit unsigned binary number from <HL>
+	ld	bc,table10
+	ld	de,-10000
+next:
+	ld	a,'0'-1
+pdecl:	push	hl
+	inc	a
+	add	hl,de
+	jr	nc,stoploop
+	inc	sp
+	inc	sp	; discard saved HL
+	jr	pdecl
+stoploop:
+	push	bc
+	ld	c,a
+	call	?cono
+	pop	bc
+
+	pop	hl
+	ld	a,(bc)
+	ld	e,a
+	inc	bc
+	ld	a,(bc)
+	ld	d,a
+	inc	bc
+	or	e
+	jr	nz,next
+	ret
+table10:
+	dw	-1000,-100,-10,-1,0
+
+
+	page
+
+;-----------------------------------------------------------------------
+; DEVTBL (20)
+; Entry:	none
+; Returned:	<HL> = address of CHRTBL
+; Function:	The DEVTBL and DEVINI entry points allow the support of
+;		device assignment with a flexible, yet completely optional
+;		system. DEVTBL returns the address of the Character I/O
+;		table CHRTBL which must be in common memory
+;
+devtbl:
+	ld	hl,CHRTBL
+	ret
+
+;-----------------------------------------------------------------------
+; DEVINI (21)
+; Entry:	<C> = device numbr (0-15)
+; Returned:	none
+; Function:	Initialize the physical character device specified in
+;		register C to the baud rate contained in the appropriate
+;		entry of the CHRTBL. The only CP/M 3 utility that uses
+;		this call is the DEVICE utility.
+;
+devini:
+?cinit:	; (re) initialize device in <C>
+	ret
+
+
+;-----
+CHRTBL:	;(this must be in COMMON memory)
+@ctbl:	; physical character device table
+
+max$devices	equ	($-@ctbl)/8	; 4 devices on standard EPXON QX-10
+    	db	0	; used by DEVICE to indicate last device used
+
+?idle:
+	ret
+
+;---------------------------------------------------------------
+
+	end
