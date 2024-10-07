@@ -1,0 +1,316 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS disc drivers
+
+	name	('BIOS3A5')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+;    16 Oct 83 - Disk drivers created
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+; disk communication data items
+
+	public	@dtbl			; table of pointers to XDPH's
+	public	@adrv,@trk,@sect,@scnt	; parameters for disk I/O
+	public	@dma,@dbnk		;    "       "    "    "
+
+	public	@retries		; Number of retries remaining
+	public	@rdwr			; disc READ or WRITE flag
+	public	@wrdc			; BDOS write deblocking codes
+
+
+;-----------------------
+; CP/M 3 CBIOS externals
+;-----------------------
+
+; disk parameter headers (DPH's)
+
+	extrn	dph0			; A: QX-10 NEC 765 floppy drives
+;****** extrn	dph1			; B: QX-10 NEC 765 floppy drives
+;******	extrn	dph2			; C: QX-10 NEC 765 floppy drives
+;******	extrn	dph3			; D: QX-10 NEC 765 floppy drives
+;****** extrn	dph4			; E: - not yet assigned -
+;****** extrn	dph5			; F: - not yet assigned -
+;****** extrn	dph6			; G: - not yet assigned -
+;****** extrn	dph7			; H: - not yet assigned -
+;****** extrn	dph8			; I: - not yet assigned -
+;****** extrn	dph9			; J: - not yet assigned -
+;****** extrn	dph10			; K: - not yet assigned -
+;****** extrn	dph11			; L: - not yet assigned -
+;****** extrn	dph12			; M: QX-10 Memory disc
+;****** extrn	dph13			; N: - not yet assigned -
+;****** extrn	dph14			; O: - not yet assigned -
+;****** extrn	dph15			; P: - not yet assigned -
+
+
+;------------------------------------------------------------------------
+	page
+
+;		===============
+;		DISC DATA AREAS
+;		===============
+
+;--------------------------------------------------------------
+;
+; CP/M disc parameters
+;
+;--------------------------------------------------------------
+
+	cseg		; helpful to be in common
+@adrv:	db	-1		; Logical drive
+@trk:	dw	-1		; Track number
+@sect:	dw	-1		; Sector number (base 0)
+@scnt:	dw	-1		; Sectors to copy
+@dma:	dw	-1		; Address of sector buffer for transfer
+
+	cseg		; must be in common for RAM rd/wr
+@dbnk:	db	-1		; Bank for @dma transfer
+
+	dseg
+@retries:	db	0	; number of retries allowed
+@rdwr:	db	-1		; disc READ or WRITE flag
+@wrdc:	db	-1		; BDOS write deblocking code
+
+;-----------------------------------------------------------------------;
+; NOTES									;
+;									;
+; @scnt	- Count of sectors to transfer.					;
+;	SINGLE SECTOR TRANSFER						;
+;	  If @scnt=0 or @scnt=1 then only one sector to transfer	;
+;	MULTIPLE SECTOR TRANSFER					;
+;	  If @scnt > 1, then all these sectors must be transfered	;
+;	  Multiple sector transfer will only be requested		;
+;	  if the sector numbers are sequential (XLT = 0)		;
+;	  Multiple sector transfer will not cross the track boundary	;
+;	  @scnt will always be such that (@sect + @scnt) is always	;
+;	  less than the number of sectors per track as deduced from	;
+;	  the value of SPT in the DPB.					;
+;  The Disk Driver routine must not alter any of these parameters	;
+;									;
+; @rdwr - Read/Write flag						;
+;	This flag is set to indicate whether the DISK I/O routine	;
+;	should perform a disk READ or a disk WRITE operation. This	;
+;	flag is also set prior to calling the disk select routine.	;
+;									;
+;	@rdwr is set as follows						;
+;	 0 = Disk write							;
+;        1 = Disk read							;
+;       -1 = Disk select						;
+;									;
+; @wrdc - BDOS write deblocking code					;
+;	BDOS provides the following deblocking information in		;
+;	register C for those disk drivers that do blocking/deblocking	;
+;	in the BIOS instead of the BDOS. This value is saved in the	;
+;	byte @wrdc.							;
+;									;
+;	@wrdc is set as follows						;
+;	 0 = deferred write (data write)				;
+;        1 = nondeferred write (directory write)			;
+;        2 = deferred write to the 1st sector of a new data block	;
+;									;
+;-----------------------------------------------------------------------;
+
+
+
+; ---------------------------- ;
+; disk parameter header tables ;
+; ---------------------------- ;
+
+	dseg		; IMPORTANT This table is not in common
+
+;---------------------------------------------------------------
+; @dtbl - list of skeletone dph tables for GENCPM to configure
+; NOTE FIRST TIME SELECT will allocate and may modify dph for
+; actual drive selected
+;---------------------------------------------------------------
+
+@dtbl:
+	dw	dph0		; A: Disk parameter header
+	dw	0		; B: Disk parameter header
+	dw	0		; C: Disk parameter header
+	dw	0		; D: Disk parameter header
+	dw	0		; E: - not yet assigned -
+	dw	0		; F: - not yet assigned -
+	dw	0		; G: - not yet assigned -
+	dw	0		; H: - not yet assigned -
+	dw	0		; I: - not yet assigned -
+	dw	0		; J: - not yet assigned -
+	dw	0		; K: - not yet assigned -
+	dw	0		; L: - not yet assigned -
+	dw	0		; M: Disk parameter header
+	dw	0		; N: - not yet assigned -
+	dw	0		; O: - not yet assigned -
+	dw	0		; P: - not yet assigned -
+
+;------------------------------------------------------------------------
+	page
+
+;*************************************
+;* INSTRUCTIONS TO ADD A DISC DRIVER *
+;*************************************
+
+; Create a program to perform the physical disc access in accordance
+; with the requirements of the driver routines defined below.
+
+; Include in your program the following external data references:
+;	@adrv, @trk, @sect, @scnt, @dma, @dbnk, @retries, @rdwr, @wrdc
+
+; Include in your program an extended disc parameter header as defined
+; below and define the label to this disc parameter header as public.
+; IMPORTANT: This XDPH is similar but not identical to the CP/M PLUS XDPH.
+
+; Modify this program to include in the table of disc parameter headers
+; the label to your XDPH. Do NOT change any of the existing allocations.
+; Add this label to the list of external names at the start of this program.
+
+; Re-assembly this program and assembly your program and link all the bios
+; modules together. Create a new BIOS program as instructed in the
+; Digital Research System Guide for CP/M Plus.
+
+;=========================================================================;
+; The following text specifies the contents of each disc parameter header ;
+; (dph) and defines the parameter passing for the disc drivers.           ;
+;=========================================================================;
+
+;                  ---------------------------
+;                  QX-10 DISC PARAMETER HEADER
+;                  ---------------------------
+
+; The DPH consists of a modified CP/M Plus extended DPH as defined in
+; Figure 4-1 and Table 4-10 in the CP/M 3 System Guide (First Edition).
+; 10 bytes are added to the beginning of the standard CP/M Plus DPH.
+
+;  Byte Offset	Length	Description
+;    -10	1 word	Address of ERROR PROCESSING routine (Note 1)
+;     -8	1 word	Address of DISC RD/WR routine (Note 1)
+;     -6	1 word	Address of DISC SELECT routine
+;     -4	1 word	Address of COLD BOOT INIT routine
+;     -2	1 byte	Physical device unit number (Note 2)
+;     -1	1 byte	Physical format or type of disc selected (Note 2)
+;      0	1 word	XLT
+;      2	9 bytes	-0- (initialise to 0)
+;     11	1 byte	MF (initialise to 0)
+;     12	1 word	Address of DPB (initialise to largest DPB for GENCPM)
+;     14	1 word	Address of CSV (initialise to 0FFFEH for GENCPM)
+;     16	1 word	Address of ALV (initialise to 0FFFEH for GENCPM)
+;     18	1 word	Address of DIRBCB (initialise to 0FFFEH for GENCPM)
+;     20	1 word	Address of DTABCB (initialise to 0FFFEH for GENCPM)
+;     22	1 word	Address of HASH (initialise to 0FFFEH for GENCPM)
+;     24	1 byte	HASH bank number (initialise to 0 for GENCPM)
+;
+; NOTES:
+;  1  These two address are different to the CP/M PLUS definition
+;  2  The 2 bytes reserved for physical data area
+;     (device unit number and format of disc selected)
+;     are scratch ares for use as required by the specific driver routines
+;     and these 2 bytes are never used outside the driver routines.
+
+
+;                               --------------
+;                                DISC DRIVERS
+;                               1. Disc Rd/Wr
+;                               2. Disc Select
+;                               3. Disc Error
+;				4. Drive Init
+;                               --------------
+;
+; -------------------
+; PARAMETERS ON ENTRY
+; -------------------
+;
+; 1. Disc Rd/Wr routine
+;
+;	Registers DE	-	Address of disc parameter header
+;
+;	Byte @adrv	-	Logical drive number (0-15)
+;	Word @trk	-	Track number (base 0)
+;	Word @sect	-	Sector number (base 0)
+;	Byte @scnt	-	Number of sectors (0 - 128)
+;	Word @dma	-	Address of sector buffer for transfer
+;	Byte @dbnk	-	Bank for @dma transfer
+;       Byte @rdwr	-	RD/WR flag set as READ: = 1, WRITE: = 0;
+;       Byte @wrdc	-	BDOS write deblocking codes
+;
+; 2. Disc Select routine
+;
+;	Registers DE	-	Address of disc parameter header
+;
+;       Byte @rdwr	-	RD/WR flag set to -1 (for error processing)
+;
+; 3. Disc ERROR routine
+;
+;       Register A	-	Value of register A (>0) returned
+;				from either RDWR or SELECT routines
+;
+;       Byte @rdwr	-	RD/WR flag set as follows:
+;				READ: = 1, WRITE: = 0, SELECT: =-1
+;
+;       Byte @retries	-	Number of retries.
+;
+; 4. Drive INIT routine
+;
+;	Registers DE	-	Address of disc parameter header
+;
+; -------------------
+; PARAMETERS RETURNED
+; -------------------
+;
+; 1. Disc Rd/Wr error returns
+;
+;       Register A	-	= 0 for successful completion
+;				> 0 if unsuccessfull and bits set as follows
+;			bit 7 - Drive not ready
+;			bit 6 - Drive write protected
+;			bit 4 - Possible media change
+;			bit 1 - track/sector id error	
+;       		bit 0 -	Fatal error
+;
+; 2. Disc Select error returns
+;
+;       Register A	-	= 0 for successful completion
+;				> 0 if unsuccessfull and bits set as follows
+;			bit 7 - Drive not ready
+;			bit 1 - track/sector id error	
+;       		bit 0 -	Fatal error
+;
+;	Registers HL	-	Set according to register A as follows:
+;				If register A = 0 then HL is set as follows:
+;				   HL = 0 if permanent error occurred
+;				   HL = address of DPH if select successful
+;				If register A > 0, then contents of HL ignored
+;
+; 3. Disc ERROR routine returns
+;
+;       Byte @retries	-	Number of retries. Set dependent on entry value
+;				If @retries = 0, then unchanged, return A = 1
+;				If @retries > 0, then decrement by 1
+;
+;       Register A	-	=  0  Ignore error and return to BDOS
+;				=  1  Set BDOS error condition and return.
+;				= 80h Retry Device routine
+;
+;	Registers HL	-	Disc SELECT Only. Set as follows:
+;				If register A > 0, then contents of HL ignored
+;				If register A = 0 then HL is set as follows:
+;				   HL = 0 if permanent error occurred
+;				   HL = address of DPH if select successful
+;
+; 4. Drive INIT routine
+;
+;       - no parameters returned -
+;
+;-----------------------------------------------------------------------
+
+	end
