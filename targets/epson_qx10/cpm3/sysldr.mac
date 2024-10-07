@@ -1,0 +1,350 @@
+	.z80
+	title	MML CPM3 SYS LOADER CCP PROGRAM
+
+	name	('SYSLDR')
+
+;------------------------------------------------------------------
+; Specially written CP/M LOADER to load SYSTEM files
+; SYSLDR with SYSDOS replaces the CPMLDR distributed with CP/M-3
+;
+; Copyright 1983 D. Powys-Lybbe
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 15 March 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+;
+;
+;
+; Note:
+; =====
+; To avoid conflict with LINK V1.3A equates should not be public.
+;------------------------------------------------------------------
+
+	cseg
+cbase	equ	$	; THIS ASSUMES cseg starts on page boundary
+
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+vers	equ	31	; CP/M version number
+rev	equ	'A'	; BIOS version letter
+
+;------------------------------------------------------------------
+; SYSLDR consists of three modules:
+; 1/	SYSLDR	Main Program to request loading of SYS files
+; 2/	SYSDOS	Disc Operating System to perform CONOUT and READ
+; 3/    SYSIOS	Modified CP/M BIOS
+;
+; SYSLDR is designed along the same lines as CCP, BDOS and BIOS
+;
+; IMPORTANT
+; Both SYSLDR and SYSDOS must end on a page boundary
+;------------------------------------------------------------------
+
+;------------------------------------------------------------------
+; SYSLDR
+; This main program will initialise the system and
+; cause the CPM3.SYS file to be loaded.
+; In addition it will load any other type of SYS file contained in
+; a list file. This allows for specific disc drivers to be loaded
+; and/or specific character drivers to be added.
+; On completion, execution will branch to the COLD BOOT of the
+; loaded CP/M.
+;------------------------------------------------------------------
+
+;------------------------------------------------------------------
+; SYSDOS
+; This will emulate the BDOS functions and provide access to the
+; necessary functions to perform character output to the console,
+; and read files. Unlike the CP/M BDOS it will not unpack FCB's.
+;------------------------------------------------------------------
+
+;------------------------------------------------------------------
+; SYSBIOS
+; The SYSBIOS will be a special version of the customised BIOS
+; which need only implement the necessary functions to perform
+; character output and disc reads.
+; The WARM BOOT may contain the necessary code to initialise the
+; system. The WARM BOOT will also initialise the disk drivers
+; and assigning the necessary space for the vectors which would
+; normally be allocated by GENCPM.
+;------------------------------------------------------------------
+
+
+	public	sysldr	; sys ldr entry point
+	extrn	sysdos	; sys bdos entry
+	extrn	bios	; BIOS should be loaded here
+
+;
+;           General equates
+;
+
+cr	equ	0dh
+lf	equ	0ah
+tab	equ	09h
+bell	equ	07h
+
+ldrbuff	equ	0080h	; default address for disc I/O 
+ldr.fcb	equ	05ch	; default FCB for searching
+
+;------
+; SYSLDR
+; Base of LDRCCP
+;
+SYSLDR:
+	jr	ldre
+	db	cr,lf,'Copyright (c) 1983 D. Powys-Lybbe'
+	db	cr,lf,'MML Systems Ltd., 11 Sun Street, London EC2'
+	db	cr,lf,01ah
+ldre:			; start of LDR
+;------------------------------------------------
+; First call must be to bios to initialise system
+;------------------------------------------------
+	pop	hl
+	ld	sp,ldr$sp
+	push	hl	; use our own stack
+	ld	hl,0
+	push	hl	; force crash to BIOS while using DDT
+
+	call	bios	; initialise system
+
+	ld	c,0dh
+	call	sysdos	; reset disk system
+
+	jp	start
+
+	if	$-cbase lt 128
+	ds	128-($-cbase)	; must have at least 128 bytes for our buffer
+	endif
+
+;---------------------------------------
+; First function is set disk for loading
+;---------------------------------------
+
+start:
+	ld	a,(ldr.dsk)
+	and	0fh	; remove user number
+	ld	e,a
+	ld	c,0eh
+	call	sysdos	; select disk in LDR.DSK
+	or	a
+	jp	nz,endldr	; error selecting disk
+
+	ld	a,(ldr.dsk)
+	rrca
+	rrca
+	rrca
+	rrca
+	and	0fh	; remove disk number
+	ld	e,a
+	ld	c,20h
+	call	sysdos	; set user number
+
+	ld	de,ldrbuff
+	ld	c,1ah
+	call	sysdos	; set default DMA address
+
+	page
+
+; ------------------------------------;
+; Second function is to load CPM3.SYS ;
+; But to avoid SYSTEM MONITOR it may  ;
+; be loaded 1000h below target        ;
+; ------------------------------------;
+
+	ld	hl,cpm3.fcb
+	ld	de,ldr.fcb
+	ld	bc,33
+	ldir
+
+; -------------------------------------------------------- ;
+; Read SYS file into location specified in SYS file header ;
+; -------------------------------------------------------- ;
+
+	ld	de,ldr.fcb
+	ld	c,0fh
+	call	sysdos		; open file CPM3.SYS
+	cp	-1
+	jp	z,endldr	; no file
+
+	ld	de,ldrHRD
+	ld	c,1ah
+	call	sysdos		; set DMA address for header record
+
+	ld	de,ldr.fcb
+	ld	c,14h
+	call	sysdos		; read Header Record Definition
+	or	a
+	jp	nz,endldr	; at end of file
+
+	ld	de,ldrbuff
+	ld	c,1ah
+	call	sysdos		; set DMA address
+
+	ld	de,ldr.fcb
+	ld	c,14h
+	call	sysdos		; read Print Record
+	or	a
+	jp	nz,endldr	; at end of file
+
+	ld	de,ldrbuff
+	ld	c,09h
+	call	sysdos		; display Print Record
+
+	call	nxtres		; read resident portion top down
+	jp	nz,endldr	; at end of file
+
+	call	nxtbnk		; read banked portion top down
+	jp	nz,endldr	; at end of file
+
+	call	tsteof		; just check if at end of file
+	jp	z,endldr	; not at expected end of file
+
+; ------------------------------------------- ;
+; Successful load - now jump to loaded module ;
+; ------------------------------------------- ;
+
+	ld	hl,(coldentry)
+	call	gofar	; should never return - but just in case
+
+; ---------------------- ;
+; Error reading SYS file ;
+; ---------------------- ;
+
+endldr:
+	ld	de,ldrerr
+	ld	c,9
+	call	sysdos
+	jp	$	; and crash
+
+ldrerr:
+	db	0ah,0dh,'SYSLDR ERROR: WHILST ATTEMPTING TO READ .SYS FILE$'
+
+; ----------------------------- ;
+; Branch to destination in <HL> ;
+; ----------------------------- ;
+
+gofar:	jp	(hl)
+
+; ------------------------------ ;
+; Read resident portion top down ;
+; ------------------------------ ;
+
+nxtres:
+	ld	hl,lenres
+	ld	a,(hl)
+	or	a
+	ret	z	; done required number of pages
+	dec	(hl)
+
+	ld	hl,topres	; copy to desired location
+	call	readdata	; returns Z ok, NZ at end of file
+	jr	z,nxtres	; and repeat
+	ret	nz		; at end of file
+
+; ---------------------------- ;
+; Read banked portion top down ;
+; ---------------------------- ;
+
+nxtbnk:
+	ld	hl,lenbnk
+	ld	a,(hl)
+	or	a
+	ret	z	; done required number of pages
+	dec	(hl)
+
+	ld	hl,topbnk 	; copy to desired location
+	call	readdata	; returns Z ok, NZ at end of file
+	jr	z,nxtbnk	; and repeat
+	ret	nz		; at end of file
+
+; ---------------------- ;
+; read 256 bytes of data ;
+; ---------------------- ;
+
+readdata:	; read page of data into page below (hl)
+	dec	(hl)	; decrement page number each time
+	ld	d,(hl)
+	ld	e,80h	; set address of upper half of page
+	push	de	; and save
+
+	ld	c,1ah
+	call	sysdos	; set DMA address
+
+	ld	de,ldr.fcb
+	ld	c,14h
+	call	sysdos	; read HIGH 128 bytes of data
+	pop	de
+	or	a
+	ret	nz	; at end of file
+
+	ld	e,a	; set address of lower half of page
+	ld	c,1ah
+	call	sysdos	; set DMA address
+
+	ld	de,ldr.fcb
+	ld	c,14h
+	call	sysdos	; read LOW 128 bytes of data
+	or	a
+	ret		; set nz if at end of file
+
+; --------------------------------------- ;
+; Done SYS read - so check at end of file ;
+; --------------------------------------- ;
+
+tsteof:		; read page of data
+	ld	de,ldrbuff
+	ld	c,1ah
+	call	sysdos	; set DMA address
+
+	ld	de,ldr.fcb
+	ld	c,14h
+	call	sysdos	; read LOW 128 bytes of data
+	or	a
+	ret	z	; not at expected end of file
+	ret		; at end of file
+
+;-----------------------------------------
+
+ldr.dsk:	db	0	; ldr drive (A:), User 0
+
+cpm3.fcb:
+	db	0,'CPM3    SYS',0,0,0,0
+	db	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+	db	0
+
+;---------------------------------------------------------- ;
+; SYS file data area - Header Record Definition (128 bytes) ;
+;---------------------------------------------------------- ;
+
+ldrHRD:			; header record definition
+topres:	ds	1	; Top page plus one of resident portion
+lenres:	ds	1	; Length in pages of resident portion
+topbnk:	ds	1	; Top page plus one of banked portion
+lenbnk:	ds	1	; Length in pages of banked portion
+coldentry:
+	ds	2	; Address of CP/M 3 cold boot entry point
+	ds	128-6	; remainder of SYS header record definition
+
+
+;--------------
+; Stack section
+; Stack space is a minimum of 16 levels and calculated to
+; force SYSBDOS address to be on a page boundary
+; allowing for callers stack to be saved at top
+
+ldrbnd	equ	((($-cbase)+32 + (256-1)) and (not (256-1))) - ($-cbase) - 2
+	ds	ldrbnd	; our stack at least 16 levels and forces page bound
+ldr$sp	equ	$
+	dw	0	; if stacked popped force warm boot
+
+	if	((($-cbase) + (256-1)) and (not (256-1))) ne ($-cbase)
+	jp	error	; LDR does not finish on page boundary
+	endif
+
+	end
