@@ -1,0 +1,1338 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS serial/parallel i/o
+
+	name	('BIOS3A2')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; A	Jun 83 - Based on Xerox version C
+; ALPHA Aug 8,83
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+	cseg		;GENCPM puts CSEG code in resident common memory
+
+;====================================================
+; user defined serial/parallel character I/O routines
+;====================================================
+
+;KEYBOARD - Main board serial port (1200 baud)
+
+	public	kbdst,kbdin
+	public	key$baud,key$set	; set up baud, SIO and interrupt vector
+	public	?kbdint			; interrupt routine
+
+
+;list - Centronics parallel port
+
+	public	pio$out,pio$sot
+
+;Main Serial SIO
+
+	public	ser1in,ser1out,ser1sin,ser1sot	; Main Serial I/O char output status
+	public	ser1baud,ser1set
+
+;Option Serial SIO-A
+
+	public	ser2in,ser2out,ser2sin,ser2sot	; Option Serial I/O char input
+	public	ser2baud,ser2set
+
+;Option Serial SIO-B
+
+	public	ser3in,ser3out,ser3sin,ser3sot	; Option Serial I/O char input
+	public	ser3baud,ser3set
+
+
+;-------------------------------------------------------------
+; PUBLIC SYMBOLS IN EPSON QX-10 CPM3 BIOS
+;
+
+; general utility routines
+
+	extrn	?pmsg			; print message @<SP>
+
+; character i/o
+
+	extrn	crtout			; direct screen output
+
+; user defined character I/O routines
+
+	extrn	@cpm3b			; CP/M 3 baud rate table
+
+; common memory
+
+	extrn	@cbuff			; 256 byte buffer in common memory
+	extrn	@cpage			; base page of common memory
+	extrn	@commonsp		; stack area in common memory
+
+; memory control
+
+	extrn	@cbnk,@sbnk,@tbnk	; current, system and tpa bank number
+	extrn	?xmove,?move,@xbc	; select move bank & block move
+	extrn	?tpabnk,?sysbnk		; select TPA or SYS bank
+	extrn	?bank			; select bank in <A>
+
+;------------------------------------------------------------------
+
+;------------------------------------------------------------------
+;
+;	Various equates
+;
+;------------------------------------------------------------------
+
+;====================================================================
+; I/O Selector - MAIN SYSTEM
+; Device is selected by address lines A2, A3, A4, A5 with A6, A7 zero
+; Address lines A0 and A1 are optional used to control the device
+;====================================================================
+
+clk$a	equ	0000b shl 2	;8253 counter timer No1
+clk$b	equ	0001b shl 2	;8253 counter timer No2
+
+clk$as	equ	clk$a+00b	;CLK Speaker timer
+clk$a2	equ	clk$a+01b	;CLK Soft timer 2
+clk$a1	equ	clk$a+10b	;CLK Soft timer 1
+clk$ac	equ	clk$a+11b	;CLK 8253 command
+
+clk$bs	equ	clk$b+00b	;CLK Speaker frequency
+clk$bk	equ	clk$b+01b	;CLK Keyboard clock
+clk$br	equ	clk$b+10b	;CLK RS232C clock
+clk$bc	equ	clk$b+11b	;CLK 8253 command
+;	command register for counter timer (clk+11b)
+clk$c0	equ	0		; 0=Binary, 1=BCD
+clk$c1	equ	1		; Bit 0} 000=Count     011=Square wave
+clk$c2	equ	2		; Bit 1} 001=One shot  100=Soft trigger
+clk$c3	equ	3		; Bit 2} 010=Rep. wave 101=Hard trigger
+clk$c4	equ	4		; Bit 0} 00=Counter    10=MSB Rd/Wr
+clk$c5	equ	5		; Bit 1} 01=LSB Rd/Wr  11=2 byte Rd/Wr
+clk$c6	equ	6		; Bit 0} 00=Counter 0  10=counter 2
+clk$c7	equ	7		; Bit 1} 01=counter 1
+;
+clk$f	equ	7800		; frequency 1996800 = 7800 * 256 hertz
+
+int$a	equ	0010b shl 2	;8259 interrupt controller
+int$b	equ	0011b shl 2	;8253 interrupt controller
+
+;---------------------------------------------------------------------
+; Main board serial ports (PPI) - keyboard/rs-232C
+; Channel A - Keyboard (1200 baud), Channel B - RS-232C
+sio	equ	0100b shl 2	;7201 sio
+sio$ad	equ	sio+00b		;SIO keyboard data (port A)
+sio$bd	equ	sio+01b		;SIO rs232 data (port B)
+sio$ac	equ	sio+10b		;SIO write: keyboard command (port A)
+sio$bc	equ	sio+11b		;SIO write: rs232 command (port B)
+sio$as	equ	sio+10b		;SIO read: keyboard status(port A)
+sio$bs	equ	sio+11b		;SIO read: rs232 status (port B)
+
+
+;---------------------------------------------------------------------
+; Centronix Parallel Output Port (PPI) - printer
+; Set to MODE 1: 2 channels of 8 data lines + 4 control lines 
+ppi	equ	0101b shl 2	;8255 ppi centronics printer port
+ppi$ad	equ	ppi+00b		;PIO data port (port A)
+ppi$bs	equ	ppi+01b		;PIO status port (port B)
+ppi$cc	equ	ppi+10b		;PIO control port (port C)
+ppi$cmd	equ	ppi+11b		;PIO 8255 command
+;	status bits for Centronix Interface (ppi+01b)
+ppi$dsr	equ	0		; DSR - not used
+ppi$err	equ	3		; input: ERR: error signal from printer
+ppi$npa	equ	4		; input: NPA: no paper signal from printer
+ppi$rdy	equ	5		; input: RDY: ready for output to printer
+ppi$pef	equ	6		; input: PWF: printer power down detect
+ppi$slo	equ	7		; input: SLO: printer operational (not error)
+;	control bits for Centronix Interface (ppi+10b)
+ppi$c0	equ	0		; output: strobe pulse generated when data sent
+ppi$c3	equ	3		; interrupt: connected to 8259A controller
+ppi$c4	equ	4		; output: ALF: force line feed after printing data
+ppi$c5	equ	5		; output: RST: reset printer
+ppi$c6	equ	6		; input: ACK: printer acknowledges reset of data
+;	command bits for Centronix Interface (ppi+11b)
+ppi$m0	equ	0		; Port C/L set 0=output (1=Input)
+ppi$m1	equ	1		; Port B set 1=Input (0=output)
+ppi$m2	equ	2		; Port B Mode 0=Bit Mode (1=byte mode)
+ppi$m3	equ	3		; Port C/H set 0=output (1=Input)
+ppi$m4	equ	4		; Port A set 1=Input (0=output)
+ppi$m5	equ	5		; Port A Mode 1=byte mode (0=Bit mode)
+ppi$m6	equ	6		; Port A dual 0=one way (1=dual direction;&bit mode)
+ppi$m7	equ	7		; 1= Mode select
+;	port C bit control for Centronix Interface (ppi+11b)
+ppi$b0	equ	0		; 1= Set, 0=Reset
+ppi$b1	equ	1		; Bit number 0-7, bit 0 of 3 bit number
+ppi$b2	equ	2		; Bit number 0-7, bit 1 of 3 bit number
+ppi$b3	equ	3		; Bit number 0-7, bit 2 of 3 bit number
+ppi$b7	equ	7		; 0= bit control
+
+
+setbnk	equ	0110b shl 2	;Write Memory bank register and timers
+prom	equ	0111b shl 2	;PROM memory select
+cmos	equ	1000b shl 2	;CMOS memory select
+
+crt$a	equ	1011b shl 2	;7220 CRT driver
+
+motor	equ	1100b shl 2	;Motor timer
+getbnk	equ	1100b shl 2	;Read bank/fdd status
+fdc	equ	1101b shl 2	;765A floppy disc controller
+
+crt$b	equ	1110b shl 2	;7220 CRT driver
+
+clock	equ	1111b shl 2	;clock (battery powered)
+
+;-----------------------------------------------------------------
+; I/O Port allocation - MAIN SYSTEM
+; The above I/O devices may have sub-devices controllled
+; Address lines A0 and A1, or different usuage
+; depending on whether read or write
+;-----------------------------------------------------------------
+
+
+
+
+
+;-----------------------------------------------------------------
+; I/O devices - additional devices
+; Device is selected by address lines A2, A3, A4, A5 with A6 or A7 non zero
+; Address lines A0 and A1 are optional used to control the device
+;-----------------------------------------------------------------
+
+dma$1	equ	010000b shl 2	; 8237 dma controller #1
+dma$2	equ	010100b shl 2	; 8237 dma controller #2
+
+gpib	equ	100010b shl 2	; GPIB Interface Q101E
+
+fiber	equ	100101b shl 2	; Optical fiber Interface Q100F
+
+pulse	equ	100111b shl 2	; Pulse transformer Interface Q10PT
+
+adda	equ	101000b shl 2	; AD/DA Interface Q10AD
+
+Xrs232	equ	101001b shl 2	; RS-232 Interface Q10RS
+
+modem	equ	101100b shl 2	; MODEM Interface Q10DM
+
+;-----------------------------------------------------------------
+;Epson interrupt vectors
+
+;EPSON CP/M: inttab	equ	0fd80h	; base of interrupt vector
+inttab	equ	0fe00h		; base of interrupt vector
+intpwr	equ	inttab+0	; power down
+intstm	equ	inttab+4	; soft timer
+intx1	equ	inttab+8	; ext int 1
+intx2	equ	inttab+12	; ext int 2
+int201	equ	inttab+16	; 7201 interrupt
+int220	equ	inttab+20	; 7220 interrupt
+intfdc	equ	inttab+24	; 765 fdc interrupt
+
+int255	equ	inttab+32	; 8255 interrupt
+intx3	equ	inttab+36	; ext int 3
+int818	equ	inttab+40	; 46818 interrupt
+intx4	equ	inttab+44	; ext int 4
+intx5	equ	inttab+48	; ext int 5
+inttm2	equ	inttab+52	; soft timer 2
+intx6	equ	inttab+56	; ext int 6
+intx7	equ	inttab+60	; ext int 7
+inttop	equ	inttab+64	; top of interrupt jumps
+
+
+;-----------------------------------------------------------------
+;
+;	Charactor I/O interface to resident system
+;
+;-----------------------------------------------------------------
+ 
+;-----------------------------------------------------------------------
+;
+; BIOS2 Function numbers
+; ====================
+;
+; EPSON QX-10 FUNCTIONS - BIOS2 ENTRY TABLE (IX -> function number)
+;
+;	SIGNMSG	3*0	Cold boot
+;	MCHRST	3*1	CONST return A=0 if not ready, A=FF if ready
+;	GTMCHR	3*2	CONIN return A=character from console
+;	MCOUT	3*3	CONOUT
+;	MLIST	3*4	LIST
+;	PUNCH2	3*5	PUNCH
+;	READR2	3*6	READER
+;	CALBR2	3*7	CALIBRATE DRIVE IN (drive)
+;	NSEC2	3*8	READ/WRITE SECTORS (rwflg)
+;	WTHST2	3*9	WRITE FROM HOST BUFFER
+;	DMAST2	3*10	SET DMA DEVICE (dbaddr,sectct,<B>,<C>)
+;	COMMD2	3*11	FDD COMMAND (<B>)
+;	READ2	3*12	READ CP/M SECTOR
+;	WRITE2	3*13	WRITE CP/M SECTOR (<C>)
+;	RSOPEN2	3*14	*
+;	RSCLOS2	3*15	*
+;	RSINST2	3*16	*
+;	RSOTST2	3*17	*
+;	RSIN2	3*18	*
+;	RSOUT2	3*19	*
+;	PSET2	3*20	*
+;	HCOPY2	3*21	*
+;	TIMDT2	3*22	SET DATE & TIME (<C>)
+;	RSIOX2	3*23	*
+;	LPEN2	3*24	*
+;	MASK2	3*25	*
+;	GTPFK2	3*26	GET PFK STRING
+;	PTPFK2	3*27	PUT PFK STRING
+;		3*28	*
+;	GOCPMX	3*29	COLD/WARM BOOT INIT
+;	SIOIR2	3*30	7201 SIOIR INTERRUPT
+;	FDCIR2	3*31	FDD INTERRUPT
+;		3*32	*
+;	LPENI2	3*33	*
+;	INTX21	3*34	*
+;	INTX22	3*35	*
+;	INTX23	3*36	*
+;	INTX24	3*37	*
+;	INTX25	3*38	*
+;	INTX26	3*39	*
+;	INTX27	3*40	*
+;	dycusr	3*41	*
+;	conot1	3*42	*
+;	buzzpu	3*43	does a BEEP
+;	kcgin	3*44	*
+;	kcgot	3*45	*
+;	convcd	3*46	*
+;
+;-----------------------------------------------------------------------
+;
+;
+;	bios2	equ	0FB2Fh		;EPSON QX10 entry to resident system
+;
+; ---------------------------------------------
+; In EPSON system, the 'configuration data' is:
+; ---------------------------------------------
+;	base	equ	0fe00h
+;	dfltprt	equ	base+02ah	; default printer
+;	dfltflg	equ	base+040h	; default MBFLG
+;	dfltup	equ	base+048h	; default up arrow hard code
+;	dfltdn	equ	base+049h	; down
+;	dfltrt	equ	base+04ah	; left
+;	dfltlt	equ	base+04bh	; right
+;	rsdat	equ	base+060h	; 7201/B bit rate
+;	rsdat1	equ	base+061h	; bits/character
+;	rsdat2	equ	base+062h	; parity/non parity
+;	rsdat3	equ	base+063h	; stop bits
+;	mrsdat	equ	base+065h	; main board rs232c parameter block
+;	mrsdat1	equ	base+069h	; bits/character
+;	mrsdat2	equ	base+06ah	; parity/non parity
+;	mrsdat3	equ	base+06bh	; stop bits
+;	dfltmf	equ	base+099h	; MFLG default value
+;	auto	equ	base+100h	; auto-start command buffer
+;---------------------------------------------------------------------
+
+	page
+
+;                           =======================
+;                           PHYSICAL DEVICE DRIVERS
+;                           =======================
+
+;=====================================================================
+;KEYBOARD - Main board serial port (1200 baud)
+;
+; kbst	- return character status (0= not ready)
+;
+; kbdin - read next character from fifo buffer - wait if none
+;
+; sioint - keyboard interrupt: read character, convert and add to fifo
+;
+;=====================================================================
+
+	dseg		; as system bank already called
+;-----
+kbdst:			;keyboard status
+	ld	a,(fifst1a)	; 0= not ready, -1 = ready
+	ret
+
+;-----
+kbdin:			;keyboard character input
+	ld	a,fif1al
+	ld	hl,fif1ar
+	jp	exfifo		; extract character from fifo buffer
+
+	cseg		; all interrupt handling must start in common
+;-------
+; sioint	Main serio i/o interrupt (Keyboard & serial port)
+;
+; Read character from keyboard or main serial port
+; If keyboard character, decode position encoding
+; and either add character to fifo buffer, or perform special functions
+; remember this is an interrupt so keep it quick
+;
+;
+?kbdint:		; interrupt routine
+sioint:			;keyboard interrupt
+	ld	(siosp),sp
+	ld	sp,siosp	; use local stack
+	push	af
+	push	bc
+	push	de
+	push	hl		; save <HL>, <DE>, <BC> and <AF>
+
+	ld	a,(@cbnk)	; read current bank
+	push	af		; and save
+
+	call	?sysbnk		; select SYSTEM bank
+
+	in	a,(sio$as)
+	bit	0,a		; test if rx full
+	jr	nz,kbdrx
+
+	in	a,(sio$bs)	; test serial port
+	bit	0,a		; test if rx full
+	jr	z,sioclr	; neither serial ports caused interrupt 
+
+; main serial port Rx character
+ser1rx:	ld	a,1
+	out	(sio$bc),a	; read register 1
+	in	a,(sio$bs)	; read status 2
+	and	01110000b
+	in	a,(sio$bd)	; input byte from SIO
+	jr	nz,sioerr	; read error
+
+	call	ser1fifo	; add to fifo
+	jr	siotst
+
+; keyboard position code
+kbdrx:	ld	a,1
+	out	(sio$ac),a	; read register 1
+	in	a,(sio$as)	; read status 2
+	and	01110000b
+	in	a,(sio$ad)	; input byte from SIO
+	jr	nz,sioerr	; read error
+
+	call	kbdpos		; convert into ascii and add to fifo
+
+; test result of addition to fifo
+siotst:
+	jr	nc,sioreti
+sioerr:
+	xor	a
+	out	(clk$b),a	; set timer constant to 1000h
+	ld	a,16
+	out	(clk$b),a
+
+	in	a,(getbnk)
+	and	not 1111b	; remove FDD bits
+	or	1		; this will ring bell
+	out	(setbnk),a	; (and re-select current bank)
+
+sioclr:
+	ld	a,00101000b	; reset TX int hold
+	out	(sio$ac),a
+	out	(sio$bc),a
+
+	ld	a,00110000b	; Error reset
+	out	(sio$ac),a
+	out	(sio$bc),a	; other side as well
+
+sioreti:
+
+;*;	ld	a,20h		; normal E.O.I. (not really necessary)
+;*;	out	(int$a),a	; Master        (as 8259 configured with)
+;*;	out	(int$b),a	; Master        (automatic EOI)
+
+	pop	af		; recover current bank
+	call	?bank		; and select
+
+	pop	hl
+	pop	de
+	pop	bc
+	pop	af		; recover <HL>, <DE>, <BC> and <AF>
+
+	ld	sp,(siosp)	; recover stack
+	ei
+	reti
+
+siosp	equ	inttop+62	; provide for 31 level of stack interrupt
+
+
+	dseg		; as system bank selected
+;----------------------------------------------------------------------
+; kbdpos	Decode keyboard position in <A> into ascii character
+; Returns: CARRY SET if error
+;----------------------------------------------------------------------
+kbdpos:
+	cp	080h		; test for SHIFT/CTRL/GRPH keys
+	jp	nc,ky60
+;
+	ld	hl,kbtab	; keyboard position table
+	ld	c,a
+	ld	b,0
+	add	hl,bc
+	cp	30h		; test for keypad or function keys
+	jr	c,ky40		; -yes-
+	ld	de,(kbdcase)	; add any case offset
+	add	hl,de	
+ky40:	ld	a,(hl)
+	cp	0ffh		; test for funtion key
+	jr	z,kbdfunct	; function key or special character
+
+;--------
+; kbdfifo - Add character in <A> to fifo buffer
+; RETURN:	carry set if fifo full
+; DESTROYED:	<A>, <HL>, <DE>
+;
+kbdfifo:
+	ld	(fifochar),a	; and temporarily save
+
+	ld	d,fif1al	; length of buffer -1
+	ld	hl,fif1ar	; pointer to last character removed
+	jp	addfifo		; add character to fifo buffer
+
+;---------------------------------------------------
+; function or special characters (ASCII code = 0ffh)
+; Use special table to return either character string,
+; or perform special function
+;
+; ENTRY:	<BC> = key position code
+; RETURN:	carry set if error or fifo full
+;
+kbdfunct:
+	ld	hl,complex
+	add	hl,bc
+	add	hl,bc
+	ld	a,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,a		; (hl) -> string definition or special processing
+
+	ld	a,(hl)
+	or	a		;<HL>=string, 1st byte = max len or 0
+	jr	z,kbdspec
+	inc	hl
+	ld	b,(hl)		;<HL>=string, 2nd byte = count
+
+kbdstr:	inc	hl
+	ld	a,b
+	or	a
+	ret	z
+	dec	b
+	push	bc
+	push	hl
+	ld	a,(hl)		;<HL>=string, remaining bytes = character string
+	call	kbdfifo		; add to fifo buffer
+	pop	hl
+	pop	bc
+	ret	c		; error occured in adding byte
+	jr	kbdstr
+
+;-----------------
+; special function
+
+kbdspec:
+	inc	hl
+	ld	a,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,a
+	jp	(hl)
+
+
+;===========================
+;SHIFT/CTRL or GRPH keys
+;
+ky60:	ld	hl,kbdstatus
+	or	a
+	rra	
+	ld	b,0
+	rl	b		; move MAKE bit into <B>
+	rlca			;<A> = key without direction bit, <B> = direction bit
+
+	cp	8ah		; CTRL key
+	jr	nz,ky61
+	res	5,(hl)		; break
+	bit	0,b	
+	jr	z,ky70
+	set	5,(hl)		; make
+	jr	ky70
+
+ky61:	cp	8ch		; GRPH key
+	jr	nz,ky62
+	res	2,(hl)		; break
+	bit	0,b	
+	jr	z,ky70
+	set	2,(hl)		; make
+	jr	ky70
+
+ky62:	cp	84h		; right SHIFT key
+	jr	z,ky63
+	cp	86h		; left SHIFT key
+	jr	nz,ky64
+ky63:	res	0,(hl)		; break
+	bit	0,b	
+	jr	z,ky70
+	set	0,(hl)		; make
+	jr	ky70
+
+ky64:
+	scf			; set carry flag as should never get here
+	ret
+
+;------
+; caps lock entry from complex table
+xchee:			; caps lock
+	ld	hl,kbdstatus
+	ld	a,(hl)
+	xor	2		; togle caps status
+	ld	(hl),a
+
+	and	2
+	rra			; move to bit 0
+	or	01000000b	; turn on/off caps LED (No 0)
+	out	(sio$ad),a	; and send to keyboard
+
+; set case status 
+;
+; 1st table 00-7fh           (any key pos 00h-2fh)
+; 2nd table 30-7fh bias=000h (CTRL)
+; 3rd table 30-7fh bias=050h (GRPH)
+; 4th table 30-7fh bias=0a0h (un-shift, no caps)
+; 5th table 30-7fh bias=0f0h (shift, no caps)
+; 6th table 30-7fh bias=140h (un-shift, caps)
+; 7th table 30-7fh bias=190h (shift, caps)
+
+ky70:
+	ld	bc,0h
+	bit	5,(hl)		; ctrl ?
+	jr	nz,ky79		;-yes-	(this has priority over all others)
+	ld	bc,050h
+	bit	2,(hl)		; GRPH SHIFT ?
+	jr	nz,ky79		;-yes-	(this has priority over SHIFT & CAPS)
+	ld	bc,0a0h
+	bit	0,(hl)		; SHIFT ?
+	jr	z,ky71		;-no-
+	ld	bc,0f0h		;-yes-
+ky71:	bit	1,(hl)		; CAPS
+	jr	z,ky79		;-no-
+	ld	hl,050h*2
+	add	hl,bc
+	ld	b,h
+	ld	c,l
+ky79:	ld	(kbdcase),bc
+	and	a		; carry flag cleared
+	ret
+
+kbdret:	ret
+
+	cseg		; should be in common I think
+kbdstatus:	db	0	; status of SHIFT/CTRL/GRPH/CAPS keys
+kbdcase:	dw	0a0h	; table offset for SHIFT/CTRL/GRPH/CAPS
+
+
+; fifo bytes must be in this order
+fifst1a:
+	db	0		; set to 0ffh when buffer has character
+fif1af:	db	0		; last byte to fill
+fif1ar:	db	0		; last byte removed
+fif1a:	ds	16		; 16 byte buffer
+fif1al	equ	$-fif1a-1	; length of buffer less 1
+
+
+;	remove	          v	last byte removed
+;		:::::::::::::::: - empty (fifst = 0)
+;	fill	          ^	last byte added
+;
+;	remove	          v
+;		:::::::::::1::::
+;	fill	           ^
+;
+;	remove	          v
+;		6789012345:12345 - nearly full
+;	fill	         ^
+;
+;	remove	          v     last byte removed
+;		6789012345612345 - full (fifst = -1)   
+;	fill	          ^	last byte added
+;
+
+;=======
+; KBTAB	; keyboard position table
+;
+; 1st table 00-2fh bias=000h (any key pos 00h-2fh)
+; 2nd table 30-7fh bias=000h (CTRL)
+; 3rd table 30-7fh bias=050h (GRPH)
+; 4th table 30-7fh bias=0a0h (un-shift, no caps)
+; 5th table 30-7fh bias=0f0h (shift, no caps)
+; 6th table 30-7fh bias=140h (un-shift, caps)
+; 7th table 30-7fh bias=190h (shift, caps)
+
+	dseg		; as system bank selected
+kbtab:
+; 1st table 00-2fh base=000h, length=02fh (any key pos 00h-2fh)
+;		0	1	2	3	4	5	6	7
+;00h		;	F4;	F5;	F6;	F7;	F8;	F9;	F10;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+;08h		(A1);	BREAK;	PAUSE;	SCRN D;	HELP;	(A2);	(A3);	MF1;
+	db	0ffh,	003h,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+;10h		;	LF;	(A5);	;	'000';	return;	.;	0;
+	db	0ffh,	00ah,	0ffh,	0ffh,	0ffh,	00dh,	'.',	'0'
+;18h		+;	6;	5;	4;	;	MF4;	MF3;	MF2;
+	db	'+',	'6',	'5',	'4',	0ffh,	0ffh,	0ffh,	0ffh
+;20h		;	;	(A4);	;	;	3;	2;	1;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	'3',	'2',	'1'
+;28h		-;	9;	8;	7;	=;	*;	/;	,;
+	db	'-',	'9',	'8',	'7',	'=',	'*',	'/',	','
+
+; 2nd table 30-7fh base=000h, length=04fh (CTRL)
+;		0	1	2	3	4	5	6	7
+;30h		;	Caps;	Space;	^Z;	^X;	^C;	^V;	^B;
+	db	0ffh,	0ffh,	020h,	01Ah,	018h,	003h,	016h,	002h
+;38h		^N;	^M;	^,;	^.;	up;	left;	right;	down;
+	db	00eh,	00dh,	00ch,	00eh,	0ffh,	0ffh,	0ffh,	0ffh
+;40h		;	;	;	^A;	^S;	^D;	^F;	^G;
+	db	0ffh,	0ffh,	0ffh,	001h,	013h,	004h,	006h,	007h
+;48h		^H;	^J;	^K;	^L;	^;;	^:;	return;	^/;
+	db	008h,	00ah,	00bh,	00ch,	01bh,	01ah,	00dh,	00fh
+;50h		;	^Q;	^W;	^E;	^R;	^T;	^Y;	^U;
+	db	0ffh,	011h,	017h,	005h,	012h,	014h,	019h,	015h
+;58h		^I;	^O;	^P;	^@;	^[;	^];	INS;	DEL;
+	db	009h,	00fh,	010h,	000h,	01bh,	01dh,	0ffh,	07fh
+;60h		;	^2;	^3;	^4;	^5;	^6;	^7;	^8;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+;68h		^9;	^0;	^-;	^^;	^\;	BS;	HOME;	CLS;
+	db	0ffh,	0ffh,	0ffh,	01eh,	01ch,	008h,	0ffh,	0ffh
+;70h		;	F3;	F2;	F1;	;	ESC;	1;	TAB;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	01bh,	0ffh,	009h
+;78h		;	;	;	;	;	;	;	;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+
+; 3rd table 30-7fh base=080h, length=04fh (GRPH)
+;		0	1	2	3	4	5	6	7
+;30h		;	Caps;	Space;	>Z;	>X;	>C;	>V;	>B;
+	db	0ffh,	0ffh,	020h,	09Ah,	098h,	083h,	096h,	082h
+;38h		>N;	>M;	>,;	>.;	up;	left;	right;	down;
+	db	08eh,	08dh,	08ch,	08eh,	0ffh,	0ffh,	0ffh,	0ffh
+;40h		;	;	;	>A;	>S;	>D;	>F;	>G;
+	db	0ffh,	0ffh,	0ffh,	081h,	093h,	084h,	086h,	087h
+;48h		>H;	>J;	>K;	>L;	>;;	>:;	return;	>/;
+	db	088h,	08ah,	08bh,	08ch,	09bh,	09ah,	00dh,	08fh
+;50h		;	>Q;	>W;	>E;	>R;	>T;	>Y;	>U;
+	db	0ffh,	091h,	097h,	085h,	092h,	094h,	099h,	095h
+;58h		>I;	>O;	>P;	>@;	>[;	>];	INS;	DEL;
+	db	089h,	08fh,	090h,	080h,	09bh,	09dh,	0ffh,	07fh
+;60h		;	^2;	^3;	^4;	^5;	^6;	^7;	^8;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+;68h		^9;	^0;	^-;	>^;	>\;	BS;	HOME;	CLS;
+	db	0ffh,	0ffh,	0ffh,	09eh,	09ch,	008h,	0ffh,	0ffh
+;70h		;	F3;	F2;	F1;	;	ESC;	1;	TAB;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	01bh,	0ffh,	009h
+;78h		;	;	;	;	;	;	;	;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+
+; 4th table 30-7fh base=0d0h, length=04fh (un-shift, no caps)
+;		0	1	2	3	4	5	6	7
+;30h		;	Caps;	Space;	z;	x;	c;	v;	b;
+	db	0ffh,	0ffh,	020h,	07Ah,	078h,	063h,	076h,	062h
+;38h		n;	m;	,;	.   ;	up;	left;	right;	down;
+	db	06eh,	06dh,	02ch,	02eh,	0ffh,	0ffh,	0ffh,	0ffh
+;40h		;	;	;	a;	s;	d;	f;	g;
+	db	0ffh,	0ffh,	0ffh,	061h,	073h,	064h,	066h,	067h
+;48h		h;	j;	k;	l;	;;	:;	return;	/;
+	db	068h,	06ah,	06bh,	06ch,	03bh,	03ah,	00dh,	02fh
+;50h		;	q;	w;	e;	r;	t;	y;	u;
+	db	0ffh,	071h,	077h,	065h,	072h,	074h,	079h,	075h
+;58h		i;	o;	p;	@;	[;	];	INS;	DEL;
+	db	069h,	06fh,	070h,	040h,	05bh,	05dh,	0ffh,	07fh
+;60h		;	2;	3;	4;	5;	6;	7;	8;
+	db	0ffh,	032h,	033h,	034h,	035h,	036h,	037h,	038h
+;68h		9;	0;	-;	^;	\;	BS;	HOME;	CLS;
+	db	039h,	030h,	02dh,	05eh,	05ch,	008h,	0ffh,	0ffh
+;70h		;	F3;	F2;	F1;	;	ESC;	1;	TAB;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	01bh,	031h,	009h
+;78h		;	;	;	;	;	;	;	;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+
+; 5th table 30-7fh base=120h, length=04fh (shift, no caps)
+;		0	1	2	3	4	5	6	7
+;30h		;	Caps;	Space;	Z;	X;	C;	V;	B;
+	db	0ffh,	0ffh,	020h,	05Ah,	058h,	043h,	056h,	042h
+;38h		N;	M;	<;	>;	up;	left;	right;	down;
+	db	04eh,	04dh,	03ch,	03eh,	0ffh,	0ffh,	0ffh,	0ffh
+;40h		;	;	;	A;	S;	D;	F;	G;
+	db	0ffh,	0ffh,	0ffh,	041h,	053h,	044h,	046h,	047h
+;48h		H;	J;	K;	L;	+;	*;	return;	?;
+	db	048h,	04ah,	04bh,	04ch,	02bh,	02ah,	00dh,	03fh
+;50h		;	Q;	W;	E;	R;	T;	Y;	U;
+	db	0ffh,	051h,	057h,	045h,	052h,	054h,	059h,	055h
+;58h		I;	O;	P;	`;	{;	};	INS;	DEL;
+	db	049h,	04fh,	050h,	060h,	07bh,	07dh,	0ffh,	07fh
+;60h		;	";	#;	$;	%;	&;	';	(;
+	db	0ffh,	021h,	023h,	024h,	025h,	026h,	027h,	028h
+;68h		);	_;	=;	~;	|;	BS;	HOME;	CLS;
+	db	029h,	05fh,	03dh,	07eh,	07ch,	008h,	0ffh,	0ffh
+;70h		;	F3;	F2;	F1;	;	ESC;	'!';	TAB;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	01bh,	021h,	009h
+;78h		;	;	;	;	;	;	;	;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+
+; 6th table 30-7fh base=170h, length=04fh (un-shift, caps)
+;		0	1	2	3	4	5	6	7
+;30h		;	Caps;	Space;	Z;	X;	C;	V;	B;
+	db	0ffh,	0ffh,	' ',	05Ah,	058h,	043h,	056h,	042h
+;38h		N;	M;	,;	.;	up;	left;	right;	down;
+	db	04eh,	04dh,	02ch,	02eh,	0ffh,	0ffh,	0ffh,	0ffh
+;40h		;	;	;	A;	S;	D;	F;	G;
+	db	0ffh,	0ffh,	0ffh,	041h,	053h,	044h,	046h,	047h
+;48h		H;	J;	K;	L;	;;	:;	return;	/;
+	db	048h,	04ah,	04bh,	04ch,	03bh,	03ah,	00dh,	02fh
+;50h		;	Q;	W;	E;	R;	T;	Y;	U;
+	db	0ffh,	051h,	057h,	045h,	052h,	054h,	059h,	055h
+;58h		I;	O;	P;	@;	[;	];	INS;	DEL;
+	db	049h,	04fh,	050h,	040h,	05bh,	05dh,	0ffh,	07fh
+;60h		;	2;	3;	4;	5;	6;	7;	8;
+	db	0ffh,	032h,	033h,	034h,	035h,	036h,	037h,	038h
+;68h		9;	0;	-;	^;	\;	BS;	HOME;	CLS;
+	db	039h,	030h,	02dh,	05eh,	05ch,	008h,	0ffh,	0ffh
+;70h		;	F3;	F2;	F1;	;	ESC;	1;	TAB;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	01bh,	031h,	009h
+;78h		;	;	;	;	;	;	;	;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+
+; 7th table 30-7fh base=1c0h, length=04fh (shift, caps)
+;		0	1	2	3	4	5	6	7
+;30h		;	Caps;	Space;	z;	x;	c;	v;	b;
+	db	0ffh,	0ffh,	020h,	07Ah,	078h,	063h,	076h,	062h
+;38h		n;	m;	<;	>;	up;	left;	right;	down;
+	db	06eh,	06dh,	03ch,	03eh,	0ffh,	0ffh,	0ffh,	0ffh
+;40h		;	;	;	a;	s;	d;	f;	g;
+	db	0ffh,	0ffh,	0ffh,	061h,	073h,	064h,	066h,	067h
+;48h		h;	j;	k;	l;	+;	*;	return;	?;
+	db	068h,	06ah,	06bh,	06ch,	02bh,	02ah,	00dh,	03fh
+;50h		;	q;	w;	e;	r;	t;	y;	u;
+	db	0ffh,	071h,	077h,	045h,	052h,	054h,	059h,	055h
+;58h		i;	o;	p;	`;	{;	};	INS;	DEL;
+	db	069h,	06fh,	050h,	060h,	07bh,	07dh,	0ffh,	07fh
+;60h		;	";	#;	$;	%;	&;	';	(;
+	db	0ffh,	021h,	023h,	024h,	025h,	026h,	027h,	028h
+;68h		);	_;	=;	~;	|;	BS;	HOME;	CLS;
+	db	029h,	05fh,	03dh,	07eh,	07ch,	008h,	0ffh,	0ffh
+;70h		;	F3;	F2;	F1;	;	ESC;	'!';	TAB;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	01bh,	021h,	009h
+;78h		;	;	;	;	;	;	;	;
+	db	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh,	0ffh
+
+;-----------------------
+; special function table
+;-----------------------
+; special table 00-7fh base=000h, length=07fh (CTRL and any key pos 00h-2fh)
+
+complex:
+;00h			F4	F5	F6	F7	F8	F9	F10
+	dw	kbdnull,kbdf4,	kbdf5,	kbdf6,	kbdf7,	kbdf8,	kbdf9,	kbdf10
+;08h		(A1)	BREAK	PAUSE	SCRN D	HELP	(A2)	(A3)	MF1
+	dw	kbdnull,kbdnull,kbdpse,	kbdscrn,kbdhelp,kbdnull,kbdnull,kbdmf1
+;10h			LF	(A5)		'000'	return
+	dw	kbdnull,kbdnull,kbdnull,kbdnull,kbd000,	kbdnull,kbdnull,kbdnull
+;18h							MF4	MF3	MF2
+	dw	kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdmf4,	kbdmf3,	kbdmf2
+;20h				(A4)
+	dw	kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdnull
+;28h
+	dw	kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdnull
+
+;30h			Caps	Space	^Z	^X	^C	^V	^B
+	dw	kbdnull,kbdcaps,kbdnull,kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh
+;38h		^N	^M	^,	^.	up	left	right	down
+	dw	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdup,	kbdleft,kbdrght,kbddown
+;40h					^A	^S	^D	^F	^G
+	dw	kbdnull,kbdnull,kbdnull,kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh
+;48h		^H	^J	^K	^L	^;	^:	return	^/
+	dw	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdnull,kbdffh
+;50h			^Q	^W	^E	^R	^T	^Y	^U
+	dw	kbdnull,kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh
+;58h		^I	^O	^P	^@	^[	^]	INS	DEL
+	dw	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdins,	kbdnull
+;60h			^2	^3	^4	^5	^6	^7	^8
+	dw	kbdnull,kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh
+;68h		^9	^0	^-	^^	^\	BS	HOME	CLS
+	dw	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdffh,	kbdhome,kbdcls
+;70h			F3	F2	F1		ESC	1	TAB
+	dw	kbdnull,kbdf3,	kbdf2,	kbdf1,	kbdnull,kbdffh,	kbdffh,	kbdffh
+;78h
+	dw	kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdnull,kbdnull
+
+; format of strings are
+; A/ character strings
+; 	byte 1 - maximum length of string
+; 	byte 2 - actual length of string
+; 	byte 3..n string
+; B/ special functions
+; 	byte 1 = 0
+; 	byte 2,3 - address of special processing
+
+kbdnull:		; 00h
+	db	0
+	dw	kbdret
+
+kbdpse:			; 0ah	PAUSE
+	db	0
+	dw	kbdret
+kbdmf1:			; 0fh	MF1
+	db	0
+	dw	kbdret
+kbdmf2:			; 1fh	MF2
+	db	0
+	dw	kbdret
+kbdmf3:			; 1eh	MF3
+	db	0
+	dw	kbdret
+kbdmf4:			; 1dh	MF4
+	db	0
+	dw	kbdret
+kbdcaps:		; 31h	Caps lock
+	db	0
+	dw	xchee		; caps lock
+
+; programable function keys (maximum length of 12 characters)
+kbdf1:			; 73h	F1
+	db	12,4,'DIR '
+	ds	12-($-kbdf1)+2
+kbdf2:			; 72h	F2
+	db	12,5,'TYPE '
+	ds	12-($-kbdf2)+2
+kbdf3:			; 71h	F3
+	db	12,5,'LOAD '
+	ds	12-($-kbdf3)+2
+kbdf4:			; 01h	F4
+	db	12,5,'STAT '
+	ds	12-($-kbdf4)+2
+kbdf5:			; 02h	F5
+	db	12,4,'DDT '
+	ds	12-($-kbdf5)+2
+kbdf6:			; 03h	F6
+	db	12,3,'PIP'
+	ds	12-($-kbdf6)+2
+kbdf7:			; 04h	F7
+	db	12,5,'DUMP '
+	ds	12-($-kbdf7)+2
+kbdf8:			; 05h	F8
+	db	12,5,'SAVE '
+	ds	12-($-kbdf8)+2
+kbdf9:			; 06h	F9
+	db	12,7,'SUBMIT '
+	ds	12-($-kbdf9)+2
+kbdf10:			; 07h	F10
+	db	12,7,'MBASIC '	; NOTE cannot use MFBASIC
+	ds	12-($-kbdf10)+2
+
+kbd000:			; 14h	'000'
+	db	3,3,'000'	; ('00' on german keyboard)
+
+
+kbdup:			; 3ch   up arrow
+	db	3,1,1eh,0,0	; ^^
+
+kbdleft:		; 3dh   left arrow
+	db	3,1,1dh,0,0	; ^]
+
+kbdrght:		; 3eh   right arrow
+	db	3,1,1ch,0,0	; ^\
+
+kbddown:		; 3fh	down arrow
+	db	3,1,1fh,0,0	; ^_
+
+kbdins:			; 5eh	INS
+	db	3,1,12h,0,0	; ^R
+
+kbdhome:		; 6eh	HOME
+	db	3,1,0bh,0,0	; ^K
+
+kbdcls:			; 6fh	CLS
+	db	3,1,0ch,0,0	; ^L
+
+kbdscrn:		; 0bh	SCRN DUMP
+	db	3,2,1bh,'P',0
+
+kbdhelp:		; 0ch	HELP
+	db	3,0,0,0,0
+
+kbdffh:			; (position unknown)
+	db	1,1,0ffh	; in case 0ffh is a valid keyboard character
+
+;
+; table of pointers to programable function keys and cursor keys
+;
+pfntble:
+	dw	kbdf1		; 10 function keys
+	dw	kbdf2
+	dw	kbdf3
+	dw	kbdf4
+	dw	kbdf5
+	dw	kbdf6
+	dw	kbdf7
+	dw	kbdf8
+	dw	kbdf9
+	dw	kbdf10
+	dw	kbd000		; numeric pad 000 (or 00 on german keyboard)
+	dw	kbdup		; up arrow (1eh)
+	dw	kbdleft		; left arrow (1dh)
+	dw	kbdrght		; right arrow (1ch)
+	dw	kbddown		; down arrow (1fh)
+	dw	kbdins		; INS (12h)
+	dw	kbdhome		; HOME (0bh)
+	dw	kbdcls		; CLS (0ch)
+	dw	kbdscrn		; SCRN DUMP (1bh)
+	dw	kbdhelp		; HELP
+	dw	00
+
+
+	page
+;===============================
+;list - Centronics parallel port
+;===============================
+
+	dseg		; as system bank already selected
+	cseg		; for testing
+pio$off:
+pio$npa:
+	push	bc
+	push	hl
+	push	de
+	call	pmsg		; beware: this could crunch the stack
+	db	'PRINTER NOT READY',0
+	pop	de
+	pop	hl
+	pop	bc
+pio$wait:
+	in	a,(ppi$bs)	; test status
+	bit	ppi$rdy,a	; test ready bit
+	jr	nz,pio$wait	; wait if not ready
+pio$tst:
+	bit	ppi$pef,a
+	jr	nz,pio$off	; no power at printer
+	bit	ppi$npa,a
+	jr	nz,pio$npa	; no paper or off line
+;------
+pio$out:		;Centronics parallel output driver
+	in	a,(ppi$bs)	; test status
+	bit	ppi$rdy,a	; test ready bit
+	jr	nz,pio$tst	; wait if not ready
+
+	ld	a,c
+	out	(ppi$ad),a	;output character
+
+	xor	a		; reset bit 0 (STB)
+	out	(ppi$cmd),a	; strobe (4*250 nsec)
+	inc	a		; set bit 0
+	out	(ppi$cmd),a
+	ld	a,01101b	; set bit 6 (ACK?)
+	out	(ppi$cmd),a	; enable PIO
+;
+	ret
+
+; optional delay
+	ld	a,10		; delay to allow character to be read
+pio$del:			; dont know if this is necessary
+	dec	a		; (4T) as not in most drivers
+	jr	nz,pio$del	; (12T) but is used by Balcones
+	ret			; delay 7T+9*(4T+12T)+(4T+7T)=162T=40uSec
+
+;------
+pio$sot:		; Centonics parallel port
+	in	a,(ppi$bs)	; read status
+	cpl
+	and	1 shl ppi$rdy	; test ready bit
+	ret	z		; return FALSE if not ready
+	or	-1
+	ret			; return TRUE if ready
+
+
+;----------------------------------------------------------------------
+; pmsg - (see ?pmsg) print message @<(SP)> terminated by a zero
+;	and continue processing at location after message
+; Entry:	<(SP)> = start of message terminated by a zero
+; Return:	Return to address after message
+;----------------------------------------------------------------------
+pmsg:	pop	hl
+	ld	a,(hl)
+	inc	hl
+	push	hl
+	or	a
+	ret	z		;if end of message
+	ld	c,a
+	call	crtout		;display message at CRT
+	jr	pmsg
+
+
+
+;===============
+;Main Serial SIO
+;===============
+
+	dseg		; as system bank already selected
+
+;--------
+ser1sin:		; Main Serial I/O char input status
+	ld	a,(fifst1b)	; 0= not ready, -1 = ready
+	ret
+
+
+;------
+ser1in:			; Main Serial I/O char input
+	ld	a,fif1bl	; length of buffer -1
+	ld	hl,fif1br
+	jp	exfifo
+
+
+;--------
+; ser1fifo - Add character in <A> to serial port fifo buffer
+; RETURN:	carry set if fifo full
+; DESTROYED:	<A>, <HL>, <DE>
+;
+ser1fifo:
+	ld	(fifochar),a	; and temporarily save
+
+	ld	d,fif1bl	; length of buffer -1
+	ld	hl,fif1br	; pointer to last character removed
+	jp	addfifo		; add character to fifo buffer
+
+
+;---------
+ser1sot:		; Main Serial I/O char output status
+	in	a,(sio$bs)
+	and	0100b		; test if TX empty
+	ret	z		; return with NOT READY status
+	or	0ffh		; return with READY status
+	ret
+
+;-------
+ser1out:		; Main Serial I/O char output
+	out	(sio$bd),a	; XMIT character
+	ret
+
+
+	cseg		; must be in common as used by interrupt code
+;----------------------------------------------------------------------
+; Serial i/o port fifo input buffer
+; fifo bytes must be in this order
+;----------------------------------------------------------------------
+fifst1b:
+	db	0		; set to 0ffh when buffer has character
+fif1bf:	db	0		; last byte to fill
+fif1br:	db	0		; last byte removed
+fif1b:	ds	16		; 16 byte buffer
+fif1bl	equ	$-fif1b-1	; length of buffer less 1
+
+;===================
+;Option Serial SIO-A
+;===================
+
+	dseg
+ser2in:			; Option Serial I/O char input
+
+ser2out:		; Option Serial I/O char output
+
+ser2sin:		; Option Serial I/O char input status
+
+ser2sot:		; Option Serial I/O char output status
+	xor	a
+	ret		; ** not implemented **
+
+;===================
+;Option Serial SIO-B
+;===================
+
+	dseg
+ser3in:			; Option Serial I/O char input
+
+ser3out:		; Option Serial I/O char output
+
+ser3sin:		; Option Serial I/O char input status
+
+ser3sot:		; Option Serial I/O char output status
+	xor	a
+	ret		; ** not implemented **
+
+	page
+
+; =========================================
+; General utilities to support fifo buffers
+; =========================================
+
+;----------------------------------------------------------------------
+; addfifo - Add character in to fifo buffer
+; Entry:	(fifochr) contains character to add to buffer
+;		<D> = length-1 of fifo buffer
+;		<HL> -> fifo parameter block
+; RETURN:	carry set if fifo full
+; DESTROYED:	<A>, <HL>, <DE>
+;----------------------------------------------------------------------
+addfifo:
+	ld	a,(hl)		; last character removed
+	dec	hl
+	ld	e,(hl)		; last character filled
+	dec	hl		; pointer to fifo status
+	cp	e		; test if removed = filled
+	jr	nz,fifoadd	; -no-
+	ld	a,(hl)		; -yes- test if fifo empty or full
+	or	a
+	scf			; set error flag in case
+	ret	nz		; -full-
+fifoadd:	or	-1
+	ld	(hl),a		; set status to ready
+	inc	e
+	ld	a,d		; length of buffer -1
+	cp	e
+	jr	nc,fiford
+	xor	a
+	ld	e,a
+fiford:	inc	hl		; pointer to byte to fill
+	ld	(hl),e		; update last character filled
+	inc	hl		; pointer to byte removed
+	inc	hl		; pointer to fifo buffer
+	ld	d,0		; fifo buffer
+	add	hl,de		; pointer to byte to be filled
+	ld	(hl),0		; add character to fifo
+fifochar	equ	$-1
+	xor	a
+	ret			; return with carry not set
+
+;----------------------------------------------------------------------
+; EXFIFO
+; Entry:	<A> = length of buffer -1
+; 		<HL> -> fifo parameter block
+; Return:	Set 'EMPTY' status of fifo parameter block
+; Function:	Take character out of fifo buffer.
+;		this assumes fifo status already tested.  
+;----------------------------------------------------------------------
+exfifo:
+	di
+	ld	e,(hl)		; offset to last character removed
+	inc	e		; move to next character
+	cp	e		; test with length-1
+	jp	nc,efiupd
+	ld	e,0		; > length-1 so set to zero
+efiupd:	ld	(hl),e		; update last character removed
+	dec	hl
+	ld	a,(hl)		; offset to last character added
+	sub	e		; see if same
+	jp	nz,efird
+	dec	hl		; -yes- taken last character
+	ld	(hl),a		; set status to not ready
+	inc	hl
+efird:	inc	hl
+	inc	hl		; fifo buffer
+	ld	d,0
+	add	hl,de
+	ld	a,(hl)		; character
+	ei			; breath again
+	ret
+
+	page
+
+	dseg		; as system bank already selected
+; =================================
+; set baud rates for serial devices
+; =================================
+
+set$baud:
+	ld	b,0
+	ld	hl,@cpm3b
+	add	hl,bc
+	add	hl,bc
+	ld	c,(hl)
+	inc	hl
+	ld	b,(hl)		; bc = required baud rate
+;
+	xor	a
+	ld	(sb$div),a
+	ld	h,a
+	ld	l,a		; set count to zero
+	ld	d,a
+	ld	e,a		; set counter to zero
+sb$dvd:
+	add	hl,bc
+	ld	a,(sb$div)
+	jp	nc,sb$nc
+	inc	a
+	ld	(sb$div),a
+sb$nc:	inc	de
+	cp	clk$f/256
+	jp	c,sb$dvd
+	jp	nz,sb$cnt
+	ld	a,h
+	cp	clk$f and 0ffh
+	jp	c,sb$dvd
+	jp	nz,sb$cnt
+	inc	de
+sb$cnt:
+	dec	de		; count
+;
+	ld	a,(timer)	; previously set to reqired timer
+	ld	c,clk$bc
+	out	(c),a		; set timer counter mode
+
+	ld	a,(clk$no)	; required port
+	ld	c,a
+	ld	a,e
+	out	(c),a		; set low bit rate
+
+	ld	a,d
+	out	(c),a		; set high bit rate
+
+	ret
+
+clk$no:	db	0		; set to keyboard or RS232 clock port number
+timer:	db	110110b		; clock command - set bit 6 & 7 to counter no.
+sb$div:	db	0		; temp data for divide
+
+; ------------------------------
+; set keyboard baud rates = 1200
+; ------------------------------
+
+key$baud:
+	ld	c,8		;1200 baud
+	ld	a,01110110b	; main board KB timer (counter no 1)
+	ld	(timer),a		; clock command
+	ld	a,clk$bk	; keyboard clock port
+	ld	(clk$no),a
+	jp	set$baud	; and set baud rate
+
+; -------------------------------
+; set serial i/o baud rate to <C>
+; -------------------------------
+
+ser1baud:
+	ld	a,10110110b	; main board RS timer (counter no 2)
+	ld	(timer),a	; clock command
+	ld	a,clk$br	; RS232 clock port
+	ld	(clk$no),a
+	jp	set$baud	; and set baud rate
+
+ser2baud:		; not configured for actual device yet - action
+	ret
+
+ser3baud:		; not configured for actual device yet - action
+	ret
+
+; ====================================================
+; Initialise the SIO device to default settings
+; ====================================================
+
+	dseg		; as system bank already selected
+; action required
+key$set:		; set up SIO and interrupt vector
+
+ser1set:
+
+ser2set:
+
+ser3set:
+	ret
+
+;---------------------------------------------------------------
+
+	end
