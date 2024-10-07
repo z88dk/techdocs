@@ -1,0 +1,242 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS memory and system functions
+
+	name	('BIOS3A6')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1982 D. Powys-Lybbe (Excludes D.R. Inc sample BIOS)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 7th June 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; A	Jun 83 - Based on Xerox version C
+; ALPHA Aug 8,83
+; 	Oct16 83
+;	Oct 29,83 XMOVE goes live
+;
+; Note:
+; =====
+; To avoid conflict with GENCPM, the resident entry points
+; must not be public.
+;------------------------------------------------------------------
+
+;----------------------
+; CP/M 3 BIOS FUNCTIONS
+;----------------------
+
+;MEMORY SELECTS AND MOVES
+	public	move,xmove,selmem
+
+;CLOCK SUPPORT
+	public	time
+	public	?tinit			; initialise timer interrupts
+
+;----------------------------
+; EPSON 820-II BIOS FUNCTIONS
+;----------------------------
+
+; memory control
+
+	public	@cbnk,@sbnk,@tbnk	; current, system and tpa bank number
+	public	?xmove,?move,@xbc	; select move bank & block move
+	public	?tpabnk,?sysbnk		; select TPA or SYStem bank
+	public	?bank			; select bank in <A>
+	public	@bnkno			; table of epson bank numbers (0-3)
+
+; clock support
+
+	public	?time			; signal time operation
+
+; External names for BIOS entry points defined in CBIOS.MAC
+
+	extrn	?boot,?wboot,?const,?conin,?cono,?list,?auxo,?auxi
+	extrn	?home,?sldsk,?sttrk,?stsec,?stdma,?read,?write
+	extrn	?lists,?sctrn
+	extrn	?conos,?auxis,?auxos,?dvtbl,?devin,?drtbl
+	extrn	?mltio,?flush,?mov,?tim,?bnksl,?stbnk,?xmov
+
+;-------------------------------------------------------------
+; PUBLIC SYMBOLS IN EPSON QX-10 CP/M 3 BIOS
+;-------------------------------------------
+
+; general utility routines
+
+	extrn	?idle			; called whenever function waiting
+
+; common memory
+
+	extrn	@cbuff			; 128 byte buffer in common memory
+	extrn	@cpage			; base page of common memory
+	extrn	@commonsp		; stack area in common memory
+
+
+;--------------------------------------------------------------------------
+
+bit0	equ	1 shl 0
+bit1	equ	1 shl 1
+bit5	equ	1 shl 5
+bit6	equ	1 shl 6
+bit7	equ	1 shl 7
+
+	maclib	CBIOS.EQU	; QX-10 Hardware definition
+
+
+	page
+
+;-----------------------------------------------------------------------------
+;
+;	Memory and Bank routines
+;
+; move		Memory move for large memory copy
+; xmove		Set banks for following MOVE function
+; selmem	Select alternative bank of memory (and save in @cbnk)
+; setbnk	Select bank for DMA operation
+;
+;       Time routine
+; time		Support date/time clock
+;
+;	Local BIOS routines
+; ?tpabnk		; Select TPA bank
+; ?sysbnk		; Select SYS bank
+; ?bank			; Select bank specified in <A>
+;
+; @tbnk			; tpa bank number (in unbanked = 0)
+; @sbnk			; system bank number (in unbanked = 0)
+; @cbnk			; current bank number (in unbanked = 0)
+;-----------------------------------------------------------------------------
+
+;-----------------------------------------------------------------------------
+; MOVE	(25)	Fast Z80 block memory move
+; Input		hl = Destination address (not cf Z80)
+;		de = Source address
+;		bc = Number of bytes to move (cf Z80)
+; Returns	hl = hl + BC
+;		de = de + bc
+;-----------------------------------------------------------------------------
+
+	cseg		; MUST be in common
+
+@xbc:	dw	-1	; save bank for moves (initialised by SELDSK)
+
+move:
+?move:	ld	a,b
+	or	c
+	ret	z	; should never happen
+	ex	de,hl
+	ldir
+	ex	de,hl
+	ret
+
+;-----------------------------------------------------------------------------
+; XMOVE	 (29)	Select memory banks for subsequent MOVE
+; Input		b  = Destination bank
+;		c  = Source bank
+; Returns	none
+; Function:	XMOVE is provided for banked systems that support
+;		memory to memory DMA transfers over the entire
+;		extended address range.
+;		XMOVE should set up memory banks for the next MOVE.
+; If XMOVE is not implemented then the first instruction must be a RET.
+;-----------------------------------------------------------------------------
+
+	cseg	; does not need to be in common as ?XMOVE does real work
+xmove:
+?xmove:
+	ret
+
+;-----------------------------------------------------------------------------
+; SELMEM  (27)	Select memory bank
+; Input		a  = Bank to be selected
+; Returns	ALL REGISTERS OTHER THAN <A> MUST BE PRESERVED
+;
+; EPSON QX-10 supports up to 5 banks:
+; Bank 0 - System Bank (0000h - EFFFh) (NB this is EPSON CP/M tpa bank)
+; Bank 1 - TPA Bank    (0000h - EFFFh) (NB this is EPSON CP/M system bank)
+; Bank 2 - Optional E: (0000h - EFFFh)
+; Bank 3 - MBASIC or F: (0000h - EFFFh)
+; CMOS   - 2k           (8000h - 8800h)
+; (NOTE when CMOS selected DRAM is usuable below 8000h)
+; Common -  4k	       (F000h - FFFFh)
+; (NOTE common size can be changed by jumper J4
+; PROM   -  2k         (0000h - 0800h)
+;
+; DRAM bank is selected by high nibble of out (18h)
+; DRAM in use can be read from high nibble of in (30h)
+;
+; PROM is selected/disabled by set/clear bit 0 of out (1ch)
+; CMOS is selected/disabled by set/clear bit 0 of out (20h)
+;
+;-----------------------------------------------------------------------------
+
+	cseg		; MUST be in common
+
+@bnkno:	db	00010000b	; bank 0 (initialised in cold boot)
+	db	00100000b	; bank 1 (initialised in cold boot)
+	db	01000000b	; bank 2
+	db	10000000b	; bank 3
+;(note: 00000000b turns off ALL banks)
+
+selmem:
+?bank:
+bank:
+	ret			; DONT do anything in LOADER BIOS
+
+?sysbnk:
+	ld	a,0	; Select SYSTEM bank (default is unbanked system)
+@sbnk	equ	$-1	; system bank (1 = banked, 0 = unbanked)
+	jr	?bank
+
+?crnbnk:	; no longer used
+	ld	a,0	; Select bank specified in @CBNK (default is TPA)
+@cbnk	equ	$-1	; current bank (0 = banked tpa, 1 = banked system)
+	jr	?bank
+
+?tpabnk:
+	ld	a,0	; Select TPA bank (default is unbanked system)
+@tbnk	equ	$-1	; tpa bank (0 = banked, 0 = unbanked)
+	jr	?bank
+
+;-----------------------------------------------------------------------------
+; GETMEM	Get current value for bank selected
+; Input		none
+; Returns	a  = current bank number
+;		ALL OTHER REGISTERS UNCHANGED
+;-----------------------------------------------------------------------------
+
+?getmem:
+	in	a,(getbnk)
+	rrca		; shift high nible to low
+	rrca
+	rrca
+	rrca
+	and	0fh	; mask out other bits
+	ret
+
+	page
+
+;-----------------------------------------------------------------------------
+; TIME	 (26)	Clock support function
+; Input		<C> Set/Get Time Flag
+; Returns	none
+; Destroyed:	All registers (NB Beta vers ALL REGISTERS UNCHANGED exc <ABC>
+; Function:	TIME is called to indicate to the BIOS either:
+;		<C> = 00h/ BDOS is to read the time and date fields in the SCB
+;		<C> = FFh/ BDOS has set time and date fields in the SCB
+;		If the time and date fields are maintained by interrupts, then
+;		there is no need to do anything.
+;		Else BIOS should access its own (hardware) clock
+;-----------------------------------------------------------------------------
+
+time:
+?time:
+?tinit:
+	ret			; DONT do anything in LOADER BIOS
+
+;-----------------------------------------------------------------------------
+
+	end
+
