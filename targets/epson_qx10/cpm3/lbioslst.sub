@@ -1,0 +1,5 @@
+; MICROSOFT assembly
+a:biton
+a:m80 ,lst:=lbios3a0
+a:biton
+a:m80 ,lst:=lbios3a8
