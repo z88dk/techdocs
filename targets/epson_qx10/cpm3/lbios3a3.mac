@@ -1,0 +1,227 @@
+	.z80
+	title	EPSON QX-10 CPM3 BIOS crt driver
+
+	name	('BIOS3A3')
+
+;------------------------------------------------------------------
+; Customised CP/M 3 BIOS for EPSON QX-10
+;
+; Copyright 1983 D. Powys-Lybbe (Excludes CRT drivers from EPSON)
+; Author: D. Powys-Lybbe, MML Systems Ltd., London
+; Date: 14th November 1983
+;
+;------------------------------------------------------------------
+; Revisions
+; =========
+; 	Nov 14,83 - Taken from CBIOS3A3 and QX-10 IPL
+;
+;------------------------------------------------------------------
+
+
+;====================================
+; user defined character I/O routines
+;====================================
+
+;CRT
+	public	crtout,crtsot
+
+;------------------------------------------------------------------
+
+	page
+
+;			======================
+;			PHYSICAL DEVICE DRIVER
+;			======================
+
+;===
+;CRT
+;===
+	dseg		; as system bank already selected
+;----------------------------------------;
+crtsot:			; CRT ouput status
+;----------------------------------------;
+	ld	a,-1		; CONSOLE is always ready for output
+	ret
+
+;--------------------------------------------------------------;
+crtout:			;CRT character output (character in <C>)
+;--------------------------------------------------------------;
+	in	a,(2ch)
+	and	01b		; Colour ?
+	ret	nz		; -yes- so return as we cant display
+
+	ld	a,c
+	cp	020h
+	jp	nc,cout
+	cp	0dh
+	jr	z,crt_cr
+	cp	0ah
+	jr	z,crt_lf
+	cp	26
+	jr	z,crt_cs
+	ret			; Ignore any other CTRL-CODE
+
+crt_cs:			; CLEAR & HOME SCREEN
+	call	clrcrt		; Clear VRAM
+	ld	hl,0
+	ld	(crtpos),hl	; HOME CRT
+	ld	(v_base),hl
+	xor	a
+	ld	(h_pos),a	; And zero our column position
+	ld	(v_pos),a
+	ret
+
+crtpos:	dw	0
+h_pos:	db	0	; Current cursor column (base 0)
+v_pos:	db	0	; Current cursor row (base 0)	
+v_base:	dw	0	; CRT address at start of line
+
+crt_cr:			; CARRIAGE RETURN
+	xor	a
+	ld	(h_pos),a
+	ld	hl,(v_base)
+	ld	(crtpos),hl
+	ret
+
+crt_lf:			; LINE FEED
+	ld	de,80
+
+	ld	hl,(crtpos)
+	add	hl,de
+	ld	(crtpos),hl
+
+	ld	hl,(v_base)
+	add	hl,de
+	ld	(v_base),hl
+
+	ld	a,(v_pos)
+	cp	25		; We have gone off the end
+	ret	c
+
+	ld	hl,0
+	ld	(v_base),hl	; MOVE to first ROW
+	ld	a,(h_pos)	; but stay at this COLUMN
+	ld	l,a
+	ld	(crtpos),hl	; Move CRT to top line
+	xor	a
+	ld	(v_pos),a	; and zero row count
+	ret
+
+chk_curs:			; check horizontal position
+	ld	a,(h_pos)
+	sub	80
+	ret	c
+	ld	(h_pos),a
+	call	crt_lf
+	jr	chk_curs
+
+cout:			; output a character
+	call	chk_curs	; just check column position first
+	ld	hl,(crtpos)
+	call	WTO
+	inc	hl
+	ld	(crtpos),hl
+	ret
+
+
+;---------------------------------------------------------------
+;		start of crt driver
+; 	(extracted from EPSON QX-10 IPL )
+;---------------------------------------------------------------
+
+;------------------------;
+;	I/O PORT ADDRESS MAP	;
+;------------------------;
+
+CRTS	EQU	38H ; CRT. STATUS
+CRTD	EQU	39H ;	DATA
+CRTZ	EQU	3AH ;	ZOOM
+
+
+;************	MACRO DEFINE.	*******************
+;
+;
+;CCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+;
+;7220 FIFO EMPTY CHK
+;
+;CCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+
+EMPTY	MACRO	
+	IN	A,(CRTS)	; READ STATUS.
+	AND	00000110B 
+	XOR	00000100B	;FIFO EMPTY CHK
+	JR	NZ,$-6	;IF NOT EMPTY WAIT
+	ENDM
+ 
+;*****************
+;* CLEAR DISPLAY *
+;*****************
+;*
+CLRCRT:	EMPTY			; CLEAR VRAM.	(MONO)	10/26/82
+	LD	A,49H		; CSRW
+	OUT	(CRTD),A
+	XOR	A
+	OUT	(CRTS),A
+	OUT	(CRTS),A
+	LD	B,4		; VRAM SIZE 128K BYTES. 02/19/83 0301
+CLRCRT1:LD	HL,03FFFH	; 32K BYTES.		02/19/83 0301
+	LD	A,4CH		; VECTW C.
+	OUT	(CRTD),A
+	LD	A,2
+	OUT	(CRTS),A
+	LD	A,L
+	OUT	(CRTS),A
+	LD	A,H
+	OUT	(CRTS),A
+	LD	A,4AH		; MASK C
+	OUT	(CRTD),A
+	LD	A,0FFH
+	OUT	(CRTS),A
+	OUT	(CRTS),A
+	LD	A,20H		; WRITE C.
+	OUT	(CRTD),A
+ 	XOR	A
+	OUT	(CRTS),A
+	OUT	(CRTS),A
+	EMPTY
+	DJNZ	CLRCRT1		;			02/19/83 0301
+	ret
+
+
+;CCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+;
+; COUT:	WRITE TO CRT
+;
+; (CRTPOS) 	- Current display address
+; <C> 		- Character to display
+;
+;CCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+
+WTO:
+	EMPTY			; EMPTY CHK.
+	LD	A,01001001B	;C	CSRW
+	OUT	(CRTD),A
+	LD	A,l		;P1	EAD LOW
+	OUT	(CRTS),A
+	LD	A,h		;P2	EAD HIGH
+	OUT	(CRTS),A
+	LD	A,01001010B	;C	MASKW
+	OUT	(CRTD),A
+	LD	A,0FFH		;P1	MASK LOW
+	OUT	(CRTS),A
+	LD	A,0FFH		;P2	MASK HIGH
+	OUT	(CRTS),A
+	EMPTY			; EMPTY CHK
+	LD	A,00100000B	;C	CODEW MOD=00
+	OUT	(CRTD),A
+	LD	A,c		;P1	CODE LOW
+	OUT	(CRTS),A
+	LD	A,000H		;P2	CODE HIGH  ATTR.
+	OUT	(CRTS),A
+	EMPTY			; EMPTY CHK
+	ret			; RETURN TO CALLER.
+
+;---------------------------------------------------------------
+
+	end
