@@ -332,7 +332,7 @@ print.year:
 	ret
 	
 ;----------------------------------------------------------------------------
-print.time::
+print.time:
 	lda	todhr
 	lxi	h,AM.string
 	mov	b,a
@@ -342,8 +342,6 @@ print.time::
 	cpi	13h
 	jc	..its.am
 	sui	12h
-	daa
-	nop
 	lxi	h,PM.String
 	mov	b,a		;replace amended bcd
 ..its.am:
@@ -440,4 +438,5 @@ PM.String:	db	' PM, ',0
 
 end dates
 ;the end
+
 
