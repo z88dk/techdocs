@@ -1,0 +1,98 @@
+
+
+                   EPSON QX-10      CP/M PLUS
+                   --------------------------
+
+                   BUG REPORT - December 1983
+                 ACCESSING SYSTEM TIME AND DATE
+                 ------------------------------
+
+BDOS 105 - Get Date and Time
+
+This  BDOS function should copy the system internal date and time 
+into  the  4-byte DAT structure passed as a pointer  in  register 
+pair DE.
+
+Under the BETA release of the implementation of CP/M Plus on  the 
+Epson QX-10, this BDOS function fails to pass the date and time.
+
+Instead the BETA release copies the date and time into any 4 byte 
+area  at random over the whole 64k TPA area.  The result of  this 
+could be catastrophic.
+
+  *************************************************************
+  *** Users should avoid the use of this BDOS function 105. ***
+  *************************************************************
+
+Alternative  method of accessing the date and time is to use  the 
+method  employed  by  the DATE facility,  that is to  access  the 
+System Control Block directly. This can be accomplished using the 
+BDOS  function 49.  But prior to the call to the  System  Control 
+Block,  the user must first make a call to the BIOS Time function 
+26 (using the BDOS function 50).
+
+The DATE facility fails to repeatedly call the BIOS Time function 
+26  and consequently the command 'DATE C' does  not  continuously 
+update the displayed clock.
+
+BUG FIX
+-------
+The  error in the BETA BIOS which causes the failure of the  BDOS 
+function  105 has been corrected and tested and will be  included 
+in  the  next release of the customised BIOS for the  QX-10.  The 
+current BETA release, unfortunately, cannot be upgraded.
+
+.cp10
+Example of using function 49 to read the system date and time
+-------------------------------------------------------------
+
+     .z80           ; requires Microsoft M80 assembler
+
+     dseg
+biospb:   db   26   ; BIOS TIME function
+          db   0    ; <A>
+          dw   0    ; <BC>    C = 0 To Read QX-10 Clock
+          dw   0    ; <DE>
+          dw   0    ; <HL>
+
+scbpb1:   db   58h  ; Offset to number of days
+          db   0    ; GET operation
+scbpb2:   db   5ah  ; Offset to hours and minutes
+          db   0    ; GET operation
+scbpb3:   db   5bh  ; Offset to minutes and seconds
+          db   0    ; GET operation
+scbpb4:   db   5ch  ; Offset to seconds
+          db   0    ; GET operation
+
+days:     dw   0    ; Number of days since Jan 1st 1978
+hrmn:
+hours:    db   0    ; Time of day - hours as 2 digit BCD
+mins:     db   0    ; Time of day - minutes as 2 digit BCD
+secs:     db   0    ; Time of day - Seconds as 2 digit BCD
+
+     cseg
+
+     ld   c,50      ; BDOS Direct Bios Call
+     ld   de,biospb ; BIOS parameter block - Time
+     call 0005h
+
+     ld   c,49      ; BDOS Get/Set System Control Block
+     ld   de,scbpb1 ; SCB parameter block - Get days
+     call 0005h
+     ld   (days),hl
+
+     ld   c,49      ; BDOS Get/Set System Control Block
+     ld   de,scbpb2 ; SCB parameter block - Get Hours and mins
+     call 0005h
+     ld   (hrmn),hl
+
+     ld   c,49      ; BDOS Get/Set System Control Block
+     ld   de,scbpb4 ; SCB parameter block - Get Seconds
+     call 0005h
+     ld   (secs),a
+
+     end
+
+------------------
+15th December 1983
+
