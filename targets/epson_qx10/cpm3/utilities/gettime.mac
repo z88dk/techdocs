@@ -342,8 +342,8 @@ print.time:
 	cpi	13h
 	jc	..its.am
 	sui	12h
-	;; daa
-	;; nop
+	daa			; | <-- fix ?
+	nop			; |
 	lxi	h,PM.String
 	mov	b,a		;replace amended bcd
 ..its.am:
