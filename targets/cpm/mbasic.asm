@@ -25392,10 +25392,10 @@ ENDIF
   LD HL,WARM_BT
 
 ; Patch myself to do a warm start.   This allows SAVE in CP/M, etc..
-; This instruction was removed in the late MBASIC versions
-IF !ORIGINAL
-  LD (L0100+1),HL
-ENDIF
+; This instruction was removed in the late MBASIC versions, apparently the trick doesn't work anymore !
+; IF !ORIGINAL
+;   LD (L0100+1),HL
+; ENDIF
   JP INITSA
 
 IF ORIGINAL
