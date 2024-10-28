@@ -27,7 +27,7 @@ defc DIRTMP  =  BASE+$0080
 ;
 ; Rebased CP/M buid (e.g. the Alphatronic-P2 has BASE at $4200)
 ;
-; z80asm -b -DORIGINAL -DBASE=16896 -m8085 mbasic.asm
+; z80asm -b -DBASE=16896 -m8085 mbasic.asm
 ; z88dk-appmake +cpmdisk -f alphatp2 --container=imd  -b mbasic.bin
 
 
@@ -6799,7 +6799,7 @@ NOTEQV:
 ;
 ; This entry point is used by the routine at __FRE.
 GIVDBL:
-IF ORIGINAL
+IF ORIGINAL | __CPU_8080__ | __CPU_8085__
   LD A,L                 ;[H,L]=[H,L]-[D,E]
   SUB E
   LD L,A
@@ -7249,7 +7249,7 @@ ISMID:
 ;
 ; a.k.a. FNINP
 
-IF ORIGINAL
+IF ORIGINAL | __CPU_8080__ | __CPU_8085__
 __INP:
   CALL CONINT             ;GET INTEGER CHANNEL #
   LD (INPORT),A           ;GEN INP INSTR
@@ -7270,7 +7270,7 @@ __INP_0:
 ENDIF
 
 
-IF ORIGINAL
+IF ORIGINAL | __CPU_8080__ | __CPU_8085__
 ; 'OUT' BASIC command
 __OUT:
   CALL SETIO              ;GET READY
@@ -7435,7 +7435,7 @@ DEPINT:
   OR A
   RET
 
-IF ORIGINAL
+IF ORIGINAL | __CPU_8080__ | __CPU_8085__
 ; Get "BYTE,BYTE" parameters
 ;
 ; Used by the routines at __OUT and __WAIT.
