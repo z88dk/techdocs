@@ -24,7 +24,11 @@ defc DIRTMP  =  BASE+$0080
 ;
 ; z80asm -b -DORIGINAL -DCPMV1 -m8080 mbasic.asm
 ; ren mbasic.bin MBASIC.COM
-
+;
+; Rebased CP/M buid (e.g. the Alphatronic-P2 has BASE at $4200)
+;
+; z80asm -b -DORIGINAL -DBASE=16896 -m8085 mbasic.asm
+; z88dk-appmake +cpmdisk -f alphatp2 --container=imd  -b mbasic.bin
 
 
 ; ZX Spectrum +3 graphics and Terminal
@@ -116,8 +120,8 @@ defc DIRTMP  =  BASE+$0080
 ; z88dk-appmake +zx --lec-cpm -b zxbasic.com --org 256 zxbasic.tap
 
 
-; ZX Spectrum CS-DISK interface CP/M 2.2 (untested)
-;--------------------------------------------------
+; ZX Spectrum CS-DISK interface (untested)
+;-----------------------------------------
 ;
 ; z80asm -b -DHAVE_GFX -DZXPLUS3 -DZXCSDISK -DVT52 -DBIT_PLAY -DTAPE mbasic.asm
 ; ren mbasic.bin zxbasic.com
@@ -3320,7 +3324,7 @@ ENDIF
 
 ; Data block at 3480
 SMC_PRINTMSG:
-  DEFW $0000
+  DEFW CPMWRM
 
 ; Routine at 3482
 READY_0:
@@ -20368,7 +20372,7 @@ __SYSTEM:
   CALL CLSALL               ;CLOSE ALL DATA FILES
 ; This entry point is used by the routine at _ERROR_REPORT.
 EXIT_TO_SYSTEM:
-  JP $0000                  ;WARM START CP/M
+  JP CPMWRM                 ;WARM START CP/M
 
 
 
@@ -21091,7 +21095,7 @@ SUBRET:
 ; Move bytes from [H,L] to [D,E] [B,C] times
 _LDIR:
   PUSH BC                 ;Save count
-IF __CPU_8080__
+IF __CPU_8080__ | __CPU_8085__
 _LDIR1:
   LD A,(HL)               ;Get byte
   LD (DE),A               ;Store it
@@ -24740,7 +24744,7 @@ INIT:
   CALL STKINI
   LD (TTYPOS),A
   LD (SAVSTK),HL            ;WE RESTORE STACK WHEN ERRORS
-  LD HL,($0001)             ;GET START OF BIOS VECTOR TABLE
+  LD HL,(BASE+$0001)        ;GET START OF BIOS VECTOR TABLE
   LD BC,$0004               ;CSTS
   ADD HL,BC                 ;ADD FOUR
   LD E,(HL)                 ;PICK UP CSTS ADDRESS
@@ -25386,6 +25390,12 @@ ENDIF
   LD (SMC_PRINTMSG),HL
   CALL OUTDO_CRLF         ; PRINT CARRIAGE RETURN
   LD HL,WARM_BT
+
+; Patch myself to do a warm start.   This allows SAVE in CP/M, etc..
+; This instruction was removed in the late MBASIC versions
+IF !ORIGINAL
+  LD (L0100+1),HL
+ENDIF
   JP INITSA
 
 IF ORIGINAL
