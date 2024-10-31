@@ -4,6 +4,29 @@ The CP/M 2.2 implementation is by Kamil Karimov (https://zx-pk.ru/threads/155-zx
 it was originally written for the Quorum Spectrum clone and adapted to a the standard ZX
 memory model (TPA at $6001) in 2005.
 
+The CP/M boot disk MUST NOT be used as a normal ZX Spectrum disk, just type RUN to boot.
+The CATalog you see on the Spectrum side is not significant anymore, to edit the disk content
+you need to ues CPMTOOLS, here's a valid diskdefs configuration:
+
+# ZX Quorum 128
+# ZX Profi (KLUG CP/M)
+# ZX HOBBIT
+diskdef quorum
+  seclen 1024
+  cylinders 80
+  sectrk 5
+  heads 2
+  blocksize 2048
+  maxdir 128
+  boottrk 4
+  os 2.2
+end
+
+
+You can also create a brand new non-bootable disk image with z88dk-appmake +cpmdisk,
+specifying the "quorum" disk type, the right disk container for TRD images is 'raw'.
+
+
 
 How to build ASM.CM6:
 cpmemu\cpm asm as0com.asm
