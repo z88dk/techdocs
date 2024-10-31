@@ -1,3 +1,4 @@
+
 CP/M software converted to the ZX Spectrum 128 + Betadisk interface (a.k.a. Pentagon 128)
 
 The CP/M 2.2 implementation is by Kamil Karimov (https://zx-pk.ru/threads/155-zxcpm.html),
@@ -27,7 +28,6 @@ You can also create a brand new non-bootable disk image with z88dk-appmake +cpmd
 specifying the "quorum" disk type, the right disk container for TRD images is 'raw'.
 
 
-
 How to build ASM.CM6:
 cpmemu\cpm asm as0com.asm
 cpmemu\cpm asm as1io.asm
@@ -38,4 +38,7 @@ cpmemu\cpm asm as5oper.asm
 cpmemu\cpm asm as6main.asm
 cpmemu\cpm mload asm.cm6=as0com,as1io,as2scan,as3sym,as4sear,as5oper,as6main
 
-mload.cm6 is on a single source file
+How to build ASM.CM6:
+cpmemu\cpm asm mload
+cpmemu\cpm mload mload.cm6=mload
+
