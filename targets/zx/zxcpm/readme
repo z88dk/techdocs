@@ -38,7 +38,7 @@ cpmemu\cpm asm as5oper.asm
 cpmemu\cpm asm as6main.asm
 cpmemu\cpm mload asm.cm6=as0com,as1io,as2scan,as3sym,as4sear,as5oper,as6main
 
-How to build ASM.CM6:
+How to build MLOAD.CM6:
 cpmemu\cpm asm mload
 cpmemu\cpm mload mload.cm6=mload
 
