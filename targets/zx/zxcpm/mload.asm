@@ -464,7 +464,7 @@ notend:	call	ghbcks		;hi byte of rec ld adrs
 	dad	d		;add in offset
 	dad	b		;and bias
 	shld	hiload		;mark highest true memory load adrs
-	lda	system+2	;validate against top-mem pointer
+	lda	warmbt+2	;validate against top-mem pointer
 	cmp	h
 	jc	memful		;jump if out of memory
 	pop	d		;restore reclen
@@ -576,7 +576,7 @@ lodcom:	inr	m		;bump the comfile flag
 ;
 comlp:	lxi	h,128		;calculate next dma
 	dad	d
-	lda	system+2	;check for space
+	lda	warmbt+2	;check for space
 	cmp	h
 	jc	memful		;jump if none
 	push	h		;else save next dma
@@ -980,7 +980,7 @@ help:	call	errxit		;print help text
 	db	'the filetype enables this     function).'
 	db	cr,lf,cr,lf
 	db	'ZCPR2-style is allowed '
-	db	'("B3:MYFILE.COM,         "A14:MDM7.HEX").'
+	db	'("B3:MYFILE.CM6,         "A14:MDM7.HEX").'
 	db	0
 ;
 ; general error handler
