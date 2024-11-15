@@ -25,10 +25,14 @@ defc DIRTMP  =  BASE+$0080
 ; z80asm -b -DORIGINAL -DCPMV1 -m8080 mbasic.asm
 ; ren mbasic.bin MBASIC.COM
 ;
-; Rebased CP/M buid (e.g. the Alphatronic-P2 has BASE at $4200)
-;
+; Rebased CP/M buid 
+; Alphatronic-P2 (8085, BASE at $4200)
 ; z80asm -b -DBASE=16896 -m8085 mbasic.asm
 ; z88dk-appmake +cpmdisk -f alphatp2 --container=imd  -b mbasic.bin
+
+; TRS-80 Model I Small System Software or FMG (Z80, BASE at $4200)
+; z80asm -b -DBASE=16896 -DCPMV1 mbasic.asm
+; z88dk-appmake +cpmdisk -f omikron --container=imd  -b mbasic.bin
 
 
 ; ZX Spectrum +3 graphics and Terminal
@@ -142,12 +146,6 @@ defc DIRTMP  =  BASE+$0080
 ; ren mbasic.bin zxbasic.com
 ; z88dk-appmake +cpmdisk -f hc2000 --container=dsk -b zxbasic.com
 
-
-
-; Experimental, rebased CP/M on TRDOS by Kamil Karimov
-; (code saved on TAPE, to be manually copied on disk):
-; z80asm -b -DHAVE_GFX -DZXPLUS3 -DBASE=24576 mbasic.asm
-; z88dk-appmake +zx --org 24832 -b mbasic.bin
 
 
 ; Proof of concept:  reusing MSX specific code
@@ -14138,7 +14136,7 @@ ISMAT2:
   POP DE
   RET
 
- 
+
 ; This entry point is used by the routine at READY_0.
 ERR_EDIT:
   LD (ERRFLG),A
