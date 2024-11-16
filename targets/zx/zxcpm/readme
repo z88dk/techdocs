@@ -25,7 +25,9 @@ end
 
 
 You can also create a brand new non-bootable disk image with z88dk-appmake +cpmdisk,
-specifying the "quorum" disk type, the right disk container for TRD images is 'raw'.
+specifying the "quorum" disk type, the right disk container for TRD images is 'raw', e.g.
+z88dk-appmake.exe +cpmdisk -f quorum --container=raw  --extension.trd  -b zcpr.com
+..  B> ren zcpr.cm6=zcpr.com
 
 
 How to build ASM.CM6:
