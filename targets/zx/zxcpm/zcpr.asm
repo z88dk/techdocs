@@ -6,7 +6,7 @@
 
 ; cpmemu m80 zcpr=zcpr.asm
 ; cpmemu l80 zcpr,zcpr/n/e
-; z88dk-appmake.exe +cpmdisk -f quorum --container=raw  --extension.trd  -b zcpr.com
+; z88dk-appmake.exe +cpmdisk -f quorum --container=raw  --extension .trd  -b zcpr.com
 ; ..  B> ren zcpr.cm6=zcpr.com
 
 
@@ -245,7 +245,7 @@ LISTST	EQU	BIOS+002DH	;ENTRY POINT FOR LIST STATUS
 ;
 ; Directory customization equates
 ;
-TWOCOL	EQU	TRUE		;TRUE FOR TWO-COLUMN DIRECTORY DISPLAY
+TCOL	EQU	TRUE		;TRUE FOR TWO-COLUMN DIRECTORY DISPLAY
 WIDE	EQU	TRUE		;TRUE IF WIDE DIRECTORY DISPLAY
 FENCE	EQU	'|'		;CHARACTER BETWEEN FILES
 USRDLM	EQU	':'		;CHARACTER BETWEEN USER NUMBER AND FILE
@@ -1250,7 +1250,7 @@ DIRPR4:
 DIRPR5:
 	LD	A,E		;WHAT TO PRINT
 ;
-	IF	TWOCOL
+	IF	TCOL
 	AND	01H		;OUTPUT <CR><LF> IF 2 ENTRIES PRINTED IN LINE
 	ELSE	
 ;
@@ -1267,9 +1267,10 @@ DIRPR5:
 	DC	'  '	 	;THEN 2 MORE SPACES
 	ELSE	
 ;
-	DEFB	' '		;SPACE
+;	DEFB	' '		;SPACE
 	DEFB	FENCE		;THEN FENCE CHARACTER
-	DC	' '		;THEN SPACE
+;	DC	' '		;THEN SPACE
+	DEFB    0
 	ENDIF	
 ;
 DIRPR6:
@@ -1735,10 +1736,12 @@ PEEK:
 PEEK1:
 	CALL	CRLF		; start new line
 	CALL	PRHEXW		; print address
-	LD	B,16		; 16 values per line
-PEEK2:
 	CALL	PRINT		; space over
 	DC	' '
+	LD	B,16		; 16 values per line
+PEEK2:
+;	CALL	PRINT		; space over
+;	DC	' '
 	LD	A,(HL)		; get hex value
 	INC	HL		; step to next value
 	CALL	PRHEXA		; display value
@@ -1988,3 +1991,4 @@ BOOT:
 ENDLD	EQU	$
 
 	END	
+
