@@ -84,6 +84,14 @@ defc DIRTMP  =  BASE+$0080
 ; z88dk-appmake +cpmdisk -f quorum --container=dsk -b zxbasic.com
 ; samdisk zxbasic.dsk zxbasic.fdi
 
+; Standard ZX Spectrum + Betadisk, rebased CP/M 
+;-------------------------------------------------
+; ZXCPM by Kamil karimov, 2003
+; -DBIT_PLAY works but we have so little space left already !!
+;
+; z80asm -b -DBASE=24576 -DVT52 -DZX128 mbasic.asm
+; z88dk-appmake +cpmdisk -f quorum --container=raw --extension=.trd -b mbasic.bin
+; A> ren zxbasic.cm6=mbasic.com
 
 ; ZX ASC CP/M on LSY256 memory MOD
 ;----------------------------------
@@ -20383,7 +20391,7 @@ IF ZXLEC | ZXCSDISK
   JP OUTDO
 ELSE
 
-IF BIOS20 | PINIX
+IF BIOS20 | PINIX | ZX128
   LD A,12
   JP OUTDO
 ELSE
@@ -20457,7 +20465,7 @@ __LOCATE_1:
   JR NZ,__LOCATE_2
   INC A				; hide cursor
 __LOCATE_2:
-IF BIOS20
+IF BIOS20 | ZX128
 ; TODO: find how to show/hide cursor
 ELSE
   CALL ESCA         ; ESC_y (show/hide cursor)
@@ -20471,6 +20479,32 @@ __LOCATE_3:
 
 ; top-left corner is at 1:1 as for GW-BASIC, while MSX had 0:0
 POSIT:
+
+IF ZX128
+  LD A,$01
+  CALL OUTDO
+ 
+  LD B,H
+  DEC B
+  JR Z,NO_H
+POSIT_H:
+  LD A,21
+  CALL OUTDO
+  DJNZ POSIT_H
+NO_H:
+
+  LD B,L
+  DEC B
+  JR Z,NO_V
+POSIT_V:
+  LD A,10
+  CALL OUTDO
+  DJNZ POSIT_V
+NO_V:
+
+  RET
+ENDIF
+
 IF BIOS20
   LD A,$0B
   CALL OUTDO
