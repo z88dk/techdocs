@@ -44,3 +44,5 @@ How to build MLOAD.CM6:
 cpmemu\cpm asm mload
 cpmemu\cpm mload mload.cm6=mload
 
+Read the comments on top of the source files for more instructions
+
