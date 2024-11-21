@@ -824,8 +824,8 @@ PRTFRE:	CALL	DECPRT		;PRINT K FREE
 DRNAM:		;SAVE DRIVE NAME HERE
 TOTMS1:	DEFM	" : Total of $"
 TOTMS2:	DEFM	"k in $"
-TOTMS3:	DEFM	" files with $"
-TOTMS4:	DEFM	"k space remaining.$"
+TOTMS3:	DEFM	" files, $"
+TOTMS4:	DEFM	"k free$"
 ;
 FENCE:	
     IF	WIDE
