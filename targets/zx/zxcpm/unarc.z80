@@ -853,7 +853,7 @@ WHEEL:	DW	HODRV		; Address of "wheel" byte (this if none)
 	PAGE
 ; Following added in UNARC 1.4:
 
-TYLPS:	DB	23		; No. lines between typeout pauses
+TYLPS:	DB	15		; No. lines between typeout pauses
 ;TYLPS:	DB	0		; Forces continuous typeout always
 
 DBLSZ:	DB	0		; Use DPB for disk allocation block size
@@ -921,40 +921,40 @@ USE4L	EQU	$-USE4		; Above cleared if non-wheel
 
 	DB	']',CR,LF,LF
 	DB	'Examples:',CR,LF
-	DB	'B>',1,'A:SAVE.ARK *.*  '
-	DB	'; List all files in CP/M archive SAVE on drive A',CR,LF
-	DB	'B>',1,'A:SAVE.ARC *.*  '
-	DB	'; List all files in MS-DOS archive SAVE on drive A',CR,LF
-	DB	'A>',1,'SAVE            '
+	DB	'B>',1,'A:FIL.ARK *.*  '
+	DB	'; List files in CP/M archive',CR,LF
+	DB	'B>',1,'A:FIL.ARC *.*  '
+	DB	'; List files in MSDOS archive',CR,LF
+	DB	'A>',1,'FIL  '
 	DB	'; Same as either of above',CR,LF
-	DB	'A>',1,'SAVE *.* N      '
+	DB	'A>',1,'FIL *.* N      '
 	DB	'; Same as above (no screen pauses)',CR,LF
-	DB	'A>',1,'SAVE *.DOC      '
+	DB	'A>',1,'FIL *.DOC  '
 	DB	'; List just .DOC files',CR,LF
 
-USE2:	DB	'A>',1,'SAVE READ.ME    '
+USE2:	DB	'A>',1,'FIL READ.ME    '
 	DB	'; Typeout the file READ.ME',CR,LF
-	DB	'A>',1,'SAVE READ.ME N  '
+	DB	'A>',1,'FIL READ.ME N  '
 	DB	'; Typeout the file READ.ME (no screen pauses)',CR,LF
 USE2L	EQU	$-USE2		; Above cleared if TYFLG=0 and non-wheel
 
-USE3:	DB	'A>',1,'SAVE A:         '
+USE3:	DB	'A>',1,'FIL A:         '
 	DB	'; Extract all files to drive A',CR,LF
-	DB	'A>',1,'SAVE B:*.DOC    '
+	DB	'A>',1,'FIL B:*.DOC    '
 	DB	'; Extract .DOC files to drive B',CR,LF
-	DB	'A>',1,'SAVE C:READ.ME  '
+	DB	'A>',1,'FIL C:READ.ME  '
 	DB	'; Extract file READ.ME to drive C',CR,LF
 USE3L	EQU	$-USE3		; Above cleared if HODRV=0 or non-wheel
 
-USE5:	DB	'A>',1,'SAVE PRN.DAT P  '
+USE5:	DB	'A>',1,'FIL PRN.DAT P  '
 	DB	'; Print the file PRN.DAT (no formatting)',CR,LF
-	DB	'A>',1,'SAVE *.* C      '
+	DB	'A>',1,'FIL *.* C      '
 	DB	'; Check validity of all files in archive'
 USEC:	DB	CR,LF
 USE5L	EQU	$-USE5		; Above cleared if non-wheel
 
-	DB	LF
-	COPR			; Copyright notice last
+	;DB	LF
+	;COPR			; Copyright notice last
 
 ; (We'd like to be unobtrusive, but please don't remove or patch out)
 
@@ -1172,7 +1172,7 @@ ABORT:	LD	DE,ABOMSG	; Print general abort message
 ; Note:	We call PRINT+CRLF, instead of PRINTX, to save a stack level
 
 PEXIT:	CALL	PRINT
-	CALL	CRLF
+;	CALL	CRLF
 	JR	EXIT
 
 	PAGE
