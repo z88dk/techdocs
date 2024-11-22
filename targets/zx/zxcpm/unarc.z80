@@ -1,0 +1,4136 @@
+	TITLE	UNARC   CP/M Archive File Extractor
+
+; How to build for ZXCPM
+
+; cpmemu m80 unarc=unarc.z80
+; cpmemu l80 unarc,unarc/n/e
+;   ->  Origin below loader memory, move anyway(Y or N)? y
+; ren unarc.com unarc.cm6
+
+
+
+IDENT	MACRO
+	DB	'UNARC  1.6  27 Mar 87'
+ENDM
+
+; (Remember to update version/date here and maintain history log below)
+
+SELF	MACRO			; Self-unpacking archive file name
+	DB	'UNARC16'
+ENDM
+
+COPR	MACRO
+	DB	'Copyright(C) 1986,1987 by Robert A. Freed'
+ENDM
+
+	.COMMENT |
+
+NOTICE:  This program is the copyrighted property of its author -- it
+is NOT in the public domain.  HOWEVER...  Free use, distribution, and
+modification of this program is permitted (and encouraged), subject to
+the following conditions:
+
+(1)  Such use or distribution must be for non-profit purposes only.
+(2)  The author's copyright notice may not be altered or removed.
+(3)  Modifications to this program may not be distributed without
+     notification of and approval by the author.
+(4)  The source program code may not be used, in whole or in part,
+     in any other publicly-distributed or derivative work without
+     similar notification and approval.
+
+No fee is requested or expected for the use and distribution of this
+program subject to the above conditions.  The author reserves the right
+to modify these conditions for any future revisions of this program.
+Questions, comments, suggestions, commercial inquiries, and bug reports
+or fixes are welcomed by the author:
+
+		Bob Freed
+		62 Miller Rd.
+		Newton Centre, MA  02159
+		Telephone (617) 332-3533
+|
+	PAGE
+	SUBTTL	Modification History
+
+	.COMMENT |
+
+1.6	27 Mar 87  (RAF)
+
+- Murphy's Law strikes again:  Within hours after the release of version
+  1.5, a bug was discovered.  Incorrect CRC error messages are generated
+  during file extraction in some situations.  This was caused by failure
+  to clear carry before a 16-bit subtract (SBC HL,DE), which we changed
+  inadvertantly in 1.42.  (So much for Beta-testing!)  Such faulty error
+  messages occur only for disk file extraction, not when the 'C' command
+  option is used to check an archive.  Furthermore, the bug occurs only
+  when (1) a file contains an odd number of 128-byte records and (2) the
+  BDOS returns from the last write-record call with carry set.  [Note of
+  interest:  The CP/M 2.2 BDOS returns with carry set only if the output
+  drive is different than the current default drive.  This assumes, of
+  course, that no RSX-type system extensions are in place to intercept
+  BDOS calls:  We would have caught this bug, but for such a system
+  extension which always clears carry before returning from BDOS calls.]
+  Our thanks to Tom Brady for reporting this one.
+
+- Zero-fills last record of .COM file.  (Not needed with Z80ASM and/or
+  SLRNK, but provided so that M80/L80 will generate identical output to
+  that produced by the SLR Systems' tools.)
+
+1.5	24 Mar 87  (RAF)
+
+- UNARC is now distributed as a self-unpacking archive, UNARC15.ARK.
+  This requires: (1) the non-z80 version (UNARCA.COM) must be the FIRST
+  file in the archive, (2) UNARCA.COM must be stored in UNPACKED form
+  using compression version 1, (3) the header for UNARCA.COM must be
+  preceded by the SINGLE byte, 0C3H (opcode for unconditional jump),
+  and (4) the archive must be copied or renamed to UNARCxx.COM on the
+  current disk drive (xx = current version, i.e. UNARC15.COM for this
+  release).  Then, the file is executed with a single optional parameter
+  specifying the disk drive to use for extracting all files (defaults to
+  current drive).  For example, assuming UNARC15.ARK is on drive B:
+
+  A>B:				; Set current drive for UNARC15.ARK
+  B>REN UNARC15.COM=UNARC15.ARK	; Rename it to UNARC15.COM
+  B>UNARC15 [d:]		; Extract files to current drive [or d:]
+
+- Corrects non-Z80 version emulation of the Z80 16-bit add and subtract
+  instructions (ADC_HL and SBC_HL macros), to properly set the Z(ero)
+  condition flag.  Previously, Z reflected only the upper byte of the
+  16-bit result and was incorrect for non-zero results less than 256.
+  This caused a serious bug (in the non-Z80 version, UNARCA.COM, only):
+  Failure to output the last 1-255 bytes of an extracted file in cases
+  where the final output buffer size was less than 256 bytes.  (In
+  particular, ALL files less than 256 bytes in length could not be
+  extracted.)  Thanks to Barry Kaufman (Multipath, Inc., P.O. Box 395,
+  Montville, NJ  07045) for bringing this to our attention.  [This
+  tends to confirm our opinion regarding the prevalence of non-Z80
+  systems, since this bug has been present but unreported since the
+  release of UNARC 1.2.]
+
+- Alters the interpretation of the USELUX definition in the UNARCOVL.ASM
+  overlay file.  USELUX = YES now restricts file typeout buffering to
+  one page (equivalent to TYPGS = 1) instead of altering the upper TPA
+  limit (CCPSV value).  This eliminates the LUXSIZ definition (which
+  specified the size of the LUX RSX-type resident code) and avoids the
+  confusion introduced by recent multiple new versions of LUX from
+  different authors.
+
+- Corrects CP/M 2.2 tab alignment for the first displayed line of file
+  typeout after continuing from a screen pause ([more] message).
+
+- Adds explicit check for CTRL-S (suspend output) in CABORT, to handle
+  cases where standard CP/M 2.2 BDOS misses these.  (Also masks console
+  input characters to 7 bits, in case this is not done, as it should be,
+  by BIOS.  This is an attempt to solve reports of failure to recognize
+  CTRL-C and CTRL-S on some systems.)
+
+- Allows 0-length "crunched" files (i.e. with no code size byte).  [The
+  various MS-DOS ARC utilities differ in their handling of 0-length
+  files.  SEA's ARC generates unpacked (version 2), which we feel is
+  esthetically best, and ARCA generates packed (version 3).  But PKARC
+  generates crunched (version 8), which was regurgitated by earlier
+  UNARC versions due to the absence of the code size byte.]
+
+- Minor code improvements for version 1.42 changes.
+
+- Eliminates DS directives at end of file to avoid wasted space when
+  linked with L80 (as opposed to SLRNK, which handles trailing
+  uninitialized data intelligently).  This also permits overlaying of
+  the self-unpacking initialization code by data in the non-Z80 version.
+
+1.42	07 Jan 87  (RAF)
+
+Interim Beta-test release:
+
+- Supports 'squashed' files (compression version 9) generated by PKARC
+  version 2.0, as defined by Phil Katz' document file SQSHINFO.DOC,
+  dated 12/27/86.  (Katz is certainly doing his best to make life
+  interesting for us.)  Note:  We've made an educated guess that Katz'
+  handling of bypassed output codes after adaptive reset is identical to
+  that of crunched (version 8) files.  (Since there is no requirement
+  for ARC512 compatibility here, he could have handled this in a less
+  brain-damaged manner.  However, on the basis of two very limited test
+  examples, our assumption appears to be true.)  This compression method
+  requires a minimum TPA size of 30K (Z80) or 31K (8080) for extraction
+  (worst case yet).
+
+- Lists total of CRC values (mod 64K), as per suggestion of Steven
+  Greenberg.  This provides a simple single checksum value for comparing
+  files created by different archive programs.  (Since the CRC is
+  computed over the UNcompressed files, this value should be the same
+  for all archives created from the same set of input files, independent
+  of any particular variations in file order or compression methods.)
+
+- Adds trailing command line option 'C' to check the validity of one or
+  more (or all, via *.*) archive members (i.e. to extract them for
+  purposes of CRC and length checking, without storing them as disk
+  files).  This is a quick hack, in response to a suggestion by Keith
+  Petersen.  This option is currently allowed only if the wheel byte is
+  non-zero.  I.e., it is ignored in restricted RCP/M versions (although
+  there is no reason why this could not be allowed, subject to a Sysop-
+  definable patch byte).  Also, the limited command line syntax prevents
+  the simultaneous use of the 'N' option for non-paged typeout (i.e.
+  screen pauses will always occur).  Both of these limitations will be
+  eliminated with addition of enhanced command line processing
+  (including du: user area syntax) in a future release.
+
+- Disallows use of 'P' option for printing files in restricted (RCP/M)
+  versions.  (We inadvertantly failed to implement this as intended in
+  the 1.41 release.  Hopefully, the recipients of that release will
+  honor our limited-distribution request!)  Note that the statement
+  accompanying the 1.41 release is slightly incorrect:  Both 'P' and 'C'
+  options are processed ONLY if the wheel byte is non-zero (and in the
+  absence of an output file drive, which always causes extraction to a
+  disk file); a zero HODRV byte does not, in itself, inhibit these.
+
+- Makes .ARK the preferred default archive filetype.  I.e., first open
+  attempt uses .ARK; second attempt tries .ARC if first is unsuccessful.
+
+- Expands help message usage examples a bit (now that 4K limit is not a
+  concern).
+
+Note:  The additions in 1.41 and 1.42 have pushed the size of the Z80
+version UNARC.COM file above 4K (which means 6K or 8K disk space on most
+systems).  Such is life (and progress):  We've resisted this for a long
+time, but it now seems unavoidable.  The UNARCOVL.ASM overlay file
+distributed with UNARC 1.4 remains applicable for these releases.
+
+1.41	14 Dec 86  (RAF)
+
+Special limited-distribution release:
+
+- Adds trailing command line option 'P' to allow printing of an archive
+  member file on CP/M list device.  This is a quick hack, in response to
+  a user request (Craig Arno, Seattle), to allow direct printing of
+  highly-compressed binary plot images (e.g. 1+ MB files which crunch
+  to < 5% of their original size).  Accordingly, ALL data is passed to
+  the printer in 8-bit form, with no filtering by UNARC (including ^Z).
+  This option is allowed under the same conditions as disk extraction
+  (non-zero HODRV and wheel byte), and the files which may be printed
+  are subject to the filetype exclusion table for typeout.
+
+- Defers initializing listing totals until after CHECK is called.
+  (This moved in 1.4 to accomodate LPS, without realizing it might
+  cause a problem, albeit with an insignificant probability.  LPS
+  is now allocated in code and cleared by CHECK.)
+
+1.4	21 Nov 86  (RAF)
+
+We had hoped NOT to release another update of this program, but to
+replace it entirely by three new programs with enhanced functionality
+(UNARK, ADIR, and ATYPE), in conjunction with the upcoming release of
+the CP/M archive file builder (NOAH).  However, (sigh).....
+
+Corrects bug (exhibited with .ARC's created by version 1.1 or later of
+Phil Katz' PKARC program for MS-DOS) which caused files to be extracted
+incorrectly (with output file length and CRC warnings) due to string
+table reset codes appearing early in crunched files (i.e. before the
+output code length reaches 12 bits).  Thanks to Keith Petersen for
+identifying and notifying us of this problem.
+
+And, while we're at it.....
+
+Adds paging of all displayed output, controlled by non-zero patch byte
+specifying screen lines between pauses (TYLPS, default value = 23).
+This is essentially the feature added by 'Larry Smith' (see version 1.3
+below), but we've been able to do it (with enhancements) and still keep
+the (Z80 version) .COM file below 4K (just!).  Causes '[more]' message
+to appear at bottom of screen.  Space bar scrolls one more line, ^C
+aborts, anything else scrolls one more screenful.  (LINE FEED may be
+used to avoid overprinting the '[more]' line.)  May be defeated for
+continuous typeout by trailing 'N' (after a blank) on command line.
+
+Also:
+
+- If archive filetype omitted, and the default .ARC filetype not found,
+  tries .ARK as an alternate default.  (Anticipates NOAH, and compatible
+  with Irv Hoff's KMD22.)
+
+- Incorporates option to bypass BDOS function 31 call (Get DPB Address),
+  for non-std CP/M clones such as Cromemco CDOS and CP/M-68K emulator
+  for 8080 CP/M 2.2.  (Eliminates UNARC12 patch notice, UNARC-P1.NOT.)
+
+- Allows program name to be patched (at start of USAGE message).
+  Affects all help screen references and abort message.  (E.g., RCP/M
+  sysops may prefer 'ADIR' to 'UNARC'.)
+
+- Corrects count of bytes skipped due to invalid header when processing
+  'self-unpacking' archives with more than 3 preliminary bytes.
+
+- Enhances recovery processing for invalid archive headers, and merges
+  'invalid format' and 'unexpected eof' errors.  This change tends to
+  cause display of a garbage directory entry (before abort) for non-ARC
+  files, but it does allow processing of certain new self-unpacking
+  archives, such as Phil Katz' PKX32A11.COM.
+
+- Changes the replacement for an invalid filename char from '_' to '$'
+  (since underline is not allowed as a filename char by CP/M CCP, and
+  '$' usually carries a 'temporary' significance in CP/M).
+
+- Reduces directory listing width by one column (78 now), to allow
+  one more char without extra blank line on terminals which autowrap
+  after column 80 (e.g. allows leading semicolon generated by MDM7 and
+  IMP during disk file capture of terminal output).
+
+- Adds a few bells to warning and fatal messages, along with a patch
+  byte to disable these (for those who prefer solitude).
+
+- Allows ^K in addition to ^C for program abort requests.  (For certain
+  ancient RCP/M systems which never pass ^C back to user programs.)
+
+- Adds .ARK and .?Z? (CP/M CRUNCH or MS-DOS ZOO 'Z format' files) to
+  list of excluded typeout extensions, and eliminates .CMD (since that
+  might be a readable dBASE command file instead of CP/M-86 binary).
+
+- Simplifies the Z80 CPU check and removes the 'Z80 Version' message
+  in the help display, to save a few bytes in that version.  (Alternate
+  version, UNARCA.COM, now displays '8080 Version'.)
+
+- Adds 8080 version message recommending Z80 version, when run on a Z80.
+
+1.3	--none--   (RAF)
+
+This version bypassed due to appearance of several unauthorized updates
+with the name UNARC13 (and not because of superstition).  Most notably,
+these include Steve Sanders' unnecessary addition of ^S and ^C checking
+during file typeout (because TurboDOS does not properly emulate CP/M's
+handling of these in BDOS function 2 calls), and the addition of paged
+typeout by 'Larry Smith' (whoever he is; a worthwhile enhancement, but
+the release was deficient in several other respects).  WHY CAN'T THESE
+'CONTRIBUTORS' SIMPLY CONTACT THE AUTHOR BEFORE RELEASING THEIR CHANGES
+TO THE PUBLIC?!
+
+1.2	24 Jun 86  (RAF)
+
+Modified to allow assembly of a version which will execute on 8080/8085
+CPU's.  (We resisted this initially but have been made to realize that
+this is necessary to achieve true acceptance of UNARC by the full CP/M
+user community.  Non-Z80 users, particularly RCP/M sysops, still exert
+considerable influence in the world of public domain software.  This,
+we believe, is out of proportion to their numbers, since almost all
+CP/M systems sold in the last five years are Z80-based.  Nevertheless,
+we've accommodated the needs of these users by extensive use of macros
+which serve to emulate Z80 instructions on non-Z80 machines.)  However,
+no attempt has been made to optimize for either size or speed in the
+non-Z80 version (which is 1K larger and 50% or more slower than its
+Z80-only counterpart).
+
+Also:
+
+- Implements a "wheel" byte to simplify use and installation on RCP/M's.
+- Lines up file types in directory listing.
+- Permits processing of "self-unpacking" archives such as the MS-DOS
+  ARC51.COM file (anticipates a future scheme for distributing UNARC).
+- Attempts to recover from bad archive headers by skipping extra bytes.
+- Eliminates archaic "T:" syntax completely for file typeout.
+
+1.1	24 May 86  (RAF)
+
+Minor change to allow file typeout without the "T:" syntax (which
+didn't work with almost ANY CCP replacement)...  File will be typed if
+it:  (1) has no disk drive name, (2) is a single (UNambiguous) file,
+and (3) is not an excluded filetype.  (Else, file will simply be listed
+with no error message.)  This change was suggested by Irv Hoff's mod to
+UNARC10, which he called ADIR.  (Previous "T:" method can still be
+enabled, but it is now undocumented since we will probably drop it
+altogether in future.)
+
+Also shortened on-line help message, so that COM file size is now
+reduced to 4K.  (For RCP/M systems, if HODRV = 0 and/or TYFLG = 0, the
+help information relating to disk extraction and/or file typeout,
+respectively, is automatically removed.)
+
+1.0	03 May 86  (RAF)
+
+First public release.  Supports file formats generated by all versions
+of MS-DOS ARC through (at least) version 5.12 dated February 7, 1986.
+
+0.0	01 Mar 86  (RAF)
+
+I undertook writing this program to satisfy my curiosity about software
+developments in the MS-DOS/PC-DOS world.  The ARC "freeware" program
+(copyright by System Enhancement Associates) has been around for over a
+year now and has achieved enormous popularity in the 16-bit community.
+Unfortunately, the lack of a compatible equivalent for CP/M systems
+renders a large amount of public domain software inaccessible to 8-bit
+users such as myself.  (Note that 16-bit software can indeed be usable
+on 8-bit systems, e.g. Pascal and C language programs.)  Also, an
+increasing number of RCP/M systems are catering to both 8-bit and
+16-bit users, and it is my hope that UNARC may find a welcome home on
+such systems.
+
+Note that I was not (initially) a fan of the sequential .ARC file
+format, which is less flexible and slower to process (though certainly
+more compact) than the random-access format which Novosielski .LBR
+libraries have provided for years.  Therefore, I stopped short of
+producing a complete ARC program equivalent which includes creation of
+.ARC files.  The LZW "crunching" algorithm is impressive though (see my
+editorial comments preceeding the UCR routine), and I now believe there
+is a place for .ARC files in the CP/M world (particularly on RCP/M's,
+where the name of the game is reducing upload/download time).  But
+that's the domain of another program (i.e. my next project: NARC).
+
+					- Bob Freed
+Credits:
+
+Primary credit is due to System Enhancement Associates' ARC author
+Thom Henderson for his fine utility program (even if it's not for
+CP/M).  Of course without ARC, UNARC would have no reason to exist.
+But special thanks are due SEA for making publicly available the C
+language source code, without which we could never have begun. |
+
+	PAGE
+	SUBTTL	Z80/8080 Version Definitions
+
+	.Z80			; Sorry, if you're an Intel fan
+	.COMMENT |
+
+This source program uses Zilog mnemonics (author's preference) and may
+be assembled with the M80 ((C) Microsoft) or Z80ASM ((C) SLR Systems)
+macro assemblers.  (Relocatable code features have been avoided, so
+conversion to other assembler formats should be straightforward but
+may require manual expansion of the macros defined here.)
+
+The following macro definitions enable conditional assembly of a
+version which will execute on 8080/8085 CPU's.  Our intent is to
+provide a non-Z80 version without imposing a limitation on any
+Z80-specific capabilities in the source.  (I.e., in specific cases the
+chosen emulation of Z80 opcodes does not necessarily produce the
+optimal 8080/8085 implementation, in terms of either size or speed.
+This approach allows us to offer a non-Z80 version without worrying too
+much about its efficiency.) |
+
+NO	EQU	0
+YES	EQU	NOT NO
+
+; For Z80ASM only, the following may be left undefined to allow
+; interactive definition at assembly time.  For M80 (which does not
+; support the .ACCEPT directive), the leading semicolon must be removed
+; in order to generate the non-Z80 version.
+
+;Z80	EQU	NO		; YES for Z80 version, NO for 8080/8085
+
+IFNDEF Z80			; If not defined above (and pass 1),
+
+N	EQU	NO		; (Allows short
+Y	EQU	YES		;  responses)
+
+	.ACCEPT	Z80		; Ask user for definition (Z80ASM only)
+
+IFNDEF Z80			; If still not defined (must be M80),
+Z80	EQU	YES		; Generate the Z80 version
+ENDIF
+
+ENDIF
+
+	PAGE
+IF Z80
+
+; Macros for Z80 version (to simplify our effort for the 8080 version)
+
+EX_AF	MACRO
+	EX	AF,AF'
+ENDM
+
+LD_DE	MACRO	AA
+	LD	DE,AA
+	ENDM
+
+STO_DE	MACRO	AA
+	LD	(AA),DE
+	ENDM
+
+STO_BC	MACRO	AA
+	LD	(AA),BC
+	ENDM
+
+ADC_HL	MACRO	AA
+	ADC	HL,AA
+	ENDM
+
+SBC_HL	MACRO	AA
+	SBC	HL,AA
+	ENDM
+
+LD_IX	MACRO	AA
+	LD	IX,AA
+	ENDM
+
+STO_IX	MACRO	AA
+	LD	(AA),IX
+	ENDM
+
+PUSH_IX	MACRO
+	PUSH	IX
+	ENDM
+
+POP_IX	MACRO
+	POP	IX
+	ENDM
+
+INC_IX	MACRO
+	INC	IX
+	ENDM
+
+ADD_IX	MACRO	AA
+	ADD	IX,AA
+	ENDM
+
+LD_A_IX	MACRO
+	LD	A,(IX)
+	ENDM
+
+ENDIF				; Z80
+IF NOT Z80
+
+; Macros for 8080 version (to emulate Z80-only opcodes)
+
+; Note:  Many of these emulations of Z80 instructions do not correctly
+; implement the setting of the condition flags (e.g. DJNZ should not
+; alter the Z flag).  In all such cases, we have been careful to ensure
+; that an exact emulation is not required anywhere in the code, but
+; extreme vigilance is needed when making future program changes.
+; (Exact emulation is always possible if necessary, so avoid trying to
+; code around the differences:  Our goal should be to always produce the
+; best possible Z80 version!)
+
+JR	MACRO	AA,BB
+IF NUL BB
+	JP	AA
+ELSE
+	JP	AA,BB
+ENDIF
+	ENDM
+
+DJNZ	MACRO	AA		; Destroys SF, ZF
+	DEC	B
+	JP	NZ,AA
+	ENDM
+
+EX_AF	MACRO
+	PUSH	HL
+	PUSH	AF
+	LD	HL,(AFSAV)
+	EX	(SP),HL
+	LD	(AFSAV),HL
+	POP	AF
+	POP	HL
+	ENDM
+
+EXX	MACRO			; Long enough to warrant subroutine
+	CALL	EXX
+	ENDM
+
+LD_DE	MACRO	AA
+	EX	DE,HL
+	LD	HL,AA
+	EX	DE,HL
+	ENDM
+
+STO_DE	MACRO	AA
+	EX	DE,HL
+	LD	(AA),HL
+	EX	DE,HL
+	ENDM
+
+STO_BC	MACRO	AA
+	PUSH	HL
+	LD	H,B
+	LD	L,C
+	LD	(AA),HL
+	POP	HL
+	ENDM
+
+ADC_HL	MACRO	AA
+	ADSBHL	AA,ADC
+	ENDM
+
+SBC_HL	MACRO	AA
+	ADSBHL	AA,SBC
+	ENDM
+
+ADSBHL	MACRO	AA,BB
+	PUSH	AF
+	LD	A,L
+CC	DEFL	NO
+	IRPC	DD,AA
+IF CC
+	BB	A,DD
+ENDIF
+CC	DEFL	YES
+	ENDM
+	LD	L,A
+	LD	A,H
+	IRPC	DD,AA
+	BB	A,DD
+	EXITM
+	ENDM
+	LD	H,A
+	JP	NZ,$+5		;; Test both bytes for zero,
+	INC	L		;; without disturbing carry
+	DEC	L		;; (added in UNARC 1.5)
+	EX	(SP),HL
+	LD	A,H
+	POP	HL
+	ENDM
+
+LD_IX	MACRO	AA
+	PUSH	HL
+	LD	HL,AA
+	LD	(IXSAV),HL
+	POP	HL
+	ENDM
+
+STO_IX	MACRO	AA
+	PUSH	HL
+	LD	HL,(IXSAV)
+	LD	(AA),HL
+	POP	HL
+	ENDM
+
+PUSH_IX	MACRO
+	PUSH	HL
+	LD	HL,(IXSAV)
+	EX	(SP),HL
+	ENDM
+
+POP_IX	MACRO
+	EX	(SP),HL
+	LD	(IXSAV),HL
+	POP	HL
+	ENDM
+
+INC_IX	MACRO
+	PUSH	HL
+	LD	HL,(IXSAV)
+	INC	HL
+	LD	(IXSAV),HL
+	POP	HL
+	ENDM
+
+ADD_IX	MACRO	AA
+	PUSH	HL
+	LD	HL,(IXSAV)
+IFIDN <AA>,<IX>
+	ADD	HL,HL
+ELSE
+	ADD	HL,AA
+ENDIF
+	LD	(IXSAV),HL
+	POP	HL
+	ENDM
+
+LD_A_IX	MACRO
+	PUSH	HL
+	LD	HL,(IXSAV)
+	LD	A,(HL)
+	POP	HL
+	ENDM
+
+LDI	MACRO			; Does not handle P/V
+	PUSH	AF
+	LD	A,(HL)
+	LD	(DE),A
+	INC	HL
+	INC	DE
+	DEC	BC
+	POP	AF
+	ENDM
+
+LDIR	MACRO			; Destroys CF
+	CALL	LDIR
+	ENDM
+
+CPIR	MACRO			; Destroys CF, does not handle P/V
+	CALL	CPIR
+	ENDM
+
+RLD	MACRO			; Not a true RLD, but suffices for us
+	LD	A,(HL)
+	RLCA
+	RLCA
+	RLCA
+	RLCA
+	ENDM
+
+SRL	MACRO	AA
+	OR	A
+	SHIFT	AA,RRA
+	ENDM
+
+SRA	MACRO	AA
+	SHIFT	AA,<RLCA,RRCA,RRA>
+	ENDM
+
+RR	MACRO	AA
+	SHIFT	AA,RRA
+	ENDM
+
+RRC	MACRO	AA
+	SHIFT	AA,RRCA
+	ENDM
+
+SHIFT	MACRO	AA,BB
+IFDIF <AA>,<A>
+	PUSH	AF
+	LD	A,AA
+ENDIF
+	IRP	CC,<BB>
+	CC
+	ENDM
+	INC	A		;; Set flags without
+	DEC	A		;;  changing carry
+IFDIF <AA>,<A>
+	LD	AA,A
+	EX	(SP),HL
+	LD	A,H
+	POP	HL
+ENDIF
+	ENDM
+
+BIT	MACRO	AA,BB		; Destroys CF, SF
+	PUSH	AF
+IFDIF <BB>,<A>
+	LD	A,BB
+ENDIF
+	AND	1 SHL AA
+BITMSK	DEFL	$-1		;; For squashed files (c.f. STRADD)
+	EX	(SP),HL
+	LD	A,H
+	POP	HL
+	ENDM
+
+SET	MACRO	AA,BB
+	SETRES	AA,BB,OR
+	ENDM
+
+RES	MACRO	AA,BB
+	SETRES	AA,BB,<AND NOT>
+	ENDM
+
+SETRES	MACRO	AA,BB,CC	; Destroys flags if register A
+IFDIF <BB>,<A>
+	PUSH	AF
+	LD	A,BB
+ENDIF
+	CC	(1 SHL AA)
+IFDIF <BB>,<A>
+	LD	BB,A
+	POP	AF
+ENDIF
+	ENDM
+
+ENDIF				; NOT Z80
+	PAGE
+	SUBTTL	Definitions
+
+; ARC file parameters
+
+ARCMARK	EQU	26		; Archive header marker byte
+
+; Note:	The following three definitions should not be changed lightly.
+;	These are hard-wired into the code at numerous places!
+
+ARCVER	EQU	9		; Max. header vers. supported for output
+CRBITS	EQU	12		; Max. bits in crunched file input codes
+CQBITS	EQU	13		; Max. bits in squashed file input codes
+
+; CP/M system equates
+
+
+BOOT	EQU	6000H		; Base of system page / warm boot return
+BDOS	EQU	BOOT+005H	; BDOS entry
+MEMTOP	EQU	BDOS+1		; Contains base of BDOS / top of TPA
+DFCB	EQU	BOOT+05CH	; Command line tail default FCB
+SFCB	EQU	BOOT+06CH	; Command line tail secondary FCB
+DBUF	EQU	BOOT+080H	; Default DMA buffer
+TBASE	EQU	BOOT+100H	; Base of TPA
+
+; BDOS function codes
+
+$CONIN	EQU	1		; Console input
+$CONOUT	EQU	2		; Console output
+$LIST	EQU	5		; Listing output
+$PRTSTR	EQU	9		; Print (console) string
+$CONST	EQU	11		; Get console status
+$VERSN	EQU	12		; Get CP/M version no.
+$SELECT	EQU	14		; Select disk
+$OPEN	EQU	15		; Open file
+$CLOSE	EQU	16		; Close file
+$FIND	EQU	17		; Find file
+$DELETE	EQU	19		; Delete file
+$READ	EQU	20		; Read sequential record
+$WRITE	EQU	21		; Write sequential record
+$MAKE	EQU	22		; Make file
+$DISK	EQU	25		; Get current disk
+$SETDMA	EQU	26		; Set DMA address
+$GETDPB	EQU	31		; Get disk parameter block address
+$READR	EQU	33		; Read random record
+$RECORD	EQU	36		; Set random record no.
+
+; FCB offsets
+
+@DR	EQU	0		; Drive code
+@FN	EQU	1		; File name
+@FT	EQU	9		; File type
+@CR	EQU	32		; Current record
+@RN	EQU	33		; Random record no. (optional)
+@FCBSZ	EQU	33		; FCB size for sequential I/O
+@FCBSX	EQU	@FCBSZ+3	; Extended FCB size for random I/O
+
+	PAGE
+; ASCII control codes
+
+CTLC	EQU	'C'-'@'		; Control-C (console abort)
+CTLK	EQU	'K'-'@'		; Control-K (alternate abort)
+BEL	EQU	'G'-'@'		; Bell
+HT	EQU	'I'-'@'		; Horizontal tab
+LF	EQU	'J'-'@'		; Line feed
+CR	EQU	'M'-'@'		; Carriage return
+CTLS	EQU	'S'-'@'		; Control-S (suspend output)
+CTLZ	EQU	'Z'-'@'		; Control-Z (CP/M end-of-file)
+DEL	EQU	7FH		; Delete/rubout
+REP	EQU	'P'-'@'+80H	; Repeated byte flag (DLE with msb set)
+
+	PAGE
+	SUBTTL	Patchable Options
+
+; Useful options here at start of file to simplify patching
+
+	ASEG			; This simplifies page alignment at end
+	.PHASE TBASE
+
+;	ORG	TBASE		; .COM file starts here
+
+	JP	BEGIN		; Skip over this stuff on program entry
+
+; The default values of all of these options are suitable for standard
+; CP/M 2.2 systems.  In each case an alternate setting is illustrated,
+; but these are primarily of interest to RCP/M sysops or users with
+; non-standard (or very small) systems.  Options followed by ";*" are
+; automatically affected by the wheel byte setting (see below).
+
+CCPSV:	DB	8		; No. high memory pages to save (8 = 2K)
+;CCPSV:	DB	0		; This to clobber CCP and force reboot
+
+;BLKSZ:	DB	1		; Default disk allocation block size (K)
+BLKSZ:	DB	0		;*This to use default drive's block size
+				;  for listing, when no output drive
+
+HIDRV:	DB	'P'-'@'		; Highest input file drive (A=1,B=2,...)
+;HIDRV:	DB	0		; This restricts input to default drive
+
+HODRV:	DB	'P'-'@'		;*Highest output file drive no.
+;HODRV:	DB	0		; RCP/M's use this for no disk output
+				;  (if no wheel byte implemented)
+
+; Note:	As of UNARC 1.2, the following byte serves only as a flag.
+;	I.e., it no longer defines a pseudo typeout "drive".
+
+TYFLG:	DB	0FFH		; This enables single file typeout
+;TYFLG:	DB	0		;*RCP/M's use this for no file typeout
+
+TYPGS:	DB	0		;*No. buffer pages for typeout (0=max)
+;TYPGS:	DB	1		; This minimizes viewing waits, but may
+				;  cause excess floppy motor stop/start
+
+TYLIM:	DB	0		; No line limit for file typeout
+;TYLIM:	DB	80		;*RCP/M's may prefer non-zero line limit
+
+; Following added in UNARC 1.2 to simplify use by RCP/M sysops.  If byte
+; addressed by WHEEL is zero, no file output allowed (as if HODRV = 0).
+; Also BLKSZ and/or TYPGS are assumed = 1, if these are zero by default.
+; If byte addressed by WHEEL is non-zero (indicates a privileged user),
+; TYFLG and TYLIM are not enforced (unlimited typeout allowed).  The
+; default wheel byte address defined here (HODRV) provides compatibility
+; with previous releases of UNARC for systems which do not implement a
+; wheel byte.  (ZCPR3 users should set this word to the address of their
+; Z3WHL byte, as determined by running SHOW.COM.)
+
+WHEEL:	DW	HODRV		; Address of "wheel" byte (this if none)
+;WHEEL:	DW	BOOT+03EH	; E.g. if wheel byte stored in base page
+
+	PAGE
+; Following added in UNARC 1.4:
+
+TYLPS:	DB	23		; No. lines between typeout pauses
+;TYLPS:	DB	0		; Forces continuous typeout always
+
+DBLSZ:	DB	0		; Use DPB for disk allocation block size
+;DBLSZ:	DB	1		; Assumed block size (K) if BDOS 31 call
+				;  not supported (e.g. CP/M-68K)
+
+BELLS:	DB	0FFH		; Allow bells in warning/error messages
+;BELLS:	DB	0		; This for solitude
+
+; Table of file types which are disallowed for typeout
+
+NOTYP:	DB	'CM6'		; CP/M-80 or MS-DOS binary object
+	DB	'CM','D'+80H	; CP/M-86 binary object (or dBASE file)
+	DB	'COM'		; MS-DOS executable
+	DB	'OBJ'		; Renamed COM
+	DB	'OV?'		; Binary overlay
+	DB	'REL'		; Relocatable object
+	DB	'?RL'		; Other relocatables (PRL, CRL, etc.)
+	DB	'INT'		; Intermediate compiler code
+	DB	'SYS'		; System file
+	DB	'BAD'		; Bad disk block
+	DB	'LBR'		; Library
+	DB	'ARC'		; Archive (unlikely in an ARC)
+	DB	'ARK'		; Alternate archive (ditto)
+	DB	'?Q?'		; Any SQueezed file (ditto)
+	DB	'?Z?'		; Any CRUNCHed (or ZOO'd) file (ditto)
+
+; Note:	Additional types may be added below.  To remove one of the above
+;	types without replacing it, simply set the msb in any byte (as
+;	shown above for .CMD, since that can be a readable dBASE command
+;	file).
+
+	REPT	5		; Room for more types (20 total)
+	DB	0,0,0
+	ENDM
+
+	DB	0		; End of table
+
+	PAGE
+	SUBTTL	Program Usage
+
+; Following displays if no command line parameters
+; (Also on attempts to type the .COM file)
+
+; Note:	All program name output is obtained from the first chars of the
+;	usage message below (up to and including the first blank), and
+;	is generated by a byte value 1 in any typeout string.
+
+USAGE:	IDENT			; Program version identification first
+
+	DB	CR,LF
+	DB	'CP/M Archive File Extractor'
+IF NOT Z80
+USEA:	DB	' (8080 Version)'
+ENDIF
+	DB	CR,LF,LF,'Usage:  ',1,'[d:]arcfile[.typ] '
+
+USE1:	DB	'[d:]'
+USE1L	EQU	$-USE1		; Above cleared if HODRV=0 or non-wheel
+
+	DB	'[afn] [N'
+
+USE4:	DB	'|P|C'
+USE4L	EQU	$-USE4		; Above cleared if non-wheel
+
+	DB	']',CR,LF,LF
+	DB	'Examples:',CR,LF
+	DB	'B>',1,'A:SAVE.ARK *.*  '
+	DB	'; List all files in CP/M archive SAVE on drive A',CR,LF
+	DB	'B>',1,'A:SAVE.ARC *.*  '
+	DB	'; List all files in MS-DOS archive SAVE on drive A',CR,LF
+	DB	'A>',1,'SAVE            '
+	DB	'; Same as either of above',CR,LF
+	DB	'A>',1,'SAVE *.* N      '
+	DB	'; Same as above (no screen pauses)',CR,LF
+	DB	'A>',1,'SAVE *.DOC      '
+	DB	'; List just .DOC files',CR,LF
+
+USE2:	DB	'A>',1,'SAVE READ.ME    '
+	DB	'; Typeout the file READ.ME',CR,LF
+	DB	'A>',1,'SAVE READ.ME N  '
+	DB	'; Typeout the file READ.ME (no screen pauses)',CR,LF
+USE2L	EQU	$-USE2		; Above cleared if TYFLG=0 and non-wheel
+
+USE3:	DB	'A>',1,'SAVE A:         '
+	DB	'; Extract all files to drive A',CR,LF
+	DB	'A>',1,'SAVE B:*.DOC    '
+	DB	'; Extract .DOC files to drive B',CR,LF
+	DB	'A>',1,'SAVE C:READ.ME  '
+	DB	'; Extract file READ.ME to drive C',CR,LF
+USE3L	EQU	$-USE3		; Above cleared if HODRV=0 or non-wheel
+
+USE5:	DB	'A>',1,'SAVE PRN.DAT P  '
+	DB	'; Print the file PRN.DAT (no formatting)',CR,LF
+	DB	'A>',1,'SAVE *.* C      '
+	DB	'; Check validity of all files in archive'
+USEC:	DB	CR,LF
+USE5L	EQU	$-USE5		; Above cleared if non-wheel
+
+	DB	LF
+	COPR			; Copyright notice last
+
+; (We'd like to be unobtrusive, but please don't remove or patch out)
+
+USEB:	DB	0		; End of message marker
+	DB	CTLZ		; Stop attempted .COM file typeout here
+
+	PAGE
+	SUBTTL	Beginnings and Endings
+
+IF NOT Z80
+; Special entry for self-unpacking archive (non-Z80 version only)
+
+; Note:	This works because the initial file (UNARCA.COM) in a self-
+;	unpacking archive is offset 26 bytes in memory (due to the
+;	initial JP opcode plus 25-byte version 1 header).  I.e., the
+;	first three bytes of such a file are 0C3H, 1AH, 01H = JP 11AH.
+;	Location 11AH contains the instruction normally found at the
+;	base address (100H) of UNARCA.COM, i.e. JP BEGIN.  But because
+;	of the offset, that will jump here instead of to BEGIN.
+
+	JP	SELFUP		; Go setup for self-unpacking
+	REPT	5		; Pad out for 26-byte offset...
+	DB	0,0,0,0
+	ENDM
+	JP	BOOT		; (Should never reach this!)
+ENDIF
+
+; Program begins
+
+; Note:	The program is self-initializing.  Once loaded, it may be
+;	re-executed multiple times (e.g. by a zero-length COM file,
+;	or the ZCPR GO command).
+
+BEGIN:
+;;;	XOR	A		; \ This sets Z80 P/V = 0 (no overflow),
+;;;	DEC	A		; /  or 8080/8085 P/V = 1 (even parity)
+	SUB	A		; (More elegant, saves a byte: v1.4)
+	LD	C,$PRTSTR	; Setup to print message by BDOS
+IF Z80
+	LD	DE,NOTZ80	; Must be a Z80, or forget all else
+	JP	PE,BDOS		; If not, just print message and abort
+	LD	(SPSAV),SP	; Save CCP stack (better be a Z80 now!)
+ELSE
+	LD	DE,USEZ80	; Should be an 8080/8085
+	CALL	PO,BDOS		; If not, tell user about Z80 version
+
+BEGIN1:	LD	HL,0		; Entry after self-unpacking relocation
+	ADD	HL,SP		; Save CCP stack (8080 or Z80)
+	LD	(SPSAV),HL
+ENDIF
+	CALL	CHECK		; Check if we can proceed
+	LD	SP,STACK	; Now setup local stack
+	LD	HL,TOTS		; Zero all listing totals
+	LD	BC,TOTC*256+0
+	CALL	FILL
+	CALL	INIT		; Process command line, open ARC file
+	CALL	OUTSET		; Check output drive, setup for output
+
+; Find first archive header
+
+; Note:	As of UNARC 1.2, up to three additional bytes are tolerated
+;	before first header mark, with no error or warning messages
+;	(for "self-unpacking" archives).
+
+	LD	HL,3		; Assume will skip at least 3 bytes
+	LD	B,L		; Setup count of allowed extra bytes
+
+FIRST:	CALL	GET		; Get next byte
+	CP	ARCMARK		; Is it header marker?
+	JR	Z,NEXT		; Yes, skip
+	DJNZ	FIRST		; Else loop for no. allowed extras
+
+	PAGE
+; File processing loop
+
+LOOP:	CALL	GET		; Get next byte
+	CP	ARCMARK		; Is it archive header marker?
+	JR	NZ,BAD		; No, it's a bad header
+
+; Process next file
+
+NEXT:	CALL	GET		; Get header version
+	OR	A		; If zero, that's logical end of file,
+	JR	Z,DONE		;  and we're done
+
+NEXT1:	CALL	GETHDR		; Read archive header
+	CALL	GETNAM		; Does file name match test pattern?
+	JR	NZ,SKIP		; No, skip this file
+
+	CALL	LIST		; List file info
+	CALL	OUTPUT		; Output the file (possibly)
+	CALL	TAMBIG		; Ambiguous output file selection?
+	JR	NZ,EXIT		; No, quit early
+
+; Skip to next file
+
+SKIP:	LD	HL,SIZE		; Get two-word remaining file size
+	CALL	LGET		; (will be 0 if output was completed)
+	CALL	SEEK		; Seek past it
+	LD	HL,0		; Reinit count of bytes skipped
+	JR	LOOP		; Loop for next file
+
+; Done with all files
+
+DONE:	LD	HL,(TFILES)	; Get no. files processed
+	LD	A,H
+	OR	A
+	JR	NZ,DONE1	; Skip if many
+
+	OR	L		; No files found?
+	LD	DE,NOFILS	; Yes, setup error message
+	JR	Z,PABORT	;  and abort
+
+	DEC	A		; Test if just one file
+
+DONE1:	CALL	NZ,LISTT	; If more than one, list totals
+
+; Exit program
+
+EXIT:	CALL	ICLOSE		; Close input and output files (if open)
+	LD	A,(CCPSV)	; Possibly overlaid CCP?
+	OR	A
+	JP	Z,BOOT		; Yes, reboot CP/M
+
+	LD	SP,0		; Restore CCP stack
+SPSAV	EQU	$-2		; (Original stack ptr saved here)
+	RET			; Return to CCP
+
+	PAGE
+; Bad archive file header
+
+; Note:	This added in UNARC 1.2 (mostly compatible with MS-DOS ARC
+;	5.12) and modified somewhat in UNARC 1.4.  It's a bit kludgy
+;	now, but it does permit processing of Phil Katz' self-unpacking
+;	archive, PKX32A11.COM (with a warning message), as well as
+;	SEA's ARC51.COM (with no warning).  (Although success with
+;	PKX32A11 hinges on the fact that no ARCMARK's are followed
+;	by valid non-zero versions in that file, which is probably
+;	coincidental.)
+
+BAD:	CALL	BADCNT		; Count bad header byte
+	CALL	GET		; Read byte (unless end of file abort)
+
+BAD1:	CP	ARCMARK		; Found a header marker?
+	JR	NZ,BAD		; No, repeat attempt to re-synchronize
+
+	CALL	GET		; Ok, found another (possible) header
+	PUSH	AF		; Save header version
+	DEC	A		; But ignore archive eof here
+	CP	ARCVER		; Is it a valid version?
+	JR	NC,BAD2		; No, skip
+
+	EX	DE,HL		; Get count of bytes skipped
+	LD	HL,HDRSKP	; Store in message
+	LD	BC,0
+	CALL	WTOD
+	LD	(HL),0
+	LD	DE,HDRERR	; Print warning message
+	CALL	PRINTX
+	POP	AF		; Recover version
+	JR	NEXT1		; Go process (assumed valid) next file
+
+BAD2:	CALL	BADCNT		; Count bad header byte (1st of 2 seen)
+	POP	AF		; Restore vesion
+	JR	BAD1		; Go check if 2 consecutive header marks
+
+	PAGE
+; Preliminary checks
+
+; Note:	Following is called before local stack is setup.  Primary
+;	caution	here is that PRINT (called by PABORT and PEXIT) uses no
+;	more than 5 stack levels.  (Assumes program called from CCP with
+;	7 stack levels available, and that at most one of these must be
+;	reserved for interrupts.)
+
+CHECK:	XOR	A		; Clear flags in case early abort:
+	LD	(IFLAG),A	;  Input file open flag
+	LD	(OFLAG),A	;  Output file open flag
+	LD	(LPS),A		; Prevent any screen pauses yet
+
+	LD	C,$VERSN	; Must be CP/M 2.0 or above, since we
+	CALL	BDOS		;  use random disk reads
+	CP	20H
+	LD	DE,CPMERR	; (With a bit of work, this limitation
+	JR	C,EABORT	;  could be eliminated in future)
+
+	LD	A,(MEMTOP+1)	; Get base page of BDOS
+	LD	HL,CCPSV	; Subtract no. pages reserved for CCP
+	SUB	(HL)		;  (if any)
+	LD	(HIPAGE),A	; Save highest usable page (+1)
+	LD	A,HIGH MINMEM	; Ensure enough memory to do anything
+
+; Check for enough memory
+
+CKMEM:	CP	0		; Page address to check in A
+HIPAGE	EQU	$-1		; Must be lower than this
+	RET	C		; Return if ok
+
+	LD	DE,NOROOM	; Else, abort due to no room
+
+; Early abort during preliminary checks
+
+EABORT:	POP	HL		; Reclaim stack level for extra safety
+
+; Print error message and abort
+
+PABORT:	CALL	PRINT
+
+; Abort program
+
+ABORT:	LD	DE,ABOMSG	; Print general abort message
+
+; Print message and exit
+
+; Note:	We call PRINT+CRLF, instead of PRINTX, to save a stack level
+
+PEXIT:	CALL	PRINT
+	CALL	CRLF
+	JR	EXIT
+
+	PAGE
+; Validate command line parameters and open input file
+
+INIT:	LD	HL,DBUF		; Point to command line buffer
+	LD	E,(HL)		; Fetch its length
+	LD	D,0
+	ADD	HL,DE		; Point to the last byte
+	DEC	HL		; Point to second-to-last char
+	LD	A,(HL)		; Is it a blank?
+	CP	' '
+	JR	NZ,INIT1	; No, skip (no option)
+
+	INC	HL		; Point to option letter
+	LD	A,(HL)		; Is it 'N' ?
+	CP	'N'
+	JR	Z,INIT2		; Yes, skip (no paging)
+
+	CP	'P'		; Is it 'P' ?
+	JR	NZ,INIT0
+	LD	(PROUTF),A	; Yes, set printer output flag
+
+INIT0:	CP	'C'		; Is it 'C' ?
+	JR	NZ,INIT1	; No, go enstate paging limit
+	LD	(CHECKF),A	; Yes, set check archive flag
+
+INIT1:	LD	A,(TYLPS)	; Fetch default lines between pauses
+	LD	(LPS),A		; Set lines per screen (enables pauses)
+	LD	(LPSCT),A	; Init count of lines until next pause
+
+INIT2:	LD	A,' '		; Setup blank for (several) tests
+	LD	HL,SFCB		; Point to second parameter FCB
+	LD	DE,OFCB		; Point to file output FCB
+	LDI			; Save output drive, point to file name
+	LD	DE,TNAME	; Set to save test pattern
+	LD	BC,11		; Setup count for file name and type
+	CP	(HL)		; Output file name specified?
+	JR	NZ,INIT3	; Yes, go move it
+
+	LD	H,D		; No, default to "*.*"
+	LD	L,E
+	LD	(HL),'?'	; (I.e. all "?" chars)
+	INC	DE
+	DEC	BC
+
+INIT3:	LDIR			; Save test name pattern
+	LD	HL,IFCB+@FT	; Point to ARC file type
+	CP	(HL)		; Omitted?
+	JR	NZ,INIT4	; Skip if not
+
+	LD	(HL),'A'	; Yes, set default file type (.ARK)
+	INC	HL
+	LD	(HL),'R'
+	INC	HL
+	LD	(HL),'K'
+	LD	(ARKFLG),A	; Set flag for alternate (.ARC) next
+
+INIT4:	LD	HL,IFCB+@FN	; Any ARC file name?
+	CP	(HL)
+	JR	Z,HELP		; No, go show on-line help
+
+	PUSH	HL		; Save name ptr for message generation
+	CALL	FAMBIG		; Ambiguous ARC file name?
+	LD	DE,NAMERR	; Yes, report error
+INIT5:	JR	Z,PABORT	;  and abort
+
+	POP	DE		; Recover ptr to FCB name
+	LD	HL,ARCNAM	; Unparse name for message
+	LD	C,' '		; (with no blanks)
+	CALL	LNAME
+	XOR	A		; Cleanup end of message string
+	LD	(HL),A
+
+	DEC	A		; Set to read a new record next
+	LD	(GETPTR),A	; (initializes GET)
+
+	LD	HL,IFCB		; Point to ARC file FCB
+	LD	A,(HIDRV)	; Get highest allowed drive no.
+	CP	(HL)		; Is ARC file drive in range?
+	LD	DE,BADIDR	; No, report bad input drive
+	JP	C,PABORT	;  and abort
+
+; Open archive file
+
+	EX	DE,HL		; Recover FCB address
+	LD	C,$OPEN		; Open ARC file
+	CALL	FDOS		; File found?
+	JR	NZ,INIT6	; Yes, skip
+
+	LD	HL,ARKFLG	; No, but can we retry with alternate
+	OR	(HL)		;  default file type?
+	LD	DE,OPNERR	; No, report error
+	JR	Z,INIT5		;  and abort (via branch aid)
+
+	LD	(HL),0		; Clear retry flag for next time
+	LD	HL,IFCB+@FT+2	; Point to last char of file type
+	LD	(HL),'C'	; Change from .ARK to .ARC
+	JR	INIT4		; Go attempt open one more time
+
+INIT6:	LD	(IFLAG),A	; Set input file open flag
+	LD	DE,ARCMSG	; Show ARC file name
+	CALL	PRINTX
+
+	LD	A,(BLKSZ)	; Get default disk block size
+	OR	A		; Explicit default?
+	CALL	Z,WHLCK		; Or non-wheel if none? (i.e. forces 1K)
+	JR	NZ,SAVBLS	; Yes, skip
+
+; Get current disk's allocation block size for listing
+
+GETBLS:	LD	A,(DBLSZ)	; Any default disk block size?
+	OR	A		; (e.g. if $GETDPB not supported)
+	JR	NZ,SAVBLS	; Yes, bypass the $GETDPB call
+
+	LD	C,$GETDPB	; Get DPB address
+	CALL	BDOS
+	INC	HL		; Point to block mask
+	INC	HL
+	INC	HL
+	LD	A,(HL)		; Fetch block mask
+	INC	A		; Compute block size / 1K bytes
+	RRCA
+	RRCA
+	RRCA
+
+SAVBLS:	LD	(LBLKSZ),A	; Save block size for listing
+	RET			; Return
+
+; Display program usage help message
+
+HELP:	CALL	WHLCK		; Check wheel byte
+	PUSH	AF		; Save it
+	DEC	A		; Privileged user?
+	JR	Z,HELP1		; No, skip (extraction never allowed)
+
+	LD	A,(HODRV)	; File extraction allowed?
+	OR	A
+
+HELP1:	LD	HL,USE1		; Setup to clear out usage examples
+	LD	BC,256*USE1L+80H
+	CALL	Z,FILL		; Do it if not allowed
+	LD	HL,USE3
+	LD	B,USE3L
+	CALL	Z,FILL		; (Two places)
+	POP	AF		; Was wheel byte set?
+	JR	Z,HELP2		; Yes, skip (typeout etc always allowed)
+
+	LD	HL,USE4		; Clear out print/check option examples
+	LD	B,USE4L
+	CALL	FILL
+	LD	HL,USE5		; (Two places)
+	LD	B,USE5L
+	CALL	FILL
+
+	LD	A,(TYFLG)	; File typeout allowed?
+	OR	A
+	LD	HL,USE2
+	LD	B,USE2L
+	CALL	Z,FILL		; No, clear out usage example
+
+HELP2:	LD	DE,USAGE	; Just print usage message
+	JP	PEXIT		;  and exit
+
+; Check wheel byte
+
+WHLCK:	PUSH	HL		; Save register
+	LD	HL,(WHEEL)	; Get wheel byte address
+	LD	A,(HL)		; Fetch wheel byte
+	POP	HL		; Restore reg
+	OR	A		; Check wheel byte
+	JR	NZ,WHLCK1
+
+	INC	A		; If zero, user is not privileged
+	RET			; Return A=1 (NZ)
+
+WHLCK1:	XOR	A		; If non-zero, he's a big wheel
+	RET			; Return A=0 (Z)
+
+	PAGE
+; Close input and output files (called at program exit)
+
+ICLOSE:	LD	DE,IFCB		; Setup ARC file FCB
+	LD	A,0		; Get input open flag
+IFLAG	EQU	$-1		; (stored here)
+	CALL	CLOSE		; Close input file first (e.g. for MP/M)
+
+; Close output file
+
+OCLOSE:	LD	DE,OFCB		; Setup output file FCB
+	LD	A,0		; Get output open flag
+OFLAG	EQU	$-1		; (stored here)
+
+; Close a file if open
+
+CLOSE:	OR	A		; File is open?
+	LD	C,$CLOSE	; Yes, close it
+	CALL	NZ,BDOS
+	INC	A		; Check return code
+	RET			; Return to caller (Z set if error)
+
+; BDOS file functions for output file
+
+OFDOS:	LD	DE,OFCB		; Setup output file FCB
+
+; BDOS file functions
+
+FDOS:	CALL	BDOS		; Perform function
+	INC	A		; Test directory code
+	RET			; Return (Z set if file not found)
+
+; Set DMA address for file input/output
+
+SETDMA:	LD	C,$SETDMA	; DMA address in DE
+	CALL	BDOS		; This is always a good place to...
+
+; Check for CTRL-C abort (and/or read console char if any)
+
+CABORT:	LD	C,$CONST	; Get console status
+	CALL	BDOS
+	OR	A		; Character ready?
+	RET	Z		; Return (Z set) if not
+
+	LD	C,$CONIN	; Input console char (echo if printable)
+	CALL	BDOS
+
+; Note:	Following added in UNARC 1.5 to handle any ^S input which is not
+;	detected by CP/M 2.2 BDOS.
+
+	AND	7FH		; Mask to 7 bits
+	CP	CTLS		; Is it CTRL-S (suspend output)?
+	LD	C,$CONIN
+	CALL	Z,BDOS		; Yes, wait for another char
+	AND	7FH		; Mask to 7 bits
+
+	CP	CTLC		; Is it CTRL-C?
+	JR	Z,GABORT	; Yes, go abort
+
+	CP	CTLK		; Or is it CTRL-K (RCP/M alternate ^C)?
+	RET	NZ		; No, return char (and NZ) to caller
+
+GABORT:	JP	ABORT		; Go abort program
+
+	PAGE
+	SUBTTL	Archive File Input Routines
+
+; Get counted byte from archive subfile (saves alternate register set)
+
+; The alternate register set normally contains values for the low-level
+; output routines (see PUTSET).  This entry to GETC saves these and
+; returns with them enstated (for PUT, PUTUP, etc.).  Caller must issue
+; EXX after call to return these to the alternate set, and must save and
+; restore any needed values from the original register set.
+
+; Note:	At first glance, all this might seem unnecessary, since BDOS
+;	(might be called by GETREC) does not use the Z80 alternate
+;	register set (at least with Digital Research CP/M).  But some
+;	CBIOS implementations (e.g. Osborne's) assume these are fair
+;	game, so we are extra cautious here.
+
+GETCX:	EXX			; Swap in alt regs (GETC saves them)
+
+; Get counted byte from component file of archive
+
+; GETC returns with carry set (and a zero byte) upon reaching the
+; logical end of the current subfile.  (This relies on the GET routine
+; NOT returning with carry set.)
+
+GETC:	PUSH	BC		; Save registers
+	PUSH	DE
+	PUSH	HL
+	LD	HL,SIZE		; Point to remaining bytes in subfile
+	LD	B,4		; Setup for long (4-byte) size
+
+GETC1:	LD	A,(HL)		; Get size
+	DEC	(HL)		; Count it down
+	OR	A		; But was it zero? (clears carry)
+	JR	NZ,GET1		; No, go get byte (must not set carry!)
+
+	INC	HL		; Point to next byte of size
+	DJNZ	GETC1		; Loop for multi-precision decrement
+
+	LD	B,4		; Size was zero, now it's -1
+
+GETC2:	DEC	HL		; Reset size to zero...
+	LD	(HL),A		; (SIZE must contain valid bytes to skip
+	DJNZ	GETC2		;  to get to next subfile in archive)
+
+	SCF			; Set carry to indicate end of subfile
+	JR	GET2		; Go restore registers and return zero
+
+	PAGE
+; Get next sequential byte from archive file
+
+; Note:	GET and SEEK rely on the fact that the default DMA buffer
+;	used for file input (DBUF) begins on a half-page boundary.
+;	I.e. DBUF address = nn80H (nn = 00 for standard CP/M).
+
+GET:	PUSH	BC		; Save registers
+	PUSH	DE
+	PUSH	HL
+
+GET1:	LD	HL,(GETPTR)	; Point to last byte read
+	INC	L		; At end of buffer?
+	CALL	Z,GETNXT	; Yes, read next record and reset ptr
+	LD	(GETPTR),HL	; Save new buffer ptr
+	LD	A,(HL)		; Fetch byte from there
+
+GET2:	POP	HL		; Restore registers
+	POP	DE
+	POP	BC
+	RET			; Return
+
+; Get next sequential record from archive file
+
+GETNXT:	LD	C,$READ		; Setup read-sequential function code
+
+; Get record (sequential or random) from archive file
+
+GETREC:	LD	DE,DBUF		; Point to default buffer
+	PUSH	DE		; Save ptr
+	PUSH	BC		; Save read function code
+	CALL	SETDMA		; Set DMA address
+	LD	DE,IFCB		; Setup FCB address
+	POP	BC		; Restore read function
+	CALL	BDOS		; Do it
+	POP	HL		; Restore buffer ptr
+	OR	A		; End of file?
+	RET	Z		; Return if not
+
+; Unexpected end of file
+
+EOF:	LD	DE,FMTERR	; Print bad format message and abort
+	JP	PABORT		; (not much else we can do)
+
+; Count bytes skipped while processing bad archive header
+
+BADCNT:	INC	HL		; Bump bad byte count
+	LD	A,H		; But 64K bytes is enough!
+	OR	L
+	RET	NZ		; Return if not reached limit
+
+	JR	EOF		; Else, report bad format and abort
+
+	PAGE
+; Seek to new random position in file (relative to current position)
+; (BCDE = 32-bit byte offset)
+
+SEEK:	LD	A,B		; Most CP/M (2.2) can handle is 23 bits
+	OR	A		; So highest bits of offset must be 0
+	JR	NZ,EOF		; Else, that's certainly past eof!
+
+	LD	A,E		; Get low bits of offset in A
+	LD	L,D		; Get middle bits in HL
+	LD	H,C
+	ADD	A,A		; LSB of record offset -> carry
+	ADC_HL	HL		; Record offset -> HL
+	JR	C,EOF		; If too big, report unexpected eof
+
+	RRA			; Get byte offset
+	EX	DE,HL		; Save record offset
+	LD	HL,GETPTR	; Point to offset (+80H) of last byte in
+	ADD	A,(HL)		; Add byte offsets
+	LD	(HL),A		; Update buffer ptr for new position
+	INC	A		; But does it overflow current record?
+	JP	P,SEEK1		; Yes, skip
+
+	LD	A,D		; Check record offset
+	OR	E
+	RET	Z		; Return if none (still in same record)
+
+	DEC	DE		; Get offset from next record
+	JR	SEEK2		; Go compute new record no.
+
+SEEK1:	ADD	A,7FH		; Get proper byte offset in DMA page
+	LD	(HL),A		; Save new buffer pointer
+
+SEEK2:	PUSH	DE		; Save record offset
+	LD	DE,IFCB
+	LD	C,$RECORD	; Compute current "random" record no.
+	CALL	BDOS		; (I.e. next sequential record to read)
+	LD	HL,(IFCB+@RN)	; Get result
+	POP	DE		; Restore record offset
+	ADD	HL,DE		; Compute new record no.
+	JR	C,EOF		; If >64k, it's past largest (8 Mb) file
+
+	LD	(IFCB+@RN),HL	; Save new record no.
+	LD	C,$READR	; Read the random record
+	CALL	GETREC
+	LD	HL,IFCB+@CR	; Point to current record in extent
+	INC	(HL)		; Bump for subsequent sequential read
+	RET			; Return
+
+	PAGE
+; Get archive file header
+
+GETHDR:	LD	DE,HDRBUF	; Set to fill header buffer
+	LD	B,HDRSIZ	; Setup normal header size
+	CP	1		; But test if version 1
+	PUSH	AF		; Save test result
+	JR	NZ,GETHD2	; Skip if not version 1
+
+	LD	B,HDRSIZ-4	; Else, header is 4 bytes less
+	JR	GETHD2		; Go to store loop
+
+GETHD1:	CALL	GET		; Get header byte
+
+GETHD2:	LD	(DE),A		; Store in buffer
+	INC	DE
+	DJNZ	GETHD1		; Loop for all bytes
+
+	POP	AF		; Version 1?
+	RET	NZ		; No, all done
+
+	LD	HL,SIZE		; Yes, point to compressed size
+	LD	C,4		; It's 4 bytes
+	LDIR			; Move to uncompressed length
+	RET			; Return
+
+	PAGE
+; Get, save, and test file name from archive header
+
+GETNAM:	LD	DE,NAME		; Point to name in header
+	LD	HL,OFCB+@FN	; Point to output file name
+	LD_IX	TNAME		; Point to test pattern
+	LD	B,11		; Set count for name and type
+
+GETN1:	LD	A,(DE)		; Get next name char
+	AND	7FH		; Ensure no flags, is it end of name?
+	JR	Z,GETN4		; Yes, go store blank
+
+	INC	DE		; Bump name ptr
+	CP	' '+1		; Is it legal char for file name?
+	JR	C,GETN2		; No, if blank or non-printing,
+	CP	DEL		;  or this
+	JR	NZ,GETN3	; Skip if ok
+
+GETN2:	LD	A,'$'		; Else, change to something legal
+
+GETN3:	CALL	UPCASE		; Ensure it's upper case
+	CP	'.'		; But is it type separator?
+	JR	NZ,GETN5	; No, go store name char
+
+	LD	A,B		; Get count of chars left
+	CP	4		; Reached type yet?
+	JR	C,GETN1		; Yes, bypass the separator
+
+	DEC	DE		; Backup to re-read separator
+
+GETN4:	LD	A,' '		; Set to store a blank
+
+GETN5:	LD	(HL),A		; Store char in output name
+	LD_A_IX			; Get pattern char
+	INC_IX			; Bump pattern ptr
+	CP	'?'		; Pattern matches any char?
+	JR	Z,GETN6		; Yes, skip
+
+	CP	(HL)		; Matches this char?
+	RET	NZ		; Return (NZ) if not
+
+GETN6:	INC	HL		; Bump store ptr
+	DJNZ	GETN1		; Loop until FCB name filled
+
+	LD	BC,256*(@FCBSZ-@FN-11)+0
+	JP	FILL		; Zero rest of FCB, return (Z still set)
+
+	PAGE
+	SUBTTL	File Output Routines
+
+; Check output drive and setup for file output
+
+OUTSET:	LD	A,(HODRV)	; Get highest allowed output drive
+	LD	B,A		; Save for later test
+	LD	HL,CHECKF	; Point to check-only flag
+	CALL	WHLCK		; Check wheel byte
+	DEC	A		; Is user privileged?
+	JR	NZ,OUTS1	; Yes, skip
+
+	LD	B,A		; Else, no output drive allowed
+	LD	(HL),A		; No checking allowed
+	LD	(PROUTF),A	; No printing allowed
+	LD	A,(TYFLG)	; Fetch flag for typeout allowed
+
+OUTS1:	LD	C,A		; Save typeout flag (always if wheel)
+	LD	A,(OFCB)	; Any output drive?
+	OR	A
+	JR	NZ,OUTS2	; Yes, skip to check it
+
+	OR	(HL)		; Just checking files?
+	JR	Z,CKTYP		; No, go see if typeout permitted
+
+	LD	DE,CHKMSG	; Yes, show 'Checking...' message
+	CALL	PRINTL
+	LD	A,0FEH		; Set dummy drive in output FCB
+	LD	(OFCB),A
+	JR	CRCINI		; Skip to init CRC computations
+
+OUTS2:	DEC	A		; Get zero-relative drive no.
+	CP	B		; In range of allowed drives?
+	LD	DE,BADODR	; No, report bad output drive
+	JP	NC,PABORT	;  and abort
+
+	LD	E,A		; Save output drive
+	PUSH	DE
+	ADD	A,'A'		; Convert to ASCII
+	LD	(OUTDRV),A	; Store drive letter for message
+	LD	DE,OUTMSG	; Show output drive
+	CALL	PRINTL
+
+	LD	C,$DISK		; Get default drive
+	CALL	BDOS
+	POP	DE		; Recover output drive
+	CP	E		; Test if same as default
+	PUSH	AF		; Save default drive (and test result)
+	LD	C,$SELECT	; Select output drive
+	CALL	NZ,BDOS		;  (if different than default)
+	CALL	GETBLS		; Get its block size for listing
+	POP	AF		; Restore original default drive
+	LD	E,A
+	LD	C,$SELECT	; Reselect it
+	CALL	NZ,BDOS		;  (if changed)
+
+	PAGE
+; Initialize lookup table for CRC generation
+
+; Note:	For maximum speed, the CRC routines rely on the fact that the
+;	lookup table (CRCTAB) is page-aligned.
+
+X16	EQU	0		; x^16 (implied)
+X15	EQU	1 SHL (15-15)	; x^15
+X2	EQU	1 SHL (15-2)	; x^2
+X0	EQU	1 SHL (15-0)	; x^0 = 1
+
+POLY	EQU	X16+X15+X2+X0	; Polynomial (CRC-16)
+
+CRCINI:	LD	HL,CRCTAB+256	; Point to 2nd page of lookup table
+	LD	A,H		; Check enough memory to store it
+	CALL	CKMEM
+	LD	DE,POLY		; Setup polynomial
+
+; Loop to compute CRC for each possible byte value from 0 to 255
+
+CRCIN1:	LD	A,L		; Init low CRC byte to table index
+	LD	BC,256*8	; Setup bit count, clear high CRC byte
+
+; Loop to include each bit of byte in CRC
+
+CRCIN2:	SRL	C		; Shift CRC right 1 bit (high byte)
+	RRA			; (low byte)
+	JR	NC,CRCIN3	; Skip if 0 shifted out
+
+	EX_AF			; Save lower CRC byte
+	LD	A,C		; Update upper CRC byte
+	XOR	D		;  with upper polynomial byte
+	LD	C,A
+	EX_AF			; Recover lower CRC byte
+	XOR	E		; Update with lower polynomial byte
+
+CRCIN3:	DJNZ	CRCIN2		; Loop for 8 bits
+
+	LD	(HL),C		; Store upper CRC byte (2nd table page)
+	DEC	H
+	LD	(HL),A		; Store lower CRC byte (1st table page)
+	INC	H
+	INC	L		; Bump table index
+	JR	NZ,CRCIN1	; Loop for 256 table entries
+
+	RET
+
+	PAGE
+; Check for valid file name for typeout (or printing)
+
+CKTYP:	OR	C		; Typeout not allowed?
+	CALL	NZ,TAMBIG	; Or ambiguous output file name?
+	RET	Z		; Yes, return (will just list file)
+
+	LD	DE,NOTYP	; Point to table of excluded types
+
+CKTYP1:	LD	HL,TNAME+8	; Point to type of selected file
+	LD	B,3		; Setup count for 3 chars
+
+CKTYP2:	LD	A,(DE)		; Fetch next table char
+	OR	A		; End of table?
+	JR	Z,CKTYP5	; Yes, go set flag to allow typeout
+
+	CP	'?'		; Matches any char?
+	JR	Z,CKTYP3	; Yes, skip
+
+	CP	(HL)		; Matches this char?
+
+CKTYP3:	INC	DE		; Bump table ptr
+	JR	Z,CKTYP4	; Matched?
+	DJNZ	CKTYP3		; No, just advance to next table entry
+	JR	CKTYP1		; Then loop to try again
+
+CKTYP4:	INC	HL		; Char matched, point to next
+	DJNZ	CKTYP2		; Loop for all chars in file type
+	RET			; If all matched, return (no typeout)
+
+CKTYP5:	DEC	A		; If no match, file name is valid
+	LD	(OFCB),A	; Set dummy drive (0FFH) in output FCB
+	RET			; Return
+
+; Test for ambiguous output file selection
+
+TAMBIG:	LD	HL,TNAME	; Point to test pattern
+
+; Check for ambiguous file name (HL = ptr to FCB-type name)
+
+FAMBIG:	LD	BC,11		; Setup count for file name and type
+	LD	A,'?'		; Any "?" chars?
+	CPIR			; Yes, return with Z set
+	RET			; No, return NZ
+
+	PAGE
+; Extract file for disk or console output
+
+OUTPUT:	LD	A,(OFCB)	; Any output drive (or typing files)?
+	OR	A
+	RET	Z		; No, there's nothing to do here
+
+	LD	B,A		; Save output drive
+	LD	A,(VER)		; Get header version
+	CP	ARCVER+1	; Supported for output?
+	LD	DE,BADVER	; No, report unknown version
+	JP	NC,PABORT	;  and abort
+
+	LD	L,A		; Copy version
+	LD	H,0
+	LD	DE,OBUFT-1	; Use to index table of starting
+	ADD	HL,DE		;  output buffer pages
+	LD	A,(HL)		; Get starting page of buffer
+	CALL	CKMEM		; Ensure enough memory
+	LD	HL,BUFPAG	; Point to buffer start page
+	LD	(HL),A		; Save it
+	LD	C,A		; (also for typeout buffer check)
+	INC	HL		; Point to buffer limit (BUFLIM)
+	LD	A,(HIPAGE)	; Get memory limit page
+	LD	(HL),A		; Assume max possible output buffer
+	INC	B		; Typing files?
+	JR	NZ,OUTDSK	; No, go extract to disk
+
+; Setup for console (or printer) output
+
+	LD	A,(TYPGS)	; Get max. pages to buffer typeout
+	OR	A		; No limit?
+	CALL	Z,WHLCK		; And is this privileged user?
+	JR	Z,OUTCON	; Yes, skip (use 1 page if no privilege)
+
+	ADD	A,C		; Compute desired limit page
+	JR	C,OUTCON	; But skip if exceeds (physical) memory
+	CP	(HL)
+	JR	NC,OUTCON	; Also if exceeds available memory
+
+	LD	(HL),A		; If ok, set lower buffer limit
+
+OUTCON:	LD	A,(PROUTF)	; Printing file?
+	OR	A
+	JR	NZ,OUTBEG	; Yes, skip the separator
+
+	LD	HL,LINE		; Fill listing line with dashes
+	LD	BC,256*LINLEN+'-'
+	CALL	FILL
+	CALL	LISTL		; Print separating line first
+	JR	OUTBEG		; Go extract file for typeout
+
+	PAGE
+; Setup for disk file (or black hole) output
+
+OUTDSK:	INC	B		; Just checking file?
+	JR	Z,OUTBEG	; Yes, skip
+
+	LD	DE,BUFF		; Set DMA address to a safe place
+	CALL	SETDMA
+	LD	C,$FIND		; Find file
+	CALL	OFDOS		; Already exists?
+	JR	Z,OUTD2		; No, skip
+
+	LD	DE,EXISTS	; Inform user and ask:
+	CALL	PRINTS		; Should we overwrite existing file?
+
+OUTD1:	CALL	CABORT		; Wait for response (or CTRL-C abort)
+	JR	Z,OUTD1
+
+	LD	E,A		; Save response
+	CALL	CRLF		; Start a new line after prompt
+	LD	A,E		; Get response char
+	CALL	UPCASE		; Upper and lower case are the same
+	CP	'Y'		; Answer was yes?
+	RET	NZ		; No, return (skip file output)
+
+	LD	C,$DELETE	; Yes, delete existing file
+	CALL	OFDOS
+
+OUTD2:	LD	C,$MAKE		; Create a new file
+	CALL	OFDOS		; But directory full?
+	LD	DE,DIRFUL	; Yes, report error
+	JP	Z,PABORT	;  and abort
+
+	LD	(OFLAG),A	; Set flag for output file open
+
+	PAGE
+; All set to output file
+
+OUTBEG:	LD	A,(VER)		; Check compression type
+	CP	4
+	JR	NC,USQ		; Skip if squeezed or crunched/squashed
+
+	CALL	PUTSET		; Else (simple cases), setup output regs
+	CP	3		; Packed?
+	JR	Z,UPK		; Yes, skip
+
+; Uncompressed file
+
+UNC:	CALL	GETC		; Just copy input to output
+	JR	C,OUTEND	;  until end of file
+	CALL	PUT
+	JR	UNC
+
+; Packed file
+
+UPK1:	CALL	PUTUP		; Output with repeated byte expansion
+
+UPK:	CALL	GETC		; Get input byte
+	JR	NC,UPK1		; Loop until end of file
+
+; End of output file
+
+OUTEND:	CALL	PUTBUF		; Flush final buffer (if any)
+	LD	A,(OFCB)	; Typing (or printing) file?
+	INC	A
+	RET	Z		; Yes, all done (no CRC check)
+
+; Note:	Following instruction added in UNARC 1.6, since the preceding
+;	test (altered in 1.42) no longer clears carry.
+
+	OR	A		; Clear carry for 16-bit subtract
+	EX	DE,HL		; Save computed CRC
+	LD	HL,(CRC)	; Get CRC recorded in archive header
+	SBC_HL	DE		; Do they match?
+	LD	DE,CRCERR	; If not,
+	CALL	NZ,OWARN	;  print warning message
+
+	LD	HL,LEN		; Point to remaining (output) length
+	CALL	LGET		; Fetch length (it's 4 bytes)
+	LD	A,B		; All should be zero...
+	OR	C
+	OR	D
+	OR	E
+	LD	DE,LENERR	; If not,
+	CALL	NZ,OWARN	;  print incorrect length warning
+
+	CALL	OCLOSE		; Close output file (if open)
+	LD	HL,OFLAG	; Clear file open flag
+	LD	(HL),0
+	RET	NZ		; Return unless error closing file
+
+	LD	DE,CLSERR	; Else, report close failure
+	JP	PABORT		;  and abort
+
+	PAGE
+; Unsqueeze (Huffman-coded) file
+
+	.COMMENT |
+
+Note:  Although numerous assembly-language implementations of Richard
+Greenlaw's pioneer USQ (C language) program have appeared, all of the
+coding here is original.  At risk of being accused of "re-inventing
+the wheel," we do this primarily for personal satisfaction (not to
+mention protection of our copyright).
+
+We were tempted to use the super-fast algorithm suggested by Steven
+Greenberg's recent public contribution, UF (aka USQFST, nee FU).
+(After all, we require a Z80, so why not take advantage of the latest
+technology?)  However, some of the speed benefit of Greenberg's method
+is necessarily lost, since we do not buffer the input file and must
+count each input byte against the file size recorded in the archive
+header.  (Input buffering is not advantageous, since we must have
+random access to the archive file.)  Also, the occurence of squeezed
+files in archives is relatively rare, since the "crunching" method
+produces better compression in most cases.  Thus we use a more
+classical approach, albeit at the expense of the ultimate in
+performance, but with a substantial savings in code complexity and
+memory requirements.
+
+Note also that many authors go to elaborate pains to check the validity
+of the binary decoding tree.  Such checks include:  (1) the node count
+(can be at most 256, although some people mistakenly think it can be
+greater -- c.f. Knuth, vol. 1, 2nd ed., sec. 2.3.4.5, pp. 399-405); (2)
+all node links in the tree must be in the range specified by the node
+count; (3) no infinite loops in the tree (this one's not so easy to
+test); and (4) premature end-of-file in the tree or data.  Instead, we
+take a KISS approach which assumes the tree is valid and relies upon
+the final output file CRC and length checks to warn of any possible
+errors:  (1) the tree is initially cleared (all links point to the root
+node); (2) at most 256 nodes are stored; and (3) decoding terminates
+upon detecting the special end-of-file code in the data (the normal
+case), the physical end-of-file (as determined by the size recorded in
+the archive header), or a tree link to the root node (which indicates a
+diseased tree). |
+
+	PAGE
+; Start unsqueezing
+
+USQ:	JR	NZ,UCR		; But skip if crunched/squashed file
+
+; First clear the decoding tree
+
+	LD	BC,TREESZ-1	; Setup bytes to clear - 1
+	CALL	TREECL		; (Leaves DE pointing past end of tree)
+
+; Read in the tree
+
+; Note:	The end-of-file condition may be safely ignored while reading
+;	the node count and tree, since GETC will repeatedly return
+;	zero bytes in this case.
+
+	CALL	GETC		; Get node count, low byte
+	LD	C,A		; Save for loop
+	CALL	GETC		; Get high byte (can be ignored)
+	OR	C		; But is it zero nodes?
+	JR	Z,USQ3		; Yes (very unlikely), it's empty file
+
+USQ1:	LD	B,4		; Setup count for 4 bytes in node
+	LD	A,D		; Each byte will be stored in a separate
+	SUB	B		;  page (tree is page-aligned), so
+	LD	D,A		;  point back to the first page
+
+USQ2:	CALL	GETC		; Get next byte
+	LD	(DE),A		; Store in tree
+	INC	D		; Point to next page
+	DJNZ	USQ2		; Loop for all bytes in node
+
+	INC	E		; Bump tree index
+	DEC	C		; Reduce node count
+	JR	NZ,USQ1		; Loop for all nodes
+
+USQ3:	CALL	PUTSET		; Done with tree, setup output regs
+	PUSH	HL		; Reset current input byte (on stack)
+
+; Start of decoding loop for next output byte
+
+USQ4:	EXX			; Save output registers
+	XOR	A		; Reset node index to root of tree
+
+; Top of loop for next input bit
+
+USQ5:	LD	L,A		; Setup index of next tree node
+	POP	AF		; Get current input byte
+	SRL	A		; Shift out next input bit
+	JR	NZ,USQ6		; Skip unless need a new byte
+
+	PAGE
+; Read next input byte
+
+	PUSH	HL		; Save tree index
+	CALL	GETCX		; Get next input byte
+	EXX			; Save output regs
+	JR	C,USQEND	; But go stop if reached end of input
+
+	POP	HL		; Restore tree index
+	SCF			; Set flag for end-of-byte detection
+	RRA			; Shift out first bit of new byte
+
+; Process next input bit
+
+USQ6:	PUSH	AF		; Save input byte
+	LD	H,HIGH TREE	; Point to start of current node
+	JR	NC,USQ7		; Skip if new bit is 0
+
+	INC	H		; Bit is 1, point to 2nd word of node
+	INC	H		; (3rd tree page)
+
+USQ7:	LD	A,(HL)		; Get low byte of node word
+	INC	H
+	LD	B,(HL)		; Get high byte (from next tree page)
+	INC	B
+	JR	NZ,USQ8		; Skip if high byte not -1
+
+	CPL			; We've got output byte (complemented)
+	EXX			; Restore regs for output
+	CALL	PUTUP		; Output with repeated byte expansion
+	JR	USQ4		; Loop for next byte
+
+USQ8:	DJNZ	USQEND		; If high byte not 0, it's special EOF
+	OR	A		; If high byte was 0, its new node link
+	JR	NZ,USQ5		; Loop for new node (but can't be root)
+
+; End of squeezed file (physical, logical, or due to Dutch elm disease)
+
+USQEND:	POP	HL		; Cleanup stack
+
+; End of unsqueezed or uncrunched file output
+
+UCREND:	EXX			; Restore output regs
+	JP	OUTEND		; Go end output
+
+; Clear squeezed file decoding tree (or crunched file string table)
+
+TREECL:	LD	HL,TREE		; Point to tree (also string table)
+
+STRTCL:				; (Entry for partial string table clear)
+	LD	(HL),L		; Clear first byte (it's page-aligned)
+	LD	D,H		; Copy pointer to first byte
+	LD	E,L
+	INC	DE		; Propogate it thru second byte, etc.
+	LDIR			; (called with BC = byte count - 1)
+	RET			; Return
+
+	PAGE
+; Uncrunch (LZW-coded) file
+
+	.COMMENT |
+
+The Lempel-Ziv-Welch (so-called "LZW") data compression algorithm is
+the most impressive benefit of ARC files.  It performs better than
+Huffman coding in many cases, often achieving 50% or better compression
+of ASCII text files and 15%-40% compression of binary object files.
+The algorithm is named after its inventors:  A. Lempel and J. Ziv
+provided the original theoretical groundwork, while Terry A. Welch
+published an elegant practical implementation of their procedure.  (The
+definitive article is Welch's "A Technique for High-Performance Data
+Compression", in the June 1984 issue of IEEE Computer magazine.)
+
+The Huffman algorithm encoded each input byte by a variable-length bit
+string (up to 16 bits in Greenlaw's implementation), with bit length
+(approximately) inversely proportional to the frequency of occurrence
+of the encoded byte.  This has the disadvantages of requiring (1) two
+passes over the input file for encoding and (2) the inclusion of the
+decoding information along with the output file (a binary tree of up to
+1026 bytes in Greenlaw's implementation).  In comparison, LZW is a one-
+pass procedure which encodes variable-length strings of bytes by a
+fixed-length code (12 bits in this implementation), without additional
+overhead in the output file.  In essence, the procedure adapts itself
+dynamically to the redundancy present in the input data.  There is one
+drawback:  LZW requires substantially more memory than the Huffman
+algorithm for both encoding and decoding.  (A 12K-byte string table is
+required in this program; the MS-DOS ARC program uses even more.  Of
+course, 12K is not that much these days:  I don't think they're even
+selling IBM-PC's or MAC's with less than 512K anymore.  But some of us
+in the CP/M world are still concerned with efficiency of memory use.)
+
+The MS-DOS ARC program by System Enhancement Associates has (to date)
+employed four different variations on the LZW scheme, differentiated by
+the version byte in the archive file header:
+
+     Version 5:  LZW applied to original input file
+     Version 6:  LZW applied to file after packing repeated bytes
+     Version 7:  Same as version 6 with a new (faster) hash code
+     Version 8:  Completely new (much improved) implementation
+
+The MS-DOS program PKARC 2.0 introduced another variation ("squashing"):
+
+     Version 9:  Same as version 8 with 13-bit codes and no pre-packing
+
+Version 8 (and 9) varies the output code width from 9 to 12 (13) bits
+as the string table grows (benefits small files), performs an adaptive
+reset of the string table after it becomes full if the compression
+ratio drops (benefits large files), and eliminates the need for hash
+computations by the decoder (reduces decoding time and space; in this
+program, an extra 8K-byte table is eliminated).  Although the latest
+release of the ARC program uses only this last version for encoding,
+we, like ARC (PKXARC), support all four (five) versions for
+compatibility with files encoded by earlier releases. |
+
+	PAGE
+; Setup for uncrunching (or unsquashing)
+
+; We've been able to isolate all of the differences between the five
+; versions of LZW into just three routines -- input, output, and hash
+; function.  These are disposed of first, by inserting appropriate
+; vectors into common coding and initializing version-dependent data.
+
+; Note:	Introduction of squashed files in UNARC 1.42 has added some
+;	extra kludges here.
+
+UCR:	LD	HL,STRBIT	; All but version 9 use 4K string table
+	LD	(HL),BIT4H	;  entries, so setup STRADD bit test
+	CP	8		; Version 8 or 9?
+	JR	NC,UCR1		; Yes, skip
+
+	LD	DE,OGETCR	; Old versions get fixed 12-bit codes
+	LD	BC,STRSZ+HSHSZ-1;  and need extra table for hashing
+	LD	HL,OHASH	; Assume old hash function
+	CP	6		; Test version
+	LD	A,55H		; Setup initial flags for OGETCR
+	JR	Z,UCR6		; All set if version 6
+	JR	C,UCR5		; Skip if version 5
+
+	LD	HL,FHASH	; Version 7 uses faster hash function
+	JR	UCR6		; (but we've never seen one of these!)
+
+UCR1:	JR	Z,UCR2		; Skip if version 8
+	LD	(HL),BIT5H	; Version 9 allows 13-bit codes
+	LD	BC,STQSZ-1	;  and has larger string table
+	LD	A,8192/256	;  with 8K entries (less buffer space)
+	JR	UCR4		; Join common code for versions 8 and 9
+
+; Note:	This is the only place that we reference the code size for
+;	crunched files (CRBITS) symbolically.  Currently, a value of
+;	12 bits is required and it is assumed throughout the program.
+
+UCR2:	CALL	GETC		; Read code size used to crunch file
+	JR	C,UCR3		; But skip if none (PKARC 0-length file)
+	CP	CRBITS		; Same as what we expect?
+	LD	DE,UCRERR	; No, report incompatible format
+	JP	NZ,PABORT	;  and abort
+
+UCR3:	LD	BC,STRSZ-1	; Version 8 provides more buffer space
+	LD	A,4096/256	;  and only 4K string table entries
+
+UCR4:	LD	(STRMAX),A	; Setup NHASH table-full test
+	LD	HL,0		; Clear code residue and count to init
+	LD	(CODES),HL	;  NGETCR input (BITSAV and CODES)
+	LD	DE,NGETCR	; New version has variable-length codes
+	LD	HL,NHASH	;  and has a very simple "hash"
+	LD	A,9		; Setup initial code size for NGETCR
+	JR	Z,UCR6		; Skip if version 8
+
+UCR5:	LD_IX	PUT		; Versions 5 and 9 don't unpack
+	JR	UCR7
+
+UCR6:	LD_IX	PUTUP		; Versions 6-8 unpack repeated bytes
+
+UCR7:	STO_IX	PUTCRP		; Save ptr to output routine
+	LD	(HASHP),HL	; Save ptr to hash function
+	STO_DE	GETCRP		; Save ptr to input routine
+	LD	(BITS),A	; Initialize input routine
+	LD	A,B		; Get string table pages to clear (-1)
+	SUB	3		; Less 3 for atomic strings
+	LD	(STRCSZ),A	; Setup for reset clear in NGETCR
+
+	PAGE
+; Start uncrunching
+; (All version-dependent differences are handled now)
+
+	CALL	TREECL		; Clear string (and hash) table(s)
+	STO_BC	STRCT		; Set no entries in string table
+	DEC	BC		; Get code for no prefix string (-1)
+	PUSH	BC		; Save as first-time flag
+	XOR	A		; Init table with one-byte strings...
+
+GCR0:	POP	BC		; Set for no prefix string
+	PUSH	BC		; (Resave first-time flag)
+	PUSH	AF		; Save byte value
+	CALL	STRADD		; Add to table
+	POP	AF		; Recover byte
+	INC	A		; Done all 256 bytes?
+	JR	NZ,GCR0		; No, loop for next
+
+	CALL	PUTSET		; Setup output registers
+
+; Top of loop for next input code (top of stack holds previous code)
+
+GCR:	EXX			; Save output regs first
+
+GETCR:	CALL	0		; Get next input code
+GETCRP	EQU	$-2		; (ptr to NGETCR or OGETCR stored here)
+
+	POP	BC		; Recover previous input code (or -1)
+	JP	C,UCREND	; But all done if end of input
+
+	PUSH	HL		; Save new code for next loop
+	CALL	STRPTR		; Point to string table entry for code
+	INC	B		; Is this the first one in file?
+	JR	NZ,GCR2		; No, skip
+
+	INC	HL		; Yes,
+	LD	A,(HL)		; Get first output byte
+
+GCR1:	CALL	PUTCR		; Output final byte for this code
+	JR	GCR		; Loop for next input code
+
+GCR2:	DEC	B		; Correct prev code (stays in BC awhile)
+	LD	A,(HL)		; Is new code in table?
+	OR	A
+	PUSH	AF		; (Save test result for later)
+	JR	NZ,GCR3		; Yes, skip
+
+	LD	H,B		; Else (special case), setup previous
+	LD	L,C		;  code (it prefixes the new one)
+	CALL	STRPTR		; Point to its table entry instead
+
+	PAGE
+; At this point, we have the table ptr for the new output string (except
+; possibly its final byte, which is a special case to be handled later).
+; Unfortunately, the table entries are linked in reverse order.  I.e.,
+; we are pointing to the last byte to be output.  Therefore, we trace
+; through the table to find the first byte of the string, reversing the
+; link order as we go.  When done, we can output the string in forward
+; order and restore the original link order.  (This is, we think, an
+; innovative approach: it saves allocation of an extra 4K-byte stack,
+; as in the MS-DOS ARC program, or an enormous program stack, as needed
+; for the recursive algorithm of Steve Greenberg's UNCRunch program.)
+
+; Careful:  The following value must be non-zero, so that the old-style
+; hash (invoked by STRADD below) will not think a re-linked entry is
+; unused!  (In a development version, we used zero; this worked fine for
+; newer crunched files, but proved a difficult bug to squash when the
+; old-style de-crunching failed randomly.)
+
+GCR3:	LD	D,1		; Init previous entry ptr (01xxH = none)
+
+GCR4:	LD	A,(HL)		; Test this entry
+	CP	HIGH STRT	; Any prefix string?
+	JR	C,GCR5		; No, we've reached the first byte
+
+	LD	(HL),D		; Relink this entry
+	LD	D,A		; (i.e. swap prev ptr with prefix ptr)
+	DEC	HL
+	LD	A,(HL)
+	LD	(HL),E
+	LD	E,A
+	INC	HL
+	EX	DE,HL		; Swap current ptr with prefix ptr
+	JR	GCR4		; Loop for next entry
+
+; HL points to table entry for first byte of output string.  We can now
+; add the table entry for the string which the encoder placed in his
+; table before sending us the current code.  (It's the previous code's
+; string concatenated with the first byte of the new string).  Note that
+; BC has been holding the previous code all this time.
+
+GCR5:	INC	HL		; Point to byte
+	POP	AF		; Recover special-case flag
+	LD	A,(HL)		; Fetch byte
+	PUSH	AF		; Re-save flag along with byte
+	DEC	HL		; Restore table ptr
+	PUSH	DE		; Save ptr to prev entry
+	PUSH	HL		; Save ptr to this entry
+	CALL	STRADD		; Add new code to table (for BC and A)
+	POP	HL		; Setup table ptr for output loop
+
+	PAGE
+; Top of string output loop
+; HL points to table entry for byte to output.
+; Top of stack contains pointer to next table entry (or 01xxH).
+
+GCR6:	INC	HL		; Point to byte
+	LD	A,(HL)		; Fetch it
+	PUSH	HL		; Save table ptr
+	CALL	PUTCR		; Output the byte (finally!)
+	EXX			; Save output regs
+	POP	DE		; Recover ptr to this byte
+	POP	HL		; Recover ptr to next byte's entry
+	DEC	H		; Reached end of string?
+	JR	Z,GCR7		; Yes, skip out of loop
+
+	INC	H		; Correct next entry ptr from above test
+	DEC	DE		; Restore ptr to this entry's mid byte
+	LD	A,(HL)		; Relink the next entry
+	LD	(HL),D		; (i.e. swap its "prefix" ptr with
+	LD	D,A		;  ptr to this entry)
+	DEC	HL
+	LD	A,(HL)
+	LD	(HL),E
+	LD	E,A
+	INC	HL
+	PUSH	DE		; Save ptr to 2nd next entry
+	JR	GCR6		; Loop to output next byte
+
+; End of uncrunching loop
+; All bytes of new string have been output, except possibly the final
+; byte (which is the same as the first byte in this special case).
+
+GCR7:	POP	AF		; Recover special-case flag and byte
+	JR	NZ,GETCR	; If not set, loop for next input code
+
+	JR	GCR1		; Else, go output final byte first
+
+	PAGE
+; Add entry to string table
+
+; This routine receives a 12-bit prefix string code in BC and a suffix
+; byte in A.  It then adds an entry to the string table (unless it's
+; full) for the new string obtained by concatenating these.  Nothing
+; is (or need be) returned to the caller.
+
+	.COMMENT |
+
+String table format:
+
+The table (STRT) contains 4096 three-byte entries, each of which is
+identified by a 12-bit code (table index).  The third byte (highest
+address) of each entry contains the suffix byte for the string.  The
+first two bytes contain a pointer (low-byte first) to the middle byte
+of the table entry for the prefix string.  The null string (prefix to
+the one-byte strings) is represented by a (16-bit) code value -1, which
+yields a non-zero pointer below the base address of the table.  An
+empty table entry contains a zero prefix pointer.
+
+Our choice to represent prefix strings by pointers rather than codes
+speeds up almost everything we do.  The high byte of the prefix pointer
+(middle byte of an entry) may be tested for non-zero to determine if an
+entry is occupied, and (since the table is page-aligned) it may be
+further tested against the page address of the table's base (HIGH STRT)
+to decide if it represents the null string.
+
+Note that the entry for code 256 is not used in the newer version of
+crunching.  This is reserved for a special signal to reset the string
+table (handled by the hash and input routines, NHASH and NGETCR). |
+
+STRADD:	LD	HL,(STRCT)	; Get count of strings in table
+	BIT	4,H		; Is it the full 4K?
+
+; Note:	Above test complicated by introduction of squashed files (which
+;	allow 13-bit codes and 8K string table entries) and the non-Z80
+;	emulation of the BIT instruction.  Following definitions handle
+;	this.
+
+IF Z80
+STRBIT	EQU	$-1		; Byte to modify BIT instruction
+BIT4H	EQU	64H		; High byte of BIT 4,H
+BIT5H	EQU	6CH		; High byte of BIT 5,H
+ELSE
+STRBIT	EQU	BITMSK		; Byte to modify emulated BIT
+BIT4H	EQU	1 SHL 4		; Mask to test bit 4
+BIT5H	EQU	1 SHL 5		; Mask to test bit 5
+ENDIF
+	RET	NZ		; Yes, forget it
+
+	INC	HL		; Bump count for one more
+	LD	(STRCT),HL	; Save new string count
+	PUSH	AF		; Save suffix byte
+	PUSH	BC		; Save prefix code
+	CALL	0		; Hash them to get pointer to new entry
+HASHP	EQU	$-2		; (ptr to xHASH routine stored here)
+	EX	(SP),HL		; Save result, recover prefix code
+	CALL	STRPTR		; Get pointer to prefix entry
+	EX	DE,HL		; Save it
+	POP	HL		; Recover new entry pointer
+	DEC	HL		; Point to low byte of entry
+	LD	(HL),E		; Store prefix ptr in entry
+	INC	HL		;  (low byte first)
+	LD	(HL),D		;  (then high byte, in mid entry byte)
+	INC	HL		; Point to high byte of new entry
+	POP	AF		; Recover suffix byte
+	LD	(HL),A		; Store
+	RET			; All done
+
+	PAGE
+; Hash function for (new-style) crunched files
+
+; Note:	"Hash" is of course a misnomer here, since strings are simply
+;	added to the table sequentially with the newer crunch method.
+;	This routine's main responsibility is to update the bit-length
+;	for expected input codes, and to bypass the table entry for
+;	code 256 (reserved for adaptive reset), at appropriate times.
+
+NHASH:	LD	A,L		; Copy low byte of string count in HL
+	DEC	L		; Get table offset for new entry
+	OR	A		; But is count a multiple of 256?
+	JR	NZ,STRPTR	; No, just return the table pointer
+
+	LD	A,H		; Copy high byte of count
+	DEC	H		; Complete double-register decrement
+	LD	DE,STRCT	; Set to bump string count (bypasses
+	JR	Z,NHASH1	;  next entry) if exactly 256
+
+	CP	4096/256	; Else, is count the full 4K?
+STRMAX	EQU	$-1		; (Byte to modify max string count test)
+	JR	Z,STRPTR	; Yes (last table entry), skip
+
+; Note the following cute test.  (It's mentioned in K & R, ex. 2-9.)
+
+	AND	H		; Is count a power-of-two?
+	JR	NZ,STRPTR	; No, skip
+
+	LD	DE,BITS		; Yes, next input code is one bit longer
+
+; Note:	By definition, there can be no input code residue at this point.
+;	I.e. (BITSAV) = 0, since we have read a power-of-two (> 256) no.
+;	of codes at the old length (total no. of bits divisible by 8).
+;	By the same argument, (CODES) = 0 modulo 8 (see NGETCR).
+
+NHASH1:	EX	DE,HL		; Swap in address value to increment
+	INC	(HL)		; Bump the value (STRCT or BITS)
+	EX	DE,HL		; Recover table offset
+
+; Get pointer to string table entry
+
+; This routine is input a 12-bit code in HL (or -1 for the null string).
+; It returns a pointer in HL to the middle byte of the string table
+; entry for that code (STRT-2 for the null string).  Destroys DE only.
+
+STRPTR:	LD	D,H		; Copy code
+	LD	E,L
+	ADD	HL,HL		; Get 2 * code
+	ADD	HL,DE		; Get 3 * code
+	LD	DE,STRT+1	; Point to table base entry (2nd byte)
+	ADD	HL,DE		; Compute pointer
+	RET			; Return
+
+	PAGE
+; Get variable-length code from (new-style) crunched file
+
+	.COMMENT |
+
+These codes are packed in right-to-left order (lsb first).  The code
+length (stored in BITS) begins at 9 bits and increases up to a maximum
+of 12 bits (13 bits for squashed files) as the string table grows
+(maintained by NHASH).  Location BITSAV holds residue bits remaining in
+the last input byte after each call (must be initialized to 0, code
+assumes BITSAV = BITS-1).
+
+In comparison, the MS-DOS ARC program buffers 8 codes at a time (i.e.
+n bytes, where n = bits/code) and flushes this buffer whenever the code
+length changes (so that first code at new length begins on an even byte
+boundary).  By coincidence (see NHASH) this buffer is always empty when
+the code length increases as a result of normal string table growth.
+Thus the only time this added bufferring affects us is when the code
+length is reset back to 9 bits upon receipt of the special clear
+request (code 256), at which time we must possibly bypass up to 10
+input bytes (worst case = 7 codes at 1.5 bytes/code).  This is handled
+by a simple down-counter in location CODES, whose mod-8 value indicates
+the no. of codes which should be skipped (must be initialized to 0,
+code assumes that CODES = BITSAV-1). |
+
+; Note:	This can probably be made a lot faster (e.g. by unfolding into
+;	8 separate cases and using a co-routine return), but that's a
+;	lot of work.  For now, we KISS ("keep it short and simple").
+
+NGETCR:	LD	HL,CODES	; First update code counter
+	DEC	(HL)		;  for clear code processing
+	INC	HL		; Point to BITSAV
+	LD	A,(HL)		; Get saved residue bits
+	INC	HL		; Point to BITS
+	LD	B,(HL)		; Setup bit counter for new code
+	LD	HL,7FFFH	; Init code (msb reset for end detect)
+
+; Top of loop for next input bit
+
+NGETC1:	SRL	A		; Shift out next input bit
+	JR	Z,NGETC7	; But skip out if new byte needed
+
+NGETC2:	RR	H		; Shift bit into high end of code word
+	RR	L		;  (double-register shift)
+	DJNZ	NGETC1		; Loop until have all bits needed
+
+; Input complete, cleanup code word
+
+NGETC3:	SRL	H		; Shift code down,
+	RR	L		;  to right-justify it in HL
+	JR	C,NGETC3	; Loop until end flag shifted out
+
+	LD	(BITSAV),A	; Save input residue for next call
+	LD	A,H		; But is it code 256?
+	DEC	A		; (i.e. adaptive reset request)
+	OR	L
+	RET	NZ		; No, return (carry clear)
+
+; Special handling to reset string table upon receipt of clear code
+
+	LD	HL,BITS		; Point to BITS
+	LD	C,(HL)		; Fetch current code length
+	LD	(HL),9		; Go back to 9-bit codes
+	DEC	HL		; Point to BITSAV
+	LD	(HL),A		; Empty the residue buffer
+	DEC	HL		; Point to CODES
+	LD	A,(HL)		; Get code counter
+	AND	7		; Modulo 8 is no. codes to flush
+	JR	Z,NGETC6	; Skip if none
+
+; Note:	It's a shame we have to do this at all.  With a minor change in
+;	its implementation, the MS-DOS ARC program could have simply
+;	shuffled down its buffer and avoided wasting up to 10 bytes in
+;	the crunched file (not to mention a lot of unnecessary effort).
+
+; Note:	Prior to UNARC 1.4, the following coding was simplified by the
+;	(incorrect) assumption that 12-bit codes are being generated at
+;	this point.  While true for .ARC files created by ARC 5.12 or
+;	earlier, this is not necessarily the case for files created by
+;	PKARC 1.1 or later.  Hence, some added effort here now...
+
+	LD	B,A		; Save no. codes to flush
+	XOR	A		; Reset no. bits to flush
+	LD	(HL),A		; Reset code counter to 0 for next time
+
+NGETC4:	ADD	A,C		; Add no. bits per code
+	DJNZ	NGETC4		; Loop to compute total bits to flush
+
+	RRA			; Divide by 8
+	RRA
+	RRA
+	AND	0FH		; Max possible result 10 (11 squashed)
+	LD	B,A		; Obtain no. input bytes to bypass
+
+NGETC5:	PUSH	BC		; Loop to flush the (encoder's) buffer
+	CALL	GETCX
+	EXX			; (No need to test for end-of-file
+	POP	BC		;  here, we'll pick it up later if
+	DJNZ	NGETC5		;  it happens)
+
+NGETC6:	LD	HL,STRT+(3*256)	; Clear out (all but one-byte) strings
+	LD	BC,STRSZ-(3*256)-1
+STRCSZ	EQU	$-1		; (Byte to modify string tbl clear size)
+	CALL	STRTCL
+	LD	HL,257		; Reset count for just one-byte strings
+	LD	(STRCT),HL	;  plus the unused entry
+
+; Kludge:  We rely here on the fact that the previous input code is at
+;	top of caller's stack, where -1 indicates none.  This should
+;	properly be done by the caller, but doing it here preserves
+;	commonality of coding for old-style crunched files (i.e. caller
+;	never knows this happened).
+
+	POP	HL		; Get return address
+	EX	(SP),HL		; Exchange with top of (caller's) stack
+	LD	HL,-1		; Set no previous code
+	EX	(SP),HL		; Replace on stack
+	PUSH	HL		; Restore return
+	JR	NGETCR		; Go again for next input code
+
+; Read next input byte
+
+NGETC7:	PUSH	BC		; Save bit count
+	PUSH	HL		; Save partial code
+	CALL	GETCX		; Get next input byte
+	EXX			; Save output regs
+	POP	HL		; Restore code
+	POP	BC		; Restore count
+	RET	C		; But stop if reached end of file
+
+; Special test to speed things up a bit...
+; (If need the whole byte, might as well save some bit fiddling)
+
+	BIT	3,B		; At least 8 more bits needed?
+	JR	NZ,NGETC8	; Yes, go do it faster
+
+	SCF			; Else, set flag for end-of-byte detect
+	RRA			; Shift out first bit of new byte
+	JR	NGETC2		; Go back to bit-shifting loop
+
+; Update code by (entire) new byte
+
+NGETC8:	LD	L,H		; Shift code down 8 bits
+	LD	H,A		; Insert new byte into code
+	LD	A,B		; Get bit count
+	SUB	8		; Reduce by 8
+	LD	B,A		; Update remaining count
+	JR	NZ,NGETC7	; Get another byte if still more needed
+
+	JR	NGETC3		; Else, go exit early (note A=0)
+
+	PAGE
+; Hash functions for (old-style) crunched files
+
+; This stuff exists for the sole purpose of processing files which were
+; created by older releases of MS-DOS ARC (pre-version 5.0).  To quote
+; that program's author:  "Please note how much trouble it can be to
+; maintain upwards compatibility."  Amen!
+
+; Note:	The multiplications required by the two hash function versions
+;	are sufficiently specialized that we've hand-coded each of them
+;	separately, for speed, rather than use a common multiply
+;	subroutine.
+
+; Versions 5 and 6...
+; Compute hash key = upper 12 of lower 18 bits of unsigned square of:
+;	(prefix code + suffix byte) OR 800H
+
+; Note:	I'm sure there's a faster way to do this, but I didn't want to
+;	exert myself unduly for an obsolete crunching method.
+
+OHASH:	LD	DE,0		; Clear product
+	LD	L,A		; Extend suffix byte
+	LD	H,D		;  to 16 bits
+	ADD	HL,BC		; Sum with prefix code
+	SET	3,H		; Or in 800H
+
+; We now have a 13-bit number which is to be squared, but we are only
+; interested in the lower 18 bits of the 26-bit product.  The following
+; reduces this to a 12-bit multiply which yields the correct product
+; shifted right 2 bits.  This is acceptable (we discard the low 6 bits
+; anyway) and allows us to compute desired result in a 16-bit register.
+
+; For the algebraically inclined...
+;   If n is even (n = 2m + 0):  n * n = 4(m * m)
+;   If n is odd  (n = 2m + 1):  n * n = 4(m * (m+1)) + 1
+
+	SRA	H		; Divide number by 2 (i.e. "m")
+	RR	L		; HL will be multiplicand (m or m+1)
+	LD	C,H		; Copy to multiplier in C (high byte)
+	LD	A,L		;  and A (low byte)
+	ADC_HL	DE		; If was odd, add 1 to multiplicand
+
+; Note there is one anomalous case:  The first one-byte string (with
+; prefix = -1 = 0FFFFH and suffix = 0) generates the 16-bit sum 0FFFFH,
+; which should hash to 800H (not 0).  The following test handles this.
+
+	JR	C,OHASH3	; Skip if special case (will get 800H)
+	LD	B,12		; Setup count for 12 bits in multiplier
+
+; Top of multiply loop (vanilla shift-and-add)
+
+OHASH1:	SRL	C		; Shift out next multiplier bit
+	RRA
+	JR	NC,OHASH2	; Skip if 0
+
+	EX	DE,HL		; Else, swap in product
+	ADD	HL,DE		; Add multiplicand (carries ignored)
+	EX	DE,HL		; Reswap
+
+OHASH2:	ADD	HL,HL		; Shift multiplicand
+	DJNZ	OHASH1		; Loop until done all multiplier bits
+
+; Now have the desired hash key in upper 12 bits of the 16-bit product
+
+	EX	DE,HL		; Obtain product in HL
+	ADD	HL,HL		; Shift high bit into carry
+
+OHASH3:	RLA			; Shift up 4 bits into A...
+	ADD	HL,HL
+	RLA
+	ADD	HL,HL
+	RLA
+	ADD	HL,HL
+	RLA
+	LD	L,H		; Move down low 8 bits of final result
+	JR	HASH		; Join common code to mask high 4 bits
+
+; Version 7 (faster)...
+; Compute hash key = lower 12 bits of unsigned product:
+;	(prefix code + suffix byte) * 15073
+
+FHASH:	LD	L,A		; Extend suffix byte
+	LD	H,0		;  to 16 bits
+	ADD	HL,BC		; Sum with prefix code
+
+; Note:	15073 = 2785 mod 4096, so we need only multiply by 2785.
+
+	LD	D,H		; Copy sum, and compute in HL:
+	LD	E,L		;    1 * sum
+	ADD	HL,HL		;    2 * sum
+	ADD	HL,HL		;    4 * sum
+	ADD	HL,DE		;    5 * sum
+	ADD	HL,HL		;   10 * sum
+	ADD	HL,HL		;   20 * sum
+	ADD	HL,DE		;   21 * sum
+	ADD	HL,HL		;   42 * sum
+	ADD	HL,DE		;   43 * sum
+	ADD	HL,HL		;   86 * sum
+	ADD	HL,DE		;   87 * sum
+	ADD	HL,HL		;  174 * sum
+	ADD	HL,HL		;  348 * sum
+	ADD	HL,HL		;  696 * sum
+	ADD	HL,HL		; 1392 * sum
+	ADD	HL,HL		; 2784 * sum
+	ADD	HL,DE		; 2785 * sum
+	LD	A,H		; Setup high byte of result
+
+; Common code for old-style hashing
+
+HASH:	AND	0FH		; Mask hash key to 12 bits
+	LD	H,A
+	PUSH	HL		; Save key as trial string table index
+	CALL	STRPTR		; Point to string table entry
+	POP	DE		; Restore its index
+	LD	A,(HL)		; Is table entry used?
+	OR	A
+	RET	Z		; No (that was easy), return table ptr
+
+; Hash collision occurred.  Trace down list of entries with duplicate
+; keys (in auxilliary table HSHT) until the last duplicate is found.
+
+	LD	BC,HSHT		; Setup collision table base
+	PUSH	HL		; Create dummy stack level
+
+HASH1:	POP	HL		; Discard last index
+	EX	DE,HL		; Get next trial index
+	PUSH	HL		; Save it
+	ADD	HL,HL		; Get ptr to collision table entry
+	ADD	HL,BC
+	LD	E,(HL)		; Fetch entry
+	INC	HL
+	LD	D,(HL)
+	LD	A,D		; Is it zero?
+	OR	E
+	JR	NZ,HASH1	; No, loop for next in chain
+
+; We now have the index (top of stack) and pointer (HL) for the last
+; entry in the duplicate key list.  In order to find an empty spot for
+; the new string, we search the string table sequentially starting 101
+; (circular) entries past that of the last duplicate.
+
+	EX	(SP),HL		; Save collision ptr, swap its index
+	LD	E,101		; Move 101 entries past it
+	ADD	HL,DE
+
+HASH2:	RES	4,H		; Mask table index to 12 bits
+	PUSH	HL		; Save index
+	CALL	STRPTR		; Point to string table entry
+	POP	DE		; Restore its index
+	LD	A,(HL)		; Fetch byte from entry
+	OR	A		; Is it empty?
+	JR	Z,HASH3		; Yes, found a spot in table
+
+	EX	DE,HL		; Else,
+	INC	HL		; Bump index to next entry
+	JR	HASH2		; Loop until we find one free
+
+; We now have the index (DE) and pointer (HL) for an available entry
+; in the string table.  We just need to add the index to the chain of
+; duplicates for this hash key, and then return the pointer to caller.
+
+HASH3:	EX	(SP),HL		; Swap ptr to last duplicate key entry
+	LD	(HL),D		; Add this index to duplicate chain
+	DEC	HL
+	LD	(HL),E
+	POP	HL		; Recover string table ptr
+	RET			; Return it to caller
+
+	PAGE
+; Get fixed-length code from (old-style) crunched file
+
+; These codes are packed in left-to-right order (msb first).  Two codes
+; fit in three bytes, so we alternate processing every other call based
+; on a rotating flag word in BITS (initialized to 55H).  Location BITSAV
+; holds the middle byte between calls (coding assumes BITSAV = BITS-1).
+
+OGETCR:	CALL	GETCX		; Get next input byte
+	EXX			; Save output regs
+	RET	C		; Return (carry set) if end of file
+
+	LD	E,A		; Copy byte (high or low part of code)
+	LD	HL,BITS		; Point to rotating bit pattern
+	RRC	(HL)		; Rotate it
+	JR	C,OGETC1	; Skip if this is high part of code
+
+	DEC	HL		; Point to saved byte from last call
+	LD	A,(HL)		; Fetch saved byte
+	AND	0FH		; Mask low nibble (high 4 bits of code)
+	EX	DE,HL		; Get new byte in L (low 8 bits of code)
+	LD	H,A		; Form 12-bit code in HL
+	RET			; Return (carry clear from mask)
+
+OGETC1:	PUSH	DE		; Save byte just read (high 8 code bits)
+	CALL	GETCX		; Get next byte
+	EXX			; Save output regs
+	POP	HL		; Restore previous byte in L
+	RET	C		; But return if eof
+
+	LD	(BITSAV),A	; Save new byte for next call
+	AND	0F0H		; Mask high nibble (low 4 bits of code)
+	RLA			; Rotate once through carry
+	LD	H,A		; Set for circular rotate of HL & carry
+	REPT	4
+	ADC_HL	HL		;;Form the 12-bit code
+	ENDM
+	RET			; Return (carry clear after last rotate)
+
+; Output next byte decoded from crunched file
+
+PUTCR:	EXX			; Swap in output registers
+	JP	0		; Vector to the appropriate routine
+PUTCRP	EQU	$-2		; (ptr to PUT or PUTUP stored here)
+
+	PAGE
+; Low-level output routines
+
+; Register usage (once things get going):
+;
+;  B  = Flag for repeated byte expansion (1 = repeat count expected)
+;  C  = Last byte output (saved for repeat expansion)
+;  DE = Output buffer pointer
+;  HL = CRC value
+
+; Setup registers for output (preserves AF)
+
+PUTSET:	LD	HL,(BUFPAG-1)	; Get buffer start address
+	LD	L,0		; (It's always page aligned)
+	EX	DE,HL
+	LD	H,E		; Clear the CRC
+	LD	L,E
+	LD	B,E		; Clear repeat flag
+	RET			; Return
+
+; Table of starting output buffer pages
+; (No. of entries must match ARCVER)
+
+OBUFT:				; Header version:
+	DB	HIGH BUFF	; 1 - Uncompressed (obsolete)
+	DB	HIGH BUFF	; 2 - Uncompressed
+	DB	HIGH BUFF	; 3 - Packed
+	DB	HIGH BUFFSQ	; 4 - Squeezed
+	DB	HIGH BUFFCX	; 5 - Crunched (unpacked) (old)
+	DB	HIGH BUFFCX	; 6 - Crunched (packed) (old)
+	DB	HIGH BUFFCX	; 7 - Crunched (packed, faster) (old)
+	DB	HIGH BUFFCR	; 8 - Crunched (new)
+	DB	HIGH BUFFCQ	; 9 - Squashed
+
+	PAGE
+; Unpack and output packed byte
+
+PUTUP:	DJNZ	PUTUP4		; Expecting a repeat count?
+	LD	B,A		; Yes ("byte REP count"), save count
+	OR	A		; But is it zero?
+	JR	NZ,PUTUP2	; No, enter expand loop (did one before)
+
+	LD	A,REP		; Else ("REP 0"),
+	JR	PUT		; Go output REP code as data
+
+PUTUP1:	LD	A,C		; Get repeated byte
+	CALL	PUT		; Output it
+
+PUTUP2:	DJNZ	PUTUP1		; Loop until repeat count exhausted
+	RET			; Return when done
+
+PUTUP3:	INC	B		; Set flag for repeat count next
+	RET			; Return (must wait for next call)
+
+PUTUP4:	INC	B		; Normal byte, reset repeat flag
+	CP	REP		; But is it the special flag code (REP)?
+	JR	Z,PUTUP3	; Yes, go wait for next byte
+
+	LD	C,A		; Save output byte for later repeat
+
+; Output byte (and update CRC)
+
+PUT:	LD	(DE),A		; Store byte in buffer
+	XOR	L		; Include byte in lower CRC
+	LD	L,A		;  to get lookup table index
+	LD	A,H		; Save high (becomes new low) CRC byte
+	LD	H,HIGH CRCTAB	; Point to table value low byte
+	XOR	(HL)		; Include in CRC
+	INC	H		; Point to table value high byte
+	LD	H,(HL)		; Fetch to get new high CRC byte
+	LD	L,A		; Copy new low CRC byte
+
+	INC	E		; Now that CRC updated, bump buffer ptr
+	RET	NZ		; Return if not end of page
+
+	INC	D		; Point to next buffer page
+	LD	A,(BUFLIM)	; Get buffer limit page
+	CP	D		; Buffer full?
+	RET	NZ		; No, return
+
+	PAGE
+; Output buffer
+
+PUTBUF:	PUSH	HL		; Save register (i.e. CRC)
+	LD	HL,(BUFPAG-1)	; Get buffer start address
+	XOR	A		; (it's always page-aligned)
+	LD	L,A
+	EX	DE,HL		; Swap with buffer end ptr
+	SBC_HL	DE		; Compute buffer length
+	JR	Z,PUTB2		; But skip all the work if it's empty
+
+	PUSH	BC		; Save register (i.e. repeat flag/byte)
+	LD	B,H		; Copy buffer length
+	LD	C,L
+	LD	HL,(LEN)	; Get (remaining) output file length
+	SBC_HL	BC		; Subtract size of buffer
+	LD	(LEN),HL	; (Should be zero when we're all done)
+	JR	NC,PUTB1	; Skip if double-precision not needed
+
+	LD	HL,(LEN+2)	; Update upper word of length
+	DEC	HL
+	LD	(LEN+2),HL
+
+PUTB1:	PUSH	DE		; Save buffer start
+	CALL	WRTBUF		; Write the buffer
+	POP	DE		; Reset output ptr for next refill
+	POP	BC		; Restore register
+
+PUTB2:	POP	HL		; Restore register
+	RET			; Return to caller
+
+	PAGE
+; Write buffer to disk
+
+WRTBUF:	LD	A,(OFLAG)	; Output file open?
+	OR	A
+	JR	Z,TYPBUF	; No, go typeout buffer instead
+
+	LD	H,D		; Get buffer end ptr
+	LD	L,E
+	ADD	HL,BC
+	JR	WRTB2		; Enter loop
+
+WRTB1:	LD	(HL),CTLZ	; Fill last record with CP/M EOF...
+	INC	HL
+	INC	BC
+
+WRTB2:	LD	A,L		; Buffer ends on a CP/M record boundary?
+	AND	7FH
+	JR	NZ,WRTB1	; No, loop until it does
+
+	OR	B		; At least one page to write?
+	JR	Z,WRTB4		; Skip if not
+
+WRTB3:	PUSH	BC		; Save remaining byte count
+	CALL	WRTREC		; Output 2 records to disk (i.e. 1 page)
+	CALL	WRTREC		; (Note returns A=0 as expected below)
+	POP	BC		; Restore count
+	DJNZ	WRTB3		; Loop for all (full) pages in buffer
+
+WRTB4:	OR	C		; Half-page left?
+	RET	Z		; No, return
+
+; Write record to disk
+
+WRTREC:	LD	HL,128		; Get CP/M record length
+	ADD	HL,DE		; Add buffer ptr
+	PUSH	HL		; Save next record start
+	CALL	SETDMA		; Set to write from buffer ptr
+	LD	C,$WRITE	; Write a record to output file
+	CALL	OFDOS
+	POP	DE		; Restore ptr for next call
+	DEC	A		; Write error?
+	RET	Z		; No, return
+
+	LD	DE,DSKFUL	; Disk is full, report error
+	JP	PABORT		;  and abort
+
+	PAGE
+; Typeout buffer
+
+TYPBUF:	LD	A,(CHECKF)	; Just checking file?
+	OR	A
+	RET	NZ		; Yes, ignore buffer
+
+	LD	A,(PROUTF)	; Printer output enabled?
+	OR	A
+	JR	NZ,PRTBUF	; Yes, go print buffer instead
+
+; Note:	The file typeout facility was originally added to this program
+;	as an afterthought.  The primitive nature of this facility has
+;	been enhanced considerably with the addition of screen pauses in
+;	UNARC 1.4.  Areas for future improvement include intelligent
+;	handling of screen width and terminal characteristics.
+
+TYPB0:	LD	A,(DE)		; Fetch next byte from buffer
+	CP	CTLZ		; Is it CP/M end-of-file?
+	JP	Z,EXIT		; Yes, exit program early
+
+	PUSH	BC		; Save remaining byte count
+	INC	A		; Bump ASCII code (simplifies DEL test)
+	AND	7FH		; Mask to 7 bits
+	CP	' '+1		; Is it a printable char?
+	DEC	A		; (Restore code)
+	JR	C,TYPB3		; Skip if non-printable
+
+TYPB1:	CALL	PCHAR		; Type char
+
+TYPB2:	INC	DE		; Bump ptr to next byte
+	POP	BC		; Restore byte count
+	DEC	BC		; Reduce count
+	LD	A,B		; Done all bytes?
+	OR	C
+	JR	NZ,TYPB0	; No, loop for next
+	RET			; Yes, return to caller
+
+TYPB3:	CP	HT		; Is (non-printing) char a tab?
+	JR	Z,TYPB1		; Yes, go type it
+	JR	C,TYPB2		; But ignore if low control char
+	CP	CR		; Does char generate a new line?
+	JR	NC,TYPB2	; No, ignore control char (incl. CR)
+
+	CALL	CRLF		; Yes (LF/VT/FF), start a new line
+	PUSH	DE		; Save buffer ptr
+	CALL	CABORT		; Good place to check for CTRL-C abort
+	POP	DE		; Restore ptr
+	LD	HL,LINCT	; Point to line count
+	INC	(HL)		; Bump for one more line
+	JR	Z,TYPB2		; But skip if 256 (must be no limit)
+
+	LD	A,(TYLIM)	; Get max allowed lines
+	CP	(HL)		; Reached limit (e.g. for RCP/M)?
+	JR	NZ,TYPB2	; No, go back to typeout loop
+	CALL	WHLCK		; But is wheel byte set?
+	JR	Z,TYPB2		; Yes, do not enforce limit
+
+	LD	DE,TYPERR	; Else, report too many lines
+	JP	PABORT		;  and abort
+
+	PAGE
+; Print buffer
+
+; This added in UNARC 1.41 as a quick hack to allow printing of
+; highly-compressed binary plot images.  It may not be suitable for
+; general text file listing.  (In particular, CTRL-Z is not treated
+; as a file terminator.)
+
+PRTBUF:	EX	DE,HL		; Buffer ptr -> HL
+
+PRTB1:	LD	E,(HL)		; Fetch next byte from buffer
+	PUSH	HL		; Save buffer ptr
+	PUSH	BC		; Save remaining byte count
+	LD	C,$LIST		; Print byte (on listing device)
+	CALL	BDOS
+	CALL	CABORT		; Check for CTRL-C abort
+	POP	BC		; Restore byte count
+	POP	HL		; Restore ptr
+	INC	HL		; Bump to next byte in buffer
+	DEC	BC		; Reduce count
+	LD	A,B		; Done all bytes?
+	OR	C
+	JR	NZ,PRTB1	; No, loop for next
+
+	RET			; Yes, return to caller
+
+	PAGE
+	SUBTTL	Listing Routines
+
+; List file information
+
+LIST:	LD	HL,(TFILES)	; Get total files so far
+	LD	A,H		; Test if this is first file
+	OR	L
+	INC	HL		; Add one more
+	LD	(TFILES),HL	; Update total files
+	CALL	Z,LTITLE	; If first file, list column titles
+
+	LD	DE,SIZE		; Point to compressed file size
+	PUSH	DE		; Save for later
+	LD	HL,TSIZE	; Update total compressed size
+	CALL	LADD
+
+	LD	DE,LEN		; Point to uncompressed length
+	PUSH	DE		; Save for later
+	LD	HL,TLEN		; Update total length
+	CALL	LADD
+
+	LD	HL,LINE		; Setup listing line pointer
+	LD	DE,OFCB+@FN	; List file name from output FCB
+	LD	C,0		; (with blank fill)
+	CALL	LNAME
+
+	POP	DE		; Recover file length ptr
+	PUSH	DE		; Save again for factor calculation
+	CALL	LTODA		; List file length
+	CALL	LDISK		; Compute and list disk space
+	CALL	LSTOW		; List stowage method and version
+	POP	BC		; Restore uncompressed length ptr
+	POP	DE		; Restore compressed size ptr
+	CALL	LSIZE		; List size and compression factor
+	LD	A,(DATE)	; Check for valid file date
+	OR	A		; (This anticipates no-date CP/M files)
+	JR	NZ,LIST1	; Skip if valid
+
+	LD	B,18		; Else, clear out date and time fields
+	CALL	FILLB
+	JR	LIST2		; Skip
+
+LIST1:	CALL	LDATE		; List file date
+	CALL	LTIME		; List file time
+
+LIST2:	CALL	LCRC		; List CRC value
+
+	PAGE
+; Terminate and print listing line
+
+LISTL:	LD	DE,LINE		; Setup listing line ptr
+	JR	LIST3		; Go finish up and list it
+
+; List file totals
+
+LISTT:	LD	HL,LINE		; Setup listing line ptr
+	LD_DE	(TFILES)	; List total files
+	CALL	WTODA
+	LD	DE,TLEN		; List total file length
+	PUSH	DE		;  and save ptr for factor calculation
+	CALL	LTODA
+	LD_DE	(TDISK)		; List total disk space
+	CALL	LDISK1
+	LD	B,13		; Fill next columns with blanks
+	CALL	FILLB
+	POP	BC		; Recover total uncompressed length ptr
+	LD	DE,TSIZE	; Get total compressed size ptr
+	CALL	LSIZE		; List overall size, compression factor
+	LD	B,20		; Fill next columns with blanks
+	CALL	FILLB
+	LD_DE	(TCRC)		; List sum of all CRC values
+	CALL	WHEX
+	LD	DE,TOTALS	; Point to totals string (precedes line)
+
+LIST3:	LD	(HL),0		; Terminate listing line
+	JR	PRINTL		; Go print it, followed by new line
+
+; Print character
+
+PCHAR:	CP	BEL		; Is it a noisy one?
+	JR	NZ,PCHAR1	; No, skip
+	LD	HL,BELLS	; Yes, is silence desired?
+	AND	(HL)
+	RET	Z		; Yes, keep quiet
+
+PCHAR1:	PUSH	DE		; Save register
+
+PCHAR2:	LD	E,A		; Setup char
+	DEC	A		; But is it special program name marker?
+	JR	Z,PNAME		; Yes, go insert name
+
+	LD	C,$CONOUT	; Send to BDOS console output
+	CALL	BDOS
+	POP	DE		; Restore register
+	RET			; Return
+
+; Print program name string, followed by blank
+
+PNAME:	LD	DE,USAGE	; Point to name string in help message
+
+PNAME1:	LD	A,(DE)		; Reached trailing blank?
+	CP	' '
+	JR	Z,PCHAR2	; Yes, back to PCHAR to print it
+
+	CALL	PCHAR		; Print name char
+	INC	DE		; Point to next
+	JR	PNAME1		; Loop until blank delimiter
+
+; Print string on new line, then start another
+
+PRINTX:	CALL	CRLF
+
+; Print string, then start new line
+
+PRINTL:	CALL	PRINTS
+
+; Start new line
+; Note:	Must preserve DE
+
+CRLF:	LD	A,CR
+	CALL	PCHAR
+	LD	A,LF
+	CALL	PCHAR
+
+	LD	HL,LPSCT	; Reached end of screen?
+	DEC	(HL)
+	RET	NZ		; No, return
+
+	LD	A,0		; But are screen pauses enabled?
+LPS	EQU	$-1		; (lines per screen = 0 if not)
+	OR	A
+	RET	Z		; No, return
+
+	LD	(HL),A		; Reset count of lines left
+	PUSH	DE		; Save register
+	LD	DE,MORE		; Print '[more]' on the new line
+	CALL	PRINTS
+
+CRLF1:	CALL	CABORT		; Wait for char (or ^C abort)
+	JR	Z,CRLF1
+
+	PUSH	AF		; Save input response
+	LD	DE,NOMORE	; Blank out the '[more]' line
+	CALL	PRINTS
+	POP	AF		; Restore response
+	POP	DE		; Restore register
+	XOR	' '		; Was response the space bar?
+	RET	NZ		; Anything else scrolls another screen
+
+	INC	A		; Yes, set to pause after one more line
+	LD	(LPSCT),A
+	RET			; Return
+
+	PAGE
+; Print string on new line
+
+; Note:	Restricted to at most 5 stack levels (c.f. CHECK).  CRLF will
+;	not perform page pause during this restriction, but PCHAR will
+;	execute PNAME (during ABOMSG print), so we're now at the limit!
+
+PRINT:	CALL	CRLF
+
+; Print NUL-terminated string
+
+PRINTS:	LD	A,(DE)
+	OR	A
+	RET	Z
+
+	CALL	P,PCHAR		; (Ignore help msg chars with MSB set)
+	INC	DE
+	JR	PRINTS
+
+; Output warning message about extracted file
+
+OWARN:	PUSH	DE
+	LD	DE,WARN
+	CALL	PRINTS
+	POP	DE
+	JR	PRINTL
+
+	PAGE
+; List column titles
+
+; Note:	This saves some much-needed space, by using the same template
+;	to generate the title line and the 'equal signs' separator line.
+
+LTITLE:	CALL	CRLF
+	LD	DE,TITLES
+	PUSH	DE
+	LD	A,(DE)
+
+LTITL1:	CP	'='		; For titles, convert '=' to blank
+	JR	NZ,LTITL2
+	LD	A,' '
+
+LTITL2:	CALL	PCHAR
+	INC	DE
+	LD	A,(DE)
+	OR	A
+	JR	NZ,LTITL1
+
+	POP	DE
+	CALL	CRLF
+
+LTITL3:	LD	A,(DE)
+	OR	A
+	JR	Z,CRLF
+
+	CP	' '		; Separator converts non-blank to '='
+	JR	Z,LTITL4
+	LD	A,'='
+
+LTITL4:	CALL	PCHAR
+	INC	DE
+	JR	LTITL3
+
+	PAGE
+; List file name
+
+; Note:	We use name in output file FCB, rather than original name in
+;	archive header (illegal chars already filtered by GETNAM).
+;	This routine also called by INIT to unparse ARC file name.
+
+LNAME:	LD	B,12		; Setup count for name, '.', and type
+
+LNAME1:	LD	A,B		; Get count
+	CP	4		; At end of name?
+	LD	A,'.'
+	JR	Z,LNAME2	; Yes, go store separator
+
+	LD	A,(DE)		; Get next char
+	INC	DE
+	CP	C		; Ignore blanks (possibly)
+	JR	Z,LNAME3
+
+LNAME2:	LD	(HL),A		; Store char
+	INC	HL
+
+LNAME3:	DJNZ	LNAME1		; Loop for all chars in name and type
+	RET			; Return to caller
+
+	PAGE
+; Compute and list disk space for uncompressed file
+
+LDISK:	PUSH	HL		; Save line ptr
+	LD	HL,(LEN)	; Convert file length to 1k disk space
+	LD	A,(LEN+2)	; (Most we can handle here is 16 Mb)
+	LD	DE,1023		; First, round up to next 1k
+	ADD	HL,DE
+	ADC	A,0
+	RRA			; Now, shift to divide by 1k
+	RR	H
+	RRA
+	RR	H
+	AND	3FH
+	LD	L,H		; Result -> HL
+	LD	H,A
+	LD	A,(LBLKSZ)	; Get disk block size
+	DEC	A		; Round up result accordingly
+	LD	E,A
+	LD	D,0
+	ADD	HL,DE
+	CPL			; Form mask for lower bits
+	AND	L
+	LD	E,A		; Final result -> DE
+	LD	D,H
+	LD	HL,(TDISK)	; Update total disk space used
+	ADD	HL,DE
+	LD	(TDISK),HL
+	POP	HL		; Restore line ptr
+
+LDISK1:	CALL	WTODA		; List result
+	LD	(HL),'k'
+	INC	HL
+	RET
+
+	PAGE
+; List stowage method and version
+
+LSTOW:	CALL	FILL2B		; Blanks first
+	EX	DE,HL
+	LD	HL,STOWTX	; Point to stowage text table
+	LD	A,(VER)		; Get header version no.
+	PUSH	AF		; Save for next column
+	LD	BC,8		; Use to get correct text ptr
+	CP	3
+	JR	C,LSTOW1
+	ADD	HL,BC
+	JR	Z,LSTOW1
+	ADD	HL,BC
+	CP	4
+	JR	Z,LSTOW1
+	ADD	HL,BC
+	CP	9
+	JR	C,LSTOW1
+	ADD	HL,BC
+	JR	Z,LSTOW1
+	ADD	HL,BC
+
+LSTOW1:	LDIR			; List stowage text
+	EX	DE,HL		; Restore line ptr
+	POP	AF		; Recover version no.
+
+LSTOW2:	LD	B,3		; List in 3 cols, blank-filled
+	JP	BTODB		;  and return
+
+	PAGE
+; List compressed file size and compression factor
+
+LSIZE:	PUSH	DE		; Save compressed size ptr
+	PUSH	BC		; Save uncompressed length ptr
+	CALL	LTODA		; List compressed size
+	POP	DE		; Recover length ptr
+	EX	(SP),HL		; Save line ptr, recover size ptr
+
+; Compute compression factor = 100 - [100*size/length]
+; (HL = ptr to size, DE = ptr to length, A = result)
+
+	PUSH	DE		; Save length ptr
+	CALL	LGET		; Get BCDE = size
+	LD	H,B		; Compute 100*size
+	LD	L,C		;  in HLIX:
+	PUSH	DE
+	POP_IX			;     size
+	ADD_IX	IX
+	ADC_HL	HL		;   2*size
+	ADD_IX	DE
+	ADC_HL	BC		;   3*size
+	ADD_IX	IX
+	ADC_HL	HL		;   6*size
+	ADD_IX	IX
+	ADC_HL	HL		;  12*size
+	ADD_IX	IX
+	ADC_HL	HL		;  24*size
+	ADD_IX	DE
+	ADC_HL	BC		;  25*size
+	ADD_IX	IX
+	ADC_HL	HL		;  50*size
+	ADD_IX	IX
+	ADC_HL	HL		; 100*size
+	EX	(SP),HL		; Swap back length ptr, save upper
+	CALL	LGET		; Get BCDE = length
+	PUSH_IX
+	POP	HL		; Now have (SP),HL = 100*size
+	LD	A,B		; Length = 0?
+	OR	C		; (Unlikely, but possible)
+	OR	D
+	OR	E
+	JR	Z,LSIZE2	; Yes, go return result = 0
+
+	LD	A,101		; Initialize down counter for result
+
+LSIZE1:	DEC	A		; Divide by successive subtractions
+	SBC_HL	DE
+	EX	(SP),HL
+	SBC_HL	BC
+	EX	(SP),HL
+	JR	NC,LSIZE1	; Loop until remainder < length
+
+LSIZE2:	POP	HL		; Clean stack
+	POP	HL		; Restore line ptr
+	CALL	BTODA		; List the factor
+	LD	(HL),'%'
+	INC	HL
+	RET			; Return
+
+	PAGE
+; List file creation date
+
+; ARC files use MS-DOS 16-bit date format:
+;
+; Bits [15:9] = year - 1980
+; Bits  [8:5] = month of year
+; Bits  [4:0] = day of month
+;
+; (All zero means no date, checked before call to this routine)
+
+LDATE:	LD	A,(DATE)	; Get date
+	AND	1FH		; List day
+	CALL	BTODA
+	LD	(HL),' '	; Then a blank
+	INC	HL
+	EX	DE,HL		; Save listing line ptr
+	LD	HL,(DATE)	; Get date again
+	PUSH	HL		; Save for listing year (in upper byte)
+	ADD	HL,HL		; Shift month into upper byte
+	ADD	HL,HL
+	ADD	HL,HL
+	LD	A,H		; Get month
+	AND	0FH
+	CP	13		; Make sure it's valid
+	JR	C,LDATE1
+	XOR	A		; (Else will show as "???")
+LDATE1:	LD	C,A		; Use to index to 3-byte string table
+	LD	B,0
+	LD	HL,MONTX
+	ADD	HL,BC
+	ADD	HL,BC
+	ADD	HL,BC
+	LD	C,3
+	LDIR			; Move month text into listing line
+	EX	DE,HL		; Restore line ptr
+	LD	(HL),' '	; Then a blank
+	INC	HL
+	POP	AF		; Recover high byte of date
+	SRL	A		; Get 1980-relative year
+	ADD	A,80		; Get true year in century
+
+LDATE2:	LD	BC,256*2+'0'	; Setup for 2 digits with high-zero fill
+	JR	BTOD		;  and convert binary to decimal ASCII
+
+	PAGE
+; List file creation time
+
+; ARC files use MS-DOS 16-bit time format:
+;
+; Bits [15:11] = hour
+; Bits [10:5]  = minute
+; Bits  [4:0]  = second/2 (not shown here)
+
+LTIME:	EX	DE,HL		; Save listing line ptr
+	LD	HL,(TIME)	; Fetch time
+	LD	A,H		; Copy high byte
+	RRA			; Get hour
+	RRA
+	RRA
+	AND	1FH
+	LD	B,'a'		; Assume am
+	JR	Z,LTIME1	; Skip if 0 (12 midnight)
+
+	CP	12		; Is it 1-11 am?
+	JR	C,LTIME2	; Yes, skip
+
+	LD	B,'p'		; Else, it's pm
+	SUB	12		; Convert to 12-hour clock
+	JR	NZ,LTIME2	; Skip if not 12 noon
+
+LTIME1:	LD	A,12		; Convert 0 to 12
+
+LTIME2:	PUSH	BC		; Save am/pm indicator
+	ADD	HL,HL		; Shift minutes up to high byte
+	ADD	HL,HL
+	ADD	HL,HL
+	PUSH	HL		; Save minutes
+	EX	DE,HL		; Recover listing line ptr
+	CALL	LSTOW2		; List hour
+	LD	(HL),':'	; Then ":"
+	INC	HL
+	POP	AF		; Restore and list minutes
+	AND	3FH
+	CALL	LDATE2
+	POP	AF		; Restore and list am/pm letter
+	LD	(HL),A
+	INC	HL
+	RET			; Return
+
+	PAGE
+; List hex CRC value
+
+LCRC:	CALL	FILL2B
+	LD_DE	(CRC)
+	PUSH	HL
+	LD	HL,(TCRC)	; Update CRC total
+	ADD	HL,DE
+	LD	(TCRC),HL
+	POP	HL
+
+; List hex word in DE
+
+WHEX:	CALL	DHEX
+	LD	D,E
+
+; List hex byte in D
+
+DHEX:	LD	(HL),D
+	RLD
+	CALL	AHEX
+	LD	A,D
+
+; List hex nibble in A
+
+AHEX:	OR	0F0H
+	DAA
+	CP	60H
+	SBC	A,1FH
+	LD	(HL),A
+	INC	HL
+	RET
+
+; A few decimal ASCII conversion callers, for convenience
+
+WTODA:	LD	B,5		; List blank-filled word in 5 cols
+WTODB:	LD	C,' '		; List blank-filled word in B cols
+	JR	WTOD		; List C-filled word in B cols
+
+BTODA:	LD	B,4		; List blank-filled byte in 4 cols
+BTODB:	LD	C,' '		; List blank-filled byte in B cols
+	JR	BTOD		; List C-filled byte in B cols
+
+LTODA:	LD	BC,9*256+' '	; List blank-filled long in 9 cols
+;	JR	LTOD
+
+	PAGE
+; Convert Long (or Word or Byte) Binary to Decimal ASCII
+; R. A. Freed
+; 2.0	15 Mar 85
+
+; Entry:	A  = Unsigned 8-bit byte value (BTOD)
+;		DE = Unsigned 16-bit word value (WTOD)
+;		DE = Pointer to low byte of 32-bit long value (LTOD)
+;		B  = Max. string length (0 implies 256, i.e. no limit)
+;		C  = High-zero fill (0 to suppress high-zero digits)
+;		HL = Address to store ASCII byte string
+;
+; Return:	HL = Adress of next byte after last stored
+;
+; Stack:	n+1 levels, where n = no. significant digits in output
+;
+; Notes:	If B > n, (B-n) leading fill chars (C non-zero) stored.
+;		If B < n, high-order (n-B) digits are suppressed.
+;		If only word or byte values need be converted, use the
+;		 shorter version of this routine (WTOD or BTOD) instead.
+
+RADIX	EQU	10		; (Will work with any radix <= 10)
+
+LTOD:	PUSH	DE		; Entry for 32-bit long pointed to by DE
+	EXX			; Save caller's regs, swap in alt set
+	POP	HL		; Get pointer and fetch value to HADE
+	LD	E,(HL)
+	INC	HL
+	LD	D,(HL)
+	INC	HL
+	LD	A,(HL)
+	INC	HL
+	LD	H,(HL)
+	EX	DE,HL		; Value now in DAHL
+	JR	LTOD1		; Join common code
+
+BTOD:	LD	E,A		; Entry for 8-bit byte in A
+	LD	D,0		; Copy to 16-bit word in DE
+
+WTOD:	PUSH	DE		; Entry for 16-bit word in DE, save it
+	EXX			; Swap in alt regs for local use
+	POP	HL		; Recover value in HL
+	XOR	A		; Set to clear upper bits in DE
+	LD	D,A
+
+; Common code for all entries
+
+LTOD1:	LD	E,A		; Now have 32-bit value in DEHL
+	LD	C,RADIX		; Setup radix for divides
+	SCF			; Set first-time flag
+	PUSH	AF		; Save for stack emptier when done
+
+	PAGE
+; Top of conversion loop
+
+; Method:  Generate output digits on stack in reverse order.  Each loop
+; divides the value by the radix.  Remainder is the next output digit,
+; quotient becomes the dividend for the next loop.  Stop when get zero
+; quotient or no. of digits = max. string length.  (Always generates at
+; least one digit, i.e. zero value has one "significant" digit.)
+
+LTOD2:	CALL	DIVLB		; Divide to get next digit
+	OR	'0'		; Convert to ASCII (clears carry)
+	EXX			; Swap in caller's regs
+	DJNZ	LTOD5		; Skip if still more room in string
+
+; All done (value fills string), this is the output loop
+
+LTOD3:	LD	(HL),A		; Store digit in string
+	INC	HL		; Bump string ptr
+
+LTOD4:	POP	AF		; Unstack next digit
+	JR	NC,LTOD3	; Loop if any
+
+	RET			; Return to caller
+
+; Still more room in string, test if more significant digits
+
+LTOD5:	PUSH	AF		; Stack this digit
+	EXX			; Swap back local regs
+	LD	A,H		; Last quotient = 0?
+	OR	L
+	OR	D
+	OR	E
+	JR	NZ,LTOD2	; No, loop for next digit
+
+; Can stop early (no more digits), handle leading zero-fill (if any)
+
+	EXX			; Swap back caller's regs
+	OR	C		; Any leading fill wanted?
+	JR	Z,LTOD4		; No, go to output loop
+
+LTOD6:	LD	(HL),A		; Store leading fill
+	INC	HL		; Bump string ptr
+	DJNZ	LTOD6		; Repeat until fill finished
+	JR	LTOD4		; Then go store the digits
+
+	PAGE
+	SUBTTL	Miscellaneous Support Routines
+
+; Note:	The following general-purpose routine is currently used in this
+;	program only to divide longs by 10 (by decimal convertor, LTOD).
+;	Thus, a few unneeded code locations have been commented out.
+;	(May be restored if program requirements change.)
+
+; Unsigned Integer Division of Long (or Word or Byte) by Byte
+; R. A. Freed
+
+; Divisor in C, dividend in (A)DEHL or (A)HL or L (depends on call used)
+; Quotient returned in DEHL (or just HL), remainder in A
+
+;DIVXLB:OR	A		; 40-bit dividend in ADEHL (A < C)
+;	JR	NZ,DIVLB1	; Skip if have more than 32 bits
+
+DIVLB:	LD	A,D		; 32-bit dividend in DEHL
+	OR	E		; But is it really only 16 bits?
+	JR	Z,DIVWB		; Yes, skip (speeds things up a lot)
+
+	XOR	A		; Clear high quotient for first divide
+
+DIVLB1:	CALL	DIVLB2		; Get upper quotient first, then swap:
+DIVLB2:	EX	DE,HL		; Upper quotient in DE, lower in HL
+
+DIVXWB:	OR	A		; 24-bit dividend in AHL (A < C)
+	JR	NZ,DIVWB1	; Skip if have more than 16 bits
+
+DIVWB:	LD	A,H		; 16-bit dividend in HL
+	CP	C		; Will quotient be less than 8 bits?
+	JR	C,DIVBB1	; Yes, skip (small dividend speed-up)
+
+	XOR	A		; Clear high quotient
+
+DIVWB1:	LD	B,16		; Setup count for 16-bit divide
+	JR	DIVB		; Skip to divide loop
+
+;DIVBB:	XOR	A		; 8-bit dividend in L
+DIVBB1:	LD	H,L		; For very small nos., pre-shift 8 bits
+	LD	L,0		; High byte of quotient will be zero
+	LD	B,8		; Setup count for 8-bit divide
+
+; Top of divide loop (vanilla in-place shift-and-subtract)
+
+DIVB:	ADD	HL,HL		; Divide AHL (B=16) or AH (B=8) by C
+	RLA			; Shift out next remainder bit
+;	JR	C,DIVB1		; (This needed only for divsors > 128)
+	CP	C		; Greater than divisor?
+	JR	C,DIVB2		; No, skip (next quotient bit is 0)
+
+DIVB1:	SUB	C		; Yes, reduce remainder
+	INC	L		;  and set quotient bit to 1
+
+DIVB2:	DJNZ	DIVB		; Loop for no. bits in quotient
+	RET			; Done (quotient in HL, remainder in A)
+
+	PAGE
+; Fetch a long (4-byte) value
+
+LGET:	LD	E,(HL)		; Fetch BCDE from (HL)
+	INC	HL
+	LD	D,(HL)
+	INC	HL
+	LD	C,(HL)
+	INC	HL
+	LD	B,(HL)
+	RET
+
+; Add two longs
+
+LADD:	LD	B,4		; (DE) + (HL) -> (HL)
+	OR	A
+
+LADD1:	LD	A,(DE)
+	ADC	A,(HL)
+	LD	(HL),A
+	INC	HL
+	INC	DE
+	DJNZ	LADD1
+
+	RET
+
+; Fill routines
+
+FILL2B:	LD	B,2		; Fill 2 blanks
+
+FILLB:	LD	C,' '		; Fill B blanks
+
+FILL:	LD	(HL),C		; Fill B bytes with char in C
+	INC	HL
+	DJNZ	FILL
+
+	RET
+
+; Convert character to upper case
+
+UPCASE:	CP	'a'
+	RET	C
+	CP	'z'+1
+	RET	NC
+
+	ADD	A,'A'-'a'
+	RET
+
+	PAGE
+IF NOT Z80
+
+; EXX instruction emulator
+
+EXX:
+	IRP	AA,<HL,DE,BC>
+	PUSH	AA
+	LD	HL,(AA&SAV)
+	EX	(SP),HL
+	LD	(AA&SAV),HL
+	ENDM
+	POP	BC
+	POP	DE
+	POP	HL
+	RET
+
+; LDIR instruction emulator
+
+LDIR:	PUSH	AF
+
+LDIR1:	LD	A,(HL)
+	LD	(DE),A
+	INC	HL
+	INC	DE
+	DEC	BC
+	LD	A,B
+	OR	C
+	JP	NZ,LDIR1
+
+	POP	AF
+	RET
+
+; CPIR instruction emulator
+
+CPIR1:	POP	AF
+
+CPIR:	CP	(HL)
+	INC	HL
+	DEC	BC
+	RET	Z
+
+	PUSH	AF
+	LD	A,B
+	OR	C
+	JP	NZ,CPIR1
+
+	POP	AF
+	RET
+
+ENDIF
+	PAGE
+	SUBTTL	Messages and Initialized Data
+
+IF Z80
+NOTZ80:	DB	BEL,'Z80 required!$'
+ELSE
+USEZ80:	DB	'NOTE: The Z80 version is smaller and faster!',CR,LF,'$'
+ENDIF
+ABOMSG:	DB	BEL,1,'aborted!',0
+CPMERR:	DB	'CP/M version 2 or higher required',0
+NOROOM:	DB	'Not enough memory',0
+NAMERR:	DB	'Ambiguous archive file name',0
+OPNERR:	DB	'Cannot find archive file',0
+FMTERR:	DB	'Invalid archive file format',0
+HDRERR:	DB	BEL,'Warning: Bad archive file header, bytes skipped = '
+HDRSKP:	DB	'00000',0
+NOFILS:	DB	'No matching file(s) in archive',0
+BADIDR:	DB	'Invalid archive file drive',0
+BADODR:	DB	'Invalid output drive',0
+ARCMSG:	DB	'Archive File = '
+ARCNAM:	DB	'FILENAME.ARC',0
+OUTMSG:	DB	'Output Drive = '
+OUTDRV:	DB	'A:',0
+CHKMSG:	DB	'Checking archive...',0
+BADVER:	DB	'Cannot extract file (need newer version of UNARC?)',0
+EXISTS:	DB	BEL,'Replace existing output file (y/n)? ',0
+DSKFUL:	DB	'Disk full',0
+DIRFUL:	DB	'Directory full',0
+CLSERR:	DB	'Cannot close output file',0
+UCRERR:	DB	'Incompatible crunched file format',0
+TYPERR:	DB	'Typeout line limit exceeded',0
+WARN:	DB	BEL,'Warning: Extracted file has incorrect ',0
+CRCERR:	DB	'CRC',0
+LENERR:	DB	'length',0
+MORE:	DB	'[more]',0
+NOMORE:	DB	CR,'       ',HT,CR,0
+
+; Note:	Tab (HT) added above in UNARC 1.5 for proper following tab
+;	expansion (since CP/M 2.2 BDOS does not reset its column
+;	position after raw CR output).  The blanks are still generated
+;	in case of BDOS implementations which do not expand tabs.
+
+MONTX:	DB	'???JanFebMarAprMayJunJulAugSepOctNovDec'
+
+STOWTX:	DB	'Unpacked'
+	DB	' Packed '
+	DB	'Squeezed'
+	DB	'Crunched'
+	DB	'Squashed'
+	DB	'Unknown!'
+
+TITLES:	DB	'Name========  =Length  Disk  =Method= Ver =Stored Save'
+	DB	'd ===Date== =Time=  CRC='
+LINLEN	EQU	$-TITLES
+	DB	0
+
+TOTALS:	DB	'        ====  =======  ====               =======  ==='
+	DB	'                    ===='
+	DB	CR,LF
+	DB	'Total  '	; (LINE must follow!)
+
+; .COM file ends here (except for non-Z80 self-unpacking startup code)
+
+COMLEN	EQU	$-TBASE		; Length of initialized code and data
+
+	PAGE
+	SUBTTL	Data Storage
+
+; Unitialized data last (does not contribute to .COM file size)
+
+; Note:	Following macro introduced in UNARC 1.5 to avoid use of the
+;	assembler DS directive, which generates unneeded records in the
+;	.COM file when linked with L80 (unlike SLRNK).  (Also preserves
+;	location counter for self-unpacking initialization code in the
+;	non-Z80 version.)
+
+DSS	MACRO	SYM,BYTES
+SYM	EQU	$D
+$D	DEFL	$D+(BYTES)
+	ENDM
+
+$D	DEFL	$		; Start of data storage (pseudo PC)
+	DSS	LINE,LINLEN+1	; Listing line buffer (follow TOTALS!)
+
+$D	DEFL	$D+(25*2)	; Program stack (25 levels)
+STACK	EQU	$D		; (Too small will only garbage listing)
+
+TOTS	EQU	$D		; Start of listing totals
+	DSS	TFILES,2	;  Total files processed
+	DSS	TLEN,4		;  Total uncompressed bytes
+	DSS	TDISK,2		;  Total 1K disk blocks
+	DSS	TSIZE,4		;  Total compressed bytes
+	DSS	TCRC,2		;  Total of all CRC values
+	DSS	LINCT,1		; Line count for file typeout
+	DSS	ARKFLG,1	; Default file type flag (allows .ARC)
+	DSS	PROUTF,1	; Printer output flag
+	DSS	CHECKF,1	; Check archive validity flag
+TOTC	EQU	$D-TOTS		; Count of bytes to clear
+
+	DSS	GETPTR,2	; Input buffer pointer
+	DSS	LPSCT,1		; Lines per screen counter
+	DSS	LBLKSZ,1	; Disk allocation block size for listing
+	DSS	TNAME,11	; Test pattern for selecting file names
+	DSS	OFCB,@FCBSZ	; Output file FCB
+;	DSS	IFCB,@FCBSX	; Input file FCB
+IFCB	EQU	DFCB		; (Currently using default FCB instead)
+
+HDRBUF	EQU	$D		; Archive file header buffer...
+	DSS	VER,1		; Header version no. (stowage type)
+	DSS	NAME,13		; Name string (NUL-terminated)
+	DSS	SIZE,4		; Compressed bytes
+	DSS	DATE,2		; Creation date
+	DSS	TIME,2		; Creation time
+	DSS	CRC,2		; Cyclic check of uncompressed file
+	DSS	LEN,4		; Uncompressed bytes (version > 1)
+HDRSIZ	EQU	$D-HDRBUF	; Header size (4 less if version = 1)
+
+IF NOT Z80
+
+; Data for Z80 instruction emulation
+
+	DSS	HLSAV,2		; HL'
+	DSS	DESAV,2		; DE'
+	DSS	BCSAV,2		; BC'
+	DSS	AFSAV,2		; AF'
+	DSS	IXSAV,2		; IX
+
+ENDIF
+
+MINMEM	EQU	$D-1		; Min memory limit (no file output)
+
+	PAGE
+; Data for file output processing only
+
+				; Following order required:
+	DSS	BUFPAG,1	;  Output buffer start page
+	DSS	BUFLIM,1	;  Output buffer limit page
+
+				; Following order required:
+	DSS	CODES,1		;  Code count for crunched input
+	DSS	BITSAV,1	;  Bits save for crunched input
+	DSS	BITS,1		;  Bit count for crunched input
+
+	DSS	STRCT,2		; No. entries in crunched string table
+
+; Tables and buffers for file output
+; (All of the following must be page-aligned)
+
+$D	DEFL	($D+255) AND 0FF00H ; Align to page boundary
+
+	DSS	CRCTAB,256*2	; CRC lookup table (256 2-byte values)
+
+BUFF	EQU	$D		; Output buff for non-squeezed/crunched
+
+				; or:
+
+TREE	EQU	$D		; Decoding tree for squeezed files
+TREESZ	EQU	256*4		; (256 4-byte nodes)
+BUFFSQ	EQU	TREE+TREESZ	; Output buffer for squeezed files
+
+				; or:
+
+STRT	EQU	$D		; String table for crunched files
+STRSZ	EQU	4096*3		; (4K 3-byte entries)
+BUFFCR	EQU	STRT+STRSZ	; Output buffer for newer crunched files
+
+				; plus (for old-style crunched files):
+
+HSHT	EQU	BUFFCR		; Extra table for hash code chaining
+HSHSZ	EQU	4096*2		; (4K 2-byte entries)
+BUFFCX	EQU	HSHT+HSHSZ	; Output buffer for older crunched files
+
+				; or (for squashed files):
+
+STQSZ	EQU	8192*3		; (8K 3-byte string table entries)
+BUFFCQ	EQU	STRT+STQSZ	; Output buffer for squashed files
+
+	PAGE
+IF NOT Z80
+
+; Initialization for self-unpacking archive file (non-Z80 version only)
+
+; Note:	Following is needed only when UNARCA.COM is executed from a
+;	self-unpacking archive file.  It is subsequently overlayed by
+;	data during program execution, so the only additional run-time
+;	overhead for self-unpacking support is the 26 bytes immediately
+;	preceding BEGIN.  (The added disk space for this code is also
+;	minimal, and none of this is included in the Z80-only version,
+;	UNARC.COM, which applies to the majority of users.)
+
+	.PHASE	$+26		; This code is offset 26 bytes in memory
+
+SELFUP:	LD	C,$DISK		; Get current default disk drive no.
+	CALL	BDOS		; (archive file drive)
+	LD	B,A		; Save default for extracted files
+	ADD	A,'A'		; Get ASCII drive letter
+	LD	(SELFMD),A	; Store in archive file name message
+	LD	DE,DFCB		; Point to default FCB
+	LD	A,(DE)		; Disk drive specified on command line?
+	OR	A
+	JP	NZ,SELFU1	; Yes, skip to use it
+
+	LD	A,B		; Recover default disk no.
+	INC	A		; Convert to drive code
+
+SELFU1:	LD	(SELFXD),A	; Store drive code for extracted files
+	ADD	A,'A'-1		; Get ASCII drive letter
+	LD	(SELFCD),A	; Store in command line
+	LD	HL,SELFCB	; Point to fixed internal FCB
+	LD	BC,SELFSZ	; Get no. bytes to move to system page
+	CALL	SELFMV		; Move down fixed command parameters
+
+	LD	DE,TBASE	; Setup normal .COM file base
+	LD	HL,TBASE+26	; Setup current (offset) base in memory
+	LD	BC,COMLEN	; Setup .COM file length
+	CALL	SELFMV		; Relocate .COM file to its proper place
+
+	LD	(CCPSV),A	; Force reboot later (and max. buffer)
+	INC	A		; Set default disk block size to 1K
+	LD	(DBLSZ),A	; (e.g., might be running CP/M-68K)
+
+	LD	A,'$'		; Patch usage message
+	LD	(USEA),A	;  for program identification
+	LD	(USEB),A	;  and copyright displays only
+	LD	DE,SELFCR	; Start with a blank display line
+	CALL	SELFPR
+	LD	DE,USAGE	; Show program id
+	CALL	SELFPR
+	LD	DE,USEC		; Show copyright
+	CALL	SELFPR
+	LD	DE,SELFMS	; Show archive file name (new user aid)
+	CALL	SELFPR
+	JP	BEGIN1		; Go begin (skip Z80 warning note)
+
+; Brute force memory mover (can't use LDIR emulation yet)
+
+SELFMV:	LD	A,(HL)
+	LD	(DE),A
+	INC	HL
+	INC	DE
+	DEC	BC
+	LD	A,B
+	OR	C
+	JP	NZ,SELFMV
+	RET			; Return with A = 0
+
+; Print message via BDOS (can't use internal print routines yet)
+
+SELFPR:	LD	C,$PRTSTR
+	JP	BDOS
+
+; Fixed FCB's and command line for self-unpacking file extraction
+
+SELFCB:	DB	0		; Archive file drive (default always)
+	SELF			; Archive file name
+	REPT	SELFCB+9-$	; (pad with blanks to 8 chars)
+	DB	' '
+	ENDM
+	DB	'CM6'		; Archive file type (always .COM)
+	DB	0,0,0,0		; Extent descriptor bytes
+
+SELFXD:	DB	0		; Drive code for file extraction
+	DB	'           '	; Files to extract (defaults to *.*)
+	DB	0,0,0,0		; Extent descriptor bytes
+	DB	0,0,0,0		; Current and random record nos.
+
+	DB	SELFCE-SELFCL	; Command line length (moves to DBUF)
+SELFCL:	DB	' '		; Command line tail...
+	SELF
+	DB	'.CM6 '		; (e.g. ' UNARC15.COM A: N')
+SELFCD:	DB	'A: N'		; (extract all files, no screen pauses)
+SELFCE:	DB	0		; (end of command line)
+
+SELFSZ	EQU	$-SELFCB	; Size of fixed command data to move
+
+; Message naming self-unpacking archive file
+
+SELFMS:	DB	CR,LF,LF,'(Self-unpacking file '
+SELFMD:	DB	'A:'
+	SELF
+	DB	'.CM6)'
+SELFCR:	DB	CR,LF,'$'
+
+	.DEPHASE
+
+; End of special self-unpacking code for non-Z80 version
+
+ENDIF
+
+; That's all, folks!
+
+	IF	($ AND 7FH) NE 0
+
+; Clear out final record of the .COM file
+; (Needed only for precise M80/L80 compatibility with Z80ASM/SLRNK)
+
+	REPT	128-($ AND 7FH)
+	DB	0
+	ENDM
+
+	ENDIF
+
+	END	BEGIN
