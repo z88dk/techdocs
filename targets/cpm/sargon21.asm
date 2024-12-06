@@ -1,6 +1,5 @@
 
 ; Standard CP/M
-; z88dk-z80asm.exe -b -DORIGINAL sargon21.asm
 DEFC BDOS=$0005
 DEFC WBOOT=$0000
   ORG $100
@@ -270,23 +269,26 @@ L0144:
 L0145:
   DEFW $0000
 
-; White Queen position
+
+; White King position
 ; Message at 327
-POSQ_W:
+POSK:
+  DEFB $00
+
+; Black King position
+; Message at 328
+  DEFB $00
+
+; White Queen position
+; Data block at 329
+POSQ:
   DEFB $00
 
 ; Black Queen position
-; Message at 328
-POSQ_B:
-  DEFB $00
-
-; Data block at 329
-POSX:
-  DEFB $00
-
 ; Message at 330
-POSX_2:
   DEFB $00
+
+
 
 ; Message at 331
 DISP_BD:
@@ -1531,9 +1533,9 @@ AT30:
 ; This entry point is used by the routine at NEXTAD.
 PATH:
   XOR A
-  LD (POSX_2),A
+  LD (POSQ+1),A
   LD A,$7F
-  LD (POSX),A
+  LD (POSQ),A
   LD DE,TOP_LEFT      ; Board pointer
 PATH_00:
   LD A,(DE)           ; Get contents of board
@@ -1631,7 +1633,7 @@ JR12_0:
 JR12_1:
   SET 7,(HL)
 JR12_2:
-  LD HL,POSX
+  LD HL,POSQ
   LD A,(HL)
   DEC (HL)
   JP JR12_5
@@ -1656,7 +1658,7 @@ JR12_3:
 JR12_4:
   LD HL,INDX2
   SET 0,(HL)
-  LD HL,POSX_2
+  LD HL,POSQ+1
   LD A,(HL)
   INC (HL)
 JR12_5:
@@ -1742,7 +1744,7 @@ JR12_12:
 
 ; This entry point is used by the routine at NEXTAD.
 JR12_13:
-  LD A,(POSX)
+  LD A,(POSQ)
   NEG
   ADD A,$7F
   RET Z
@@ -1784,7 +1786,7 @@ JR12_16:
   EXX
   JR C,JR12_18
   LD HL,L0400
-  LD A,(POSX_2)
+  LD A,(POSQ+1)
   AND A
   JR Z,JR12_25
   LD B,A
@@ -1796,7 +1798,7 @@ JR12_17:
   DJNZ JR12_17
 JR12_18:
   LD HL,L0480
-  LD A,(POSX_2)
+  LD A,(POSQ+1)
   AND A
   JR Z,JR12_25
   LD B,A
@@ -1830,7 +1832,7 @@ JR12_20:
   AND $7F
   LD D,A
   LD HL,L04FF
-  LD A,(POSX)
+  LD A,(POSQ)
   NEG
   ADD A,$7F
   LD B,A
@@ -1849,6 +1851,7 @@ JR12_21:
   POP BC
   POP DE
   JP JR12_23
+
 JR12_22:
   DEC L
   DJNZ JR12_21
@@ -1863,7 +1866,7 @@ JR12_24:
   DJNZ JR12_19
 JR12_25:
   LD HL,L04FF
-  LD A,(POSX)
+  LD A,(POSQ)
   NEG
   ADD A,$7F
   LD B,A
@@ -1912,7 +1915,7 @@ JR12_28:
   LD (HL),$00
   DEC L
 JR12_29:
-  LD A,(POSX_2)
+  LD A,(POSQ+1)
   AND A
   JR Z,JR12_32
   PUSH DE
@@ -2040,7 +2043,7 @@ LP2_8:
   
 LP2_9:
   DJNZ LP2_10
-  LD HL,POSX_2
+  LD HL,POSQ+1
   LD B,(HL)
   LD HL,L0400
   SET 0,C
@@ -2167,7 +2170,7 @@ NEXTAD_3:
   DJNZ NEXTAD_3
   CALL PATH
   CALL JR12_13
-  LD A,(POSX)
+  LD A,(POSQ)
   NEG
   ADD A,$7F
   JR Z,CK_BESTM2
@@ -2242,7 +2245,7 @@ CK_BESTM1:
 CK_BESTM2:
   LD A,(CKFLG)
   AND A
-  CALL NZ,MOVE_SUB_21
+  CALL NZ,MOVE_CAPTURE_21
   CALL NEXTAD_20
   LD A,(L013D)
   LD HL,L013B
@@ -2558,12 +2561,12 @@ NEXTAD_49:
 ; Routine at 6098
 ;
 ; Used by the routines at MV1 and UNMOVE.
-MOVE_SUB:
+MOVE_CAPTURE:
   LD A,$07
   AND E
   RET Z
   CP $01
-  JP NZ,MOVE_SUB_7
+  JP NZ,MOVE_CAPTURE_7
   LD A,(M1)
   LD B,A
   LD A,(M2)
@@ -2571,62 +2574,62 @@ MOVE_SUB:
   RET Z
   LD A,(PMATE)
   CP $0A
-  JR NC,MOVE_SUB_2
+  JR NC,MOVE_CAPTURE_2
   LD A,B
   BIT 7,E
-  JR Z,MOVE_SUB_0
+  JR Z,MOVE_CAPTURE_0
   SUB $32
-MOVE_SUB_0:
+MOVE_CAPTURE_0:
   CP $22
-  JR Z,MOVE_SUB_1
+  JR Z,MOVE_CAPTURE_1
   CP $23
-  JR Z,MOVE_SUB_1
+  JR Z,MOVE_CAPTURE_1
   LD B,$F8
-  JP MOVE_SUB_18
+  JP MOVE_CAPTURE_18
   
-MOVE_SUB_1:
+MOVE_CAPTURE_1:
   LD B,$04
   LD HL,M2
   SUB (HL)
   CP $EC
-  JP Z,MOVE_SUB_14
+  JP Z,MOVE_CAPTURE_14
   CP $E2
-  JP Z,MOVE_SUB_14
+  JP Z,MOVE_CAPTURE_14
   RET
 
-MOVE_SUB_2:
+MOVE_CAPTURE_2:
   CP $19
   RET NC
   BIT 7,E
-  JR NZ,MOVE_SUB_4
-  LD A,(POSQ_W)
-  CP $1A
-  JR C,MOVE_SUB_3
+  JR NZ,MOVE_CAPTURE_4
+  LD A,(POSK)
+  CP $1A                	; White O-O ?
+  JR C,MOVE_CAPTURE_3
   CP $1D
   RET NC
   LD B,$00
-  JP MOVE_SUB_6
+  JP MOVE_CAPTURE_6
   
-MOVE_SUB_3:
+MOVE_CAPTURE_3:
   CP $18
   RET NC
   LD B,$05
-  JP MOVE_SUB_6
+  JP MOVE_CAPTURE_6
   
-MOVE_SUB_4:
-  LD A,(POSQ_B)
-  CP $60
-  JR C,MOVE_SUB_5
+MOVE_CAPTURE_4:
+  LD A,(POSK+1)
+  CP $60                    ; Black 0-0 ?
+  JR C,MOVE_CAPTURE_5
   LD B,$CE
-  JP MOVE_SUB_6
+  JP MOVE_CAPTURE_6
 
-MOVE_SUB_5:
+MOVE_CAPTURE_5:
   CP $5E
   RET NC
   CP $5B
   RET C
   LD B,$D3
-MOVE_SUB_6:
+MOVE_CAPTURE_6:
   LD A,(M1)
   ADD A,B
   CP $27
@@ -2634,135 +2637,135 @@ MOVE_SUB_6:
   CP $24
   RET C
   LD B,$F4
-  JP MOVE_SUB_18
+  JP MOVE_CAPTURE_18
 
-MOVE_SUB_7:
+MOVE_CAPTURE_7:
   CP $04
-  JR C,MOVE_SUB_11
+  JR C,MOVE_CAPTURE_11
   CP $06
-  JR Z,MOVE_SUB_8
+  JR Z,MOVE_CAPTURE_8
   LD A,(PMATE)
   CP $07
-  JR NC,MOVE_SUB_13
+  JR NC,MOVE_CAPTURE_13
   LD B,$F0
-  JP MOVE_SUB_18
+  JP MOVE_CAPTURE_18
   
-MOVE_SUB_8:
+MOVE_CAPTURE_8:
   BIT 6,D
-  JR Z,MOVE_SUB_10
+  JR Z,MOVE_CAPTURE_10
   LD A,(M2)
   BIT 7,E
-  JR Z,MOVE_SUB_9
+  JR Z,MOVE_CAPTURE_9
   SUB $46
-MOVE_SUB_9:
+MOVE_CAPTURE_9:
   LD B,$0C
   CP $1B
-  JR Z,MOVE_SUB_18
+  JR Z,MOVE_CAPTURE_18
   LD B,$06
-  JP MOVE_SUB_18
+  JP MOVE_CAPTURE_18
 
-MOVE_SUB_10:
+MOVE_CAPTURE_10:
   LD A,(PMATE)
   CP $1E
   RET NC
   LD B,$F4
-  JP MOVE_SUB_18
+  JP MOVE_CAPTURE_18
 
-MOVE_SUB_11:
+MOVE_CAPTURE_11:
   BIT 4,(HL)
-  JR Z,MOVE_SUB_12
+  JR Z,MOVE_CAPTURE_12
   LD B,$08
-  JP MOVE_SUB_14
+  JP MOVE_CAPTURE_14
   
-MOVE_SUB_12:
+MOVE_CAPTURE_12:
   LD A,(PMATE)
   CP $09
   RET NC
   LD B,$F0
-  JP MOVE_SUB_14
+  JP MOVE_CAPTURE_14
   
-MOVE_SUB_13:
+MOVE_CAPTURE_13:
   BIT 5,(HL)
   RET Z
   LD A,$F9
   BIT 7,E
-  CALL UNMOVE_2
+  CALL UNMOVE_CAPTURE_2
   RET
 
-MOVE_SUB_14:
+MOVE_CAPTURE_14:
   LD A,(PMATE)
   CP $0F
-  JR NC,MOVE_SUB_18
+  JR NC,MOVE_CAPTURE_18
   LD A,(M2)
   BIT 7,E
-  JR Z,MOVE_SUB_15
+  JR Z,MOVE_CAPTURE_15
   SUB $1E
-MOVE_SUB_15:
+MOVE_CAPTURE_15:
   CP ','
-  JR Z,MOVE_SUB_16
+  JR Z,MOVE_CAPTURE_16
   CP '-'
-  JR NZ,MOVE_SUB_18
-MOVE_SUB_16:
+  JR NZ,MOVE_CAPTURE_18
+MOVE_CAPTURE_16:
   SUB $0A
   BIT 7,E
-  JR Z,MOVE_SUB_17
+  JR Z,MOVE_CAPTURE_17
   ADD A,$32
-MOVE_SUB_17:
+MOVE_CAPTURE_17:
   LD HL,BOARDA
   LD L,A
   LD A,(HL)
   AND $07
   CP $01
-  JR NZ,MOVE_SUB_18
-  LD B,$E8
-MOVE_SUB_18:
+  JR NZ,MOVE_CAPTURE_18
+  LD B,$E8              ; 'h'+$80
+MOVE_CAPTURE_18:
   LD A,B
   BIT 0,C
-  JR Z,MOVE_SUB_19
+  JR Z,MOVE_CAPTURE_19
   NEG
-MOVE_SUB_19:
+MOVE_CAPTURE_19:
   BIT 7,E
-  JR Z,MOVE_SUB_20
+  JR Z,MOVE_CAPTURE_20
   NEG
-MOVE_SUB_20:
+MOVE_CAPTURE_20:
   LD HL,MTRL_A
   ADD A,(HL)
   LD (HL),A
   RET
 
 ; This entry point is used by the routine at NEXTAD.
-MOVE_SUB_21:
-  LD A,(POSQ_W)
+MOVE_CAPTURE_21:
+  LD A,(POSK)
   LD D,A
   XOR A
   LD E,10
   CALL DIVIDE
   LD B,A
   LD C,D
-  LD A,(POSQ_B)
+  LD A,(POSK+1)
   LD D,A
   XOR A
   CALL DIVIDE
   SUB B
-  JP P,MOVE_SUB_22
+  JP P,MOVE_CAPTURE_22
   NEG
-MOVE_SUB_22:
+MOVE_CAPTURE_22:
   LD B,A
   LD A,C
   SUB D
-  JP P,MOVE_SUB_23
+  JP P,MOVE_CAPTURE_23
   NEG
-MOVE_SUB_23:
+MOVE_CAPTURE_23:
   ADD A,B
   NEG
   ADD A,$0E
   LD B,A
   LD A,(MTRL_B)
-  LD HL,POSQ_W
+  LD HL,POSK
   BIT 7,A
-  JR NZ,MOVE_SUB_24
+  JR NZ,MOVE_CAPTURE_24
   INC L
-MOVE_SUB_24:
+MOVE_CAPTURE_24:
   LD DE,TOP_LEFT
   LD E,(HL)
   LD HL,PTSW2
@@ -2776,9 +2779,9 @@ MOVE_SUB_24:
   LD A,(MTRL_B)
   BIT 7,A
   LD A,B
-  JR Z,MOVE_SUB_25
+  JR Z,MOVE_CAPTURE_25
   NEG
-MOVE_SUB_25:
+MOVE_CAPTURE_25:
   ADD A,A
   ADD A,A
   LD (MTRL),A
@@ -2806,7 +2809,7 @@ MV1:
   LD D,(HL)             ; Get captured piece/flags
   LD IX,(M1)            ; Load "from" pos board index
   LD E,(IX+$00)         ; Get piece moved
-  BIT 3,E
+  BIT 3,E               ; ..possibly this part is related to castling
   JR NZ,MV1_0
   SET 4,(HL)
   SET 3,E               ; Set piece moved flag
@@ -2822,29 +2825,29 @@ MV5:
   LD (IY+$00),E         ; Insert piece at new position
   LD (IX+$00),$00       ; Empty previous position
   LD C,$00
-  CALL MOVE_SUB
-  BIT 6,D
-  JR NZ,MV40
-  LD A,D
+  CALL MOVE_CAPTURE
+  BIT 6,D               ; Double move ?
+  JR NZ,MV40            ; Yes - jump
+  LD A,D                ; Get captured piece, if any
   AND $07
-  CALL NZ,UNMOVE_1
+  CALL NZ,UNMOVE_CAPTURE
   RET
 
 MV1_2:
   LD A,(M2)             ; Get "to" position
   CP 91                 ; Promote white Pawn ?
-  JR NC,MV1_3           ; Yes - Jump
+  JR NC,MV15            ; Yes - Jump
   CP 29                 ; Promote black Pawn ?
   JR NC,MV5             ; No - Jump
-MV1_3:
+MV15:
   SET 5,(HL)
   SET 2,E               ; Change Pawn to a Queen
   JP MV5
 MV30:
-  LD HL,POSQ_W            ; Addr of saved Queen position
-  BIT 7,E               ; Is Queen white ?
+  LD HL,POSK            ; Get saved King position
+  BIT 7,E               ; Is King white ?
   JR Z,MV22             ; Yes - jump
-  INC L                 ; Increment to black Queen pos
+  INC L                 ; Increment to black King pos
 MV22:
   LD A,(M2)             ; Get new Queen position
   LD (HL),A             ; Save
@@ -2855,44 +2858,49 @@ MV40:
   ADD HL,DE
   JP MV1                ; Jump (2nd part of dbl move)
 
-; UNMOVE ROUTINE
+; *******************************************************
+; UN-MOVE ROUTINE
+; *******************************************************
+; FUNCTION:--	To reverse the process of the move routine,
+; 		thereby restoring the board array to its
+; 		previous position.
 ;
 ; Used by the routines at SORT_SUB, FM35, ASNTBI, GAME_DRIVER and PROMPT.
 UNMOVE:
-  LD HL,(MLPTRJ)
-  INC HL
+  LD HL,(MLPTRJ)        ; Load move list pointer
+  INC HL                ; Increment past link bytes
   INC HL
 UM1:
-  LD A,(HL)
-  LD (M1),A
-  INC HL
-  LD A,(HL)
-  LD (M2),A
-  INC HL
-  LD D,(HL)
-  LD IX,(M2)
-  LD E,(IX+$00)
+  LD A,(HL)             ; Get "from" position
+  LD (M1),A             ; Save
+  INC HL                ; Increment pointer
+  LD A,(HL)             ; Get "to" position
+  LD (M2),A             ; Save
+  INC HL                ; Increment pointer
+  LD D,(HL)             ; Get captured piece/flags
+  LD IX,(M2)            ; Load "to" pos board index
+  LD E,(IX+$00)         ; Get piece moved    (IX+BOARD)
   LD C,$01
-  CALL MOVE_SUB
-  BIT 5,D
-  JR NZ,UM15
-  LD A,E
-  AND $07
-  CP $06
-  JR Z,UM20
+  CALL MOVE_CAPTURE
+  BIT 5,D               ; Was it a Pawn promotion ?
+  JR NZ,UM15            ; Yes - jump
+  LD A,E                ; Get piece moved
+  AND $07               ; Clear flag bits
+  CP KING               ; Was it a King ?
+  JR Z,UM30             ; Yes - jump
 UM5:
-  BIT 4,D
-  JR NZ,UM16
+  BIT 4,D               ; Is this 1st move for piece ?
+  JR NZ,UM16            ; Yes - jump
 UM6:
-  LD IY,(M1)
-  LD (IY+$00),E
-  LD A,D
-  AND $8F
-  LD (IX+$00),A
-  BIT 6,D
-  JR NZ,UM40
-  AND $07
-  CALL NZ,UNMOVE_1
+  LD IY,(M1)            ; Load "from" pos board index
+  LD (IY+$00),E         ; Return to previous board pos   (IY+BOARD)
+  LD A,D                ; Get captured piece, if any
+  AND $8F               ; Clear flags
+  LD (IX+$00),A         ; Return to board    (IX+BOARD)
+  BIT 6,D               ; Was it a double move ?
+  JR NZ,UM40            ; Yes - jump
+  AND $07               ; Clear flag bits
+  CALL NZ,UNMOVE_CAPTURE
   RET
 
 UM15:
@@ -2903,11 +2911,12 @@ UM16:
   RES 3,E             ; Clear piece moved flag
   JP UM6              ; Jump
 
-UM20:
-  LD HL,POSQ_W
-  BIT 7,E             ; Is Queen white ?
-  JR Z,UM22           ; Yes - jump
-  INC L               ; Increment to black Queen pos
+UM30:
+  LD HL,POSK          ;	Address of saved King pos
+  BIT 7,E             ;	Is it white ?
+  JR Z,UM22           ;	Yes - jump
+  INC L               ; Increment to black pos
+
 UM22:
   LD A,(M1)           ; Get previous position
   LD (HL),A           ; Save
@@ -2921,20 +2930,20 @@ UM40:
 
 
 ; This entry point is used by the routine at MV1.
-UNMOVE_1:
+UNMOVE_CAPTURE:
   LD (T1),A
   LD IX,(T1)
   LD A,(IX-PVALUE)
   BIT 7,D
-; This entry point is used by the routine at MOVE_SUB.
-UNMOVE_2:
-  JR NZ,UNMOVE_3
+; This entry point is used by the routine at MOVE_CAPTURE.
+UNMOVE_CAPTURE_2:
+  JR NZ,UNMOVE_CAPTURE_3
   NEG
-UNMOVE_3:
+UNMOVE_CAPTURE_3:
   BIT 0,C
-  JR Z,UNMOVE_4
+  JR Z,UNMOVE_CAPTURE_4
   NEG
-UNMOVE_4:
+UNMOVE_CAPTURE_4:
   LD HL,MTRL_B
   ADD A,(HL)
   LD (HL),A
@@ -3049,7 +3058,7 @@ SORT_SUB_RET:
 ; This entry point is used by the routine at FM35_SUB.
 FNDMOV:
   LD A,$01
-  LD (NPLY),A
+  LD (NPLY),A            ; Initialize ply number
   XOR A
   LD (MTRL_A),A
   LD (MATEF),A
@@ -3167,7 +3176,7 @@ FM30:
   AND A
   SBC HL,DE
   EX DE,HL
-  JP FM35_3
+  JP FM37            ; Jump
 
 ; Routine at 7062
 ;
@@ -3200,8 +3209,9 @@ FM36:
   LD HL,MATEF         ; Set mate flag
   SET 0,(HL)
   LD IX,(SCRIX)       ; Load score table pointer
+
 ; This entry point is used by the routine at rel018.
-FM35_3:
+FM37:
   LD H,(IX+$02)
   LD L,(IX+$01)
   AND A
@@ -3231,10 +3241,10 @@ FM35_3:
 ; This entry point is used by the routines at CASTLE, SORT_SUB and rel018.
 INCHK:
   LD A,(COLOR)        ; Get color
-  LD HL,POSQ_W        ; Addr of white King position
+  LD HL,POSK          ; Addr of white King position
   AND A               ; White ?
   JR Z,INCHK_WHITE    ; Yes - Skip
-  INC HL              ; POSQ_B - Addr of black King position
+  INC HL              ; Addr of black King position
 INCHK_WHITE:
   LD DE,BOARDA
   LD E,(HL)           ; Fetch King position
@@ -3275,7 +3285,7 @@ FM35_SUB_0:
   LD (VALM),DE
   LD A,(COLOR)
   XOR $80
-  LD HL,POSQ_W
+  LD HL,POSK
   AND A
   JR Z,FM35_SUB_1
   INC HL
@@ -3467,8 +3477,8 @@ FM35_SUB_11:
   SBC HL,DE
   LD (L0502),HL
 FM35_SUB_12:
-  LD A,(PLYMAX)
-  CP $09
+  LD A,(PLYMAX)           ;	Address of ply depth variable
+  CP $09                  ; <<<<--- ?  this looks like just a lame protection
   RET Z
   LD HL,MOVENO
   CP (HL)
@@ -3486,7 +3496,7 @@ FM35_SUB_12:
   RET NC
 FM35_SUB_13:
   LD HL,PLYMAX
-  INC (HL)
+  INC (HL)               ; Increment move number  <--- ? apparently it is not incrementing the counter
   JP FM35_SUB_15
 
 FM35_SUB_14:
@@ -3515,7 +3525,7 @@ FM35_SUB_17:
   CP KING
   JR NZ,FM35_SUB_19
   LD A,(DE)
-  LD HL,POSQ_W
+  LD HL,POSK
   BIT 7,A
   JR Z,FM35_SUB_18
   INC L
@@ -3577,7 +3587,7 @@ BITASN:
 ; *******************************************************
 ; Routine at 7780
 ;
-; Used by the routines at MOVE_SUB, FM35_SUB, CKMOVE and L2AC9.
+; Used by the routines at MOVE_CAPTURE, FM35_SUB, CKMOVE and L2AC9.
 DIVIDE:
   PUSH BC
   LD B,$08
@@ -3755,7 +3765,7 @@ JR21:
   XOR $0A
   LD (L0166),A
   CALL OUTPUT
-  LD A,$08
+  LD A,$08			  ; TAB
   CALL OUTPUT
   LD A,(MOVENO)
   LD HL,PLYMAX
@@ -4736,7 +4746,7 @@ L2372_55:
   LD B,$07
 L2372_56:
   PUSH BC
-  LD A,$08
+  LD A,$08			  ; TAB
   CALL OUTPUT
   POP BC
   DJNZ L2372_56
@@ -5157,9 +5167,9 @@ JR23:
   LD DE,P_PEP          ; Output "PxPep" - En passant
   JR Z,JR22            
   LD DE,O_O            ; King side castle
-  CP $1A
+  CP $1A               ; White O-O
   JR Z,JR22
-  CP $60
+  CP $60               ; Black 0-0
   JR Z,JR22
   LD DE,O_O_O          ; Queen side castle
 JR22:
@@ -5234,6 +5244,7 @@ L2AC9:
   LD HL,MVEMSG
   LD DE,MVEMSG_B
   JR CLEAN_LAST_CMD_MSG_0
+
 ; This entry point is used by the routine at PROMPT.
 L2AC9_0:
   LD A,(PLYMAX)
@@ -5653,7 +5664,7 @@ L2B1B_38:
 ;
 ; Used by the routines at GAME_DRIVER and L2B1B.
 TAB:
-  LD A,$08
+  LD A,$08			  ; TAB
   CALL OUTPUT
   RET
 
