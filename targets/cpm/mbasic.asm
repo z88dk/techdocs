@@ -16,6 +16,9 @@ defc DIRTMP  =  BASE+$0080
 
   ORG BASE+$0100
 
+; The earlier versions of the Microsoft BASIC were written on a PDP-10 with its MACRO-10 assembler
+; adding macros to support the 8080 and 6502 opcodes.  MACRO-10 did not support hex numbers,
+; the numeric values (including the ASCII codes) were written in decimal or octal format.
 
 ; The original code now includes Z80 specific optimizations,
 ; but Z80ASM is able to transparently convert back to 8080.
