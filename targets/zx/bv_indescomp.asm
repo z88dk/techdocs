@@ -61,20 +61,20 @@ LFC0D:
 LFC0E:
   DEFB $00
 
-; 0xFC0F
-; CENTRONICS_OUTPUT
+; 
+; SERIAL OUTPUT
 LFC0F:
   DI
-LFC0F_0:
-  LD A,(BV_FLAGS)              ; 
+RS232_BUSY:
+  LD A,(BV_FLAGS)           ; 
   BIT 7,A                   ; Is BREAK disabled?
-  JR NZ,LFC0F_1             ; if so, jump over
+  JR NZ,NO_BREAK            ; if so, jump over
   CALL $1F54                ; routine BREAK-KEY 
   JP NC,BREAK_PRESSED
-LFC0F_1:
-  IN A,($FB)
+NO_BREAK:
+  IN A,($FB)                ; Check for RTS
   AND $02
-  JR Z,LFC0F_0
+  JR Z,RS232_BUSY
   LD A,(P_7F_OUT)
   AND $FD
   OUT ($7F),A
@@ -82,22 +82,24 @@ LFC0F_1:
   CALL BIT_DELAY
 
   LD B,$08
-LFC0F_2:
+SD_BYTE:
   LD A,C
   RR A
   LD C,A
   LD A,(P_7F_OUT)
   JR C,LFC0F_3
+
   AND $FD
   JR LFC0F_4
-
 LFC0F_3:
+
   OR $02
 LFC0F_4:
   LD (P_7F_OUT),A
   OUT ($7F),A
   CALL BIT_DELAY
-  DJNZ LFC0F_2
+  DJNZ SD_BYTE
+
   LD A,(P_7F_OUT)
   OR $02
   LD (P_7F_OUT),A
@@ -219,13 +221,13 @@ RS232_OUT:
 SEND_BYTE:
   LD A,(BV_REDIRECT)
   AND A                     ; Redirect to RS232 ?
-  JP NZ,LFC0F               ; no, use CENTRONICS
-  ; Ok, send via RS232 
+  JP NZ,LFC0F               ; Yes, send via RS232 
+  ; no, use CENTRONICS
   LD A,(P_7F_OUT)
   OR $01
   OUT ($7F),A               ; clear to send
 
-RS232_BUSY:
+PRINTER_BUSY:
   LD A,(BV_FLAGS)
   BIT 7,A                   ; BREAK disabled?
   JR NZ,SKIP_BREAK
@@ -234,7 +236,7 @@ RS232_BUSY:
 SKIP_BREAK:
   IN A,($FB)
   AND $01
-  JR NZ,RS232_BUSY
+  JR NZ,PRINTER_BUSY
 
   LD A,C
   OUT ($FB),A               ; Send data to RS232
@@ -348,9 +350,6 @@ LFDA0_3:
   INC A
   LD (LFC0E),A
 
-; Get character
-LFDC8:
-  LD C,$FC
 ; This entry point is used by the routines at LFDA0 and CHAN3_OUTPUT.
 SEND_BYTE_0:
   JP SEND_BYTE
@@ -373,7 +372,7 @@ LFDCD_0:
 
   
 ; Entry from ROM, remapped on CHANS.
-; Routine at 64996
+; Routine at 64996   (Offset: 01A1)
 CHAN3_OUTPUT:
   LD C,A
   LD A,(BV_FLAGS)
@@ -399,15 +398,15 @@ CHAN3_OUTPUT:
   RET
 
 ; Copy SCREEN$
-LFE14:
+HARDCOPY:
   XOR A
-  JR LFE17_0
+  JR HARDCOPY_0
 
 ; Expanded SCREEN$ COPY
 LFE17:
   LD A,$01
-; This entry point is used by the routine at LFE14.
-LFE17_0:
+; This entry point is used by the routine at HARDCOPY.
+HARDCOPY_0:
   LD (BV_ENLARGED),A
   DI
   LD A,(BV_FLAGS)
@@ -418,17 +417,17 @@ LFE17_0:
   CALL SEND_CTL
   LD HL,$4000
   LD DE,$0020
-  LD BC,$0803               ; B=3, C=8
-LFE17_1:
+  LD BC,$0803               ; B=8, C=3
+HARDCOPY_1:
   PUSH HL
-LFE17_2:
+HARDCOPY_2:
   PUSH HL
   PUSH BC
   CALL COPY_ROW
   POP BC
   POP HL
   ADD HL,DE
-  DJNZ LFE17_2
+  DJNZ HARDCOPY_2
   POP HL
   PUSH DE
   LD DE,2048
@@ -436,7 +435,7 @@ LFE17_2:
   LD B,$08
   POP DE
   DEC C
-  JR NZ,LFE17_1
+  JR NZ,HARDCOPY_1
   LD A,$06               ; Send control codes to restore default line spacing
   CALL SEND_CTL
   JP END_PRINTING
@@ -456,13 +455,13 @@ LFE17_4:
 ; Printing of a screen row
 COPY_ROW:
   CALL CLEAR_BUFFER
-  LD BC,$0820            ; B=32, C=8
+  LD BC,$0820            ; B=8, C=32
   LD A,(BV_ENLARGED)
   AND A
   JR Z,LFE17_6
-  LD B,$04
+  LD B,$04               ; B=4
   CALL LFE17_6
-  LD BC,$0420            ; B=32, C=4
+  LD BC,$0420            ; B=4, C=32
 LFE17_6:
   LD IX,$5B00            ; Printer buffer
   PUSH HL
@@ -518,7 +517,7 @@ LFE17_10:
 LFE17_11:
   LD A,$02
 LFE17_12:
-  ADD A,$02                  ; Send control codes for narrow line spacing (hardcopy mode)
+  ADD A,$02              ; Send control codes for narrow line spacing (hardcopy mode)
   CALL SEND_CTL
 LFE17_13:
   PUSH BC
@@ -601,6 +600,5 @@ CONTROL_CODES:
   DEFB $FF,$1B,'2'                  ; ESC/P: set default line spacing (1/6 inch)
 ; 8
   DEFB $FF,$1B,'2'                  ; NEC: set default line spacing
-  DEFB $FF,$00                      ; ESC/P: (NUL)
-
-  DEFB $00
+  DEFB $FF                          ; ESC/P: (NUL)
+; DEFB $00
