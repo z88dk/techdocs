@@ -63,7 +63,7 @@ LFC0E:
 
 ; 
 ; SERIAL OUTPUT
-LFC0F:
+RS232_SEND:
   DI
 RS232_BUSY:
   LD A,(BV_FLAGS)           ; 
@@ -109,7 +109,7 @@ LFC0F_4:
   EI
   RET
   
-; This entry point is used by the routines at LFC9F and CHAN3_INPUT.
+; This entry point is used by the routines at RCV_BYTE and CHAN3_INPUT.
 BIT_DELAY:
   CALL BAUD_DELAY
   CALL BAUD_DELAY
@@ -133,7 +133,7 @@ LFC0F_8:
   RET
 
 ; This entry point is used by the routine at CHAN3_INPUT.
-LFC0F_9:
+RS232_RECEIVE:
   LD A,(P_7F_OUT)
   AND $FB
   OUT ($7F),A
@@ -155,8 +155,8 @@ LFC0F_11:
   CALL BIT_DELAY
   LD B,$08
 
-; Put character
-LFC9F:
+; Get character
+RCV_BYTE:
   IN A,($FB)
   RL A
   RR C
@@ -166,7 +166,7 @@ LFC9F:
   PUSH HL
   POP HL
   NOP
-  DJNZ LFC9F
+  DJNZ RCV_BYTE
   LD A,C
   CPL
   AND $7F
@@ -187,7 +187,7 @@ CHAN3_INPUT_0:
   JR CHAN3_INPUT_3
 
 CHAN3_INPUT_1:
-  CALL LFC0F_9
+  CALL RS232_RECEIVE
   PUSH AF
   CALL BIT_DELAY
   IN A,($FB)
@@ -221,7 +221,7 @@ RS232_OUT:
 SEND_BYTE:
   LD A,(BV_REDIRECT)
   AND A                     ; Redirect to RS232 ?
-  JP NZ,LFC0F               ; Yes, send via RS232 
+  JP NZ,RS232_SEND               ; Yes, send via RS232 
   ; no, use CENTRONICS
   LD A,(P_7F_OUT)
   OR $01
@@ -248,7 +248,7 @@ SKIP_BREAK:
   LD (P_7F_OUT),A
   RET
 
-; This entry point is used by the routine at LFC0F.
+; This entry point is used by the routine at RS232_SEND.
 BREAK_PRESSED:
   LD A,(BV_FLAGS)
   AND $40
@@ -545,10 +545,10 @@ CLEAR_BUFFER:
   LD IX,$5B00            ; Printer buffer
   XOR A
   LD B,A
-LFE17_17:
+CLEAR_BUFFER_0:
   LD (IX+$00),A
   INC IX
-  DJNZ LFE17_17
+  DJNZ CLEAR_BUFFER_0
   RET
 
 ; This entry point is used by the routine at CHAN3_INPUT.
