@@ -1,8 +1,11 @@
 
 ;
-; ZX Spectrum's  Centronics and RS232 Printer driver valid for:
+; ZX Spectrum's Centronics and RS232 Printer driver valid for:
+;
+;  Morex Peripherals Ltd (a.k.a. Abbeydale Designers Ltd)
 ;  B&V Interface, Forlì - Italy, by Simone Majocchi
 ;  Indescomp - Spain, by MHT ingenieros
+;  Elettronica 2000 magazine n.53, Spet. 1983, p.41 (https://win.adrirobot.it/E2000/pdf/E2000_053_Set_1983.pdf)
 ;
 
   ORG $FC05
@@ -31,10 +34,28 @@ BV_BAUD:
   DEFB 19, 1   ; 2400bps   16K:  25,  0  
 ;  DEFB 7, 1   ; 4800bps   (could require tuning, not available in conteded memory)
 
-P_7F_OUT:
+
+; PROPOSED FIXES:  some of the values look way off, these seem more reasonable.
+;        defw    $057D   ;RS_BAUD_50          ; on the manual it is mentioned $147D, but looks rather big
+;        defw    $0514   ;RS_BAUD_75          ; ** experimental **
+;        defw    $04E1   ;RS_BAUD_110
+;        defw    $04B7   ;RS_BAUD_134_5       ; ** experimental **
+;        defw    $04A5   ;RS_BAUD_150
+;        defw    $0423   ;RS_BAUD_300         ; on the manual it was $0453, slightly adjusted, ** experimental **
+;        defw    $0329   ;RS_BAUD_600         ; on the manual it was $0429 but seemed too high, ** experimental **
+;        defw    $021F   ;RS_BAUD_1200
+;        defw    $0113   ;RS_BAUD_2400
+;        defw    $0070   ;RS_BAUD_4800        ; on the manual it was $0107.   ** experimental **
+
+; On an article in YourSpectrum 01-21, a test with the Tandy CGP-115 plotter was mentioned, the plotter's 
+; specs mention RS-232-C Using DATA and BUSY. 600 Baud, 7-bit character, no parity, two stop bits.
+; Perhaps the extra delay for 600bps was compensating the 7 bit data length ?
+
+
+BV_HANDSHAKE:
   DEFB $FF
 
-LFC0B:
+BV_RECEIVED:
   DEFB $00
 
 
@@ -54,11 +75,11 @@ BV_FLAGS:
 
 
 ; Last received character
-LFC0D:
+BV_BYTE:
   DEFB $00
 
 ; Data block at 64526
-LFC0E:
+CHR_COUNT:
   DEFB $00
 
 ; 
@@ -73,12 +94,12 @@ RS232_BUSY:
   JP NC,BREAK_PRESSED
 NO_BREAK:
   IN A,($FB)                ; Check for RTS
-  AND $02
+  AND $02                   ; test RS232 busy signal
   JR Z,RS232_BUSY
-  LD A,(P_7F_OUT)
+  LD A,(BV_HANDSHAKE)
   AND $FD
   OUT ($7F),A
-  LD (P_7F_OUT),A
+  LD (BV_HANDSHAKE),A
   CALL BIT_DELAY
 
   LD B,$08
@@ -86,23 +107,21 @@ SD_BYTE:
   LD A,C
   RR A
   LD C,A
-  LD A,(P_7F_OUT)
-  JR C,LFC0F_3
-
+  LD A,(BV_HANDSHAKE)
+  JR C,SD_BYTE_0
   AND $FD
-  JR LFC0F_4
-LFC0F_3:
-
-  OR $02
-LFC0F_4:
-  LD (P_7F_OUT),A
+  JR SD_BYTE_1
+SD_BYTE_0:
+  OR $02                    ; enable RS232 TX data signal
+SD_BYTE_1:
+  LD (BV_HANDSHAKE),A
   OUT ($7F),A
   CALL BIT_DELAY
   DJNZ SD_BYTE
 
-  LD A,(P_7F_OUT)
-  OR $02
-  LD (P_7F_OUT),A
+  LD A,(BV_HANDSHAKE)
+  OR $02                    ; enable RS232 TX data signal
+  LD (BV_HANDSHAKE),A
   OUT ($7F),A
   CALL BIT_DELAY
   CALL BIT_DELAY
@@ -134,29 +153,29 @@ LFC0F_8:
 
 ; This entry point is used by the routine at CHAN3_INPUT.
 RS232_RECEIVE:
-  LD A,(P_7F_OUT)
+  LD A,(BV_HANDSHAKE)
   AND $FB
   OUT ($7F),A
-  LD (P_7F_OUT),A
+  LD (BV_HANDSHAKE),A
 WAIT_RS232_DATA:
   CALL $1F54                ; routine BREAK-KEY 
   JP NC,BREAK_PRESSED
   IN A,($FB)
   AND $80
   JR Z,WAIT_RS232_DATA
-  LD A,(P_7F_OUT)
-  OR $04                    ; out Clear To Send RS232
+  LD A,(BV_HANDSHAKE)
+  OR $04                    ; enable RS232 Clear To Send signal
   OUT ($7F),A
-  LD (P_7F_OUT),A           ; update status bits
+  LD (BV_HANDSHAKE),A           ; update status bits
   CALL BAUD_DELAY
 ; This entry point is used by the routine at CHAN3_INPUT.
-LFC0F_11:
+RCV_BYTE:
   PUSH BC
   CALL BIT_DELAY
   LD B,$08
 
 ; Get character
-RCV_BYTE:
+RCV_BYTE_0:
   IN A,($FB)
   RL A
   RR C
@@ -166,7 +185,7 @@ RCV_BYTE:
   PUSH HL
   POP HL
   NOP
-  DJNZ RCV_BYTE
+  DJNZ RCV_BYTE_0
   LD A,C
   CPL
   AND $7F
@@ -179,11 +198,11 @@ CHAN3_INPUT:
   DI
 CHAN3_INPUT_0:
   LD A,(BV_FLAGS)
-  BIT 4,A
+  BIT 4,A                       ; Byte received ?
   JR Z,CHAN3_INPUT_1
   RES 4,A
   LD (BV_FLAGS),A
-  LD A,(LFC0B)
+  LD A,(BV_RECEIVED)
   JR CHAN3_INPUT_3
 
 CHAN3_INPUT_1:
@@ -192,13 +211,13 @@ CHAN3_INPUT_1:
   CALL BIT_DELAY
   IN A,($FB)
   AND $80
-  JR Z,RS232_HAVE_DATA
-  CALL LFC0F_11
-  LD (LFC0B),A
+  JR Z,RS232_NO_MORE_DATA
+  CALL RCV_BYTE
+  LD (BV_RECEIVED),A
   LD A,(BV_FLAGS)
-  SET 4,A
+  SET 4,A                       ; Byte received
   LD (BV_FLAGS),A
-RS232_HAVE_DATA:
+RS232_NO_MORE_DATA:
   POP AF
 CHAN3_INPUT_3:
   CP $0A
@@ -208,24 +227,24 @@ CHAN3_INPUT_3:
   LD A,$0A
 CHAN3_INPUT_4:
   AND A
-  LD (LFC0D),A
+  LD (BV_BYTE),A
   SCF
   EI
   RET
 
 RS232_OUT:
-  LD A,(LFC0D)
+  LD A,(BV_BYTE)
   LD C,A
 
-; This entry point is used by the routines at LFDA0, LFDC8 and LFE17.
+; This entry point is used by the routines at BV_NEWLINE_0, LFDC8 and LFE17.
 SEND_BYTE:
   LD A,(BV_REDIRECT)
   AND A                     ; Redirect to RS232 ?
   JP NZ,RS232_SEND               ; Yes, send via RS232 
   ; no, use CENTRONICS
-  LD A,(P_7F_OUT)
-  OR $01
-  OUT ($7F),A               ; clear to send
+  LD A,(BV_HANDSHAKE)
+  OR $01                    ; enable Centronics strobe signal
+  OUT ($7F),A
 
 PRINTER_BUSY:
   LD A,(BV_FLAGS)
@@ -240,39 +259,39 @@ SKIP_BREAK:
 
   LD A,C
   OUT ($FB),A               ; Send data to RS232
-  LD A,(P_7F_OUT)
+  LD A,(BV_HANDSHAKE)
   AND $FE
   OUT ($7F),A
-  OR $01
+  OR $01                    ; enable Centronics strobe signal
   OUT ($7F),A
-  LD (P_7F_OUT),A
+  LD (BV_HANDSHAKE),A
   RET
 
 ; This entry point is used by the routine at RS232_SEND.
 BREAK_PRESSED:
   LD A,(BV_FLAGS)
-  AND $40
-  JR Z,CHAN3_INPUT_9
-  LD A,(BV_FLAGS)
+  AND $40                ; Were we in raw data output mode ?
+  JR Z,BREAK_PRESSED_0
+  LD A,(BV_FLAGS)        ; yes, restore BREAK flag..
   OR $80
   LD (BV_FLAGS),A
-  CALL CLEAR_BUFFER
-  CALL LFE17_10
+  CALL CLEAR_BUFFER      ;..clear buffer..
+  CALL SEND_BUFFER       ; ..and send it to the printer as a sequence of NULs
   LD A,$06               ; Send control codes to restore default line spacing
   CALL SEND_CTL
-CHAN3_INPUT_9:
+BREAK_PRESSED_0:
   CALL END_PRINTING
   JP $0F0A               ;  Error Report: BREAK - CONT repeats  
 
 ; This entry point is used by the routine at LFE17.
 END_PRINTING:
   LD A,$FF
-  LD (P_7F_OUT),A
+  LD (BV_HANDSHAKE),A
   OUT ($7F),A
   LD A,(BV_FLAGS)
   AND $3E                ; Reset bits 0,6,7: disable RAW data output mode, enable BREAK..
   LD (BV_FLAGS),A
-; This entry point is used by the routine at LFDCD.
+; This entry point is used by the routine at BV_INIT.
 END_PRINTING_0:
   LD A,(BV_TOKENIZE)
   AND A                  ; Expand tokens ?
@@ -290,13 +309,13 @@ NO_TOKEN:
   LD C,A
   LD A,(BV_FLAGS)
   AND $01
-  JR Z,CHAN3_INPUT_16
+  JR Z,SEND_CHR_0
   LD A,(BV_FLAGS)
   RES 0,A
   LD (BV_FLAGS),A
   LD A,C
   PUSH HL
-  LD HL,LFC0E
+  LD HL,CHR_COUNT
   SUB (HL)
   POP HL
   RET M
@@ -309,61 +328,65 @@ CHAN3_INPUT_14:
   DJNZ CHAN3_INPUT_14
   RET
 
-; This entry point is used by the routines at LFDA0 and CHAN3_OUTPUT.
+; This entry point is used by the routines at BV_NEWLINE_0 and CHAN3_OUTPUT.
 SEND_CHR:
   LD C,$20
-CHAN3_INPUT_16:
+SEND_CHR_0:
   LD A,C
   CP $0D
-  JR NZ,LFDA0_0
+  JR NZ,SEND_CHR_1
+
 ; This entry point is used by the routine at LFE17.
-CHAN3_INPUT_17:
+BV_NEWLINE:
   XOR A
-  LD (LFC0E),A
+  LD (CHR_COUNT),A
   LD C,$0D         ; CR
 
 ; Add line feed
-LFDA0:
+BV_NEWLINE_0:
   CALL SEND_BYTE
   LD C,$0A         ; LF
   JR SEND_BYTE_0
 
 ; This entry point is used by the routine at CHAN3_INPUT.
-LFDA0_0:
-  CP $17
-  JR NZ,LFDA0_1
+SEND_CHR_1:
+  CP $17           ; 23
+  JR NZ,SEND_CHR_2
   LD A,(BV_FLAGS)
   SET 0,A
   LD (BV_FLAGS),A
   RET
-LFDA0_1:
-  CP $06
-  JR NZ,LFDA0_3
-LFDA0_2:
-  CALL SEND_CHR
-  LD A,(LFC0E)
-  AND $0F
-  JR NZ,LFDA0_2
-  RET
-LFDA0_3:
-  LD A,(LFC0E)
-  INC A
-  LD (LFC0E),A
 
-; This entry point is used by the routines at LFDA0 and CHAN3_OUTPUT.
+SEND_CHR_2:
+  CP $06
+  JR NZ,SEND_CHR_4
+
+SEND_CHR_3:
+  CALL SEND_CHR
+  LD A,(CHR_COUNT)
+  AND $0F
+  JR NZ,SEND_CHR_3
+  RET
+  
+SEND_CHR_4:
+  LD A,(CHR_COUNT)
+  INC A
+  LD (CHR_COUNT),A
+
+; This entry point is used by the routines at BV_NEWLINE_0 and CHAN3_OUTPUT.
 SEND_BYTE_0:
   JP SEND_BYTE
 
 ; Interface initialization
-; This routine will create a
-LFDCD:
+; This routine will redirect #3 to the new I/O routines
+BV_INIT:
   LD BC,$000F
   LD HL,($5C4F)         ; CHANS
   ADD HL,BC             ; shift to #3
   LD BC,CHAN3_OUTPUT
-  CALL LFDCD_0
+  CALL BV_INIT_0
   LD BC,CHAN3_INPUT
-LFDCD_0:
+BV_INIT_0:
   LD (HL),C
   INC HL
   LD (HL),B
@@ -440,15 +463,16 @@ HARDCOPY_2:
   CALL SEND_CTL
   JP END_PRINTING
 
-LFE17_3:
+ADD_PIXEL:
   OR (IX+$00)
   LD (IX+$00),A
   LD A,(BV_FLAGS)
   BIT 2,A
-  JR NZ,LFE17_4
+  JR NZ,ADD_PIXEL_0
   RRC (IX+$00)
   RET
-LFE17_4:
+
+ADD_PIXEL_0:
   RLC (IX+$00)
   RET
 
@@ -458,38 +482,39 @@ COPY_ROW:
   LD BC,$0820            ; B=8, C=32
   LD A,(BV_ENLARGED)
   AND A
-  JR Z,LFE17_6
+  JR Z,LOAD_BUFFER
   LD B,$04               ; B=4
-  CALL LFE17_6
+  CALL LOAD_BUFFER
   LD BC,$0420            ; B=4, C=32
-LFE17_6:
+
+LOAD_BUFFER:
   LD IX,$5B00            ; Printer buffer
   PUSH HL
   PUSH IX
   PUSH BC
   LD A,$80
-LFE17_7:
+LOAD_BUFFER_0:
   LD B,$08
   LD D,(HL)
-LFE17_8:
+LOAD_BUFFER_1:
   PUSH AF
   AND D
-  CALL LFE17_3
+  CALL ADD_PIXEL
   LD A,(BV_ENLARGED)
   AND A
-  JR Z,LFE17_9
+  JR Z,LOAD_BUFFER_2
   POP AF
   PUSH AF
   AND D
-  CALL LFE17_3
-LFE17_9:
+  CALL ADD_PIXEL
+LOAD_BUFFER_2:
   INC IX
   SLA D
   POP AF
-  DJNZ LFE17_8
+  DJNZ LOAD_BUFFER_1
   INC HL
   DEC C
-  JR NZ,LFE17_7
+  JR NZ,LOAD_BUFFER_0
   POP BC
   POP IX
   POP HL
@@ -498,48 +523,49 @@ LFE17_9:
   PUSH IX
   DEC B
   PUSH BC
-  JR NZ,LFE17_7
+  JR NZ,LOAD_BUFFER_0
   POP BC
   POP IX
   POP HL
+
 ; This entry point is used by the routine at CHAN3_INPUT.
-LFE17_10:
+SEND_BUFFER:
   PUSH HL
   LD HL,$5B00            ; Printer buffer
   LD B,$00
   LD A,(BV_ENLARGED)
   AND A
-  JR Z,LFE17_12
+  JR Z,SEND_BUFFER_1
   LD A,(BV_FLAGS)
   BIT 2,A
-  JR Z,LFE17_11
+  JR Z,SEND_BUFFER_0
   LD B,$F0
-LFE17_11:
+SEND_BUFFER_0:
   LD A,$02
-LFE17_12:
+SEND_BUFFER_1:
   ADD A,$02              ; Send control codes for narrow line spacing (hardcopy mode)
   CALL SEND_CTL
-LFE17_13:
+SEND_BUFFER_2:
   PUSH BC
   LD C,(HL)
   LD A,(BV_FLAGS)
   BIT 2,A
-  JR NZ,LFE17_14
+  JR NZ,SEND_BUFFER_3
   RLC C
-LFE17_14:
+SEND_BUFFER_3:
   INC HL
   PUSH BC
   CALL SEND_BYTE
   POP BC
   LD A,(BV_ENLARGED)
   AND A
-  JR Z,LFE17_15
+  JR Z,SEND_BUFFER_4
   CALL SEND_BYTE
-LFE17_15:
+SEND_BUFFER_4:
   POP BC
-  DJNZ LFE17_13
+  DJNZ SEND_BUFFER_2
   POP HL
-  CALL CHAN3_INPUT_17
+  CALL BV_NEWLINE
 ; This entry point is used by the routine at CHAN3_INPUT.
 CLEAR_BUFFER:
   LD IX,$5B00            ; Printer buffer
