@@ -1042,7 +1042,7 @@ LINLEN:
   DEFB $50
 
 ; Text vertical size, configured with 'WIDTH'
-COLLEN:
+CRTCNT:
   DEFB $18
 
 ; Data block at 2109
@@ -5757,11 +5757,11 @@ __VARPTR_3:
   CP $CD
   JP Z,__PDL_2
   CP $D3
-  JP Z,__PDL_12
+  JP Z,$47E6
   CP $EC
   JP Z,__PDL_1
   CP $ED
-  JP Z,__PDL_13
+  JP Z,L47DD_0
   CP $EE
   JP Z,L670C_14
   CP $E7
@@ -6475,7 +6475,7 @@ __WIDTH_1:
 __WIDTH_2:
   CALL CHRGTB
   CALL GETINT
-  LD (COLLEN),A
+  LD (CRTCNT),A
   RET
 __WIDTH_3:
   SUB $0E
@@ -7386,7 +7386,7 @@ CLROVC:
 __VTAB:
   CALL __VTAB_6
   PUSH HL
-  LD HL,COLLEN
+  LD HL,CRTCNT
 __VTAB_0:
   SUB (HL)
   JP P,__VTAB_0
@@ -7489,21 +7489,21 @@ __TEXT:
   PUSH HL
   LD HL,$FB2F
   CALL A2_VECTOR_CALL
-  LD A,(COLLEN)
+  LD A,(CRTCNT)
   DEC A
   LD H,A
   LD L,$00
   LD (TTYPOS),HL
-  LD A,(A2_HI_51)
-  LD A,(A2_HI_54)
-  LD A,($4B96)
+  LD A,(P_E051)
+  LD A,(P_E054)
+  LD A,(A2_TEXT_ROWS)
   OR A
   JR Z,__TEXT_0
   LD HL,$FC58
   CALL A2_VECTOR_CALL
 __TEXT_0:
   XOR A
-  LD ($4B96),A
+  LD (A2_TEXT_ROWS),A
   JR __HTAB_1
 
 ; Routine at 17895
@@ -7517,21 +7517,21 @@ A2_VECTOR_CALL:
 ; Routine at 17902
 __GR:
   LD A,$00
-  LD (BIOS_COLOR),A
+  LD (B_COLOR),A
   CALL NZ,GETINT
   CP $02
   JR NC,__COLOR_2
   PUSH HL
   PUSH AF
   LD A,$14
-  LD (BIOS_P0),A
+  LD (B_F022),A
   LD HL,$1700
   LD (TTYPOS),HL
   CALL __VTAB_2
-  LD A,(A2_HI_56)
+  LD A,(P_E056)
   POP AF
   POP HL
-  LD (A2_HI_56),A
+  LD (P_E056),A
   CALL __PDL_9
   JR NZ,__GR_0
   INC HL
@@ -7542,18 +7542,18 @@ __GR:
 __GR_0:
   PUSH HL
   LD A,$27
-  LD (BIOS_P1),A
+  LD (B_F02C),A
   LD B,D
 __GR_1:
   XOR A
-  LD (BIOS_P3),A
+  LD (B_F047),A
   LD A,B
   DEC A
-  LD (BIOS_P2),A
+  LD (B_F045),A
   CALL __GR_2
   DJNZ __GR_1
   LD A,$FF
-  LD ($4B96),A
+  LD (A2_TEXT_ROWS),A
   POP HL
   RET
 ; This entry point is used by the routine at __HLIN.
@@ -7576,7 +7576,7 @@ __COLOR_0:
   ADD A,A
   ADD A,A
   OR E
-  LD (BIOS_COLOR),A
+  LD (B_COLOR),A
   RET
 ; This entry point is used by the routines at __HLIN and __VLIN.
 __COLOR_1:
@@ -7607,11 +7607,11 @@ __COLOR_2:
 __HLIN:
   LD BC,$2830
   CALL __COLOR_1
-  LD (BIOS_P2),A
+  LD (B_F045),A
   LD A,E
-  LD (BIOS_P3),A
+  LD (B_F047),A
   LD A,D
-  LD (BIOS_P1),A
+  LD (B_F02C),A
   PUSH HL
   CALL __GR_2
   POP HL
@@ -7621,11 +7621,11 @@ __HLIN:
 __VLIN:
   LD BC,$3028
   CALL __COLOR_1
-  LD (BIOS_P3),A
+  LD (B_F047),A
   LD A,E
-  LD (BIOS_P2),A
+  LD (B_F045),A
   LD A,D
-  LD ($F02D),A
+  LD (B_F02D),A
   PUSH HL
   LD HL,$F828
   JR __PLOT_0
@@ -7643,11 +7643,11 @@ __VLIN_1:
   CALL __VLIN_0
   CP $30
   JR NC,__COLOR_2
-  LD (BIOS_P2),A
+  LD (B_F045),A
   LD A,E
   CP $28
   JR NC,__COLOR_2
-  LD (BIOS_P3),A
+  LD (B_F047),A
   RET
 
 ; Routine at 18118
@@ -7677,8 +7677,6 @@ __BUTTON:
   POP HL
   RLA
   SBC A,A
-; This entry point is used by the routine at __PDL.
-__BUTTON_0:
   LD L,A
   LD H,A
   JP MAKINT
@@ -7700,31 +7698,20 @@ __VPOS_1:
 __BEEP:
   CALL __VLIN_0
   INC A
-  LD (BIOS_P2),A
+  LD (B_F045),A
   LD A,E
   INC A
-  LD ($F046),A
+  LD (B_F046),A
   PUSH HL
   LD HL,$5709
   JP __PLOT_0
-  AND B
-  NOP
-  XOR L
-  JR NC,$46CE
-  ADC A,B
-  RET NC
-  INC B
-  ADD A,$45
-  RET P
-  INC C
-  JR NZ,$476E
-  RST $38
-  JP Z,BIOS_P7
-  AND (HL)
-  LD B,(HL)
-  RET NC
-  CALL PE,$EAF0
-  LD H,B
+
+; Data block at 18184
+L4708:
+  DEFB $46,$A0,$00,$AD,$30,$C0,$88,$D0
+  DEFB $04,$C6,$45,$F0,$0C,$20,$57,$FF
+  DEFB $CA,$D0,$F3,$A6,$46,$D0,$EC,$F0
+  DEFB $EA,$60
 
 ; On the Apple2 GBASIC WAIT monitors the status of an address rather than of an
 ; I/O port
@@ -7762,12 +7749,12 @@ __PDL:
 ; This entry point is used by the routine at __BUTTON.
 __PDL_0:
   JP NC,FC_ERR
-  LD ($F046),A
+  LD (B_F046),A
   PUSH HL
   LD HL,$FB1E
   CALL A2_VECTOR_CALL
   POP HL
-  LD A,(BIOS_P3)
+  LD A,(B_F047)
   JP PASSA
 ; This entry point is used by the routine at __VARPTR.
 __PDL_1:
@@ -7781,17 +7768,17 @@ __PDL_1:
   PUSH HL
   LD HL,$F871
   CALL A2_VECTOR_CALL
-  LD A,(BIOS_P2)
+  LD A,(B_F045)
   JP __VPOS_1
 ; This entry point is used by the routine at __VARPTR.
 __PDL_2:
   CALL CHRGTB
-  LD A,(BIOS_COLOR)
+  LD A,(B_COLOR)
   AND $0F
   JP __VPOS_0
 ; This entry point is used by the routine at PINLIN.
 __PDL_3:
-  LD HL,BIOS_P2
+  LD HL,B_F045
   XOR A
   LD (HL),A
   INC HL
@@ -7837,7 +7824,7 @@ __PDL_8:
 ; This entry point is used by the routines at __GR and __HGR.
 __PDL_9:
   PUSH HL
-  LD ($E050),A
+  LD (P_E050),A
   LD HL,$E053
   RRA
   LD D,$28
@@ -7850,67 +7837,65 @@ __PDL_10:
   LD A,(HL)
   CP $2C
   RET
-  NOP
-  NOP
-  NOP
-  ADD A,C
-  ADD A,B
-  NOP
-  DJNZ __PDL_11
-__PDL_11:
-  NOP
-  NOP
-  NOP
-  NOP
-; This entry point is used by the routine at __VARPTR.
-__PDL_12:
-  CALL CHRGTB
-  LD A,($47DA)
-  JP __VPOS_0
-; This entry point is used by the routine at __VARPTR.
-__PDL_13:
-  CALL CHRGTB
-  CALL SYNCHR
-  JR Z,$47C4
-  JR NZ,__HCOLOR_1
-  CALL SYNCHR
-  ADD HL,HL
-  PUSH HL
-  LD HL,($47DD)
-  PUSH HL
-  LD HL,($47DF)
-  PUSH HL
-  LD HL,($47E1)
-  PUSH HL
-  LD HL,$4819
-  PUSH HL
-  PUSH HL
-  LD HL,$4AC5
-  LD ($49AB),HL
-  LD A,C
-  JP __HCOLOR_26
-  CALL __HCOLOR_34
-  EXX
-  BIT 0,L
-  JR NZ,__PDL_14
-  LD B,C
-  NOP
-__PDL_14:
-  LD A,(HL)
-  AND B
-  ADD A,A
-  JR Z,__PDL_15
-  LD A,$FF
-__PDL_15:
-  CALL __BUTTON_0
-  POP HL
-  LD ($47E1),HL
-  POP HL
-  LD ($47DF),HL
-  POP HL
-  LD ($47DD),HL
-  POP HL
-  RET
+
+; Data block at 18394
+A2_HCOLOR:
+  DEFW $0000
+
+; Data block at 18395
+L47DB:
+  DEFW $0000
+
+; Data block at 18397
+L47DD:
+  DEFW $8081
+  DEFW _RELOC
+  DEFW $0000
+  DEFW $0000
+  DEFW $CD00
+  DEFW CHRGTB
+  DEFW $DA3A
+  DEFW $C347
+  DEFW __VPOS_0
+L47DD_0:
+  DEFW $C9CD
+  DEFW $CD33
+  DEFW SYNCHR
+  DEFW $CD28
+  DEFW __HGR_4
+  DEFW $25CD
+  DEFW $2969
+  DEFW $2AE5
+  DEFW L47DD
+  DEFW $2AE5
+  DEFW $47DF
+  DEFW $2AE5
+  DEFW $47E1
+  DEFW $21E5
+  DEFW $4819
+  DEFW $E5E5
+  DEFW $C521
+  DEFW $224A
+  DEFW $49AB
+  DEFW $C379
+  DEFW $4980
+  DEFW $EACD
+  DEFW $D949
+  DEFW $45CB
+  DEFW $0220
+  DEFW $0041
+  DEFW $A07E
+  DEFW $2887
+  DEFW $3E02
+  DEFW $CDFF
+  DEFW $46E7
+  DEFW $22E1
+  DEFW $47E1
+  DEFW $22E1
+  DEFW $47DF
+  DEFW $22E1
+  DEFW L47DD
+  DEFW $C9E1
 
 ; Routine at 18491
 __HCOLOR:
@@ -7920,13 +7905,11 @@ __HCOLOR:
 ; This entry point is used by the routine at __HGR.
 __HCOLOR_0:
   CP $0D
-; This entry point is used by the routine at __PDL.
-__HCOLOR_1:
   JP NC,FC_ERR
-  LD ($47DA),A
+  LD (A2_HCOLOR),A
   PUSH HL
   CP $08
-  JR NC,__HCOLOR_2
+  JR NC,__HCOLOR_1
   LD HL,$4A81
   ADD A,A
   LD E,A
@@ -7936,66 +7919,66 @@ __HCOLOR_1:
   INC HL
   LD D,(HL)
   EX DE,HL
-  JR __HCOLOR_5
-__HCOLOR_2:
+  JR __HCOLOR_4
+__HCOLOR_1:
   CP $0C
-  JR Z,__HCOLOR_7
+  JR Z,__HCOLOR_6
   CP $0A
-  JR NC,__HCOLOR_3
+  JR NC,__HCOLOR_2
   RRA
   SBC A,A
   AND $7F
-  JR __HCOLOR_4
-__HCOLOR_3:
+  JR __HCOLOR_3
+__HCOLOR_2:
   RRA
   SBC A,A
   SET 7,A
-__HCOLOR_4:
+__HCOLOR_3:
   LD H,A
   LD L,A
-__HCOLOR_5:
-  LD ($47DB),HL
-  LD HL,__HCOLOR_9
+__HCOLOR_4:
+  LD (L47DB),HL
+  LD HL,__HCOLOR_8
   LD ($488C),HL
+__HCOLOR_5:
+  CALL __HCOLOR_44
+  JP __HCOLOR_26
 __HCOLOR_6:
-  CALL __HCOLOR_47
-  JP __HCOLOR_28
-__HCOLOR_7:
   LD HL,$48C1
   LD ($488C),HL
-  JR __HCOLOR_6
+  JR __HCOLOR_5
 ; This entry point is used by the routine at __HPLOT.
-__HCOLOR_8:
+__HCOLOR_7:
   EXX
   BIT 0,L
-  JP __HCOLOR_9
-__HCOLOR_9:
-  JP NZ,__HCOLOR_11
+  JP __HCOLOR_8
+__HCOLOR_8:
+  JP NZ,__HCOLOR_10
   LD A,C
   ADD A,A
-  JP Z,__HCOLOR_10
+  JP Z,__HCOLOR_9
   LD A,(HL)
   XOR E
   AND C
   XOR (HL)
   LD (HL),A
-  LD A,B
-  ADD A,A
-  JP Z,__HCOLOR_13
-__HCOLOR_10:
-  INC L
-  LD A,(HL)
-  XOR D
-  AND B
-  XOR (HL)
-  LD (HL),A
-  DEC L
-  EXX
-  RET
-__HCOLOR_11:
   LD A,B
   ADD A,A
   JP Z,__HCOLOR_12
+__HCOLOR_9:
+  INC L
+  LD A,(HL)
+  XOR D
+  AND B
+  XOR (HL)
+  LD (HL),A
+  DEC L
+  EXX
+  RET
+__HCOLOR_10:
+  LD A,B
+  ADD A,A
+  JP Z,__HCOLOR_11
   LD A,(HL)
   XOR D
   AND B
@@ -8003,8 +7986,8 @@ __HCOLOR_11:
   LD (HL),A
   LD A,C
   ADD A,A
-  JP Z,__HCOLOR_13
-__HCOLOR_12:
+  JP Z,__HCOLOR_12
+__HCOLOR_11:
   INC L
   LD A,(HL)
   XOR E
@@ -8012,21 +7995,21 @@ __HCOLOR_12:
   XOR (HL)
   LD (HL),A
   DEC L
-__HCOLOR_13:
+__HCOLOR_12:
   EXX
   RET
-  JP NZ,__HCOLOR_15
+  JP NZ,__HCOLOR_14
   LD A,C
   ADD A,A
-  JP Z,__HCOLOR_14
+  JP Z,__HCOLOR_13
   LD A,C
   AND $7F
   XOR (HL)
   LD (HL),A
   LD A,B
   ADD A,A
-  JP Z,__HCOLOR_13
-__HCOLOR_14:
+  JP Z,__HCOLOR_12
+__HCOLOR_13:
   INC L
   AND $7F
   XOR (HL)
@@ -8034,18 +8017,18 @@ __HCOLOR_14:
   DEC L
   EXX
   RET
-__HCOLOR_15:
+__HCOLOR_14:
   LD A,B
   ADD A,A
-  JP Z,__HCOLOR_16
+  JP Z,__HCOLOR_15
   LD A,B
   AND $7F
   XOR (HL)
   LD (HL),A
   LD A,C
   ADD A,A
-  JP Z,__HCOLOR_13
-__HCOLOR_16:
+  JP Z,__HCOLOR_12
+__HCOLOR_15:
   INC L
   LD A,C
   AND $7F
@@ -8055,16 +8038,16 @@ __HCOLOR_16:
   EXX
   RET
 ; This entry point is used by the routine at __HPLOT.
-__HCOLOR_17:
-  CALL __HCOLOR_47
+__HCOLOR_16:
+  CALL __HCOLOR_44
   LD A,($47E5)
   LD HL,$49FD
   SUB C
-  JR NC,__HCOLOR_18
+  JR NC,__HCOLOR_17
   CPL
   INC A
-  LD HL,__HCOLOR_35
-__HCOLOR_18:
+  LD HL,__HCOLOR_32
+__HCOLOR_17:
   PUSH HL
   PUSH AF
   LD A,C
@@ -8074,23 +8057,23 @@ __HCOLOR_18:
   LD ($47E3),HL
   OR A
   SBC HL,DE
-  JR NC,__HCOLOR_19
+  JR NC,__HCOLOR_18
   ADD HL,DE
   EX DE,HL
   OR A
   SBC HL,DE
   LD DE,$4A4E
-  JR __HCOLOR_20
+  JR __HCOLOR_19
+__HCOLOR_18:
+  LD DE,__HCOLOR_40
 __HCOLOR_19:
-  LD DE,__HCOLOR_43
-__HCOLOR_20:
   POP BC
   LD A,H
   OR A
   LD A,B
-  JR NZ,__HCOLOR_21
+  JR NZ,__HCOLOR_20
   CP L
-  JR C,__HCOLOR_21
+  JR C,__HCOLOR_20
   EX (SP),HL
   LD ($4956),HL
   EX DE,HL
@@ -8099,15 +8082,15 @@ __HCOLOR_20:
   LD H,$00
   POP DE
   PUSH HL
-  JR __HCOLOR_22
-__HCOLOR_21:
+  JR __HCOLOR_21
+__HCOLOR_20:
   EX (SP),HL
   LD ($4967),HL
   EX DE,HL
   LD ($4956),HL
   LD E,A
   LD D,$00
-__HCOLOR_22:
+__HCOLOR_21:
   POP HL
   LD ($496C),HL
   LD B,H
@@ -8116,39 +8099,37 @@ __HCOLOR_22:
   OR A
   RR H
   RR L
-  JR __HCOLOR_24
+  JR __HCOLOR_23
+__HCOLOR_22:
+  EXX
+  CALL __HCOLOR_32
+  EXX
+  CALL __HCOLOR_7
 __HCOLOR_23:
-  EXX
-  CALL __HCOLOR_35
-  EXX
-  CALL __HCOLOR_8
-__HCOLOR_24:
   DEC BC
   LD A,B
   OR C
   RET Z
   AND A
   SBC HL,DE
-  JR NC,__HCOLOR_23
+  JR NC,__HCOLOR_22
   EXX
-  CALL __HCOLOR_43
+  CALL __HCOLOR_40
   EXX
   PUSH DE
   LD DE,$0000
   ADD HL,DE
   POP DE
-  JP __HCOLOR_23
+  JP __HCOLOR_22
 ; This entry point is used by the routine at __HPLOT.
-__HCOLOR_25:
+__HCOLOR_24:
   PUSH HL
-  CALL __HCOLOR_47
+  CALL __HCOLOR_44
   EX DE,HL
   LD ($47E3),HL
   EX DE,HL
   LD A,C
   LD ($47E5),A
-; This entry point is used by the routine at __PDL.
-__HCOLOR_26:
   AND $C0
   LD L,A
   RRA
@@ -8169,14 +8150,14 @@ __HCOLOR_26:
   LD H,A
   LD ($47DF),HL
   EX DE,HL
-  CALL __HCOLOR_30
+  CALL __HCOLOR_28
   SUB $07
-  JR C,__HCOLOR_27
+  JR C,__HCOLOR_25
   INC B
-__HCOLOR_27:
+__HCOLOR_25:
   LD A,B
-  LD (__PDL_11),A
-__HCOLOR_28:
+  LD ($47E2),A
+__HCOLOR_26:
   LD A,($47E1)
   LD C,A
   LD HL,$0000
@@ -8189,23 +8170,23 @@ __HCOLOR_28:
   ADD A,$07
   LD C,A
   SUB $0E
-  JR C,__HCOLOR_29
+  JR C,__HCOLOR_27
   LD C,A
-__HCOLOR_29:
+__HCOLOR_27:
   ADD HL,BC
   LD D,(HL)
   EX DE,HL
-  LD ($47DD),HL
+  LD (L47DD),HL
   POP HL
   RET
 ; This entry point is used by the routine at __HPLOT.
-__HCOLOR_30:
+__HCOLOR_28:
   LD DE,$FFF2
   LD A,D
-__HCOLOR_31:
+__HCOLOR_29:
   INC A
   ADD HL,DE
-  JR C,__HCOLOR_31
+  JR C,__HCOLOR_29
   ADD A,A
   LD B,A
   LD A,L
@@ -8213,28 +8194,26 @@ __HCOLOR_31:
   LD ($47E1),A
   RET
 ; This entry point is used by the routine at __HPLOT.
-__HCOLOR_32:
+__HCOLOR_30:
   EXX
   LD HL,$4AC5
   LD D,$00
   LD A,($47E1)
   SUB $07
-  JR NC,__HCOLOR_33
+  JR NC,__HCOLOR_31
   ADD A,$07
-__HCOLOR_33:
+__HCOLOR_31:
   LD E,A
   ADD HL,DE
   LD A,(HL)
   AND $7F
   EX AF,AF'
-; This entry point is used by the routine at __PDL.
-__HCOLOR_34:
-  LD HL,($47DD)
+  LD HL,(L47DD)
   LD C,L
   LD B,H
-  LD HL,($47DB)
+  LD HL,(L47DB)
   EX DE,HL
-  LD A,(__PDL_11)
+  LD A,($47E2)
   LD HL,($47DF)
   ADD A,L
   LD L,A
@@ -8246,20 +8225,20 @@ __HCOLOR_34:
   PUSH AF
   LD A,H
   SUB $14
-  JR NC,__HCOLOR_38
+  JR NC,__HCOLOR_35
   RL L
   RLA
   DEC A
   BIT 3,A
-  JR NZ,__HCOLOR_36
+  JR NZ,__HCOLOR_33
   LD H,$2F
   SCF
   LD A,L
   RRA
   SUB $28
   LD L,A
-  JP __HCOLOR_40
-__HCOLOR_35:
+  JP __HCOLOR_37
+__HCOLOR_32:
   LD A,L
   LD HL,($47DF)
   SUB L
@@ -8267,30 +8246,30 @@ __HCOLOR_35:
   LD A,H
   SUB $0C
   BIT 5,A
-  JR Z,__HCOLOR_38
+  JR Z,__HCOLOR_35
   RL L
   RLA
   INC A
   BIT 3,A
-  JR Z,__HCOLOR_37
+  JR Z,__HCOLOR_34
   LD H,$10
   LD A,L
   RRA
   ADD A,$28
   LD L,A
-  JP __HCOLOR_40
-__HCOLOR_36:
+  JP __HCOLOR_37
+__HCOLOR_33:
   AND $3F
-__HCOLOR_37:
+__HCOLOR_34:
   XOR $60
   RRA
   RR L
-  JP __HCOLOR_39
-__HCOLOR_38:
+  JP __HCOLOR_36
+__HCOLOR_35:
   ADD A,$10
-__HCOLOR_39:
+__HCOLOR_36:
   LD H,A
-__HCOLOR_40:
+__HCOLOR_37:
   LD ($47DF),HL
   POP AF
   ADD A,L
@@ -8298,39 +8277,39 @@ __HCOLOR_40:
   RET
   EX AF,AF'
   RRCA
-  JP NC,__HCOLOR_41
+  JP NC,__HCOLOR_38
   DEC L
   RRCA
-__HCOLOR_41:
+__HCOLOR_38:
   EX AF,AF'
   SCF
   RR B
-  JP C,__HCOLOR_42
+  JP C,__HCOLOR_39
   RES 7,C
-__HCOLOR_42:
+__HCOLOR_39:
   SCF
   RR C
   RET C
   RES 6,B
   RET
-__HCOLOR_43:
+__HCOLOR_40:
   EX AF,AF'
   ADD A,A
-  JP P,__HCOLOR_44
+  JP P,__HCOLOR_41
   INC L
   RLCA
-__HCOLOR_44:
+__HCOLOR_41:
   EX AF,AF'
   SCF
   BIT 6,B
-  JP NZ,__HCOLOR_45
+  JP NZ,__HCOLOR_42
   OR A
-__HCOLOR_45:
+__HCOLOR_42:
   RL C
-  JP M,__HCOLOR_46
+  JP M,__HCOLOR_43
   OR A
   SET 7,C
-__HCOLOR_46:
+__HCOLOR_43:
   RL B
   SET 7,B
   RET
@@ -8346,26 +8325,26 @@ __HCOLOR_46:
   XOR D
   RST $38
   RST $38
-__HCOLOR_47:
-  LD A,($47DA)
+__HCOLOR_44:
+  LD A,(A2_HCOLOR)
   LD HL,$4AC5
   CP $0C
-  JR Z,__HCOLOR_50
+  JR Z,__HCOLOR_47
   CP $08
-  JR NC,__HCOLOR_48
+  JR NC,__HCOLOR_45
   AND $03
-  JR Z,__HCOLOR_50
+  JR Z,__HCOLOR_47
   CP $03
-  JR Z,__HCOLOR_50
-__HCOLOR_48:
+  JR Z,__HCOLOR_47
+__HCOLOR_45:
   LD HL,$FEE9
   AND A
   ADC HL,DE
-  JR NZ,__HCOLOR_49
+  JR NZ,__HCOLOR_46
   DEC DE
-__HCOLOR_49:
+__HCOLOR_46:
   LD HL,$4AB7
-__HCOLOR_50:
+__HCOLOR_47:
   LD ($49AB),HL
   RET
   ADD A,E
@@ -8405,7 +8384,7 @@ __HGR:
   CP $04
 __HGR_0:
   JP NC,FC_ERR
-  LD ($E057),A
+  LD (P_E057),A
   PUSH AF
   CALL __PDL_9
   LD A,$00
@@ -8424,7 +8403,7 @@ __HGR_1:
   JR Z,__HGR_2
   PUSH HL
   LD HL,_RELOC
-  LD HL,($47DB)
+  LD HL,(L47DB)
   LD (_RELOC),HL
   LD HL,_RELOC
   LD DE,$1002
@@ -8465,20 +8444,20 @@ __HGR_4:
 __HPLOT:
   CP $DD
   JR NZ,__HPLOT_0
-  CALL __HCOLOR_32
+  CALL __HCOLOR_30
   JR __HPLOT_1
 __HPLOT_0:
   CALL __HGR_4
-  CALL __HCOLOR_25
-  CALL __HCOLOR_32
-  CALL __HCOLOR_8
+  CALL __HCOLOR_24
+  CALL __HCOLOR_30
+  CALL __HCOLOR_7
   CALL _CHRCKB
   RET Z
 __HPLOT_1:
   CALL CHRGTB
   CALL __HGR_4
   PUSH HL
-  CALL __HCOLOR_17
+  CALL __HCOLOR_16
   POP HL
   LD A,(HL)
   CP $DD
@@ -8488,12 +8467,12 @@ __HPLOT_1:
   SUB L
   CPL
   INC A
-  LD (__PDL_11),A
+  LD ($47E2),A
   LD L,C
   LD H,B
-  LD ($47DD),HL
+  LD (L47DD),HL
   LD HL,($47E3)
-  CALL __HCOLOR_30
+  CALL __HCOLOR_28
   EXX
   RET
   LD E,$1F
@@ -8507,15 +8486,30 @@ __HPLOT_1:
   CALL $0005
   POP DE
   JP ERROR
-  NOP
-  LD D,B
-; This entry point is used by the routines at __CINT and FOUCD1.
-__HPLOT_2:
+
+; Data block at 19350
+A2_TEXT_ROWS:
+  DEFB $00
+
+; Data block at 19351
+A2_TEXT_COLUMNS:
+  DEFB $50
+
+; Routine at 19352
+;
+; Used by the routines at __CINT and FOUCD1.
+FADDH:
   LD HL,FP_HALF
-; This entry point is used by the routines at __RND, __COS and ISLETTER_A.
-__HPLOT_3:
+
+; Routine at 19355
+;
+; Used by the routines at __RND, __COS and ISLETTER_A.
+FADDS:
   CALL LOADFP
   JR FADD
+
+; Routine at 19360
+FSUBS:
   CALL LOADFP
 
 ; Formerly SUBCDE, Subtract BCDE from FP reg
@@ -8526,7 +8520,7 @@ FSUB:
 
 ; a.k.a. FPADD, Add BCDE to FP reg
 ;
-; Used by the routines at GETWORD_HL, __HPLOT, __LOG, MLSP10, FINDG4, SUMLP and
+; Used by the routines at GETWORD_HL, FADDS, __LOG, MLSP10, FINDG4, SUMLP and
 ; __SIN.
 FADD:
   LD A,B
@@ -9186,7 +9180,7 @@ BCDEFP:
 
 ; Load FP value pointed by HL to BCDE
 ;
-; Used by the routines at __HPLOT, MOVFM, SUMLP, __RND and ISLETTER_A.
+; Used by the routines at FADDS, FSUBS, MOVFM, SUMLP, __RND and ISLETTER_A.
 LOADFP:
   LD E,(HL)
   INC HL
@@ -9388,7 +9382,7 @@ __CINT:
   CALL __CSNG_0
   JP __CINT_1
 __CINT_0:
-  CALL __HPLOT_2
+  CALL FADDH
 __CINT_1:
   LD A,($0CB3)
   OR A
@@ -11623,7 +11617,7 @@ FOUCD2:
 FOUTCS:
   PUSH BC
   PUSH HL
-  CALL __HPLOT_2
+  CALL FADDH
   LD A,$01
   CALL QINT
   CALL FPBCDE
@@ -12052,7 +12046,7 @@ __RND:
   ADD A,A
   LD C,A
   ADD HL,BC
-  CALL __HPLOT_3
+  CALL FADDS
 __RND_0:
   CALL BCDEFP
   LD A,E
@@ -12109,7 +12103,7 @@ RNDTB2:
 ; Used by the routine at __TAN.
 __COS:
   LD HL,FP_HALFPI
-  CALL __HPLOT_3
+  CALL FADDS
 
 ; Routine at 24122
 ;
@@ -12205,7 +12199,7 @@ __ATN:
   LD D,C
   LD E,C
   CALL FDIV
-  LD HL,$4BA0
+  LD HL,FSUBS
   PUSH HL
 __ATN_0:
   LD HL,FP_ATNTAB
@@ -13613,7 +13607,7 @@ NOTAB_0:
   LD (TTYPOS),A
   CP B
   JR NZ,INCTPS
-  LD A,($4B97)
+  LD A,(A2_TEXT_COLUMNS)
   CP B
   CALL Z,L670C_0
   CALL NZ,L670C_8
@@ -13652,7 +13646,7 @@ L670C_0:
   CALL L670C_9
 ; This entry point is used by the routine at OUTDO.
 L670C_1:
-  LD A,(COLLEN)
+  LD A,(CRTCNT)
   LD B,A
   LD A,(TTY_VPOS)
   INC A
@@ -14375,7 +14369,7 @@ ISLETTER_A_5:
   CALL MOVFM
   XOR A
 ISLETTER_A_6:
-  CALL NZ,__HPLOT_3
+  CALL NZ,FADDS
   POP HL
   CALL L4EBF_0
   POP HL
@@ -18656,7 +18650,7 @@ PROCHK_2:
   LD (ERRFLG),A
   LD HL,$0000
   LD (LPTPOS),HL
-  LD (BIOS_COLOR),A
+  LD (B_COLOR),A
   LD A,(BIOS_P6)
   SUB $03
   JR Z,$8287
@@ -18664,7 +18658,7 @@ PROCHK_2:
   JR Z,$8287
   LD A,$28
   LD BC,$503E
-  LD ($4B97),A
+  LD (A2_TEXT_COLUMNS),A
   CALL __WIDTH_1
   LD HL,$0080
   LD (MAXREC),HL
@@ -21843,18 +21837,25 @@ L8480:
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
+
+; Data block at 57424
+P_E050:
   DEFB $00
 
 ; Data block at 57425
-A2_HI_51:
+P_E051:
   DEFB $00,$00,$00
 
 ; Data block at 57428
-A2_HI_54:
+P_E054:
   DEFB $00,$00
 
 ; Data block at 57430
-A2_HI_56:
+P_E056:
+  DEFB $00
+
+; Data block at 57431
+P_E057:
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
@@ -22360,29 +22361,37 @@ A2_HI_56:
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00
+  DEFB $00,$00,$00
 
 ; Data block at 61474
-BIOS_P0:
+B_F022:
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00
 
 ; Data block at 61484
-BIOS_P1:
-  DEFB $00,$00,$00,$00
+B_F02C:
+  DEFB $00
+
+; Data block at 61485
+B_F02D:
+  DEFB $00,$00,$00
 
 ; Data block at 61488
-BIOS_COLOR:
+B_COLOR:
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00
 
 ; Data block at 61509
-BIOS_P2:
-  DEFB $00,$00
+B_F045:
+  DEFB $00
+
+; Data block at 61510
+B_F046:
+  DEFB $00
 
 ; Data block at 61511
-BIOS_P3:
+B_F047:
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
@@ -22516,3 +22525,392 @@ BIOS_P7:
 ; Data block at 62430
 BIOS_P8:
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00
+
