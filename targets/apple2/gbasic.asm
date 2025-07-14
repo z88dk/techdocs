@@ -2,7 +2,7 @@
 
 ; Routine at 256
 L0100:
-  JP _RELOC
+  JP _HIRES_PAGE
 
 ; Data block at 259
 L0103:
@@ -2320,17 +2320,17 @@ SRCHLP_2:
 L0FF8:
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
 
-; Routine at 4096
+; Aux Hi-res graphics page 1X
 ;
 ; Used by the routine at L0100.
-_RELOC:
+_HIRES_PAGE:
   LD HL,$6490
   LD DE,$8482
   LD BC,$5483
   LDDR
   JP PROCHK_1
 
-; Graphics memory, etc..
+; Data block at 4110
 GAP:
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
@@ -8313,17 +8313,17 @@ __HGR_1:
   CP $0C
   JR Z,__HGR_2
   PUSH HL
-  LD HL,_RELOC
+  LD HL,_HIRES_PAGE
   LD HL,($47DB)
-  LD (_RELOC),HL
-  LD HL,_RELOC
+  LD (_HIRES_PAGE),HL
+  LD HL,_HIRES_PAGE
   LD DE,$1002
   LD BC,$1FFE
   LDIR
   POP HL
   RET
 __HGR_2:
-  LD DE,_RELOC
+  LD DE,_HIRES_PAGE
 __HGR_3:
   LD A,(DE)
   XOR $7F
@@ -18505,7 +18505,7 @@ PROCHK_0:
   JP RESTART_0
   NOP
   NOP
-; This entry point is used by the routine at _RELOC.
+; This entry point is used by the routine at _HIRES_PAGE.
 PROCHK_1:
   LD HL,$84C8
   LD SP,HL
