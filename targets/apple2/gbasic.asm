@@ -4060,7 +4060,7 @@ NEWSTT_3:
 ; NEWSTT, _CHRCKB, DEFCON, ATOH, __REM, __ON, RESNXT, __IF, __PRINT, __TAB,
 ; NEXITM, __INPUT, __READ, FDTLP, LOPREL, OPRND, __ERR, __ERL, __VARPTR,
 ; OCTCNS, PASSA, __DEF, FINASG, __WIDTH, FPSINT, FNDNUM, CONINT, TSTANM,
-; __RENUM, __OPTION, __RANDOMIZE, __PDL, L47A8, L47E5, __HPLOT, FIN, DPOINT,
+; __RENUM, __OPTION, __RANDOMIZE, __PDL, L47A8, L47E6, __HPLOT, FIN, DPOINT,
 ; FOUTZS, FOUTTS, SUMLP, DIMRET, PTRGET, __USING, L670C, __ERASE, __CLEAR,
 ; __NEXT, DTSTR, TOPOOL, __VAL, __INSTR, PINLIN, __WHILE, __CALL, __CHAIN,
 ; CHAIN_COMMON, BCKUCM, __WRITE, FILSCN, LINE_INPUT, __LOAD, __MERGE, __SAVE,
@@ -5658,11 +5658,11 @@ __VARPTR_3:
   CP $CD
   JP Z,__PDL_2
   CP $D3
-  JP Z,L47E5_0
+  JP Z,L47E6
   CP $EC
   JP Z,__PDL_1
   CP $ED
-  JP Z,L47E5_1
+  JP Z,L47E6_0
   CP $EE
   JP Z,L670C_14
   CP $E7
@@ -7403,7 +7403,7 @@ __NORMAL:
 __TEXT:
   PUSH HL
   LD HL,$FB2F
-  CALL __TEXT_1
+  CALL A2_VECTOR_CALL
   LD A,(CRTCNT)
   DEC A
   LD H,A
@@ -7415,13 +7415,16 @@ __TEXT:
   OR A
   JR Z,__TEXT_0
   LD HL,$FC58
-  CALL __TEXT_1
+  CALL A2_VECTOR_CALL
 __TEXT_0:
   XOR A
   LD ($4B96),A
   JR __HTAB_1
-; This entry point is used by the routines at __GR, __PLOT and __PDL.
-__TEXT_1:
+
+; Routine at 17895
+;
+; Used by the routines at __TEXT, __GR, __PLOT and __PDL.
+A2_VECTOR_CALL:
   LD (LF3D0),HL
   LD ($0000),A
   RET
@@ -7471,7 +7474,7 @@ __GR_1:
 ; This entry point is used by the routine at __HLIN.
 __GR_2:
   LD HL,$F819
-  JP __TEXT_1
+  JP A2_VECTOR_CALL
 
 ; Routine at 17986
 __COLOR:
@@ -7569,7 +7572,7 @@ __PLOT:
   LD HL,$F800
 ; This entry point is used by the routines at __VLIN, __BEEP and L47A8.
 __PLOT_0:
-  CALL __TEXT_1
+  CALL A2_VECTOR_CALL
   POP HL
   RET
 
@@ -7589,7 +7592,7 @@ __BUTTON:
   POP HL
   RLA
   SBC A,A
-; This entry point is used by the routine at L47E5.
+; This entry point is used by the routine at L47E6.
 __BUTTON_0:
   LD L,A
   LD H,A
@@ -7599,7 +7602,7 @@ __BUTTON_0:
 __VPOS:
   LD A,(TTY_VPOS)
   INC A
-; This entry point is used by the routines at __PDL and L47E5.
+; This entry point is used by the routines at __PDL and L47E6.
 __VPOS_0:
   PUSH HL
 ; This entry point is used by the routine at __PDL.
@@ -7666,7 +7669,7 @@ __PDL_0:
   LD (LF046),A
   PUSH HL
   LD HL,$FB1E
-  CALL __TEXT_1
+  CALL A2_VECTOR_CALL
   POP HL
   LD A,(LF047)
   JP PASSA
@@ -7681,7 +7684,7 @@ __PDL_1:
   ADD HL,HL
   PUSH HL
   LD HL,$F871
-  CALL __TEXT_1
+  CALL A2_VECTOR_CALL
   LD A,(LF045)
   JP __VPOS_1
 ; This entry point is used by the routine at __VARPTR.
@@ -7749,7 +7752,7 @@ L47A8_3:
 
 ; Routine at 18372
 ;
-; Used by the routine at L47E5.
+; Used by the routine at L47E6.
 L47C4:
   LD B,(HL)
 ; This entry point is used by the routines at __GR and __HGR.
@@ -7770,20 +7773,39 @@ L47C4_1:
   RET
 
 ; Data block at 18394
-L47DA:
-  DEFB $00,$00,$00,$81,$80,$00,$10,$00
-  DEFB $00,$00,$00
+A2_HCOLOR:
+  DEFB $00
 
-; Routine at 18405
+; Data block at 18395
+L47DB:
+  DEFW $0000
+
+; Data block at 18397
+L47DD:
+  DEFW $8081
+
+; Data block at 18399
+L47DF:
+  DEFW _HIRES_PAGE
+
+; Data block at 18401
+L47E1:
+  DEFW $0000
+  DEFW $0000
+
+; Data block at 18405
 L47E5:
-  NOP
-; This entry point is used by the routine at __VARPTR.
-L47E5_0:
+  DEFB $00
+
+; Routine at 18406
+;
+; Used by the routine at __VARPTR.
+L47E6:
   CALL CHRGTB
-  LD A,(L47DA)
+  LD A,(A2_HCOLOR)
   JP __VPOS_0
 ; This entry point is used by the routine at __VARPTR.
-L47E5_1:
+L47E6_0:
   CALL CHRGTB
   CALL SYNCHR
   JR Z,L47C4
@@ -7791,39 +7813,39 @@ L47E5_1:
   CALL SYNCHR
   ADD HL,HL
   PUSH HL
-  LD HL,($47DD)
+  LD HL,(L47DD)
   PUSH HL
-  LD HL,($47DF)
+  LD HL,(L47DF)
   PUSH HL
-  LD HL,($47E1)
+  LD HL,(L47E1)
   PUSH HL
   LD HL,$4819
   PUSH HL
   PUSH HL
-  LD HL,$4AC5
+  LD HL,L4AC5
   LD ($49AB),HL
   LD A,C
   JP __HCOLOR_26
   CALL __HCOLOR_34
   EXX
   BIT 0,L
-  JR NZ,L47E5_2
+  JR NZ,L47E6_1
   LD B,C
   NOP
-L47E5_2:
+L47E6_1:
   LD A,(HL)
   AND B
   ADD A,A
-  JR Z,L47E5_3
+  JR Z,L47E6_2
   LD A,$FF
-L47E5_3:
+L47E6_2:
   CALL __BUTTON_0
   POP HL
-  LD ($47E1),HL
+  LD (L47E1),HL
   POP HL
-  LD ($47DF),HL
+  LD (L47DF),HL
   POP HL
-  LD ($47DD),HL
+  LD (L47DD),HL
   POP HL
   RET
 
@@ -7835,10 +7857,10 @@ __HCOLOR:
 ; This entry point is used by the routine at __HGR.
 __HCOLOR_0:
   CP $0D
-; This entry point is used by the routine at L47E5.
+; This entry point is used by the routine at L47E6.
 __HCOLOR_1:
   JP NC,FC_ERR
-  LD (L47DA),A
+  LD (A2_HCOLOR),A
   PUSH HL
   CP $08
   JR NC,__HCOLOR_2
@@ -7869,7 +7891,7 @@ __HCOLOR_4:
   LD H,A
   LD L,A
 __HCOLOR_5:
-  LD ($47DB),HL
+  LD (L47DB),HL
   LD HL,__HCOLOR_9
   LD ($488C),HL
 __HCOLOR_6:
@@ -8062,7 +8084,7 @@ __HCOLOR_25:
   EX DE,HL
   LD A,C
   LD (L47E5),A
-; This entry point is used by the routine at L47E5.
+; This entry point is used by the routine at L47E6.
 __HCOLOR_26:
   AND $C0
   LD L,A
@@ -8082,7 +8104,7 @@ __HCOLOR_26:
   AND $1F
   ADD A,$10
   LD H,A
-  LD ($47DF),HL
+  LD (L47DF),HL
   EX DE,HL
   CALL __HCOLOR_30
   SUB $07
@@ -8092,7 +8114,7 @@ __HCOLOR_27:
   LD A,B
   LD ($47E2),A
 __HCOLOR_28:
-  LD A,($47E1)
+  LD A,(L47E1)
   LD C,A
   LD HL,$0000
   PUSH HL
@@ -8110,7 +8132,7 @@ __HCOLOR_29:
   ADD HL,BC
   LD D,(HL)
   EX DE,HL
-  LD ($47DD),HL
+  LD (L47DD),HL
   POP HL
   RET
 ; This entry point is used by the routine at __HPLOT.
@@ -8125,14 +8147,14 @@ __HCOLOR_31:
   LD B,A
   LD A,L
   ADD A,$0E
-  LD ($47E1),A
+  LD (L47E1),A
   RET
 ; This entry point is used by the routine at __HPLOT.
 __HCOLOR_32:
   EXX
-  LD HL,$4AC5
+  LD HL,L4AC5
   LD D,$00
-  LD A,($47E1)
+  LD A,(L47E1)
   SUB $07
   JR NC,__HCOLOR_33
   ADD A,$07
@@ -8142,21 +8164,21 @@ __HCOLOR_33:
   LD A,(HL)
   AND $7F
   EX AF,AF'
-; This entry point is used by the routine at L47E5.
+; This entry point is used by the routine at L47E6.
 __HCOLOR_34:
-  LD HL,($47DD)
+  LD HL,(L47DD)
   LD C,L
   LD B,H
-  LD HL,($47DB)
+  LD HL,(L47DB)
   EX DE,HL
   LD A,($47E2)
-  LD HL,($47DF)
+  LD HL,(L47DF)
   ADD A,L
   LD L,A
   EXX
   RET
   LD A,L
-  LD HL,($47DF)
+  LD HL,(L47DF)
   SUB L
   PUSH AF
   LD A,H
@@ -8176,7 +8198,7 @@ __HCOLOR_34:
   JP __HCOLOR_40
 __HCOLOR_35:
   LD A,L
-  LD HL,($47DF)
+  LD HL,(L47DF)
   SUB L
   PUSH AF
   LD A,H
@@ -8206,7 +8228,7 @@ __HCOLOR_38:
 __HCOLOR_39:
   LD H,A
 __HCOLOR_40:
-  LD ($47DF),HL
+  LD (L47DF),HL
   POP AF
   ADD A,L
   LD L,A
@@ -8259,8 +8281,8 @@ L4A81:
 ;
 ; Used by the routine at __HCOLOR.
 L4A91:
-  LD A,(L47DA)
-  LD HL,$4AC5
+  LD A,(A2_HCOLOR)
+  LD HL,L4AC5
   CP $0C
   JR Z,L4A91_2
   CP $08
@@ -8284,9 +8306,12 @@ L4A91_2:
 ; Data block at 19127
 L4AB7:
   DEFB $83,$86,$8C,$98,$B0,$E0,$C0,$80
-  DEFB $80,$80,$80,$80,$80,$81,$81,$82
-  DEFB $84,$88,$90,$A0,$C0,$80,$80,$80
-  DEFB $80,$80,$80,$80,$80
+  DEFB $80,$80,$80,$80,$80,$81
+
+; Data block at 19141
+L4AC5:
+  DEFB $81,$82,$84,$88,$90,$A0,$C0,$80
+  DEFB $80,$80,$80,$80,$80,$80,$80
 
 ; Routine at 19156
 __HGR:
@@ -8314,7 +8339,7 @@ __HGR_1:
   JR Z,__HGR_2
   PUSH HL
   LD HL,_HIRES_PAGE
-  LD HL,($47DB)
+  LD HL,(L47DB)
   LD (_HIRES_PAGE),HL
   LD HL,_HIRES_PAGE
   LD DE,$1002
@@ -8374,14 +8399,14 @@ __HPLOT_1:
   CP $DD
   JR Z,__HPLOT_1
   EXX
-  LD A,($47DF)
+  LD A,(L47DF)
   SUB L
   CPL
   INC A
   LD ($47E2),A
   LD L,C
   LD H,B
-  LD ($47DD),HL
+  LD (L47DD),HL
   LD HL,($47E3)
   CALL __HCOLOR_30
   EXX
@@ -13941,7 +13966,7 @@ DCOMPR:
 ; Used by the routines at __FOR, FORFND, __LET, __ON, __AUTO, __IF, LNOMOD,
 ; __LINE, __INPUT, __READ, FRMEQL, OPNPAR, __VARPTR, OCTCNS, PASSA, __DEF,
 ; ASGMOR, FINASG, IDTEST, __POKE, __RENUM, __OPTION, __RANDOMIZE, __COLOR,
-; __VLIN, __WAIT, __PDL, L47A8, L47E5, __HCOLOR, __HGR, DIMRET, __USING,
+; __VLIN, __WAIT, __PDL, L47A8, L47E6, __HCOLOR, __HGR, DIMRET, __USING,
 ; __SWAP, __CLEAR, TOPOOL, LFRGNM, __INSTR, __CALL, __CHAIN, BCKUCM, __WRITE,
 ; GDFILM, __LOAD, __SAVE, __FIELD, FN_INPUT, __NAME, __OPEN and PROCHK.
 SYNCHR:
