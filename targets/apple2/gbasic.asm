@@ -7423,7 +7423,7 @@ __TEXT_0:
 
 ; Routine at 17895
 ;
-; Used by the routines at __TEXT, __GR, __PLOT and __PDL.
+; Used by the routines at __TEXT, __GR, A2_VECTOR_CALL_POPHL and __PDL.
 A2_VECTOR_CALL:
   LD (LF3D0),HL
   LD ($0000),A
@@ -7543,7 +7543,7 @@ __VLIN:
   LD (LF02D),A
   PUSH HL
   LD HL,$F828
-  JR __PLOT_0
+  JR A2_VECTOR_CALL_POPHL
 ; This entry point is used by the routines at __COLOR and __BEEP.
 __VLIN_0:
   CALL GETINT
@@ -7570,8 +7570,11 @@ __PLOT:
   CALL __VLIN_1
   PUSH HL
   LD HL,$F800
-; This entry point is used by the routines at __VLIN, __BEEP and L47A8.
-__PLOT_0:
+
+; Routine at 18125
+;
+; Used by the routines at __VLIN, __BEEP and L47A8.
+A2_VECTOR_CALL_POPHL:
   CALL A2_VECTOR_CALL
   POP HL
   RET
@@ -7621,7 +7624,7 @@ __BEEP:
   LD (LF046),A
   PUSH HL
   LD HL,$5709
-  JP __PLOT_0
+  JP A2_VECTOR_CALL_POPHL
 
 ; Data block at 18184
 L4708:
@@ -7748,7 +7751,7 @@ L47A8_2:
 L47A8_3:
   PUSH HL
   LD HL,(INTFLG)
-  JP __PLOT_0
+  JP A2_VECTOR_CALL_POPHL
 
 ; Routine at 18372
 ;
