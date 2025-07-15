@@ -1,0 +1,205 @@
+
+# defc TK_LEFT_S   =  $01
+# defc TK_RIGHT_S  =  $02
+# defc TK_MID_S    =  $03
+# defc TK_SGN      =  $04
+# defc TK_INT      =  $05
+# defc TK_ABS      =  $06
+# defc TK_SQR      =  $07
+# defc TK_RND      =  $08
+# defc TK_SIN      =  $09
+# defc TK_LOG      =  $0A
+# defc TK_EXP      =  $0B
+# defc TK_COS      =  $0C
+# defc TK_TAN      =  $0D
+# defc TK_ATN      =  $0E
+# defc TK_FRE      =  $0F
+
+# defc TK_POS      =  $10
+# defc TK_LEN      =  $11
+# defc TK_STR_S    =  $12
+# defc TK_VAL      =  $13
+# defc TK_ASC      =  $14
+# defc TK_CHR_S    =  $15
+# defc TK_PEEK     =  $16
+# defc TK_SPACE_S  =  $17
+# defc TK_OCT_S    =  $18
+# defc TK_HEX_S    =  $19
+# defc TK_LPOS     =  $1A
+# defc TK_CINT     =  $1B
+# defc TK_CSGN     =  $1C
+# defc TK_CDBL     =  $1D
+# defc TK_FIX      =  $1E
+
+# defc TK_CVI      =  $2A
+# defc TK_CVS      =  $2B
+# defc TK_CVD      =  $2C
+
+# defc TK_EOF      =  $2E
+# defc TK_LOC      =  $2F
+
+# defc TK_LOF      =  $30
+# defc TK_MKI_S    =  $31
+# defc TK_MKS_S    =  $32
+# defc TK_MKD_S    =  $33
+
+# defc TK_VPOS     =  $34   ; Apple ][ GBASIC specific, VPOS(0)
+# defc TK_PDL      =  $35   ; Apple ][ GBASIC specific, PDL(0)
+# defc TK_BUTTON   =  $36   ; Apple ][ GBASIC specific, BUTTON(0)
+
+
+# defc TK_END      =  $81	; Token for 'END' (used also in 'APPEND')
+# defc TK_FOR      =  $82	; Token for 'FOR' (used also in 'OPEN' syntax)
+# defc TK_NEXT     =  $83	; Token for 'FOR' (used also for 'RESUME NEXT')
+# defc TK_DATA     =  $84	; Token for 'DATA'
+# defc TK_INPUT    =  $85	; Token for 'INPUT' (used for the "LINE INPUT" compound statement)
+# defc TK_DIM      =  $86
+# defc TK_READ     =  $87
+# defc TK_LET      =  $88
+# defc TK_GOTO     =  $89	; Token for 'GOTO'
+# defc TK_RUN      =  $8A
+# defc TK_IF       =  $8B
+# defc TK_RESTORE  =  $8C	; 
+# defc TK_GOSUB    =  $8D	; Token for 'GOSUB'
+# defc TK_RETURN   =  $8E	; Token for 'RETURN'
+# defc TK_REM      =  $8F
+
+# defc TK_STOP     =  $90	; Token for 'STOP'
+# defc TK_PRINT    =  $91	; Token for 'PRINT'
+# defc TK_CLEAR    =  $92
+# defc TK_LIST     =  $93
+# defc TK_NEW      =  $94
+# defc TK_NEW      =  $94
+# defc TK_ON       =  $95
+# defc TK_DEF      =  $96
+# defc TK_POKE     =  $97
+# defc TK_CONT     =  $98
+
+# defc TK_LPRINT   =  $9B
+# defc TK_LLIST    =  $9C
+
+
+# defc TK_WIDTH    =  $9D
+# defc TK_ELSE     =  $9E	; Token for 'ELSE'
+# defc TK_TRACE    =  $9F   ; a.k.a. TRON
+# defc TK_NOTRACE  =  $A0	; Token for 'TROFF'
+# defc TK_SWAP     =  $A1
+# defc TK_ERASE    =  $A2
+# defc TK_EDIT     =  $A3
+# defc TK_ERROR    =  $A4	; Token for 'ERROR'
+# defc TK_RESUME   =  $A5
+# defc TK_DELETE   =  $A6
+# defc TK_AUTO     =  $A7
+# defc TK_RENUM    =  $A8
+# defc TK_DEFSTR   =  $A9
+# defc TK_DEFINT   =  $AA
+# defc TK_DEFSGN   =  $AB
+
+
+# defc TK_WHILE    =  $AF
+
+# defc TK_WEND     =  $B0	; Token for 'PUT' (used also in 'OPEN' to check syntax)
+# defc TK_CALL     =  $B1
+# defc TK_WRITE    =  $B2
+# defc TK_COMMON   =  $B3
+# defc TK_CHAIN    =  $B4
+# defc TK_OPTION   =  $B5
+# defc TK_RANDOMIZE = $B6
+# defc TK_SYSTEM   =  $B7
+# defc TK_OPEN     =  $B8 
+# defc TK_FIELD    =  $B9
+# defc TK_GET      =  $BA
+# defc TK_PUT      =  $BB	; Token for 'PUT' (used also in 'OPEN' to check syntax)
+# defc TK_CLOSE    =  $BC
+# defc TK_LOAD     =  $BD
+# defc TK_MERGE    =  $BE
+# defc TK_FILES    =  $BF   ; Token for 'FILES' (MSX uses it also in "MAXFILES")
+
+# defc TK_NAME     =  $C0
+# defc TK_KILL     =  $C1
+
+# defc TK_GR       =  $CC
+# defc TK_COLOR    =  $CD
+
+# defc TK_HGR      =  $D1
+# defc TK_HPLOT    =  $D2
+# defc TK_HCOLOR   =  $D3
+# defc TK_BEEP     =  $D4
+# defc TK_WAIT     =  $D5
+
+
+
+# defc TK_TO       =  $DD	; Token for 'TO' identifier in a 'FOR' statement
+# defc TK_THEN     =  $DE	; Token for 'THEN'
+# defc TK_TAB      =  $DF	; Token for 'TAB('
+
+# defc TK_STEP     =  $E0	; Token for 'STEP' identifier in a 'FOR' statement
+# defc TK_USR      =  $E1	; Token for 'USR'
+# defc TK_FN       =  $E2	; Token for 'FN'
+# defc TK_SPC      =  $E3	; Token for 'SPC('
+# defc TK_NOT      =  $E4	; Token for 'NOT'
+# defc TK_ERL      =  $E5	; Token for 'ERL'
+# defc TK_ERR      =  $E6	; Token for 'ERR'
+# defc TK_STRING   =  $E7	; Token for 'STRING$'
+# defc TK_USING    =  $E8	; Token for 'USING'
+# defc TK_INSTR    =  $E9	; Token for 'INSTR'
+
+# defc TK_APOSTROPHE  =  $EA
+
+# defc TK_VARPTR   =  $EB	; Token for 'VARPTR'
+# defc TK_SCRN     =  $EC
+# defc TK_HSCRN    =  $ED
+# defc TK_INKEY_S  =  $EE
+
+#
+# ; RELATIONAL OPERATORS
+# 
+# defc TK_GREATER  =  $EF ; Token for '>'
+# defc TK_EQUAL    =  $F0 ; Token for '='
+# defc TK_MINOR    =  $F1	; Token for '<'
+# 
+# ; OPERATORS
+# 
+# defc TK_PLUS     =  $F2	; Token for '+'
+# defc TK_MINUS    =  $F3	; Token for '-'
+# defc TK_STAR     =  $F4	; Token for '*'
+# defc TK_SLASH    =  $F5	; Token for '/'
+# 
+# ; 8K BASIC OPERATORS
+# 
+# defc TK_EXPONENT =  $F6	; Token for '^'
+# defc TK_AND      =  $F7	; Token for 'AND'
+# defc TK_OR       =  $F8	; Token for 'OR'
+# 
+# ; EXTENDED BASIC OPERATORS
+# 
+# defc TK_XOR      =  $F9	; Token for 'XOR'
+# defc TK_EQV      =  $FA	; Token for 'EQV'
+# defc TK_IMP      =  $FB	; Token for 'IMP'
+# defc TK_MOD      =  $FC	; Token for 'MOD'
+# defc TK_BKSLASH  =  $FD	; Token for '\' (Integer division)
+#
+
+
+
+## 
+## Apple II Softcard CP/M Memory Usage
+## ===================================
+## 
+## 6502 address    Z-80 address
+## 
+##  $800-$FFF      0F800H-0FFFFH   Apple CP/M disk drivers and buffers ("RWTS")
+##  $400-$7FFF     0F400H-0F7FFH   Apple screen memory
+##  $200-$3FF      0F200H-0F3FFH   I/O config block, device drivers
+##  $000-$1FF      0F000H-0F1FFH   Reserved area:6502  page zero and 6502 stack
+## 
+## $C000-$CFFF     0E000H-0EFFFH   Apple memory mapped I/O
+## $FFFA-$FFFF     0DFFAH-0DFFFH   6502 RESET, NMI and BREAK vectors
+## 
+## $D400-$FFF9     0C400H-0DFF9H   56K Langauge Card CP/M (if Lang. Card installed)
+## $D000-$D3FF     0C000H-0C3FFH   Top 1K of free RAM with 56K CP/M
+## 
+## $A400-$BFFF      9400H-0AFFFH   44K CP/M (free memory with 56K CP/M)
+## $1100-$A3FF      0100H-93FFH    Free RAM
+## $1000-$10FF      0000H-00FFH    CP/M page zero
+##
