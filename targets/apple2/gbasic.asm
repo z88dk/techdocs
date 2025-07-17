@@ -1493,7 +1493,7 @@ BAKSTK:
 
 ; Routine at 3329
 ;
-; Used by the routines at INDFND and __FOR.
+; Used by the routines at INDFND and L329B.
 LOKFOR:
   LD A,(HL)
   INC HL
@@ -1569,7 +1569,7 @@ L0D46:
 
 ; Routine at 3399
 ;
-; Used by the routines at FILGET, OKGETM, __FIELD, FN_INPUT, __EOF, __OPEN and
+; Used by the routines at FILGET, OKGETM, __FIELD, L79F2, __EOF, __OPEN and
 ; __GET.
 FMODE_ERR:
   LD E,$36
@@ -1580,7 +1580,7 @@ L0D49:
 
 ; Routine at 3402
 ;
-; Used by the routines at __NAME, __OPEN, __KILL and __FILES.
+; Used by the routines at __NAME, L7D2F, __KILL and __FILES.
 FF_ERR:
   LD E,$35
 
@@ -1590,7 +1590,7 @@ L0D4C:
 
 ; Routine at 3405
 ;
-; Used by the routines at FILID2, __FIELD, __EOF, __LOC, __LOF and __OPEN.
+; Used by the routines at FILID2, __FIELD, __EOF, __LOC, __LOF and L7D2F.
 BN_ERR:
   LD E,$34
 
@@ -1618,7 +1618,7 @@ L0D55:
 
 ; Routine at 3414
 ;
-; Used by the routine at __OPEN.
+; Used by the routine at L7D2F.
 AO_ERR:
   LD E,$37
 
@@ -1648,7 +1648,7 @@ L0D5E:
 
 ; Routine at 3423
 ;
-; Used by the routines at __FIELD and __GET.
+; Used by the routines at L7913 and __GET.
 FO_ERR:
   LD E,$32
 
@@ -1658,7 +1658,7 @@ L0D61:
 
 ; Routine at 3426
 ;
-; Used by the routines at __EOF, __OPEN and __FILES.
+; Used by the routines at __EOF, L7D2F and __FILES.
 FL_ERR:
   LD E,$43
 
@@ -1668,7 +1668,7 @@ L0D64:
 
 ; Routine at 3429
 ;
-; Used by the routine at __NAME.
+; Used by the routine at L7CCF.
 FILE_EXISTS_ERR:
   LD E,$3A
   JR ERROR
@@ -1682,9 +1682,9 @@ DATSNR:
 
 ; entry for '?SN ERROR'
 ;
-; Used by the routines at LNUM_RANGE, FORFND, NEWSTT, __AUTO, SCNSTR, __INPUT,
-; LOPREL, OCTCNS, FINASG, IDTEST, __RENUM, __OPTION, PTRGET, SHTNAM, __USING,
-; SYNCHR, __CLEAR, __WEND, __CHAIN, __LOAD, __MERGE, __GET and PROCHK.
+; Used by the routines at LNUM_RANGE, L32F3, NEWSTT, L36E3, SCNSTR, L3926,
+; LOPREL, OCTCNS, L3F72, L402A, L4305, L4423, PTRGET, SHTNAM, L6462, SYNCHR,
+; L6A82, __WEND, L7317, L7799, __MERGE, __GET and PROCHK.
 SN_ERR:
   LD E,$02
 
@@ -1714,7 +1714,7 @@ L0D77:
 
 ; "REDIMENSIONED VARIABLE"
 ;
-; Used by the routines at __OPTION and FNDARY.
+; Used by the routines at L4423 and FNDARY.
 DD_ERR:
   LD E,$0A
 
@@ -1764,8 +1764,8 @@ L0D86:
 
 ; TYPE MISMATCH ERROR
 ;
-; Used by the routines at FORFND, EVAL_NUMERIC, EVAL1, INVSGN, VSIGN, __CINT,
-; __CSNG, __CDBL, TSTSTR, __INT and __SWAP.
+; Used by the routines at L32F3, EVAL_NUMERIC, EVAL1, INVSGN, VSIGN, __CINT,
+; __CSNG, __CDBL, TSTSTR, __INT and L69DC.
 TM_ERR:
   LD E,$0D
 
@@ -1773,7 +1773,7 @@ TM_ERR:
 ;
 ; Used by the routines at PRG_END, FILE_EXISTS_ERR, KRNSAV, INTIDX, UL_ERR,
 ; __RETURN, __ERROR, FDTLP, IDTEST, SCNCNT, __HPLOT, FNDARY, OM_ERR, __CONT,
-; TSTOPL, TESTR, CONCAT, __WEND and DIRDO.
+; TSTOPL, TESTR, CONCAT, WE_ERR and DIRDO.
 ERROR:
   LD HL,(CURLIN)
   LD (ERRLIN),HL
@@ -1788,7 +1788,7 @@ ERROR:
 
 ; Routine at 3486
 ;
-; Used by the routines at ERROR and __ON.
+; Used by the routines at ERROR and L364D.
 ERRESM:
   LD BC,ERRMOR
 ; This entry point is used by the routine at INDFND.
@@ -1894,7 +1894,7 @@ RESTART_0:
 
 ; Routine at 3646
 ;
-; Used by the routines at AUTSTR, GETCMD, FINI, __AUTO, NOTRNL, OKGETM and
+; Used by the routines at AUTSTR, GETCMD, FINI, L36E3, NOTRNL, OKGETM and
 ; MAINGO.
 PROMPT:
   LD HL,$FFFF
@@ -2116,7 +2116,7 @@ CHEAD_2:
 
 ; Read numeric range function parameters
 ;
-; Used by the routines at __LIST, __DEL and __CHAIN.
+; Used by the routines at __LIST, __DEL and L7317.
 LNUM_RANGE:
   LD DE,$0000
   PUSH DE
@@ -2139,15 +2139,15 @@ LNUM_RANGE_1:
 LNUM_RANGE_2:
   EX DE,HL
   POP DE
-; This entry point is used by the routine at __ON.
+; This entry point is used by the routine at L364D.
 LNUM_RANGE_3:
   EX (SP),HL
   PUSH HL
 
 ; Routine at 3976
 ;
-; Used by the routines at PROMPT, EDENT, __GOTO, __DEL, __RENUM, _LINE2PTR,
-; __EDIT, __RESTORE, __CHAIN and CDVARS.
+; Used by the routines at PROMPT, EDENT, __GOTO, __DEL, L4305, _LINE2PTR,
+; __EDIT, __RESTORE, L7317 and CDVARS.
 SRCHLN:
   LD HL,(TXTTAB)
 
@@ -3778,7 +3778,13 @@ __FOR:
   LD (SUBFLG),A
   CALL PTRGET
   CALL SYNCHR
-  RET P
+
+; Message at 12954
+L329A:
+  DEFB $F0
+
+; Routine at 12955
+L329B:
   PUSH DE
   EX DE,HL
   LD (TEMP),HL
@@ -3822,7 +3828,7 @@ FORSLP:
 
 ; Routine at 13023
 ;
-; Used by the routine at __FOR.
+; Used by the routine at L329B.
 FORFND:
   EX DE,HL
   LD C,$08
@@ -3834,7 +3840,13 @@ FORFND:
   LD HL,(CURLIN)
   EX (SP),HL
   CALL SYNCHR
+
+; Message at 13042
+L32F2:
   DEFB $DD
+
+; Routine at 13043
+L32F3:
   CALL GETYPR
   JP Z,TM_ERR
   JP NC,TM_ERR
@@ -3842,7 +3854,7 @@ FORFND:
   CALL EVAL
   POP AF
   PUSH HL
-  JP P,FORFND_0
+  JP P,L32F3_0
   CALL __CINT
   EX (SP),HL
   LD DE,$0001
@@ -3853,8 +3865,8 @@ FORFND:
   PUSH HL
   EX DE,HL
   CALL VSIGN_0
-  JR FORFND_1
-FORFND_0:
+  JR L32F3_1
+L32F3_0:
   CALL __CSNG
   CALL BCDEFP
   POP HL
@@ -3866,15 +3878,15 @@ FORFND_0:
   LD A,(HL)
   CP $E0
   LD A,$01
-  JR NZ,FORFND_2
+  JR NZ,L32F3_2
   CALL EVAL_0
   PUSH HL
   CALL __CSNG
   CALL BCDEFP
   CALL SIGN
-FORFND_1:
+L32F3_1:
   POP HL
-FORFND_2:
+L32F3_2:
   PUSH BC
   PUSH DE
   LD C,A
@@ -3899,14 +3911,15 @@ FORFND_2:
   PUSH AF
   JP $6AD4
 ; This entry point is used by the routine at __NEXT.
-FORFND_3:
+L32F3_3:
   LD B,$82
   PUSH BC
   INC SP
 
 ; Routine at 13163
 ;
-; Used by the routines at __POP, __NEXT, __WEND, __CALL, CDVARS and NOTRNL.
+; Used by the routines at __POP, __NEXT, __WEND, FLSWHL, L7289, CDVARS and
+; NOTRNL.
 NEWSTT:
   PUSH HL
   CALL $0000
@@ -3951,12 +3964,12 @@ EXEC:
   LD DE,NEWSTT
   PUSH DE
   RET Z
-; This entry point is used by the routines at __ON and __IF.
+; This entry point is used by the routines at L367D and L3715.
 ONJMP:
   SUB $81
   JP C,__LET
   CP $5B
-  JP NC,IDTEST_1
+  JP NC,L402A_0
   RLCA
   LD C,A
   LD B,$00
@@ -3971,16 +3984,17 @@ ONJMP:
 
 ; Pick next char from program
 ;
-; Used by the routines at GETCMD, EDENT, CHEAD, LNUM_RANGE, NTSNGT, FORFND,
-; NEWSTT, _CHRCKB, DEFCON, INTIDX, ATOH, __REM, __ON, RESNXT, __IF, __PRINT,
-; __TAB, NEXITM, __INPUT, __READ, FDTLP, LOPREL, OPRND, __ERR, __ERL, __VARPTR,
-; OCTCNS, ISFUN, SCNUSR, __DEF, DOFN, FINASG, __WIDTH, FPSINT, FNDNUM, CONINT,
-; TSTANM, SCNEXT, _LINE2PTR, __OPTION, SCNCNT, FN_SCRN, FN_COLOR, L47A8,
-; FN_HCOLOR, FN_HSCRN, __HPLOT, FIN, DPOINT, FOUTZS, FOUTTS, SUMLP, DIMRET,
-; PTRGET, DOCHRT, __USING, FN_INKEY, __ERASE, __CLEAR, __NEXT, DTSTR,
-; FN_STRING, __VAL, FN_INSTR, PINLIN, __WHILE, __CALL, __CHAIN, CHAIN_COMMON,
-; BCKUCM, __WRITE, FILSCN, LINE_INPUT, __LOAD, __MERGE, __SAVE, __CLOSE,
-; FN_INPUT, __OPEN, __FILES, __GET and PROCHK.
+; Used by the routines at GETCMD, EDENT, CHEAD, LNUM_RANGE, NTSNGT, L32F3,
+; NEWSTT, _CHRCKB, DEFCON, INTIDX, ATOH, __REM, __ON, RESNXT, __IF, L3715,
+; __PRINT, __TAB, NEXITM, __INPUT, L3926, L39C7, FDTLP, LOPREL, OPRND, __ERR,
+; __ERL, __VARPTR, OCTCNS, ISFUN, SCNUSR, __DEF, DOFN, FINASG, L3F72, __WIDTH,
+; FPSINT, FNDNUM, CONINT, TSTANM, SCNEXT, _LINE2PTR, L4423, SCNCNT, FN_SCRN,
+; FN_COLOR, L4796, L47A8, FN_HCOLOR, FN_HSCRN, __HPLOT, FIN, DPOINT, FOUTZS,
+; FOUTTS, SUMLP, DIMRET, PTRGET, DOCHRT, L6462, FN_INKEY, __ERASE, __CLEAR,
+; L6A5D, L6A82, __NEXT, DTSTR, FN_STRING, __VAL, FN_INSTR, PINLIN, __WHILE,
+; __CALL, L726D, __CHAIN, L72E5, L7317, CHAIN_COMMON, BCKUCM, __WRITE, L75C6,
+; FILSCN, LINE_INPUT, __LOAD, __MERGE, __SAVE, __CLOSE, FN_INPUT, L79F2, L7D22,
+; __FILES, __GET, PROCHK, L8316 and L833B.
 CHRGTB:
   INC HL
 
@@ -4186,20 +4200,19 @@ DEFCON_1:
 ; Used by the routines at SBSCPT, SHTNAM, __FILES and __GET.
 INTIDX:
   CALL CHRGTB
-; This entry point is used by the routine at __CLEAR.
+; This entry point is used by the routines at __CLEAR and L6A82.
 INTIDX_0:
   CALL POSINT
   RET P
-; This entry point is used by the routines at SRCHLP, __ERROR, __AUTO,
-; __VARPTR, LPSIZL, CONINT, __DEL, __RENUM, __VTAB, __COLOR, __PDL, __HCOLOR,
-; __HGR, __LOG, __USING, __SWAP, __ERASE, __CLEAR, __ASC, __MID_S, FN_INSTR,
-; __CHAIN, CHAIN_COMMON, SCNSMP, __CVD, FN_INPUT, __NAME, __FILES, __GET and
-; PROCHK.
+; This entry point is used by the routines at SRCHLP, __ERROR, L36E3, L3C68,
+; LPSIZL, CONINT, __DEL, L4305, __VTAB, L4646, __PDL, L483F, __HGR, __LOG,
+; L6462, L69DC, __ERASE, L6A5D, __ASC, __MID_S, FN_INSTR, L6F94, L7317,
+; CHAIN_COMMON, SCNSMP, __CVD, L7A0F, L7CCF, __FILES, __GET, PROCHK and L8316.
 FC_ERR:
   LD E,$05
   JP ERROR
-; This entry point is used by the routines at LNUM_RANGE, __AUTO, __RENUM and
-; __EDIT.
+; This entry point is used by the routines at LNUM_RANGE, __AUTO, __RENUM,
+; L42FB and __EDIT.
 LNUM_PARM:
   LD A,(HL)
   CP $2E
@@ -4210,11 +4223,11 @@ LNUM_PARM:
 
 ; ASCII number to DE binary
 ;
-; Used by the routines at GETCMD, NUMTRY, __GOSUB, __GOTO, __ON, __RESUME,
-; __AUTO, UCASE, __RENUM, __RESTORE and PINLIN.
+; Used by the routines at GETCMD, NUMTRY, __GOSUB, __GOTO, L364D, __RESUME,
+; L36E3, UCASE, L4305, __RESTORE and PINLIN.
 ATOH:
   DEC HL
-; This entry point is used by the routine at __ON.
+; This entry point is used by the routine at L367D.
 ATOH_0:
   CALL CHRGTB
   CP $0E
@@ -4291,7 +4304,7 @@ GO_TO:
 
 ; Routine at 13637
 ;
-; Used by the routine at __IF.
+; Used by the routine at L3715.
 __GOTO:
   CALL ATOH
 ; This entry point is used by the routines at __GOSUB and __RESUME.
@@ -4324,7 +4337,7 @@ __GOTO_0:
 
 ; entry for '?UL ERROR'
 ;
-; Used by the routines at EDENT, __GOTO, __ON, __EDIT, __RESTORE and CDVARS.
+; Used by the routines at EDENT, __GOTO, L364D, __EDIT, __RESTORE and CDVARS.
 UL_ERR:
   LD E,$08
   JP ERROR
@@ -4409,7 +4422,7 @@ __REM_1:
 LETCON:
   POP AF
   ADD A,$03
-  JR __LET_0
+  JR L35E2_0
 
 ; Routine at 13787
 ;
@@ -4417,7 +4430,13 @@ LETCON:
 __LET:
   CALL PTRGET
   CALL SYNCHR
-  RET P
+
+; Message at 13793
+L35E1:
+  DEFB $F0
+
+; Routine at 13794
+L35E2:
   EX DE,HL
   LD (TEMP),HL
   EX DE,HL
@@ -4426,29 +4445,29 @@ __LET:
   PUSH AF
   CALL EVAL
   POP AF
-; This entry point is used by the routines at LETCON and __LINE.
-__LET_0:
+; This entry point is used by the routines at LETCON and L388F.
+L35E2_0:
   EX (SP),HL
-; This entry point is used by the routine at __READ.
-__LET_1:
+; This entry point is used by the routine at L39C7.
+L35E2_1:
   LD B,A
   LD A,(VALTYP)
   CP B
   LD A,B
-  JR Z,__LET_3
+  JR Z,L35E2_3
   CALL CHKTYP
 ; This entry point is used by the routine at LPSIZL.
-__LET_2:
+L35E2_2:
   LD A,(VALTYP)
-__LET_3:
+L35E2_3:
   LD DE,FACCU
   CP $05
-  JR C,__LET_4
+  JR C,L35E2_4
   LD DE,FACLOW
-__LET_4:
+L35E2_4:
   PUSH HL
   CP $03
-  JR NZ,__LET_6
+  JR NZ,L35E2_6
   LD HL,(FACCU)
   PUSH HL
   INC HL
@@ -4461,18 +4480,18 @@ __LET_4:
   LD HL,(STREND)
   CALL DCOMPR
   POP DE
-  JR NC,__LET_5
+  JR NC,L35E2_5
   LD HL,TMPSTR
   CALL DCOMPR
-  JR NC,__LET_5
+  JR NC,L35E2_5
   LD A,$D1
   CALL GSTRDE_1
   EX DE,HL
   CALL STRCPY
-__LET_5:
+L35E2_5:
   CALL GSTRDE_1
   EX (SP),HL
-__LET_6:
+L35E2_6:
   CALL VMOVE
   POP DE
   POP HL
@@ -4481,20 +4500,26 @@ __LET_6:
 ; Routine at 13890
 __ON:
   CP $A4
-  JR NZ,__ON_1
+  JR NZ,L364D_1
   CALL CHRGTB
   CALL SYNCHR
-  ADC A,C
+
+; Message at 13900
+L364C:
+  DEFB $89
+
+; Routine at 13901
+L364D:
   CALL ATOH
   LD A,D
   OR E
-  JR Z,__ON_0
+  JR Z,L364D_0
   CALL LNUM_RANGE_3
   LD D,B
   LD E,C
   POP HL
   JP NC,UL_ERR
-__ON_0:
+L364D_0:
   EX DE,HL
   LD (ONELIN),HL
   EX DE,HL
@@ -4506,25 +4531,33 @@ __ON_0:
   LD A,(ERRFLG)
   LD E,A
   JP ERRESM
-__ON_1:
+; This entry point is used by the routine at __ON.
+L364D_1:
   CALL GETINT
   LD A,(HL)
   LD B,A
   CP $8D
-  JR Z,__ON_2
+  JR Z,L367D_0
   CALL SYNCHR
-  ADC A,C
+
+; Message at 13948
+L367C:
+  DEFB $89
+
+; Routine at 13949
+L367D:
   DEC HL
-__ON_2:
+; This entry point is used by the routine at L364D.
+L367D_0:
   LD C,E
-__ON_3:
+L367D_1:
   DEC C
   LD A,B
   JP Z,ONJMP
   CALL ATOH_0
   CP $2C
   RET NZ
-  JR __ON_3
+  JR L367D_1
 
 ; Routine at 13964
 __RESUME:
@@ -4586,23 +4619,31 @@ __ERROR:
 __AUTO:
   LD DE,$000A
   PUSH DE
-  JR Z,__AUTO_0
+  JR Z,L36E3_0
   CALL LNUM_PARM
   EX DE,HL
   EX (SP),HL
-  JR Z,__AUTO_1
+  JR Z,L36E3_1
   EX DE,HL
   CALL SYNCHR
-  INC L
+
+; Message at 14050
+L36E2:
+  DEFM ","
+
+; Routine at 14051
+L36E3:
   EX DE,HL
   LD HL,(AUTINC)
   EX DE,HL
-  JR Z,__AUTO_0
+  JR Z,L36E3_0
   CALL ATOH
   JP NZ,SN_ERR
-__AUTO_0:
+; This entry point is used by the routine at __AUTO.
+L36E3_0:
   EX DE,HL
-__AUTO_1:
+; This entry point is used by the routine at __AUTO.
+L36E3_1:
   LD A,H
   OR L
   JP Z,FC_ERR
@@ -4620,15 +4661,23 @@ __IF:
   CP $2C
   CALL Z,CHRGTB
   CP $89
-  JR Z,__IF_0
+  JR Z,L3715_0
   CALL SYNCHR
-  SBC A,$2B
-__IF_0:
+
+; Message at 14100
+L3714:
+  DEFB $DE
+
+; Routine at 14101
+L3715:
+  DEC HL
+; This entry point is used by the routine at __IF.
+L3715_0:
   PUSH HL
   CALL VSIGN
   POP HL
-  JR Z,__IF_2
-__IF_1:
+  JR Z,L3715_2
+L3715_1:
   CALL CHRGTB
   RET Z
   CP $0E
@@ -4637,18 +4686,18 @@ __IF_1:
   JP NZ,ONJMP
   LD HL,(CONLO)
   RET
-__IF_2:
+L3715_2:
   LD D,$01
-__IF_3:
+L3715_3:
   CALL __DATA
   OR A
   RET Z
   CALL CHRGTB
   CP $9E
-  JR NZ,__IF_3
+  JR NZ,L3715_3
   DEC D
-  JR NZ,__IF_3
-  JR __IF_1
+  JR NZ,L3715_3
+  JR L3715_1
 
 ; Routine at 14146
 __LPRINT:
@@ -4813,7 +4862,13 @@ LPTMDF:
 LNOMOD:
   POP HL
   CALL SYNCHR
-  ADD HL,HL
+
+; Message at 14397
+L383D:
+  DEFM ")"
+
+; Routine at 14398
+L383E:
   DEC HL
   POP AF
   SUB $E3
@@ -4834,13 +4889,13 @@ LNOMOD:
 
 ; Routine at 14429
 ;
-; Used by the routine at LNOMOD.
+; Used by the routine at L383E.
 TTYIST:
   LD A,(TTYPOS)
 
 ; Routine at 14432
 ;
-; Used by the routine at LNOMOD.
+; Used by the routine at L383E.
 DOSPC:
   CPL
   ADD A,E
@@ -4875,7 +4930,7 @@ NEXITM:
 
 ; Routine at 14463
 ;
-; Used by the routines at __PRINT, __READ, __USING, RUN_FST, NTRNDW, LOAD_END,
+; Used by the routines at __PRINT, L39C7, L6462, RUN_FST, NTRNDW, LOAD_END,
 ; PUTCHR and __LOF.
 FINPRT:
   XOR A
@@ -4890,7 +4945,13 @@ FINPRT:
 ; Routine at 14475
 __LINE:
   CALL SYNCHR
-  ADD A,L
+
+; Message at 14478
+L388E:
+  DEFB $85
+
+; Routine at 14479
+L388F:
   CP $23
   JP Z,LINE_INPUT
   CALL PINLIN_17
@@ -4909,7 +4970,7 @@ __LINE:
   CALL QTSTR_0
   POP HL
   LD A,$03
-  JP __LET_0
+  JP L35E2_0
 
 ; Message at 14519
 REDO_MSG:
@@ -4920,7 +4981,7 @@ REDO_MSG:
 
 ; Routine at 14538
 ;
-; Used by the routine at __INPUT.
+; Used by the routine at L3926.
 SCNSTR:
   INC HL
   LD A,(HL)
@@ -4928,21 +4989,21 @@ SCNSTR:
   JP Z,SN_ERR
   CP $22
   JR NZ,SCNSTR
-  JP __INPUT_6
+  JP L3926_3
 
 ; Routine at 14551
 ;
-; Used by the routine at __INPUT.
+; Used by the routine at L3926.
 INPBAK:
   POP HL
   POP HL
   JP INPBAK_1
-; This entry point is used by the routine at __READ.
+; This entry point is used by the routine at L39C7.
 INPBAK_0:
   LD A,(FLGINP)
   OR A
   JP NZ,DATSNR
-; This entry point is used by the routine at __INPUT.
+; This entry point is used by the routine at L3926.
 INPBAK_1:
   POP BC
   LD HL,REDO_MSG
@@ -4954,7 +5015,7 @@ INPBAK_2:
   CALL FILINP
   PUSH HL
   LD HL,BUFMIN
-  JP __INPUT_9
+  JP L3926_6
 
 ; Routine at 14584
 __INPUT:
@@ -4963,7 +5024,7 @@ __INPUT:
   CALL PINLIN_17
   LD BC,$392C
   PUSH BC
-; This entry point is used by the routine at __LINE.
+; This entry point is used by the routine at L388F.
 __INPUT_0:
   CP $22
   LD A,$00
@@ -4978,11 +5039,18 @@ __INPUT_0:
   XOR A
   LD ($0C94),A
   CALL CHRGTB
-  JR __INPUT_2
+  JR L3926
 __INPUT_1:
   CALL SYNCHR
-  DEC SP
-__INPUT_2:
+
+; Message at 14629
+L3925:
+  DEFM ";"
+
+; Routine at 14630
+;
+; Used by the routine at __INPUT.
+L3926:
   PUSH HL
   CALL PRS1
   POP HL
@@ -4990,12 +5058,12 @@ __INPUT_2:
   PUSH HL
   LD A,($0C94)
   OR A
-  JR Z,__INPUT_3
+  JR Z,L3926_0
   LD A,$3F
   CALL OUTDO
   LD A,$20
   CALL OUTDO
-__INPUT_3:
+L3926_0:
   CALL PINLIN_0
   POP BC
   JP C,$6966
@@ -5007,7 +5075,7 @@ __INPUT_3:
   PUSH DE
   PUSH DE
   DEC HL
-__INPUT_4:
+L3926_1:
   LD A,$80
   LD (SUBFLG),A
   CALL CHRGTB
@@ -5015,28 +5083,28 @@ __INPUT_4:
   LD A,(HL)
   DEC HL
   CP $28
-  JR NZ,__INPUT_7
+  JR NZ,L3926_4
   INC HL
   LD B,$00
-__INPUT_5:
+L3926_2:
   INC B
 ; This entry point is used by the routine at SCNSTR.
-__INPUT_6:
+L3926_3:
   CALL CHRGTB
   JP Z,SN_ERR
   CP $22
   JP Z,SCNSTR
   CP $28
-  JR Z,__INPUT_5
+  JR Z,L3926_2
   CP $29
-  JR NZ,__INPUT_6
-  DJNZ __INPUT_6
-__INPUT_7:
+  JR NZ,L3926_3
+  DJNZ L3926_3
+L3926_4:
   CALL CHRGTB
-  JR Z,__INPUT_8
+  JR Z,L3926_5
   CP $2C
   JP NZ,SN_ERR
-__INPUT_8:
+L3926_5:
   EX (SP),HL
   LD A,(HL)
   CP $2C
@@ -5056,7 +5124,7 @@ __INPUT_8:
   EX (SP),HL
   LD A,(HL)
   CP $2C
-  JR Z,__INPUT_4
+  JR Z,L3926_1
   POP HL
   DEC HL
   CALL CHRGTB
@@ -5064,7 +5132,7 @@ __INPUT_8:
   POP HL
   JP NZ,INPBAK_1
 ; This entry point is used by the routine at INPBAK.
-__INPUT_9:
+L3926_6:
   LD (HL),$2C
   JR $39BC
 
@@ -5075,22 +5143,30 @@ __READ:
   OR $AF
   LD (FLGINP),A
   EX (SP),HL
-  JR __READ_1
+  JR L39C7
+; This entry point is used by the routine at L39C7.
 __READ_0:
   CALL SYNCHR
-  INC L
-__READ_1:
+
+; Message at 14790
+L39C6:
+  DEFM ","
+
+; Routine at 14791
+;
+; Used by the routine at __READ.
+L39C7:
   CALL PTRGET
   EX (SP),HL
   PUSH DE
   LD A,(HL)
   CP $2C
-  JR Z,__READ_2
+  JR Z,L39C7_0
   LD A,(FLGINP)
   OR A
   JP NZ,FDTLP
 ; This entry point is used by the routine at FDTLP.
-__READ_2:
+L39C7_0:
   OR $AF
   LD (READFLG),A
   EX DE,HL
@@ -5101,21 +5177,21 @@ __READ_2:
   JP NZ,FILIND
   CALL GETYPR
   PUSH AF
-  JR NZ,__READ_5
+  JR NZ,L39C7_3
   CALL CHRGTB
   LD D,A
   LD B,A
   CP $22
-  JR Z,__READ_4
+  JR Z,L39C7_2
   LD A,(FLGINP)
   OR A
   LD D,A
-  JR Z,__READ_3
+  JR Z,L39C7_1
   LD D,$3A
-__READ_3:
+L39C7_1:
   LD B,$2C
   DEC HL
-__READ_4:
+L39C7_2:
   CALL DTSTR
   POP AF
   ADD A,$03
@@ -5128,8 +5204,8 @@ __READ_4:
   LD HL,$3A27
   EX (SP),HL
   PUSH DE
-  JP __LET_1
-__READ_5:
+  JP L35E2_1
+L39C7_3:
   CALL CHRGTB
   POP AF
   PUSH AF
@@ -5139,10 +5215,10 @@ __READ_5:
   JP DMUL10_0
   DEC HL
   CALL CHRGTB
-  JR Z,__READ_6
+  JR Z,L39C7_4
   CP $2C
   JP NZ,INPBAK_0
-__READ_6:
+L39C7_4:
   EX (SP),HL
   DEC HL
   CALL CHRGTB
@@ -5158,7 +5234,7 @@ __READ_6:
 
 ; Find next DATA statement
 ;
-; Used by the routine at __READ.
+; Used by the routine at L39C7.
 FDTLP:
   CALL __DATA
   OR A
@@ -5180,14 +5256,20 @@ FDTLP_0:
   CALL CHRGTB
   CP $84
   JR NZ,FDTLP
-  JP __READ_2
+  JP L39C7_0
 
 ; Routine at 14954
 ;
-; Used by the routines at FINASG, FN_INSTR and __LSET.
+; Used by the routines at L3F72, L6F94 and __LSET.
 FRMEQL:
   CALL SYNCHR
-  RET P
+
+; Message at 14957
+L3A6D:
+  DEFB $F0
+
+; Routine at 14958
+L3A6E:
   JP EVAL
 
 ; Routine at 14961
@@ -5195,16 +5277,19 @@ FRMEQL:
 ; Used by the routines at EVLPAR, ISFUN and FN_INSTR.
 OPNPAR:
   CALL SYNCHR
-  JR Z,$3AA1
+
+; Message at 14964
+L3A74:
+  DEFM "("
 
 ; Routine at 14965
 ;
-; Used by the routines at SRCHLP, __FOR, FORFND, __LET, __IF, __PRINT, FRMEQL,
-; ASGMOR, POSINT, GETINT, __POKE, __RANDOMIZE, __USING, __CLEAR, FN_STRING,
-; FN_INSTR, __WEND, __CHAIN, __WRITE, FILSCN, FNAME and __OPEN.
+; Used by the routines at SRCHLP, L329B, L32F3, L35E2, __IF, __PRINT, L3A6E,
+; ASGMOR, POSINT, GETINT, __POKE, __RANDOMIZE, L6462, L6A5D, L6E22, L6EF1,
+; L6EFB, __WEND, L72E5, __WRITE, FILSCN, FNAME and __OPEN.
 EVAL:
   DEC HL
-; This entry point is used by the routines at FORFND and __USING.
+; This entry point is used by the routines at L32F3 and __USING.
 EVAL_0:
   LD D,$00
 ; This entry point is used by the routines at EVAL_MORE, MINUS and __NOT.
@@ -5562,20 +5647,31 @@ __ERL_0:
 __VARPTR:
   CALL CHRGTB
   CALL SYNCHR
-__VARPTR_0:
-  JR Z,__VARPTR_0
-  INC HL
-  JR NZ,__VARPTR_1
+
+; Message at 15441
+L3C51:
+  DEFM "("
+
+; Routine at 15442
+L3C52:
+  CP $23
+  JR NZ,L3C52_0
   CALL FNDNUM
   PUSH HL
   CALL GETPTR
   POP HL
-  JP __VARPTR_2
-__VARPTR_1:
+  JP L3C52_1
+L3C52_0:
   CALL PTRGET
-__VARPTR_2:
+L3C52_1:
   CALL SYNCHR
-  ADD HL,HL
+
+; Message at 15463
+L3C67:
+  DEFM ")"
+
+; Routine at 15464
+L3C68:
   PUSH HL
   EX DE,HL
   LD A,H
@@ -5616,7 +5712,13 @@ NTVARP:
 EVLPAR:
   CALL OPNPAR
   CALL SYNCHR
-  ADD HL,HL
+
+; Message at 15532
+L3CAC:
+  DEFM ")"
+
+; Routine at 15533
+L3CAD:
   RET
 
 ; '-' operand evaluation
@@ -5663,6 +5765,8 @@ UCASE:
   RET NC
   AND $5F
   RET
+; This entry point is used by the routines at L8316 and L8345.
+UCASE_0:
   CP $26
   JP NZ,ATOH
 
@@ -5759,7 +5863,13 @@ ISFUN_0:
   JP NC,OKNORM
   CALL OPNPAR
   CALL SYNCHR
-  INC L
+
+; Message at 15715
+L3D63:
+  DEFM ","
+
+; Routine at 15716
+L3D64:
   CALL TSTSTR
   EX DE,HL
   LD HL,(FACCU)
@@ -5789,7 +5899,7 @@ OKNORM_0:
   PUSH DE
   LD A,$01
   LD (FLGOVC),A
-; This entry point is used by the routine at ISFUN.
+; This entry point is used by the routine at L3D64.
 OKNORM_1:
   LD BC,$01B2
 ; This entry point is used by the routine at CHKTYP.
@@ -5847,11 +5957,11 @@ __NOT_0:
 
 ; Test number FAC type (Precision mode, etc..)
 ;
-; Used by the routines at SRCHLP, NTINTG, FORFND, __PRINT, __INPUT, __READ,
-; FINREL, EVAL_VARIABLE, FINASG, GETWORD_HL, INVSGN, VSIGN, VMVVFM, __CINT,
-; __CSNG, __CDBL, TSTSTR, __FIX, __INT, FINE, DPOINT, MULTEN, FINDIV, ADDIG,
-; FINEDG, OVERR, FINEC, DOEBIT, FOUTNV, SIXDIG, RNGTST, FOUTCV, ZEROER, __SWAP,
-; FN_STRING, FN_INSTR, __FRE, __CALL, __WRITE, FILIND and LINE_INPUT.
+; Used by the routines at SRCHLP, NTINTG, L32F3, __PRINT, L3926, L39C7, FINREL,
+; EVAL_VARIABLE, L3F72, GETWORD_HL, INVSGN, VSIGN, VMVVFM, __CINT, __CSNG,
+; __CDBL, TSTSTR, __FIX, __INT, FINE, DPOINT, MULTEN, FINDIV, ADDIG, FINEDG,
+; OVERR, FINEC, DOEBIT, FOUTNV, SIXDIG, RNGTST, FOUTCV, ZEROER, __SWAP, L69DC,
+; L6E29, FN_INSTR, __FRE, __CALL, __WRITE, FILIND and LINE_INPUT.
 GETYPR:
   LD A,(VALTYP)
   CP $08
@@ -6014,15 +6124,19 @@ DEF_USR:
   CALL SCNUSR
   PUSH DE
   CALL SYNCHR
-  RET P
+
+; Message at 15996
+L3E7C:
+  DEFB $F0
+
+; Routine at 15997
+L3E7D:
   CALL POSINT
   EX (SP),HL
   LD (HL),E
   INC HL
   LD (HL),D
   POP HL
-; This entry point is used by the routine at DOFN.
-DEF_USR_0:
   RET
 
 ; Routine at 16006
@@ -6040,13 +6154,20 @@ __DEF:
   CP $28
   JP NZ,__DATA
   CALL CHRGTB
+; This entry point is used by the routine at L3EAB.
 __DEF_0:
   CALL PTRGET
   LD A,(HL)
   CP $29
   JP Z,__DATA
   CALL SYNCHR
-  INC L
+
+; Message at 16042
+L3EAA:
+  DEFM ","
+
+; Routine at 16043
+L3EAB:
   JR __DEF_0
 
 ; Routine at 16045
@@ -6073,12 +6194,21 @@ DOFN:
   EX DE,HL
   LD HL,(NXTOPR)
   CALL SYNCHR
-  JR Z,DEF_USR_0
+
+; Message at 16084
+L3ED4:
+  DEFM "("
+
+; Routine at 16085
+L3ED5:
+  XOR A
   PUSH AF
   PUSH HL
   EX DE,HL
 
 ; Routine at 16089
+;
+; Used by the routine at L3F1B.
 ASGMOR:
   LD A,$80
   LD (SUBFLG),A
@@ -6107,11 +6237,23 @@ ASGMOR:
   CP $29
   JR Z,POPASG
   CALL SYNCHR
-  INC L
+
+; Message at 16146
+L3F12:
+  DEFM ","
+
+; Routine at 16147
+L3F13:
   PUSH HL
   LD HL,(TEMP3)
   CALL SYNCHR
-  INC L
+
+; Message at 16154
+L3F1A:
+  DEFM ","
+
+; Routine at 16155
+L3F1B:
   JR ASGMOR
 
 ; Routine at 16157
@@ -6164,7 +6306,7 @@ LPSIZL:
   LD BC,POPAS2
   PUSH BC
   PUSH BC
-  JP __LET_2
+  JP L35E2_2
 
 ; Routine at 16228
 ;
@@ -6175,7 +6317,13 @@ FINASG:
   PUSH HL
   LD HL,(TEMP3)
   CALL SYNCHR
-  ADD HL,HL
+
+; Message at 16241
+L3F71:
+  DEFM ")"
+
+; Routine at 16242
+L3F72:
   LD A,$D5
   LD (TEMP3),HL
   LD A,(PRMLEN)
@@ -6229,7 +6377,7 @@ FINASG:
 
 ; Routine at 16347
 ;
-; Used by the routine at FINASG.
+; Used by the routine at L3F72.
 NOCPRS:
   LD HL,(PRMSTK)
   LD D,H
@@ -6258,7 +6406,7 @@ NOCPRS:
 
 ; Routine at 16383
 ;
-; Used by the routines at __FOR, __LET, ASGMOR and __MKD_S.
+; Used by the routines at L329B, L35E2, ASGMOR and __MKD_S.
 CHKTYP:
   PUSH HL
   AND $07
@@ -6285,7 +6433,7 @@ BCTRAl:
 
 ; Routine at 16403
 ;
-; Used by the routines at LPSIZL, FINASG and NOCPRS.
+; Used by the routines at LPSIZL, L3F72 and NOCPRS.
 BCTRAN:
   LD A,B
   OR C
@@ -6308,13 +6456,20 @@ IDTEST:
 ; This entry point is used by the routines at __DEF and DOFN.
 IDTEST_0:
   CALL SYNCHR
-  JP PO,__GET_12
+
+; Message at 16425
+L4029:
+  DEFB $E2
+
+; Routine at 16426
+L402A:
+  LD A,$80
   LD (SUBFLG),A
   OR (HL)
   LD C,A
   JP PTRGET_0
 ; This entry point is used by the routine at NEWSTT.
-IDTEST_1:
+L402A_0:
   CP $7E
   JP NZ,SN_ERR
   INC HL
@@ -6322,7 +6477,7 @@ IDTEST_1:
   CP $83
   JP NZ,SN_ERR
   INC HL
-  JP FN_INSTR_7
+  JP L6F07_5
   JP SN_ERR
 
 ; Routine at 16455
@@ -6365,13 +6520,13 @@ __WIDTH_3:
 
 ; Get subscript
 ;
-; Used by the routine at FORFND.
+; Used by the routine at L32F3.
 FPSINT:
   CALL CHRGTB
 
 ; Get positive integer
 ;
-; Used by the routines at INTIDX, __TAB, DEF_USR, __WAIT and __HGR.
+; Used by the routines at INTIDX, __TAB, L3E7D, __WAIT and __HGR.
 POSINT:
   CALL EVAL
 
@@ -6389,22 +6544,22 @@ DEPINT:
 
 ; Load 'A' with the next number in BASIC program
 ;
-; Used by the routines at __VARPTR and __FIELD.
+; Used by the routines at L3C52 and __FIELD.
 FNDNUM:
   CALL CHRGTB
 
 ; Routine at 16535
 ;
-; Used by the routines at __ON, __ERROR, ISFUN, __WIDTH, __POKE, __VTAB, __GR,
-; __COLOR, GET_2_ARGS, __WAIT, L47A8, __HCOLOR, __HGR, FN_INSTR, __CLOSE and
-; __OPEN.
+; Used by the routines at L364D, __ERROR, L3D64, __WIDTH, L42C0, __VTAB, __GR,
+; L4646, L466F, GET_2_ARGS, L46AE, L472A, L4736, L47A8, L483F, __HGR, L4B30,
+; L6E1A, L6F94, L6FEB, __CLOSE, L79F2 and L7D22.
 GETINT:
   CALL EVAL
 
 ; Routine at 16538
 ;
-; Used by the routines at __BUTTON, __PDL, __ASC, FN_STRING, __SPACE_S,
-; FN_INSTR and FILFRM.
+; Used by the routines at __BUTTON, __PDL, __ASC, L6E29, __SPACE_S, FN_INSTR
+; and FILFRM.
 CONINT:
   CALL DEPINT
   JP NZ,FC_ERR
@@ -6420,7 +6575,7 @@ __LLIST:
 
 ; Routine at 16555
 ;
-; Used by the routine at __SAVE.
+; Used by the routine at L787A.
 __LIST:
   POP BC
   CALL LNUM_RANGE
@@ -6801,7 +6956,7 @@ __DEL_1:
 ; Routine at 17063
 __PEEK:
   CALL GETWORD_HL
-  CALL __GET_36
+  CALL __GET_35
   LD A,(HL)
   JP PASSA
 
@@ -6811,9 +6966,15 @@ __POKE:
   PUSH HL
   CALL GETWORD_HL
   EX (SP),HL
-  CALL __GET_36
+  CALL __GET_35
   CALL SYNCHR
-  INC L
+
+; Message at 17087
+L42BF:
+  DEFM ","
+
+; Routine at 17088
+L42C0:
   CALL GETINT
   POP DE
   LD (DE),A
@@ -6821,7 +6982,7 @@ __POKE:
 
 ; Routine at 17094
 ;
-; Used by the routines at __PEEK, __POKE, FOUTH, __CLEAR and __CHAIN.
+; Used by the routines at __PEEK, __POKE, FOUTH, L6A5D and L72E5.
 GETWORD_HL:
   LD BC,__CINT
   PUSH BC
@@ -6843,7 +7004,7 @@ __RENUM:
   PUSH BC
   LD D,B
   LD E,B
-  JR Z,__RENUM_1
+  JR Z,L4305_0
   CP $2C
   JR Z,__RENUM_0
   PUSH DE
@@ -6851,15 +7012,27 @@ __RENUM:
   LD B,D
   LD C,E
   POP DE
-  JR Z,__RENUM_1
+  JR Z,L4305_0
 __RENUM_0:
   CALL SYNCHR
-  INC L
+
+; Message at 17146
+L42FA:
+  DEFM ","
+
+; Routine at 17147
+L42FB:
   CALL LNUM_PARM
-  JR Z,__RENUM_1
+  JR Z,L4305_0
   POP AF
   CALL SYNCHR
-  INC L
+
+; Message at 17156
+L4304:
+  DEFM ","
+
+; Routine at 17157
+L4305:
   PUSH DE
   CALL ATOH
   JP NZ,SN_ERR
@@ -6869,7 +7042,8 @@ __RENUM_0:
   EX DE,HL
   EX (SP),HL
   EX DE,HL
-__RENUM_1:
+; This entry point is used by the routines at __RENUM and L42FB.
+L4305_0:
   PUSH BC
   CALL SRCHLN
   POP DE
@@ -6887,8 +7061,8 @@ __RENUM_1:
   POP AF
   PUSH HL
   PUSH DE
-  JR __RENUM_3
-__RENUM_2:
+  JR L4305_2
+L4305_1:
   ADD HL,BC
   JP C,FC_ERR
   EX DE,HL
@@ -6897,7 +7071,7 @@ __RENUM_2:
   CALL DCOMPR
   POP HL
   JP C,FC_ERR
-__RENUM_3:
+L4305_2:
   PUSH DE
   LD E,(HL)
   LD A,E
@@ -6906,20 +7080,20 @@ __RENUM_3:
   OR D
   EX DE,HL
   POP DE
-  JR Z,__RENUM_4
+  JR Z,L4305_3
   LD A,(HL)
   INC HL
   OR (HL)
   DEC HL
   EX DE,HL
-  JR NZ,__RENUM_2
-__RENUM_4:
+  JR NZ,L4305_1
+L4305_3:
   PUSH BC
   CALL $4371
   POP BC
   POP DE
   POP HL
-__RENUM_5:
+L4305_4:
   PUSH DE
   LD E,(HL)
   LD A,E
@@ -6938,7 +7112,7 @@ __RENUM_5:
   ADD HL,BC
   EX DE,HL
   POP HL
-  JR __RENUM_5
+  JR L4305_4
 LINE2PTR:
   LD BC,RESTART
   PUSH BC
@@ -7065,7 +7239,7 @@ CONCH2:
 
 ; Routine at 17419
 ;
-; Used by the routines at LINFND, __DEL and __CHAIN.
+; Used by the routines at LINFND, __DEL and L7317.
 DEPTR:
   LD A,(PTRFLG)
   OR A
@@ -7075,13 +7249,37 @@ DEPTR:
 ; Routine at 17427
 __OPTION:
   CALL SYNCHR
-  LD B,D
+
+; Message at 17430
+L4416:
+  DEFM "B"
+
+; Routine at 17431
+L4417:
   CALL SYNCHR
-  LD B,C
+
+; Message at 17434
+L441A:
+  DEFM "A"
+
+; Routine at 17435
+L441B:
   CALL SYNCHR
-  LD D,E
+
+; Message at 17438
+L441E:
+  DEFM "S"
+
+; Routine at 17439
+L441F:
   CALL SYNCHR
-  LD B,L
+
+; Message at 17442
+L4422:
+  DEFM "E"
+
+; Routine at 17443
+L4423:
   LD A,(OPTFLG)
   OR A
   JP NZ,DD_ERR
@@ -7103,15 +7301,15 @@ __OPTION:
   CALL CHRGTB
   RET
 ; This entry point is used by the routine at FINEC.
-__OPTION_0:
+L4423_0:
   LD A,(HL)
   OR A
   RET Z
-  CALL __OPTION_1
+  CALL L4423_1
   INC HL
-  JP __OPTION_0
+  JP L4423_0
 ; This entry point is used by the routine at FINEC.
-__OPTION_1:
+L4423_1:
   PUSH AF
   JP OUTDO_9
 
@@ -7160,7 +7358,7 @@ WNDSCN:
 ; Routine at 17588
 NXTSCN:
   JR SCNCNT
-; This entry point is used by the routine at FORFND.
+; This entry point is used by the routine at L32F3.
 NXTSCN_0:
   LD C,$1A
 
@@ -7233,12 +7431,19 @@ SCNCNT_0:
   DEC HL
   CALL CHRGTB
   LD DE,FORTRM
-  JR Z,SCNCNT_1
+  JR Z,L4526_0
   CALL SYNCHR
-  INC L
+
+; Message at 17701
+L4525:
+  DEFM ","
+
+; Routine at 17702
+L4526:
   DEC HL
   LD DE,$4501
-SCNCNT_1:
+; This entry point is used by the routine at SCNCNT.
+L4526_0:
   EX (SP),HL
   LD (CURLIN),HL
   POP HL
@@ -7337,7 +7542,7 @@ __HTAB_1:
 
 ; Routine at 17832
 ;
-; Used by the routine at PROCHK.
+; Used by the routine at L8345.
 __HOME:
   PUSH HL
   LD HL,$0000
@@ -7385,8 +7590,7 @@ __TEXT_0:
 
 ; Routine at 17895
 ;
-; Used by the routines at __TEXT, __GR, A2_VECTOR_CALL_POPHL, __PDL and
-; FN_SCRN.
+; Used by the routines at __TEXT, __GR, A2_VECTOR_CALL_POPHL, __PDL and L476B.
 A2_VECTOR_CALL:
   LD (LF3D0),HL
   LD ($0000),A
@@ -7398,7 +7602,7 @@ __GR:
   LD (LF030),A
   CALL NZ,GETINT
   CP $02
-  JR NC,__COLOR_2
+  JR NC,L4646_2
   PUSH HL
   PUSH AF
   LD A,$14
@@ -7415,7 +7619,7 @@ __GR:
   INC HL
   PUSH DE
   CALL GETINT
-  CALL __COLOR_0
+  CALL L4646_0
   POP DE
 __GR_0:
   PUSH HL
@@ -7442,13 +7646,19 @@ __GR_2:
 ; Routine at 17986
 __COLOR:
   CALL SYNCHR
-  RET P
+
+; Message at 17989
+L4645:
+  DEFB $F0
+
+; Routine at 17990
+L4646:
   CALL GETINT
 ; This entry point is used by the routine at __GR.
-__COLOR_0:
+L4646_0:
   LD A,E
   CP $10
-  JR NC,__COLOR_2
+  JR NC,L4646_2
   ADD A,A
   ADD A,A
   ADD A,A
@@ -7457,13 +7667,13 @@ __COLOR_0:
   LD (LF030),A
   RET
 ; This entry point is used by the routines at __HLIN and __VLIN.
-__COLOR_1:
+L4646_1:
   PUSH BC
   CALL GET_2_ARGS
   POP BC
   CP B
-; This entry point is used by the routines at __GR and PLOT_ARGS.
-__COLOR_2:
+; This entry point is used by the routines at __GR, L466F and PLOT_ARGS.
+L4646_2:
   JP NC,FC_ERR
   CP E
   JP C,FC_ERR
@@ -7471,20 +7681,32 @@ __COLOR_2:
   PUSH DE
   PUSH BC
   CALL SYNCHR
-  LD B,C
+
+; Message at 18026
+L466A:
+  DEFM "A"
+
+; Routine at 18027
+L466B:
   CALL SYNCHR
-  LD D,H
+
+; Message at 18030
+L466E:
+  DEFM "T"
+
+; Routine at 18031
+L466F:
   CALL GETINT
   POP BC
   CP C
-  JR NC,__COLOR_2
+  JR NC,L4646_2
   POP DE
   RET
 
 ; Routine at 18040
 __HLIN:
   LD BC,$2830
-  CALL __COLOR_1
+  CALL L4646_1
   LD (LF045),A
   LD A,E
   LD (LF047),A
@@ -7498,7 +7720,7 @@ __HLIN:
 ; Routine at 18063
 __VLIN:
   LD BC,$3028
-  CALL __COLOR_1
+  CALL L4646_1
   LD (LF047),A
   LD A,E
   LD (LF045),A
@@ -7510,27 +7732,33 @@ __VLIN:
 
 ; Routine at 18086
 ;
-; Used by the routines at __COLOR, PLOT_ARGS and __BEEP.
+; Used by the routines at L4646, PLOT_ARGS and __BEEP.
 GET_2_ARGS:
   CALL GETINT
   PUSH DE
   CALL SYNCHR
-  INC L
+
+; Message at 18093
+L46AD:
+  DEFM ","
+
+; Routine at 18094
+L46AE:
   CALL GETINT
   POP DE
   RET
 
 ; Routine at 18099
 ;
-; Used by the routine at __PLOT.
+; Used by the routines at __PLOT and L4764.
 PLOT_ARGS:
   CALL GET_2_ARGS
   CP $30
-  JR NC,__COLOR_2
+  JR NC,L4646_2
   LD (LF045),A
   LD A,E
   CP $28
-  JR NC,__COLOR_2
+  JR NC,L4646_2
   LD (LF047),A
   RET
 
@@ -7542,7 +7770,7 @@ __PLOT:
 
 ; Routine at 18125
 ;
-; Used by the routines at __VLIN, __BEEP and L47A8.
+; Used by the routines at __VLIN, __BEEP and L47BE.
 A2_VECTOR_CALL_POPHL:
   CALL A2_VECTOR_CALL
   POP HL
@@ -7580,7 +7808,7 @@ __VPOS:
 ; Used by the routines at FN_COLOR and FN_HCOLOR.
 EXIT_FN:
   PUSH HL
-; This entry point is used by the routine at FN_SCRN.
+; This entry point is used by the routine at L476B.
 EXIT_FN_0:
   CALL PASSA
   POP HL
@@ -7700,25 +7928,36 @@ __WAIT:
   CALL POSINT
   PUSH DE
   CALL SYNCHR
-  INC L
+
+; Message at 18217
+L4729:
+  DEFM ","
+
+; Routine at 18218
+L472A:
   CALL GETINT
   PUSH AF
   LD E,$00
-  JR Z,__WAIT_1
-; This entry point is used by the routine at FN_SCRN.
-__WAIT_0:
+  JR Z,L4736_0
   CALL SYNCHR
-  INC L
+
+; Message at 18229
+L4735:
+  DEFM ","
+
+; Routine at 18230
+L4736:
   CALL GETINT
-__WAIT_1:
+; This entry point is used by the routine at L472A.
+L4736_0:
   POP AF
   LD D,A
   EX (SP),HL
-__WAIT_2:
+L4736_1:
   LD A,(HL)
   XOR E
   AND D
-  JR Z,__WAIT_2
+  JR Z,L4736_1
   POP HL
   RET
 
@@ -7744,11 +7983,22 @@ __PDL_0:
 FN_SCRN:
   CALL CHRGTB
   CALL SYNCHR
-  JR Z,__WAIT_0
-  OR E
-  LD B,(HL)
+
+; Message at 18275
+L4763:
+  DEFM "("
+
+; Routine at 18276
+L4764:
+  CALL PLOT_ARGS
   CALL SYNCHR
-  ADD HL,HL
+
+; Message at 18282
+L476A:
+  DEFM ")"
+
+; Routine at 18283
+L476B:
   PUSH HL
   LD HL,$F871
   CALL A2_VECTOR_CALL
@@ -7774,14 +8024,19 @@ FN_COLOR_0:
   LD (HL),A
   POP HL
   CALL _CHRCKB
-  JR Z,L47A8_3
+  JR Z,L47BE
   CALL SYNCHR
-  JR Z,L47A8
-  LD B,L
-  RET P
+
+; Message at 18325
+L4795:
+  DEFM "("
+
+; Routine at 18326
+L4796:
+  LD DE,LF045
   LD B,$03
 ; This entry point is used by the routine at L47A8.
-FN_COLOR_1:
+L4796_0:
   LD A,(HL)
   CP $29
   JR Z,L47A8_2
@@ -7791,11 +8046,9 @@ FN_COLOR_1:
   JR L47A8_1
 
 ; Routine at 18344
-;
-; Used by the routine at FN_COLOR.
 L47A8:
   RRCA
-; This entry point is used by the routine at FN_COLOR.
+; This entry point is used by the routine at L4796.
 L47A8_0:
   PUSH BC
   PUSH DE
@@ -7807,22 +8060,26 @@ L47A8_0:
   LD A,(HL)
   CP $2C
   CALL Z,CHRGTB
-; This entry point is used by the routine at FN_COLOR.
+; This entry point is used by the routine at L4796.
 L47A8_1:
-  DJNZ FN_COLOR_1
-; This entry point is used by the routine at FN_COLOR.
+  DJNZ L4796_0
+; This entry point is used by the routine at L4796.
 L47A8_2:
   CALL SYNCHR
-  ADD HL,HL
-; This entry point is used by the routine at FN_COLOR.
-L47A8_3:
+
+; Message at 18365
+L47BD:
+  DEFM ")"
+
+; Routine at 18366
+;
+; Used by the routine at FN_COLOR.
+L47BE:
   PUSH HL
   LD HL,(INTFLG)
   JP A2_VECTOR_CALL_POPHL
 
 ; Routine at 18372
-;
-; Used by the routine at FN_HSCRN.
 L47C4:
   LD B,(HL)
 ; This entry point is used by the routines at __GR and __HGR.
@@ -7881,10 +8138,22 @@ FN_HCOLOR:
 FN_HSCRN:
   CALL CHRGTB
   CALL SYNCHR
-  JR Z,L47C4
-  JR NZ,__HCOLOR_1
+
+; Message at 18421
+L47F5:
+  DEFM "("
+
+; Routine at 18422
+L47F6:
+  CALL __HGR_4
   CALL SYNCHR
-  ADD HL,HL
+
+; Message at 18428
+L47FC:
+  DEFM ")"
+
+; Routine at 18429
+L47FD:
   PUSH HL
 
 ; LD HL,(L47DD)
@@ -7908,8 +8177,8 @@ L4801:
   LD HL,L4AC5
   LD ($49AB),HL
   LD A,C
-  JP __HCOLOR_26
-  CALL __HCOLOR_34
+  JP L483F_25
+  CALL L483F_33
   EXX
   BIT 0,L
   JR NZ,L4801_0
@@ -7935,18 +8204,22 @@ L4801_1:
 ; Routine at 18491
 __HCOLOR:
   CALL SYNCHR
-  RET P
+
+; Message at 18494
+L483E:
+  DEFB $F0
+
+; Routine at 18495
+L483F:
   CALL GETINT
 ; This entry point is used by the routine at __HGR.
-__HCOLOR_0:
+L483F_0:
   CP $0D
-; This entry point is used by the routine at FN_HSCRN.
-__HCOLOR_1:
   JP NC,FC_ERR
   LD (A2_HCOLOR),A
   PUSH HL
   CP $08
-  JR NC,__HCOLOR_2
+  JR NC,L483F_1
   LD HL,L4A81
   ADD A,A
   LD E,A
@@ -7956,44 +8229,44 @@ __HCOLOR_1:
   INC HL
   LD D,(HL)
   EX DE,HL
-  JR __HCOLOR_5
-__HCOLOR_2:
+  JR L483F_4
+L483F_1:
   CP $0C
-  JR Z,__HCOLOR_7
+  JR Z,L483F_6
   CP $0A
-  JR NC,__HCOLOR_3
+  JR NC,L483F_2
   RRA
   SBC A,A
   AND $7F
-  JR __HCOLOR_4
-__HCOLOR_3:
+  JR L483F_3
+L483F_2:
   RRA
   SBC A,A
   SET 7,A
-__HCOLOR_4:
+L483F_3:
   LD H,A
   LD L,A
-__HCOLOR_5:
+L483F_4:
   LD (L47DB),HL
-  LD HL,__HCOLOR_9
+  LD HL,L483F_8
   LD ($488C),HL
-__HCOLOR_6:
+L483F_5:
   CALL L4A91
-  JP __HCOLOR_28
-__HCOLOR_7:
+  JP L483F_27
+L483F_6:
   LD HL,$48C1
   LD ($488C),HL
-  JR __HCOLOR_6
+  JR L483F_5
 ; This entry point is used by the routine at __HPLOT.
-__HCOLOR_8:
+L483F_7:
   EXX
   BIT 0,L
-  JP __HCOLOR_9
-__HCOLOR_9:
-  JP NZ,__HCOLOR_11
+  JP L483F_8
+L483F_8:
+  JP NZ,L483F_10
   LD A,C
   ADD A,A
-  JP Z,__HCOLOR_10
+  JP Z,L483F_9
   LD A,(HL)
   XOR E
   AND C
@@ -8001,8 +8274,8 @@ __HCOLOR_9:
   LD (HL),A
   LD A,B
   ADD A,A
-  JP Z,__HCOLOR_13
-__HCOLOR_10:
+  JP Z,L483F_12
+L483F_9:
   INC L
   LD A,(HL)
   XOR D
@@ -8012,10 +8285,10 @@ __HCOLOR_10:
   DEC L
   EXX
   RET
-__HCOLOR_11:
+L483F_10:
   LD A,B
   ADD A,A
-  JP Z,__HCOLOR_12
+  JP Z,L483F_11
   LD A,(HL)
   XOR D
   AND B
@@ -8023,8 +8296,8 @@ __HCOLOR_11:
   LD (HL),A
   LD A,C
   ADD A,A
-  JP Z,__HCOLOR_13
-__HCOLOR_12:
+  JP Z,L483F_12
+L483F_11:
   INC L
   LD A,(HL)
   XOR E
@@ -8032,21 +8305,21 @@ __HCOLOR_12:
   XOR (HL)
   LD (HL),A
   DEC L
-__HCOLOR_13:
+L483F_12:
   EXX
   RET
-  JP NZ,__HCOLOR_15
+  JP NZ,L483F_14
   LD A,C
   ADD A,A
-  JP Z,__HCOLOR_14
+  JP Z,L483F_13
   LD A,C
   AND $7F
   XOR (HL)
   LD (HL),A
   LD A,B
   ADD A,A
-  JP Z,__HCOLOR_13
-__HCOLOR_14:
+  JP Z,L483F_12
+L483F_13:
   INC L
   AND $7F
   XOR (HL)
@@ -8054,18 +8327,18 @@ __HCOLOR_14:
   DEC L
   EXX
   RET
-__HCOLOR_15:
+L483F_14:
   LD A,B
   ADD A,A
-  JP Z,__HCOLOR_16
+  JP Z,L483F_15
   LD A,B
   AND $7F
   XOR (HL)
   LD (HL),A
   LD A,C
   ADD A,A
-  JP Z,__HCOLOR_13
-__HCOLOR_16:
+  JP Z,L483F_12
+L483F_15:
   INC L
   LD A,C
   AND $7F
@@ -8075,16 +8348,16 @@ __HCOLOR_16:
   EXX
   RET
 ; This entry point is used by the routine at __HPLOT.
-__HCOLOR_17:
+L483F_16:
   CALL L4A91
   LD A,(L47E5)
   LD HL,$49FD
   SUB C
-  JR NC,__HCOLOR_18
+  JR NC,L483F_17
   CPL
   INC A
-  LD HL,__HCOLOR_35
-__HCOLOR_18:
+  LD HL,L483F_34
+L483F_17:
   PUSH HL
   PUSH AF
   LD A,C
@@ -8094,23 +8367,23 @@ __HCOLOR_18:
   LD ($47E3),HL
   OR A
   SBC HL,DE
-  JR NC,__HCOLOR_19
+  JR NC,L483F_18
   ADD HL,DE
   EX DE,HL
   OR A
   SBC HL,DE
   LD DE,$4A4E
-  JR __HCOLOR_20
-__HCOLOR_19:
-  LD DE,__HCOLOR_43
-__HCOLOR_20:
+  JR L483F_19
+L483F_18:
+  LD DE,L483F_42
+L483F_19:
   POP BC
   LD A,H
   OR A
   LD A,B
-  JR NZ,__HCOLOR_21
+  JR NZ,L483F_20
   CP L
-  JR C,__HCOLOR_21
+  JR C,L483F_20
   EX (SP),HL
   LD ($4956),HL
   EX DE,HL
@@ -8119,15 +8392,15 @@ __HCOLOR_20:
   LD H,$00
   POP DE
   PUSH HL
-  JR __HCOLOR_22
-__HCOLOR_21:
+  JR L483F_21
+L483F_20:
   EX (SP),HL
   LD ($4967),HL
   EX DE,HL
   LD ($4956),HL
   LD E,A
   LD D,$00
-__HCOLOR_22:
+L483F_21:
   POP HL
   LD ($496C),HL
   LD B,H
@@ -8136,30 +8409,30 @@ __HCOLOR_22:
   OR A
   RR H
   RR L
-  JR __HCOLOR_24
-__HCOLOR_23:
+  JR L483F_23
+L483F_22:
   EXX
-  CALL __HCOLOR_35
+  CALL L483F_34
   EXX
-  CALL __HCOLOR_8
-__HCOLOR_24:
+  CALL L483F_7
+L483F_23:
   DEC BC
   LD A,B
   OR C
   RET Z
   AND A
   SBC HL,DE
-  JR NC,__HCOLOR_23
+  JR NC,L483F_22
   EXX
-  CALL __HCOLOR_43
+  CALL L483F_42
   EXX
   PUSH DE
   LD DE,$0000
   ADD HL,DE
   POP DE
-  JP __HCOLOR_23
+  JP L483F_22
 ; This entry point is used by the routine at __HPLOT.
-__HCOLOR_25:
+L483F_24:
   PUSH HL
   CALL L4A91
   EX DE,HL
@@ -8168,7 +8441,7 @@ __HCOLOR_25:
   LD A,C
   LD (L47E5),A
 ; This entry point is used by the routine at L4801.
-__HCOLOR_26:
+L483F_25:
   AND $C0
   LD L,A
   RRA
@@ -8189,14 +8462,14 @@ __HCOLOR_26:
   LD H,A
   LD (L47DF),HL
   EX DE,HL
-  CALL __HCOLOR_30
+  CALL L483F_29
   SUB $07
-  JR C,__HCOLOR_27
+  JR C,L483F_26
   INC B
-__HCOLOR_27:
+L483F_26:
   LD A,B
   LD ($47E2),A
-__HCOLOR_28:
+L483F_27:
   LD A,(L47E1)
   LD C,A
   LD HL,$0000
@@ -8209,9 +8482,9 @@ __HCOLOR_28:
   ADD A,$07
   LD C,A
   SUB $0E
-  JR C,__HCOLOR_29
+  JR C,L483F_28
   LD C,A
-__HCOLOR_29:
+L483F_28:
   ADD HL,BC
   LD D,(HL)
   EX DE,HL
@@ -8219,13 +8492,13 @@ __HCOLOR_29:
   POP HL
   RET
 ; This entry point is used by the routine at __HPLOT.
-__HCOLOR_30:
+L483F_29:
   LD DE,$FFF2
   LD A,D
-__HCOLOR_31:
+L483F_30:
   INC A
   ADD HL,DE
-  JR C,__HCOLOR_31
+  JR C,L483F_30
   ADD A,A
   LD B,A
   LD A,L
@@ -8233,22 +8506,22 @@ __HCOLOR_31:
   LD (L47E1),A
   RET
 ; This entry point is used by the routine at __HPLOT.
-__HCOLOR_32:
+L483F_31:
   EXX
   LD HL,L4AC5
   LD D,$00
   LD A,(L47E1)
   SUB $07
-  JR NC,__HCOLOR_33
+  JR NC,L483F_32
   ADD A,$07
-__HCOLOR_33:
+L483F_32:
   LD E,A
   ADD HL,DE
   LD A,(HL)
   AND $7F
   EX AF,AF'
 ; This entry point is used by the routine at L4801.
-__HCOLOR_34:
+L483F_33:
   LD HL,(L47DD)
   LD C,L
   LD B,H
@@ -8266,20 +8539,20 @@ __HCOLOR_34:
   PUSH AF
   LD A,H
   SUB $14
-  JR NC,__HCOLOR_38
+  JR NC,L483F_37
   RL L
   RLA
   DEC A
   BIT 3,A
-  JR NZ,__HCOLOR_36
+  JR NZ,L483F_35
   LD H,$2F
   SCF
   LD A,L
   RRA
   SUB $28
   LD L,A
-  JP __HCOLOR_40
-__HCOLOR_35:
+  JP L483F_39
+L483F_34:
   LD A,L
   LD HL,(L47DF)
   SUB L
@@ -8287,30 +8560,30 @@ __HCOLOR_35:
   LD A,H
   SUB $0C
   BIT 5,A
-  JR Z,__HCOLOR_38
+  JR Z,L483F_37
   RL L
   RLA
   INC A
   BIT 3,A
-  JR Z,__HCOLOR_37
+  JR Z,L483F_36
   LD H,$10
   LD A,L
   RRA
   ADD A,$28
   LD L,A
-  JP __HCOLOR_40
-__HCOLOR_36:
+  JP L483F_39
+L483F_35:
   AND $3F
-__HCOLOR_37:
+L483F_36:
   XOR $60
   RRA
   RR L
-  JP __HCOLOR_39
-__HCOLOR_38:
+  JP L483F_38
+L483F_37:
   ADD A,$10
-__HCOLOR_39:
+L483F_38:
   LD H,A
-__HCOLOR_40:
+L483F_39:
   LD (L47DF),HL
   POP AF
   ADD A,L
@@ -8318,39 +8591,39 @@ __HCOLOR_40:
   RET
   EX AF,AF'
   RRCA
-  JP NC,__HCOLOR_41
+  JP NC,L483F_40
   DEC L
   RRCA
-__HCOLOR_41:
+L483F_40:
   EX AF,AF'
   SCF
   RR B
-  JP C,__HCOLOR_42
+  JP C,L483F_41
   RES 7,C
-__HCOLOR_42:
+L483F_41:
   SCF
   RR C
   RET C
   RES 6,B
   RET
-__HCOLOR_43:
+L483F_42:
   EX AF,AF'
   ADD A,A
-  JP P,__HCOLOR_44
+  JP P,L483F_43
   INC L
   RLCA
-__HCOLOR_44:
+L483F_43:
   EX AF,AF'
   SCF
   BIT 6,B
-  JP NZ,__HCOLOR_45
+  JP NZ,L483F_44
   OR A
-__HCOLOR_45:
+L483F_44:
   RL C
-  JP M,__HCOLOR_46
+  JP M,L483F_45
   OR A
   SET 7,C
-__HCOLOR_46:
+L483F_45:
   RL B
   SET 7,B
   RET
@@ -8362,7 +8635,7 @@ L4A81:
 
 ; Routine at 19089
 ;
-; Used by the routine at __HCOLOR.
+; Used by the routine at L483F.
 L4A91:
   LD A,(A2_HCOLOR)
   LD HL,L4AC5
@@ -8401,6 +8674,7 @@ __HGR:
   LD A,$00
   CALL NZ,GETINT
   CP $04
+; This entry point is used by the routine at L4B30.
 __HGR_0:
   JP NC,FC_ERR
   LD (LE057),A
@@ -8412,7 +8686,7 @@ __HGR_0:
   CALL GETINT
 __HGR_1:
   PUSH AF
-  CALL __HCOLOR_0
+  CALL L483F_0
   POP BC
   POP AF
   AND $02
@@ -8441,7 +8715,7 @@ __HGR_3:
   CP $30
   JR NZ,__HGR_3
   RET
-; This entry point is used by the routine at __HPLOT.
+; This entry point is used by the routines at L47F6 and __HPLOT.
 __HGR_4:
   CALL POSINT
   LD A,E
@@ -8451,7 +8725,13 @@ __HGR_4:
   JR NC,__HGR_0
   PUSH DE
   CALL SYNCHR
-  INC L
+
+; Message at 19247
+L4B2F:
+  DEFM ","
+
+; Routine at 19248
+L4B30:
   CALL GETINT
   CP $C0
   JR NC,__HGR_0
@@ -8463,20 +8743,20 @@ __HGR_4:
 __HPLOT:
   CP $DD
   JR NZ,__HPLOT_0
-  CALL __HCOLOR_32
+  CALL L483F_31
   JR __HPLOT_1
 __HPLOT_0:
   CALL __HGR_4
-  CALL __HCOLOR_25
-  CALL __HCOLOR_32
-  CALL __HCOLOR_8
+  CALL L483F_24
+  CALL L483F_31
+  CALL L483F_7
   CALL _CHRCKB
   RET Z
 __HPLOT_1:
   CALL CHRGTB
   CALL __HGR_4
   PUSH HL
-  CALL __HCOLOR_17
+  CALL L483F_16
   POP HL
   LD A,(HL)
   CP $DD
@@ -8491,12 +8771,12 @@ __HPLOT_1:
   LD H,B
   LD (L47DD),HL
   LD HL,($47E3)
-  CALL __HCOLOR_30
+  CALL L483F_29
   EXX
   RET
   LD E,$1F
   LD BC,$391E
-  LD BC,$441E
+  LD BC,L441E
   LD BC,$451E
   LD BC,$461E
   JP $0C7B
@@ -9061,7 +9341,7 @@ MLSP10:
 
 ; Test sign of FPREG
 ;
-; Used by the routines at FORFND, __LOG, FMULT, FDIV, VSIGN, FCOMP, XDCOMP,
+; Used by the routines at L32F3, __LOG, FMULT, FDIV, VSIGN, FCOMP, XDCOMP,
 ; __FIX, DMUL, FFXSDC, FFXXVS, POWER, __RND, __SIN and __ATN.
 SIGN:
   LD A,(FPEXP)
@@ -9135,13 +9415,13 @@ CONIA:
 
 ; Test sign in number
 ;
-; Used by the routines at __IF, __ABS, __SGN, PUFOUT and __WEND.
+; Used by the routines at L3715, __ABS, __SGN, PUFOUT and __WEND.
 VSIGN:
   CALL GETYPR
   JP Z,TM_ERR
   JP P,SIGN
   LD HL,(FACCU)
-; This entry point is used by the routine at FORFND.
+; This entry point is used by the routine at L32F3.
 VSIGN_0:
   LD A,H
   OR L
@@ -9185,7 +9465,7 @@ FPBCDE:
 
 ; Load FP reg to BCDE
 ;
-; Used by the routines at FORFND, EVAL_FP, __LOG, MLSP10, __CSNG, QINT, INT,
+; Used by the routines at L32F3, EVAL_FP, __LOG, MLSP10, __CSNG, QINT, INT,
 ; FOUCS1, POWER, SUMSER and __RND.
 BCDEFP:
   LD HL,FACCU
@@ -9210,7 +9490,7 @@ LOADFP_0:
 L4EBF:
   INC HL
   RET
-; This entry point is used by the routines at __FOR, __RND and __NEXT.
+; This entry point is used by the routines at L329B, __RND and __NEXT.
 L4EBF_0:
   LD DE,FACCU
 ; This entry point is used by the routines at OVERR, FINEC and RUN_FST.
@@ -9224,8 +9504,8 @@ MOVVFM:
 
 ; Routine at 20169
 ;
-; Used by the routines at __LET, CMPPHL, DMUL, FORBIG, __SWAP, TSTOPL and
-; FN_INSTR.
+; Used by the routines at L35E2, CMPPHL, DMUL, FORBIG, __SWAP, L69DC, TSTOPL
+; and L6F67.
 VMOVE:
   LD A,(VALTYP)
   LD B,A
@@ -9413,8 +9693,8 @@ DCOMP:
 
 ; Routine at 20342
 ;
-; Used by the routines at FORFND, LOPREL, __NOT, DANDOR, DEPINT, __RANDOMIZE
-; and __CALL.
+; Used by the routines at L32F3, LOPREL, __NOT, DANDOR, DEPINT, __RANDOMIZE and
+; __CALL.
 __CINT:
   CALL GETYPR
   LD HL,(FACCU)
@@ -9473,8 +9753,8 @@ __CINT_6:
 
 ; Convert tmp string to int in A register
 ;
-; Used by the routines at __VARPTR, OCTCNS, PASSA, __BUTTON, CONIA, __CINT,
-; INT, IMULT, INEGA, INEGHL, FIN and LINPRT.
+; Used by the routines at L3C68, OCTCNS, PASSA, __BUTTON, CONIA, __CINT, INT,
+; IMULT, INEGA, INEGHL, FIN and LINPRT.
 MAKINT:
   LD (FACCU),HL
 ; This entry point is used by the routine at INEG.
@@ -9496,7 +9776,7 @@ MAKINT_2:
 
 ; Routine at 20462
 ;
-; Used by the routines at FORFND, LOPREL, FACDBL, OKNORM, DPOINT and POWER.
+; Used by the routines at L32F3, LOPREL, FACDBL, OKNORM, DPOINT and POWER.
 __CSNG:
   CALL GETYPR
   RET PO
@@ -9558,8 +9838,8 @@ VALSNG:
 
 ; Test a string, 'Type Error' if it is not
 ;
-; Used by the routines at __LINE, ISFUN, __USING, CONCAT, GETSTR, FN_INSTR,
-; LINE_INPUT, __FIELD and __LSET.
+; Used by the routines at L388F, L3D64, __USING, L6462, CONCAT, GETSTR, L6EF1,
+; L6F67, LINE_INPUT, L7913 and __LSET.
 TSTSTR:
   CALL GETYPR
   RET Z
@@ -10410,7 +10690,7 @@ DMUL10:
   INC (HL)
   RET NZ
   JP OVERR_1
-; This entry point is used by the routines at __READ, __VAL and LINE_INPUT.
+; This entry point is used by the routines at L39C7, __VAL and LINE_INPUT.
 DMUL10_0:
   CALL FADD_5
   CALL __CDBL_1
@@ -10418,7 +10698,7 @@ DMUL10_0:
 
 ; Routine at 21671
 ;
-; Used by the routines at FLTGET, __READ, OPRND, __RANDOMIZE and LINE_INPUT.
+; Used by the routines at FLTGET, L39C7, OPRND, __RANDOMIZE and LINE_INPUT.
 FIN:
   XOR A
   LD BC,$4531
@@ -10798,12 +11078,12 @@ FINEC:
   LD (FLGOVC),A
 FINEC_0:
   LD HL,($0848)
-  CALL __OPTION_0
+  CALL L4423_0
   LD (TTYPOS),A
   LD A,$0D
-  CALL __OPTION_1
+  CALL L4423_1
   LD A,$0A
-  CALL __OPTION_1
+  CALL L4423_1
 FINEC_1:
   POP AF
   LD HL,FACCU
@@ -10857,7 +11137,7 @@ IN_PRT:
 
 ; Print HL in ASCII form at the current cursor position
 ;
-; Used by the routines at PROMPT, NEWSTT, __LIST, _LINE2PTR, __EDIT and PROCHK.
+; Used by the routines at PROMPT, NEWSTT, __LIST, _LINE2PTR, __EDIT and L8345.
 LINPRT:
   LD BC,PRNUMS
   PUSH BC
@@ -10875,7 +11155,7 @@ FOUT:
 
 ; Routine at 22307
 ;
-; Used by the routine at __USING.
+; Used by the routine at L6462.
 PUFOUT:
   CALL FOUINI
   AND $08
@@ -12303,7 +12583,10 @@ DIMRET:
   CALL CHRGTB
   RET Z
   CALL SYNCHR
-  INC L
+
+; Message at 24367
+L5F2F:
+  DEFM ","
 
 ; Routine at 24368
 __DIM:
@@ -12313,14 +12596,14 @@ __DIM:
 
 ; Routine at 24373
 ;
-; Used by the routines at SRCHLP, __FOR, __LET, __LINE, __INPUT, __READ,
-; __VARPTR, EVAL_VARIABLE, __DEF, ASGMOR, SCNCNT, __SWAP, __ERASE, __NEXT,
-; __CALL, CHAIN_COMMON, SCNSMP, LINE_INPUT, __FIELD and __LSET.
+; Used by the routines at SRCHLP, __FOR, __LET, L388F, L3926, L39C7, L3C52,
+; EVAL_VARIABLE, __DEF, ASGMOR, SCNCNT, __SWAP, L69DC, __ERASE, __NEXT, L6F67,
+; __CALL, L726D, CHAIN_COMMON, SCNSMP, LINE_INPUT, L7913 and __LSET.
 PTRGET:
   XOR A
   LD (DIMFLG),A
   LD C,(HL)
-; This entry point is used by the routine at IDTEST.
+; This entry point is used by the routine at L402A.
 PTRGET_0:
   CALL CHKLTR
   JP C,SN_ERR
@@ -12484,7 +12767,7 @@ SMKVAR:
   POP HL
   EX (SP),HL
   PUSH DE
-  LD DE,__VARPTR_2
+  LD DE,L3C52_1
   CALL DCOMPR
   JR Z,VARNOT
   LD DE,$73A5
@@ -13272,17 +13555,23 @@ __USING:
   CALL EVAL_0
   CALL TSTSTR
   CALL SYNCHR
-  DEC SP
+
+; Message at 25697
+L6461:
+  DEFM ";"
+
+; Routine at 25698
+L6462:
   EX DE,HL
   LD HL,(FACCU)
-  JR __USING_1
-__USING_0:
+  JR L6462_1
+L6462_0:
   LD A,(FLGINP)
   OR A
-  JR Z,__USING_2
+  JR Z,L6462_2
   POP DE
   EX DE,HL
-__USING_1:
+L6462_1:
   PUSH HL
   XOR A
   LD (FLGINP),A
@@ -13291,120 +13580,120 @@ __USING_1:
   PUSH DE
   LD B,(HL)
   OR B
-__USING_2:
+L6462_2:
   JP Z,FC_ERR
   INC HL
   LD C,(HL)
   INC HL
   LD H,(HL)
   LD L,C
-  JR __USING_7
-__USING_3:
+  JR L6462_7
+L6462_3:
   LD E,B
   PUSH HL
   LD C,$02
-__USING_4:
+L6462_4:
   LD A,(HL)
   INC HL
   CP $5C
   JP Z,$65D2
   CP $20
-  JR NZ,__USING_5
+  JR NZ,L6462_5
   INC C
-  DJNZ __USING_4
-__USING_5:
+  DJNZ L6462_4
+L6462_5:
   POP HL
   LD B,E
   LD A,$5C
-__USING_6:
-  CALL __USING_30
+L6462_6:
+  CALL L6462_30
   CALL OUTDO
-__USING_7:
+L6462_7:
   XOR A
   LD E,A
   LD D,A
-__USING_8:
-  CALL __USING_30
+L6462_8:
+  CALL L6462_30
   LD D,A
   LD A,(HL)
   INC HL
   CP $21
-  JP Z,__USING_27
+  JP Z,L6462_27
   CP $23
-  JR Z,__USING_11
+  JR Z,L6462_11
   CP $26
-  JP Z,__USING_26
+  JP Z,L6462_26
   DEC B
-  JP Z,__USING_22
+  JP Z,L6462_22
   CP $2B
   LD A,$08
-  JR Z,__USING_8
+  JR Z,L6462_8
   DEC HL
   LD A,(HL)
   INC HL
   CP $2E
-  JR Z,__USING_12
+  JR Z,L6462_12
   CP $5F
-  JP Z,__USING_25
+  JP Z,L6462_25
   CP $5C
-  JR Z,__USING_3
+  JR Z,L6462_3
   CP (HL)
-  JR NZ,__USING_6
+  JR NZ,L6462_6
   CP $24
   JR Z,$64EC
   CP $2A
-  JR NZ,__USING_6
+  JR NZ,L6462_6
   LD A,B
   INC HL
   CP $02
-  JR C,__USING_9
+  JR C,L6462_9
   LD A,(HL)
   CP $24
-__USING_9:
+L6462_9:
   LD A,$20
-  JR NZ,__USING_10
+  JR NZ,L6462_10
   DEC B
   INC E
   CP $AF
   ADD A,$10
   INC HL
-__USING_10:
+L6462_10:
   INC E
   ADD A,D
   LD D,A
-__USING_11:
+L6462_11:
   INC E
   LD C,$00
   DEC B
-  JR Z,__USING_15
+  JR Z,L6462_15
   LD A,(HL)
   INC HL
   CP $2E
-  JR Z,__USING_13
+  JR Z,L6462_13
   CP $23
-  JR Z,__USING_11
+  JR Z,L6462_11
   CP $2C
-  JR NZ,__USING_14
+  JR NZ,L6462_14
   LD A,D
   OR $40
   LD D,A
-  JR __USING_11
-__USING_12:
+  JR L6462_11
+L6462_12:
   LD A,(HL)
   CP $23
   LD A,$2E
-  JP NZ,__USING_6
+  JP NZ,L6462_6
   LD C,$01
   INC HL
-__USING_13:
+L6462_13:
   INC C
   DEC B
-  JR Z,__USING_15
+  JR Z,L6462_15
   LD A,(HL)
   INC HL
   CP $23
-  JR Z,__USING_13
-__USING_14:
+  JR Z,L6462_13
+L6462_14:
   PUSH DE
   LD DE,$653F
   PUSH DE
@@ -13430,31 +13719,31 @@ __USING_14:
   INC D
   INC HL
   JP Z,$D1EB
-__USING_15:
+L6462_15:
   LD A,D
   DEC HL
   INC E
   AND $08
-  JR NZ,__USING_17
+  JR NZ,L6462_17
   DEC E
   LD A,B
   OR A
-  JR Z,__USING_17
+  JR Z,L6462_17
   LD A,(HL)
   SUB $2D
-  JR Z,__USING_16
+  JR Z,L6462_16
   CP $FE
-  JR NZ,__USING_17
+  JR NZ,L6462_17
   LD A,$08
-__USING_16:
+L6462_16:
   ADD A,$04
   ADD A,D
   LD D,A
   DEC B
-__USING_17:
+L6462_17:
   POP HL
   POP AF
-  JR Z,__USING_24
+  JR Z,L6462_24
   PUSH BC
   PUSH DE
   CALL EVAL
@@ -13471,20 +13760,20 @@ __USING_17:
   OR $80
   CALL PUFOUT
   CALL PRS
-__USING_18:
+L6462_18:
   POP HL
   DEC HL
   CALL CHRGTB
   SCF
-  JR Z,__USING_20
+  JR Z,L6462_20
   LD (FLGINP),A
   CP $3B
-  JR Z,__USING_19
+  JR Z,L6462_19
   CP $2C
   JP NZ,SN_ERR
-__USING_19:
+L6462_19:
   CALL CHRGTB
-__USING_20:
+L6462_20:
   POP BC
   EX DE,HL
   POP HL
@@ -13501,43 +13790,43 @@ __USING_20:
   LD D,$00
   LD E,A
   ADD HL,DE
-__USING_21:
+L6462_21:
   LD A,B
   OR A
-  JP NZ,__USING_7
-  JR __USING_23
-__USING_22:
-  CALL __USING_30
+  JP NZ,L6462_7
+  JR L6462_23
+L6462_22:
+  CALL L6462_30
   CALL OUTDO
-__USING_23:
+L6462_23:
   POP HL
   POP AF
-  JP NZ,__USING_0
-__USING_24:
+  JP NZ,L6462_0
+L6462_24:
   CALL C,OUTDO_CRLF
   EX (SP),HL
   CALL GSTRHL
   POP HL
   JP FINPRT
-__USING_25:
-  CALL __USING_30
+L6462_25:
+  CALL L6462_30
   DEC B
   LD A,(HL)
   INC HL
   CALL OUTDO
-  JR __USING_21
-__USING_26:
+  JR L6462_21
+L6462_26:
   LD C,$FF
-  JR __USING_28
-__USING_27:
+  JR L6462_28
+L6462_27:
   LD C,$01
   LD A,$F1
-__USING_28:
+L6462_28:
   DEC B
-  CALL __USING_30
+  CALL L6462_30
   POP HL
   POP AF
-  JR Z,__USING_24
+  JR Z,L6462_24
   PUSH BC
   CALL EVAL
   CALL TSTSTR
@@ -13553,18 +13842,18 @@ __USING_28:
   LD HL,(FACCU)
   POP AF
   INC A
-  JP Z,__USING_18
+  JP Z,L6462_18
   DEC A
   SUB (HL)
   LD B,A
   LD A,$20
   INC B
-__USING_29:
+L6462_29:
   DEC B
-  JP Z,__USING_18
+  JP Z,L6462_18
   CALL OUTDO
-  JR __USING_29
-__USING_30:
+  JR L6462_29
+L6462_30:
   PUSH AF
   LD A,D
   OR A
@@ -13575,9 +13864,9 @@ __USING_30:
 
 ; Output char in 'A' to console
 ;
-; Used by the routines at PROMPT, NEWSTT, SPCLP, __INPUT, __LIST, __EDIT,
-; DISPED, __USING, NTBKS1, L670C, OUTCH1, ENDCON, PRS1, __FRE, PINLIN, __WRITE,
-; CRLFSQ and __FILES.
+; Used by the routines at PROMPT, NEWSTT, SPCLP, L3926, __LIST, __EDIT, DISPED,
+; L6462, NTBKS1, L670C, OUTCH1, ENDCON, PRS1, __FRE, PINLIN, L75C6, CRLFSQ and
+; __FILES.
 OUTDO:
   PUSH AF
   PUSH HL
@@ -13660,7 +13949,7 @@ OUTDO_8:
   XOR A
   LD (LPTPOS),A
   RET
-; This entry point is used by the routine at __OPTION.
+; This entry point is used by the routine at L4423.
 OUTDO_9:
   LD A,(CTLOFG)
   OR A
@@ -13817,7 +14106,7 @@ L670C_3:
   RET
 L670C_4:
   POP HL
-; This entry point is used by the routines at DISPED, FN_INKEY and FN_INPUT.
+; This entry point is used by the routines at DISPED, FN_INKEY and L7A0F.
 L670C_5:
   PUSH BC
   PUSH DE
@@ -13850,7 +14139,7 @@ L670C_7:
   LD (HL),$00
   LD HL,BUFMIN
 ; This entry point is used by the routines at ERRMOR, __PRINT, DOSPC, __LIST,
-; DISPED, __USING, NOTAB, ENDCON, PINLIN, NTRNDW, __FILES and PROCHK.
+; DISPED, L6462, NOTAB, ENDCON, PINLIN, NTRNDW, __FILES and L8345.
 OUTDO_CRLF:
   LD A,$0D
   CALL OUTDO
@@ -13924,7 +14213,7 @@ FN_INKEY_1:
   LD (VALTYP),A
   POP HL
   RET
-; This entry point is used by the routines at SRCHLP and FN_INPUT.
+; This entry point is used by the routines at SRCHLP and L7A0F.
 FN_INKEY_2:
   LD A,(CHARC)
   OR A
@@ -13974,7 +14263,7 @@ MOVLP:
 
 ; Check for C levels of stack
 ;
-; Used by the routines at FORFND, __GOSUB, EVAL, ASGMOR, FINASG, SBSCPT, FNDARY
+; Used by the routines at FORFND, __GOSUB, EVAL, ASGMOR, L3F72, SBSCPT, FNDARY
 ; and __CALL.
 CHKSTK:
   PUSH HL
@@ -13995,7 +14284,7 @@ CHKSTK:
 
 ; Routine at 26678
 ;
-; Used by the routines at FNDARY, CHKSTK, __CLEAR, LOAD_END and PROCHK.
+; Used by the routines at FNDARY, CHKSTK, L6A82, LOAD_END and L8345.
 OM_ERR:
   LD HL,(STKTOP)
   DEC HL
@@ -14008,7 +14297,7 @@ OM_ERR_0:
 
 ; Routine at 26692
 ;
-; Used by the routines at FNDARY, MOVUP and PROCHK.
+; Used by the routines at FNDARY, MOVUP and L8345.
 ENFMEM:
   CALL ENFMEM_0
   RET NC
@@ -14072,7 +14361,7 @@ CLRPTR:
 RUN_FST:
   LD HL,(TXTTAB)
   DEC HL
-; This entry point is used by the routines at __RUN and __CLEAR.
+; This entry point is used by the routines at __RUN, __CLEAR, L6A5D and L6A82.
 RUN_FST_0:
   LD (TEMP),HL
   LD A,(MRGFLG)
@@ -14147,18 +14436,18 @@ RUN_FST_4:
 
 ; Routine at 26907
 ;
-; Used by the routines at LOAD_END, __OPEN and __GET.
+; Used by the routines at LOAD_END, L7D2F and __GET.
 GTMPRT:
   LD HL,(TEMP)
   RET
 
 ; compare DE and HL (aka CPDEHL)
 ;
-; Used by the routines at LOKFOR, ERRMOR, AUTGOD, SRCHLP, __FOR, ATOH, __GOTO,
-; __LET, FINASG, __LIST, __DEL, __RENUM, __OPTION, ADDIG, FINEC, SMKVAR,
-; ZEROER, FNDARY, MOVLP, ENFMEM, __SWAP, __ERASE, __CLEAR, __NEXT, TSTOPL,
-; TESTR, GSTRDE, FN_INSTR, __WEND, __CHAIN, CLPSLP, DLSVLP, CLPAKP, DNCMDA,
-; CAYSTR, CDVARS, BINSAV, __FIELD, __LSET, __FILES and __GET.
+; Used by the routines at LOKFOR, ERRMOR, AUTGOD, SRCHLP, L329B, ATOH, __GOTO,
+; L35E2, L3F72, __LIST, __DEL, L4305, L4423, ADDIG, FINEC, SMKVAR, ZEROER,
+; FNDARY, MOVLP, ENFMEM, L69DC, __ERASE, L6A82, __NEXT, TSTOPL, TESTR, GSTRDE,
+; L6F67, FNDWND, L7317, CLPSLP, DLSVLP, CLPAKP, DNCMDA, CAYSTR, CDVARS, BINSAV,
+; L7913, __LSET, __FILES and __GET.
 DCOMPR:
   LD A,H
   SUB D
@@ -14169,13 +14458,16 @@ DCOMPR:
 
 ; Check syntax, 1 byte follows to be compared
 ;
-; Used by the routines at __FOR, FORFND, __LET, __ON, __AUTO, __IF, LNOMOD,
-; __LINE, __INPUT, __READ, FRMEQL, OPNPAR, __VARPTR, EVLPAR, ISFUN, DEF_USR,
-; __DEF, DOFN, ASGMOR, FINASG, IDTEST, __POKE, __RENUM, __OPTION, SCNCNT,
-; __COLOR, GET_2_ARGS, __WAIT, FN_SCRN, FN_COLOR, L47A8, FN_HSCRN, __HCOLOR,
-; __HGR, DIMRET, __USING, __SWAP, __CLEAR, FN_STRING, LFRGNM, FN_INSTR, __CALL,
-; __CHAIN, BCKUCM, __WRITE, GDFILM, __LOAD, __SAVE, __FIELD, FN_INPUT, __NAME,
-; __OPEN and PROCHK.
+; Used by the routines at __FOR, FORFND, __LET, __ON, L364D, __AUTO, __IF,
+; LNOMOD, __LINE, __INPUT, __READ, FRMEQL, OPNPAR, __VARPTR, L3C52, EVLPAR,
+; ISFUN, DEF_USR, __DEF, DOFN, ASGMOR, L3F13, FINASG, IDTEST, __POKE, __RENUM,
+; L42FB, __OPTION, L4417, L441B, L441F, SCNCNT, __COLOR, L4646, L466B,
+; GET_2_ARGS, __WAIT, L472A, FN_SCRN, L4764, FN_COLOR, L47A8, FN_HSCRN, L47F6,
+; __HCOLOR, __HGR, DIMRET, __USING, __SWAP, __CLEAR, L6A5D, FN_STRING, L6E1A,
+; L6E22, LFRGNM, FN_INSTR, L6EF1, L6EFB, L6F07, L6F67, L6F94, L6FEB, __CALL,
+; L726D, __CHAIN, L72E5, L72FE, L7308, L730C, L7310, BCKUCM, L73ED, __WRITE,
+; GDFILM, __LOAD, L7795, __SAVE, L7871, __FIELD, L790F, FN_INPUT, L79EE, L79F2,
+; __NAME, L7CCB, __OPEN, L7D22, PROCHK, L8316 and L833B.
 SYNCHR:
   LD A,(HL)
   EX (SP),HL
@@ -14208,7 +14500,7 @@ __RESTORE:
   JP NC,UL_ERR
 __RESTORE_0:
   DEC HL
-; This entry point is used by the routine at __READ.
+; This entry point is used by the routine at L39C7.
 __RESTORE_1:
   LD ($0B75),HL
   EX DE,HL
@@ -14314,7 +14606,13 @@ __SWAP:
   CALL GETYPR
   PUSH AF
   CALL SYNCHR
-  INC L
+
+; Message at 27099
+L69DB:
+  DEFM ","
+
+; Routine at 27100
+L69DC:
   CALL PTRGET
   POP BC
   CALL GETYPR
@@ -14410,13 +14708,19 @@ __CLEAR:
   JP Z,RUN_FST_0
 __CLEAR_0:
   CALL SYNCHR
-  INC L
+
+; Message at 27228
+L6A5C:
+  DEFM ","
+
+; Routine at 27229
+L6A5D:
   JP Z,RUN_FST_0
   EX DE,HL
   LD HL,(STKTOP)
   EX DE,HL
   CP $2C
-  JR Z,__CLEAR_1
+  JR Z,L6A5D_0
   CALL EVAL
   PUSH HL
   CALL GETWORD_HL
@@ -14425,26 +14729,32 @@ __CLEAR_0:
   JP Z,FC_ERR
   EX DE,HL
   POP HL
-__CLEAR_1:
+L6A5D_0:
   DEC HL
   CALL CHRGTB
   PUSH DE
-  JR Z,__CLEAR_3
+  JR Z,L6A82_1
   CALL SYNCHR
-  INC L
-  JR Z,__CLEAR_3
+
+; Message at 27265
+L6A81:
+  DEFM ","
+
+; Routine at 27266
+L6A82:
+  JR Z,L6A82_1
   CALL INTIDX_0
   DEC HL
   CALL CHRGTB
   JP NZ,SN_ERR
-__CLEAR_2:
+L6A82_0:
   EX (SP),HL
   PUSH HL
   LD HL,$004E
   CALL DCOMPR
   JP NC,OM_ERR
   POP HL
-  CALL __CLEAR_4
+  CALL L6A82_2
   JP C,OM_ERR
   PUSH HL
   LD HL,(VARTAB)
@@ -14458,7 +14768,8 @@ __CLEAR_2:
   LD (STKTOP),HL
   POP HL
   JP RUN_FST_0
-__CLEAR_3:
+; This entry point is used by the routine at L6A5D.
+L6A82_1:
   PUSH HL
   LD HL,(STKTOP)
   EX DE,HL
@@ -14470,8 +14781,8 @@ __CLEAR_3:
   SBC A,H
   LD D,A
   POP HL
-  JR __CLEAR_2
-__CLEAR_4:
+  JR L6A82_0
+L6A82_2:
   LD A,L
   SUB E
   LD E,A
@@ -14582,7 +14893,7 @@ __NEXT_5:
   LD (CURLIN),HL
   LD L,C
   LD H,B
-  JP FORFND_3
+  JP L32F3_3
 __NEXT_6:
   LD SP,HL
   LD (SAVSTK),HL
@@ -14658,7 +14969,7 @@ SAVSTR:
 
 ; Routine at 27590
 ;
-; Used by the routines at __LET, FINASG, FN_INSTR and CDVARS.
+; Used by the routines at L35E2, L3F72, L6F67 and CDVARS.
 STRCPY:
   LD A,(HL)
   INC HL
@@ -14680,7 +14991,7 @@ STRIN1:
 
 ; Make temporary string
 ;
-; Used by the routines at CONCAT, __SPACE_S, __MKD_S, MAKDSC and FN_INPUT.
+; Used by the routines at CONCAT, __SPACE_S, __MKD_S, MAKDSC and L7A0F.
 MKTMST:
   CALL TESTR
 
@@ -14711,13 +15022,13 @@ CRTST:
 ; Used by the routines at __INPUT and OPRND.
 QTSTR:
   LD B,$22
-; This entry point is used by the routine at __LINE.
+; This entry point is used by the routine at L388F.
 QTSTR_0:
   LD D,B
 
 ; Create String, termination char in D
 ;
-; Used by the routines at __READ and LINE_INPUT.
+; Used by the routines at L39C7 and LINE_INPUT.
 DTSTR:
   PUSH HL
   LD C,$FF
@@ -14781,13 +15092,13 @@ PRNUMS:
 ; Create string entry and print it
 ;
 ; Used by the routines at ERRMOR, INPBAK, __DEL, _LINE2PTR, __RANDOMIZE,
-; IN_PRT, __USING, L670C and PROCHK.
+; IN_PRT, L6462, L670C and L8345.
 PRS:
   CALL CRTST
 
 ; Print string at HL
 ;
-; Used by the routines at __PRINT, __INPUT, __USING and __WRITE.
+; Used by the routines at __PRINT, L3926, L6462, __WRITE and L75C6.
 PRS1:
   CALL GSTRCU
   CALL LOADFP_0
@@ -15064,20 +15375,20 @@ TSALP:
 
 ; Get string pointed by FPREG 'Type Error' if it is not
 ;
-; Used by the routines at STRCMP, __LEN, FN_INSTR, __CVD, __LSET, FNAME and
+; Used by the routines at STRCMP, __LEN, L6F07, L6F94, __CVD, __LSET, FNAME and
 ; __OPEN.
 GETSTR:
   CALL TSTSTR
 
 ; Get string pointed by FPREG
 ;
-; Used by the routines at __INPUT, FN_USR, __STR_S, PRS1 and __FRE.
+; Used by the routines at L3926, FN_USR, __STR_S, PRS1 and __FRE.
 GSTRCU:
   LD HL,(FACCU)
 
 ; Get string pointed by HL
 ;
-; Used by the routines at __USING, CONCAT and FN_INSTR.
+; Used by the routines at L6462, CONCAT and L6F07.
 GSTRHL:
   EX DE,HL
 
@@ -15102,7 +15413,7 @@ GSTRDE:
 GSTRDE_0:
   POP HL
   RET
-; This entry point is used by the routine at __LET.
+; This entry point is used by the routine at L35E2.
 GSTRDE_1:
   LD HL,(TEMPPT)
   DEC HL
@@ -15113,8 +15424,6 @@ GSTRDE_1:
   CALL DCOMPR
   RET NZ
   LD (TEMPPT),HL
-; This entry point is used by the routine at FN_STRING.
-GSTRDE_2:
   RET
 
 ; Routine at 28137
@@ -15134,7 +15443,7 @@ __LEN_0:
 __ASC:
   LD BC,PASSA
   PUSH BC
-; This entry point is used by the routine at FN_STRING.
+; This entry point is used by the routine at L6E29.
 __ASC_0:
   CALL __LEN_0
   JP Z,FC_ERR
@@ -15165,24 +15474,41 @@ TOPOOL:
 FN_STRING:
   CALL CHRGTB
   CALL SYNCHR
-  JR Z,GSTRDE_2
-  SUB A
-  LD B,B
+
+; Message at 28185
+L6E19:
+  DEFM "("
+
+; Routine at 28186
+L6E1A:
+  CALL GETINT
   PUSH DE
   CALL SYNCHR
-  INC L
+
+; Message at 28193
+L6E21:
+  DEFM ","
+
+; Routine at 28194
+L6E22:
   CALL EVAL
   CALL SYNCHR
-  ADD HL,HL
+
+; Message at 28200
+L6E28:
+  DEFM ")"
+
+; Routine at 28201
+L6E29:
   EX (SP),HL
   PUSH HL
   CALL GETYPR
-  JR Z,FN_STRING_0
+  JR Z,L6E29_0
   CALL CONINT
-  JR FN_STRING_1
-FN_STRING_0:
+  JR L6E29_1
+L6E29_0:
   CALL __ASC_0
-FN_STRING_1:
+L6E29_1:
   POP DE
   CALL __SPACE_S_0
 
@@ -15190,7 +15516,7 @@ FN_STRING_1:
 __SPACE_S:
   CALL CONINT
   LD A,$20
-; This entry point is used by the routine at FN_STRING.
+; This entry point is used by the routine at L6E29.
 __SPACE_S_0:
   PUSH AF
   LD A,E
@@ -15261,7 +15587,7 @@ __MID_S:
   DEC B
   JP Z,FC_ERR
   PUSH BC
-  CALL FN_INSTR_11
+  CALL L6F94_2
   POP AF
   EX (SP),HL
   LD BC,$6E5D
@@ -15309,7 +15635,10 @@ __VAL:
 LFRGNM:
   EX DE,HL
   CALL SYNCHR
-  ADD HL,HL
+
+; Message at 28368
+L6ED0:
+  DEFM ")"
 
 ; Get number in program listing
 ;
@@ -15330,25 +15659,44 @@ FN_INSTR:
   CALL GETYPR
   LD A,$01
   PUSH AF
-  JR Z,FN_INSTR_0
+  JR Z,L6EF1_0
   POP AF
   CALL CONINT
   OR A
   JP Z,FC_ERR
   PUSH AF
   CALL SYNCHR
-  INC L
+
+; Message at 28400
+L6EF0:
+  DEFM ","
+
+; Routine at 28401
+L6EF1:
   CALL EVAL
   CALL TSTSTR
-FN_INSTR_0:
+; This entry point is used by the routine at FN_INSTR.
+L6EF1_0:
   CALL SYNCHR
-  INC L
+
+; Message at 28410
+L6EFA:
+  DEFM ","
+
+; Routine at 28411
+L6EFB:
   PUSH HL
   LD HL,(FACCU)
   EX (SP),HL
   CALL EVAL
   CALL SYNCHR
-  ADD HL,HL
+
+; Message at 28422
+L6F06:
+  DEFM ")"
+
+; Routine at 28423
+L6F07:
   PUSH HL
   CALL GETSTR
   EX DE,HL
@@ -15385,7 +15733,6 @@ FN_INSTR_0:
   ADD HL,BC
   SUB C
   LD B,A
-FN_INSTR_1:
   PUSH BC
   PUSH DE
   EX (SP),HL
@@ -15395,27 +15742,27 @@ FN_INSTR_1:
   INC HL
   LD D,(HL)
   POP HL
-FN_INSTR_2:
+L6F07_0:
   PUSH HL
   PUSH DE
   PUSH BC
-FN_INSTR_3:
+L6F07_1:
   LD A,(DE)
   CP (HL)
-  JR NZ,FN_INSTR_6
+  JR NZ,L6F07_4
   INC DE
   DEC C
-  JR Z,FN_INSTR_5
+  JR Z,L6F07_3
   INC HL
-  DJNZ FN_INSTR_3
+  DJNZ L6F07_1
   POP DE
   POP DE
   POP BC
-FN_INSTR_4:
+L6F07_2:
   POP DE
   XOR A
   RET
-FN_INSTR_5:
+L6F07_3:
   POP HL
   POP DE
   POP DE
@@ -15425,19 +15772,24 @@ FN_INSTR_5:
   ADD A,C
   INC A
   RET
-FN_INSTR_6:
+L6F07_4:
   POP BC
   POP DE
   POP HL
   INC HL
-  DJNZ FN_INSTR_2
-  JR FN_INSTR_4
-; This entry point is used by the routine at IDTEST.
-FN_INSTR_7:
+  DJNZ L6F07_0
+  JR L6F07_2
+; This entry point is used by the routine at L402A.
+L6F07_5:
   CALL SYNCHR
-  JR Z,FN_INSTR_1
-  DEC (HL)
-  LD E,A
+
+; Message at 28518
+L6F66:
+  DEFM "("
+
+; Routine at 28519
+L6F67:
+  CALL PTRGET
   CALL TSTSTR
   PUSH HL
   PUSH DE
@@ -15448,27 +15800,33 @@ FN_INSTR_7:
   LD D,(HL)
   LD HL,(STREND)
   CALL DCOMPR
-  JR C,FN_INSTR_8
+  JR C,L6F67_0
   LD HL,(TXTTAB)
   CALL DCOMPR
-  JR NC,FN_INSTR_8
+  JR NC,L6F67_0
   POP HL
   PUSH HL
   CALL STRCPY
   POP HL
   PUSH HL
   CALL VMOVE
-FN_INSTR_8:
+L6F67_0:
   POP HL
   EX (SP),HL
   CALL SYNCHR
-  INC L
+
+; Message at 28563
+L6F93:
+  DEFM ","
+
+; Routine at 28564
+L6F94:
   CALL GETINT
   OR A
   JP Z,FC_ERR
   PUSH AF
   LD A,(HL)
-  CALL FN_INSTR_11
+  CALL L6F94_2
   PUSH DE
   CALL FRMEQL
   PUSH HL
@@ -15490,9 +15848,9 @@ FN_INSTR_8:
   JP C,FC_ERR
   INC A
   CP C
-  JR C,FN_INSTR_9
+  JR C,L6F94_0
   LD A,C
-FN_INSTR_9:
+L6F94_0:
   LD C,B
   DEC C
   LD B,$00
@@ -15516,26 +15874,39 @@ FN_INSTR_9:
   LD A,C
   OR A
   RET Z
-FN_INSTR_10:
+L6F94_1:
   LD A,(DE)
   LD (HL),A
   INC DE
   INC HL
   DEC C
   RET Z
-  DJNZ FN_INSTR_10
+  DJNZ L6F94_1
   RET
 ; This entry point is used by the routine at __MID_S.
-FN_INSTR_11:
+L6F94_2:
   LD E,$FF
   CP $29
-  JR Z,FN_INSTR_12
+  JR Z,L6FEB_0
   CALL SYNCHR
-  INC L
+
+; Message at 28650
+L6FEA:
+  DEFM ","
+
+; Routine at 28651
+L6FEB:
   CALL GETINT
-FN_INSTR_12:
+; This entry point is used by the routine at L6F94.
+L6FEB_0:
   CALL SYNCHR
-  ADD HL,HL
+
+; Message at 28657
+L6FF1:
+  DEFM ")"
+
+; Routine at 28658
+L6FF2:
   RET
 
 ; Routine at 28659
@@ -15575,7 +15946,7 @@ PINLIN:
   LD (CHARC),A
   XOR A
   LD (INTFLG),A
-; This entry point is used by the routines at __LINE and __INPUT.
+; This entry point is used by the routines at L388F and L3926.
 PINLIN_0:
   CALL PINLIN_18
   CALL L670C_3
@@ -15722,7 +16093,7 @@ PINLIN_16:
   LD (HL),A
   LD HL,BUFMIN
   RET
-; This entry point is used by the routines at __LINE and __INPUT.
+; This entry point is used by the routines at L388F and __INPUT.
 PINLIN_17:
   PUSH AF
   LD A,$00
@@ -15809,7 +16180,7 @@ __WHILE:
   CALL WNDSCN
   CALL CHRGTB
   EX DE,HL
-  CALL __WEND_2
+  CALL FNDWND
   INC SP
   INC SP
   JR NZ,__WHILE_0
@@ -15828,8 +16199,8 @@ __WHILE_0:
 __WEND:
   JP NZ,SN_ERR
   EX DE,HL
-  CALL __WEND_2
-  JP NZ,__WEND_5
+  CALL FNDWND
+  JP NZ,WE_ERR
   LD SP,HL
   LD (SAVSTK),HL
   EX DE,HL
@@ -15854,33 +16225,40 @@ __WEND_0:
   PUSH HL
   CALL VSIGN
   POP HL
-  JR Z,__WEND_1
+  JR Z,FLSWHL
   LD BC,$00AF
   LD B,C
   PUSH BC
   INC SP
   JP NEWSTT
-__WEND_1:
+
+; Routine at 29174
+;
+; Used by the routine at __WEND.
+FLSWHL:
   LD HL,(NXTLIN)
   LD (CURLIN),HL
   POP HL
   POP AF
   POP AF
   JP NEWSTT
-; This entry point is used by the routine at __WHILE.
-__WEND_2:
+
+; Routine at 29186
+;
+; Used by the routines at __WHILE and __WEND.
+FNDWND:
   LD HL,$0004
   ADD HL,SP
-__WEND_3:
+FNDWND_0:
   LD A,(HL)
   INC HL
   LD BC,$0082
   CP C
-  JR NZ,__WEND_4
+  JR NZ,FNDWND_1
   LD BC,$0010
   ADD HL,BC
-  JR __WEND_3
-__WEND_4:
+  JR FNDWND_0
+FNDWND_1:
   LD BC,$00AF
   CP C
   RET NZ
@@ -15895,8 +16273,12 @@ __WEND_4:
   LD BC,$0006
   RET Z
   ADD HL,BC
-  JR __WEND_3
-__WEND_5:
+  JR FNDWND_0
+
+; Routine at 29226
+;
+; Used by the routine at __WEND.
+WE_ERR:
   LD DE,$001E
   JP ERROR
 
@@ -15929,9 +16311,16 @@ __CALL:
   DEC HL
   CALL CHRGTB
   LD (TEMP),HL
-  JR Z,__CALL_1
+  JR Z,L7289_0
   CALL SYNCHR
-  JR Z,$7233
+
+; Message at 29292
+L726C:
+  DEFM "("
+
+; Routine at 29293
+L726D:
+  PUSH BC
   PUSH DE
   CALL PTRGET
   EX (SP),HL
@@ -15944,25 +16333,31 @@ __CALL:
   POP BC
   LD A,(HL)
   CP $2C
-  JR NZ,__CALL_0
+  JR NZ,L726D_0
   DEC C
   CALL CHRGTB
-  JR $726D
-__CALL_0:
+  JR L726D
+L726D_0:
   CALL SYNCHR
-  ADD HL,HL
+
+; Message at 29320
+L7288:
+  DEFM ")"
+
+; Routine at 29321
+L7289:
   LD (TEMP),HL
   LD A,$21
   SUB C
   POP HL
   DEC A
-  JR Z,__CALL_1
+  JR Z,L7289_0
   POP DE
   DEC A
-  JR Z,__CALL_1
+  JR Z,L7289_0
   POP BC
   DEC A
-  JR Z,__CALL_1
+  JR Z,L7289_0
   PUSH BC
   PUSH HL
   LD HL,$0002
@@ -15970,7 +16365,8 @@ __CALL_0:
   LD B,H
   LD C,L
   POP HL
-__CALL_1:
+; This entry point is used by the routine at __CALL.
+L7289_0:
   PUSH HL
   LD HL,$72AF
   EX (SP),HL
@@ -16006,7 +16402,13 @@ __CHAIN_0:
   CALL CHRGTB
   JP Z,NTCHAL
   CALL SYNCHR
-  INC L
+
+; Message at 29412
+L72E4:
+  DEFM ","
+
+; Routine at 29413
+L72E5:
   CP $2C
   JR Z,NTLINF
   CALL EVAL
@@ -16019,22 +16421,53 @@ __CHAIN_0:
   JR Z,NTCHAL
 NTLINF:
   CALL SYNCHR
-  INC L
+
+; Message at 29437
+L72FD:
+  DEFM ","
+
+; Routine at 29438
+L72FE:
   LD DE,$00A6
   CP E
   JR Z,CHMWDL
   CALL SYNCHR
-  LD B,C
+
+; Message at 29447
+L7307:
+  DEFM "A"
+
+; Routine at 29448
+L7308:
   CALL SYNCHR
-  LD C,H
+
+; Message at 29451
+L730B:
+  DEFM "L"
+
+; Routine at 29452
+L730C:
   CALL SYNCHR
-  LD C,H
+
+; Message at 29455
+L730F:
+  DEFM "L"
+
+; Routine at 29456
+L7310:
   JP Z,DNCMDA
   CALL SYNCHR
-  INC L
+
+; Message at 29462
+L7316:
+  DEFM ","
+
+; Routine at 29463
+L7317:
   CP E
   JP NZ,SN_ERR
   OR A
+; This entry point is used by the routine at L72FE.
 CHMWDL:
   PUSH AF
   LD (MDLFLG),A
@@ -16059,6 +16492,7 @@ FCERRG:
   JP NC,FC_ERR
   POP AF
   JP NZ,DNCMDA
+; This entry point is used by the routines at __CHAIN and L72E5.
 NTCHAL:
   LD HL,(TXTTAB)
   DEC HL
@@ -16077,7 +16511,7 @@ CLPSCN:
   EX DE,HL
 CSTSCN:
   CALL CHRGTB
-; This entry point is used by the routines at CHAIN_COMMON and BCKUCM.
+; This entry point is used by the routines at CHAIN_COMMON, BCKUCM and L73ED.
 AFTCOM:
   OR A
   JR Z,CLPSCN
@@ -16093,11 +16527,11 @@ AFTCOM:
 
 ; Routine at 29556
 ;
-; Used by the routine at __CHAIN.
+; Used by the routine at L7317.
 CHAIN_COMMON:
   CALL CHRGTB
   JR Z,AFTCOM
-; This entry point is used by the routine at BCKUCM.
+; This entry point is used by the routine at L73F4.
 NXTCOM:
   PUSH HL
   LD A,$01
@@ -16184,16 +16618,29 @@ BCKUCM:
 COMADY:
   CALL CHRGTB
   CALL SYNCHR
-  ADD HL,HL
+
+; Message at 29676
+L73EC:
+  DEFM ")"
+
+; Routine at 29677
+L73ED:
   JP Z,AFTCOM
+; This entry point is used by the routine at BCKUCM.
 CHKCST:
   CALL SYNCHR
-  INC L
+
+; Message at 29683
+L73F3:
+  DEFM ","
+
+; Routine at 29684
+L73F4:
   JP NXTCOM
 
 ; Routine at 29687
 ;
-; Used by the routine at __CHAIN.
+; Used by the routine at L7317.
 CLPFIN:
   LD HL,(ARYTAB)
   EX DE,HL
@@ -16293,7 +16740,7 @@ CLPAKP:
 
 ; Routine at 29803
 ;
-; Used by the routines at __CHAIN and CLPAKP.
+; Used by the routines at L7310, L7317 and CLPAKP.
 DNCMDA:
   LD HL,(VARTAB)
 DNCMDA_0:
@@ -16433,7 +16880,7 @@ CAYSTR_2:
   JP NZ,OKGETM
   LD A,(MAXFIL)
   LD (MAXFILSV),A
-  JP __LOAD_0
+  JP L7799_0
 ; This entry point is used by the routines at L670C and NOTRNL.
 CHNRET:
   XOR A
@@ -16483,6 +16930,7 @@ __WRITE:
   DEC HL
   CALL CHRGTB
   JR Z,WRTFIN
+; This entry point is used by the routine at L75C6.
 WRTMLP:
   CALL EVAL
   PUSH HL
@@ -16506,6 +16954,7 @@ WRTMLP:
   DEC (HL)
 WRTNEG:
   CALL PRS1
+; This entry point is used by the routine at L75C6.
 NXTWRV:
   POP HL
   DEC HL
@@ -16514,13 +16963,21 @@ NXTWRV:
   CP $3B
   JR Z,WASEMI
   CALL SYNCHR
-  INC L
+
+; Message at 30149
+L75C5:
+  DEFM ","
+
+; Routine at 30150
+L75C6:
   DEC HL
+; This entry point is used by the routine at __WRITE.
 WASEMI:
   CALL CHRGTB
   LD A,$2C
   CALL OUTDO
   JR WRTMLP
+; This entry point is used by the routine at __WRITE.
 WRTSTR:
   LD A,$22
   CALL OUTDO
@@ -16528,6 +16985,7 @@ WRTSTR:
   LD A,$22
   CALL OUTDO
   JR NXTWRV
+; This entry point is used by the routine at __WRITE.
 WRTFIN:
   PUSH HL
   LD HL,(PTRFIL)
@@ -16537,7 +16995,7 @@ WRTFIN:
   LD A,(HL)
   CP $03
   JR NZ,NTRNDW
-  CALL __GET_27
+  CALL __GET_26
   LD A,L
   SUB E
   LD L,A
@@ -16559,7 +17017,7 @@ CRLFSQ:
 
 ; Routine at 30214
 ;
-; Used by the routine at __WRITE.
+; Used by the routine at L75C6.
 NTRNDW:
   POP HL
   CALL OUTDO_CRLF
@@ -16587,9 +17045,15 @@ FILGET:
 ; Used by the routine at FILGET.
 GDFILM:
   CALL SYNCHR
-  INC L
-; This entry point is used by the routine at FN_INPUT.
-GDFILM_0:
+
+; Message at 30242
+L7622:
+  DEFM ","
+
+; Routine at 30243
+;
+; Used by the routine at L79F2.
+L7623:
   EX DE,HL
 
 ; Routine at 30244
@@ -16602,7 +17066,7 @@ FILSET:
 
 ; Routine at 30251
 ;
-; Used by the routines at FILGET, __FIELD, FN_INPUT and __GET.
+; Used by the routines at FILGET, __FIELD, L79F2 and __GET.
 FILSCN:
   DEC HL
   CALL CHRGTB
@@ -16618,7 +17082,7 @@ FILFRM:
 
 ; Routine at 30266
 ;
-; Used by the routines at CPM_CLSFIL and __OPEN.
+; Used by the routines at CPM_CLSFIL and L7D2F.
 FILIDX:
   LD E,A
 
@@ -16644,7 +17108,7 @@ FILID2:
 
 ; Routine at 30289
 ;
-; Used by the routine at __VARPTR.
+; Used by the routine at L3C52.
 GETPTR:
   CALL FILID2
   LD HL,$0029
@@ -16704,7 +17168,7 @@ __CVD:
 
 ; Routine at 30359
 ;
-; Used by the routine at __READ.
+; Used by the routine at L39C7.
 FILIND:
   CALL GETYPR
   LD BC,$3A05
@@ -16715,7 +17179,7 @@ FILIND:
 
 ; Routine at 30373
 ;
-; Used by the routine at __LINE.
+; Used by the routine at L388F.
 LINE_INPUT:
   CALL FILINP
   CALL PTRGET
@@ -16860,7 +17324,7 @@ PRGFLI:
 ; Used by the routine at __SAVE.
 FILE_OPENOUT:
   XOR A
-  JP __OPEN_1
+  JP L7D2F_0
 ; This entry point is used by the routines at __RUN and PROCHK.
 FILE_OPENOUT_0:
   OR $AF
@@ -16876,13 +17340,25 @@ __LOAD:
   CALL CHRGTB
   JR Z,NOTRNL
   CALL SYNCHR
-  INC L
+
+; Message at 30612
+L7794:
+  DEFM ","
+
+; Routine at 30613
+L7795:
   CALL SYNCHR
-  LD D,D
+
+; Message at 30616
+L7798:
+  DEFM "R"
+
+; Routine at 30617
+L7799:
   JP NZ,SN_ERR
   POP AF
 ; This entry point is used by the routine at CDVARS.
-__LOAD_0:
+L7799_0:
   XOR A
   LD (MAXFIL),A
   OR $F1
@@ -16925,7 +17401,7 @@ NOTRNL_2:
   LD (VARTAB),HL
   LD A,(PROFLG)
   OR A
-  CALL NZ,__GET_33
+  CALL NZ,__GET_32
   CALL LINKER
   INC HL
   INC HL
@@ -17009,11 +17485,23 @@ __SAVE:
   CALL CHRGTB
   JR Z,BINSAV
   CALL SYNCHR
-  INC L
+
+; Message at 30832
+L7870:
+  DEFM ","
+
+; Routine at 30833
+L7871:
   CP $50
-  JP Z,__GET_29
+  JP Z,__GET_28
   CALL SYNCHR
-  LD B,C
+
+; Message at 30841
+L7879:
+  DEFM "A"
+
+; Routine at 30842
+L787A:
   JP __LIST
 
 ; Routine at 30845
@@ -17106,6 +17594,7 @@ __FIELD:
   LD A,H
   EX DE,HL
   LD DE,$00B2
+; This entry point is used by the routine at L7913.
 __FIELD_0:
   EX DE,HL
   ADD HL,BC
@@ -17119,9 +17608,21 @@ __FIELD_0:
   CALL FNDNUM
   PUSH AF
   CALL SYNCHR
-  LD B,C
+
+; Message at 30990
+L790E:
+  DEFM "A"
+
+; Routine at 30991
+L790F:
   CALL SYNCHR
-  LD D,E
+
+; Message at 30994
+L7912:
+  DEFM "S"
+
+; Routine at 30995
+L7913:
   CALL PTRGET
   CALL TSTSTR
   POP AF
@@ -17252,8 +17753,6 @@ RETCUR:
   POP BC
   POP BC
   POP BC
-; This entry point is used by the routine at FN_INPUT.
-__LSET_1:
   POP BC
   POP BC
 LRSTDN:
@@ -17302,25 +17801,42 @@ MAKDSC_0:
 FN_INPUT:
   CALL CHRGTB
   CALL SYNCHR
-  INC H
+
+; Message at 31213
+L79ED:
+  DEFM "$"
+
+; Routine at 31214
+L79EE:
   CALL SYNCHR
-  JR Z,__LSET_1
-  SUB A
-  LD B,B
+
+; Message at 31217
+L79F1:
+  DEFM "("
+
+; Routine at 31218
+L79F2:
+  CALL GETINT
   PUSH DE
   LD A,(HL)
   CP $2C
-  JR NZ,FN_INPUT_0
+  JR NZ,L79F2_0
   CALL CHRGTB
   CALL FILSCN
   CP $02
   JP Z,FMODE_ERR
-  CALL GDFILM_0
+  CALL L7623
   XOR A
-FN_INPUT_0:
+L79F2_0:
   PUSH AF
   CALL SYNCHR
-  ADD HL,HL
+
+; Message at 31246
+L7A0E:
+  DEFM ")"
+
+; Routine at 31247
+L7A0F:
   POP AF
   EX (SP),HL
   PUSH AF
@@ -17332,14 +17848,14 @@ FN_INPUT_0:
   EX DE,HL
   POP BC
 ; This entry point is used by the routine at PUTCHR.
-FN_INPUT_1:
+L7A0F_0:
   POP AF
   PUSH AF
   JR Z,DSKCHR
   CALL FN_INKEY_2
-  JR NZ,FN_INPUT_2
+  JR NZ,L7A0F_1
   CALL L670C_5
-FN_INPUT_2:
+L7A0F_1:
   CP $03
   JP Z,INTCTC
 
@@ -17350,14 +17866,14 @@ PUTCHR:
   LD (HL),A
   INC HL
   DEC C
-  JR NZ,FN_INPUT_1
+  JR NZ,L7A0F_0
   POP AF
   CALL FINPRT
   JP TSTOPL
 
 ; Routine at 31290
 ;
-; Used by the routine at FN_INPUT.
+; Used by the routine at L7A0F.
 INTCTC:
   LD HL,(SAVSTK)
   LD SP,HL
@@ -17365,7 +17881,7 @@ INTCTC:
 
 ; Routine at 31297
 ;
-; Used by the routine at FN_INPUT.
+; Used by the routine at L7A0F.
 DSKCHR:
   CALL RDBYT
   JP C,EF_ERR
@@ -17537,7 +18053,7 @@ __LOF_1:
   CP $01
   JP Z,__ERASE_2
   CP $03
-  JP Z,__GET_20
+  JP Z,__GET_19
   POP AF
 ; This entry point is used by the routine at CPM_CLSFIL.
 __LOF_2:
@@ -17627,7 +18143,7 @@ INDSKB_0:
   LD HL,(PTRFIL)
   LD A,(HL)
   CP $03
-  JP Z,__GET_22
+  JP Z,__GET_21
   LD BC,$0028
   ADD HL,BC
   LD A,(HL)
@@ -17658,7 +18174,7 @@ INDSKB_2:
   POP BC
   LD A,$1A
   RET
-; This entry point is used by the routine at __OPEN.
+; This entry point is used by the routine at L7D2F.
 INDSKB_3:
   LD HL,(PTRFIL)
 ; This entry point is used by the routines at __EOF and __LOF.
@@ -17703,7 +18219,7 @@ INDSKB_5:
   OR A
   POP DE
   RET
-; This entry point is used by the routines at __EOF, CPM_CLSFIL and __OPEN.
+; This entry point is used by the routines at __EOF, CPM_CLSFIL and L7D2F.
 INDSKB_6:
   PUSH BC
   PUSH DE
@@ -17743,7 +18259,7 @@ RDBYT:
 
 ; Routine at 31782
 ;
-; Used by the routines at __NAME, __OPEN, __KILL and __FILES.
+; Used by the routines at __NAME, L7CCF, L7D2F, __KILL and __FILES.
 FNAME:
   CALL EVAL
   PUSH HL
@@ -17870,9 +18386,21 @@ __NAME_0:
   DJNZ __NAME_0
   POP HL
   CALL SYNCHR
-  LD B,C
+
+; Message at 31946
+L7CCA:
+  DEFM "A"
+
+; Routine at 31947
+L7CCB:
   CALL SYNCHR
-  LD D,E
+
+; Message at 31950
+L7CCE:
+  DEFM "S"
+
+; Routine at 31951
+L7CCF:
   CALL FNAME
   PUSH HL
   LD A,(FILNAM)
@@ -17918,19 +18446,31 @@ __OPEN:
 __OPEN_0:
   POP HL
   CALL SYNCHR
-  INC L
+
+; Message at 32033
+L7D21:
+  DEFM ","
+
+; Routine at 32034
+L7D22:
   PUSH DE
   CP $23
   CALL Z,CHRGTB
   CALL GETINT
   CALL SYNCHR
-  INC L
+
+; Message at 32046
+L7D2E:
+  DEFM ","
+
+; Routine at 32047
+L7D2F:
   LD A,E
   OR A
   JP Z,BN_ERR
   POP DE
 ; This entry point is used by the routine at FILE_OPENOUT.
-__OPEN_1:
+L7D2F_0:
   LD E,A
   PUSH DE
   CALL FILIDX
@@ -17947,20 +18487,20 @@ __OPEN_1:
   CALL __FILES_14
   POP AF
   LD (TEMP),HL
-  JR C,__OPEN_2
+  JR C,L7D2F_1
   LD A,E
   OR A
-  JP NZ,__OPEN_2
+  JP NZ,L7D2F_1
   LD HL,FCB_FTYP
   LD A,(HL)
   CP $20
-  JR NZ,__OPEN_2
+  JR NZ,L7D2F_1
   LD (HL),$42
   INC HL
   LD (HL),$41
   INC HL
   LD (HL),$53
-__OPEN_2:
+L7D2F_1:
   POP HL
   LD A,D
   PUSH AF
@@ -17969,13 +18509,13 @@ __OPEN_2:
   INC HL
   LD DE,FILNAM
   LD C,$0C
-__OPEN_3:
+L7D2F_2:
   LD A,(DE)
   LD (HL),A
   INC DE
   INC HL
   DEC C
-  JR NZ,__OPEN_3
+  JR NZ,L7D2F_2
   LD (HL),$00
   LD DE,$0014
   ADD HL,DE
@@ -17989,28 +18529,28 @@ __OPEN_3:
   PUSH AF
   PUSH HL
   CP $02
-  JR NZ,__OPEN_5
+  JR NZ,L7D2F_4
   PUSH DE
   LD C,$13
   CALL $0005
   POP DE
-__OPEN_4:
+L7D2F_3:
   LD C,$16
   CALL $0005
   INC A
   JP Z,FL_ERR
-  JR __OPEN_6
-__OPEN_5:
+  JR L7D2F_5
+L7D2F_4:
   LD C,$0F
   CALL $0005
   INC A
-  JR NZ,__OPEN_6
+  JR NZ,L7D2F_5
   CALL $0C75
   CP $03
   JP NZ,FF_ERR
   INC DE
-  JR __OPEN_4
-__OPEN_6:
+  JR L7D2F_3
+L7D2F_5:
   POP DE
   POP AF
   LD (DE),A
@@ -18028,21 +18568,21 @@ __OPEN_6:
   POP HL
   LD A,(HL)
   CP $03
-  JP Z,__OPEN_7
+  JP Z,L7D2F_6
   CP $01
   JP NZ,GTMPRT
   CALL INDSKB_3
   LD HL,(TEMP)
   RET
-__OPEN_7:
+L7D2F_6:
   LD BC,$0029
   ADD HL,BC
   LD C,$80
-__OPEN_8:
+L7D2F_7:
   LD (HL),B
   INC HL
   DEC C
-  JR NZ,__OPEN_8
+  JR NZ,L7D2F_7
   JP GTMPRT
 
 ; Routine at 32230
@@ -18254,7 +18794,7 @@ __FILES_13:
   CALL DCOMPR
   RET NC
   JP LOAD_END_0
-; This entry point is used by the routine at __OPEN.
+; This entry point is used by the routine at L7D2F.
 __FILES_14:
   CP $03
   RET NZ
@@ -18429,7 +18969,7 @@ __GET_9:
 __GET_10:
   LD A,($81BC)
   OR A
-  JR Z,__GET_14
+  JR Z,__GET_13
   LD DE,$0080
   CALL DCOMPR
   JR NC,__GET_11
@@ -18443,15 +18983,13 @@ __GET_11:
   LD HL,($81BA)
   EX DE,HL
   LD HL,($81B8)
-  CALL __GET_18
+  CALL __GET_17
   LD ($81B8),HL
   LD D,B
-; This entry point is used by the routine at IDTEST.
-__GET_12:
   LD E,C
   POP BC
-  CALL __GET_15
-__GET_13:
+  CALL __GET_14
+__GET_12:
   POP HL
   LD A,L
   SUB E
@@ -18469,7 +19007,7 @@ __GET_13:
   POP HL
   POP HL
   RET
-__GET_14:
+__GET_13:
   PUSH HL
   CALL $8077
   POP HL
@@ -18479,14 +19017,14 @@ __GET_14:
   LD HL,($81B8)
   EX DE,HL
   LD HL,($81BA)
-  CALL __GET_18
+  CALL __GET_17
   EX DE,HL
   LD ($81B8),HL
   LD D,B
   LD E,C
   POP BC
-  JR __GET_13
-__GET_15:
+  JR __GET_12
+__GET_14:
   OR $AF
   LD ($084C),A
   PUSH BC
@@ -18507,26 +19045,26 @@ __GET_15:
   LD (HL),E
   INC HL
   LD (HL),D
-  JR NZ,__GET_16
+  JR NZ,__GET_15
   LD A,($084C)
   OR A
-  JR Z,__GET_17
-__GET_16:
-  LD HL,__GET_17
+  JR Z,__GET_16
+__GET_15:
+  LD HL,__GET_16
   PUSH HL
   PUSH BC
   PUSH HL
   LD HL,$0026
   ADD HL,BC
   JP __LOF_4
-__GET_17:
+__GET_16:
   POP HL
   POP DE
   POP BC
   RET
-__GET_18:
+__GET_17:
   PUSH BC
-__GET_19:
+__GET_18:
   LD A,(HL)
   LD (DE),A
   INC HL
@@ -18534,20 +19072,20 @@ __GET_19:
   DEC BC
   LD A,B
   OR C
-  JR NZ,__GET_19
+  JR NZ,__GET_18
   POP BC
   RET
 ; This entry point is used by the routine at __LOF.
-__GET_20:
+__GET_19:
   POP AF
   PUSH DE
   PUSH BC
   PUSH AF
   LD B,H
   LD C,L
-  CALL __GET_28
+  CALL __GET_27
   JP Z,FO_ERR
-  CALL __GET_26
+  CALL __GET_25
   LD HL,$00B1
   ADD HL,BC
   ADD HL,DE
@@ -18559,23 +19097,23 @@ __GET_20:
   LD D,(HL)
   LD (HL),$00
   CP $0D
-  JR Z,__GET_21
+  JR Z,__GET_20
   ADD A,$E0
   LD A,D
   ADC A,$00
   LD (HL),A
-__GET_21:
+__GET_20:
   POP AF
   POP BC
   POP DE
   POP HL
   RET
 ; This entry point is used by the routine at INDSKB.
-__GET_22:
+__GET_21:
   PUSH DE
-  CALL __GET_27
-  JP Z,FO_ERR
   CALL __GET_26
+  JP Z,FO_ERR
+  CALL __GET_25
   LD HL,$00B1
   ADD HL,BC
   ADD HL,DE
@@ -18585,18 +19123,18 @@ __GET_22:
   POP HL
   POP BC
   RET
-__GET_23:
+__GET_22:
   LD HL,$00A9
-  JR __GET_25
-__GET_24:
+  JR __GET_24
+__GET_23:
   LD HL,$00B0
-__GET_25:
+__GET_24:
   ADD HL,BC
   LD E,(HL)
   INC HL
   LD D,(HL)
   RET
-__GET_26:
+__GET_25:
   INC DE
   LD HL,$00B0
   ADD HL,BC
@@ -18604,33 +19142,33 @@ __GET_26:
   INC HL
   LD (HL),D
   RET
-; This entry point is used by the routine at __WRITE.
-__GET_27:
+; This entry point is used by the routine at L75C6.
+__GET_26:
   LD B,H
   LD C,L
-__GET_28:
-  CALL __GET_24
-  PUSH DE
+__GET_27:
   CALL __GET_23
+  PUSH DE
+  CALL __GET_22
   EX DE,HL
   POP DE
   CALL DCOMPR
   RET
-; This entry point is used by the routine at __SAVE.
-__GET_29:
+; This entry point is used by the routine at L7871.
+__GET_28:
   CALL CHRGTB
   LD (TEMP),HL
   CALL SCCPTR
-  CALL __GET_30
+  CALL __GET_29
   LD A,$FE
   CALL BINSAV_0
-  CALL __GET_33
+  CALL __GET_32
   JP GTMPRT
-__GET_30:
+__GET_29:
   LD BC,$0D0B
   LD HL,(TXTTAB)
   EX DE,HL
-__GET_31:
+__GET_30:
   LD HL,(VARTAB)
   CALL DCOMPR
   RET Z
@@ -18658,19 +19196,19 @@ __GET_31:
   LD (DE),A
   INC DE
   DEC C
-  JR NZ,__GET_32
-  LD C,$0B
-__GET_32:
-  DEC B
   JR NZ,__GET_31
+  LD C,$0B
+__GET_31:
+  DEC B
+  JR NZ,__GET_30
   LD B,$0D
-  JR __GET_31
+  JR __GET_30
 ; This entry point is used by the routine at NOTRNL.
-__GET_33:
+__GET_32:
   LD BC,$0D0B
   LD HL,(TXTTAB)
   EX DE,HL
-__GET_34:
+__GET_33:
   LD HL,(VARTAB)
   CALL DCOMPR
   RET Z
@@ -18698,14 +19236,14 @@ __GET_34:
   LD (DE),A
   INC DE
   DEC C
-  JR NZ,__GET_35
+  JR NZ,__GET_34
   LD C,$0B
-__GET_35:
-  DJNZ __GET_34
+__GET_34:
+  DJNZ __GET_33
   LD B,$0D
-  JR __GET_34
+  JR __GET_33
 ; This entry point is used by the routines at __PEEK and __POKE.
-__GET_36:
+__GET_35:
   PUSH HL
   LD HL,(CURLIN)
   LD A,H
@@ -18731,6 +19269,7 @@ PROCHK:
   NOP
   NOP
   NOP
+; This entry point is used by the routine at L8345.
 PROCHK_0:
   CALL ENFMEM_1
   LD HL,(TXTTAB)
@@ -18857,14 +19396,14 @@ PROCHK_2:
   LD ($8350),HL
   LD A,($8352)
   OR A
-  JP NZ,PROCHK_11
+  JP NZ,L8345_0
   INC A
   LD ($8352),A
   LD HL,$0080
   LD A,(HL)
   OR A
   LD ($8350),HL
-  JP Z,PROCHK_11
+  JP Z,L8345_0
   LD B,(HL)
   INC HL
 PROCHK_3:
@@ -18881,7 +19420,7 @@ PROCHK_3:
   LD HL,$007F
   CALL CHRGTB
   OR A
-  JP Z,PROCHK_11
+  JP Z,L8345_0
   CP $2F
   JR Z,PROCHK_5
   DEC HL
@@ -18894,13 +19433,14 @@ PROCHK_4:
   CALL CHRGTB
   OR A
   JR NZ,PROCHK_4
-  JP PROCHK_11
+  JP L8345_0
 PROCHK_5:
   LD (HL),$00
   CALL CHRGTB
+; This entry point is used by the routine at L833B.
 PROCHK_6:
   CP $53
-  JR Z,PROCHK_10
+  JR Z,L833B_0
   CP $4D
   PUSH AF
   JP Z,PROCHK_7
@@ -18909,10 +19449,16 @@ PROCHK_6:
 PROCHK_7:
   CALL CHRGTB
   CALL SYNCHR
-  LD A,($D6CD)
-  INC A
+
+; Message at 33557
+L8315:
+  DEFM ":"
+
+; Routine at 33558
+L8316:
+  CALL UCASE_0
   POP AF
-  JR Z,PROCHK_8
+  JR Z,L8316_0
   LD A,D
   OR A
   JP NZ,FC_ERR
@@ -18920,32 +19466,47 @@ PROCHK_7:
   CP $10
   JP NC,FC_ERR
   LD (MAXFIL),A
-  JR PROCHK_9
-PROCHK_8:
+  JR L8316_1
+L8316_0:
   EX DE,HL
   LD (MEMSIZ),HL
   EX DE,HL
-PROCHK_9:
+; This entry point is used by the routine at L8345.
+L8316_1:
   DEC HL
   CALL CHRGTB
-  JR Z,PROCHK_11
+  JR Z,L8345_0
   CALL SYNCHR
-  CPL
+
+; Message at 33594
+L833A:
+  DEFM "/"
+
+; Routine at 33595
+L833B:
   JP PROCHK_6
-PROCHK_10:
+; This entry point is used by the routine at PROCHK.
+L833B_0:
   CALL CHRGTB
   CALL SYNCHR
-  LD A,($D6CD)
-  INC A
+
+; Message at 33604
+L8344:
+  DEFM ":"
+
+; Routine at 33605
+L8345:
+  CALL UCASE_0
   EX DE,HL
   LD (MAXREC),HL
   EX DE,HL
-  JR PROCHK_9
+  JR L8316_1
   NOP
   NOP
   NOP
   NOP
-PROCHK_11:
+; This entry point is used by the routines at PROCHK and L8316.
+L8345_0:
   DEC HL
   LD HL,(MEMSIZ)
   PUSH HL
@@ -18961,7 +19522,7 @@ PROCHK_11:
   LD (MAXFIL),A
   INC A
   LD BC,$00A9
-PROCHK_12:
+L8345_1:
   EX DE,HL
   LD (HL),E
   INC HL
@@ -18977,7 +19538,7 @@ PROCHK_12:
   LD C,L
   POP HL
   DEC A
-  JR NZ,PROCHK_12
+  JR NZ,L8345_1
   INC HL
   LD (TXTTAB),HL
   LD (SAVSTK),HL
@@ -18990,7 +19551,7 @@ PROCHK_12:
   LD H,A
   JP C,OM_ERR
   LD B,$03
-PROCHK_13:
+L8345_2:
   OR A
   LD A,H
   RRA
@@ -18998,12 +19559,12 @@ PROCHK_13:
   LD A,L
   RRA
   LD L,A
-  DJNZ PROCHK_13
+  DJNZ L8345_2
   LD A,H
   CP $02
-  JR C,PROCHK_14
+  JR C,L8345_3
   LD HL,$0200
-PROCHK_14:
+L8345_3:
   LD A,E
   SUB L
   LD L,A
