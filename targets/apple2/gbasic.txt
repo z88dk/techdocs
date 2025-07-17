@@ -1,4 +1,5 @@
 
+
 # defc TK_LEFT_S   =  $01
 # defc TK_RIGHT_S  =  $02
 # defc TK_MID_S    =  $03
@@ -203,3 +204,32 @@
 ## $1100-$A3FF      0100H-93FFH    Free RAM
 ## $1000-$10FF      0000H-00FFH    CP/M page zero
 ##
+
+
+####################################
+#  Z80 remapped addresses
+####################################
+
+#     $E000       Keyboard data
+#     $E010       Clear keyboard strobe (rd or wr is irrelevant)
+#     $E030       Speaket output        (rd)
+#     $E020       Cassette output
+#     $E060       Cassette input
+#  $E061 - $E063  Flag inputs (paddle buttons, etc..)
+#  $E064 - $E067  Analog inputs (paddle, etc..)
+#     $E070       Analog clear
+#     $E040       Utility strobe
+
+#     $E050       Display a GAPHICS page (at $2000)
+#     $E051       Display a TEXT page (at $0400)
+#     $E052       Display all TEXT or GRAPHICS
+#     $E053       Mix TEXT and GRAPHICS mode
+#     $E054       Display the primary page ($0400 or $2000)
+#     $E055       Display the secondary page ($0800 or $4000)
+#     $E056       LO.RES GRAPHICS mode
+#     $E057       HI.RES GRAPHICS mode
+
+#     $E058       switch back to 40 column text display
+#     $E059       switch to 80 column text display (if available)
+
+## (To calculate negative addresses in BASIC, just add -65536)
