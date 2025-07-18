@@ -1115,7 +1115,11 @@ BUF:
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00
+  DEFB $00,$00
+
+; Data block at 2832
+ENDBUF:
+  DEFB $00
 
 ; Character position on line
 TTYPOS:
@@ -4205,7 +4209,7 @@ INTIDX_0:
   CALL POSINT
   RET P
 ; This entry point is used by the routines at SRCHLP, __ERROR, L36E3, L3C68,
-; LPSIZL, CONINT, __DEL, L4305, __VTAB, L4646, __PDL, L483F, __HGR, __LOG,
+; LPSIZL, CONINT, __DEL, L4305, __VTAB, L4646, __PDL, SET_HCOLOR, __HGR, __LOG,
 ; L6462, L69DC, __ERASE, L6A5D, __ASC, __MID_S, FN_INSTR, L6F94, L7317,
 ; CHAIN_COMMON, SCNSMP, __CVD, L7A0F, L7CCF, __FILES, __GET, PROCHK and L8316.
 FC_ERR:
@@ -8118,6 +8122,9 @@ L47DF:
 ; Data block at 18401
 L47E1:
   DEFW $0000
+
+; Data block at 18403
+L47E3:
   DEFW $0000
 
 ; Data block at 18405
@@ -8175,10 +8182,10 @@ L4801:
   PUSH HL
   PUSH HL
   LD HL,L4AC5
-  LD ($49AB),HL
+  LD (L49AB),HL
   LD A,C
-  JP L483F_25
-  CALL L483F_33
+  JP L4973_0
+  CALL L49AD_5
   EXX
   BIT 0,L
   JR NZ,L4801_0
@@ -8212,14 +8219,17 @@ L483E:
 ; Routine at 18495
 L483F:
   CALL GETINT
-; This entry point is used by the routine at __HGR.
-L483F_0:
+
+; Routine at 18498
+;
+; Used by the routine at __HGR.
+SET_HCOLOR:
   CP $0D
   JP NC,FC_ERR
   LD (A2_HCOLOR),A
   PUSH HL
   CP $08
-  JR NC,L483F_1
+  JR NC,SET_HCOLOR_0
   LD HL,L4A81
   ADD A,A
   LD E,A
@@ -8229,44 +8239,53 @@ L483F_0:
   INC HL
   LD D,(HL)
   EX DE,HL
-  JR L483F_4
-L483F_1:
+  JR SET_HCOLOR_3
+SET_HCOLOR_0:
   CP $0C
-  JR Z,L483F_6
+  JR Z,SET_HCOLOR_5
   CP $0A
-  JR NC,L483F_2
+  JR NC,SET_HCOLOR_1
   RRA
   SBC A,A
   AND $7F
-  JR L483F_3
-L483F_2:
+  JR SET_HCOLOR_2
+SET_HCOLOR_1:
   RRA
   SBC A,A
   SET 7,A
-L483F_3:
+SET_HCOLOR_2:
   LD H,A
   LD L,A
-L483F_4:
+SET_HCOLOR_3:
   LD (L47DB),HL
-  LD HL,L483F_8
-  LD ($488C),HL
-L483F_5:
+  LD HL,L488E
+  LD (HCOLOR_SMC),HL
+SET_HCOLOR_4:
   CALL L4A91
-  JP L483F_27
-L483F_6:
-  LD HL,$48C1
-  LD ($488C),HL
-  JR L483F_5
-; This entry point is used by the routine at __HPLOT.
-L483F_7:
+  JP L4973_2
+SET_HCOLOR_5:
+  LD HL,L48C1
+  LD (HCOLOR_SMC),HL
+  JR SET_HCOLOR_4
+; This entry point is used by the routines at L4958 and __HPLOT.
+SET_HCOLOR_6:
   EXX
   BIT 0,L
-  JP L483F_8
-L483F_8:
-  JP NZ,L483F_10
+
+; CALL..
+CALL_HCOLOR_SMC:
+  DEFB $C3
+
+; Data block at 18572
+HCOLOR_SMC:
+  DEFW L488E
+
+; Routine at 18574
+L488E:
+  JP NZ,L48A9
   LD A,C
   ADD A,A
-  JP Z,L483F_9
+  JP Z,L488E_0
   LD A,(HL)
   XOR E
   AND C
@@ -8274,8 +8293,8 @@ L483F_8:
   LD (HL),A
   LD A,B
   ADD A,A
-  JP Z,L483F_12
-L483F_9:
+  JP Z,L48A9_1
+L488E_0:
   INC L
   LD A,(HL)
   XOR D
@@ -8285,10 +8304,14 @@ L483F_9:
   DEC L
   EXX
   RET
-L483F_10:
+
+; Routine at 18601
+;
+; Used by the routine at L488E.
+L48A9:
   LD A,B
   ADD A,A
-  JP Z,L483F_11
+  JP Z,L48A9_0
   LD A,(HL)
   XOR D
   AND B
@@ -8296,8 +8319,8 @@ L483F_10:
   LD (HL),A
   LD A,C
   ADD A,A
-  JP Z,L483F_12
-L483F_11:
+  JP Z,L48A9_1
+L48A9_0:
   INC L
   LD A,(HL)
   XOR E
@@ -8305,21 +8328,25 @@ L483F_11:
   XOR (HL)
   LD (HL),A
   DEC L
-L483F_12:
+; This entry point is used by the routines at L488E and L48C1.
+L48A9_1:
   EXX
   RET
-  JP NZ,L483F_14
+
+; Routine at 18625
+L48C1:
+  JP NZ,L48C1_1
   LD A,C
   ADD A,A
-  JP Z,L483F_13
+  JP Z,L48C1_0
   LD A,C
   AND $7F
   XOR (HL)
   LD (HL),A
   LD A,B
   ADD A,A
-  JP Z,L483F_12
-L483F_13:
+  JP Z,L48A9_1
+L48C1_0:
   INC L
   AND $7F
   XOR (HL)
@@ -8327,18 +8354,18 @@ L483F_13:
   DEC L
   EXX
   RET
-L483F_14:
+L48C1_1:
   LD A,B
   ADD A,A
-  JP Z,L483F_15
+  JP Z,L48C1_2
   LD A,B
   AND $7F
   XOR (HL)
   LD (HL),A
   LD A,C
   ADD A,A
-  JP Z,L483F_12
-L483F_15:
+  JP Z,L48A9_1
+L48C1_2:
   INC L
   LD A,C
   AND $7F
@@ -8347,101 +8374,147 @@ L483F_15:
   DEC L
   EXX
   RET
-; This entry point is used by the routine at __HPLOT.
-L483F_16:
+
+; Routine at 18675
+;
+; Used by the routine at __HPLOT.
+L48F3:
   CALL L4A91
   LD A,(L47E5)
-  LD HL,$49FD
+  LD HL,L49FD
   SUB C
-  JR NC,L483F_17
+  JR NC,L48F3_0
   CPL
   INC A
-  LD HL,L483F_34
-L483F_17:
+  LD HL,L4A1B
+L48F3_0:
   PUSH HL
   PUSH AF
   LD A,C
   LD (L47E5),A
-  LD HL,($47E3)
+  LD HL,(L47E3)
   EX DE,HL
-  LD ($47E3),HL
+  LD (L47E3),HL
   OR A
   SBC HL,DE
-  JR NC,L483F_18
+  JR NC,L48F3_1
   ADD HL,DE
   EX DE,HL
   OR A
   SBC HL,DE
   LD DE,$4A4E
-  JR L483F_19
-L483F_18:
-  LD DE,L483F_42
-L483F_19:
+  JR L48F3_2
+L48F3_1:
+  LD DE,L4A65
+L48F3_2:
   POP BC
   LD A,H
   OR A
   LD A,B
-  JR NZ,L483F_20
+  JR NZ,L493B
   CP L
-  JR C,L483F_20
+  JR C,L493B
   EX (SP),HL
-  LD ($4956),HL
+  LD (SMC_L4956),HL
   EX DE,HL
-  LD ($4967),HL
+  LD (SMC_L4967),HL
   LD L,A
   LD H,$00
   POP DE
   PUSH HL
-  JR L483F_21
-L483F_20:
+  JR L493B_0
+
+; Routine at 18747
+;
+; Used by the routine at L48F3.
+L493B:
   EX (SP),HL
-  LD ($4967),HL
+  LD (SMC_L4967),HL
   EX DE,HL
-  LD ($4956),HL
+  LD (SMC_L4956),HL
   LD E,A
   LD D,$00
-L483F_21:
+; This entry point is used by the routine at L48F3.
+L493B_0:
   POP HL
-  LD ($496C),HL
+  LD (SMC_L496C),HL
   LD B,H
   LD C,L
   INC BC
   OR A
   RR H
   RR L
-  JR L483F_23
-L483F_22:
+  JR L4958_0
+
+; Routine at 18772
+;
+; Used by the routine at L4958.
+L4954:
   EXX
-  CALL L483F_34
+
+; CALL..
+L4955:
+  DEFB $CD
+
+; Data block at 18774
+SMC_L4956:
+  DEFW L4A1B
+
+; Routine at 18776
+L4958:
   EXX
-  CALL L483F_7
-L483F_23:
+  CALL SET_HCOLOR_6
+; This entry point is used by the routine at L493B.
+L4958_0:
   DEC BC
   LD A,B
   OR C
   RET Z
   AND A
   SBC HL,DE
-  JR NC,L483F_22
+  JR NC,L4954
   EXX
-  CALL L483F_42
+
+; CALL..
+L4966:
+  DEFB $CD
+
+; Data block at 18791
+SMC_L4967:
+  DEFW L4A65
+
+; Routine at 18793
+L4969:
   EXX
   PUSH DE
-  LD DE,$0000
-  ADD HL,DE
-  POP DE
-  JP L483F_22
-; This entry point is used by the routine at __HPLOT.
-L483F_24:
+
+; LD DE,..
+L496B:
+  DEFB $11
+
+; Data block at 18796
+SMC_L496C:
+  DEFW $0000
+
+; Data block at 18798
+L496E:
+  DEFW $D119
+  DEFW $54C3
+  DEFW $E549
+
+; Routine at 18803
+;
+; Used by the routine at __HPLOT.
+L4973:
   PUSH HL
   CALL L4A91
   EX DE,HL
-  LD ($47E3),HL
+  LD (L47E3),HL
   EX DE,HL
   LD A,C
   LD (L47E5),A
 ; This entry point is used by the routine at L4801.
-L483F_25:
+L4973_0:
   AND $C0
   LD L,A
   RRA
@@ -8462,17 +8535,28 @@ L483F_25:
   LD H,A
   LD (L47DF),HL
   EX DE,HL
-  CALL L483F_29
+  CALL L49AD_1
   SUB $07
-  JR C,L483F_26
+  JR C,L4973_1
   INC B
-L483F_26:
+L4973_1:
   LD A,B
   LD ($47E2),A
-L483F_27:
+; This entry point is used by the routine at SET_HCOLOR.
+L4973_2:
   LD A,(L47E1)
   LD C,A
-  LD HL,$0000
+
+; Data block at 18858
+L49AA:
+  DEFB $21
+
+; Data block at 18859
+L49AB:
+  DEFW $0000
+
+; Routine at 18861
+L49AD:
   PUSH HL
   LD B,$00
   ADD HL,BC
@@ -8482,23 +8566,23 @@ L483F_27:
   ADD A,$07
   LD C,A
   SUB $0E
-  JR C,L483F_28
+  JR C,L49AD_0
   LD C,A
-L483F_28:
+L49AD_0:
   ADD HL,BC
   LD D,(HL)
   EX DE,HL
   LD (L47DD),HL
   POP HL
   RET
-; This entry point is used by the routine at __HPLOT.
-L483F_29:
+; This entry point is used by the routines at L4973 and __HPLOT.
+L49AD_1:
   LD DE,$FFF2
   LD A,D
-L483F_30:
+L49AD_2:
   INC A
   ADD HL,DE
-  JR C,L483F_30
+  JR C,L49AD_2
   ADD A,A
   LD B,A
   LD A,L
@@ -8506,22 +8590,22 @@ L483F_30:
   LD (L47E1),A
   RET
 ; This entry point is used by the routine at __HPLOT.
-L483F_31:
+L49AD_3:
   EXX
   LD HL,L4AC5
   LD D,$00
   LD A,(L47E1)
   SUB $07
-  JR NC,L483F_32
+  JR NC,L49AD_4
   ADD A,$07
-L483F_32:
+L49AD_4:
   LD E,A
   ADD HL,DE
   LD A,(HL)
   AND $7F
   EX AF,AF'
 ; This entry point is used by the routine at L4801.
-L483F_33:
+L49AD_5:
   LD HL,(L47DD)
   LD C,L
   LD B,H
@@ -8533,26 +8617,31 @@ L483F_33:
   LD L,A
   EXX
   RET
+
+; Routine at 18941
+L49FD:
   LD A,L
   LD HL,(L47DF)
   SUB L
   PUSH AF
   LD A,H
   SUB $14
-  JR NC,L483F_37
+  JR NC,L4A44
   RL L
   RLA
   DEC A
   BIT 3,A
-  JR NZ,L483F_35
+  JR NZ,L4A3A
   LD H,$2F
   SCF
   LD A,L
   RRA
   SUB $28
   LD L,A
-  JP L483F_39
-L483F_34:
+  JP L4A44_1
+
+; Routine at 18971
+L4A1B:
   LD A,L
   LD HL,(L47DF)
   SUB L
@@ -8560,30 +8649,41 @@ L483F_34:
   LD A,H
   SUB $0C
   BIT 5,A
-  JR Z,L483F_37
+  JR Z,L4A44
   RL L
   RLA
   INC A
   BIT 3,A
-  JR Z,L483F_36
+  JR Z,L4A3A_0
   LD H,$10
   LD A,L
   RRA
   ADD A,$28
   LD L,A
-  JP L483F_39
-L483F_35:
+  JP L4A44_1
+
+; Routine at 19002
+;
+; Used by the routine at L49FD.
+L4A3A:
   AND $3F
-L483F_36:
+; This entry point is used by the routine at L4A1B.
+L4A3A_0:
   XOR $60
   RRA
   RR L
-  JP L483F_38
-L483F_37:
+  JP L4A44_0
+
+; Routine at 19012
+;
+; Used by the routines at L49FD and L4A1B.
+L4A44:
   ADD A,$10
-L483F_38:
+; This entry point is used by the routine at L4A3A.
+L4A44_0:
   LD H,A
-L483F_39:
+; This entry point is used by the routines at L49FD and L4A1B.
+L4A44_1:
   LD (L47DF),HL
   POP AF
   ADD A,L
@@ -8591,39 +8691,41 @@ L483F_39:
   RET
   EX AF,AF'
   RRCA
-  JP NC,L483F_40
+  JP NC,L4A44_2
   DEC L
   RRCA
-L483F_40:
+L4A44_2:
   EX AF,AF'
   SCF
   RR B
-  JP C,L483F_41
+  JP C,L4A44_3
   RES 7,C
-L483F_41:
+L4A44_3:
   SCF
   RR C
   RET C
   RES 6,B
   RET
-L483F_42:
+
+; Routine at 19045
+L4A65:
   EX AF,AF'
   ADD A,A
-  JP P,L483F_43
+  JP P,L4A65_0
   INC L
   RLCA
-L483F_43:
+L4A65_0:
   EX AF,AF'
   SCF
   BIT 6,B
-  JP NZ,L483F_44
+  JP NZ,L4A65_1
   OR A
-L483F_44:
+L4A65_1:
   RL C
-  JP M,L483F_45
+  JP M,L4A65_2
   OR A
   SET 7,C
-L483F_45:
+L4A65_2:
   RL B
   SET 7,B
   RET
@@ -8635,7 +8737,7 @@ L4A81:
 
 ; Routine at 19089
 ;
-; Used by the routine at L483F.
+; Used by the routines at SET_HCOLOR, L48F3 and L4973.
 L4A91:
   LD A,(A2_HCOLOR)
   LD HL,L4AC5
@@ -8656,7 +8758,7 @@ L4A91_0:
 L4A91_1:
   LD HL,L4AB7
 L4A91_2:
-  LD ($49AB),HL
+  LD (L49AB),HL
   RET
 
 ; Data block at 19127
@@ -8686,7 +8788,7 @@ __HGR_0:
   CALL GETINT
 __HGR_1:
   PUSH AF
-  CALL L483F_0
+  CALL SET_HCOLOR
   POP BC
   POP AF
   AND $02
@@ -8743,20 +8845,20 @@ L4B30:
 __HPLOT:
   CP $DD
   JR NZ,__HPLOT_0
-  CALL L483F_31
+  CALL L49AD_3
   JR __HPLOT_1
 __HPLOT_0:
   CALL __HGR_4
-  CALL L483F_24
-  CALL L483F_31
-  CALL L483F_7
+  CALL L4973
+  CALL L49AD_3
+  CALL SET_HCOLOR_6
   CALL _CHRCKB
   RET Z
 __HPLOT_1:
   CALL CHRGTB
   CALL __HGR_4
   PUSH HL
-  CALL L483F_16
+  CALL L48F3
   POP HL
   LD A,(HL)
   CP $DD
@@ -8770,8 +8872,8 @@ __HPLOT_1:
   LD L,C
   LD H,B
   LD (L47DD),HL
-  LD HL,($47E3)
-  CALL L483F_29
+  LD HL,(L47E3)
+  CALL L49AD_1
   EXX
   RET
   LD E,$1F
@@ -8786,7 +8888,10 @@ __HPLOT_1:
   POP DE
   JP ERROR
   NOP
-  LD D,B
+
+; Data block at 19351
+L4B97:
+  DEFB $50
 
 ; Routine at 19352
 ;
@@ -14021,7 +14126,7 @@ NOTAB_0:
   LD (TTYPOS),A
   CP B
   JR NZ,INCTPS
-  LD A,($4B97)
+  LD A,(L4B97)
   CP B
   CALL Z,L670C_0
   CALL NZ,OUTDO_CRLF
@@ -19372,7 +19477,7 @@ PROCHK_2:
   LD (CURLIN),HL
   XOR A
   LD (CTLOFG),A
-  LD ($0B10),A
+  LD (ENDBUF),A
   LD (CHNFLG),A
   LD (MRGFLG),A
   LD (ERRFLG),A
@@ -19386,7 +19491,7 @@ PROCHK_2:
   JR Z,$8287
   LD A,$28
   LD BC,$503E
-  LD ($4B97),A
+  LD (L4B97),A
   CALL __WIDTH_1
   LD HL,$0080
   LD (MAXREC),HL
