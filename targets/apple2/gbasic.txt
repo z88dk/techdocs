@@ -212,13 +212,13 @@
 
 #     $E000       Keyboard data
 #     $E010       Clear keyboard strobe (rd or wr is irrelevant)
-#     $E030       Speaket output        (rd)
+#     $E030       Speaker output        (rd)
 #     $E020       Cassette output
 #     $E060       Cassette input
 #  $E061 - $E063  Flag inputs (paddle buttons, etc..)
 #  $E064 - $E067  Analog inputs (paddle, etc..)
 #     $E070       Analog clear
-#     $E040       Utility strobe
+#     $E040       Utility strobe (0.5 us delay, triggered twice if written)
 
 #     $E050       Display a GAPHICS page (at $2000)
 #     $E051       Display a TEXT page (at $0400)
@@ -233,3 +233,4 @@
 #     $E059       switch to 80 column text display (if available)
 
 ## (To calculate negative addresses in BASIC, just add -65536)
+
