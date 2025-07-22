@@ -4279,7 +4279,7 @@ INTIDX_0:
   CALL POSINT
   RET P
 ; This entry point is used by the routines at SRCHLP, __ERROR, L36E3, L3C68,
-; LPSIZL, CONINT, __DEL, L4305, A2_GET_POSINT, L4646, __PDL, SET_HCOLOR, __HGR,
+; LPSIZL, CONINT, __DEL, L4305, GET_POSINT, L4646, __PDL, SET_HCOLOR, __HGR,
 ; __LOG, L6462, L69DC, __ERASE, L6A5D, __ASC, __MID_S, FN_INSTR, L6F94, L7317,
 ; CHAIN_COMMON, SCNSMP, __CVD, L7A0F, L7CCF, VARECS, __GET, PROCHK and L8316.
 FC_ERR:
@@ -6680,7 +6680,7 @@ FNDNUM:
 
 ; Routine at 16535
 ;
-; Used by the routines at L364D, __ERROR, L3D64, __WIDTH, L42C0, A2_GET_POSINT,
+; Used by the routines at L364D, __ERROR, L3D64, __WIDTH, L42C0, GET_POSINT,
 ; __GR, L4646, L466F, GET_2_ARGS, L46AE, L472A, L4736, L47A8, L483F, __HGR,
 ; L4B30, L6E1A, L6F94, L6FEB, __CLOSE, L79F2 and L7D22.
 GETINT:
@@ -7613,7 +7613,7 @@ CLROVC:
 
 ; Routine at 17728
 __VTAB:
-  CALL A2_GET_POSINT
+  CALL GET_POSINT
   PUSH HL
   LD HL,CRTCNT
 __VTAB_0:
@@ -7621,24 +7621,31 @@ __VTAB_0:
   JP P,__VTAB_0
   ADD A,(HL)
   LD (TTY_VPOS),A
-; This entry point is used by the routine at __HTAB.
-__VTAB_1:
-  CALL __VTAB_2
+
+; Routine at 17743
+;
+; Used by the routine at __HTAB.
+GOTOXY:
+  CALL GOTOXY_0
   POP HL
   RET
 ; This entry point is used by the routine at __GR.
-__VTAB_2:
+GOTOXY_0:
   LD E,$07
-  CALL A2_TEXT_FN
+  CALL CONUA
   LD HL,(TTYPOS)
-  LD A,(LF396)
+  LD A,(F396_XY_OFFSET)
   OR A
-  JP P,__VTAB_3
+  JP P,NORVS
   AND $7F
   LD E,L
   LD L,H
   LD H,E
-__VTAB_3:
+
+; Do not reverse coordinates if positive
+;
+; Used by the routine at GOTOXY.
+NORVS:
   LD E,A
   ADD A,L
   LD L,A
@@ -7648,32 +7655,35 @@ __VTAB_3:
   CALL TRYOUT
   POP HL
   LD A,L
-  JR A2_TEXT_FN_0
+  JR CONUE
 
-; Routine at 17781
+; Invoke an Apple II CP/M screen function
 ;
-; Used by the routines at __VTAB and __NORMAL.
-A2_TEXT_FN:
+; Used by the routines at GOTOXY and __NORMAL.
+CONUA:
   LD D,$00
-  LD HL,LF397
+  LD HL,F397_SCREEN_FN_TBL
   ADD HL,DE
   LD A,(HL)
   OR A
   RET Z
-  JP P,A2_TEXT_FN_0
+  JP P,CONUE
   AND $7F
   PUSH AF
-  LD A,(LF397)
+  LD A,(F397_SCREEN_FN_TBL)
   CALL TRYOUT
   POP AF
-; This entry point is used by the routine at __VTAB.
-A2_TEXT_FN_0:
+
+; Invoke an Apple II CP/M screen function and exit
+;
+; Used by the routines at NORVS and CONUA.
+CONUE:
   JP TRYOUT
 
 ; Routine at 17806
 ;
 ; Used by the routines at __VTAB and __HTAB.
-A2_GET_POSINT:
+GET_POSINT:
   CALL GETINT
   OR A
   JP Z,FC_ERR
@@ -7682,7 +7692,7 @@ A2_GET_POSINT:
 
 ; Routine at 17815
 __HTAB:
-  CALL A2_GET_POSINT
+  CALL GET_POSINT
   PUSH HL
   LD HL,LINLEN
 __HTAB_0:
@@ -7692,7 +7702,7 @@ __HTAB_0:
   LD (TTYPOS),A
 ; This entry point is used by the routine at __TEXT.
 __HTAB_1:
-  JR __VTAB_1
+  JR GOTOXY
 
 ; Routine at 17832
 ;
@@ -7727,7 +7737,7 @@ L45B5:
 __NORMAL:
   LD E,$04
   PUSH HL
-  CALL A2_TEXT_FN
+  CALL CONUA
   POP HL
   RET
 
@@ -7776,7 +7786,7 @@ __GR:
   LD (LF022),A
   LD HL,$1700
   LD (TTYPOS),HL
-  CALL __VTAB_2
+  CALL GOTOXY_0
   LD A,(LE056)
   POP AF
   POP HL
@@ -14459,7 +14469,7 @@ INCTPS:
 
 ; Routine at 26372
 ;
-; Used by the routines at __VTAB, A2_TEXT_FN and NOTAB.
+; Used by the routines at NORVS, CONUA, CONUE and NOTAB.
 TRYOUT:
   PUSH AF
   PUSH BC
@@ -23906,11 +23916,11 @@ LF200:
   DEFB $00,$00,$00,$00,$00,$00
 
 ; $0396 - I/O config block, device drivers
-LF396:
+F396_XY_OFFSET:
   DEFB $00
 
-; $0397 - I/O config block, device drivers
-LF397:
+; First byte = lead in character code
+F397_SCREEN_FN_TBL:
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
