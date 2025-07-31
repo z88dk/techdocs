@@ -2578,8 +2578,8 @@ L0A27:
 
 ; Routine at 2606
 ;
-; Used by the routines at _CHPUT, L2428, TTY_CR, L24F2, L2550, L25AE, L25B9,
-; L25D7, L25F8 and L260E.
+; Used by the routines at _CHPUT, L2428, TTY_CR, L24F2, L2550, INL_CTL_U, L25B9,
+; INL_CTL_N, INL_CTL_F and INL_CTL_B.
 ERASE_CURSOR:
   LD A,(CSRSW)
   AND A
@@ -2629,7 +2629,7 @@ CURS_UP:
 
 ; Routine at 2651
 ;
-; Used by the routines at L25D7, L260E and L2624.
+; Used by the routines at INL_CTL_N, INL_CTL_B and L2624.
 CURS_RIGHT:
   CALL ESC_C		; ESC,"C", cursor right
   RET NZ
@@ -2971,7 +2971,7 @@ RESET_CONSOLE_0:
 
 ; Routine at 3032
 ;
-; Used by the routines at DISP_CURSOR, TTY_CR, L24F2, L2550, L25D7 and L2634.
+; Used by the routines at DISP_CURSOR, TTY_CR, L24F2, L2550, INL_CTL_N and L2634.
 GETCOD:
   PUSH HL
   CALL TXT_LOC
@@ -3043,7 +3043,7 @@ TXTLOC_SUB_0:
 ; Routine at 3101
 ;
 ; Used by the routines at ESC_M, ESC_L, TERMIN, TTY_CR, L24C4, L24F2, L2550,
-; L25B9, L25D7 and L266C.
+; L25B9, INL_CTL_N and L266C.
 ; LD A,(DE+L)	..
 GETTRM:
   PUSH HL
@@ -6018,14 +6018,14 @@ _TAPIN_1:
   LD E,$00
   CALL TAPIN_PERIOD
 _TAPIN_2:
-  LD B,C
+  LD B,C                ; keep the first period count
   CALL TAPIN_PERIOD
-  RET C
+  RET C                 ; exit if STOP is pressed or period count overflow
   LD A,B
-  ADD A,C
-  JP C,_TAPIN_2
+  ADD A,C               ; add the second period count
+  JP C,_TAPIN_2         ; skip and read again if byte size overflow
   CP D
-  JR C,_TAPIN_2
+  JR C,_TAPIN_2			; skip and read again if smaller than minimal length of startbit
   LD L,$08
 _TAPIN_BYTE:
   CALL _TAPIN_STARTBIT
@@ -6245,6 +6245,7 @@ ENDIF
   ; --- START PROC L23BF ---
 ; Accepts a line from console until a CR or STOP
 ; is typed,and stores the line in a buffer.
+; a.k.a. RINPUT
 _PINLIN:
 IF NOHOOK
  IF PRESERVE_LOCATIONS
@@ -6273,10 +6274,10 @@ IF NOHOOK
 ELSE
   CALL HQINL		; Hook for QINLIN std routine
 ENDIF
-  LD A,'?'
-  RST OUTDO  		; Output char to the current device
-  LD A,' '
-  RST OUTDO  		; Output char to the current device
+  LD A,'?'          ;GET A QMARK
+  RST OUTDO  		;TYPE IT
+  LD A,' '          ;SPACE
+  RST OUTDO  		;TYPE IT TOO
   
 ; This entry point is used by the routine at INLIN.
 _INLIN:
@@ -6312,7 +6313,7 @@ ENDIF
   LD HL,BUFMIN
   RET Z
   CCF
-L23FE:
+INL_ESC:
   RET
 
 ; Routine at 9215
@@ -6324,12 +6325,12 @@ CTL_CHARS:
   JR NZ,NOTAB
   POP AF
 TAB_LOOP:
-  LD A,$20
+  LD A,' '
   CALL CTL_CHARS
   LD A,(CSRX)
   DEC A
-  AND $07
-  JR NZ,TAB_LOOP
+  AND $07             ;AT TAB STOP?
+  JR NZ,TAB_LOOP      ;GO BACK IF MORE TO PRINT
   RET
 
 ; Routine at 9235
@@ -6362,7 +6363,7 @@ L242B:
 L242C:
   DEFB $3E  ; "LD A,n"   .. Toggle between   "LD A,$AF" and "XOR A"
 
-; This entry point is used by the routines at L24C4, L24E5 and L25CD.
+; This entry point is used by the routines at L24C4, INL_INS and L25CD.
 L242D:
   XOR A
   PUSH AF
@@ -6376,34 +6377,34 @@ L242D:
 ; Third TTY JP table (11 entries)
 INLIN_TBL:
   DEFB $08		; BS, backspace
-  DEFW L2561
+  DEFW INL_BS
   
   DEFB $12		; INS, toggle insert mode
-  DEFW L24E5
+  DEFW INL_INS
   
   DEFB $1b		; ESC: No action, (just point to 'RET')
-  DEFW L23FE
+  DEFW INL_ESC
   
   DEFB $02		; CTRL-B, previous word
-  DEFW L260E
+  DEFW INL_CTL_B
   
   DEFB $06		; CTRL-F, next word
-  DEFW L25F8
+  DEFW INL_CTL_F
   
   DEFB $0E		; CTRL-N, end of logical line
-  DEFW L25D7
+  DEFW INL_CTL_N
   
   DEFB $05		; CTRL-E, clear to end of line
   DEFW L25B9
   
   DEFB $03		; CTRL-STOP, terminate (CTRL-C)
-  DEFW L24C5
+  DEFW INL_CTL_C
   
   DEFB $0d		; CR, terminate
-  DEFW L245A
+  DEFW INL_CR
   
   DEFB $15		; CTRL-U, clear line
-  DEFW L25AE
+  DEFW INL_CTL_U
   
 IF SPECTRUM_SKIN
   ; Unbind CHR$(127) and make it printable
@@ -6414,7 +6415,7 @@ ENDIF
 
 
 ; CR, terminate
-L245A:
+INL_CR:
   CALL L266C
   LD A,(AUTFLG)		; AUTO mode ?
   AND A
@@ -6497,7 +6498,7 @@ TTY_CR_7:
 L24C4:
   INC L
 ; CTRL-STOP, terminate (CTRL-C)
-L24C5:
+INL_CTL_C:
   CALL GETTRM
   JR Z,L24C4
   CALL L242D
@@ -6516,7 +6517,7 @@ L24C5:
 
 ; Routine at 9445
 ; INS, toggle insert mode
-L24E5:
+INL_INS:
   LD HL,INSFLG
   LD A,(HL)
   XOR $FF
@@ -6619,7 +6620,7 @@ L2550_0:
 ENDIF
   
 ; BS, backspace
-L2561:
+INL_BS:
   PUSH HL
   CALL ERASE_CURSOR
   POP HL
@@ -6670,7 +6671,7 @@ L2550_5:
 
 ; Routine at 9646
 ; CTRL-U, clear line
-L25AE:
+INL_CTL_U:
   CALL ERASE_CURSOR
   CALL L266C
   LD (CSRY),HL
@@ -6682,7 +6683,7 @@ L25B9:
   PUSH HL
   CALL ERASE_CURSOR
   POP HL
-; This entry point is used by the routine at L25AE.
+; This entry point is used by the routine at INL_CTL_U.
 L25B9_0:
   CALL GETTRM
   PUSH AF
@@ -6695,7 +6696,7 @@ L25B9_0:
 
 ; Routine at 9677
 ;
-; Used by the routines at L25B9, L25D7, L25F8 and L260E.
+; Used by the routines at L25B9, INL_CTL_N, INL_CTL_F and INL_CTL_B.
 L25CD:
   CALL DISP_CURSOR
   XOR A
@@ -6704,60 +6705,60 @@ L25CD:
 
 ; Routine at 9687
 ; CTRL-N, end of logical line
-L25D7:
+INL_CTL_N:
   CALL ERASE_CURSOR
   LD HL,(CSRY)
   DEC L
-L25D7_0:
+INL_CTL_N_0:
   INC L
   CALL GETTRM
-  JR Z,L25D7_0
+  JR Z,INL_CTL_N_0
   LD A,(LINLEN)
   LD H,A
   INC H
-L25D7_1:
+INL_CTL_N_1:
   DEC H
-  JR Z,L25D7_2
+  JR Z,INL_CTL_N_2
   CALL GETCOD
   CP $20
-  JR Z,L25D7_1
-L25D7_2:
+  JR Z,INL_CTL_N_1
+INL_CTL_N_2:
   CALL CURS_RIGHT
   JR L25CD
 
 ; Routine at 9720
 ; CTRL-F, next word
-L25F8:
+INL_CTL_F:
   CALL ERASE_CURSOR
   CALL L2634
-L25F8_0:
+INL_CTL_F_0:
   CALL L2624
   JR Z,L25CD
-  JR C,L25F8_0
-L25F8_1:
+  JR C,INL_CTL_F_0
+INL_CTL_F_1:
   CALL L2624
   JR Z,L25CD
-  JR NC,L25F8_1
+  JR NC,INL_CTL_F_1
   JR L25CD
 
 ; Routine at 9742
 ; CTRL-B, previous word
-L260E:
+INL_CTL_B:
   CALL ERASE_CURSOR
-L260E_0:
+INL_CTL_B_0:
   CALL L2634
   JR Z,L25CD
-  JR NC,L260E_0
-L260E_1:
+  JR NC,INL_CTL_B_0
+INL_CTL_B_1:
   CALL L2634
   JR Z,L25CD
-  JR C,L260E_1
+  JR C,INL_CTL_B_1
   CALL CURS_RIGHT
   JR L25CD
 
 ; Routine at 9764
 ;
-; Used by the routine at L25F8.
+; Used by the routine at INL_CTL_F.
 L2624:
   LD HL,(CSRY)
   CALL CURS_RIGHT
@@ -6769,7 +6770,7 @@ L2624:
 
 ; Routine at 9780
 ;
-; Used by the routines at L25F8 and L260E.
+; Used by the routines at INL_CTL_F and INL_CTL_B.
 L2634:
   LD HL,(CSRY)
   CALL CURS_LEFT
@@ -6812,7 +6813,7 @@ L2668:
 
 ; Routine at 9836
 ;
-; Used by the routines at TTY_CR and L25AE.
+; Used by the routines at TTY_CR and INL_CTL_U.
 
 L266C:
   DEC L
@@ -12656,7 +12657,7 @@ RESTART:
   ; --- START PROC READY ---
 READY:
   CALL TOTEXT               ; Go back in text mode if in graphics mode (e.g. if BREAK was pressed)
-  CALL FINLPT
+  CALL FINLPT               ; Disable printer echo if enabled
   CALL CLOSE_STREAM
 IF NOHOOK
  IF PRESERVE_LOCATIONS
@@ -12684,22 +12685,22 @@ ENDIF
   LD A,(AUTFLG)		; AUTO mode ?
   OR A
   JR Z,PROMPT_1      ;YES
-  LD HL,(AUTLIN)
+  LD HL,(AUTLIN)           ;GET CURRENT AUTO LINE
   PUSH HL
   CALL LINPRT
   POP DE
   PUSH DE
   CALL SRCHLN		; Get first line number
   LD A,'*'          ;CHAR TO PRINT IF LINE ALREADY EXISTS
-  JR C,PROMPT_0
-  LD A,' '
-PROMPT_0:
-  RST OUTDO  		; Output char to the current device
-  LD (AUTFLG),A		; AUTO mode
+  JR C,AUTELN       ;DOESNT EXIST
+  LD A,' '          ;PRINT SPACE
+AUTELN:
+  RST OUTDO  		;PRINT CHAR            ; Output char to the current device
+  LD (AUTFLG),A	
 PROMPT_1:
   CALL ISFLIO		; Tests if I/O to device is taking place
   JR NZ,INI_STREAM
-  CALL PINLIN
+  CALL PINLIN       ;READ A LINE
   JR NC,INI_LIN
   XOR A
   LD (AUTFLG),A		; Enable AUTO mode
@@ -12716,22 +12717,22 @@ INI_LIN:
   JR Z,PROMPT        ; Nothing entered - Get another        IF SO, A BLANK LINE WAS INPUT
   PUSH AF            ; Save Carry status                    SAVE STATUS INDICATOR FOR 1ST CHARACTER
   CALL ATOH		     ; Get line number into DE              READ IN A LINE # specified line number
-  JR NC,BAKSP_0      ; BACK UP THE POINTER
+  JR NC,INI_LIN_0    ; BACK UP THE POINTER
   CALL ISFLIO		; Tests if I/O to device is taking place
   JP Z,SN_ERR		; ?SN Err
 
 
-BAKSP_0:
+INI_LIN_0:
   CALL BAKSP
   LD A,(AUTFLG)		; AUTO mode ?
   OR A
-  JR Z,L4195		; YES
+  JR Z,INI_LIN_1		; YES
   CP '*'
-  JR NZ,L4195
+  JR NZ,INI_LIN_1
   CP (HL)
-  JR NZ,L4195
+  JR NZ,INI_LIN_1
   INC HL
-L4195:
+INI_LIN_1:
   LD A,D
   OR E
   JR Z,EDENT
@@ -16646,7 +16647,7 @@ __LIST_0:
   PUSH BC              ;SAVE TEXT POINTER BACK
   EX DE,HL             ;GET LINE # IN [H,L]
   LD (DOT),HL          ;SAVE FOR LATER EDIT OR LIST <> AND WE WANT [H,L] ON THE STACK
-  CALL LINPRT          ;PRINT AS INT WITHOUT LEADING SPACE
+  CALL LINPRT          ; Output line number in decimal             ;PRINT AS INT WITHOUT LEADING SPACE
   POP HL
   LD A,(HL)            ;GET BYTE FROM LINE
   CP $09               ;IS IT A TAB?
@@ -20670,7 +20671,6 @@ _FC_ERR_A:
 
 ; Data block at 25719
 __ERASE:
-L6477:
   LD A,$01
   LD (SUBFLG),A
   CALL GETVAR
@@ -24311,7 +24311,7 @@ L737C:
   JR C,EOF_REACHED
   LD (HL),A
   CP CR
-  JR Z,NEXT_LINE
+  JR Z,FININL
   CP $09		; TAB
   JR Z,L7380_0
   CP LF
@@ -24319,15 +24319,15 @@ L737C:
 L7380_0:
   INC HL
   DJNZ L737C
-NEXT_LINE:
+FININL:
   XOR A
-  LD (HL),A
-  LD HL,BUFMIN
+  LD (HL),A               ;PUT A ZERO AT THE END OF BUF
+  LD HL,BUFMIN            ;SETUP POINTER
   RET
   
 EOF_REACHED:
   INC B
-  JR NZ,NEXT_LINE
+  JR NZ,FININL
   LD A,(NLONLY)
   AND $80
   LD (NLONLY),A
