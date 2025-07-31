@@ -11507,7 +11507,9 @@ EXEC_ROM0_RET:
 000045D2:       JR Z,+06h
 000045D4:       JR -13h
 
+
 ; perhaps used by IPL
+
 000045D6:       CALL C000h
 
 000045D9:       OR A
@@ -11515,6 +11517,9 @@ EXEC_ROM0_RET:
 000045DB:       POP DE
 000045DC:       RET
 
+
+;PUTQ - append data to back of queue
+_PUTQ:
 000045DD:       CALL 4676h
 000045E0:       LD A,B
 000045E1:       INC A
@@ -11638,7 +11643,9 @@ EXEC_ROM0_RET:
 00004665:       ADD HL,DE
 00004666:       RET
 
-00004667:       CALL 4676h
+; Gives number of bytes left in queue
+_LFTQ:
+00004667:       CALL 4676h      ; QUE_BCA  -  IN: A= QUEUE#, OUT: BCA = first three bytes of the given QUEUE
 0000466A:       LD A,B
 0000466B:       INC A
 0000466C:       INC HL
@@ -11651,7 +11658,9 @@ EXEC_ROM0_RET:
 00004673:       LD H,00h
 00004675:       RET
 
-00004676:       CALL 4680h
+; IN: A= QUEUE#, OUT: BCA = first three bytes of the given QUEUE
+QUE_BCA:
+00004676:       CALL 4680h       ; QUEADDR  -  HL = address for queue in A
 00004679:       LD B,(HL)
 0000467A:       INC HL
 0000467B:       LD C,(HL)
@@ -11660,6 +11669,9 @@ EXEC_ROM0_RET:
 0000467E:       OR A
 0000467F:       RET
 
+
+; HL = address for queue in A
+QUEADDR:
 00004680:       RLCA
 00004681:       LD B,A
 00004682:       RLCA
@@ -20344,7 +20356,7 @@ _TERM:
 00007F26:       AND F7h
 00007F28:       OR 04h			; cassette Motor off
 
-; MOTOR
+; (cassette MOTOR)
 00007F2A:       LD (E6C0h),A	; Value being sent to port 30h
 00007F2D:       OUTA (30h)		; System control port
 00007F2F:       RET
