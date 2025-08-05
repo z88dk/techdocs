@@ -1734,7 +1734,7 @@ DATSNR:
 ; entry for '?SN ERROR'
 ;
 ; Used by the routines at LNUM_RANGE, SAVSTP, NEWSTT_0, L36E3, SCNSTR, NOTQTI,
-; LOPREL, OCTCNS, L3F72, L402A, L4305, L4423, GETVAR, SHTNAM, L6462, SYNCHR,
+; LOPREL, OCTCNS, L3F72, L402A, L4305, L4423, GETVAR, SHTNAM, NOTSCI, SYNCHR,
 ; L6A82, __WEND, L7317, L7799, __MERGE, __GET and ENDCMD.
 SN_ERR:
   LD E,$02
@@ -1929,7 +1929,7 @@ ERRMOR_6:
 ; Used by the routines at __LIST and ENDCON.
 RESTART:
   POP BC
-; This entry point is used by the routines at PROMPT, __LIST, EDITRT, BINLOD
+; This entry point is used by the routines at PROMPT, __LIST, EDIT_QUIT, BINLOD
 ; and PROCHK.
 RESTART_0:
   CALL L6674_0
@@ -4064,7 +4064,7 @@ ONJMP:
 ; FINASG, L3F72, __WIDTH, FPSINT, FNDNUM, CONINT, NUMLIN, SCNEXT, _LINE2PTR,
 ; L4423, SCNCNT, DECNXT, FN_SCRN, FN_COLOR, L4796, L47A8, FN_HCOLOR, FN_HSCRN,
 ; __HPLOT, H_ASCTFP, FINEC, DPOINT, FOUTZS, FOUTTS, SUMLP, DIMRET, GETVAR,
-; DOCHRT, L6462, FN_INKEY, __ERASE, __CLEAR, L6A5D, L6A82, __NEXT, DTSTR,
+; DOCHRT, NOTSCI, FN_INKEY, __ERASE, __CLEAR, L6A5D, L6A82, __NEXT, DTSTR,
 ; FN_STRING, __VAL, FN_INSTR, PINLIN, __WHILE, __CALL, GETPAR, __CHAIN, L72E5,
 ; L7317, CHAIN_COMMON, BCKUCM, __WRITE, L75C6, FILSCN, LINE_INPUT, __LOAD,
 ; __MERGE, __SAVE, __CLOSE, FN_INPUT, L79F2, L7D22, VARECS, __GET, ENDCMD,
@@ -4280,8 +4280,9 @@ INTIDX_0:
   RET P
 ; This entry point is used by the routines at SRCHLP, __ERROR, L36E3, L3C68,
 ; LPSIZL, CONINT, __DELETE, L4305, GET_POSINT, L4646, __PDL, SET_HCOLOR, __HGR,
-; __LOG, L6462, L69DC, __ERASE, L6A5D, __ASC, __MID_S, FN_INSTR, L6F94, L7317,
-; CHAIN_COMMON, SCNSMP, __CVD, L7A0F, L7CCF, VARECS, __GET, PROCHK and L8316.
+; __LOG, L6462, NOTSCI, L69DC, __ERASE, L6A5D, __ASC, __MID_S, FN_INSTR, L6F94,
+; L7317, CHAIN_COMMON, SCNSMP, __CVD, L7A0F, L7CCF, VARECS, __GET, PROCHK and
+; L8316.
 FC_ERR:
   LD E,$05
   JP ERROR
@@ -5015,7 +5016,7 @@ NEXITM:
 
 ; Routine at 14463
 ;
-; Used by the routines at __PRINT, LTSTND, L6462, RUN_FST, NTRNDW, LOAD_END,
+; Used by the routines at __PRINT, LTSTND, REUSIN, RUN_FST, NTRNDW, LOAD_END,
 ; PUTCHR and FIVDPT.
 FINPRT:
   XOR A
@@ -5412,8 +5413,8 @@ L3A74:
 ; Routine at 14965
 ;
 ; Used by the routines at SRCHLP, L329B, L32F3, L35E2, __IF, __PRINT, L3A6E,
-; ASGMOR, POSINT, GETINT, __POKE, __RANDOMIZE, L6462, L6A5D, L6E22, L6EF1,
-; L6EFB, __WEND, L72E5, __WRITE, FILSCN, FNAME and __OPEN.
+; ASGMOR, POSINT, GETINT, __POKE, __RANDOMIZE, NOTSCI, ISSTRF, L6A5D, L6E22,
+; L6EF1, L6EFB, __WEND, L72E5, __WRITE, FILSCN, FNAME and __OPEN.
 EVAL:
   DEC HL
 ; This entry point is used by the routines at FORFND_SNG and __USING.
@@ -5887,7 +5888,7 @@ MAKUPL:
 
 ; Make char in 'A' upper case
 ;
-; Used by the routines at NTSNGT, OCTCNS and DISPED.
+; Used by the routines at NTSNGT, OCTCNS and DISPI.
 UCASE:
   CP $61
   RET C
@@ -6728,7 +6729,7 @@ __LIST_0:
   LD A,H
   OR L
   POP HL
-  CALL Z,L6762_5
+  CALL Z,FININL_3
   PUSH BC
   LD C,(HL)
   INC HL
@@ -6761,7 +6762,7 @@ __LIST_1:
 
 ; Routine at 16640
 ;
-; Used by the routines at __LIST, DISPED, EDIT_INSERT and PINLIN.
+; Used by the routines at __LIST, EDIT_BRANCH, EDIT_DONE and PINLIN.
 LISPRT:
   LD A,(HL)
   OR A
@@ -9564,7 +9565,7 @@ L4D4A_0:
   LD A,D
   JR NZ,MULT8_0
   EX DE,HL
-; This entry point is used by the routines at FDIV, FNDARY, EDIT_INSERT and
+; This entry point is used by the routines at FDIV, FNDARY, EDIT_REMOVE and
 ; L670C.
 L4D4A_1:
   POP HL
@@ -10263,7 +10264,7 @@ VALSNG:
 
 ; Test a string, 'Type Error' if it is not
 ;
-; Used by the routines at L388F, L3D64, __USING, L6462, CONCAT, GETSTR, L6EF1,
+; Used by the routines at L388F, L3D64, __USING, ISSTRF, CONCAT, GETSTR, L6EF1,
 ; L6F67, LINE_INPUT, L7913 and __LSET.
 TSTSTR:
   CALL GETYPR
@@ -11621,7 +11622,7 @@ FOUT:
 
 ; Routine at 22307
 ;
-; Used by the routine at L6462.
+; Used by the routine at NOTSCI.
 PUFOUT:
   CALL FOUINI
   AND $08
@@ -13682,8 +13683,8 @@ __EDIT:
 ; This entry point is used by the routine at FNDARY.
 __EDIT_0:
   POP HL
-; This entry point is used by the routine at DISPED.
-__EDIT_1:
+; This entry point is used by the routine at NOTDGI.
+EDIT_LOOP:
   EX DE,HL
   LD (DOT),HL
   EX DE,HL
@@ -13699,11 +13700,11 @@ __EDIT_1:
   INC HL
   PUSH BC
   CALL DETOKEN_LIST
-; This entry point is used by the routine at DISPED.
-__EDIT_2:
+; This entry point is used by the routine at EDIT_BRANCH.
+__EDIT_1:
   POP HL
 ; This entry point is used by the routine at PINLIN.
-__EDIT_3:
+__EDIT_2:
   PUSH HL
   LD A,H
   AND L
@@ -13716,27 +13717,29 @@ __EDIT_3:
   LD HL,BUF
   PUSH HL
   LD C,$FF
-__EDIT_4:
+__EDIT_3:
   INC C
   LD A,(HL)
   INC HL
   OR A
-  JR NZ,__EDIT_4
+  JR NZ,__EDIT_3
   POP HL
   LD B,A
 
 ; Routine at 25254
 DISPED:
   LD D,$00
-DISPED_0:
+
+; Routine at 25256
+DISPI:
   CALL INCHRI
   OR A
-  JR Z,DISPED_0
+  JR Z,DISPI
   CALL UCASE
   SUB $30
-  JR C,DISPED_1
+  JR C,NOTDGI
   CP $0A
-  JR NC,DISPED_1
+  JR NC,NOTDGI
   LD E,A
   LD A,D
   RLCA
@@ -13745,34 +13748,38 @@ DISPED_0:
   RLCA
   ADD A,E
   LD D,A
-  JR DISPED_0
-DISPED_1:
+  JR DISPI
+
+; Routine at 25283
+;
+; Used by the routine at DISPI.
+NOTDGI:
   PUSH HL
   LD HL,DISPED
   EX (SP),HL
   DEC D
   INC D
-  JP NZ,DISPED_2
+  JP NZ,NOTDGI_0
   INC D
-DISPED_2:
+NOTDGI_0:
   CP $D8
-  JP Z,EDIT_INSERT_8
+  JP Z,EDIT_BKSP
   CP $4F
-  JP Z,EDIT_INSERT_9
+  JP Z,EDIT_DEL
   CP $DD
-  JP Z,EDIT_INSERT_10
+  JP Z,EDIT_DONE
   CP $F0
-  JR Z,DISPED_4
+  JR Z,EDIT_SPC
   CP $31
-  JR C,DISPED_3
+  JR C,NOTDGI_1
   SUB $20
-DISPED_3:
+NOTDGI_1:
   CP $21
-  JP Z,EDITRT_0
+  JP Z,EDIT_QUIT
   CP $1C
-  JP Z,DISPED_10
+  JP Z,EDIT_BRANCH
   CP $23
-  JR Z,DISPED_6
+  JR Z,EDIT_SEARCH
   CP $19
   JP Z,EDIT_INSERT
   CP $14
@@ -13780,11 +13787,11 @@ DISPED_3:
   CP $13
   JP Z,EDIT_CHANGE
   CP $15
-  JP Z,EDIT_INSERT_11
+  JP Z,EDIT_EXIT
   CP $28
   JP Z,EDIT_XTEND
   CP $1B
-  JR Z,DISPED_5
+  JR Z,EDIT_REPLACE
   CP $18
   JP Z,EDIT_HACK
   CP $11
@@ -13793,9 +13800,12 @@ DISPED_3:
   POP BC
   POP DE
   CALL OUTDO_CRLF
-  JP __EDIT_1
-; This entry point is used by the routine at EDIT_XTEND.
-DISPED_4:
+  JP EDIT_LOOP
+
+; Routine at 25382
+;
+; Used by the routines at NOTDGI and EDIT_XTEND.
+EDIT_SPC:
   LD A,(HL)
   OR A
   RET Z
@@ -13803,49 +13813,61 @@ DISPED_4:
   CALL OUTCH1
   INC HL
   DEC D
-  JR NZ,DISPED_4
+  JR NZ,EDIT_SPC
   RET
-DISPED_5:
+
+; Routine at 25394
+;
+; Used by the routine at NOTDGI.
+EDIT_REPLACE:
   PUSH HL
   LD HL,TYPSLH
   EX (SP),HL
   SCF
-DISPED_6:
+
+; Routine at 25400
+;
+; Used by the routine at NOTDGI.
+EDIT_SEARCH:
   PUSH AF
   CALL INCHRI
   LD E,A
   POP AF
   PUSH AF
   CALL C,TYPSLH
-DISPED_7:
+EDIT_SEARCH_0:
   LD A,(HL)
   OR A
-  JP Z,DISPED_9
+  JP Z,EDIT_SEARCH_2
   CALL OUTCH1
   POP AF
   PUSH AF
-  CALL C,EDIT_INSERT_2
-  JR C,DISPED_8
+  CALL C,EDIT_REMOVE
+  JR C,NOTSRC
   INC HL
   INC B
-DISPED_8:
+NOTSRC:
   LD A,(HL)
   CP E
-  JR NZ,DISPED_7
+  JR NZ,EDIT_SEARCH_0
   DEC D
-  JR NZ,DISPED_7
-DISPED_9:
+  JR NZ,EDIT_SEARCH_0
+EDIT_SEARCH_2:
   POP AF
   RET
-DISPED_10:
+
+; Routine at 25436
+;
+; Used by the routine at NOTDGI.
+EDIT_BRANCH:
   CALL LISPRT
   CALL OUTDO_CRLF
   POP BC
-  JP __EDIT_2
+  JP __EDIT_1
 
 ; Routine at 25446
 ;
-; Used by the routine at DISPED.
+; Used by the routine at NOTDGI.
 EDIT_DELETE:
   LD A,(HL)
   OR A
@@ -13857,10 +13879,10 @@ DELLP:
   OR A
   JR Z,TYPSLH
   CALL OUTCH1
-  CALL EDIT_INSERT_2
+  CALL EDIT_REMOVE
   DEC D
   JR NZ,DELLP
-; This entry point is used by the routine at DISPED.
+; This entry point is used by the routine at EDIT_SEARCH.
 TYPSLH:
   LD A,$5C
   CALL OUTDO
@@ -13868,7 +13890,7 @@ TYPSLH:
 
 ; Routine at 25473
 ;
-; Used by the routines at DISPED and NOTCCC.
+; Used by the routines at NOTDGI and NOTCCC.
 EDIT_CHANGE:
   LD A,(HL)
   OR A
@@ -13901,59 +13923,67 @@ NOTCCC:
 
 ; Routine at 25512
 ;
-; Used by the routine at DISPED.
+; Used by the routine at NOTDGI.
 EDIT_HACK:
   LD (HL),$00
   LD C,B
 
 ; Routine at 25515
 ;
-; Used by the routine at DISPED.
+; Used by the routine at NOTDGI.
 EDIT_XTEND:
   LD D,$FF
-  CALL DISPED_4
+  CALL EDIT_SPC
 
 ; Routine at 25520
 ;
-; Used by the routine at DISPED.
+; Used by the routines at NOTDGI and NTARRW.
 EDIT_INSERT:
   CALL INCHRI
   CP $7F
-  JR Z,EDIT_INSERT_0
+  JR Z,TYPARW
   CP $08
-  JR Z,EDIT_INSERT_1
+  JR Z,TYPARW_0
   CP $0D
-  JP Z,EDIT_INSERT_10
+  JP Z,EDIT_DONE
   CP $1B
   RET Z
   CP $08
-  JR Z,EDIT_INSERT_1
+  JR Z,TYPARW_0
   CP $0A
-  JR Z,EDIT_INSERT_4
+  JR Z,NTARRW
   CP $07
-  JR Z,EDIT_INSERT_4
+  JR Z,NTARRW
   CP $09
-  JR Z,EDIT_INSERT_4
+  JR Z,NTARRW
   CP $20
   JR C,EDIT_INSERT
   CP $5F
-  JR NZ,EDIT_INSERT_4
-EDIT_INSERT_0:
+  JR NZ,NTARRW
+
+; Routine at 25563
+;
+; Used by the routine at EDIT_INSERT.
+TYPARW:
   LD A,$5F
-EDIT_INSERT_1:
+; This entry point is used by the routine at EDIT_INSERT.
+TYPARW_0:
   DEC B
   INC B
-  JR Z,EDIT_INSERT_5
+  JR Z,DINGI
   CALL OUTCH1
   DEC HL
   DEC B
   LD DE,EDIT_INSERT
   PUSH DE
-; This entry point is used by the routines at DISPED and EDIT_DELETE.
-EDIT_INSERT_2:
+
+; Routine at 25578
+;
+; Used by the routines at EDIT_SEARCH and EDIT_DELETE.
+EDIT_REMOVE:
   PUSH HL
   DEC C
-EDIT_INSERT_3:
+EDIT_REMOVE_0:
   LD A,(HL)
   OR A
   SCF
@@ -13963,19 +13993,24 @@ EDIT_INSERT_3:
   DEC HL
   LD (HL),A
   INC HL
-  JR EDIT_INSERT_3
-EDIT_INSERT_4:
+  JR EDIT_REMOVE_0
+
+; Routine at 25593
+;
+; Used by the routine at EDIT_INSERT.
+NTARRW:
   PUSH AF
   LD A,C
   CP $FF
-  JR C,EDIT_INSERT_7
+  JR C,EDIT_INS_CH
   POP AF
-EDIT_INSERT_5:
+; This entry point is used by the routine at TYPARW.
+DINGI:
   LD A,$07
   CALL OUTDO
-EDIT_INSERT_6:
+EDIT_INSERT_LP:
   JR EDIT_INSERT
-EDIT_INSERT_7:
+EDIT_INS_CH:
   SUB B
   INC C
   INC B
@@ -13993,19 +14028,25 @@ EDIT_INSERT_7:
   LD (HL),A
   CALL OUTCH1
   INC HL
-  JP EDIT_INSERT_6
-; This entry point is used by the routine at DISPED.
-EDIT_INSERT_8:
+  JP EDIT_INSERT_LP
+
+; Routine at 25632
+;
+; Used by the routine at NOTDGI.
+EDIT_BKSP:
   LD A,B
   OR A
   RET Z
   CALL PINLIN_19
   DEC B
   DEC D
-  JR NZ,EDIT_INSERT_9
+  JR NZ,EDIT_DEL
   RET
-; This entry point is used by the routine at DISPED.
-EDIT_INSERT_9:
+
+; Routine at 25643
+;
+; Used by the routines at NOTDGI and EDIT_BKSP.
+EDIT_DEL:
   LD A,B
   OR A
   RET Z
@@ -14014,13 +14055,19 @@ EDIT_INSERT_9:
   LD A,(HL)
   CALL OUTCH1
   DEC D
-  JR NZ,EDIT_INSERT_9
+  JR NZ,EDIT_DEL
   RET
-; This entry point is used by the routine at DISPED.
-EDIT_INSERT_10:
+
+; Routine at 25656
+;
+; Used by the routines at NOTDGI and EDIT_INSERT.
+EDIT_DONE:
   CALL LISPRT
-; This entry point is used by the routine at DISPED.
-EDIT_INSERT_11:
+
+; Routine at 25659
+;
+; Used by the routine at NOTDGI.
+EDIT_EXIT:
   CALL OUTDO_CRLF
   POP BC
   POP DE
@@ -14038,14 +14085,17 @@ EDITRT:
   PUSH AF
   INC HL
   JP EDENT
-; This entry point is used by the routine at DISPED.
-EDITRT_0:
+
+; Routine at 25677
+;
+; Used by the routine at NOTDGI.
+EDIT_QUIT:
   POP BC
   POP DE
   LD A,D
   AND E
   INC A
-  JP Z,L6762_1
+  JP Z,FININL
   JP RESTART_0
 
 ; PRINT USING
@@ -14064,14 +14114,15 @@ L6461:
 L6462:
   EX DE,HL
   LD HL,(FACCU)
-  JR L6462_1
-L6462_0:
+  JR L6462_0
+; This entry point is used by the routine at REUSIN.
+REUSST:
   LD A,(FLGINP)
   OR A
-  JR Z,L6462_2
+  JR Z,FCERR3
   POP DE
   EX DE,HL
-L6462_1:
+L6462_0:
   PUSH HL
   XOR A
   LD (FLGINP),A
@@ -14080,122 +14131,150 @@ L6462_1:
   PUSH DE
   LD B,(HL)
   OR B
-L6462_2:
+FCERR3:
   JP Z,FC_ERR
   INC HL
   LD C,(HL)
   INC HL
   LD H,(HL)
   LD L,C
-  JR L6462_7
-L6462_3:
+  JR PRCCHR
+; This entry point is used by the routine at PLSFIN.
+BGSTRF:
   LD E,B
   PUSH HL
   LD C,$02
-L6462_4:
+LPSTRF:
   LD A,(HL)
   INC HL
   CP $5C
-  JP Z,$65D2
+  JP Z,ISSTRF
   CP $20
-  JR NZ,L6462_5
+  JR NZ,NOSTRF
   INC C
-  DJNZ L6462_4
-L6462_5:
+  DJNZ LPSTRF
+NOSTRF:
   POP HL
   LD B,E
   LD A,$5C
-L6462_6:
-  CALL L6462_30
+; This entry point is used by the routines at PLSFIN and DOTNUM.
+NEWUCH:
+  CALL PLS_PRNT
   CALL OUTDO
-L6462_7:
+; This entry point is used by the routine at NOTSCI.
+PRCCHR:
   XOR A
   LD E,A
   LD D,A
-L6462_8:
-  CALL L6462_30
+
+; Routine at 25763
+PLSFIN:
+  CALL PLS_PRNT
   LD D,A
   LD A,(HL)
   INC HL
   CP $21
-  JP Z,L6462_27
+  JP Z,SMSTRF
   CP $23
-  JR Z,L6462_11
+  JR Z,NUMNUM
   CP $26
-  JP Z,L6462_26
+  JP Z,VARSTR
   DEC B
-  JP Z,L6462_22
+  JP Z,REUSIN
   CP $2B
   LD A,$08
-  JR Z,L6462_8
+  JR Z,PLSFIN
   DEC HL
   LD A,(HL)
   INC HL
   CP $2E
-  JR Z,L6462_12
+  JR Z,DOTNUM
   CP $5F
-  JP Z,L6462_25
+  JP Z,LITCHR
   CP $5C
-  JR Z,L6462_3
+  JR Z,BGSTRF
   CP (HL)
-  JR NZ,L6462_6
+  JR NZ,NEWUCH
   CP $24
-  JR Z,$64EC
+  JR Z,DOLRNM
   CP $2A
-  JR NZ,L6462_6
+  JR NZ,NEWUCH
   LD A,B
   INC HL
   CP $02
-  JR C,L6462_9
+  JR C,_NOTSPC
   LD A,(HL)
   CP $24
-L6462_9:
+_NOTSPC:
   LD A,$20
-  JR NZ,L6462_10
+  JR NZ,SPCNUM
   DEC B
   INC E
-  CP $AF
+
+; ; CP AFh ..hides the "XOR A" instruction (MVI SI,  IN 8086)
+L64EB:
+  DEFB $FE
+
+; Routine at 25836
+;
+; Used by the routine at PLSFIN.
+DOLRNM:
+  XOR A
   ADD A,$10
   INC HL
-L6462_10:
+
+; Routine at 25840
+;
+; Used by the routine at PLSFIN.
+SPCNUM:
   INC E
   ADD A,D
   LD D,A
-L6462_11:
+
+; Routine at 25843
+;
+; Used by the routine at PLSFIN.
+NUMNUM:
   INC E
   LD C,$00
   DEC B
-  JR Z,L6462_15
+  JR Z,ENDNUS
   LD A,(HL)
   INC HL
   CP $2E
-  JR Z,L6462_13
+  JR Z,AFTDOT
   CP $23
-  JR Z,L6462_11
+  JR Z,NUMNUM
   CP $2C
-  JR NZ,L6462_14
+  JR NZ,FINNUM
   LD A,D
   OR $40
   LD D,A
-  JR L6462_11
-L6462_12:
+  JR NUMNUM
+
+; Routine at 25869
+;
+; Used by the routine at PLSFIN.
+DOTNUM:
   LD A,(HL)
   CP $23
   LD A,$2E
-  JP NZ,L6462_6
+  JP NZ,NEWUCH
   LD C,$01
   INC HL
-L6462_13:
+; This entry point is used by the routine at NUMNUM.
+AFTDOT:
   INC C
   DEC B
-  JR Z,L6462_15
+  JR Z,ENDNUS
   LD A,(HL)
   INC HL
   CP $23
-  JR Z,L6462_13
-L6462_14:
+  JR Z,AFTDOT
+; This entry point is used by the routine at NUMNUM.
+FINNUM:
   PUSH DE
-  LD DE,$653F
+  LD DE,NOTSCI
   PUSH DE
   LD D,H
   LD E,L
@@ -14218,32 +14297,41 @@ L6462_14:
   LD B,A
   INC D
   INC HL
-  JP Z,$D1EB
-L6462_15:
+
+; ; JP Z,nn  to mask the next 2 bytes    ;SKIP THE NEXT TWO BYTES WITH "JZ"
+L653E:
+  DEFB $CA
+
+; Routine at 25919
+NOTSCI:
+  EX DE,HL
+  POP DE
+; This entry point is used by the routines at NUMNUM and DOTNUM.
+ENDNUS:
   LD A,D
   DEC HL
   INC E
   AND $08
-  JR NZ,L6462_17
+  JR NZ,ENDNUM
   DEC E
   LD A,B
   OR A
-  JR Z,L6462_17
+  JR Z,ENDNUM
   LD A,(HL)
   SUB $2D
-  JR Z,L6462_16
+  JR Z,SGNTRL
   CP $FE
-  JR NZ,L6462_17
+  JR NZ,ENDNUM
   LD A,$08
-L6462_16:
+SGNTRL:
   ADD A,$04
   ADD A,D
   LD D,A
   DEC B
-L6462_17:
+ENDNUM:
   POP HL
   POP AF
-  JR Z,L6462_24
+  JR Z,FLDFIN
   PUSH BC
   PUSH DE
   CALL EVAL
@@ -14260,20 +14348,21 @@ L6462_17:
   OR $80
   CALL PUFOUT
   CALL PRS
-L6462_18:
+; This entry point is used by the routines at ISSTRF and UPRTSP.
+FNSTRF:
   POP HL
   DEC HL
   CALL CHRGTB
   SCF
-  JR Z,L6462_20
+  JR Z,CRDNUS
   LD (FLGINP),A
   CP $3B
-  JR Z,L6462_19
+  JR Z,SEMUSN
   CP $2C
   JP NZ,SN_ERR
-L6462_19:
+SEMUSN:
   CALL CHRGTB
-L6462_20:
+CRDNUS:
   POP BC
   EX DE,HL
   POP HL
@@ -14290,43 +14379,69 @@ L6462_20:
   LD D,$00
   LD E,A
   ADD HL,DE
-L6462_21:
+; This entry point is used by the routine at REUSIN.
+CHKUSI:
   LD A,B
   OR A
-  JP NZ,L6462_7
-  JR L6462_23
-L6462_22:
-  CALL L6462_30
+  JP NZ,PRCCHR
+  JR FINUSI
+
+; Routine at 26026
+;
+; Used by the routine at PLSFIN.
+REUSIN:
+  CALL PLS_PRNT
   CALL OUTDO
-L6462_23:
+; This entry point is used by the routine at NOTSCI.
+FINUSI:
   POP HL
   POP AF
-  JP NZ,L6462_0
-L6462_24:
+  JP NZ,REUSST
+; This entry point is used by the routines at NOTSCI and ISSTRF.
+FLDFIN:
   CALL C,OUTDO_CRLF
   EX (SP),HL
   CALL GSTRHL
   POP HL
   JP FINPRT
-L6462_25:
-  CALL L6462_30
+; This entry point is used by the routine at PLSFIN.
+LITCHR:
+  CALL PLS_PRNT
   DEC B
   LD A,(HL)
   INC HL
   CALL OUTDO
-  JR L6462_21
-L6462_26:
+  JR CHKUSI
+
+; Routine at 26059
+;
+; Used by the routine at PLSFIN.
+VARSTR:
   LD C,$FF
-  JR L6462_28
-L6462_27:
+  JR ISSTRF_0
+
+; Routine at 26063
+;
+; Used by the routine at PLSFIN.
+SMSTRF:
   LD C,$01
-  LD A,$F1
-L6462_28:
+
+; ; "LD A,n" to Mask the next byte      ;SKIP NEXT BYTE WITH A "MVI A,"
+L65D1:
+  DEFB $3E
+
+; Routine at 26066
+;
+; Used by the routine at L6462.
+ISSTRF:
+  POP AF
+; This entry point is used by the routine at VARSTR.
+ISSTRF_0:
   DEC B
-  CALL L6462_30
+  CALL PLS_PRNT
   POP HL
   POP AF
-  JR Z,L6462_24
+  JR Z,FLDFIN
   PUSH BC
   CALL EVAL
   CALL TSTSTR
@@ -14342,18 +14457,24 @@ L6462_28:
   LD HL,(FACCU)
   POP AF
   INC A
-  JP Z,L6462_18
+  JP Z,FNSTRF
   DEC A
   SUB (HL)
   LD B,A
   LD A,$20
   INC B
-L6462_29:
+
+; Routine at 26112
+UPRTSP:
   DEC B
-  JP Z,L6462_18
+  JP Z,FNSTRF
   CALL OUTDO
-  JR L6462_29
-L6462_30:
+  JR UPRTSP
+
+; Routine at 26121
+;
+; Used by the routines at L6462, PLSFIN, REUSIN and ISSTRF.
+PLS_PRNT:
   PUSH AF
   LD A,D
   OR A
@@ -14365,8 +14486,9 @@ L6462_30:
 ; Output char in 'A' to console
 ;
 ; Used by the routines at PROMPT, NEWSTT_0, SPCLP, NOTQTI, __LIST, __EDIT,
-; DISPED, EDIT_DELETE, EDIT_CHANGE, EDIT_INSERT, L6462, NTBKS1, L6762, OUTCH1,
-; KILIN, PRS1, __FRE, PINLIN, L75C6, CRLFSQ and __FILES.
+; NOTDGI, EDIT_DELETE, EDIT_CHANGE, NTARRW, L6462, REUSIN, UPRTSP, PLS_PRNT,
+; NTBKS1, FININL, OUTCH1, KILIN, PRS1, __FRE, PINLIN, L75C6, CRLFSQ and
+; __FILES.
 OUTDO:
   PUSH AF
   PUSH HL
@@ -14381,49 +14503,53 @@ OUTDO:
   POP AF
   PUSH AF
   CP $08
-  JR NZ,OUTDO_0
+  JR NZ,NTBKS2
   LD A,(LPTPOS)
   DEC A
   LD (LPTPOS),A
   POP AF
-  JR OUTDO_6
-OUTDO_0:
+  JR OUTC_2
+NTBKS2:
   CP $09
-  JR NZ,OUTDO_2
-OUTDO_1:
+  JR NZ,OUTC
+TABEXP_LOOP:
   LD A,$20
   CALL OUTDO
   LD A,(LPTPOS)
   AND $07
-  JR NZ,OUTDO_1
+  JR NZ,TABEXP_LOOP
   POP AF
   RET
-OUTDO_2:
+
+; Routine at 26183
+;
+; Used by the routine at OUTDO.
+OUTC:
   POP AF
   PUSH AF
   SUB $0D
-  JR Z,OUTDO_4
-  JR C,OUTDO_5
+  JR Z,OUTC_1
+  JR C,_OUTPRT
   LD A,(LPTSIZ)
   INC A
   LD A,(LPTPOS)
-  JR Z,OUTDO_3
+  JR Z,OUTC_0
   PUSH HL
   LD HL,LPTSIZ
   CP (HL)
   POP HL
   CALL Z,L6674_1
-  JR Z,OUTDO_5
-OUTDO_3:
+  JR Z,_OUTPRT
+OUTC_0:
   CP $FF
-  JR Z,OUTDO_5
+  JR Z,_OUTPRT
   INC A
-OUTDO_4:
+OUTC_1:
   LD (LPTPOS),A
-OUTDO_5:
+_OUTPRT:
   POP AF
-; This entry point is used by the routine at L6674.
-OUTDO_6:
+; This entry point is used by the routines at OUTDO and L6674.
+OUTC_2:
   PUSH AF
   PUSH BC
   PUSH DE
@@ -14452,12 +14578,12 @@ L6674_0:
   LD A,(LPTPOS)
   OR A
   RET Z
-; This entry point is used by the routine at OUTDO.
+; This entry point is used by the routine at OUTC.
 L6674_1:
   LD A,$0D
-  CALL OUTDO_6
+  CALL OUTC_2
   LD A,$0A
-  CALL OUTDO_6
+  CALL OUTC_2
   XOR A
   LD (LPTPOS),A
   RET
@@ -14569,7 +14695,7 @@ L670C:
   RET
 ; This entry point is used by the routine at NOTAB.
 L670C_0:
-  CALL L6762_2
+  CALL FININL_0
 ; This entry point is used by the routine at L6674.
 L670C_1:
   LD A,(CRTCNT)
@@ -14621,8 +14747,8 @@ L670C_4:
 
 ; Routine at 26460
 ;
-; Used by the routines at DISPED, EDIT_CHANGE, EDIT_INSERT, STALL, L67D8 and
-; L7A0F.
+; Used by the routines at DISPI, EDIT_SEARCH, EDIT_CHANGE, EDIT_INSERT, STALL,
+; L67D8 and L7A0F.
 INCHRI:
   PUSH BC
   PUSH DE
@@ -14660,41 +14786,45 @@ L6762_0:
   OR A
   RET Z
   JP OUTDO_CRLF
-; This entry point is used by the routines at EDITRT and PINLIN.
-L6762_1:
+
+; Routine at 26499
+;
+; Used by the routines at EDIT_QUIT and PINLIN.
+FININL:
   LD (HL),$00
   LD HL,BUFMIN
 ; This entry point is used by the routines at ERRMOR, __PRINT, DOSPC, __LIST,
-; DISPED, EDIT_INSERT, L6462, NOTAB, KILIN, PINLIN, NTRNDW, __FILES and DONCMD.
+; NOTDGI, EDIT_BRANCH, EDIT_EXIT, REUSIN, NOTAB, L6762, KILIN, PINLIN, NTRNDW,
+; __FILES and DONCMD.
 OUTDO_CRLF:
   LD A,$0D
   CALL OUTDO
   LD A,$0A
   CALL OUTDO
 ; This entry point is used by the routines at L670C, OUTCH1 and PRS1.
-L6762_2:
+FININL_0:
   PUSH HL
   LD HL,(PTRFIL)
   LD A,H
   OR L
   POP HL
-  JR Z,L6762_3
+  JR Z,FININL_1
   XOR A
   RET
-L6762_3:
+FININL_1:
   LD A,(PRTFLG)
   OR A
-  JR Z,L6762_4
+  JR Z,FININL_2
   XOR A
   LD (LPTPOS),A
   RET
-L6762_4:
+FININL_2:
   XOR A
   LD (TTYPOS),A
   XOR A
   RET
 ; This entry point is used by the routine at __LIST.
-L6762_5:
+FININL_3:
   PUSH BC
   PUSH DE
   PUSH HL
@@ -14776,14 +14906,15 @@ CHARCG:
 
 ; Routine at 26624
 ;
-; Used by the routines at LISPRT, DISPED, EDIT_DELETE, NOTCCC and EDIT_INSERT.
+; Used by the routines at LISPRT, EDIT_SPC, EDIT_SEARCH, EDIT_DELETE, NOTCCC,
+; TYPARW, NTARRW and EDIT_DEL.
 OUTCH1:
   CALL OUTDO
   CP $0A
   RET NZ
   LD A,$0D
   CALL OUTDO
-  CALL L6762_2
+  CALL FININL_0
   LD A,$0A
   RET
 
@@ -14795,7 +14926,7 @@ MOVUP:
 
 ; Routine at 26644
 ;
-; Used by the routines at EDIT_INSERT, SCNEND and CDVARS.
+; Used by the routines at NTARRW, SCNEND and CDVARS.
 MOVSTR:
   PUSH BC
   EX (SP),HL
@@ -15646,13 +15777,13 @@ PRNUMS:
 ; Create string entry and print it
 ;
 ; Used by the routines at ERRMOR, RDOIN2, __DELETE, _LINE2PTR, __RANDOMIZE,
-; IN_PRT, L6462, L670C and DONCMD.
+; IN_PRT, NOTSCI, L670C and DONCMD.
 PRS:
   CALL CRTST
 
 ; Print string at HL
 ;
-; Used by the routines at __PRINT, __INPUT_2, L6462, __WRITE and L75C6.
+; Used by the routines at __PRINT, __INPUT_2, ISSTRF, __WRITE and L75C6.
 PRS1:
   CALL GSTRCU
   CALL LOADFP_0
@@ -15663,7 +15794,7 @@ PRS1_0:
   LD A,(BC)
   CALL OUTDO
   CP $0D
-  CALL Z,L6762_2
+  CALL Z,FININL_0
   INC BC
   JR PRS1_0
 
@@ -15995,7 +16126,7 @@ GSTRCU:
 
 ; Get string pointed by HL
 ;
-; Used by the routines at L6462, CONCAT and L6F07.
+; Used by the routines at REUSIN, CONCAT and L6F07.
 GSTRHL:
   EX DE,HL
 
@@ -16155,7 +16286,7 @@ L6E5B:
 
 ; Routine at 28252
 ;
-; Used by the routine at L6462.
+; Used by the routine at ISSTRF.
 __LEFT_S_1:
   PUSH HL
 
@@ -16588,7 +16719,7 @@ PINLIN_0:
 PINLIN_1:
   CALL OUTDO_CRLF
   LD HL,$FFFF
-  JP __EDIT_3
+  JP __EDIT_2
 PINLIN_2:
   LD A,($083E)
   OR A
@@ -16720,7 +16851,7 @@ PINLIN_15:
 PINLIN_16:
   LD A,(INTFLG)
   OR A
-  JP Z,L6762_1
+  JP Z,FININL
   XOR A
   LD (HL),A
   LD HL,BUFMIN
@@ -16739,7 +16870,7 @@ PINLIN_18:
   LD A,(TTYPOS)
   LD ($719D),A
   RET
-; This entry point is used by the routine at EDIT_INSERT.
+; This entry point is used by the routine at EDIT_BKSP.
 PINLIN_19:
   DEC HL
   LD A,(HL)
