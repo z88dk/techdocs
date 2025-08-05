@@ -52,7 +52,7 @@ FNCTAB:
   DEFW __EDIT
   DEFW __ERROR
   DEFW __RESUME
-  DEFW __DEL
+  DEFW __DELETE
   DEFW __AUTO
   DEFW __RENUM
   DEFW __DEFSTR
@@ -2167,7 +2167,7 @@ CHEAD_2:
 
 ; Read numeric range function parameters
 ;
-; Used by the routines at __LIST, __DEL and L7317.
+; Used by the routines at __LIST, __DELETE and L7317.
 LNUM_RANGE:
   LD DE,$0000
   PUSH DE
@@ -2197,7 +2197,7 @@ LNUM_RANGE_3:
 
 ; Routine at 3976
 ;
-; Used by the routines at PROMPT, EDENT, __GOTO, __DEL, L4305, _LINE2PTR,
+; Used by the routines at PROMPT, EDENT, __GOTO, __DELETE, L4305, _LINE2PTR,
 ; __EDIT, __RESTORE, L7317 and CDVARS.
 SRCHLN:
   LD HL,(TXTTAB)
@@ -4061,7 +4061,7 @@ ONJMP:
 ; NEWSTT_0, _CHRCKB, DEFCON, INTIDX, ATOH, __REM, __ON, RESNXT, __IF, L3715,
 ; __PRINT, __TAB, NEXITM, __INPUT, NOTQTI, SCNVAL, INPBIN, LTSTND, FDTLP,
 ; LOPREL, OPRND, __ERR, __ERL, __VARPTR, OCTCNS, ISFUN, SCNUSR, __DEF, DOFN,
-; FINASG, L3F72, __WIDTH, FPSINT, FNDNUM, CONINT, TSTANM, SCNEXT, _LINE2PTR,
+; FINASG, L3F72, __WIDTH, FPSINT, FNDNUM, CONINT, NUMLIN, SCNEXT, _LINE2PTR,
 ; L4423, SCNCNT, DECNXT, FN_SCRN, FN_COLOR, L4796, L47A8, FN_HCOLOR, FN_HSCRN,
 ; __HPLOT, H_ASCTFP, FINEC, DPOINT, FOUTZS, FOUTTS, SUMLP, DIMRET, GETVAR,
 ; DOCHRT, L6462, FN_INKEY, __ERASE, __CLEAR, L6A5D, L6A82, __NEXT, DTSTR,
@@ -4166,7 +4166,7 @@ NUMCON:
 
 ; Routine at 13381
 ;
-; Used by the routines at OPRND and TSTANM.
+; Used by the routines at OPRND and NUMLIN.
 CONFAC:
   LD A,(CONSAV)
   CP $0F
@@ -4279,7 +4279,7 @@ INTIDX_0:
   CALL POSINT
   RET P
 ; This entry point is used by the routines at SRCHLP, __ERROR, L36E3, L3C68,
-; LPSIZL, CONINT, __DEL, L4305, GET_POSINT, L4646, __PDL, SET_HCOLOR, __HGR,
+; LPSIZL, CONINT, __DELETE, L4305, GET_POSINT, L4646, __PDL, SET_HCOLOR, __HGR,
 ; __LOG, L6462, L69DC, __ERASE, L6A5D, __ASC, __MID_S, FN_INSTR, L6F94, L7317,
 ; CHAIN_COMMON, SCNSMP, __CVD, L7A0F, L7CCF, VARECS, __GET, PROCHK and L8316.
 FC_ERR:
@@ -6656,7 +6656,7 @@ FPSINT:
 
 ; Get positive integer
 ;
-; Used by the routines at INTIDX, __TAB, L3E7D, __WAIT and __HGR.
+; Used by the routines at INTIDX, __TAB, L3E7D, __WAIT and SCAND.
 POSINT:
   CALL EVAL
 
@@ -6786,7 +6786,7 @@ DETOKEN_NEXT_1:
   INC HL
   DEC D
   RET Z
-; This entry point is used by the routines at L4193 and TSTANM.
+; This entry point is used by the routines at L4193 and NUMDN.
 PLOOP2:
   LD A,(HL)
   OR A
@@ -6831,7 +6831,7 @@ PRTVAR_0:
   CP $0B
   JR C,PLOOPZ
   CP $20
-  JP C,TSTANM_0
+  JP C,NUMLIN
 PLOOPZ:
   LD (BC),A
   JR DETOKEN_NEXT_1
@@ -6957,8 +6957,11 @@ TSTANM:
   CP $3A
   CCF
   RET
-; This entry point is used by the routine at PRTVAR.
-TSTANM_0:
+
+; Routine at 16876
+;
+; Used by the routine at PRTVAR.
+NUMLIN:
   DEC HL
   CALL CHRGTB
   PUSH DE
@@ -6966,7 +6969,7 @@ TSTANM_0:
   PUSH AF
   CALL CONFAC
   POP AF
-  LD BC,$420B
+  LD BC,CONLIN
   PUSH BC
   CP $0B
   JP Z,FOUTO
@@ -6974,16 +6977,19 @@ TSTANM_0:
   JP Z,FOUTH
   LD HL,(CONLO)
   JP FOUT
+
+; Routine at 16907
+CONLIN:
   POP BC
   POP DE
   LD A,(CONSAV)
   LD E,$4F
   CP $0B
-  JR Z,TSTANM_1
+  JR Z,SAVBAS
   CP $0C
   LD E,$48
-  JR NZ,TSTANM_2
-TSTANM_1:
+  JR NZ,NUMSLN
+SAVBAS:
   LD A,$26
   LD (BC),A
   INC BC
@@ -6994,58 +7000,62 @@ TSTANM_1:
   INC BC
   DEC D
   RET Z
-TSTANM_2:
+NUMSLN:
   LD A,(CONTYP)
   CP $04
   LD E,$00
-  JR C,TSTANM_3
+  JR C,TYPSET
   LD E,$21
-  JR Z,TSTANM_3
+  JR Z,TYPSET
   LD E,$23
-TSTANM_3:
+TYPSET:
   LD A,(HL)
   CP $20
   CALL Z,L4EBF
-TSTANM_4:
+NUMSL2:
   LD A,(HL)
   INC HL
   OR A
-  JR Z,TSTANM_7
+  JR Z,NUMDN
   LD (BC),A
   INC BC
   DEC D
   RET Z
   LD A,(CONTYP)
   CP $04
-  JR C,TSTANM_4
+  JR C,NUMSL2
   DEC BC
   LD A,(BC)
   INC BC
-  JR NZ,TSTANM_5
+  JR NZ,DBLSCN
   CP $2E
-  JR Z,TSTANM_6
-TSTANM_5:
+  JR Z,ZERE
+DBLSCN:
   CP $44
-  JR Z,TSTANM_6
+  JR Z,ZERE
   CP $45
-  JR NZ,TSTANM_4
-TSTANM_6:
+  JR NZ,NUMSL2
+ZERE:
   LD E,$00
-  JR TSTANM_4
-TSTANM_7:
+  JR NUMSL2
+
+; Routine at 16993
+;
+; Used by the routine at CONLIN.
+NUMDN:
   LD A,E
   OR A
-  JR Z,TSTANM_8
+  JR Z,NOD
   LD (BC),A
   INC BC
   DEC D
   RET Z
-TSTANM_8:
+NOD:
   LD HL,(CONTXT)
   JP PLOOP2
 
 ; Routine at 17007
-__DEL:
+__DELETE:
   CALL LNUM_RANGE
   PUSH BC
   CALL DEPTR
@@ -7054,13 +7064,13 @@ __DEL:
   PUSH BC
   PUSH BC
   CALL SRCHLN
-  JR NC,__DEL_0
+  JR NC,__DELETE_0
   LD D,H
   LD E,L
   EX (SP),HL
   PUSH HL
   CALL DCOMPR
-__DEL_0:
+__DELETE_0:
   JP NC,FC_ERR
   LD HL,OK_MSG
   CALL PRS
@@ -7071,13 +7081,13 @@ __DEL_0:
 __DELETE_0:
   EX DE,HL
   LD HL,(VARTAB)
-__DEL_1:
+__DELETE_1:
   LD A,(DE)
   LD (BC),A
   INC BC
   INC DE
   CALL DCOMPR
-  JR NZ,__DEL_1
+  JR NZ,__DELETE_1
   LD H,B
   LD L,C
   LD (VARTAB),HL
@@ -7373,7 +7383,7 @@ CONCH2:
 
 ; Routine at 17419
 ;
-; Used by the routines at LINFND, __DEL and L7317.
+; Used by the routines at LINFND, __DELETE and L7317.
 DEPTR:
   LD A,(PTRFLG)
   OR A
@@ -7596,6 +7606,9 @@ TRMNXT:
   POP HL
   PUSH DE
   RET
+
+; Routine at 17713
+FINOVC:
   PUSH AF
   LD A,(FLGOVC)
   LD (OVCSTR),A
@@ -7747,7 +7760,7 @@ __NORMAL:
 __TEXT:
   PUSH HL
   LD HL,$FB2F
-  CALL A2_VECTOR_CALL
+  CALL CALL_6502
   LD A,(CRTCNT)
   DEC A
   LD H,A
@@ -7759,7 +7772,7 @@ __TEXT:
   OR A
   JR Z,__TEXT_0
   LD HL,$FC58
-  CALL A2_VECTOR_CALL
+  CALL CALL_6502
 __TEXT_0:
   XOR A
   LD (SCRMOD),A
@@ -7767,8 +7780,8 @@ __TEXT_0:
 
 ; Routine at 17895
 ;
-; Used by the routines at __TEXT, __GR, A2_VECTOR_CALL_POPHL, __PDL and L476B.
-A2_VECTOR_CALL:
+; Used by the routines at __TEXT, CALL_HLINE, CALL_6502_POPHL, __PDL and L476B.
+CALL_6502:
   LD (LF3D0),HL
   LD ($0000),A
   RET
@@ -7805,20 +7818,23 @@ __GR_0:
   LD B,D
 __GR_1:
   XOR A
-  LD (LF047),A
+  LD (F047_REG_Y),A
   LD A,B
   DEC A
-  LD (LF045),A
-  CALL __GR_2
+  LD (F045_REG_A),A
+  CALL CALL_HLINE
   DJNZ __GR_1
   LD A,$FF
   LD (SCRMOD),A
   POP HL
   RET
-; This entry point is used by the routine at __HLIN.
-__GR_2:
+
+; Routine at 17980
+;
+; Used by the routines at __GR and __HLIN.
+CALL_HLINE:
   LD HL,$F819
-  JP A2_VECTOR_CALL
+  JP CALL_6502
 
 ; Routine at 17986
 __COLOR:
@@ -7884,13 +7900,13 @@ L466F:
 __HLIN:
   LD BC,$2830
   CALL L4646_1
-  LD (LF045),A
+  LD (F045_REG_A),A
   LD A,E
-  LD (LF047),A
+  LD (F047_REG_Y),A
   LD A,D
   LD (LF02C),A
   PUSH HL
-  CALL __GR_2
+  CALL CALL_HLINE
   POP HL
   RET
 
@@ -7898,14 +7914,14 @@ __HLIN:
 __VLIN:
   LD BC,$3028
   CALL L4646_1
-  LD (LF047),A
+  LD (F047_REG_Y),A
   LD A,E
-  LD (LF045),A
+  LD (F045_REG_A),A
   LD A,D
   LD (LF02D),A
   PUSH HL
   LD HL,$F828
-  JR A2_VECTOR_CALL_POPHL
+  JR CALL_6502_POPHL
 
 ; Routine at 18086
 ;
@@ -7932,11 +7948,11 @@ PLOT_ARGS:
   CALL GET_2_ARGS
   CP $30
   JR NC,L4646_2
-  LD (LF045),A
+  LD (F045_REG_A),A
   LD A,E
   CP $28
   JR NC,L4646_2
-  LD (LF047),A
+  LD (F047_REG_Y),A
   RET
 
 ; Routine at 18118
@@ -7948,8 +7964,8 @@ __PLOT:
 ; Routine at 18125
 ;
 ; Used by the routines at __VLIN, __BEEP and L47BE.
-A2_VECTOR_CALL_POPHL:
-  CALL A2_VECTOR_CALL
+CALL_6502_POPHL:
+  CALL CALL_6502
   POP HL
   RET
 
@@ -7995,13 +8011,13 @@ EXIT_FN_0:
 __BEEP:
   CALL GET_2_ARGS
   INC A
-  LD (LF045),A
+  LD (F045_REG_A),A
   LD A,E
   INC A
-  LD (LF046),A
+  LD (F046_REG_X),A
   PUSH HL
   LD HL,L5709
-  JP A2_VECTOR_CALL_POPHL
+  JP CALL_6502_POPHL
 
 ; Message at 18184
 L4708:
@@ -8146,12 +8162,12 @@ __PDL:
 ; This entry point is used by the routine at __BUTTON.
 __PDL_0:
   JP NC,FC_ERR
-  LD (LF046),A
+  LD (F046_REG_X),A
   PUSH HL
   LD HL,$FB1E
-  CALL A2_VECTOR_CALL
+  CALL CALL_6502
   POP HL
-  LD A,(LF047)
+  LD A,(F047_REG_Y)
   JP PASSA
 
 ; Routine at 18269
@@ -8178,8 +8194,8 @@ L476A:
 L476B:
   PUSH HL
   LD HL,$F871
-  CALL A2_VECTOR_CALL
-  LD A,(LF045)
+  CALL CALL_6502
+  LD A,(F045_REG_A)
   JP EXIT_FN_0
 
 ; Routine at 18296
@@ -8195,7 +8211,7 @@ FN_COLOR:
 ;
 ; Used by the routine at __CALL.
 L4783:
-  LD HL,LF045
+  LD HL,F045_REG_A
   XOR A
   LD (HL),A
   INC HL
@@ -8213,7 +8229,7 @@ L4795:
 
 ; Routine at 18326
 L4796:
-  LD DE,LF045
+  LD DE,F045_REG_A
   LD B,$03
 ; This entry point is used by the routine at L47A8.
 L4796_0:
@@ -8257,7 +8273,7 @@ L47BD:
 L47BE:
   PUSH HL
   LD HL,(INTFLG)
-  JP A2_VECTOR_CALL_POPHL
+  JP CALL_6502_POPHL
 
 ; Routine at 18372
 L47C4:
@@ -8332,7 +8348,7 @@ L47F5:
 
 ; Routine at 18422
 L47F6:
-  CALL __HGR_4
+  CALL SCAND
   CALL SYNCHR
 
 ; Message at 18428
@@ -8364,11 +8380,11 @@ L4801:
   LD HL,L4AC5
   LD (L49AB),HL
   LD A,C
-  JP L4973_0
+  JP MAPXY_0
 
 ; Routine at 18457
 L4819:
-  CALL L49AD_5
+  CALL RELPOS_DIFF
   EXX
   BIT 0,L
   JR NZ,L4819_0
@@ -8445,7 +8461,7 @@ SET_HCOLOR_3:
   LD (HCOLOR_SMC),HL
 SET_HCOLOR_4:
   CALL L4A91
-  JP L4973_2
+  JP MAPXY_2
 SET_HCOLOR_5:
   LD HL,L48C1
   LD (HCOLOR_SMC),HL
@@ -8688,7 +8704,7 @@ L496E:
 ; Routine at 18803
 ;
 ; Used by the routine at __HPLOT.
-L4973:
+MAPXY:
   PUSH HL
   CALL L4A91
   EX DE,HL
@@ -8697,7 +8713,7 @@ L4973:
   LD A,C
   LD (L47E5),A
 ; This entry point is used by the routine at L4801.
-L4973_0:
+MAPXY_0:
   AND $C0
   LD L,A
   RRA
@@ -8720,13 +8736,13 @@ L4973_0:
   EX DE,HL
   CALL L49AD_1
   SUB $07
-  JR C,L4973_1
+  JR C,MAPXY_1
   INC B
-L4973_1:
+MAPXY_1:
   LD A,B
   LD (L47E2),A
 ; This entry point is used by the routine at SET_HCOLOR.
-L4973_2:
+MAPXY_2:
   LD A,(L47E1)
   LD C,A
 
@@ -8758,7 +8774,7 @@ L49AD_0:
   LD (L47DD),HL
   POP HL
   RET
-; This entry point is used by the routines at L4973 and __HPLOT.
+; This entry point is used by the routines at MAPXY and __HPLOT.
 L49AD_1:
   LD DE,$FFF2
   LD A,D
@@ -8772,23 +8788,29 @@ L49AD_2:
   ADD A,$0E
   LD (L47E1),A
   RET
-; This entry point is used by the routine at __HPLOT.
-L49AD_3:
+
+; Use the alternate register set (EXX) to compute relative position (PLOT TO..)
+;
+; Used by the routine at __HPLOT.
+RELPOS:
   EXX
   LD HL,L4AC5
   LD D,$00
   LD A,(L47E1)
   SUB $07
-  JR NC,L49AD_4
+  JR NC,RELPOS_0
   ADD A,$07
-L49AD_4:
+RELPOS_0:
   LD E,A
   ADD HL,DE
   LD A,(HL)
   AND $7F
   EX AF,AF'
-; This entry point is used by the routine at L4819.
-L49AD_5:
+
+; Use the alternate register set (EXX) to compute relative position (PLOT TO..)
+;
+; Used by the routine at L4819.
+RELPOS_DIFF:
   LD HL,(L47DD)
   LD C,L
   LD B,H
@@ -8923,7 +8945,7 @@ L4A81:
 
 ; Routine at 19089
 ;
-; Used by the routines at SET_HCOLOR, HPLOT_SUB and L4973.
+; Used by the routines at SET_HCOLOR, HPLOT_SUB and MAPXY.
 L4A91:
   LD A,(A2_HCOLOR)
   LD HL,L4AC5
@@ -8962,17 +8984,17 @@ __HGR:
   LD A,$00
   CALL NZ,GETINT
   CP $04
-; This entry point is used by the routine at L4B30.
-__HGR_0:
+; This entry point is used by the routines at SCAND and L4B30.
+SCAND_FCERR:
   JP NC,FC_ERR
   LD (LE057),A
   PUSH AF
   CALL L47C4_0
   LD A,$00
-  JR NZ,__HGR_1
+  JR NZ,__HGR_0
   INC HL
   CALL GETINT
-__HGR_1:
+__HGR_0:
   PUSH AF
   CALL SET_HCOLOR
   POP BC
@@ -8981,7 +9003,7 @@ __HGR_1:
   RET NZ
   LD A,B
   CP $0C
-  JR Z,__HGR_2
+  JR Z,__HGR_1
   PUSH HL
   LD HL,_HIRES_PAGE
   LD HL,(L47DB)
@@ -8992,25 +9014,28 @@ __HGR_1:
   LDIR
   POP HL
   RET
-__HGR_2:
+__HGR_1:
   LD DE,_HIRES_PAGE
-__HGR_3:
+__HGR_2:
   LD A,(DE)
   XOR $7F
   LD (DE),A
   INC DE
   LD A,D
   CP $30
-  JR NZ,__HGR_3
+  JR NZ,__HGR_2
   RET
-; This entry point is used by the routines at L47F6 and __HPLOT.
-__HGR_4:
+
+; Get coordinates in DE,C - check for boundaries (280,192)
+;
+; Used by the routines at L47F6 and __HPLOT.
+SCAND:
   CALL POSINT
   LD A,E
   CP $18
   LD A,D
   SBC A,$01
-  JR NC,__HGR_0
+  JR NC,SCAND_FCERR
   PUSH DE
   CALL SYNCHR
 
@@ -9022,7 +9047,7 @@ L4B2F:
 L4B30:
   CALL GETINT
   CP $C0
-  JR NC,__HGR_0
+  JR NC,SCAND_FCERR
   LD C,A
   POP DE
   RET
@@ -9031,18 +9056,18 @@ L4B30:
 __HPLOT:
   CP $DD
   JR NZ,__HPLOT_0
-  CALL L49AD_3
+  CALL RELPOS
   JR __HPLOT_1
 __HPLOT_0:
-  CALL __HGR_4
-  CALL L4973
-  CALL L49AD_3
+  CALL SCAND
+  CALL MAPXY
+  CALL RELPOS
   CALL SET_HCOLOR_6
   CALL _CHRCKB
   RET Z
 __HPLOT_1:
   CALL CHRGTB
-  CALL __HGR_4
+  CALL SCAND
   PUSH HL
   CALL HPLOT_SUB
   POP HL
@@ -9861,7 +9886,7 @@ LOADFP_0:
 
 ; label=INCHL
 ;
-; Used by the routines at GETCMD, TSTANM, FOUFRF, SUPTLZ and FFXXVS.
+; Used by the routines at GETCMD, CONLIN, FOUFRF, SUPTLZ and FFXXVS.
 L4EBF:
   INC HL
   RET
@@ -11114,7 +11139,7 @@ L54A6:
 ; Used by the routines at FLTGET, INPBIN, OPRND, __RANDOMIZE and LINE_INPUT.
 FIN:
   XOR A
-  LD BC,$4531
+  LD BC,FINOVC
   PUSH BC
   PUSH AF
   LD A,$01
@@ -11571,7 +11596,7 @@ LINPRT:
 
 ; FLOATING OUTPUT OF FAC
 ;
-; Used by the routines at __PRINT, TSTANM, FFXSDO, __STR_S and __WRITE.
+; Used by the routines at __PRINT, NUMLIN, FFXSDO, __STR_S and __WRITE.
 FOUT:
   XOR A
 
@@ -12547,7 +12572,7 @@ INT_POWERS_TAB:
 
 ; Routine at 23614
 ;
-; Used by the routines at TSTANM and __OCT_S.
+; Used by the routines at NUMLIN and __OCT_S.
 FOUTO:
   XOR A
   LD B,A
@@ -12558,7 +12583,7 @@ L5C40:
 
 ; Routine at 23617
 ;
-; Used by the routines at TSTANM and __HEX_S.
+; Used by the routines at NUMLIN and __HEX_S.
 FOUTH:
   LD B,$01
   PUSH BC
@@ -14918,7 +14943,7 @@ GTMPRT:
 ; compare DE and HL (aka CPDEHL)
 ;
 ; Used by the routines at LOKFOR, ERRMOR, AUTGOD, SRCHLP, L329B, ATOH, __GOTO,
-; L35E2, L3F72, __LIST, __DEL, L4305, L4423, ADDIG, OVERR, SMKVAR, ZEROER,
+; L35E2, L3F72, __LIST, __DELETE, L4305, L4423, ADDIG, OVERR, SMKVAR, ZEROER,
 ; FNDARY, MOVLP, ENFMEM, L69DC, __ERASE, L6A82, __NEXT, TSTOPL, GRBDON, TVAR,
 ; SMPVAR, ARRLP, ARYSTR, STRADD, GSTRDE, L6F67, FNDWND, L7317, CLPSLP, DLSVLP,
 ; CLPAKP, DNCMDA, CAYSTR, CDVARS, BINSAV, L7913, __LSET, LPBLDR, VARECS and
@@ -14938,7 +14963,7 @@ DCOMPR:
 ; ISFUN, DEF_USR, __DEF, DOFN, ASGMOR, L3F13, FINASG, IDTEST, __POKE, __RENUM,
 ; L42FB, __OPTION, L4417, L441B, L441F, DECNXT, __COLOR, L4646, L466B,
 ; GET_2_ARGS, __WAIT, L472A, FN_SCRN, L4764, L4783, L47A8, FN_HSCRN, L47F6,
-; __HCOLOR, __HGR, DIMRET, __USING, __SWAP, __CLEAR, L6A5D, FN_STRING, L6E1A,
+; __HCOLOR, SCAND, DIMRET, __USING, __SWAP, __CLEAR, L6A5D, FN_STRING, L6E1A,
 ; L6E22, LFRGNM, FN_INSTR, L6EF1, L6EFB, LHSMID, L6F67, MID_ARGSEP, L6FEB,
 ; __CALL, GETPAR, __CHAIN, L72E5, L72FE, L7308, L730C, L7310, BCKUCM, L73ED,
 ; __WRITE, GDFILM, __LOAD, L7795, __SAVE, L7871, __FIELD, L790F, FN_INPUT,
@@ -15569,7 +15594,7 @@ PRNUMS:
 
 ; Create string entry and print it
 ;
-; Used by the routines at ERRMOR, RDOIN2, __DEL, _LINE2PTR, __RANDOMIZE,
+; Used by the routines at ERRMOR, RDOIN2, __DELETE, _LINE2PTR, __RANDOMIZE,
 ; IN_PRT, L6462, L670C and DONCMD.
 PRS:
   CALL CRTST
@@ -23794,72 +23819,79 @@ LF030:
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00
 
-; $0045 - 6502 page zero
-LF045:
+; Data block at 61509
+F045_REG_A:
   DEFB $00
 
-; $0046 - 6502 page zero
-LF046:
+; Data block at 61510
+F046_REG_X:
   DEFB $00
 
-; $0047 - 6502 page zero
-LF047:
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
-  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+; Data block at 61511
+F047_REG_Y:
   DEFB $00
+
+; (status) register pass area
+F048_REG_P:
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00
+
+; 2 byte addr. for SoftCard slot x: $00, $Ex
+F0DE:
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00,$00,$00,$00,$00,$00,$00
+  DEFB $00,$00
 
 ; $0200 - I/O config block, device drivers
 LF200:
@@ -23933,12 +23965,12 @@ LF3BB:
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00
 
-; $03D0 - I/O config block, device drivers
+; label=F3D0_6502_ADDRESS
 LF3D0:
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00,$00
 
-; $03DE - I/O config block, device drivers
+; label=F3DE_Z80_SLOT
 LF3DE:
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
   DEFB $00,$00,$00,$00,$00,$00,$00,$00
