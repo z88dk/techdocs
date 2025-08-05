@@ -4074,7 +4074,7 @@ CHRGTB:
 
 ; Pick current char (or token) on program
 ;
-; Used by the routines at CHEAD, SRCHLP, L4783 and __HPLOT.
+; Used by the routines at CHEAD, SRCHLP, __CALL_6502 and __HPLOT.
 _CHRCKB:
   LD A,(HL)
   CP $3A
@@ -7760,7 +7760,7 @@ __NORMAL:
 __TEXT:
   PUSH HL
   LD HL,$FB2F
-  CALL CALL_6502
+  CALL GO_6502
   LD A,(CRTCNT)
   DEC A
   LD H,A
@@ -7772,7 +7772,7 @@ __TEXT:
   OR A
   JR Z,__TEXT_0
   LD HL,$FC58
-  CALL CALL_6502
+  CALL GO_6502
 __TEXT_0:
   XOR A
   LD (SCRMOD),A
@@ -7781,7 +7781,7 @@ __TEXT_0:
 ; Routine at 17895
 ;
 ; Used by the routines at __TEXT, CALL_HLINE, CALL_6502_POPHL, __PDL and L476B.
-CALL_6502:
+GO_6502:
   LD (LF3D0),HL
   LD ($0000),A
   RET
@@ -7804,7 +7804,7 @@ __GR:
   POP AF
   POP HL
   LD (LE056),A
-  CALL L47C4_0
+  CALL GFX_MODE
   JR NZ,__GR_0
   INC HL
   PUSH DE
@@ -7834,7 +7834,7 @@ __GR_1:
 ; Used by the routines at __GR and __HLIN.
 CALL_HLINE:
   LD HL,$F819
-  JP CALL_6502
+  JP GO_6502
 
 ; Routine at 17986
 __COLOR:
@@ -7965,7 +7965,7 @@ __PLOT:
 ;
 ; Used by the routines at __VLIN, __BEEP and L47BE.
 CALL_6502_POPHL:
-  CALL CALL_6502
+  CALL GO_6502
   POP HL
   RET
 
@@ -8165,7 +8165,7 @@ __PDL_0:
   LD (F046_REG_X),A
   PUSH HL
   LD HL,$FB1E
-  CALL CALL_6502
+  CALL GO_6502
   POP HL
   LD A,(F047_REG_Y)
   JP PASSA
@@ -8194,7 +8194,7 @@ L476A:
 L476B:
   PUSH HL
   LD HL,$F871
-  CALL CALL_6502
+  CALL GO_6502
   LD A,(F045_REG_A)
   JP EXIT_FN_0
 
@@ -8210,7 +8210,7 @@ FN_COLOR:
 ; Routine at 18307
 ;
 ; Used by the routine at __CALL.
-L4783:
+__CALL_6502:
   LD HL,F045_REG_A
   XOR A
   LD (HL),A
@@ -8269,7 +8269,7 @@ L47BD:
 
 ; Routine at 18366
 ;
-; Used by the routine at L4783.
+; Used by the routine at __CALL_6502.
 L47BE:
   PUSH HL
   LD HL,(INTFLG)
@@ -8278,17 +8278,24 @@ L47BE:
 ; Routine at 18372
 L47C4:
   LD B,(HL)
-; This entry point is used by the routines at __GR and __HGR.
-L47C4_0:
+
+; Routine at 18373
+;
+; Used by the routines at __GR and __HGR.
+GFX_MODE:
   PUSH HL
   LD (LE050),A
   LD HL,LE053
   RRA
   LD D,$28
-  JR NC,L47C4_1
+  JR NC,MIX_MODE
   DEC L
   LD D,$30
-L47C4_1:
+
+; Routine at 18388
+;
+; Used by the routine at GFX_MODE.
+MIX_MODE:
   LD (HL),L
   POP HL
   LD A,(HL)
@@ -8300,7 +8307,7 @@ A2_HCOLOR:
   DEFB $00
 
 ; Data block at 18395
-L47DB:
+A2_HCOLOR_PATTERN:
   DEFW $0000
 
 ; Data block at 18397
@@ -8308,15 +8315,15 @@ L47DD:
   DEFW $8081
 
 ; Data block at 18399
-L47DF:
+A2_HADDR:
   DEFW _HIRES_PAGE
 
-; Data block at 18401
-L47E1:
+; HRG pixel mask/position, only LSB used
+A2_HPIXEL:
   DEFW $0000
 
-; Data block at 18402
-L47E2:
+; 128-byte video memory segment (we have 8 in HRG)
+A2_HSEGMENT:
   DEFB $00
 
 ; Data block at 18403
@@ -8370,15 +8377,15 @@ L47FF:
 ; Routine at 18433
 L4801:
   PUSH HL
-  LD HL,(L47DF)
+  LD HL,(A2_HADDR)
   PUSH HL
-  LD HL,(L47E1)
+  LD HL,(A2_HPIXEL)
   PUSH HL
   LD HL,L4819
   PUSH HL
   PUSH HL
-  LD HL,L4AC5
-  LD (L49AB),HL
+  LD HL,COLOR_MAP_2
+  LD (A2_COLOR_MAP),HL
   LD A,C
   JP MAPXY_0
 
@@ -8399,9 +8406,9 @@ L4819_0:
 L4819_1:
   CALL __BUTTON_0
   POP HL
-  LD (L47E1),HL
+  LD (A2_HPIXEL),HL
   POP HL
-  LD (L47DF),HL
+  LD (A2_HADDR),HL
   POP HL
   LD (L47DD),HL
   POP HL
@@ -8429,7 +8436,7 @@ SET_HCOLOR:
   PUSH HL
   CP $08
   JR NC,SET_HCOLOR_0
-  LD HL,L4A81
+  LD HL,COLOR_PATTERNS
   ADD A,A
   LD E,A
   LD D,$00
@@ -8456,35 +8463,38 @@ SET_HCOLOR_2:
   LD H,A
   LD L,A
 SET_HCOLOR_3:
-  LD (L47DB),HL
-  LD HL,L488E
+  LD (A2_HCOLOR_PATTERN),HL
+  LD HL,HPLOT_PATH_A
   LD (HCOLOR_SMC),HL
 SET_HCOLOR_4:
-  CALL L4A91
+  CALL CONVERT_COLOR
   JP MAPXY_2
 SET_HCOLOR_5:
-  LD HL,L48C1
+  LD HL,HPLOT_PATH_C
   LD (HCOLOR_SMC),HL
   JR SET_HCOLOR_4
-; This entry point is used by the routines at L4958 and __HPLOT.
-SET_HCOLOR_6:
+
+; Routine at 18568
+;
+; Used by the routines at L4958 and __HPLOT.
+DO_HPLOT:
   EXX
   BIT 0,L
 
 ; CALL..
-CALL_HCOLOR_SMC:
+CALL_HPLOT_SMC:
   DEFB $C3
 
 ; Data block at 18572
 HCOLOR_SMC:
-  DEFW L488E
+  DEFW HPLOT_PATH_A
 
 ; Routine at 18574
-L488E:
-  JP NZ,L48A9
+HPLOT_PATH_A:
+  JP NZ,HPLOT_PATH_B
   LD A,C
   ADD A,A
-  JP Z,L488E_0
+  JP Z,HPLOT_PATH_A_0
   LD A,(HL)
   XOR E
   AND C
@@ -8492,8 +8502,8 @@ L488E:
   LD (HL),A
   LD A,B
   ADD A,A
-  JP Z,L48A9_1
-L488E_0:
+  JP Z,HPLOT_END
+HPLOT_PATH_A_0:
   INC L
   LD A,(HL)
   XOR D
@@ -8506,11 +8516,11 @@ L488E_0:
 
 ; Routine at 18601
 ;
-; Used by the routine at L488E.
-L48A9:
+; Used by the routine at HPLOT_PATH_A.
+HPLOT_PATH_B:
   LD A,B
   ADD A,A
-  JP Z,L48A9_0
+  JP Z,HPLOT_PATH_B_0
   LD A,(HL)
   XOR D
   AND B
@@ -8518,8 +8528,8 @@ L48A9:
   LD (HL),A
   LD A,C
   ADD A,A
-  JP Z,L48A9_1
-L48A9_0:
+  JP Z,HPLOT_END
+HPLOT_PATH_B_0:
   INC L
   LD A,(HL)
   XOR E
@@ -8527,25 +8537,29 @@ L48A9_0:
   XOR (HL)
   LD (HL),A
   DEC L
-; This entry point is used by the routines at L488E and L48C1.
-L48A9_1:
+
+; Routine at 18623
+;
+; Used by the routines at HPLOT_PATH_A, HPLOT_PATH_B, HPLOT_PATH_C and
+; HPLOT_PATH_D.
+HPLOT_END:
   EXX
   RET
 
 ; Routine at 18625
-L48C1:
-  JP NZ,L48C1_1
+HPLOT_PATH_C:
+  JP NZ,HPLOT_PATH_D
   LD A,C
   ADD A,A
-  JP Z,L48C1_0
+  JP Z,HPLOT_PATH_C_0
   LD A,C
   AND $7F
   XOR (HL)
   LD (HL),A
   LD A,B
   ADD A,A
-  JP Z,L48A9_1
-L48C1_0:
+  JP Z,HPLOT_END
+HPLOT_PATH_C_0:
   INC L
   AND $7F
   XOR (HL)
@@ -8553,18 +8567,22 @@ L48C1_0:
   DEC L
   EXX
   RET
-L48C1_1:
+
+; Routine at 18651
+;
+; Used by the routine at HPLOT_PATH_C.
+HPLOT_PATH_D:
   LD A,B
   ADD A,A
-  JP Z,L48C1_2
+  JP Z,HPLOT_PATH_D_0
   LD A,B
   AND $7F
   XOR (HL)
   LD (HL),A
   LD A,C
   ADD A,A
-  JP Z,L48A9_1
-L48C1_2:
+  JP Z,HPLOT_END
+HPLOT_PATH_D_0:
   INC L
   LD A,C
   AND $7F
@@ -8578,7 +8596,7 @@ L48C1_2:
 ;
 ; Used by the routine at __HPLOT.
 HPLOT_SUB:
-  CALL L4A91
+  CALL CONVERT_COLOR
   LD A,(L47E5)
   LD HL,L49FD
   SUB C
@@ -8662,7 +8680,7 @@ SMC_L4956:
 ; Routine at 18776
 L4958:
   EXX
-  CALL SET_HCOLOR_6
+  CALL DO_HPLOT
 ; This entry point is used by the routine at L493B.
 L4958_0:
   DEC BC
@@ -8706,7 +8724,7 @@ L496E:
 ; Used by the routine at __HPLOT.
 MAPXY:
   PUSH HL
-  CALL L4A91
+  CALL CONVERT_COLOR
   EX DE,HL
   LD (L47E3),HL
   EX DE,HL
@@ -8732,7 +8750,7 @@ MAPXY_0:
   AND $1F
   ADD A,$10
   LD H,A
-  LD (L47DF),HL
+  LD (A2_HADDR),HL
   EX DE,HL
   CALL L49AD_1
   SUB $07
@@ -8740,10 +8758,10 @@ MAPXY_0:
   INC B
 MAPXY_1:
   LD A,B
-  LD (L47E2),A
+  LD (A2_HSEGMENT),A
 ; This entry point is used by the routine at SET_HCOLOR.
 MAPXY_2:
-  LD A,(L47E1)
+  LD A,(A2_HPIXEL)
   LD C,A
 
 ; Data block at 18858
@@ -8751,7 +8769,7 @@ L49AA:
   DEFB $21
 
 ; Data block at 18859
-L49AB:
+A2_COLOR_MAP:
   DEFW $0000
 
 ; Routine at 18861
@@ -8786,7 +8804,7 @@ L49AD_2:
   LD B,A
   LD A,L
   ADD A,$0E
-  LD (L47E1),A
+  LD (A2_HPIXEL),A
   RET
 
 ; Use the alternate register set (EXX) to compute relative position (PLOT TO..)
@@ -8794,9 +8812,9 @@ L49AD_2:
 ; Used by the routine at __HPLOT.
 RELPOS:
   EXX
-  LD HL,L4AC5
+  LD HL,COLOR_MAP_2
   LD D,$00
-  LD A,(L47E1)
+  LD A,(A2_HPIXEL)
   SUB $07
   JR NC,RELPOS_0
   ADD A,$07
@@ -8814,10 +8832,10 @@ RELPOS_DIFF:
   LD HL,(L47DD)
   LD C,L
   LD B,H
-  LD HL,(L47DB)
+  LD HL,(A2_HCOLOR_PATTERN)
   EX DE,HL
-  LD A,(L47E2)
-  LD HL,(L47DF)
+  LD A,(A2_HSEGMENT)
+  LD HL,(A2_HADDR)
   ADD A,L
   LD L,A
   EXX
@@ -8826,7 +8844,7 @@ RELPOS_DIFF:
 ; Routine at 18941
 L49FD:
   LD A,L
-  LD HL,(L47DF)
+  LD HL,(A2_HADDR)
   SUB L
   PUSH AF
   LD A,H
@@ -8848,7 +8866,7 @@ L49FD:
 ; Routine at 18971
 L4A1B:
   LD A,L
-  LD HL,(L47DF)
+  LD HL,(A2_HADDR)
   SUB L
   PUSH AF
   LD A,H
@@ -8889,7 +8907,7 @@ L4A44_0:
   LD H,A
 ; This entry point is used by the routines at L49FD and L4A1B.
 L4A44_1:
-  LD (L47DF),HL
+  LD (A2_HADDR),HL
   POP AF
   ADD A,L
   LD L,A
@@ -8939,43 +8957,43 @@ L4A65_2:
   RET
 
 ; Data block at 19073
-L4A81:
+COLOR_PATTERNS:
   DEFB $00,$00,$2A,$55,$55,$2A,$7F,$7F
   DEFB $80,$80,$AA,$D5,$D5,$AA,$FF,$FF
 
 ; Routine at 19089
 ;
 ; Used by the routines at SET_HCOLOR, HPLOT_SUB and MAPXY.
-L4A91:
+CONVERT_COLOR:
   LD A,(A2_HCOLOR)
-  LD HL,L4AC5
+  LD HL,COLOR_MAP_2
   CP $0C
-  JR Z,L4A91_2
+  JR Z,CONVERT_COLOR_2
   CP $08
-  JR NC,L4A91_0
+  JR NC,CONVERT_COLOR_0
   AND $03
-  JR Z,L4A91_2
+  JR Z,CONVERT_COLOR_2
   CP $03
-  JR Z,L4A91_2
-L4A91_0:
+  JR Z,CONVERT_COLOR_2
+CONVERT_COLOR_0:
   LD HL,$FEE9
   AND A
   ADC HL,DE
-  JR NZ,L4A91_1
+  JR NZ,CONVERT_COLOR_1
   DEC DE
-L4A91_1:
-  LD HL,L4AB7
-L4A91_2:
-  LD (L49AB),HL
+CONVERT_COLOR_1:
+  LD HL,COLOR_MAP_1
+CONVERT_COLOR_2:
+  LD (A2_COLOR_MAP),HL
   RET
 
 ; Data block at 19127
-L4AB7:
+COLOR_MAP_1:
   DEFB $83,$86,$8C,$98,$B0,$E0,$C0,$80
   DEFB $80,$80,$80,$80,$80,$81
 
 ; Data block at 19141
-L4AC5:
+COLOR_MAP_2:
   DEFB $81,$82,$84,$88,$90,$A0,$C0,$80
   DEFB $80,$80,$80,$80,$80,$80,$80
 
@@ -8989,7 +9007,7 @@ SCAND_FCERR:
   JP NC,FC_ERR
   LD (LE057),A
   PUSH AF
-  CALL L47C4_0
+  CALL GFX_MODE
   LD A,$00
   JR NZ,__HGR_0
   INC HL
@@ -9006,7 +9024,7 @@ __HGR_0:
   JR Z,__HGR_1
   PUSH HL
   LD HL,_HIRES_PAGE
-  LD HL,(L47DB)
+  LD HL,(A2_HCOLOR_PATTERN)
   LD (_HIRES_PAGE),HL
   LD HL,_HIRES_PAGE
   LD DE,$1002
@@ -9026,7 +9044,7 @@ __HGR_2:
   JR NZ,__HGR_2
   RET
 
-; Get coordinates in DE,C - check for boundaries (280,192)
+; Get coordinates in DE,BC - check for boundaries (280,192)
 ;
 ; Used by the routines at L47F6 and __HPLOT.
 SCAND:
@@ -9062,7 +9080,7 @@ __HPLOT_0:
   CALL SCAND
   CALL MAPXY
   CALL RELPOS
-  CALL SET_HCOLOR_6
+  CALL DO_HPLOT
   CALL _CHRCKB
   RET Z
 __HPLOT_1:
@@ -9075,11 +9093,11 @@ __HPLOT_1:
   CP $DD
   JR Z,__HPLOT_1
   EXX
-  LD A,(L47DF)
+  LD A,(A2_HADDR)
   SUB L
   CPL
   INC A
-  LD (L47E2),A
+  LD (A2_HSEGMENT),A
   LD L,C
   LD H,B
   LD (L47DD),HL
@@ -14962,12 +14980,12 @@ DCOMPR:
 ; LNOMOD, __LINE, __INPUT, INPCON, FRMEQL, OPNPAR, __VARPTR, L3C52, EVLPAR,
 ; ISFUN, DEF_USR, __DEF, DOFN, ASGMOR, L3F13, FINASG, IDTEST, __POKE, __RENUM,
 ; L42FB, __OPTION, L4417, L441B, L441F, DECNXT, __COLOR, L4646, L466B,
-; GET_2_ARGS, __WAIT, L472A, FN_SCRN, L4764, L4783, L47A8, FN_HSCRN, L47F6,
-; __HCOLOR, SCAND, DIMRET, __USING, __SWAP, __CLEAR, L6A5D, FN_STRING, L6E1A,
-; L6E22, LFRGNM, FN_INSTR, L6EF1, L6EFB, LHSMID, L6F67, MID_ARGSEP, L6FEB,
-; __CALL, GETPAR, __CHAIN, L72E5, L72FE, L7308, L730C, L7310, BCKUCM, L73ED,
-; __WRITE, GDFILM, __LOAD, L7795, __SAVE, L7871, __FIELD, L790F, FN_INPUT,
-; L79EE, L79F2, __NAME, L7CCB, HAVMOD, L7D22, WASM, L8316 and WASS.
+; GET_2_ARGS, __WAIT, L472A, FN_SCRN, L4764, __CALL_6502, L47A8, FN_HSCRN,
+; L47F6, __HCOLOR, SCAND, DIMRET, __USING, __SWAP, __CLEAR, L6A5D, FN_STRING,
+; L6E1A, L6E22, LFRGNM, FN_INSTR, L6EF1, L6EFB, LHSMID, L6F67, MID_ARGSEP,
+; L6FEB, __CALL, GETPAR, __CHAIN, L72E5, L72FE, L7308, L730C, L7310, BCKUCM,
+; L73ED, __WRITE, GDFILM, __LOAD, L7795, __SAVE, L7871, __FIELD, L790F,
+; FN_INPUT, L79EE, L79F2, __NAME, L7CCB, HAVMOD, L7D22, WASM, L8316 and WASS.
 SYNCHR:
   LD A,(HL)
   EX (SP),HL
@@ -16880,7 +16898,7 @@ __CALL:
   CALL __CINT
   LD (INTFLG),HL
   POP AF
-  JP Z,L4783
+  JP Z,__CALL_6502
   LD C,$20
   CALL CHKSTK
   POP DE
