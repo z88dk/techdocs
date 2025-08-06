@@ -2,6 +2,10 @@
 ; BASIC-80 Rev. 5.22 - March 19, 1982
 ; (The previous version was released on March 10th)
 
+; The earlier versions of the Microsoft BASIC were written on a PDP-10 with its MACRO-10 assembler
+; adding macros to support the 8080 and 6502 opcodes.  MACRO-10 did not support hex numbers,
+; the numeric values (including the ASCII codes) were written in decimal or octal format.
+
 
 ; --- CP/M Specific definitions --- 
 
@@ -16,9 +20,6 @@ defc DIRTMP  =  BASE+$0080
 
   ORG BASE+$0100
 
-; The earlier versions of the Microsoft BASIC were written on a PDP-10 with its MACRO-10 assembler
-; adding macros to support the 8080 and 6502 opcodes.  MACRO-10 did not support hex numbers,
-; the numeric values (including the ASCII codes) were written in decimal or octal format.
 
 ; The original code now includes Z80 specific optimizations,
 ; but Z80ASM is able to transparently convert back to 8080.
@@ -282,7 +283,6 @@ defc TK_CVD      =  $2D
 ;
 defc TK_EOF      =  $2F
 
-
 defc TK_LOC      =  $30
 defc TK_LOF      =  $31
 defc TK_MKI_S    =  $32
@@ -344,7 +344,7 @@ defc TK_AUTO     =  $AB
 defc TK_RENUM    =  $AC
 defc TK_DEFSTR   =  $AD
 defc TK_DEFINT   =  $AE
-defc TK_DEFSGN   =  $AF
+defc TK_DEFSNG   =  $AF
 
 
 defc TK_DEFDBL   =  $B0
@@ -837,7 +837,7 @@ WORDS_D:
 
   DEFM "EFSN"
   DEFB 'G'+$80
-  DEFB TK_DEFSGN
+  DEFB TK_DEFSNG
 
   DEFM "EFDB"
   DEFB 'L'+$80
@@ -1567,7 +1567,6 @@ IF TAPE
   DEFM "Verify error"
   DEFB $00
 ENDIF
-
 
 ;
 ; THIS IS THE "VOLATILE" STORAGE AREA AND NONE OF IT
@@ -4445,7 +4444,7 @@ __CHRCKB:
 ; IN EXTENDED, CHECK FOR INLINE CONSTANT AND IF ONE
 ; MOVE IT INTO THE FAC & SET VALTYP APPROPRIATELY
 ;
-CHRGTB_1:
+CHRCON:
   CP ' '                  ;                                MUST SKIP SPACES
   JR Z,CHRGTB             ; Skip over spaces               GET ANOTHER CHARACTER
   JR NC,NOTLFT            ; NC if < "0"                    NOT SPECIAL TRY OTHER POSSIB.
@@ -4563,6 +4562,7 @@ NTLINE:
   LD (VALTYP),A            ;SAVE IN REAL VALTYP
   CP $08                   ;DOUBLE PRECISION ?
   JR Z,CONFDB              ;YES
+;NEW_STMT:                  ; Interprete next statement
   LD HL,(CONLO)            ;GET LOW TWO BYTES OF FAC
   LD (FACCU),HL            ;SAVE THEM
   LD HL,(CONLO+2)          ;GET NEXT TWO BYTES
@@ -9135,7 +9135,7 @@ DIV2:
 ; Routine at 10164
 L27B4:
   LD H,A
-  LD A,B   ;SUBTRACT HO
+  LD A,B                  ;SUBTRACT HO
 
   DEFB $DE                ; SBC A,n
 DIV3:
@@ -15728,7 +15728,7 @@ ENDIF
   LD A,(HL)         ; Get next code string byte       ;SEE CHRGET RST FOR EXPLANATION
   CP ':'            ; Z if ":"                        ;IS IT END OF STATMENT OR BIGGER
   RET NC
-  JP CHRGTB_1       ;REST OF CHRGET
+  JP CHRCON         ;REST OF CHRGET
 
 IF ORIGINAL
 SYNCHR_0:
@@ -18836,8 +18836,10 @@ FILE_OPENOUT:
 
 ; Load and run a file, used also at boot time
 ; Used by the routines at ATOH and INITSA.
+IF !TAPE
 LRUN:
   DEFB $F6                ; 'OR $AF'  ;SET NON ZERO TO FLAG "RUN" COMMAND
+ENDIF
 
 ; 'LOAD' BASIC command
 __LOAD:
@@ -18845,6 +18847,9 @@ __LOAD:
 IF TAPE
   CP '!'            ; New Syntax.  LOAD! replaces CLOAD, we ran out of space for TOKEN codes !
   JP Z,__CLOAD
+
+LRUN:
+  DEFB $F6                ; 'OR $AF'  ;SET NON ZERO TO FLAG "RUN" COMMAND
 ENDIF
 
 
@@ -20826,6 +20831,7 @@ __GET:
   XOR A                   ;Set zero
   LD (PUTGET_FLG),A       ;Save flag
   CALL FILSCN             ;Get pointer at file data block   (in BC)
+;__GET_0:
   CP $03                  ;Must be a random file
   JP NZ,FMODE_ERR         ;If not, "Bad file mode"
   PUSH BC                 ;Save pointer at file data block
@@ -25181,7 +25187,7 @@ DONCMD_3:
   DEC HL                ; useless ?
 
 ENDIF
-  
+
   LD HL,(MEMSIZ)        ; GET SIZE OF MEMORY
 
   DEC HL                ;ALWAYS LEAVE TOP BYTE UNUSED BECAUSE
