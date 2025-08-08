@@ -1211,27 +1211,34 @@ DIV0_MSG:
   DEFB $00
   DEFM "File Read Only"
   DEFB $00
-  DEFB $D0
-  DEFM "4"
-  DEFB $D0
-  DEFM "4"
-  DEFB $D0
-  DEFM "4"
-  DEFB $D0
-  DEFM "4"
-  DEFB $D0
-  DEFM "4"
-  DEFB $D0
-  DEFM "4"
-  DEFB $D0
-  DEFM "4"
-  DEFB $D0
-  DEFM "4"
-  DEFB $D0
-  DEFM "4"
-  DEFB $D0
-  DEFM "4"
-  DEFB $01
+
+
+; Device Control Table/Driver
+USR0:
+  DEFW FC_ERR             ; USR0
+USR1:
+  DEFW FC_ERR             ; USR1
+USR2:
+  DEFW FC_ERR             ; USR2
+USR3:
+  DEFW FC_ERR             ; USR3
+USR4:
+  DEFW FC_ERR             ; USR4
+USR5:
+  DEFW FC_ERR             ; USR5
+USR6:
+  DEFW FC_ERR             ; USR6
+USR7:
+  DEFW FC_ERR             ; USR7
+USR8:
+  DEFW FC_ERR             ; USR8
+USR9:
+  DEFW FC_ERR             ; USR9
+
+
+; System variables
+NULLS:
+  DEFB $01                ; Counter for NULL() function (NUMBER OF NULLS TO PRINT AFTER CRLF)
 
 ; ISCNTC STORES EATEN CHAR HERE WHEN NOT A ^C
 CHARC:
@@ -1772,11 +1779,11 @@ GET_FILEMODE:
 ; Routine at 3195
 ;
 ; Used by the routine at L4B88.
-BIOS_TRAP:
+CPM_ERR_TRAP:
   LD HL,(SAVSTK)
   LD SP,HL
-  PUSH DE
-  LD C,$0E                ;SET DRIVE, BDOS function 14 - Select disc (set current drive)
+  PUSH DE                 ; Keep the error code in E
+  LD C,$0E                ; BDOS function 14 - Select disc (set current drive)
   JP RESUME_DRIVE
 
   NOP
@@ -2256,11 +2263,14 @@ ERRMOR_1:
   CALL CONSOLE_CRLF
   LD HL,ERROR_MESSAGES
   LD A,E
-  CP $47
+  CP $47                                ; The Apple II provides error trapping for 5 special cases, the 4 BDOS errore...
   JR NC,ERRMOR_2
   CP $32
   JR NC,ERRMOR_3
+IF APPLE2                               ; and a trap on WBOOT  
   CP $20
+ELSE
+ENDIF
   JR C,ERRMOR_4
 ERRMOR_2:
   LD A,$27
@@ -9739,45 +9749,45 @@ __HPLOT_1:
 ; These get patched when GBASIC boots
 
 ; Routine at 19322
-ALTBIOS_WBOOT:
-  LD E,$1F
+TRAP_WBOOT:
+  LD E,$1F    ; ==> Error code for "Reset error"
 
   DEFB $01    ; LD BC,NN - over the next 2 bytes
 
 ; Data block at 19325
-ALTBIOS_CONST:
-  LD E,$39
+BDOS_BADSCTR:
+  LD E,$39    ; ==> Error code for "Disk I/O ERROR"
 
   DEFB $01    ; LD BC,NN - over the next 2 bytes
 
 ; Data block at 19328
-ALTBIOS_CONIN:
-  LD E,$44
+BDOS_RODISK:
+  LD E,$44    ; ==> Error code for "Disk Read Only"
 
   DEFB $01    ; LD BC,NN - over the next 2 bytes
 
 ; Data block at 19331
-ALTBIOS_CONOUT:
-  LD E,$45
+BDOS_BADSLCT:
+  LD E,$45    ; ==> Error code for "Drive select error"
 
   DEFB $01    ; LD BC,NN - over the next 2 bytes
 
 ; Data block at 19334
-ALTBIOS_LIST:
-  LD E,$46
+BDOS_ROFILE:
+  LD E,$46    ; ==> Error code for "File Read Only" 
 
 ; Routine at 19336
 L4B88:
-  JP BIOS_TRAP
+  JP CPM_ERR_TRAP
 
 ; Routine at 19339
 ;
-; Used by the routine at BIOS_TRAP.
+; Used by the routine at CPM_ERR_TRAP.
 RESUME_DRIVE:
   LD A,($0004)
   LD E,A
   CALL CPMENT
-  POP DE
+  POP DE			; Get the error code in E
   JP ERROR
 
 ; 0=TEXT, $FF=GRAPHICS
@@ -22117,31 +22127,35 @@ INIT:
 ;       configuration, paging back in the user memory)
 ;
 
-  EX DE,HL
-  LD DE,$F1F8            ; -3592
-  ADD HL,DE
-  LD DE,ALTBIOS_CONST    ; "console status"
+  EX DE,HL               ; HL should be pointing to the BIOS printer routine (LIST) 
+  LD DE,$F1F8            ; -3592... where is it pointing to?    probably the BDOS error table
+
+
+  ADD HL,DE              ; probably the BDOS error table
+  
+  
+  LD DE,BDOS_BADSCTR     ; bad sector on read or write.
+  LD (HL),E              ; error code $39  (
+  INC HL
+  LD (HL),D
+  INC HL
+  LD DE,BDOS_BADSLCT     ; "bad disk select"
   LD (HL),E
   INC HL
   LD (HL),D
   INC HL
-  LD DE,ALTBIOS_CONOUT   ; "console output"
+  LD DE,BDOS_RODISK      ; disk is read only.
   LD (HL),E
   INC HL
   LD (HL),D
   INC HL
-  LD DE,ALTBIOS_CONIN    ; "console input"
-  LD (HL),E
-  INC HL
-  LD (HL),D
-  INC HL
-  LD DE,ALTBIOS_LIST    ; "printer output"
+  LD DE,BDOS_ROFILE     ; file is read only.
   LD (HL),E
   INC HL
   LD (HL),D
   
-  ; Now let WBOOT pointing to this crap, we already saved the BIOS entries before
-  LD HL,ALTBIOS_WBOOT
+  ; Now let's trap also WBOOT, we already saved the BIOS entries before
+  LD HL,TRAP_WBOOT
   LD (BASE+$0001),HL      
 
   LD HL,($F3DE)           ; get the HW slot currently in use by the Z80 SoftCard
