@@ -22130,33 +22130,31 @@ INIT:
   EX DE,HL               ; HL should be pointing to the BIOS printer routine (LIST) 
   LD DE,$F1F8            ; -3592... where is it pointing to?    probably the BDOS error table
 
-
-  ADD HL,DE              ; probably the BDOS error table
-  
-  
+  ADD HL,DE              ; it surely knows where the BDOS error table is  :D  !!!
+    
   LD DE,BDOS_BADSCTR     ; bad sector on read or write.
-  LD (HL),E              ; error code $39  (
+  LD (HL),E              ; generates error $39, "Disk I/O ERROR"
   INC HL
   LD (HL),D
   INC HL
   LD DE,BDOS_BADSLCT     ; "bad disk select"
-  LD (HL),E
+  LD (HL),E              ; generates error $45, "Drive select error"
   INC HL
   LD (HL),D
   INC HL
   LD DE,BDOS_RODISK      ; disk is read only.
-  LD (HL),E
+  LD (HL),E              ; generates error $44, "Disk Read Only"
   INC HL
   LD (HL),D
   INC HL
-  LD DE,BDOS_ROFILE     ; file is read only.
-  LD (HL),E
+  LD DE,BDOS_ROFILE      ; file is read only.
+  LD (HL),E              ; generates error $46, "File Read Only" 
   INC HL
   LD (HL),D
   
   ; Now let's trap also WBOOT, we already saved the BIOS entries before
   LD HL,TRAP_WBOOT
-  LD (BASE+$0001),HL      
+  LD (BASE+$0001),HL      ; generates error $1F, "Reset error"
 
   LD HL,($F3DE)           ; get the HW slot currently in use by the Z80 SoftCard
   LD (GO_6502+4),HL       ; ($45EB) use SMC to adjust the pivot routine calling the 6502
