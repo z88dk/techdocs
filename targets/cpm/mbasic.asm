@@ -45,7 +45,7 @@ defc DIRTMP  =  BASE+$0080
 ; . 69 "Drive select error"  (this same code became "Disk I/O error" on the MSX, which uses also 70 for "disk offline" )
 ; . 70 "File Read Only"  (it shifted to 72 on MSX)
 ;
-; z80asm -b -DCPMV1 -m8080 -DBDOS_TRAP mbasic.asm
+; z80asm -b -DCPMV1 -m8080 -DTRAP_BDOS mbasic.asm
 ; ren mbasic.bin MBASIC.COM
 
 
@@ -1536,7 +1536,7 @@ DIV0_MSG:
   DEFM "WEND without WHILE"
   DEFB $00
 
-IF BDOS_TRAP
+IF TRAP_BDOS
   DEFM "Reset error"           ; error code: $1F
   DEFB $00
 ENDIF
@@ -1581,7 +1581,7 @@ ENDIF
   defc TERR_OFFS = 0
   defc BDERR_OFFS = 0
 
-IF BDOS_TRAP
+IF TRAP_BDOS
   UNDEFINE BDERR_OFFS
   defc BDERR_OFFS = 3
   DEFM "Disk Read Only"
@@ -1923,7 +1923,7 @@ OPTFLG:
   DEFB $00                ; Array status flag to deal with "OPTION BASE"
 
 ;------------------------------------
-IF BDOS_TRAP
+IF TRAP_BDOS
 
 CPM_ERR_TRAP:
   LD HL,(SAVSTK)
@@ -2363,7 +2363,7 @@ __CLOAD_1:
   LD HL,(VARTAB)
   CALL DCOMPR		; Compare HL with DE.
   JP C,__CLOAD_OK
-IF BDOS_TRAP
+IF TRAP_BDOS
   LD E,$48           ; "Verify error"
 ELSE
   LD E,$45           ; "Verify error"
@@ -2497,7 +2497,7 @@ CSROON:
 ; This entry point is used by the routines at _CASIN and CASOUT.
 DIOERR:
   CALL TAPIOF
-IF BDOS_TRAP
+IF TRAP_BDOS
   LD E,$47                ; "Tape I/O Error"
 ELSE
   LD E,$44                ; "Tape I/O Error"
@@ -3297,7 +3297,7 @@ ERROR_REPORT:
   JP NC,UE_ERR              ;YES, TOO BIG TO PRINT
   CP $32                    ;(DSKERR+1) DISK ERROR?
   JP NC,NTDER2              ;JP if error code is between $32 and $43
-IF BDOS_TRAP
+IF TRAP_BDOS
   CP $20                    ; ...and a trap on WBOOT  
 ELSE
   CP $1F                    ;(NONDSK+1) IS IT BETWEEN LAST NORMAL & FIRST DISK?
@@ -3308,7 +3308,7 @@ ENDIF
 ; Used by the routines at ERROR_REPORT and _ERROR_REPORT.
 UE_ERR:
 ; if error code is bigger than $43 then force it to $28-$13=$15 ("Unprintable error")
-IF BDOS_TRAP
+IF TRAP_BDOS
   LD A,$27
 ELSE
   LD A,$28  ;(ERRUE+DSKERR-NONDSK): PRINT "UNPRINTABLE ERROR"
@@ -3318,7 +3318,7 @@ ENDIF
 ;
 ; Used by the routine at ERROR_REPORT.
 NTDER2:
-IF BDOS_TRAP
+IF TRAP_BDOS
   SUB $12
 ELSE
   SUB $13                   ; (DSKERR-NONDSK): FIX OFFSET INTO TABLE OF MESSAGES
@@ -3399,7 +3399,7 @@ ENDIF
 
 ; Data block at 3480
 SMC_PRINTMSG:
-  DEFW CPMWRM
+  DEFW 0
 
 ; Routine at 3482
 READY_0:
@@ -24800,7 +24800,7 @@ ENDIF
 ;----------------------------------------------------------------
 
 ;----------------------------------------------------------------
-IF BDOS_TRAP
+IF TRAP_BDOS
 
 ; New entry for BIOS WBOOT (reload command processor)
 ; These get patched when GBASIC boots
@@ -24904,7 +24904,7 @@ INIT:
   LD (TTYPOS),A
   LD (SAVSTK),HL            ;WE RESTORE STACK WHEN ERRORS
   LD HL,(BASE+$0001)        ;GET START OF BIOS VECTOR TABLE
-IF BDOS_TRAP
+IF TRAP_BDOS
   LD (EXIT_TO_SYSTEM+1),HL             ;Keep the boot entry
 ENDIF
   LD BC,$0004               ;CSTS
@@ -24942,7 +24942,7 @@ ENDIF
   LD (SMC_LPTOUT),HL        ;SET PRINT ROUTINE ADDRESS
 
 ;----------------------------------------------------------------
-IF BDOS_TRAP
+IF TRAP_BDOS
 ; Trap the BIOS WBOOT entry to provide a different "BIOS" function table
 ; This is probably to prevent a BDOS failure to cause a WBOOT reset
 ; and to restore the system to a stable working condition
@@ -25601,8 +25601,8 @@ ENDIF
   CALL OUTDO_CRLF         ; PRINT CARRIAGE RETURN
   LD HL,WARM_BT
 
-; Patch myself to do a warm start.   This allows SAVE in CP/M, etc..
-; This instruction was removed in the late MBASIC versions, apparently the trick doesn't work anymore !
+; Patch myself to do a warm start.
+; This instruction was removed in the late MBASIC versions.
 ; IF !ORIGINAL
 ;   LD (L0100+1),HL
 ; ENDIF
