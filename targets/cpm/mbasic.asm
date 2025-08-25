@@ -38,6 +38,16 @@ defc DIRTMP  =  BASE+$0080
 ; z80asm -b -DBASE=16896 -DCPMV1 mbasic.asm
 ; z88dk-appmake +cpmdisk -f omikron --container=imd  -b mbasic.bin
 
+; CP/M 2 BDOS trap, as implemented on the Apple II
+;-------------------------------------------------
+; Error codes, allowing ON ERROR based tricks
+; . 68 "Disk read only"  ("write protected", this same error code survived up to the MSX era)
+; . 69 "Drive select error"  (this same code became "Disk I/O error" on the MSX, which uses also 70 for "disk offline" )
+; . 70 "File Read Only"  (it shifted to 72 on MSX)
+;
+; z80asm -b -DCPMV1 -m8080 -DBDOS_TRAP mbasic.asm
+; ren mbasic.bin MBASIC.COM
+
 
 ; ZX Spectrum +3 graphics and Terminal
 ;--------------------------------------
@@ -1525,7 +1535,13 @@ DIV0_MSG:
   DEFB $00
   DEFM "WEND without WHILE"
   DEFB $00
-  DEFM "FIELD overflow"
+
+IF BDOS_TRAP
+  DEFM "Reset error"           ; error code: $1F
+  DEFB $00
+ENDIF
+
+  DEFM "FIELD overflow"        ; error code: $32
   DEFB $00
   DEFM "Internal error"
   DEFB $00
@@ -1561,12 +1577,31 @@ DIV0_MSG:
   DEFB $00
   DEFM "Too many files"
   DEFB $00
+
+  defc TERR_OFFS = 0
+  defc BDERR_OFFS = 0
+
+IF BDOS_TRAP
+  UNDEFINE BDERR_OFFS
+  defc BDERR_OFFS = 3
+  DEFM "Disk Read Only"
+  DEFB $00
+  DEFM "Drive select error"
+  DEFB $00
+  DEFM "File Read Only"
+  DEFB $00
+ENDIF
 IF TAPE
+  UNDEFINE TERR_OFFS
+  defc TERR_OFFS = 2
   DEFM "Tape I/O error"
   DEFB $00
   DEFM "Verify error"
   DEFB $00
 ENDIF
+
+defc LSTERR=$44+BDERR_OFFS+TERR_OFFS
+
 
 ;
 ; THIS IS THE "VOLATILE" STORAGE AREA AND NONE OF IT
@@ -1887,7 +1922,22 @@ OPTVAL:
 OPTFLG:
   DEFB $00                ; Array status flag to deal with "OPTION BASE"
 
+;------------------------------------
+IF BDOS_TRAP
+
+CPM_ERR_TRAP:
+  LD HL,(SAVSTK)
+  LD SP,HL
+  PUSH DE                 ; Keep the error code in E
+  LD C,$0E                ; BDOS function 14 - Select disc (set current drive)
+  JP RESUME_DRIVE
+
+  DEFS 14
+ELSE
+
   DEFS 30                 ; Unused ?
+ENDIF
+;------------------------------------
 
 INTFLG:
   DEFB $00                ; This flag is set if STOP (=4) or CTRL + STOP (=3) is pressed
@@ -2313,7 +2363,11 @@ __CLOAD_1:
   LD HL,(VARTAB)
   CALL DCOMPR		; Compare HL with DE.
   JP C,__CLOAD_OK
+IF BDOS_TRAP
+  LD E,$48           ; "Verify error"
+ELSE
   LD E,$45           ; "Verify error"
+ENDIF
   JP ERROR
 
 
@@ -2443,7 +2497,11 @@ CSROON:
 ; This entry point is used by the routines at _CASIN and CASOUT.
 DIOERR:
   CALL TAPIOF
+IF BDOS_TRAP
+  LD E,$47                ; "Tape I/O Error"
+ELSE
   LD E,$44                ; "Tape I/O Error"
+ENDIF
   JP ERROR
 
 
@@ -2887,8 +2945,8 @@ TAPSEND_HIGH_X2:
   CALL TAPSEND_HIGH
   RET
 
-defc PLAY_MSXDATA_HI     = 6457    ; 1200 baud, High tone period
-defc PLAY_MSXDATA_LO     = 13204   ; 1200 baud, Low tone period
+defc PLAY_MSXDATA_HI     = $2D26   ; 1200 baud, High tone period
+defc PLAY_MSXDATA_LO     = $5C53   ; 1200 baud, Low tone period
 defc PLAY_MSXDATA_HDR    = 15      ; 1200 baud, leading tone cycle count
 
 TAPSEND_LOW:
@@ -3233,29 +3291,38 @@ ERROR_REPORT:
   CALL CONSOLE_CRLF         ;CRLF
   LD HL,ERROR_MESSAGES      ;GET START OF ERROR TABLE
   LD A,E                    ;GET ERROR CODE
-IF TAPE
-  CP $46                    ;(LSTERR) IS IT PAST LAST ERROR?
-ELSE
-  CP $44                    ;(LSTERR) IS IT PAST LAST ERROR?
-ENDIF
+
+  CP LSTERR                 ;IS IT PAST LAST ERROR?
+
   JP NC,UE_ERR              ;YES, TOO BIG TO PRINT
   CP $32                    ;(DSKERR+1) DISK ERROR?
   JP NC,NTDER2              ;JP if error code is between $32 and $43
+IF BDOS_TRAP
+  CP $20                    ; ...and a trap on WBOOT  
+ELSE
   CP $1F                    ;(NONDSK+1) IS IT BETWEEN LAST NORMAL & FIRST DISK?
+ENDIF
   JP C,LEPSKP               ;YES, OK TO PRINT IT (JP if error code is < $1F)
 
 ; a.k.a. UPERR
 ; Used by the routines at ERROR_REPORT and _ERROR_REPORT.
 UE_ERR:
 ; if error code is bigger than $43 then force it to $28-$13=$15 ("Unprintable error")
+IF BDOS_TRAP
+  LD A,$27
+ELSE
   LD A,$28  ;(ERRUE+DSKERR-NONDSK): PRINT "UNPRINTABLE ERROR"
-
+ENDIF
 
 ; JP here if error code is between $32 and $43, then sub $13
 ;
 ; Used by the routine at ERROR_REPORT.
 NTDER2:
+IF BDOS_TRAP
+  SUB $12
+ELSE
   SUB $13                   ; (DSKERR-NONDSK): FIX OFFSET INTO TABLE OF MESSAGES
+ENDIF
   LD E,A                    ;SAVE BACK ERROR CODE
 ; This entry point is used by the routine at ERROR_REPORT.
 LEPSKP:                     ;ON "SYNTAX ERROR"S
@@ -6507,8 +6574,8 @@ NXTHEX:
   OR L                  ;OR ON NEW DIGIT
   LD L,A                ;SAVE BACK
   EX DE,HL              ;GET TEXT POINTER BACK IN [H,L]
-  DEC B
-  JR NZ,LOPHEX          ;KEEP EATING
+  ;DEC B
+  DJNZ LOPHEX           ;KEEP EATING
   JP OV_ERR             ;TOO MANY DIGITS?
   
 LOPOC2:
@@ -8339,8 +8406,8 @@ FNNWST:
   JR Z,FORINC
   CP TK_WEND
   JR NZ,FNLOP
-  DEC B
-  JR NZ,FNLOP
+  ;DEC B
+  DJNZ FNLOP
   RET
 
 NXTLOK:
@@ -10724,9 +10791,9 @@ DROUNA_LP:              ;INCREMENT A BYTE                           ; (GWBASIC)
   INC (HL)              ;RETURN IF THERE WAS NO CARRY               ;IF THIS GETS ZF=1 THEN CARRY
   RET NZ                ;INCREMENT POINTER TO NEXT HIGHER ORDER
   INC HL                ;HAVE WE INCREMENTED ALL BYTES
-  ;DEC B                 ;NO, TRY THE NEXT ONE
-  DJNZ DROUNA_LP       ;YES, INCREMENT THE EXPONENT
-  INC (HL)                                                          ;MUST INCREMENT EXPONENT
+  ;DEC B
+  DJNZ DROUNA_LP        ;NO, TRY THE NEXT ONE
+  INC (HL)              ;YES, INCREMENT THE EXPONENT                ;MUST INCREMENT EXPONENT
   JP Z,OVERR_1          ;THE NUMBER OVERFLOWED ITS EXPONENT
   DEC HL
   LD (HL),$80           ;PUT 200 IN HO                              ;SET HIGH BYTE TO 200
@@ -10784,8 +10851,8 @@ NEGR_0:
   SBC A,(HL)             ;NEGATE THE BYTE OF FAC
   LD (HL),A              ;UPDATE FAC
   INC HL                 ;INCREMENT POINTER TO NEXT HIGHER ORDER BYTE
-  ;DEC B                  ;ARE WE DONE?
-  DJNZ NEGR_0           ;NO, NEGATE THE NEXT BYTE
+  ;DEC B                 ;ARE WE DONE?
+  DJNZ NEGR_0            ;NO, NEGATE THE NEXT BYTE
   RET                    ;ALL DONE
 
 
@@ -11011,14 +11078,14 @@ PPARG:
   POP DE                 ;GET OUR RETURN ADDRESS OFF THE STACK
   LD A,$04
   LD HL,ARG
-DDIV10_9:
+PPARG_0:
   POP BC
   LD (HL),B
   DEC HL
   LD (HL),C
   DEC HL
   DEC A
-  JR NZ,DDIV10_9
+  JR NZ,PPARG_0
   PUSH DE
   RET
 
@@ -12064,6 +12131,7 @@ FFXIX1:
 	;FIELD LENGTH
 	;D = THE B IN THE FORMAT SPECIFICATION
 	;THIS ASSUMES THE LOCATION OF THE DECIMAL POINT IS IN TEMP2
+
   LD HL,FBUFFR          ;GET A POINTER TO THE BEGINNING
 FOUBE1:
   INC HL                ;INCREMENT POINTER TO THE NEXT CHARACTER
@@ -12309,7 +12377,7 @@ FFXSFL:
   AND $04               ;SEE IF THE SIGN IS A TRAILING SIGN
   CP $01                ;SET CARRY IF A IS ZERO
   SBC A,A               ;SET D=0 IF WE HAVE A TRAILING SIGN,
-  LD D,A                ; D=377 IF WE DO NOT
+  LD D,A                ; D=377 ($FF) IF WE DO NOT
   ADD A,C
   LD C,A                ;SET C=NUMBER OF SIGNIFICANT DIGITS TO PRINT
   SUB E                 ;IF WE HAVE LESS THAN E, THEN WE MUST GET RID
@@ -14133,9 +14201,9 @@ SLPMAT:
   DEC B                   ;MATCHED ALL CHARACTERS YET?
   JR Z,ISMAT2             ;IF SO, ITS A MATCH
   LD A,(DE)               ;GET ANOTHER CHARACTER
-  INC DE                  ;SEE IF ITS THE SAME
-  CP (HL)                 ;MOVE FORWARD IN DEFINITION TABLE
-  INC HL                  ;MORE FORWARD IN STORED NAME
+  INC DE                  ;MORE FORWARD IN STORED NAME
+  CP (HL)                 ;SEE IF ITS THE SAME
+  INC HL                  ;MOVE FORWARD IN DEFINITION TABLE
   JR Z,SLPMAT             ;IF MATCH KEEP GOING UNTIL END
   LD A,B                  ;NEED TO ADVANCE BY [B]-1 TO SKIP BAD CHARS
   DEC A
@@ -14612,14 +14680,14 @@ __USING_1:
   PUSH HL                  ;SAVE THE POINTER TO "USING" STRING DESCRIPTOR
   XOR A                    ;INITIALLY INDICATE THERE ARE MORE VALUES IN THE VALUE LIST
   LD (FLGINP),A            ;RESET THE FLAG THAT SAYS VALUES PRINTED
-  INC A                    ;TURN THE ZERO FLAG OFF TO INDICATE THE VALUE LIST HASN'T ENDED
+  INC A                    ;TURN THE ZERO FLAG OFF TO INDICATE THE VALUE LIST HASN'T ENDED   (this introduced a bug)
   PUSH AF                  ;SAVE FLAG INDICATING WHETHER THE VALUE LIST HAS ENDED
   PUSH DE                  ;SAVE THE TEXT POINTER INTO THE VALUE LIST
   LD B,(HL)                ;[B]=LENGTH OF THE "USING" STRING
 IF ORIGINAL
   OR B                     ;SEE IF ITS ZERO
 ELSE
-  INC B                    ;SEE IF ITS ZERO
+  INC B                    ;SEE IF ITS ZERO (bugfix)
   DEC B
 ENDIF
 
@@ -14644,12 +14712,8 @@ LPSTRF:
   CP ' '                   ;A FIELD EXTENDER?
   JR NZ,NOSTRF             ;IF NOT, ITS NOT A STRING FIELD
   INC C                    ;INCREMENT THE FIELD WIDTH
-IF ORIGINAL
-  ;DEC B                    ;SEE IF THERE ARE MORE CHARACTERS
-  DJNZ LPSTRF             ;KEEP SCANNING FOR THE FIELD TERMINATOR
-ELSE
   DJNZ LPSTRF              ;KEEP SCANNING FOR THE FIELD TERMINATOR
-ENDIF
+
 ;
 ; SINCE  STRING FIELD WASN'T FOUND, THE "USING" STRING 
 ; CHARACTER COUNT AND THE POINTER INTO IT'S DATA MUST
@@ -15969,7 +16033,6 @@ CHKLTR:
 ; Check char in 'A' being in the 'A'..'Z' range
 ;
 ; Used by the routines at CRNCLP, NOTRES, OPRND, OCTCNS, LISPRT and GETVAR.
-; Check char in 'A' being in the 'A'..'Z' range
 ISLETTER_A:
   CP 'A'            ; < "A" ?
   RET C             ; Carry set if not letter
@@ -15993,7 +16056,7 @@ __CLEAR:
   JR Z,CLVAR              ; Just "CLEAR" Keep parameters    ;IF NO FORMULA JUST CLEAR
   CP ','                  ;ALLOW NO STRING SPACE
   JR Z,__CLEAR_0
-  CALL INTIDX_0       ;GET AN INTEGER INTO [D,E]
+  CALL INTIDX_0           ;GET AN INTEGER INTO [D,E]
   DEC HL
   CALL CHRGTB             ; Get next character, SEE IF ITS THE END
   JR Z,CLVAR
@@ -18835,7 +18898,7 @@ FILE_OPENOUT:
 
 
 ; Load and run a file, used also at boot time
-; Used by the routines at ATOH and INITSA.
+; Used by the routines at __RUN and INITSA.
 IF !TAPE
 LRUN:
   DEFB $F6                ; 'OR $AF'  ;SET NON ZERO TO FLAG "RUN" COMMAND
@@ -18917,6 +18980,7 @@ NTPROL:
 ;
 BINLOD:
   LD HL,(TXTTAB)          ;GET PLACE TO START STORING INTO
+
 LPBLDR:
   EX DE,HL                ;SEE IF THERE IS ROOM TO SPARE
   LD HL,(FRETOP)
@@ -18933,6 +18997,7 @@ LPBLDR:
   LD (HL),A               ;STORE BYTE
   INC HL                  ;INCRMENT POINTER
   JR NC,LPBLDR            ;READ THE NEXT CHAR
+
   LD (VARTAB),HL          ;SAVE END TEMP FOR DECODING
   LD A,(PROFLG)           ;IS THIS A PROTECTED FILE?
   OR A                    ;SET CC'S
@@ -20165,8 +20230,8 @@ NAMRMV:
   LD (HL),A              ;SAVE BYTE IN "OLD" FILE NAME
   INC HL                 ;BUMP POINTERS
   INC DE
-  DEC B
-  JR NZ,NAMRMV
+  ;DEC B
+  DJNZ NAMRMV
   POP HL                 ;GET THE TEXT POINTER BACK
   CALL SYNCHR            
   DEFM "A"               ;MAKE SURE "AS" IS THERE
@@ -20605,7 +20670,7 @@ __KILL:
   PUSH DE                ;SAVE BACK
   PUSH AF                ;SAVE FOUND FLAG
   LD C,$10               ;THIS MAY NOT BE NESC. (BDOS function 16 - Close file)
-  JR Z,__KILL_0
+  JR Z,__KILL_0          ; - Previous versions had a cute "CALL NZ,CPMENT".  Why was it changed ?
   CALL CPMENT            ;CLOSE FILE
 __KILL_0:
   POP AF                 ;RESTORE FOUND INDICATOR
@@ -21068,7 +21133,6 @@ NXFVBF:
   POP HL                 ;Restore text pointer
   RET                    ;Done
 
-
 ; Read code
 ; [H,L]=bytes
 ; [D,E]=count
@@ -21336,8 +21400,8 @@ DECDBL:
   JR NZ,CNTZR2           ;Still non-Zero
   LD C,N1                ;Re-initialize counter 1
 CNTZR2:
-  DEC B
-  JR NZ,DECDBL           ;Decrement counter-2, Still non-zero, go for more
+  ;DEC B
+  DJNZ DECDBL           ;Decrement counter-2, Still non-zero, go for more
   LD B,N2                ;Re-initialize counter 2
   JR DECDBL              ;Keep going until done
 
@@ -24726,6 +24790,60 @@ NEGD:
 ;  End of MACRO LANGUAGE block 
 ENDIF
 
+;----------------------------------------------------------------
+IF APPLE2
+GO_6502:
+  LD ($F3D0),HL    ; remapped to $03D0 on the 6502 side
+  LD ($0000),A     ; Touch the switch in the current Z80 SoftCard HW slot
+  RET
+ENDIF
+;----------------------------------------------------------------
+
+;----------------------------------------------------------------
+IF BDOS_TRAP
+
+; New entry for BIOS WBOOT (reload command processor)
+; These get patched when GBASIC boots
+
+TRAP_WBOOT:
+  LD E,$1F    ; ==> Error code for "Reset error"
+
+  DEFB $01    ; LD BC,NN - over the next 2 bytes
+
+BDOS_BADSCTR:
+  LD E,$39    ; ==> Error code for "Disk I/O ERROR"
+
+  DEFB $01    ; LD BC,NN - over the next 2 bytes
+
+BDOS_RODISK:
+  LD E,$44    ; ==> Error code for "Disk Read Only"
+
+  DEFB $01    ; LD BC,NN - over the next 2 bytes
+
+BDOS_BADSLCT:
+  LD E,$45    ; ==> Error code for "Drive select error"
+
+  DEFB $01    ; LD BC,NN - over the next 2 bytes
+
+BDOS_ROFILE:
+  LD E,$46    ; ==> Error code for "File Read Only" 
+
+  JP CPM_ERR_TRAP
+
+; Routine at 19339
+;
+; Used by the routine at CPM_ERR_TRAP.
+RESUME_DRIVE:
+  LD A,($0004)
+  LD E,A
+  CALL CPMENT
+  POP DE			; Get the error code in E
+  JP ERROR
+
+ENDIF
+;----------------------------------------------------------------
+
+
 
 ;
 ; Used by the routine at DONCMD.
@@ -24786,6 +24904,9 @@ INIT:
   LD (TTYPOS),A
   LD (SAVSTK),HL            ;WE RESTORE STACK WHEN ERRORS
   LD HL,(BASE+$0001)        ;GET START OF BIOS VECTOR TABLE
+IF BDOS_TRAP
+  LD (EXIT_TO_SYSTEM+1),HL             ;Keep the boot entry
+ENDIF
   LD BC,$0004               ;CSTS
   ADD HL,BC                 ;ADD FOUR
   LD E,(HL)                 ;PICK UP CSTS ADDRESS
@@ -24819,6 +24940,54 @@ INIT:
   LD D,(HL)
   EX DE,HL                  ;GET ADDRESS INTO [D,E]
   LD (SMC_LPTOUT),HL        ;SET PRINT ROUTINE ADDRESS
+
+;----------------------------------------------------------------
+IF BDOS_TRAP
+; Trap the BIOS WBOOT entry to provide a different "BIOS" function table
+; This is probably to prevent a BDOS failure to cause a WBOOT reset
+; and to restore the system to a stable working condition
+; (e.g. selecting a valid default disk drive, and possibly, in some
+;       configuration, paging back in the user memory)
+;
+
+  EX DE,HL               ; HL should be pointing to the BIOS printer routine (LIST) 
+  LD DE,$F1F8            ; -3592... where is it pointing to?    probably the BDOS error table
+
+  ADD HL,DE              ; it surely knows where the BDOS error table is  :D  !!!
+    
+  LD DE,BDOS_BADSCTR     ; bad sector on read or write.
+  LD (HL),E              ; generates error $39, "Disk I/O ERROR"
+  INC HL
+  LD (HL),D
+  INC HL
+  LD DE,BDOS_BADSLCT     ; "bad disk select"
+  LD (HL),E              ; generates error $45, "Drive select error"
+  INC HL
+  LD (HL),D
+  INC HL
+  LD DE,BDOS_RODISK      ; disk is read only.
+  LD (HL),E              ; generates error $44, "Disk Read Only"
+  INC HL
+  LD (HL),D
+  INC HL
+  LD DE,BDOS_ROFILE      ; file is read only.
+  LD (HL),E              ; generates error $46, "File Read Only" 
+  INC HL
+  LD (HL),D
+  
+  ; Now let's trap also WBOOT, we already saved the BIOS entries before
+  LD HL,TRAP_WBOOT
+  LD (BASE+$0001),HL      ; generates error $1F, "Reset error"
+
+ENDIF
+;----------------------------------------------------------------
+
+IF APPLE2
+  LD HL,($F3DE)           ; get the HW slot currently in use by the Z80 SoftCard
+  LD (GO_6502+4),HL       ; use SMC to adjust the pivot routine calling the 6502
+ENDIF
+
+;----------------------------------------------------------------
 
   ;  Check CP/M Version Number
 IF CPMV1
@@ -25256,8 +25425,8 @@ SHFLF3:
   LD A,L
   RRA
   LD L,A
-  DEC B
-  JR NZ,SHFLF3
+  ;DEC B
+  DJNZ SHFLF3
 
   LD A,H                ; SEE HOW MUCH
   CP $02			 	; IF LESS THAN 512 USE 1 EIGHTH
