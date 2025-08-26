@@ -23,24 +23,31 @@ defc DIRTMP  =  BASE+$0080
 
 ; The original code now includes Z80 specific optimizations,
 ; but Z80ASM is able to transparently convert back to 8080.
-;
+
+
 ; Classic build (almost byte-identical but for few small bug fixes):
 ;
 ; z80asm -b -DORIGINAL -DCPMV1 -m8080 mbasic.asm
 ; ren mbasic.bin MBASIC.COM
-;
+
+
 ; Rebased CP/M buid 
 ; Alphatronic-P2 (8085, BASE at $4200)
+;------------------------------------------------------------------
 ; z80asm -b -DBASE=16896 -m8085 mbasic.asm
 ; z88dk-appmake +cpmdisk -f alphatp2 --container=imd  -b mbasic.bin
 
+; Rebased CP/M buid 
 ; TRS-80 Model I Small System Software or FMG (Z80, BASE at $4200)
+;------------------------------------------------------------------
 ; z80asm -b -DBASE=16896 -DCPMV1 mbasic.asm
 ; z88dk-appmake +cpmdisk -f omikron --container=imd  -b mbasic.bin
 
-; CP/M 2 BDOS trap, as implemented on the Apple II
-;-------------------------------------------------
+
+; BDOS trap (probably not valid on CP/M 3), as implemented on the Apple II
+;--------------------------------------------------------------------------
 ; Error codes, allowing ON ERROR based tricks
+; . 31 "Reset error"     (traps the WBOOT entry, e.g. when RESET is pressed on the Apple II)
 ; . 68 "Disk read only"  ("write protected", this same error code survived up to the MSX era)
 ; . 69 "Drive select error"  (this same code became "Disk I/O error" on the MSX, which uses also 70 for "disk offline" )
 ; . 70 "File Read Only"  (it shifted to 72 on MSX)
@@ -48,6 +55,11 @@ defc DIRTMP  =  BASE+$0080
 ; z80asm -b -DCPMV1 -m8080 -DTRAP_BDOS mbasic.asm
 ; ren mbasic.bin MBASIC.COM
 
+
+; Apple II
+;----------
+; z80asm -b -DTRAP_BDOS -DAPPLE2 mbasic.asm
+; z88dk-appmake +cpmdisk -f apple2 --container=raw --extension=.dsk  -b mbasic.bin
 
 ; ZX Spectrum +3 graphics and Terminal
 ;--------------------------------------
@@ -212,10 +224,16 @@ defc KBFLEN   =  BUFLEN+(BUFLEN/4)	; MAKE KRUNCH BUFFER SOMEWHAT LARGER THAN SOU
 
 
 
-IF ZXPLUS3
-defc LINLN    =   50
-ELSE
 defc LINLN    =   80   ; TERMINAL LINE LENGTH 
+
+IF ZXPLUS3
+UNDEFINE LINLN
+defc LINLN    =   50
+ENDIF
+
+IF APPLE2
+UNDEFINE LINLN
+defc LINLN    =   40
 ENDIF
 
 defc LPTLEN   =  132   ; Max column size on printer
@@ -401,7 +419,11 @@ defc TK_SAVE     =  $CB
 defc TK_RESET    =  $CC  ; <-- used as TK code limit by ONJMP
 
 IF ZXPLUS3
-defc TK_VPOKE    =  $CD  ; <-- used as TK code limit by ONJMP
+defc TK_VPOKE    =  $CD  ; <-- TK code limit adjusted in ONJMP
+ENDIF
+
+IF APPLE2
+defc TK_TEXT     =  $CD  ; <-- TK code limit adjusted in ONJMP
 ENDIF
 
 defc TK_TO       =  $CE	; Token for 'TO' identifier in a 'FOR' statement
@@ -609,6 +631,10 @@ ENDIF
   DEFW __RSET
   DEFW __SAVE
   DEFW __RESET
+
+IF APPLE2
+  DEFW __TEXT
+ENDIF
 
 IF ZXPLUS3
   DEFW __VPOKE
@@ -1301,10 +1327,13 @@ WORDS_T:
   DEFB 'O'+$80
   DEFB TK_TO
 
-
   DEFM "A"
   DEFB 'N'+$80
   DEFB TK_TAN
+  
+  DEFM "EX"
+  DEFB 'T'+$80
+  DEFB TK_TEXT
 
   DEFB $00
 
@@ -1652,6 +1681,12 @@ LPTSIZ:
   DEFB LPTLEN             ; DEFAULT LINE PRINTER WIDTH
 LINLEN:
   DEFB LINLN              ; TTY LINE LENGTH
+
+IF APPLE2
+CRTCNT:
+  DEFB 24                 ; TTY LINE COUNT
+ENDIF
+
 NCMPOS:
   DEFB (((LINLN/CLMWID)-1)*CLMWID)     ; POSITION BEYOND WHICH THERE ARE NO MORE COMMA FIELDS
 RUBSW:
@@ -1786,7 +1821,11 @@ ENDBUF:
 TTYPOS:
   DEFB $00                ; STORE TERMINAL POSITION HERE
 
-  
+IF APPLE2
+TTY_VPOS:
+  DEFB $00                ; Character position on column
+ENDIF
+
 ; IN GETTING A POINTER TO A VARIABLE IT IS IMPORTANT TO REMEMBER WHETHER IT
 ; IS BEING DONE FOR "DIM" OR NOT DIMFLG AND VALTYP MUST BE CONSECUTIVE LOCATIONS
 ;
@@ -3001,10 +3040,10 @@ LOKFOR:
   LD A,(HL)               ; Get block ID (SEE WHAT TYPE OF THING IS ON THE STACK)
   INC HL                  ; Point to index address
   CP TK_WHILE             ; Is it a "WHILE" token
-  JP NZ,LOKFOR_0          ; No - check "FOR" as well
+  JR NZ,LOKFOR_0          ; No - check "FOR" as well
   LD BC,$0006             ; WHLSIZ
   ADD HL,BC
-  JP LOKFOR
+  JR LOKFOR
 
 LOKFOR_0:
   CP TK_FOR               ; Is it a "FOR" token                     ;IS THIS STACK ENTRY A "FOR"?
@@ -3019,7 +3058,7 @@ LOKFOR_0:
   LD A,D                  ; See if an index was specified           ;FOR THE "NEXT" STATMENT WITHOUT AN ARGUMENT
   OR E                    ; DE = 0 if no index specified            ;WE MATCH ON ANYTHING
   EX DE,HL                ; Specified index into HL                 ;MAKE SURE WE RETURN [D,E]
-  JP Z,INDFND             ; Skip if no index given                  ;POINTING TO THE VARIABLE
+  JR Z,INDFND             ; Skip if no index given                  ;POINTING TO THE VARIABLE
   EX DE,HL                ; Index back into DE
   CALL DCOMPR             ; Compare index with one given
   
@@ -3029,7 +3068,7 @@ INDFND:
   POP HL                  ; Restore pointer to sign
   RET Z                   ; Return if block found, WITH [H,L] POINTING THE BOTTOM OF THE ENTRY
   ADD HL,BC               ; Point to next block
-  JP LOKFOR               ; Keep on looking
+  JR LOKFOR               ; Keep on looking
 
 
 
@@ -3047,7 +3086,7 @@ PRG_END:
   LD A,H                  ;SEE IF in 'DIRECT' (immediate) mode
   AND L                   ;AND TOGETHER
   INC A                   ;SET CC'S
-  JP Z,PRG_END_0          ;IF DIRECT DONE, ALLOW FOR DEBUGGING PURPOSES
+  JR Z,PRG_END_0          ;IF DIRECT DONE, ALLOW FOR DEBUGGING PURPOSES
   LD A,(ONEFLG)           ;SEE IF IN ON ERROR
   OR A                    ;SET CC
   LD E,$13                ;"NO RESUME" ERROR (Err $13)
@@ -3236,7 +3275,7 @@ ERROR:
   LD A,H                    ;ONLY SET UP DOT IF IT ISNT DIRECT
   AND L
   INC A
-  JP Z,ERRESM
+  JR Z,ERRESM
   LD (DOT),HL               ;SAVE IT FOR EDIT OR LIST
 
 
@@ -3261,7 +3300,7 @@ ERRMOR:
   LD A,H                    ;TEST IF DIRECT LINE
   AND L                     ;SET CC'S
   INC A                     ;SETS ZERO IF DIRECT LINE (65535)
-  JP Z,NTMDCN               ;IF DIRECT, DONT MODIFY OLDTXT & OLDLIN
+  JR Z,NTMDCN               ;IF DIRECT, DONT MODIFY OLDTXT & OLDLIN
   LD (OLDLIN),HL            ;SET OLDLIN=ERRLIN.
   EX DE,HL                  ;GET BACK SAVTXT
   LD (OLDTXT),HL            ;SAVE IN OLDTXT.
@@ -3271,9 +3310,9 @@ NTMDCN:
   OR L                      ;IS IT?
   EX DE,HL                  ;PUT LINE TO GO TO IN [D,E]
   LD HL,ONEFLG              ;POINT TO ERROR FLAG
-  JP Z,ERROR_REPORT         ;SORRY, NO TRAPPING...
+  JR Z,ERROR_REPORT         ;SORRY, NO TRAPPING...
   AND (HL)                  ;A IS NON-ZERO, SETZERO IF ONEFLG ZERO
-  JP NZ,ERROR_REPORT        ;IF FLAG ALREADY SET, FORCE ERROR
+  JR NZ,ERROR_REPORT        ;IF FLAG ALREADY SET, FORCE ERROR
   DEC (HL)                  ;IF ALREADY IN ERROR ROUTINE, FORCE ERROR
   EX DE,HL                  ;GET LINE POINTER IN [H,L]
   JP GONE4                  ;GO DIRECTLY TO NEWSTT CODE
@@ -3294,15 +3333,15 @@ ERROR_REPORT:
 
   CP LSTERR                 ;IS IT PAST LAST ERROR?
 
-  JP NC,UE_ERR              ;YES, TOO BIG TO PRINT
+  JR NC,UE_ERR              ;YES, TOO BIG TO PRINT
   CP $32                    ;(DSKERR+1) DISK ERROR?
-  JP NC,NTDER2              ;JP if error code is between $32 and $43
+  JR NC,NTDER2              ;JP if error code is between $32 and $43
 IF TRAP_BDOS
   CP $20                    ; ...and a trap on WBOOT  
 ELSE
   CP $1F                    ;(NONDSK+1) IS IT BETWEEN LAST NORMAL & FIRST DISK?
 ENDIF
-  JP C,LEPSKP               ;YES, OK TO PRINT IT (JP if error code is < $1F)
+  JR C,LEPSKP               ;YES, OK TO PRINT IT (JP if error code is < $1F)
 
 ; a.k.a. UPERR
 ; Used by the routines at ERROR_REPORT and _ERROR_REPORT.
@@ -3329,7 +3368,7 @@ LEPSKP:                     ;ON "SYNTAX ERROR"S
   CALL __REM                ;SKIP AN ERROR MESSAGE
   INC HL                    ;SKIP OVER THIS ERROR MESSAGE
   DEC E                     ;DECREMENT ERROR COUNT
-  JP NZ,LEPSKP              ;SKIP SOME MORE
+  JR NZ,LEPSKP              ;SKIP SOME MORE
   PUSH HL                   ;SAVE TEXT POINTER
   LD HL,(ERRLIN)            ;GET ERROR LINE NUMBER
   EX (SP),HL                ;GET BACK ERROR TEXT POINTER
@@ -3340,10 +3379,10 @@ LEPSKP:                     ;ON "SYNTAX ERROR"S
 _ERROR_REPORT:
   LD A,(HL)                 ;GET 1ST CHAR OF ERROR
   CP $3F                    ;PADDED ERROR?
-  JP NZ,_LEPSKP             ;NO,PRINT
+  JR NZ,_LEPSKP             ;NO,PRINT
   POP HL                    ;GET LINE # OFF STACK
   LD HL,ERROR_MESSAGES
-  JP UE_ERR                 ;MAKE UNPRINTABLE ERROR
+  JR UE_ERR                 ;MAKE UNPRINTABLE ERROR
 
 
 _LEPSKP:
@@ -3425,13 +3464,13 @@ PROMPT:
   PUSH DE                  ;SAVE BACK AGAIN
   CALL SRCHLN              ;SEE IF IT EXISTS
   LD A,'*'                 ;CHAR TO PRINT IF LINE ALREADY EXISTS
-  JP C,AUTELN              ;DOESNT EXIST
+  JR C,AUTELN              ;DOESNT EXIST
   LD A,' '                 ;PRINT SPACE
 AUTELN:
   CALL OUTDO               ;PRINT CHAR
   CALL PINLIN              ;READ A LINE
   POP DE                   ;GET LINE # OFF STACK
-  JP NC,AUTGOD             ;IF NO CONTROL-C, PROCEED
+  JR NC,AUTGOD             ;IF NO CONTROL-C, PROCEED
   XOR A                    ;CLEAR AUTFLG
   LD (AUTFLG),A            ;BY SETTING IT TO ZERO
   JP READY                 ;PRINT READY MESSAGE
@@ -3440,35 +3479,35 @@ AUTELN:
 AUTRES:
   XOR A
   LD (AUTFLG),A            ;Clear auto flag
-  JP AUTSTR                ;And enter line
+  JR AUTSTR                ;And enter line
   
 AUTGOD:
   LD HL,(AUTINC)           ;GET INCREMENT
   ADD HL,DE                ;ADD INCREMENT TO THIS LINE
-  JP C,AUTRES              ;CHECK FOR PATHETIC CASE
+  JR C,AUTRES              ;CHECK FOR PATHETIC CASE
   PUSH DE                  ;SAVE LINE NUMBER #
   LD DE,65529              ;CHECK FOR LINE # TOO BIG
   CALL DCOMPR
   POP DE                   ;GET BACK LINE #
-  JP NC,AUTRES             ;IF TOO BIG, QUIT
+  JR NC,AUTRES             ;IF TOO BIG, QUIT
   LD (AUTLIN),HL           ;SAVE IN NEXT LINE
 
 ;SET NON-ZERO CONDITION CODES (SEE EDIT)
 AUTSTR:
   LD A,(BUF)               ;GET CHAR FROM BUFFER
   OR A                     ;IS IT NULL LINE?
-  JP Z,PROMPT              ;YES, LEAVE LINE ALONE
+  JR Z,PROMPT              ;YES, LEAVE LINE ALONE
   JP EDITRT                ;JUMP INTO EDIT CODE
 
 
 ; a.k.a. _INLIN
 GETCMD:
   CALL PINLIN             ; GET A LINE FROM TTY
-  JP C,PROMPT             ; IGNORE ^C S
+  JR C,PROMPT             ; IGNORE ^C S
   CALL CHRGTB             ; Get first character                  GET THE FIRST
   INC A                   ; Test if end of line                  SEE IF 0 SAVING THE CARRY FLAG
   DEC A                   ; Without affecting Carry
-  JP Z,PROMPT             ; Nothing entered - Get another        IF SO, A BLANK LINE WAS INPUT
+  JR Z,PROMPT             ; Nothing entered - Get another        IF SO, A BLANK LINE WAS INPUT
   PUSH AF                 ; Save Carry status                    SAVE STATUS INDICATOR FOR 1ST CHARACTER
   CALL ATOH               ; Get line number into DE              READ IN A LINE #
   CALL BAKSP              ; BACK UP THE POINTER
@@ -3493,7 +3532,7 @@ EDENT:
   PUSH AF                 ;BLANK SO WE DON'T INSERT IT
   LD (DOT),DE             ;SAVE THIS LINE # IN DOT;
   CALL SRCHLN             ; Search for line number in DE: GET A POINTER TO THE LINE
-  JP C,LINFND             ; Jump if line found: LINE EXISTS, DELETE IT
+  JR C,LINFND             ; Jump if line found: LINE EXISTS, DELETE IT
   POP AF                  ;GET FLAG SAYS WHETHER LINE BLANK
   PUSH AF                 ;SAVE BACK
   JP Z,UL_ERR             ;TRYING TO DELETE NON-EXISTANT LINE, ERROR
@@ -3511,11 +3550,11 @@ LINFND:
   POP DE                  ;POP POINTER AT PLACE TO INSERT
   POP AF                  ;SEE IF THIS LINE HAD ANYTHING ON IT
   PUSH DE                 ;SAVE PLACE TO START FIXING LINKS
-  JP Z,FINI               ;IF NOT DON'T INSERT
+  JR Z,FINI               ;IF NOT DON'T INSERT
   POP DE                  ;GET RID OF START OF LINK FIX
   LD A,(CHNFLG)           ;ONLY CHANGET FRETOP IF NOT CHAINING
   OR A                    ; Clear Carry
-  JP NZ,LEVFRE            ;LEAVE FRETOP ALONE
+  JR NZ,LEVFRE            ;LEAVE FRETOP ALONE
   LD HL,(MEMSIZ)          ;DELETE ALL STRINGS
   LD (FRETOP),HL          ;SO REASON DOESNT USE THEM
 
@@ -3556,7 +3595,7 @@ MOVBUF:
   DEC BC
   LD A,C
   OR B                    ; Done?
-  JP NZ,MOVBUF            ; No - Repeat
+  JR NZ,MOVBUF            ; No - Repeat
 FINI:
   POP DE                  ;GET START OF LINK FIXING AREA
   CALL CHEAD              ;FIX LINKS
@@ -3600,21 +3639,21 @@ CZLOOP:
   LD A,(HL)               ;GET BYTE
 CZLOO2:
   OR A                    ;SET CC'S
-  JP Z,CZLIN              ;END OF LINE, DONE.
+  JR Z,CZLIN              ;END OF LINE, DONE.
   CP DBLCON+1             ;EMBEDDED CONSTANT?
-  JP NC,CZLOOP            ;NO, GET NEXT
+  JR NC,CZLOOP            ;NO, GET NEXT
   CP $0A+1                ;IS IT LINEFEED OR BELOW?
-  JP C,CZLOOP             ;THEN SKIP PAST
+  JR C,CZLOOP             ;THEN SKIP PAST
   CALL __CHRCKB           ;GET CONSTANT
   CALL CHRGTB             ;GET OVER IT
-  JP CZLOO2               ;GO BACK FOR MORE
+  JR CZLOO2               ;GO BACK FOR MORE
 CZLIN:
   INC HL                  ;MAKE [H,L] POINT AFTER TEXT
   EX DE,HL                ;SWITCH TEMP
   LD (HL),E               ;DO FIRST BYTE OF FIXUP
   INC HL                  ;ADVANCE POINTER
   LD (HL),D               ;2ND BYTE OF FIXUP
-  JP CHEAD                ;KEEP CHAINING TIL DONE
+  JR CHEAD                ;KEEP CHAINING TIL DONE
 
 ; Line number range
 ;
@@ -3626,11 +3665,11 @@ CZLIN:
 LNUM_RANGE:
   LD DE,$0000             ;ASSUME START LIST AT ZERO
   PUSH DE                 ;SAVE INITIAL ASSUMPTION
-  JP Z,ALL_LIST           ;IF FINISHED, LIST IT ALL
+  JR Z,ALL_LIST           ;IF FINISHED, LIST IT ALL
   POP DE                  ;WE ARE GOING TO GRAB A #
   CALL LNUM_PARM          ;GET A LINE #. IF NONE, RETURNS ZERO
   PUSH DE                 ;SAVE FIRST
-  JP Z,SNGLIN             ;IF ONLY # THEN DONE.
+  JR Z,SNGLIN             ;IF ONLY # THEN DONE.
   CALL SYNCHR
   DEFB TK_MINUS           ;MUST BE A DASH.
 ALL_LIST:
@@ -4463,8 +4502,8 @@ EXEC:
 ONJMP:
   SUB TK_END              ; $81 = TK_END .. is it a token?
   JP C,__LET              ; No - try to assign it, MUST BE A LET
-IF ZXPLUS3
-  CP TK_VPOKE+1-TK_END    ; END to VPOKE ?
+IF (ZXPLUS3 | APPLE2)
+  CP TK_RESET+2-TK_END    ; END to RESET+1 ?
 ELSE
   CP TK_RESET+1-TK_END    ; END to RESET ?
 ENDIF
@@ -7326,6 +7365,7 @@ ISMID:
 ; a.k.a. FNINP
 
 IF ORIGINAL | __CPU_8080__ | __CPU_8085__
+
 __INP:
   CALL CONINT             ;GET INTEGER CHANNEL #
   LD (INPORT),A           ;GEN INP INSTR
@@ -7333,7 +7373,9 @@ __INP:
 INPORT:
   DEFB $00                ; Current port for 'INP' function
   JP PASSA                ;SNGFLT RESULT
+
 ELSE
+
   ; 16 bit port addresses
 __INP:
   CALL GETWORD_HL    ;GET INTEGER CHANNEL #
@@ -8469,7 +8511,6 @@ CLROVC:
   LD (FLGOVC),A
   POP AF
   RET
-
 
 
 
@@ -11246,7 +11287,7 @@ _ASCTFP_0:                                                  ;HERE TO CHECK FOR A
   CALL CHRGTB             ; Set result to zero              ;GET THE NEXT CHARACTER OF THE NUMBER
   JP C,ADDIG              ; Digit - Add to number           ;WE HAVE A DIGIT
   CP '.'                                                    ;CHECK FOR A DECIMAL POINT
-  JP Z,DPOINT             ; "." - Flag point                ;WE HAVE ONE, I GUESS
+  JR Z,DPOINT             ; "." - Flag point                ;WE HAVE ONE, I GUESS
   CP 'e'                                                    ;LOWER CASE "E"
   JR Z,EXPONENTIAL
   CP 'E'                  ;CHECK FOR A SINGLE PRECISION EXPONENT
@@ -13953,7 +13994,7 @@ NXTARY_1:
   JP Z,POPHLRT            ; Jump if array load/save            ;"ERASE" IS DONE AT THIS POINT, SO RETURN TO DO THE ACTUAL ERASURE
   SUB (HL)                ; Same number of dimensions?         ;MAKE SURE THE NUMBER GIVEN NOW
                                                                ;AND WHEN THE ARRAY WAS SET UP ARE THE SAME
-  JP Z,FINDEL             ; Yes - Find element                 ;JUMP OFF AND READ THE INDICES....
+  JR Z,FINDEL             ; Yes - Find element                 ;JUMP OFF AND READ THE INDICES....
 
 ; ERR $09 - "Subscript out of range"
 ;
@@ -14344,7 +14385,7 @@ NOTDGI_1:
   CP 'D'-'0'
   JR Z,EDIT_DELETE      ; DELETE
   CP 'C'-'0'
-  JP Z,EDIT_CHANGE      ; CHANGE
+  JR Z,EDIT_CHANGE      ; CHANGE
   CP 'E'-'0'          	;END?
   JP Z,EDIT_EXIT        ; (SAME AS <CR> BUT DOESNT PRINT REST)
   CP 'X'-'0'         	;EXTEND?
@@ -14500,7 +14541,7 @@ EDIT_INSERT:
   CP $08                ;Backspace?
   JR Z,TYPARW_0         ;Do delete
   CP $0D                ;IS IT A CARRIAGE RETURN?
-  JP Z,EDIT_DONE        ;DONT INSERT, AND SIMULATE <CR>
+  JR Z,EDIT_DONE        ;DONT INSERT, AND SIMULATE <CR>
   CP $1B                ;IS IT ESCAPE?
   RET Z                 ;IF SO, DONE.
   CP $08                ;BACKSPACE?
@@ -18966,7 +19007,7 @@ NOTINI:
 
 NTPROL:
   INC A                 ;IS IT A BINARY FILE?
-  JP NZ,MAINGO          ;NO, SINCE PTRFIL IS NON-ZERO
+  JR NZ,MAINGO          ;NO, SINCE PTRFIL IS NON-ZERO
 					;INCHR WILL USE INDSKC INSTEAD OF POLLING THE TERMINAL
 					;WHEN EOF IS HIT PTRFIL WILL BE RESTORED 
 					;AND LSTFRE WILL BE USED AS A FLAG
@@ -19115,7 +19156,7 @@ BINPSV:
   LD HL,(TXTTAB)          ;GET START POINT
 BSAVLP:
   CALL DCOMPR             ;REACHED THE END?
-  JP Z,LOAD_END           ;REGET TEXT POINTER AND CLOSE FILE 0
+  JR Z,LOAD_END           ;REGET TEXT POINTER AND CLOSE FILE 0
   LD A,(HL)               ;GET LINE DATA
   INC HL                  ;POINT AT NEXT DATA
   PUSH DE                 ;SAVE LIMIT
@@ -20748,7 +20789,9 @@ NOTEXT:
   JR C,NWFILN            ;NEED TO FORCE CRLF
   LD A,' '               ;TWO SPACES BETWEEN FILE NAMES
   CALL OUTDO
+IF !APPLE2
   CALL OUTDO
+ENDIF
                          ;OR THREE
 NWFILN:
   CALL C,OUTDO_CRLF       ;TYPE CRLF
@@ -23667,12 +23710,18 @@ SOUND_1:
   DEC L
   JP NZ,SOUND_1
 SMC_PLAY0:
+
   LD A,16
+IF APPLE2
+  LD A,($E030)
+ELSE
 IF ZXPLUS3
   OUT ($FE),A             ; turn audio bit on
 ELSE
   OUT ($AF),A             ; turn audio bit on
 ENDIF
+ENDIF
+
   DEC DE
   CALL DELAY_3
   CALL DELAY_4
@@ -23681,12 +23730,18 @@ SOUND_2:
   DEC H
   JP NZ,SOUND_2
 SMC_PLAY1:
+
   LD A,$00
+IF APPLE2
+  LD A,($E030)
+ELSE
 IF ZXPLUS3
   OUT ($FE),A             ; turn audio bit off
 ELSE
   OUT ($AF),A             ; turn audio bit off
 ENDIF
+ENDIF
+
   LD A,D
   OR E
   JP NZ,SOUND_0
@@ -24791,15 +24846,45 @@ NEGD:
 ENDIF
 
 ;----------------------------------------------------------------
+;----------------------------------------------------------------
 IF APPLE2
+
+__TEXT:
+  PUSH HL
+  LD HL,$FB2F       ; Init text mode
+  CALL GO_6502
+  LD A,(CRTCNT)     ; The cursor will be positioned at the bottom-left corner...
+  DEC A             ;
+  LD H,A
+  LD L,$00
+  LD (TTYPOS),HL    ; ...we update the console pointers accordingly
+  LD A,($E051)		; Enter in TEXT mode
+  LD A,($E054)      ; Display the primary page (at $0400 when in TEXT mode)
+  LD A,(SCRMOD)
+  OR A              ; Already in TEXT mode ?
+  JR Z,__TEXT_0
+  LD HL,$FC58       ; Clear screen and home cursor
+  CALL GO_6502
+__TEXT_0:
+  XOR A
+  LD (SCRMOD),A
+  ;JR GOTOXY
+  POP HL
+  RET
+
+; 0=TEXT, $FF=GRAPHICS
+SCRMOD:
+  DEFB $00
+
 GO_6502:
   LD ($F3D0),HL    ; remapped to $03D0 on the 6502 side
   LD ($0000),A     ; Touch the switch in the current Z80 SoftCard HW slot
   RET
+
 ENDIF
 ;----------------------------------------------------------------
-
 ;----------------------------------------------------------------
+
 IF TRAP_BDOS
 
 ; New entry for BIOS WBOOT (reload command processor)
