@@ -281,8 +281,9 @@ defc TK_COS      =  $0C
 defc TK_TAN      =  $0D
 defc TK_ATN      =  $0E
 defc TK_FRE      =  $0F
-
+IF !APPLE2
 defc TK_INP      =  $10
+ENDIF
 defc TK_POS      =  $11
 defc TK_LEN      =  $12
 defc TK_STR_S    =  $13
@@ -341,8 +342,13 @@ defc TK_LIST     =  $93
 defc TK_NEW      =  $94
 defc TK_ON       =  $95	; Token for 'ON'
 
+IF APPLE2
+defc TK_INVERSE  =  $96
+defc TK_NORMAL   =  $97
+ELSE
 defc TK_NULL     =  $96
 defc TK_WAIT     =  $97
+ENDIF
 defc TK_DEF      =  $98
 defc TK_POKE     =  $99
 defc TK_CONT     =  $9A
@@ -356,6 +362,8 @@ defc TK_LLIST    =  $9F
 
 IF VT52
 defc TK_CLS      =  $A0
+ELIF APPLE2
+defc TK_HOME     =  $A0
 ENDIF
 
 defc TK_WIDTH    =  $A1
@@ -542,8 +550,13 @@ FNCTAB:
   DEFW __NEW
 ; 8K AND ABOVE STATEMENTS
   DEFW __ON
+IF APPLE2
+  DEFW __INVERSE
+  DEFW __NORMAL
+ELSE
   DEFW __NULL
   DEFW __WAIT
+ENDIF
   DEFW __DEF
   DEFW __POKE
   DEFW __CONT
@@ -560,6 +573,8 @@ ENDIF
 ; LEN2 AND ABOVE STATEMENTS
 IF VT52
   DEFW __CLS
+ELIF APPLE2
+  DEFW __HOME
 ELSE
   DEFW $0000
 ENDIF
@@ -661,7 +676,11 @@ FNCTAB_FN:
   DEFW __TAN
   DEFW __ATN
   DEFW __FRE
+IF APPLE2
+  DEFW $0000
+ELSE
   DEFW __INP
+ENDIF
   DEFW __POS
   DEFW __LEN
   DEFW __STR_S
@@ -836,10 +855,14 @@ IF HAVE_GFX
   DEFB TK_COLOR
 ENDIF
 
-IF VT52
+IF VT52 | APPLE2
   DEFM "L"
   DEFB 'S'+$80
+IF APPLE2
+  DEFB TK_HOME
+ELSE
   DEFB TK_CLS
+ENDIF
 ENDIF
 
 IF ZXPLUS3
@@ -983,7 +1006,11 @@ WORDS_H:
   DEFM "EX"
   DEFB '$'+$80
   DEFB TK_HEX_S
-
+IF APPLE2
+  DEFM "OM"
+  DEFB 'E'+$80
+  DEFB TK_HOME
+ENDIF
   DEFB $00
 
 WORDS_I:
@@ -1002,9 +1029,15 @@ WORDS_I:
   DEFB 'T'+$80
   DEFB TK_INT
 
+IF APPLE2
+  DEFM "NVERS"
+  DEFB 'E'+$80
+  DEFB TK_INVERSE
+ELSE
   DEFM "N"
   DEFB 'P'+$80
   DEFB TK_INP
+ENDIF
 
   DEFM "M"
   DEFB 'P'+$80
@@ -1119,9 +1152,17 @@ WORDS_N:
   DEFB 'T'+$80
   DEFB TK_NEXT
 
+IF APPLE2
+  DEFM "ORMA"
+  DEFB 'L'+$80
+  DEFB TK_NORMAL
+ENDIF
+
+IF !APPLE2
   DEFM "UL"
   DEFB 'L'+$80
   DEFB TK_NULL
+ENDIF
 
   DEFM "AM"
   DEFB 'E'+$80
@@ -1374,9 +1415,11 @@ WORDS_W:
   DEFB 'H'+$80
   DEFB TK_WIDTH
 
+IF !APPLE2
   DEFM "AI"
   DEFB 'T'+$80
   DEFB TK_WAIT
+ENDIF
 
   DEFM "HIL"
   DEFB 'E'+$80
@@ -5443,7 +5486,7 @@ PRNTST:
   ADD A,(HL)              ; Add length of string
   CCF                     ; SET NC IF OVERFLOW ON CHECK
   JR NC,PRNTNB            ; START ON A NEW LINE
-  DEC A                   ; Adjust it
+  DEC A                   ; Adjust it (introduced later)
   CP B                    ; Will output fit on this line?
   JR PRNTNB
 
@@ -5524,6 +5567,7 @@ __TAB:
   CP TK_SPC               ; TK_SPC - Was it "SPC(" ?    ;IF SPACE LEAVE ALONE
   JR Z,__SPC
   DEC DE                  ;OFFSET BY 1
+
 __SPC:
   LD A,D
   OR A                    ;MAKE SURE ITS NOT NEGATIVE
@@ -7364,6 +7408,7 @@ ISMID:
 ;
 ; a.k.a. FNINP
 
+IF !APPLE2
 IF ORIGINAL | __CPU_8080__ | __CPU_8085__
 
 __INP:
@@ -7386,6 +7431,7 @@ __INP_0:
   JP PASSA
 
 ENDIF
+ENDIF
 
 
 IF ORIGINAL | __CPU_8080__ | __CPU_8085__
@@ -7405,6 +7451,7 @@ OTPORT:
 ; AND THEN ANDED WITH MASK. IF MASK2 IS NOT PRESENT IT IS ASSUMED
 ; TO BE ZERO.
 ;
+IF !APPLE2
 __WAIT:
   CALL SETIO              ;SET UP FOR WAIT
   PUSH AF                 ;SAVE THE MASK
@@ -7429,6 +7476,7 @@ WAIT_INPORT:
 					;NOTE: THIS LOOP CANNOT BE CONTROL-C'ED
 					;UNLESS THE WAIT IS BEING DONE ON CHANNEL
 					;ZERO. HOWEVER A RESTART AT 0 IS OK.
+ENDIF
 
 ELSE
 
@@ -7455,7 +7503,7 @@ ENDIF
   OUT (C),A
   RET
 
-
+IF !APPLE2
 ; 'WAIT' BASIC command
 __WAIT:
   CALL SETIO
@@ -7481,6 +7529,7 @@ __WAIT_1:
   AND D
   JR Z,__WAIT_1
   RET
+ENDIF
 
 ENDIF
 
@@ -15236,7 +15285,11 @@ CHPUT:
   DEC A                 ;DECRMENT POSIT BY ONE
   LD (TTYPOS),A         ;CORRECT TTYPOS
   LD A,$08              ;GET BACK BACKSPACE CHAR
+IF APPLE2
+  JR NOTAB
+ELSE
   JR TRYOUT             ;SEND IT
+ENDIF
 
 NTBKS1:
   CP $09                ;OUTPUTTING TAB?
@@ -15257,6 +15310,76 @@ TAB_LOOP_0:
   POP BC                ;GET [B,C] BACK
   RET                   ;ALL DONE
 
+
+
+IF APPLE2
+
+NOTAB:
+;  CP ' '                ;IS THIS A MEANINGFUL CHARACTER?
+;  JR C,NOTAB_0           ;IF IT'S A NON-PRINTING CHARACTER
+; This entry point is used by the routine at L6674.
+;NOTAB_0:
+  POP AF
+  PUSH AF
+  CALL TRYOUT
+  CP ' '                ;IS THIS A MEANINGFUL CHARACTER?
+  JR Z,INCTPS           ;YES, JUST INC TTYPOS
+  LD A,(LINLEN)
+  INC A                 ;IS WIDTH 255?
+  JR Z,INCTPS           ;YES
+  DEC A
+  LD B,A
+  LD A,(TTYPOS)         ;SEE IF PRINT HEAD IS AT THE END OF THE LINE
+  INC A                 ;IS WIDTH 255?
+  JR Z,INCTPS           ;YES
+  LD (TTYPOS),A         ;STORE NEW PRINT HEAD POSITION
+  CP B
+  JR NZ,INCTPS
+  LD A,(COLUMNS)
+  CP B
+  CALL Z,NEWLINE
+  CALL NZ,OUTDO_CRLF    ;TYPE CRLF AND SET TTYPOS AND [A]=0 IF SO
+INCTPS:
+  POP AF
+  POP BC
+  RET
+
+; Used by the routines at NORVS, CONUA, CONUE and NOTAB.
+TRYOUT:
+  PUSH AF
+  PUSH BC
+  PUSH DE
+  PUSH HL
+  LD C,A
+
+  DEFB $CD
+
+SMC_CONOUT:
+  DEFW $0000
+
+  POP HL
+  POP DE
+  POP BC
+  POP AF
+  RET
+
+; This entry point is used by the routine at NOTAB.
+NEWLINE:
+  CALL CRFIN
+; This entry point is used by the routine at L6674.
+NEWLINE_1:
+  LD A,(CRTCNT)     ; Text vertical size
+  LD B,A
+  LD A,(TTY_VPOS)
+  INC A
+  CP B              ; bottom row?
+  JR NC,BOTTOM_ROW
+  LD (TTY_VPOS),A
+BOTTOM_ROW:
+  XOR A
+  RET
+
+ELSE
 ; Routine at 19675
 ;
 ; Used by the routine at CHPUT.
@@ -15303,6 +15426,7 @@ L4D05:                  ;RESTORE REGS
   POP BC                ;RESTORE CHAR
   POP AF                ;RETURN FROM OUTCHR
   RET
+ENDIF
 
 ; This entry point is used by the routines at QINLIN, PINLIN and PUTBUF.
 ; Get character and test ^O
@@ -15432,6 +15556,11 @@ CRCONT:
 NTPRTR:
   XOR A                  ; Set to position 0       ;SET TTYPOS=0
   LD (TTYPOS),A          ; Store it
+
+IF APPLE2
+  XOR A
+  RET
+ELSE
   LD A,(NULLS)           ; Get number of nulls     ;GET NUMBER OF NULLS
 NULLP:
   DEC A                  ; Count them
@@ -15443,6 +15572,7 @@ NULLP:
   CALL OUTDO             ; Output it               ;SEND IT OUT
   POP AF                 ; Restore count           ;RESTORE THE COUNT
   JR NULLP               ; Keep counting           ;LOOP PRINTING NULLS
+ENDIF
 
 ; TTY status check
 ;
@@ -15957,6 +16087,7 @@ ENDIF
   EX DE,HL                ; Restore code string address
   RET                     ; CONTinue where left off
 
+IF !APPLE2
 ; 'NULL' BASIC function
 __NULL:
   CALL GETINT             ; Get integer 0-255
@@ -15964,6 +16095,7 @@ __NULL:
   INC A
   LD (NULLS),A            ; Set nulls number
   RET
+ENDIF
 
 ; 'TRON' (TRACE ON) BASIC command
 __TRON:
@@ -20294,10 +20426,8 @@ NAMRMV:
   CALL CPMENT            ;CALL CP/M
 
 ;****DONT CHECK ERROR RETURN, CP/M HAS PROBLEMS****
-IF !ORIGINAL
-  INC A                  ;FILE FOUND?  (A=0-3 if successful; A=0FFh if error)
-  JP Z,FF_ERR            ;NO
-ENDIF
+;  INC A                  ;FILE FOUND?  (A=0-3 if successful; A=0FFh if error)
+;  JP Z,FF_ERR            ;NO
 
   POP HL                 ;RESTORE TEXT POINTER
   RET
@@ -20782,16 +20912,18 @@ NOTEXT:
   DEC C                  ;DECREMENT CHAR COUNT
   JR NZ,__FILES_2        ;MORE OF NAME TO PRINT
   LD A,(TTYPOS)          ;GET CURRENT TTY POSIT
+;IF APPLE2
+;  ADD A,$0F              ;SPACE FOR NEXT NAME?
+;ELSE
   ADD A,$0D              ;SPACE FOR NEXT NAME?
+;ENDIF
   LD D,A                 ;SAVE IN D
   LD A,(LINLEN)          ;GET LENGTH OF TERMINAL LINE
   CP D                   ;COMPRE TO CURRENT POSIT
   JR C,NWFILN            ;NEED TO FORCE CRLF
   LD A,' '               ;TWO SPACES BETWEEN FILE NAMES
   CALL OUTDO
-IF !APPLE2
   CALL OUTDO
-ENDIF
                          ;OR THREE
 NWFILN:
   CALL C,OUTDO_CRLF       ;TYPE CRLF
@@ -24849,6 +24981,31 @@ ENDIF
 ;----------------------------------------------------------------
 IF APPLE2
 
+__HOME:
+  PUSH HL
+  LD HL,$0000
+  LD (TTYPOS),HL
+  POP HL
+
+  DEFB $1E   ; LD E,n
+
+  DEFB $01   ; LD BC,nnn
+
+  DEFB $01   ; LD BC,nnn
+
+__INVERSE:
+  LD E,$05
+
+  DEFB $01   ; LD BC,nnn
+
+__NORMAL:
+  LD E,$04
+  PUSH HL
+  CALL CONUA
+  POP HL
+  RET
+:
+
 __TEXT:
   PUSH HL
   LD HL,$FB2F       ; Init text mode
@@ -24874,7 +25031,31 @@ __TEXT_0:
 
 ; 0=TEXT, $FF=GRAPHICS
 SCRMOD:
-  DEFB $00
+  DEFB 0
+
+; TEXT hardware capabilities (40 or 80 columns)
+COLUMNS:
+  DEFB 80
+
+  
+CONUA:
+  LD D,$00
+  LD HL,$F397    ;SCREEN_FN table
+  ADD HL,DE
+  LD A,(HL)
+  OR A
+  RET Z
+  JP P,CONUE
+  AND $7F
+  PUSH AF
+  LD A,($F397)   ;SCREEN_FN table
+  CALL TRYOUT
+  POP AF
+
+; Invoke an Apple II CP/M screen function and exit
+CONUE:
+  JP TRYOUT
+
 
 GO_6502:
   LD ($F3D0),HL    ; remapped to $03D0 on the 6502 side
@@ -25097,6 +25278,20 @@ ENDIF
   LD (ERRFLG),A           ; DON'T ALLOW EDIT TO BE CALLED ON ERRORS
   LD HL,0
   LD (LPTPOS),HL          ; ZERO FLAG AND POSITION
+IF APPLE2
+  ;LD ($F030),A            ; COLOR: code of the color of points in graphics mode
+  LD A,($F3BB)             ;I/O CONFIG: check display text size
+  SUB $03
+  JR Z,EXT80COL
+  DEC A
+  JR Z,EXT80COL
+  LD A,40
+  DEFB $01                 ;  LD BC,nn over the next assignment to A
+EXT80COL:
+  LD A,$80
+  LD (COLUMNS),A
+  CALL __WIDTH_1
+ENDIF
   LD HL,128               ; The default record size is 128 bytes.
   LD (MAXREC),HL          ; a.k.a. RECSIZ
   LD HL,TEMPST
