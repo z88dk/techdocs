@@ -431,7 +431,7 @@ defc TK_VPOKE    =  $CD  ; <-- TK code limit adjusted in ONJMP
 ENDIF
 
 IF APPLE2
-defc TK_TEXT     =  $CD  ; <-- TK code limit adjusted in ONJMP
+defc TK_SCREEN   =  $CD  ; <-- TK code limit adjusted in ONJMP
 ENDIF
 
 defc TK_TO       =  $CE	; Token for 'TO' identifier in a 'FOR' statement
@@ -648,7 +648,7 @@ ENDIF
   DEFW __RESET
 
 IF APPLE2
-  DEFW __TEXT
+  DEFW __SCREEN
 ENDIF
 
 IF ZXPLUS3
@@ -1297,6 +1297,13 @@ WORDS_R:
   DEFB $00
 
 WORDS_S:
+
+IF APPLE2
+  DEFM "CREE"
+  DEFB 'N'+$80
+  DEFB TK_SCREEN
+ENDIF
+
   DEFM "TO"
   DEFB 'P'+$80
   DEFB TK_STOP
@@ -1372,10 +1379,6 @@ WORDS_T:
   DEFB 'N'+$80
   DEFB TK_TAN
   
-  DEFM "EX"
-  DEFB 'T'+$80
-  DEFB TK_TEXT
-
   DEFB $00
 
 WORDS_U:
@@ -7705,6 +7708,11 @@ __LIST_1:
   CALL OUTDO_CRLF         ;PRINT CRLF
   JR __LIST_0             ;GO BACK FOR NEXT LINE
 
+IF APPLE2_HGR
+  defs $2000-ASMPC-BASE-$0100
+_HIRES_PAGE:
+  defs $2000
+ENDIF
 ; Routine at 8435
 ;
 ; Used by the routines at __LIST, TTYLIN, NOTDGI and EDIT_DONE.
@@ -23845,7 +23853,7 @@ SMC_PLAY0:
 
   LD A,16
 IF APPLE2
-  LD A,($E030)
+  LD A,($E030)            ; toggle audio bit
 ELSE
 IF ZXPLUS3
   OUT ($FE),A             ; turn audio bit on
@@ -23865,7 +23873,7 @@ SMC_PLAY1:
 
   LD A,$00
 IF APPLE2
-  LD A,($E030)
+  LD A,($E030)            ; toggle audio bit
 ELSE
 IF ZXPLUS3
   OUT ($FE),A             ; turn audio bit off
@@ -23932,10 +23940,17 @@ GRPRST:
   LD (DRWSCL),A          ;Draw scale init
   LD (DRWANG),A          ;Draw angle init
 ;  CALL GRPINI            ;Center the graphics cursor
+IF APPLE2
+  LD HL,280/2
+  LD (GRPACX),HL
+  LD HL,160/2
+  LD (GRPACY),HL
+ELSE
   LD HL,255/2
   LD (GRPACX),HL
   LD HL,192/2
   LD (GRPACY),HL
+ENDIF
 
   LD A,(FORCLR)          ;Get foreground/(background) colors
   CALL SETATR            ;Set the default DRAW color
@@ -24981,6 +24996,8 @@ ENDIF
 ;----------------------------------------------------------------
 IF APPLE2
 
+; Place cursor on top-left and clear the text screen
+; HOME and CLS are equivalent keywords (CLS will be stored whenever HOME is used)
 __HOME:
   PUSH HL
   LD HL,$0000
@@ -25004,9 +25021,47 @@ __NORMAL:
   CALL CONUA
   POP HL
   RET
-:
 
-__TEXT:
+
+__SCREEN:
+  CALL GETINT              ; Get integer 0-255
+  CP $02                   ; Very loose syntax checking.
+  JP NC,FC_ERR
+  AND A
+  JR Z,TOTEXT              ;"SCREEN 0" enters in text mode, 
+
+  ; ..otherwise (SCREEN 1 or 2) we do graphics.
+IF APPLE2_HGR
+
+  ;LD L,A           ; TODO:  HGR mode
+  LD ($E057),A      ; HI.RES GRAPHICS mode
+  LD ($E050),A      ; Enter in HR GAPHICS mode
+  LD HL,$E053       ; Mixed TEXT and GRAPHICS mode
+  
+  RRA
+  LD D,$28
+  JR NC,MIX_MODE
+  DEC L
+  LD D,$30
+MIX_MODE:
+  LD (HL),L
+
+;  LD HL,(A2_HCOLOR_PATTERN)
+;  LD (_HIRES_PAGE),HL
+;  LD HL,_HIRES_PAGE
+;  LD DE,$1002
+;  LD BC,$1FFE
+;  LDIR
+
+ENDIF
+
+  POP HL
+  RET
+
+
+  
+
+TOTEXT:
   PUSH HL
   LD HL,$FB2F       ; Init text mode
   CALL GO_6502
@@ -25280,7 +25335,7 @@ ENDIF
   LD (LPTPOS),HL          ; ZERO FLAG AND POSITION
 IF APPLE2
   ;LD ($F030),A            ; COLOR: code of the color of points in graphics mode
-  LD A,($F3BB)             ;I/O CONFIG: check display text size
+  LD A,($F3BB)             ; I/O CONFIG: check display text size
   SUB $03
   JR Z,EXT80COL
   DEC A
