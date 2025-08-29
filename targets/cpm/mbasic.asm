@@ -3467,7 +3467,15 @@ RESTART:
 READY:
 
 IF HAVE_GFX
+
+IF !APPLE2
   CALL TOTEXT               ; Go back in text mode if in graphics mode (e.g. if BREAK was pressed)
+ENDIF
+
+IF (APPLE2 && APPLE2_HGR)
+  CALL TOTEXT               ; Go back in text mode if in HR graphics mode (e.g. if BREAK was pressed)
+ENDIF
+
 ENDIF
 
   CALL FINLPT              ;PRINT ANY LEFT OVERS
@@ -21899,6 +21907,7 @@ __COLOR_2:
 ENDIF
 
 ;---------------------
+IF !APPLE2
 TOTEXT:
 ;IF ZXPLUS3
 ;  LD A,27
@@ -21907,7 +21916,7 @@ TOTEXT:
 ;  CALL OUTDO  		; Output char to the current device
 ;ENDIF
   RET
-
+ENDIF
 
 
 ; #################################################################
@@ -22203,7 +22212,6 @@ _SETRD:
 
 
 
-
 CHGCLR:
   LD A,(SCRMOD)
   DEC A
@@ -22409,7 +22417,11 @@ _SCALXY_4:
 IF BIOS20
   LD DE,512
 ELSE
+IF APPLE2
+  LD DE,280
+ELSE
   LD DE,256
+ENDIF
 ENDIF
   CALL DCOMPR		; Compare HL with DE.
   JR C,_SCALXY_6
@@ -22440,6 +22452,12 @@ IF BIOS20
 ELSE
 
 CHGCLR:
+
+IF APPLE2
+  ld a,(ATRBYT)
+  LD ($F030),A            ; COLOR: code of the color of points in graphics mode
+ELSE
+
 IF ZXPLUS3
 
 
@@ -22593,6 +22611,8 @@ ENDIF
 
 ENDIF
 
+ENDIF
+
 ;=====================================================================
 
 
@@ -22666,6 +22686,15 @@ SETATR:
 	CP $10
 	CCF
 	RET C
+
+IF APPLE2
+  LD H,A
+  ADD A,A
+  ADD A,A
+  ADD A,A
+  ADD A,A
+  OR H
+ENDIF
 
 IF ZXPLUS3
     ld      l,a
@@ -25188,6 +25217,19 @@ GO_6502:
   LD ($F3D0),HL    ; remapped to $03D0 on the 6502 side
   LD ($0000),A     ; Touch the switch in the current Z80 SoftCard HW slot
   RET
+
+IF HAVE_GFX:
+
+MAPXY:
+SETC:
+NSETCX:
+LEFTC:
+RIGHTC:
+DOWNC:
+
+	RET
+
+ENDIF
 
 ENDIF
 ;----------------------------------------------------------------
