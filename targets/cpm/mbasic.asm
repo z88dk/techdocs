@@ -7708,11 +7708,13 @@ __LIST_1:
   CALL OUTDO_CRLF         ;PRINT CRLF
   JR __LIST_0             ;GO BACK FOR NEXT LINE
 
+; ------------ Memory hole for the APPLE II high resolution page ------------
 IF APPLE2_HGR
-  defs $2000-ASMPC-BASE-$0100
+ DEFS $2000-$100-ASMPC
 _HIRES_PAGE:
   defs $2000
 ENDIF
+
 ; Routine at 8435
 ;
 ; Used by the routines at __LIST, TTYLIN, NOTDGI and EDIT_DONE.
@@ -23941,10 +23943,19 @@ GRPRST:
   LD (DRWANG),A          ;Draw angle init
 ;  CALL GRPINI            ;Center the graphics cursor
 IF APPLE2
+IF APPLE2_HGR
   LD HL,280/2
   LD (GRPACX),HL
-  LD HL,160/2
+  ;LD HL,160/2
+  LD HL,192/2
   LD (GRPACY),HL
+ELSE
+  LD HL,40/2
+  LD (GRPACX),HL
+  LD HL,40/2
+  ;LD HL,48/2
+  LD (GRPACY),HL
+ENDIF
 ELSE
   LD HL,255/2
   LD (GRPACX),HL
@@ -25030,30 +25041,59 @@ __SCREEN:
   AND A
   JR Z,TOTEXT              ;"SCREEN 0" enters in text mode, 
 
-  ; ..otherwise (SCREEN 1 or 2) we do graphics.
+  ; ..otherwise (SCREEN 1) we do graphics.
 IF APPLE2_HGR
+  PUSH HL
 
-  ;LD L,A           ; TODO:  HGR mode
-  LD ($E057),A      ; HI.RES GRAPHICS mode
-  LD ($E050),A      ; Enter in HR GAPHICS mode
-  LD HL,$E053       ; Mixed TEXT and GRAPHICS mode
-  
-  RRA
-  LD D,$28
-  JR NC,MIX_MODE
-  DEC L
-  LD D,$30
-MIX_MODE:
-  LD (HL),L
+  LD A,2
+  LD ($E057),A          ; HI.RES GRAPHICS mode
+;  CALL GFX_MODE
+  LD ($E050),A      ; Enter in GAPHICS mode
+  ;LD ($E053),A       ; Mixed TEXT and GRAPHICS mode
+  LD ($E052),A       ; no mixed mode
 
-;  LD HL,(A2_HCOLOR_PATTERN)
+;  LD A,$00
+;  JR NZ,__HGR_0
+;  INC HL
+;  CALL GETINT
+;__HGR_0:
+
+  ;LD HL,(A2_HCOLOR_PATTERN)
+;  LD HL,$0101
 ;  LD (_HIRES_PAGE),HL
 ;  LD HL,_HIRES_PAGE
 ;  LD DE,$1002
 ;  LD BC,$1FFE
 ;  LDIR
 
+ELSE
+
+  LD A,$00
+  LD ($F030),A          ; COLOR: code of the color of points in graphics mode
+
+  PUSH HL
+  PUSH AF
+  LD A,$14
+  LD ($F022),A          ; WNDTOP: Top line of the Scroll Window. Range is 20 to 22 ($14) for mixed graphics.
+  LD HL,$1700           ; 23, 0
+  LD (TTYPOS),HL
+  CALL GOTOXY_0
+  LD A,($E056)
+  POP AF
+
+  LD ($E056),A       ; LO.RES GRAPHICS mode
+  LD ($E050),A       ; Enter in GAPHICS mode
+  LD ($E053),A       ; Mixed TEXT and GRAPHICS mode
+  ;LD ($E052),A       ; no mixed mode
+
+  LD A,$27           ; Bottom point, range is 0 to 39 ($27) for mixed screen
+  LD ($F02C),A
+
+;  LD B,D
+
 ENDIF
+  LD A,$FF
+  LD (SCRMOD),A
 
   POP HL
   RET
@@ -25092,6 +25132,38 @@ SCRMOD:
 COLUMNS:
   DEFB 80
 
+
+GOTOXY:
+  CALL GOTOXY_0
+  POP HL
+  RET
+; This entry point is used by the SCREEN routine.
+GOTOXY_0:
+  LD E,$07
+  CALL CONUA
+  LD HL,(TTYPOS)
+  LD A,($F396)            ; XY_OFFSET
+  OR A
+  JP P,NORVS
+  AND $7F
+  LD E,L
+  LD L,H
+  LD H,E
+
+; Do not reverse coordinates if positive
+;
+; Used by the routine at GOTOXY.
+NORVS:
+  LD E,A
+  ADD A,L
+  LD L,A
+  LD A,E
+  ADD A,H
+  PUSH HL
+  CALL TRYOUT
+  POP HL
+  LD A,L
+  JR CONUE
   
 CONUA:
   LD D,$00
