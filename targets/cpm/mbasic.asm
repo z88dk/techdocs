@@ -25118,7 +25118,10 @@ ELSE
   LD A,$27           ; Bottom point, range is 0 to 39 ($27) for mixed screen
   LD ($F02C),A
 
-;  LD B,D
+  ;; LD HL,$F832       ; Clear the whole 48 lo-rez lines
+  LD HL,$F836       ; Clear only the top 40 lines in Lo-Rez
+  CALL GO_6502
+
 
 ENDIF
   LD A,$FF
