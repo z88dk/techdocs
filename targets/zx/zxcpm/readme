@@ -30,6 +30,13 @@ z88dk-appmake.exe +cpmdisk -f quorum --container=raw  --extension.trd  -b zcpr.c
 ..  B> ren zcpr.cm6=zcpr.com
 
 
+How to convert existing CP/M program:
+In some rare case you can find two identical versions of the same program built for a "rebased" CP/M.
+Very few early CP/M systems worked with a base memory addres at $4200 in place than the usual $0000.
+Sometimes, using z88dk/support/rel/rebase.c  will allow the creation of a third version based
+on the comparison of the existing ones, the ZXCPM sets its base address at $6000.
+
+
 How to build ASM.CM6:
 cpmemu\cpm asm as0com.asm
 cpmemu\cpm asm as1io.asm
