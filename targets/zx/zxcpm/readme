@@ -53,3 +53,8 @@ cpmemu\cpm mload mload.cm6=mload
 
 Read the comments on top of the source files for more instructions
 
+How to run the .CM6 code on a standard CP/M environment:
+Append the program file to reloc.bin, 
+e.g. with MSDOS - COPY /B reloc.bin+program.cm6 program.com
+
+(l80.cm6 is usable only in this way)
