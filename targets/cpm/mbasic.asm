@@ -526,7 +526,8 @@ L0100:
 
 
 ; Jump table for statements and functions
-; a.k.a.  "STMDSP"
+; a.k.a.  "STMDSP" (Statement Dispatch Table)
+; in token order starting at token $80 
 FNCTAB:
   DEFW __END
   DEFW __FOR
@@ -656,7 +657,7 @@ IF ZXPLUS3
 ENDIF
 
 
-
+; A.K.A FUNDSP (Function Dispatch Table)
 ; Jump table for statements and functions (continued)
 FNCTAB_FN:
 ; FUNCTIONS
@@ -1838,9 +1839,9 @@ BDOSVER:
 
 ; BDOS function pair, either R/W or SELECT/OPEN
 CPMREA:
-  DEFB $00                ; BDOS function code for 'READ' (BDOS v2) or 'SELECT DSK' (BDOS v1) call 
+  DEFB $00                ; BDOS function code for 'READ RANDOM' (BDOS v2) or 'READ' (BDOS v1) call 
 CPMWRT:
-  DEFB $00                ; BDOS function code for 'WRITE' (BDOS v2) or 'OPEN FILE' (BDOS v1) call
+  DEFB $00                ; BDOS function code for 'WRITE RANDOM' (BDOS v2) or 'WRITE' (BDOS v1) call
 ENDIF
 
 BUFFER:
@@ -13469,7 +13470,7 @@ __SIN_1:
   XOR $80
   LD (FACCU+2),A          ;NOW IN [0,1/4]
 __SIN_2:
-  LD HL,FP_SINTAB         ;POINT TO HART COEFFICIENTS
+  LD HL,SINCON            ;POINT TO HART COEFFICIENTS
   CALL SUMSER             ;DO POLY EVAL
   POP AF                  ;NOW TO DO SIGN
   RET P                   ;OK IF POS
@@ -13499,13 +13500,14 @@ FP_QUARTER:
 
 
 ;HART ALGORITHM 3341 CONSTANTS
+;A.K.A. SINCON
 
 ;NOTE THAT HART CONSTANTS HAVE BEEN SCALED BY A POWER OF 2
 ;THIS IS DUE TO RANGE REDUCTION AS A % OF 2*PI RATHER THAN PI/2
 ;WOULD NEED TO MULTIPLY ARGUMENT BY 4 BUT INSTEAD WE FACTOR THIS
 ;THRU THE CONSTANTS.
 
-FP_SINTAB:
+SINCON:
   DEFB $05                ; Table used by SIN
   DEFB $FB,$D7,$1E,$86    ; 39.711   ->  .1514851E-3
   DEFB $65,$26,$99,$87    ; -76.575  -> -.4673767E-2
@@ -13548,7 +13550,7 @@ __ATN:
   LD HL,FSUBS             ; Sub angle from PI/2              ;PUT FSUBS ON THE STACK SO WE WILL RETURN
   PUSH HL                 ; Save for angle > 1               ; TO IT AND SUBTRACT THE REULT FROM PI/2
 __ATN_0:
-  LD HL,FP_ATNTAB         ; Coefficient table                ;EVALUATE APPROXIMATION POLYNOMIAL
+  LD HL,ATNCON            ; Coefficient table                ;EVALUATE APPROXIMATION POLYNOMIAL
   CALL SUMSER             ; Evaluate sum of series           
   LD HL,FP_HALFPI         ; PI/2 - angle in case > 1         ;GET POINTER TO PI/2 IN CASE WE HAVE TO
   RET                     ; Number > 1 - Sub from PI/2       ; SUBTRACT THE RESULT FROM PI/2
@@ -13556,7 +13558,7 @@ __ATN_0:
 
 	;CONSTANTS FOR ATN
 
-FP_ATNTAB:
+ATNCON:
   DEFB $09
   DEFB $4A,$D7,$3B,$78    ; 1/17        ; .002866226
   DEFB $02,$6E,$84,$7B    ; -1/15       ; -.01616574
@@ -21513,8 +21515,8 @@ PROSAV:
   JP GTMPRT               ;Back to NEWSTT                   ;return to NEWSTT
 
 
-defc N1 = 11  ;Number of bytes to use from ATNCON (FP_ATNTAB)
-defc N2 = 13  ;Number of bytes to use from SINCON (FP_SINTAB)
+defc N1 = 11  ;Number of bytes to use from ATNCON
+defc N2 = 13  ;Number of bytes to use from SINCON
 
 
 PENCOD:
@@ -21525,7 +21527,7 @@ ENCDBL:
   LD HL,(VARTAB)          ;At end?
   CALL DCOMPR             ;Test
   RET Z                   ;Yes
-  LD HL,FP_ATNTAB         ;Point to first scramble table
+  LD HL,ATNCON            ;Point to first scramble table
   LD A,L                  ;Use [C] to index into it
   ADD A,C
   LD L,A
@@ -21536,7 +21538,7 @@ ENCDBL:
   SUB B                   ;Subtract counter for no reason
   XOR (HL)                ;XOR entry
   PUSH AF                 ;Save result
-  LD HL,FP_SINTAB         ;calculate offset into SINCON using [B]
+  LD HL,SINCON            ;calculate offset into SINCON using [B]
   LD A,L
   ADD A,B
   LD L,A
@@ -21566,7 +21568,7 @@ DECDBL:
   LD HL,(VARTAB)          ;At end?
   CALL DCOMPR             ;Test
   RET Z                   ;Yes
-  LD HL,FP_SINTAB         ;calculate offset into SINCON using [B]
+  LD HL,SINCON            ;calculate offset into SINCON using [B]
   LD A,L
   ADD A,B
   LD L,A
@@ -21577,7 +21579,7 @@ DECDBL:
   SUB C                  ;Subtract counter for randomness
   XOR (HL)               ;XOR on this one too
   PUSH AF                ;Save result
-  LD HL,FP_ATNTAB        ;Point to first scramble table
+  LD HL,ATNCON           ;Point to first scramble table
   LD A,L                 ;Use [C] to index into it
   ADD A,C
   LD L,A
@@ -25781,7 +25783,7 @@ IF ORIGINAL
 PSP_LOOP:
   LD A,(CHK_TRY)
   LD C,A
-  LD HL,(CPMENT+1)      ; HL=BDOS entry address (=LAST LOC IN MEMORY)
+  LD HL,(CPMENT+1)      ; HL=BIOS entry address (=LAST LOC IN MEMORY)
   LD L,$00              ; Cut off the byte boundary
 
 PSP_CHK:
@@ -25950,6 +25952,9 @@ ENDIF
   DEC HL                  ; TXTTAB AND STREND, ADJUST
   PUSH HL                 ; SAVE NUMBER OF BYTES TO PRINT
 
+IF APPLE2
+  CALL __HOME
+ENDIF
 
 IF QUORUM | ELWRO
   ld a,(CPJ_ATRBYT)		; Get the current colors defined in CP/J
