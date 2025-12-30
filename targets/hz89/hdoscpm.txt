@@ -1,0 +1,33 @@
+                 HDOS and CP/M Comparison Cheat Sheet
+                      For HDOS 3.0 and CP/M 2.2
+             Jeff Tranter <tranter@pobox.com> 16-Aug-2025
+
+FUNCTION                CP/M                    HDOS
+----------------------- ----------------------- -----------------------
+
+Set default disk        A:                      DEF SY0:
+Directory listing       DIR <pattern>           DIR <pattern>
+Type a file             TYPE <filename>         TYPE <filename>
+Delete file             ERA <filename>          DELETE <pattern>
+Rename file             RENAME <new>=<old>      RENAME <new>=<old>
+Set user area           USER <n>                USER <n>
+Save memory to file     SAVE n <filename>       n/a
+Shut down system        n/a                     BYE
+Run batch file          SUBMIT file.sub         [BATCH] file.bat
+Show device info        STAT                    DEVICE
+Copy files              PIP <dest>=<source>     COPY <dest>=<source>
+File utility            PIP                     PIP
+Assemble                ASM <filename>          ASM <filename>
+Link binary             LOAD <filename>         n/a
+Debug                   DDT                     DBUG
+Format disk             FORMAT                  INIT
+Make disk bootable      SYSGEN                  SYSGEN
+Dump file               DUMP <filename>         n/a
+Edit file               ED <filename>           EDIT <filename>
+Relocate OS in memory   MOVCPM                  n/a
+Set date                n/a                     DATE
+Set time                n/a                     TIME
+Mount disk              n/a                     MOUNT
+Unmount disk            n/a                     DISMOUNT
+Filenames:              ABCDEFGH.COM            ABCDEFGH.ABS
+Disk names:             A: B: etc.              SY0: SY1: DK0: DK1: etc.
