@@ -1,0 +1,413 @@
+		!User Functions for the Newbrain "
+						  Alun Morris 17-2-85
+1.	!Notes "
+
+1.1	This article contains a set of user defined functions for the
+Newbrain comprising conversion utilities, system utilities and various
+other functions useful to programmers (even though I say so myself).
+
+1.2	The functions will be most readily helpful to you if you save
+those you are likely to need as a BASIC file, and merge the file into
+any program that needs them.  Entering them into your programs on an
+ad hoc basis leads to more typing in the long run, and means that you
+are less likely to use the functions even if they would simplify or
+improve your programs.
+
+1.3	Many of the functions are very slow to compile (several
+seconds) because of their complexity and / or calling of further
+functions which have to be compiled themselves.  This makes them slow
+when used in command mode, as the function has to be recompiled every
+time it is called in a command line (though if it called more than
+once it only has to be compiled once). Subsequent calls, in the same
+command line or in the same program, will be executed much faster.
+
+	Example:
+
+	FOR I=0 TO 16:PRINT FNhx$(I),;:NEXT I
+
+	It takes 1.5s to print the first result, but only 93ms for
+each of the others.
+
+1.4	!Note on using screen RAM "
+
+1.4.1	FNsl(a$) gives the location in screen RAM of any screen row
+and column.  However, uninformed poking into screen RAM using
+this information leads to haphazard results.
+
+1.4.2	Three control combinations affect the screen display:
+
+a) x,0,x in displayed screen RAM (text).  x is any non zero byte.
+	This stops characters in RAM being displayed for the rest of
+the line it occurs in.	Hence if you poke into the undisplayed portion
+of RAM, nothing will change on the display (unless you poke a zero
+and change the control sequence).
+
+b) x,0,0,x in displayed screen RAM (text).
+	This stops screen display for the rest of the frame.
+
+c) x,0,0,0 in displayed screen RAM (text)
+	This switches the screen into graphics for the rest of the
+frame.	The control sequences have no effect in graphics mode.
+FNsl(a$) does not apply to the graphics portion of the screen.
+
+	To force the whole of a screen line to be displayed, move the
+cursor to the end of a line, and PUT 128 there; e.g. PUT 22,40,y,128.
+This character is a blank in character set 2, and forces the x,0,x
+code beyond the end of the line, into the screen excess.
+
+1.4.2	!Screen excess "
+	Each screen line of text has 24 bytes (or 48 in 80 column
+mode) after the 40 (or 80) bytes used for character display.  These
+are unused, except to contain a screen control sequence when
+necessary.  Hence characters vertically above each other on the
+screen are displaced by 64 (or 128) bytes in memory.
+	The graphics portion of the screen has no excess, so bytes of
+graphics vertically above each other are 40 (or 80) bytes apart in
+memory.
+	Fig. 1 shows the organisation of the screen memory, with a 40
+column screen having 14 lines of text, and 100 lines of graphics.  The
+location of the screen control sequences may vary slightly between
+different issues of Newbrain ROMs.
+
+  lowest RAM location !
+ ___________________________________________________________________
+ |This is the text part of the screen0x   |			   |
+ | 0x					  |			   |
+ |The "0x" represents the 0,x code in the0|x	  THIS IS	   |
+ |line which turns off the display for0x  |			   |
+ |the rest of the line.0x		  |	  THE 24	   |
+ |   this is where the excess starts ---->|0x			   |
+ | 0x					  |	  BYTES OF	   |
+ | 0x					  |			   |
+ | 0x					  |	  SCREEN	   |
+ | 0x					  |			   |
+ |<----------THIS IS 40 COLUMNS---------->|0x	  EXCESS	   |
+ | 0x					  |			   |
+ | 0x					  |			   |
+ | 0x_____________________________________|________________________|
+ |000 unused graphics lines (up to 10)	  |
+ |   \					  |
+ |    this code sequence turns		  |
+ |    the graphics on			  |
+ |					  |
+ |					  |
+ |     THIS IS THE GRAPHICS AREA	  |
+ |					  |
+ |					  |
+ |					  |
+ |________________________________________|
+ "
+		      highest RAM location
+
+      Fig 1. The Screen organisation
+
+1.4.3	Screen RAM is not accessible from BASIC when the Expansion
+Interface is fitted.
+
+1.5	Some of the functions are a compromise between
+speed, size and flexibility.  In particular FNni(a$) and FNdw(a$)
+(hex to decimal convertors) are rather long, but this results in
+either a greater range of hex numbers that can be recognised, or in
+an increase in speed.  There is a lot of scope for modification to
+the functions as given, to suit your own needs.
+
+1.6	The scope of things which can be put in the form of a user
+defined function on the Newbrain are limited by the restriction to
+one parameter, and the single line format.  The former can be
+overcome to some extent in the case of single byte parameters by
+putting the bytes into a string as characters e.g.
+FNsl(CHR$(x)+CHR$(y)).	This is an inconvenience, but is better than
+nothing.  Also clarity of naming is poor due to the two character
+limit on function names.
+
+1.7	!Errors and user functions "
+	When an error occurs in the Newbrain, the error line is put
+onto the return stack.	If you use an error trap (ON ERROR GOTO),
+your error handler should remove the error line from the stack before
+continuing with the program.  This is to prevent the stack growing
+indefinitely as more errors occur.  The RESUME command removes the
+last stack entry (this is all RESUME does, apart from effecting a
+program branch).  Hence:
+
+	19000 REM error trap
+	19010 RESUME 200 : REM or wherever
+
+will usually keep the stack in bounds.	This is what the Newbrain
+Handbook is referring to on page 159 when it says that "[not exiting
+via RESUME or REPORT] will cause system performance to be degraded."
+When the stack has become very large, responses to commands become
+noticeably slower.
+	This is all fine, except when it comes to user functions.
+When an error occurs in a user function, an error line (the actual
+line number that the error occured on) is put onto the return stack.
+However, instead of jumping immediately to your error handler, it
+returns to the line that called the function, and a further error is
+generated, and that line number also is put on the stack.  If the
+user functions are nested, even more line numbers will go onto the
+stack.	Eventually, when your error handler is jumped to, there is an
+unknown number of error lines on the stack, and you must remove all
+of them, or your system performance will be degraded.
+
+	Here are two solutions to the problem:
+Either:
+	19000 REM error trap
+	19010 CLEAR : REM clears stack,all variables and object code
+	19020 GOTO 200 : REM or wherever
+Or:
+	19000 REM error trap
+	19010 IF ERRNO = 33 THEN RESUME 200 : REM or wherever
+	19020 RESUME 19010
+
+	The first method has the disadvantage of clearing all your
+variables i.e. they no longer exist.  The second method works by
+removing all the line numbers from the stack until it is empty.  Then
+line 19020 generates an error 33 -no line number on stack on
+encountering RESUME, REPORT or RETURN.	This leaves only one line
+number on the stack (19020), and RESUME can be executed as normal.
+
+1.8	The level of nesting of user functions is limited to 5.  If
+this is exceeded, an error 85 occurs.
+
+
+
+2.	!The functions "
+
+	Listing 1 contains the user defined functions.	Each REM
+refers to the function or functions below it.
+
+
+3.	!Notes on the functions "
+
+	The meaning of each function name follows the name on the same
+line.
+
+In alphabetical order:
+
+FNad(i) : address
+Parameter: Location in range 0 - 65535
+Returns: Two byte address contained at the location i.	Least
+	 significant byte is at i (Z80 type address).
+Used by: FNsl(a$), FNsz(i), FNsc(i)
+Example: FNad(22) is the start of memory used by the Newbrain's "User
+	 Program" (usually BASIC).
+
+FNb1(a$) : -
+Parameter: String of length 8 representing an 8 bit binary number.
+	   Last character of string is least significant bit.  Each
+	   character is either "0" or "1".
+Returns: Decimal number 0-255 which is equivalent to the binary
+	 parameter.
+Used by: FNbd(a$)
+Example:	FNb1("00100001") = 33
+
+FNb2(a$) : -
+Parameter: String as in FNb1(a$), except that the string is two
+	   characters long.
+Returns: Decimal number 0-3 which is the equivalent of the binary
+	 parameter.
+Used by: FNb1(a$)
+Example:	FNb2("01") = 1
+
+FNbd(a$) : binary to decimal
+Parameter: String with 0-8 characters, representing an 8 bit binary
+	   number.  Last character is least significant bit.  Each
+	   character is "0" or "1".
+Returns: Decimal number which is equivalent to the binary parameter.
+Examples:	FNbd("11010") = 26
+		FNbd("")      = 0
+
+FNbi$(i) : binary
+Parameter: Number 0 to 255
+Returns: An eight character string representing the binary equivalent
+	 of the parameter.  Each character is "0" or "1".  The last
+	 character is the least significant bit.
+Example:	FNbi$(18) = "00010010"
+
+FNbn$(i) : binary nibble
+Parameter: Number 0 to 15
+Returns: A string as in FNbi$(i), except that the string is four
+	 characters long.
+Used by: FNbi$(i)
+Example:	FNbn$(7) = "0111"
+
+FNbs$(i) : backspace
+Parameter: Number 0 to 40
+Returns: String containing i backspaces (CHR$(8))
+Example:
+	L=273
+	INPUT("Enter length"+STR$(L)+FNbs$(LEN(STR$(L))-1))L
+
+	This prompts the user for a value for L.  The current value is
+printed after the text, and he can overwite the value printed to
+change the value of L, or he can press just newline, when L retains
+its current value.
+
+FNdb(a$) : decimal byte
+Parameter: String of any length whose last two (or one) characters
+	   represent a hexadecimal byte.  The last character is the
+	   least significant hex digit.  Each character is "0"-"9",
+	   "a"-"f","A"-"F" or a space.	A space equals "0".  Any other
+	   character is equal to "F".
+Returns: A number 0-255 which is the decimal equivalent of the hex
+	 parameter.
+Examples:	FNdb("7F") = 127
+		FNdb("32qm7F") = 127
+		FNdb("") = 0
+		FNdb("c ") = 192
+		FNdb("0$") = 15
+
+FNdw(a$) : decimal word
+Parameter: String of any length whose last 4 characters represent a
+	   hexadecimal word (2 bytes).	Otherwise as in FNdb(a$).
+Returns: A number 0-65535 which is the equivalent of the
+	 hex parameter
+Examples:	FNdw("FEDc")  = 65244
+		FNdw("this bit is ignored1234") = 4804
+		FNdw("") = 0
+		FNdw(" BA ") = 2976
+		FNdw(" 7f") = 127
+		FNdw("NM#") = 4095
+
+FNhb$(i) : hex byte
+Parameter: Number 0-255
+Returns: A string of two characters which represents the hexadecimal
+	 equivalent of the parameter.  Characters are "0"-"9" and
+	 "A"-"F".
+Used by: FNhx$(i)
+Examples:	FNhb$(191) = "BF"
+		FNhb$(0) = "00"
+		FNhb$(256) returns a invalid string
+		FNhb$(-50) causes error 6
+
+FNhi(i) : high
+Parameter: Number 0-65535
+Returns: The most significant byte of the two byte parameter
+Example:	FNhi(1234) = 210
+
+FNhx$(i) : hex
+Parameter: Number 0-65535.  Error 2 is generated outside this range.
+Returns: A four character string which represents the hexadecimal
+	 equivalent of the parameter.  The hex characters are as in
+	 FNhb$(i).
+Examples:	FNhx$(6789) = "1A85"
+		FNhx$(0) = "0000"
+
+FNlo(i) : low
+Parameter: Number 0-65535. Error 2 is generated outside this range.
+Returns: The low byte of the two byte parameter
+Example:	FNlo(32767) = 255
+
+FNni(a$) : nibble
+Parameter: String of any length, whose last character is a
+	   hexadecimal digit (one nibble).  The character is as in
+	   FNdb(a$).
+Returns: A number 0-15 which is the decimal equivalent of the hex
+	 parameter
+Used by: FNdb(a$), FNdw(a$)
+Examples:	FNni("e") =14
+		FNni("") = 0
+Variation on function: Adding:
+	+((PEEK(INSTR(" 0123456789abcdefABCDEF",a$)-1))AND0)
+	to the function definition will cause an error 2 in FNni(a$),
+FNdb(a$) and FNdw(a$) if the hex string is not valid.
+
+FNre(i) : reserve
+Parameter: Address 0-65535
+Returns: A number, which when used as the parameter in a RESERVE
+	 statement will set top to i, whether i is above or below
+	 TOP.  It can thus be used to "unreserve" memory.
+Example:	RESERVE FNre(30000)
+	sets TOP to 30000
+
+FNsc(i) : source code
+Parameter: A positive number
+Returns: An address which is the start of the BASIC source code for
+	 the i'th statement from the top of the program, with i=0 being
+	 the last statement.
+Example:	a=FNsc(0):FOR i=a to 65535:IF PEEK(i)<>13 THEN PUT
+		27,PEEK(i):NEXT i
+	This prints out the last BASIC statement, in entokened form.
+	Note that source code is not necessarily stored in order of
+	line number.
+
+FNsl(a$) : screen location
+Parameter: A two character string:
+	   a$=CHR$(x)+CHR$(y)
+	   where x and y are the column and row number on the text
+	   screen, starting at 1,1.  x<= no. of screen columns
+				     y<= no. of screen rows.
+Returns: An address which is the memory location of the screen
+	 position defined by the parameter.  If several screens are
+	 open, FNsl(a$) refers to the one being displayed.  The
+	 address may change when streams are closed.
+Example:	FNsl(CHR$(1)+CHR$(1))
+	gives the start of the screen RAM.
+	See section 1.4 - Note on using screen RAM.
+
+FNsp$(i) : space
+Parameter: Number 0-80
+Returns: A string of i spaces
+Example:	S$=LEFT$(S$+FNsp$(ABS(T-LEN(S$))),T)
+	This makes S$ T characters long by shortening it if it is
+longer than T, or lenghtening it by adding spaces if it is shorter
+that T.  It is equivalent to S$=S$(1 TO T) in SINCLAIR BASIC.
+
+FNsz(i) : size
+Parameter: Number, 0 or 1.
+Returns: i=0: BASIC source code size, excluding line numbers
+	 i=1: BASIC object code size
+Examples:	CLEAR
+		PRINT FNsz(1)
+
+	prints 101, which is the size of object code produced by
+compiling PRINT FNsz(1) and the function itself.
+
+		CLEAR
+		a=1+2:PRINT FNsz(1)-105
+
+	prints the size of object code compiled for the statement
+a=1+2, or whatever statement you want to try.
+
+FNvb(a$) : valid byte
+Parameter: String of any length whose last two characters contain a
+	   hex byte which is to be checked for validity as a hex
+	   number.  Valid characters are as in FNvn(a$).  If the
+	   string is one character long, then that one character is
+	   checked.  A null string is valid.
+Returns: True or false (-1 or 0).
+	 True if the string is a valid hex byte, false otherwise.
+Used by: FNvw(a$)
+Examples:	FNvb("f0") = TRUE
+		FNvb("qt") = FALSE
+		FNvb("C") = TRUE
+
+FNvn(a$) : valid nibble
+Parameter: String of length one, representing a hex digit (one
+	   nibble), or a null string.  Valid characters are
+	   "0"-"9","A"-"F""a"-"f" and space. A null string is valid.
+Returns: True or false (-1 or 0)
+	 True if the parameter is a valid hex digit, false otherwise.
+Used by: FNvb(a$)
+Examples:	FNvn("A") = TRUE
+		FNvn("22") = FALSE
+
+FNvw(a$) : valid word
+Parameter: String as in FNvb(a$), except that the last four
+	   characters are checked.
+Returns: True or false (-1 or 0)
+	 True if the parameter is a valid hex word, false otherwise.
+Examples:	FNvw("1aBF") = TRUE
+		FNvw("F7") = TRUE
+		FNvw("m2") = FALSE
+
+FNyn(a$) : yes/no
+Parameter: String of any length.  The first character is checked to
+	   be "Y","y","N" or "n".  A null string returns FALSE.
+Returns: True or false (-1 or 0)
+	 True if the parameter is "yes or no", false otherwise.
+Example:	 100 INPUT("Continue (y/n) ? y"+CHR$(8))s$:IF NOT
+		     FNyn(s$) THEN PUT11,30:GOTO 100
+
+	will wait for the user to type y(es) or n(o) before
+continuing.  A NEWLINE response makes s$="y".
+
