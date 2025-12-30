@@ -1,0 +1,485 @@
+System page description - TN108
+
+Introduction
+
+This document describes the contents of the system page under the
+NewBrain paged memory operating system and also the fixed memory areas
+used by the NewBrain in the non-paged operating system.
+
+The system page is a page of RAM which normally resides in Slot 0. It
+contains all the data structures necessary to system operation
+including:
+
+1. The Status Table.
+
+2. The page Store, ie.e the number of pages currently resident.
+
+3. The Region Table.
+
+4. Access to operating system routines.
+
+5. GETVIDEO.
+
+Notation and nomenclature
+
+OS - non-paged operating system.
+
+POS - paged memory operating system.
+
+Bn - bit number n where 0 is the least significant bit.
+
+P - paged.
+
+NP - non-paged.
+
+MMS - memory management system.
+
+IOS - input/output system (in OS).
+
+PIOS - paged input/output system (in POS).
+
+Object - a memory area allocated by the MMS.
+
+COP - the COP 420 input/output microprocessor.
+
+EIM - Expansion Interface Module
+
+Page - an 8K area of the paged memory highway address space, all of
+which is addressible by a single hardware page address.
+
+Page number - a value which is used to access a unique page. This is
+a two byte number of which B12-B15 are 0.
+
+Slot - one of the eight 8K areas in the Z80 address space into which a
+page may be brought in.
+
+System page - a page which is usually in slot 0 containing
+fundamental system information.
+
+Slot n page number - A two byte number where B0-B11 are the page
+number and B13-B15 are n. B12 is 0.
+
+Location - the Z80 address which can be used to access an area of
+memory when the page it is on has been placed in an appropriate
+slot.
+
+Region - a set of contiguous RAM pages used for a similar purpose as
+allocated by the page allocator.
+
+Video address - a location within the 32K of video RAM. B15 is
+usually 1.
+
+Stretched format - the bytes of a table entry are spaced 256 bytes
+apart. The first bytes of consecutive entries are adjacent.
+
+Not used - reserved for future expansion.
+
+PARS
+
+The PARS area exists between locations 0 and FF in both OS and
+POS.
+
+The System Parameters are held in the first 256 bytes of Slot Zero
+Page (SZP) and in the area of RAM from 500H to 5FFH of the SZP
+(MORPARS). The majority of the locations below 100H used in the
+unpaged system are also used in the paged system with the same meaning
+- in the case of any deviation from this, the locations are noted
+below.
+
+0 DI and 1- 3 TPON. NP contains the instructions DI, JP PONINT (an
+address in the EF system ROM). P contains DI, JP 0. This is designed
+for the use of NewBrains with power-down facility. POS does not
+support this facility, and is not supported by the hardware in
+models A and AD.
+
+4 - 5 B3PRM. NP is the address of the start of the RAM available to
+BASIC and is adjusted by OS as the IO buffer area increases and
+decreases. P is available for use by the user program. BASIC sets it
+to 2000H.
+
+6 - 7 B4. NP is the address of the end of the RAM available to
+BASIC. P is available for use by the user program. BASIC sets it to
+C000H.
+
+8 - A TRST8. Available for temporary use by any module. 8
+contains C3 (JP) and must be preserved.
+
+B DEV0. Contains the default console device number which may be
+used by user programs when opening up a console.
+
+C EXCESS. This is set to 24 and is only used in OS and should not be
+changed.
+
+D TV0. Cursor flash clock used by the frame interrupt handler.
+
+E TV2. TV display status flags. NP B7 set means display screen, B6
+means display cursor, B5 means cursor is underline not block, B4
+means switch off video for next frame only, B3-B0 unused. P B7 set
+means display cursor, B6 means cursor is underline not block, B5 means
+switch off video for next frame only, B4-B0 any set will force video
+to be switched off (at the moment B0 is used by the video device
+drivers and B1 is used by the video memory allocator and the others
+are unused).
+
+F TV1. Contains the character at the cursor position.
+
+10 - 12 TEXM. Restart for use by user program (used by BASIC). 10 is
+set to C3 and should be preserved.
+
+13 DEV2. Contains default backup storage device number for use of user
+programs (e.g. BASIC when doing LOAD "program").
+
+14 SAVE2. NP Temporary use by IOS. P Not used.
+
+16 SAVE3. NP Temporary use by IOS. P not used.
+
+18 - 1A TEXMNC. Restart for use by user program (used by BASIC). 18
+is set to C3 and should be preserved.
+
+1B PLLEN. Line length of stream 0 device (if not supported will be
+0).
+
+1C PHPOS. Print head position of stream 0 device (left hand side is
+1). This is only operative if (PLLEN~=0).
+
+1D PZLEN. Print zone length of stream 0 device. This is only
+operative if (PLLEN~=0).
+
+1E SAVE1. NP OS workspace. P not used.
+
+20 - 22 TRST32. System call restart location.
+
+23 BRKBUF. If this is non-zero all breaks (STOP key and * during
+cassette lead-in read) will be ignored.
+
+24 ENREGMAP. The last byte sent to enable register 1 (see hardware
+definition).
+
+25 IOPUC. Use count of open devices that require IOPOWER.
+
+26 - 27 UP. Location of user program. NP this will usually be
+BASIC. P this is the location of the main menu program which is always
+a slot 6 location.
+
+28 - 2A TRST40. System call on carry clear restart location.
+
+2B KBMODE. This is used by KLOOK when performing keyboards decoding
+and is used by all open device 0, 3 and 4 streams, which share a
+common keyboard mode.
+
+2C - 2D GSPR. NP Address of user program make space routine. P not
+used.
+
+2E - 2F RSPR. NP Address of user program return space routine. P not
+used.
+
+30 - 32 TRST48. Restart reserved for interrupt handling routines. 30
+contains C3.
+
+33 - BUFLG. B7 set means the paged operating system is in
+operation. The other bits are unused except B0 in NP which is set by
+IOS when buffers are being moved causing the video to be switched
+off.
+
+34 - 35 DPSP. Location of default console device open parameter
+string.
+
+36 - 37 DPSL. Length of default console device open parameter string.
+
+38 - 3A TINT. Interrupt mode 1 interrupt handler. 38 must be kept as
+C3.
+
+3B COPCTL. Acknowledge byte sent to the COP immediately after the next
+COP interrupt.
+
+3C COPST. COP status. B7 unused, B6 set if keyboard data present in
+COPBUFF that has not been read in, B5 set if no command is waiting
+to be sent to the COP, B4 is set if a cassette error has occurred, B3
+is set if * can cause a cassette break, B2 indicates status of break
+key, B1 indicates a cassette break or battery low, B0 is 0.
+
+3D COPBUFF. Contains keyboard and cassette data, and cassette error
+numbers.
+
+3E - 4D OUTBUFF. Data to be sent to single line display.
+
+4E - 4F TIMBUFF. Not used.
+
+50 - 51 CHKSUM. Tape checksum count.
+
+52 - 55 CLOCK/CLACK. COP regular interrupt count. Used to seed random
+number generator. Least significant byte is first.
+
+56 - 57 STRTAB. NP address of IOS stream table. P not used.
+
+58 - 59 DEVTAB. NP address of IOS device table. P not used.
+
+5A - 5B TVCUR. NP address of cursor position. P video address of
+cursor position.
+
+5C - 5D TVRAM. NP address of IOS buffer of currently displayed screen.
+P video address of currently displayed window of currently
+displayed screen.
+
+5E - 5F OTHER1. Unused but is updated by IOS in NP if points into a
+moved buffer and by the video memory allocator in P if is a video
+address in a video area that is moved.
+
+60 - 61 OTHER2. Same as OTHER1.
+
+62 - 63 IOSRAM. NP Address of base of IOS buffer area. P not used.
+
+64 - 65 STRTOP. NP Address of end of IOS stream table. P not used.
+
+66 - 68 TNMI. Non-maskable interrupt handler. 66 contains C3.
+
+69 - 6B FICKLM. Frame interrupt count providing accurate 50 Hz clock.
+Most significant byte is first.
+
+6C - TBRP. Default transmit baud rate parameter. (Divide 19200 by the
+value to give the baud rate). Optionally used by some device
+drivers.
+
+6D - RBRP. Default receive baud rate parameter. As TBRP.
+
+6E - 70 IOPON. Increment IOPOWER use count routine.
+
+71 - 73 IOPOFF. Decrement IOPOWER use count routine.
+
+74 - 75 DEFNF. Default numerical output format. This value is a format
+as required by the maths pack OUT routine.
+
+76 STR11. Default high rsolution graphics stream number.
+
+77 - 78 CHRROM. NP address/P slot 1 location of character
+definition table used by high resolution graphics text routines.
+
+
+The following are only used in the paged operating system:
+
+79 - 7A DISCBUFFER. Location of disc command block in whichever slot
+set it is supposed to be in. Location in Alternative Slot Set.
+
+7B - 7D INTSERVICE. Non-COP interrupt handling routine (in
+alternative slot set). Jump to interrupt server in Alternative Slot
+Set.
+
+7E - 80 GETOB. MMS object retrieval routine. (Memory fetch
+routine.)
+
+81 - 83 IGETOB. MMS object retrieval with index routine. (Memory
+fetch routine.)
+
+84 - 86 GETVIDEO. Video memory area retrieval routine. (Video memory
+fetch routine.)
+
+87 - 88 PARAMLEN. Temporary workspace by PIOS; length of string
+in PARAMAREA. 89 - 8A IOSTEMP. Temporary workspace by PIOS.
+
+8B - 9A S0,S1,S2,S3,S4,S5,S6,S7. Sn contains the slot n page number of
+the page currently in slot n.
+
+9B - 9E ENDOFOBJECTS. Used by MMS to mark the real address of the
+end of the last object relative to the beginning of the region.
+
+9F - A0 VIDEOTOP. Page number of end of video RAM pages. Used by video
+RAM allocator.
+
+A1 - A2 VIDEOBASE. Page number of first video page. Used by video
+RAM allocator.
+
+A3 - A4 AVIDEOTOP. Address of the end of the last used video area
+relative to the beginning of the video area.
+
+A5 - A6 UPPAGE. Slot 6 page number of page containing the main
+menu program. [Page-number of low-level user program.]
+
+A7 TV3. Contains the byte to be sent to the TV control register (see
+hardware definition) for the current screen display.
+
+A8 - A9 ESYSPAGE. Location in system page of first unused byte.
+[Address of end of SZP contents.]
+
+AA - AC DISC. Disc operation activation routine. Jump to disk
+controller routine.
+
+AD OLDOS. Identifys the version of the non-paged operating system. 0
+means 1.4, 1 means 1.9, 2 means 1.91, 3 means 1.9 FRENCH, 4 means
+2.0.
+
+AE - AF CHRPAGE. Slot 1 page number of page containing the
+character definitions used by the high resolution graphics text
+routines.
+
+B0 - B1 INABROM. Slot 5 page number of internal AB ROM.
+
+B2 - B3 INCDROM. Slot 6 page number of internal CD ROM.
+
+B4 - B5 INEFROM. Slot 7 page number of internal EF ROM.
+
+B6 ENREG2MAP. Image for second enable register.
+
+B7 INTFLGS. Flags for expansion ACIA and interrupt buffer structure.
+
+B8 - B9 PHEAD. Pointer to first object in serial memory chain.
+
+BA TV4. Contains video area number of currently displayed screen.
+
+BB - BC PUSER. Number of region 0 pages that are required.
+
+BD A16COUNT. Contains use count of alternative slot set. [Count of
+depth of entry into Alternative Slot Set.]
+
+BE - C0 ENTERLIBRARY. Routine to enter external library routines.
+
+C1 - C3 GETBUFFER. Buffer memory fetch routine.
+
+C4 - C6 INTBUFFER. Buffer memory fetch routine.
+
+C7 - D6 BOXTAB. User counts, BCR image, and CTC images for each of
+four Network Modules.
+
+D7 - D9 SERVECOPINT. COP interrupt service routine.
+
+Stores for the buffer manager and the special get buffer routine
+to communicate with each other
+
+DA - LOWBUFFERPAGE.
+
+DB - HIGHBUFFERPAGE.
+
+DC - BUFMARGIN.
+
+DE - E0 V2INTBUFFER.
+
+E1 - E3 DISCSTATUS. Routine to return status of disc operations
+
+E4 - ECTCCOUNT. Count of users of EIM CTC.
+
+E5 - ECTC1. Image for EIM CTC1.
+
+E6 - ECTC2. Image for EIM CTC2.
+
+E7 - ECTC3. Image for EIM CTC3.
+
+E8 - ALPDATA. Stored data from EIM ACIA on LP channel.
+
+E9 - AV24DATA. Stored data from EIM ACIA on V24 channel.
+
+EA - NBTALLY. Table of flags for Network Module ACIAs in use.
+
+EE - Unused (at present).
+
+The rest of the non-paged system fixed areas
+
+100 - 19F FPRAM. Used by the maths pack as workspace.
+
+1A0 - 267 STKRAM. Used as the hardware stack.
+
+
+The rest of the paged system fixed areas
+
+100 - 19F FPRAM. Used by the maths pack as workspace.
+
+1A0 - 4FF STKRAM. Used as the hardware stack.
+
+500 - 519 WORKAREA. 20-byte scratch-pad available for short-term
+use by system functions.
+
+520 - 5FF MORPARS. Expansion to PARS area initialised to 0. Unused
+(at present).
+
+600 - 6FF STATUSTABLE.
+
+The n'th byte of the table is owned by the device driver and any
+associated interrupt handling routine currently connected to stream n,
+and is called the "status word" for stream n. It may be peeked by
+anything, but only altered by its owners. The status word is set to
+zero on system initialisation and whenever its owner is closed, if its
+owner supports the status word. (We say that a device "supports the
+status word" if it might alter it). The status word for stream n will
+have value zero if stream n is not open or if stream n does nor
+support the status word or if the value of its bits happen to be zero.
+The meaning of the bits are as follows:
+
+bit/mnemonic/meaning if set
+
+0 IEST Input error status: the next call to input from this
+stream will produce an error in accordance with the
+usual behaviour of the device connected.
+
+1 OEST Output error status: the next call to output to this
+stream will produce an error in accordance with the
+usual behaviour to the device connected.
+
+2 NRIST Not ready for input: the next call to input from this
+stream may result in a long wait, or if the device is
+the sort which has returns immediately and has a
+conventional return for "no data returned" then this
+return will occur.
+
+3 NROST Not ready for input: the next call to input from this
+stream may result in a long wait, or a loss of data.
+
+
+4 EOFST End-of-file: the next input from this stream will
+result in a read past end-of-file error.
+
+5, 6, 7 Reserved for expansion.
+
+Note that a meaning is systemically attached to a status word bit
+only if the bit is set - the precise interpretation will depend on
+the device: for example, an error may still occur on reading even
+if IEST is not set. This also means that some devices might only
+partially support a status word: for example, unless there are other
+compelling reasons it is not necessary to assume that a device
+opened for input only, which would produce an error if an attempt were
+made to output to it, should keep OEST set. 
+
+700 - AFF TABLEZERO. This
+is the base table of the MMS data structure, which contains the real
+addresses of the secondary tables. See MMS documentation for details.
+
+B00 - CFF STREAMTABLE. The entries are in streched format. An
+entry of 0 indicates the stream is not open. Otherwise the entry
+contains the object number of the buffer object. The first byte of
+this contains the device number, the second contains the port number
+and the rest of the object is the own memory area.
+
+D00 - DFF PARAMAREA. This is an area used as workspace by PIOS and
+FINDLIBRARY.
+
+E00 - 11FF PDEVTAB. This is the table of device drivers, which is in
+streched format. The first two bytes of each entry give the slot 4
+page number of the device driver and the second two bytes give its
+location.
+
+1200 - 15FF ZPTABLE. This is the table of system routines, which is in
+streched format. The first two bytes of each entry give the slot 7
+page number of the device driver and the second bytes give its
+location.
+
+1600 - 167F VIDTABLE. This gives the video addresses and lengths of
+the 32 possible video areas. The first two bytes of each entry
+contains the video address and the second two contain the length. All
+video areas are multiples of 128 in size.
+
+1680 - 169F ENTRYAVAILABLETABLE. This is a bit map table auxiliary to
+MMS. The bits are ordered with B0 of the bytes being for 0 to 31, B1
+being for 32 to 63 etc. If a bit is a one it means that the secondary
+MMS table it corresponds to exists and has a free entry. See MMS
+documentation.
+
+16A0 - 1701 REGIONTABLE. Each region has a six byte entry. The
+first two bytes correspond to the first page belonging to the
+region. The second two are the slot 4 page number of the region
+manager (if the most significant byte is 0 it means there is none),
+and the third two are the location of the region manager. The last two
+bytes of REGIONTABLE (REGTOP) are a dummy entry to mark the end of
+region 16.
+
+1702 - (ESYSPAGE)-1 SLOTZEROCODE. This area contains various important
+system routines. If it is required to put in a new one then put it in
+at (ESYSPAGE) and increment (ESYSPAGE past it).
+
+MJC 110783, CSP 260483
