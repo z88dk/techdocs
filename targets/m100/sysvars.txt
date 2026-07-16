@@ -245,5 +245,5 @@ KB_SHIFT     $FFA2                $FD16           ; 8 bits for storing shift, ct
 GETPNT       $FFAA                $FD1E           ; Number of characters in keyboard buffer.
 PUTPNT       $FFAB                $FD1F           ; Start of keyboard typeahead buffer
 
-CURS_SHAPE   $FFEC  $FFAD/$FF90                   ; Start of 5 byte table describing the bit pattern currently under the cursor (used also as byte buffer by PLOT/UNPLOT)
+CURS_SHAPE   $FFEC  $FFAD/$FF90          $FEAB    ; Start of 5 byte table describing the bit pattern currently under the cursor (used also as byte buffer by PLOT/UNPLOT)
 
