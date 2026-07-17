@@ -27027,9 +27027,8 @@ ENDIF
   INC HL
 IF M100
   LD (HL),$00
-ENDIF
-IF KC85 | M10
-  LD (HL),B
+ELSE
+  LD (HL),B             ; also on the NEC PC-8201
 ENDIF
 BOOT_6:
   XOR A
