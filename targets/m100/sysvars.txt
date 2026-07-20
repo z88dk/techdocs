@@ -272,11 +272,11 @@ TEMP9        $FBE2      $FBF4                     ; Location of temporary storag
 FUNACT       $FBE4      $FBF6     $F697   $FB17   ; Active functions counter
 VLZDAT       $FBE6      $FBF8
 FBUFFR       $FBE7      $FBF9                     ; Buffer for fout
-NUMSTR       $FBE8                $F69B           ; NUMBER STRING STORED HERE WHEN $470B (M100) IS CALLED
+NUMSTR       $FBE8      $FBFA     $F69B           ; NUMBER STRING STORED HERE WHEN $470B (M100) IS CALLED
 DECTMP       $FC12      $FC24
 DECTM2       $FC14      $FC26
 DECCNT       $FC16      $FC28
-FACCU        $FC18      $FC2A     $F6CB   $FB2A   ; Start of FAC1 for single (4) and double (8) precision number (aka FACCU)
+FACCU        $FC18      $FC2A     $F6CB   $FB2B   ; Start of FAC1 for single (4) and double (8) precision number (aka FACCU)
 FACLOW       $FC1A      $FC2C     $F6CD   $FB28   ; Start of FAC1 for integers
 HOLD8        $FC28      $FC3A                     ; (48 bytes) Double precision operations work area
 HOLD2        $FC58      $FC6A                     ; (8 bytes)
