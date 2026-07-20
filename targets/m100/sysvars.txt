@@ -270,12 +270,12 @@ PRMFLG       $FBE0   $FBF2/$FBF0                  ; Flag to indicate whether PAR
 NOFUNS       $FBE1      $FBF3     $F694   $FB14   ; 0 if no function active
 TEMP9        $FBE2      $FBF4                     ; Location of temporary storage for garbage collection
 FUNACT       $FBE4      $FBF6     $F697   $FB17   ; Active functions counter
-VLZDAT       $FBE6
-FBUFFR       $FBE7                                ; Buffer for fout
+VLZDAT       $FBE6      $FBF8
+FBUFFR       $FBE7      $FBF9                     ; Buffer for fout
 NUMSTR       $FBE8                $F69B           ; NUMBER STRING STORED HERE WHEN $470B (M100) IS CALLED
-DECTMP       $FC12
-DECTM2       $FC14
-DECCNT       $FC16
+DECTMP       $FC12      $FC24
+DECTM2       $FC14      $FC26
+DECCNT       $FC16      $FC28
 FACCU        $FC18      $FC2A     $F6CB   $FB2A   ; Start of FAC1 for single (4) and double (8) precision number (aka FACCU)
 FACLOW       $FC1A      $FC2C     $F6CD   $FB28   ; Start of FAC1 for integers
 HOLD8        $FC28      $FC3A                     ; (48 bytes) Double precision operations work area
@@ -283,7 +283,7 @@ HOLD2        $FC58      $FC6A                     ; (8 bytes)
 HOLD         $FC60      $FC72                     ; (9 bytes)
 ARG          $FC69      $FC7B     $F71C           ; a.k.a. FAC2, Start for FAC2 for single (4) and double (8) precision numbers
 ARG_INT      $FC6B      $FC7D     $F71E           ; Start of FAC2 for integers
-RNDX         $FC79      $FC8B             $F426   ; PTR to value to initialize the "last random number" variable
+RNDX         $FC79      $FC8B     $F72C   $F426   ; PTR to value to initialize the "last random number" variable
 SEEDRD       $FC7A      $FC8C     $F72D
 
 MAXFIL       $FC82      $FC94     $F735           ; Maximum number of open files
