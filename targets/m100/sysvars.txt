@@ -1,13 +1,16 @@
 FN           M100/M102  KC85/M10  T200   PC8201
 --------------------------------------------------------------------------------------------------------------------------------
-MAXRAM       $F5F0                $EEB0
-HIMEM        $F5F4                $EEB4
-BARCODE      $F5F9                $EEB9           ; reached from RST55
-UART         $F5FC                $EEBF           ; reached from RST65
-TIMER        $F5FF                $EEC2           ; reached from RST75
-_TRAP        $F602                                ; Reached from TRAP
-EXTROM_TST   $F605
-OPTROM       $F62A                                ; Option ROM flag (0=no opt. ROM)
+MAXRAM       $F5F0      $F5F0     $EEB0
+ATIDSV       $F5F2      $F5F2
+HIMEM        $F5F4      $F5F4     $EEB4
+BOOT_VECT    $F5F6      $F5F6
+BARCODE      $F5F9      $F5F9     $EEB9           ; reached from RST55
+UART         $F5FC      $F5FC     $EEBF           ; reached from RST65
+TIMER        $F5FF      $F5FF     $EEC2           ; reached from RST75
+_TRAP        $F602      $F602                     ; Reached from TRAP
+EXTROM_TST   $F605      $F605
+OPTROM       $F62A      $F62A     $EEF3   $F3BF   ; Option ROM flag (0=no opt. ROM)
+
 DIAL_SPEED   $F62B                $EEF4           ; Dial speed (1, or 2 for 10 or 20 pps)
 BNK1         n/a                  $EEF5           ; RAM Location in bank #1 of the active bank.
 
@@ -28,17 +31,18 @@ CSR_COL      $F641      $F648     $EF0E   $F3ED   ; Cursor Column (1-40)
 ESCCNT       $F646      $F64D     $EF13   $F3F2   ; ESCape mode flag for RST 20H (0-normal video, not zero-ESCape mode)
 ESCSAV       $F647      $F64E     $EF14   $F3F3   ; ESCape mode flag for RST 20H (0-normal video, not zero-ESCape mode)
 REVERSE      $F648      $F64F     $EF15   $F3F4   ; Reverse video switch (0=off)
-TXT_WIDTH    $F649      $F650
+
+TXT_WIDTH    $F649      $F650     $EF2B
 TXT_ASKBUF   $F64A      $F651
 GR_X         $F64E      $F655                     ; X coordinate of last graphic point plotted
 GR_Y         $F64F      $F656                     ; Y coordinate of last graphic point plotted
-FNK_FLAG     $F650      $F657             $F3FC   ; Top FN key row enable flag (incl. BREAK)
-EDITMODE     $F651      $F658             $F3FD   ; "Editor mode" flag
+FNK_FLAG     $F650      $F657     $EF32   $F3FC   ; Top FN key row enable flag (incl. BREAK)
+EDITMODE     $F651      $F658     $FB6C   $F3FD   ; "Editor mode" flag
 ERRTRP       $F652      $F659     $EF34   $F3FE
-ONGSBF       $F654      $F65B                     ; ON GOSUB flag
+ONGSBF       $F654      $F65B     $EF36           ; ON GOSUB flag
 ONDATEF      $F655      $F65C
 POWR_FLAG    $F656      $F65D     $EF37   $F401   ; Power off exit condition switch (0 = keep program, 1 = jump to menu when power is turned on)
-PWRINT       $F657      $F65E
+PWRINT       $F657      $F65E     $EF38   $F402
 DUPLEX       $F658      $F65F     $EF39           ; Full/half duplex switch (0-half duplex)
 ECHO         $F659      $F660                     ; Terminal flag for 'echo' switch
 RS232LF      $F65A      $F661     $EF3B           ; Auto linefeed on RS232 output switch (0=off)
@@ -50,42 +54,48 @@ OTPORT       $F668      $F66F     $EF53   $F414
 _INP         $F66A      $F671     $EF55           ; Called on INP function
 INPORT       $F66B      $F672     $EF56   $F44C
 ERR_CODE     $F672      $F679     $EF5D   $F453   ; Error code of last error
-LPT_POS      $F674      $F67B     $EF5F   $F455   ; Line printer head position
+LPTPOS       $F674      $F67B     $EF5F   $F455   ; Line printer head position
 PRTFLG       $F675      $F67C     $EF60   $F456   ; Current device (screen/printer)
 CLMLST       $F676      $F67D     $EF61   $F457   ; Column space
 STRBUF       $F678      $F67F     $EF63   $F459   ; Start of string buffer for BASIC
 CURLIN       $F67A      $F681     $EF65   $F45B   ; Current executing line number, FFFFH if no program running.
 
-BASTXT       $F67C      $F683     $EF67   $F45D   ; Start of BASIC program pointer
-VLZADR       $F67E
 
+BASTXT       $F67C      $F683     $EF67   $F45D   ; Start of BASIC program pointer
+VLZADR       $F67E      $F685     $EF69   $F45F
 BUFFER       $F680      $F687     $EF6B   $F461
 INPBFR       $F681      $F688     $EF6C   $F462
-BUFMIN       $F684      $F68B     $EF6F
+BUFMIN       $F684      $F68B     $EF6F   $F5A0
 KBUF         $F685      $F68C     $EF70           ; Input line buffer
 
-SAVE_CSRX    $F6E7      $F6EE
-STRG_ASKBUF             $F726
-TXT_ESCADDR             $F76C
-CUR_TXTFILE             $F76E
-ENDBUF                  $F78E
+EDTVARS      $F6DF      $F6E6
+TXT_ERRFLG   $F6E1      $F6E8     $EFCC   $F4FB   ; (EDTVARS+2)
+TXT_SEL_BEG  $F6E2      $F6E9     $EFCD   $F4FC
+TXT_SEL_END  $F6E4      $F6EB     $EFCF   $F4FE
+TXT_BUFLAG   $F6E6      $F6ED     $EFD1   $F500
 
-TTYPOS       $F788                $F073           ; Current horizontal position of cursor (0-39)
-FNKSTR       $F789                $F074           ; Function key definition area (128), also status bar
-             $F809                                ; end of FN key area        
-FILETYPE                $F810             $F745
-IPLBBUF                 $F811
+SAVE_CSRX    $F6E7      $F6EE
+STRG_ASKBUF  $F71F      $F726
+TXT_ESCADDR  $F765      $F76C
+CUR_TXTFILE  $F767      $F76E
+ENDBUF       $F787      $F78E
+TTYPOS       $F788      $F78F     $F073           ; Current horizontal position of cursor (0-39)
+FNKSTR       $F789      $F790     $F074           ; Function key definition area (128), also status bar
+FILETYPE     $F809      $F810            $F745    ; also end of FN key area  
+IPLBBUF      $F80A      $F811     $F0F5  $F7E6
+
 SHFT_PRINT   $F88A      $F891
-PERM_END     $F88C                                ; (also PASTE_BUF), end of used RAM for permanent storage (no vars, buffers etc..)
+PERM_END     $F88C      $F893     $F177  F462h    ; (also PASTE_BUF), end of used RAM for permanent storage (no vars, buffers etc..)
 TXT_SAVPTR   $F88E      $F895
 TXT_COUNT    $F890      $F897
 TXT_PTR      $F892      $F899
 TXT_BUF      $F894      $F89B
 WWRAP                             $F20D           ; Word wrap (0=no word wrap, 1=word wrap)
 
-TXT_EDITING  $F920      $F927
-BASICMODE    $F921      $F928
-TRM_WIDTH    $F922      $F929
+TXT_EDITING  $F920      $F927     $F20B
+BASICMODE    $F921      $F928     $F20C
+TRM_WIDTH    $F922      $F929     $F20D
+
 SECS         $F923      $F92A     $F212           ; Seconds (ones)
 SECS_2       $F924      $F92B     $F213           ; Seconds (tens)
 MINS         $F925      $F92C     $F214           ; Minutes (ones)
@@ -99,9 +109,9 @@ MONTH        $F92C      $F933     $F21B           ; Current month (1-12) (M100 1
 YEAR         $F92D      $F934     $F21D           ; Year (ones)
 YEAR_2       $F92E      $F935     $F21E           ; Year (tens)
 CSRITP       $F92F      $F936     $F21F
-TIMCN2       $F930      $F937
-TIMINT       $F931      $F938
-TMOFLG       $F932      $F939
+TIMCN2       $F930      $F937     $F220   $F83F
+TIMINT       $F931      $F938     $F221   $F840
+TMOFLG       $F932      $F939     $F222   $F841
 CLOCK_SS1    $F933      $F93A     $F223           ; Seconds (ones)
 CLOCK_SS2    $F934      $F93B     $F224           ; Seconds (tens)
 CLOCK_MM1    $F935      $F93C     $F225           ; Minutes (ones)
@@ -126,29 +136,41 @@ SCHDIR       $F98E   $F97F/$F995          $F865
 SUZUKI       $F99A   $F98B/$F9A1  $F295   $F871   ; Address of current BASIC program not saved
 HAYASHI      $F9A5   $F996/$F9AC  $F2A0   $F87C   ; Start of Paste buffer
 EDTDIR       $F9B0   $F9A1/$F9B7          $F887
-USRDIR       $F9BA      $F9C1     $F891
-END_DIR      $FA81      $FA80     $F371
+USRDIR       $F9BA      $F9C1     $F2B5   $F891
+END_DIR      $FA81      $FA80     
+DIRPNT       $FA8C      $FA93     $F4BB   $F979
+CASPRV       $FA8E      $FA95
+COMPRV       $FA8F      $FA96
+RAMPRV       $FA91      $FA98
+PASPRV       $FAA1      $FAA8
+RAMFILE      $FAA2      $FAA9
+OPTROM_SIG   $FAA4      $FAAB     $F4D3   $F991
 
 LPRINT_CH    $FAAC      $FAB3                     ; ASCII character last output to printer                 
-LBL_LINE     $FAAD      $FAB4     $EF0A           ; Label line enable flag (0=not enabled)
+LBL_LINE     $FAAD      $FAB4     $F4DC           ; Label line enable flag (0=not enabled)
 PORT_A8      $FAAE      $FAB5                     ; Contents of port 0A8H                
 IPL_FNAME    $FAAF      $FAB6     $F4DD           ; Start of IPL filename
 LBLIST       $FABA      $FAC1     $F4E8   $F9AA   ; Address where last BASIC list started
 LBEDIT       $FABC      $FAC3             $F9AC
-STAKSV       $FABE      $FAC5     $F4EC           ; Storage for stack pointer on power up/down
+STAKSV       $FABE      $FAC5     $F4EC   $F9AE   ; Storage for stack pointer on power up/down
 RAM          $FAC0      $FAC7     $F665   $F9B0   ; ?
 CAPTUR       $FAC2      $FAC9     $F4F0           ; Lowest RAM memory address used by system ($8000 if 32K RAM)
+SV_TXTPOS    $FAC4      $FACB
+FNAME_END    $FAC6      $FACD
+CRTFLG       $FAC7      $FACE     $F4F5
+MENU_FLG     $FAC8      $FACF     $F4F6
 RST38_OFFS   $FAC9      $FAD0     $F4F7           ;Offset of last RST 38H call
 SV_CSRY      $FACA      $FAD1
-BLINK        $FACB      $FAD2
-SV_LABEL_LN  $FACC      $FAD3
+BLINK        $FACB      $FAD2             $F4FC
+SV_LABEL_LN  $FACC      $FAD3             $F4FE
+LPT_FLAG     $FACD
 TOP          $FACE      $FAD4     $F4FF
 PRLEN        $FAD0      $FAD6     $F4FD           ; Length of last program loaded or saved on tape
 EXE          $FAD2      $FAD8     $F4FF
 RAM_FILES    $FAD8      $FADE
 
 ;-----------------------------------------------------------------------------------------------
-RST38_VECT   $FADA      $FAE0     $F507           ; Start of RST 38H vector table (256). offset: 00, used by __CLEAR
+RST38_VECT   $FADA      $FAE0     $F507   $F9CC   ; Start of RST 38H vector table (256). offset: 00, used by __CLEAR
 MAXRAM_VECT  $FADC                                ; offset: 02
 HCHGE        $FADE                                ; offset: 04
 HCHSNS       $FAE0                                ; offset: 06
@@ -207,15 +229,16 @@ HLOAD        $FB38                                ; offset: 94, Hook for "LOAD"
 ;-----------------------------------------------------------------------------------------------
 
 DIMFLG       $FB64      $FB76     $F617   $FA8A   ; Create/Locate switch for variables (Locate=0, Create>0)
-VALTYP       $FB65      $FB77     $F618           ; Variable type in use (2-Integer, 3-String, 4-Single Precision, 5-Double Precision)
-OPRTYP       $FB66      $FB78     $F619           ; Temp operator number operations, also used as "DORES" by the (de)tokenizer
-FILE_BUFFR   $FB67      $FB79     $F61A           ; Start address for file buffer area
+VALTYP       $FB65      $FB77     $F618   $FA8B   ; Variable type in use (2-Integer, 3-String, 4-Single Precision, 5-Double Precision)
+OPRTYP       $FB66      $FB78     $F619   $FA8C   ; Temp operator number operations, also used as "DORES" by the (de)tokenizer
+
+MEMSIZ       $FB67      $FB79     $F61A   $FA9A   ; Start address for file buffer area
 TEMPPT       $FB69      $FB7B     $F61C   $FA9C
 TEMPST       $FB6B      $FB7D     $F61E   $FA9E   ; Temporary descriptors
-BUFFER       $FB88                        $F461
+
 TMPSTR       $FB89      $FB9B     $F63C   $FABC
-FRETOP       $FB8C
-ENDFOR       $FB92                                ; NEXT address of FOR statement
+FRETOP       $FB8C      $FB9E     $F63F   $FABF
+ENDFOR       $FB92      $FBA4     $F646   $FAC5   ; NEXT address of FOR statement
 DATLIN       $FB94      $FBA6     $F647   $FAC7   ; Line number of current data statement
 SUBFLG       $FB96      $FBA8     $F649   $FAC9   ; Flag for array for USR fn, 0 if no FOR/NEXT loop in progress, etc..
 FLGINP       $FB98      $FBAA     $F64B   $FACA
@@ -233,50 +256,82 @@ OLDLIN       $FBAA      $FBBC     $FB5D   $FADD   ; Line where last break, END, 
 OLDTXT       $FBAC      $FBBE     $FB5F   $FADF   ; Address where program stoped on last break, END, or STOP (to be executed next)
 DO_FILES     $FBAE      $FBC0     $F661   $FAE1   ; Pointer to the start of the DO files and end of the BA files.
 CO_FILES     $FBB0      $FBC2     $F663   $FAE3
-PROGND       $FBB2      $FBC4     $F665   $FAE5
+VARTAB       $FBB2      $FBC4     $F665   $FAE5   ; BASIC program end ptr (a.k.a. PROGND, Simple Variables)
 VAREND       $FBB4      $FBC6     $F667   $FAE7   ; start of array vars (aka ARYTAB)
 ARREND       $FBB6      $FBC8     $F669   $FAE9   ; free RAM
 DATPTR       $FBB8      $FBCA     $F66B   $FAEB   ; Address where DATA search will begin on next READ statement
 DEFTBL       $FBBA      $FBCC     $F66D   $FAED   ; 26 byte table for default variable types declared by the DEF statement
-PRMSTK       $FBD4      $FBE6     $F687   $FB07
-PRMLEN       $FBD6      $FBE8     $F689   $FB09
-PRMLN2       $FBDB      $FBED     $F68E   $FB0E
-NOFUNS       $FBE1      $FBF3     $F694   $FB14
-FUNACT       $FBE4      $FBF6     $F697   $FB17
+PRMSTK       $FBD4      $FBE6     $F687   $FB07   ; Previous block definition on stack
+PRMLEN       $FBD6      $FBE8     $F689   $FB09   ; Number of bytes of obj table
+PRMPRV       $FBD9      $FBEB     $F68C   $FB0C   ; Pointer to previous parameter block
+PRMLN2       $FBDB      $FBED     $F68E   $FB0E   ; Flag to indicate whether PARM1 was searching
+
+PRMFLG       $FBE0   $FBF2/$FBF0                  ; Flag to indicate whether PARM1 was searching
+NOFUNS       $FBE1      $FBF3     $F694   $FB14   ; 0 if no function active
+TEMP9        $FBE2      $FBF4                     ; Location of temporary storage for garbage collection
+FUNACT       $FBE4      $FBF6     $F697   $FB17   ; Active functions counter
 VLZDAT       $FBE6
 FBUFFR       $FBE7                                ; Buffer for fout
 NUMSTR       $FBE8                $F69B           ; NUMBER STRING STORED HERE WHEN $470B (M100) IS CALLED
-
+DECTMP       $FC12
+DECTM2       $FC14
+DECCNT       $FC16
 FACCU        $FC18      $FC2A     $F6CB   $FB2A   ; Start of FAC1 for single (4) and double (8) precision number (aka FACCU)
-DBL_FPREG    $FC1A      $FC2C     $F6CD   $FB28   ; Start of FAC1 for integers (aka FACLOW)
-HOLD         $FC60
-ARG          $FC69                $F71C           ; a.k.a. FAC2, Start for FAC2 for single (4) and double (8) precision numbers
-FAC2_INT     $FC6B                $F71E           ; Start of FAC2 for integers
-RNDX         $FC79
+FACLOW       $FC1A      $FC2C     $F6CD   $FB28   ; Start of FAC1 for integers
+HOLD8        $FC28      $FC3A                     ; (48 bytes) Double precision operations work area
+HOLD2        $FC58      $FC6A                     ; (8 bytes)
+HOLD         $FC60      $FC72                     ; (9 bytes)
+ARG          $FC69      $FC7B     $F71C           ; a.k.a. FAC2, Start for FAC2 for single (4) and double (8) precision numbers
+ARG_INT      $FC6B      $FC7D     $F71E           ; Start of FAC2 for integers
+RNDX         $FC79      $FC8B             $F426   ; PTR to value to initialize the "last random number" variable
 SEEDRD       $FC7A      $FC8C     $F72D
+
 MAXFIL       $FC82      $FC94     $F735           ; Maximum number of open files
-FILTAB       $FC83      $FC95     $F736           ; Pointer to the 30 byte file number description pointer table, each entry points to the actual file table
+FILTAB       $FC83      $FC95     $F736   $FB63   ; Pointer to the 30 byte file number description pointer table, each entry points to the actual file table
 PTRFIL       $FC8C      $FC9E     $F73F           ; Pointer to the file description table for the last file used / current file
 FILFLG       $FC92      $FCA4
 FILNAM       $FC93      $FCA5     $F746           ; Area for file names / Filename of current BASIC program
 FILNM2       $FC9C      $FCAE     $F74F           ; Filename of last program loaded from tape
 NLONLY       $FCA7      $FCB9                     ; FLAG: an empty line was input (<> 0 when loading program)
 
-ALT_LCD      $FCC0                $F7B0           ; Start of alternate LCD character buffer (M100=320, M200=640)
-ALT_LCD_END  $FDFF                $FA2F           ; End of alternate LCD character buffer
+ALT_LCD      $FCC0      $FCC0     $F7B0           ; Start of alternate LCD character buffer (M100=320, M200=640)
+ALT_LCD_END  $FDFF      $FDFF     $FA2F           ; End of alternate LCD character buffer
+MENUVARS     $FDD7      $FDD7     $FF4F
+SV_SCREEN    $FDFA      $FDFA             $F59C
 
 BEGLCD       $FE00      $FE00     $FA30           ; Begin of LCD memory (M100=320, M200=640)
-ENDLCD       $FF40      $FF40     $FCF0           ; End of LCD memory (8x40)
-ENDLCD_M200   n/a       $FCAF      n/a     n/a    ; End of LCD memory (M200 only, 16x40)
+ENDLCD       $FF40      $FF40     $FCF0   $FE40   ; End of LCD memory
+XONXOFF      $FF41      $FF41     $FCF1   $FE41
+XONXOFF_FLG  $FF42      $FF42     $FCF2   $FE42   ; XON/XOFF enable flag.(0=disabled)
+RS232_FLG    $FF43      $FF43
+SOUND_FLG    $FF44      $FF44     $FCF4           ; Sound flag (0=on).
+ROMSEL       $FF45      $FF46
 
-XONXOFF      $FF42                $FCF2           ; XON/XOFF enable flag.(0=disabled)
-SOUND_FLG    $FF44                $FCF4           ; Sound flag (0=on).
-PORT_E8      $FF45                                ; Contents of port 0E8H
-RS232_BUF    $FF46                $F764           ; Start of 64 character RS232 buffer
-RS232_COUNT  $FF86                $F7A4           ; Number of characters in RS232_BUF if 40 characters -> CTRL-S
-CTRL_S_FLG   $FF8A                                ; 1 = CTRL-S pressed
-CASS_FREQ    $FF8B                                ; High or low cassette level trigger flag for CASS_PROBE
-CASS_HILO    $FF8E
+RS232_BUF    $FF46   $FFBE/$FFA1  $FFBB           ; Start of 64 character RS232 buffer
+RS232_COUNT  $FF86      $FF47     $FCF5   $FE45   ; Number of characters in RS232_BUF if 40 characters -> CTRL-S
+CTRL_S_FLG   $FF8A      $FF4B       --    $F9B7
+RS232_BAUD   $FF8B      $FF4C
+COMMSK       $FF8D      $FF4E
+CASS_HILO    $FF8E      $FF4F
+KBSITP       $FF8F      $FF50
+REPCNT       $FF90      $FF51
+KYDATA       $FF91      $FF52
+
+KB_SHIFT     $FFA2   $FF63/$FF65
+KYHOW        $FFA3   $FF64/$FF66
+KYREPT       $FFA4   $FF65/$FF67
+KYWHAT       $FFA5   $FF66/$FF68
+KYBCNT       $FFAA   $FF6B/$FF6D
+KYRDBF       $FFAB   $FF6C/$FF6E
+BRKCHR       $FFEB   $FFAC/$FF8E
+SHAPE        $FFEC   $FFAD/$FF90
+CSRSTS       $FFF2   $FFB3/$FF96
+CSRCNT       $FFF3   $FFB4/$FF97
+LCD_ADDR     $FFF4   $FFB5/$FF98
+GFX_TEMP     $FFF6   $FFB7/$FF9A
+SAVSP        $FFF8   $FFB9/$FF9C
+IOFLAGS      $FFFA   $FFBB/$FF9E
+
 KBSITP       $FF8F                $FD03
 KB_FLAGS     $FF97                                ; 8 bits for storing space, del, tab, esc, paste, label, print and enter key recognition.
 KB_FNK       $FF98                                ; 8 bits for storing function key recognition
@@ -285,4 +340,4 @@ KB_SHIFT     $FFA2                $FD16           ; 8 bits for storing shift, ct
 GETPNT       $FFAA                $FD1E           ; Number of characters in keyboard buffer.
 PUTPNT       $FFAB                $FD1F           ; Start of keyboard typeahead buffer
 
-CURS_SHAPE   $FFEC  $FFAD/$FF90           $FEAB   ; Start of 5 byte table describing the bit pattern currently under the cursor (used also as byte buffer by PLOT/UNPLOT)
+SHAPE        $FFEC   $FFAD/$FF90          $FEAB   ; Start of 5 byte table describing the bit pattern currently under the cursor (used also as byte buffer by PLOT/UNPLOT)
