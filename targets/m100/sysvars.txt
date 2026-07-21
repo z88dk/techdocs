@@ -45,7 +45,7 @@ POWR_FLAG    $F656      $F65D     $EF37   $F401   ; Power off exit condition swi
 PWRINT       $F657      $F65E     $EF38   $F402
 DUPLEX       $F658      $F65F     $EF39   $F403   ; Full/half duplex switch (0-half duplex)
 ECHO         $F659      $F660     $EF3A   $F404   ; Terminal flag for 'echo' switch
-RS232LF      $F65A      $F661     $EF3B           ; Auto linefeed on RS232 output switch (0=off)
+RS232LF      $F65A      $F661     $EF3B   $F405   ; Auto linefeed on RS232 output switch (0=off)
 STAT         $F65B      $F662     $EF3C           ; Start of textual RS232 parameter setting buffer
 PIVOTCALL    $F660      $F667     $EF48   $F40C   ; Self modifying address called on CALL statement
 LASTCALL     $F661      $F668     $EF49   $F40D   ; Address last called
@@ -64,37 +64,37 @@ CURLIN       $F67A      $F681     $EF65   $F45B   ; Current executing line numbe
 BASTXT       $F67C      $F683     $EF67   $F45D   ; Start of BASIC program pointer
 VLZADR       $F67E      $F685     $EF69   $F45F
 BUFFER       $F680      $F687     $EF6B   $F461
-INPBFR       $F681      $F688     $EF6C   $F462
+INPBFR       $F681      $F688     $EF6C   $F462   ; = PASTE_BUF on PC8201 !!
 BUFMIN       $F684      $F68B     $EF6F   $F5A0
 KBUF         $F685      $F68C     $EF70   $F5A1   ; Input line buffer
 
-EDTVARS      $F6DF      $F6E6
+EDTVARS      $F6DF      $F6E6     $EFCA   $F4F9
 TXT_ERRFLG   $F6E1      $F6E8     $EFCC   $F4FB   ; (EDTVARS+2)
 TXT_SEL_BEG  $F6E2      $F6E9     $EFCD   $F4FC
 TXT_SEL_END  $F6E4      $F6EB     $EFCF   $F4FE
 TXT_BUFLAG   $F6E6      $F6ED     $EFD1   $F500
 
-SAVE_CSRX    $F6E7      $F6EE
-STRG_ASKBUF  $F71F      $F726
-TXT_ESCADDR  $F765      $F76C
-CUR_TXTFILE  $F767      $F76E
-ENDBUF       $F787      $F78E
-TTYPOS       $F788      $F78F     $F073  $F6A4    ; Current horizontal position of cursor (0-39)
-FNKSTR       $F789      $F790     $F074           ; Function key definition area (128), also status bar
-FILETYPE     $F809      $F810            $F745    ; also end of FN key area  
-IPLBBUF      $F80A      $F811     $F0F5  $F7E6
+SAVE_CSRX    $F6E7      $F6EE     $EFD2   $F501
+STRG_ASKBUF  $F71F      $F726     $F00A   $F53B
+TXT_ESCADDR  $F765      $F76C     $F050   $F581
+CUR_TXTFILE  $F767      $F76E     $F052   $F583
+ENDBUF       $F787      $F78E     $F072   $F5A3
+TTYPOS       $F788      $F78F     $F073   $F6A4   ; Current horizontal position of cursor (0-39)
+FNKSTR       $F789      $F790     $F074   $F685   ; Function key definition area (128, 192 on PC8201), also status bar
+FILETYPE     $F809      $F810     $F0F4   $F745   ; also end of FN key area (not on PC8201)
+IPLBBUF      $F80A      $F811     $F0F5   $F7E6
 
-SHFT_PRINT   $F88A      $F891
-PERM_END     $F88C      $F893     $F177  F462h    ; (also PASTE_BUF), end of used RAM for permanent storage (no vars, buffers etc..)
-TXT_SAVPTR   $F88E      $F895
-TXT_COUNT    $F890      $F897
-TXT_PTR      $F892      $F899
-TXT_BUF      $F894      $F89B
+SHFT_PRINT   $F88A      $F891     $F175
+PERM_END     $F88C      $F893     $F177   $F462   ; (also PASTE_BUF), end of used RAM for permanent storage (no vars, buffers etc..)
+TXT_SAVPTR   $F88E      $F895     $F179   $F464
+TXT_COUNT    $F890      $F897     $F17B   $F466
+TXT_PTR      $F892      $F899     $F17D   $F468
+TXT_BUF      $F894      $F89B     $F17F   $F46A
 WWRAP                             $F20D           ; Word wrap (0=no word wrap, 1=word wrap)
 
-TXT_EDITING  $F920      $F927     $F20B
-BASICMODE    $F921      $F928     $F20C
-TRM_WIDTH    $F922      $F929     $F20D
+TXT_EDITING  $F920      $F927     $F20B   $F4F6
+BASICMODE    $F921      $F928     $F20C   $F4F7
+TRM_WIDTH    $F922      $F929     $F20D   $F4F8
 
 SECS         $F923      $F92A     $F212           ; Seconds (ones)
 SECS_2       $F924      $F92B     $F213           ; Seconds (tens)
@@ -166,7 +166,7 @@ MENU_FLG     $FAC8      $FACF     $F4F6
 RST38_OFFS   $FAC9      $FAD0     $F4F7           ;Offset of last RST 38H call
 SV_CSRY      $FACA      $FAD1
 BLINK        $FACB      $FAD2             $F4FC
-SV_LABEL_LN  $FACC      $FAD3             $F4FE
+SV_LABEL_LN  $FACC      $FAD3     $F4FA   $F4FE
 LPT_FLAG     $FACD
 TOP          $FACE      $FAD4     $F4FF   $F9C0
 PRLEN        $FAD0      $FAD6     $F4FD   $F9C2   ; Length of last program loaded or saved on tape
