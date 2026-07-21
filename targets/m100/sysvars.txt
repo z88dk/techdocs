@@ -1,9 +1,9 @@
 FN           M100/M102  KC85/M10  T200   PC8201
 --------------------------------------------------------------------------------------------------------------------------------
 MAXRAM       $F5F0      $F5F0     $EEB0   $F380
-ATIDSV       $F5F2      $F5F2
+ATIDSV       $F5F2      $F5F2     $EEB2   $F382
 HIMEM        $F5F4      $F5F4     $EEB4   $F384
-BOOT_VECT    $F5F6      $F5F6
+BOOT_VECT    $F5F6      $F5F6     $EEB6   $F386   ; ..enter here with CALL BOOT_VECT
 BARCODE      $F5F9      $F5F9     $EEB9           ; reached from RST55
 UART         $F5FC      $F5FC     $EEBF           ; reached from RST65
 TIMER        $F5FF      $F5FF     $EEC2           ; reached from RST75
@@ -12,7 +12,7 @@ EXTROM_TST   $F605      $F605
 OPTROM       $F62A      $F62A     $EEF3   $F3BF   ; Option ROM flag (0=no opt. ROM)
 
 DIAL_SPEED   $F62B                $EEF4           ; Dial speed (1, or 2 for 10 or 20 pps)
-BNK1         n/a                  $EEF5           ; RAM Location in bank #1 of the active bank.
+BNK1         n/a                  $EEF5           ; RAM Location in bank #1 of the active bank (port $d8)
 
 FNKPNT       $F62C      $F633     $EEF9   $F3E0
 PASPNT       $F62E      $F635     $EEFB   $F3E2
@@ -34,20 +34,20 @@ REVERSE      $F648      $F64F     $EF15   $F3F4   ; Reverse video switch (0=off)
 
 TXT_WIDTH    $F649      $F650     $EF2B
 TXT_ASKBUF   $F64A      $F651
-GR_X         $F64E      $F655                     ; X coordinate of last graphic point plotted
-GR_Y         $F64F      $F656                     ; Y coordinate of last graphic point plotted
+GR_X         $F64E      $F655     $EF30   $F3FA   ; X coordinate of last graphic point plotted
+GR_Y         $F64F      $F656     $EF31   $F3FB   ; Y coordinate of last graphic point plotted
 FNK_FLAG     $F650      $F657     $EF32   $F3FC   ; Top FN key row enable flag (incl. BREAK)
 EDITMODE     $F651      $F658     $FB6C   $F3FD   ; "Editor mode" flag
 ERRTRP       $F652      $F659     $EF34   $F3FE
-ONGSBF       $F654      $F65B     $EF36           ; ON GOSUB flag
-ONDATEF      $F655      $F65C
+ONGSBF       $F654      $F65B     $EF36    n/a    ; ON GOSUB flag
+ONDATEF      $F655      $F65C      n/a     n/a
 POWR_FLAG    $F656      $F65D     $EF37   $F401   ; Power off exit condition switch (0 = keep program, 1 = jump to menu when power is turned on)
 PWRINT       $F657      $F65E     $EF38   $F402
 DUPLEX       $F658      $F65F     $EF39   $F403   ; Full/half duplex switch (0-half duplex)
 ECHO         $F659      $F660     $EF3A   $F404   ; Terminal flag for 'echo' switch
 RS232LF      $F65A      $F661     $EF3B           ; Auto linefeed on RS232 output switch (0=off)
 STAT         $F65B      $F662     $EF3C           ; Start of textual RS232 parameter setting buffer
-PIVOTCALL    $F660      $F667                     ; Self modifying address called on CALL statement
+PIVOTCALL    $F660      $F667     $EF2F   $F40C   ; Self modifying address called on CALL statement
 LASTCALL     $F661      $F668     $EF49           ; Address last called
 _OUT         $F667      $F66E     $EF52           ; Called on OUT statement
 OTPORT       $F668      $F66F     $EF53   $F414
@@ -139,17 +139,20 @@ EDTDIR       $F9B0   $F9A1/$F9B7          $F887
 USRDIR       $F9BA      $F9C1     $F2B5   $F891
 END_DIR      $FA81      $FA80     
 DIRPNT       $FA8C      $FA93     $F4BB   $F979
-CASPRV       $FA8E      $FA95             $F97B
-COMPRV       $FA8F      $FA96             $F97C
+CASPRV       $FA8E      $FA95     $F4BD   $F97B
+COMPRV       $FA8F      $FA96     $F4BE   $F97C
 RAMPRV       $FA91      $FA98     $F4C0   $F97E
 
 PASPRV       $FAA1      $FAA8     $F4D0   $F98E
 RAMFILE      $FAA2      $FAA9     $F4D1   $F98F
-OPTROM_SIG   $FAA4      $FAAB     $F4D3   $F991
+OPTROM_SIG   $FAA4      $FAAB     $F4D3   $F991   ; Optional ROM signature.  'TC' in M100/M200, 'AB' otherwise
 
-LPRINT_CH    $FAAC      $FAB3                     ; ASCII character last output to printer                 
+LPRINT_CH    $FAAC      $FAB3                     ; ASCII character last output to printer
 LBL_LINE     $FAAD      $FAB4     $F4DC           ; Label line enable flag (0=not enabled)
-PORT_A8      $FAAE      $FAB5                     ; Contents of port 0A8H                
+PORT_A8      $FAAE      $FAB5                     ; Contents of port 0A8H
+PORT_E8                           $FCFF           ; Contents of port 0E8H (M200)
+
+
 IPL_FNAME    $FAAF      $FAB6     $F4DD           ; Start of IPL filename
 LBLIST       $FABA      $FAC1     $F4E8   $F9AA   ; Address where last BASIC list started
 LBEDIT       $FABC      $FAC3             $F9AC
@@ -259,7 +262,7 @@ ERRLIN       $FB9F      $FBB1     $F652   $FAD2   ; Line number of last error
 DOT          $FBA1      $FBB3     $F654   $FAD4   ; Most recent used or entered line number
 ERRTXT       $FBA3      $FBB5     $F656   $FAD6   ; Pointer of where error occured
 ONELIN       $FBA5      $FBB7     $FB58   $FAD8   ; Address for ON ERROR routine
-ONEFLG       $FBA7      $FBB9     $FB5A   $FADA   ; Address for ON ERROR routine
+ONEFLG       $FBA7      $FBB9     $FB5A   $FADA   ; ON ERROR status flag
 NXTOPR       $FBA8      $FBBA     $F65B   $FADB   ; Next operator in EVAL
 OLDLIN       $FBAA      $FBBC     $FB5D   $FADD   ; Line where last break, END, or STOP occured
 OLDTXT       $FBAC      $FBBE     $FB5F   $FADF   ; Address where program stoped on last break, END, or STOP (to be executed next)
@@ -306,7 +309,7 @@ NLONLY       $FCA7      $FCB9                     ; FLAG: an empty line was inpu
 ALT_LCD      $FCC0      $FCC0     $F7B0           ; Start of alternate LCD character buffer (M100=320, M200=640)
 ALT_LCD_END  $FDFF      $FDFF     $FA2F           ; End of alternate LCD character buffer
 MENUVARS     $FDD7      $FDD7     $FF4F
-SV_SCREEN    $FDFA      $FDFA             $F59C
+SV_SCREEN    $FDFA      $FDFA     $F854   $F59C
 
 BEGLCD       $FE00      $FE00     $FA30           ; Begin of LCD memory (M100=320, M200=640)
 ENDLCD       $FF40      $FF40     $FCF0   $FE40   ; End of LCD memory
@@ -328,14 +331,14 @@ KYDATA       $FF91      $FF52
 
 KB_SHIFT     $FFA2   $FF63/$FF65  $FD16           ; 8 bits for storing shift, ctrl, grph, code, num, and caps lock
 KYHOW        $FFA3   $FF64/$FF66
-KYREPT       $FFA4   $FF65/$FF67
+KYREPT       $FFA4   $FF65/$FF67                  ; a.k.a. SCNCNT on MSX, wait count for repeat
 KYWHAT       $FFA5   $FF66/$FF68
 KYBCNT       $FFAA   $FF6B/$FF6D  $FD1E   $FE68   ; Number of characters in keyboard buffer.
 KYRDBF       $FFAB   $FF6C/$FF6E  $FD1F           ; Start of keyboard typeahead buffer
 BRKCHR       $FFEB   $FFAC/$FF8E
 SHAPE        $FFEC   $FFAD/$FF90          $FEAB   ; Start of 5 byte table describing the bit pattern currently under the cursor (used also as byte buffer by PLOT/UNPLOT)
 CSRSTS       $FFF2   $FFB3/$FF96
-CSRCNT       $FFF3   $FFB4/$FF97
+CSRCNT       $FFF3   $FFB4/$FF97                  ; Set time til next cursor blink
 LCD_ADDR     $FFF4   $FFB5/$FF98
 GFX_TEMP     $FFF6   $FFB7/$FF9A
 SAVSP        $FFF8   $FFB9/$FF9C
