@@ -322,18 +322,18 @@ CTRL_S_FLG   $FF8A      $FF4B       --    $F9B7
 RS232_BAUD   $FF8B      $FF4C
 COMMSK       $FF8D      $FF4E
 CASS_HILO    $FF8E      $FF4F
-KBSITP       $FF8F      $FF50
+KBSITP       $FF8F      $FF50     $FD03
 REPCNT       $FF90      $FF51
 KYDATA       $FF91      $FF52
 
-KB_SHIFT     $FFA2   $FF63/$FF65
+KB_SHIFT     $FFA2   $FF63/$FF65  $FD16           ; 8 bits for storing shift, ctrl, grph, code, num, and caps lock
 KYHOW        $FFA3   $FF64/$FF66
 KYREPT       $FFA4   $FF65/$FF67
 KYWHAT       $FFA5   $FF66/$FF68
-KYBCNT       $FFAA   $FF6B/$FF6D          $FE68
-KYRDBF       $FFAB   $FF6C/$FF6E
+KYBCNT       $FFAA   $FF6B/$FF6D  $FD1E   $FE68   ; Number of characters in keyboard buffer.
+KYRDBF       $FFAB   $FF6C/$FF6E  $FD1F           ; Start of keyboard typeahead buffer
 BRKCHR       $FFEB   $FFAC/$FF8E
-SHAPE        $FFEC   $FFAD/$FF90
+SHAPE        $FFEC   $FFAD/$FF90          $FEAB   ; Start of 5 byte table describing the bit pattern currently under the cursor (used also as byte buffer by PLOT/UNPLOT)
 CSRSTS       $FFF2   $FFB3/$FF96
 CSRCNT       $FFF3   $FFB4/$FF97
 LCD_ADDR     $FFF4   $FFB5/$FF98
@@ -341,12 +341,3 @@ GFX_TEMP     $FFF6   $FFB7/$FF9A
 SAVSP        $FFF8   $FFB9/$FF9C
 IOFLAGS      $FFFA   $FFBB/$FF9E
 
-KBSITP       $FF8F                $FD03
-KB_FLAGS     $FF97                                ; 8 bits for storing space, del, tab, esc, paste, label, print and enter key recognition.
-KB_FNK       $FF98                                ; 8 bits for storing function key recognition
-PKGFF        $FF99                $FD0F
-KB_SHIFT     $FFA2                $FD16           ; 8 bits for storing shift, ctrl, grph, code, num, and caps lock
-GETPNT       $FFAA                $FD1E           ; Number of characters in keyboard buffer.
-PUTPNT       $FFAB                $FD1F           ; Start of keyboard typeahead buffer
-
-SHAPE        $FFEC   $FFAD/$FF90          $FEAB   ; Start of 5 byte table describing the bit pattern currently under the cursor (used also as byte buffer by PLOT/UNPLOT)
