@@ -1,8 +1,8 @@
 FN           M100/M102  KC85/M10  T200   PC8201
 --------------------------------------------------------------------------------------------------------------------------------
-MAXRAM       $F5F0      $F5F0     $EEB0
+MAXRAM       $F5F0      $F5F0     $EEB0   $F380
 ATIDSV       $F5F2      $F5F2
-HIMEM        $F5F4      $F5F4     $EEB4
+HIMEM        $F5F4      $F5F4     $EEB4   $F384
 BOOT_VECT    $F5F6      $F5F6
 BARCODE      $F5F9      $F5F9     $EEB9           ; reached from RST55
 UART         $F5FC      $F5FC     $EEBF           ; reached from RST65
@@ -15,7 +15,7 @@ DIAL_SPEED   $F62B                $EEF4           ; Dial speed (1, or 2 for 10 o
 BNK1         n/a                  $EEF5           ; RAM Location in bank #1 of the active bank.
 
 FNKPNT       $F62C      $F633     $EEF9   $F3E0
-PASPNT       $F62E      $F635             $F3E2
+PASPNT       $F62E      $F635     $EEFB   $F3E2
 FNKSWI       $F62F      $F636             
 FNKSTAT      $F630      $F637     $EEFD           ; Start of 8 byte table for each function key status (1=on, 0=off)
 SCREEN       $F638      $F63F             $F3E4
@@ -43,8 +43,8 @@ ONGSBF       $F654      $F65B     $EF36           ; ON GOSUB flag
 ONDATEF      $F655      $F65C
 POWR_FLAG    $F656      $F65D     $EF37   $F401   ; Power off exit condition switch (0 = keep program, 1 = jump to menu when power is turned on)
 PWRINT       $F657      $F65E     $EF38   $F402
-DUPLEX       $F658      $F65F     $EF39           ; Full/half duplex switch (0-half duplex)
-ECHO         $F659      $F660                     ; Terminal flag for 'echo' switch
+DUPLEX       $F658      $F65F     $EF39   $F403   ; Full/half duplex switch (0-half duplex)
+ECHO         $F659      $F660     $EF3A   $F404   ; Terminal flag for 'echo' switch
 RS232LF      $F65A      $F661     $EF3B           ; Auto linefeed on RS232 output switch (0=off)
 STAT         $F65B      $F662     $EF3C           ; Start of textual RS232 parameter setting buffer
 PIVOTCALL    $F660      $F667                     ; Self modifying address called on CALL statement
@@ -108,7 +108,7 @@ DAY          $F92B      $F932     $F21A           ; Day code (0=Sunday, 1=Monday
 MONTH        $F92C      $F933     $F21B           ; Current month (1-12) (M100 1 byte, M200, 2 bytes)
 YEAR         $F92D      $F934     $F21D           ; Year (ones)
 YEAR_2       $F92E      $F935     $F21E           ; Year (tens)
-CSRITP       $F92F      $F936     $F21F
+CSRITP       $F92F      $F936     $F21F   $F83E
 TIMCN2       $F930      $F937     $F220   $F83F
 TIMINT       $F931      $F938     $F221   $F840
 TMOFLG       $F932      $F939     $F222   $F841
@@ -139,11 +139,12 @@ EDTDIR       $F9B0   $F9A1/$F9B7          $F887
 USRDIR       $F9BA      $F9C1     $F2B5   $F891
 END_DIR      $FA81      $FA80     
 DIRPNT       $FA8C      $FA93     $F4BB   $F979
-CASPRV       $FA8E      $FA95
-COMPRV       $FA8F      $FA96
-RAMPRV       $FA91      $FA98
-PASPRV       $FAA1      $FAA8
-RAMFILE      $FAA2      $FAA9
+CASPRV       $FA8E      $FA95             $F97B
+COMPRV       $FA8F      $FA96             $F97C
+RAMPRV       $FA91      $FA98     $F4C0   $F97E
+
+PASPRV       $FAA1      $FAA8     $F4D0   $F98E
+RAMFILE      $FAA2      $FAA9     $F4D1   $F98F
 OPTROM_SIG   $FAA4      $FAAB     $F4D3   $F991
 
 LPRINT_CH    $FAAC      $FAB3                     ; ASCII character last output to printer                 
@@ -164,85 +165,93 @@ SV_CSRY      $FACA      $FAD1
 BLINK        $FACB      $FAD2             $F4FC
 SV_LABEL_LN  $FACC      $FAD3             $F4FE
 LPT_FLAG     $FACD
-TOP          $FACE      $FAD4     $F4FF
-PRLEN        $FAD0      $FAD6     $F4FD           ; Length of last program loaded or saved on tape
-EXE          $FAD2      $FAD8     $F4FF
-RAM_FILES    $FAD8      $FADE
+TOP          $FACE      $FAD4     $F4FF   $F9C0
+PRLEN        $FAD0      $FAD6     $F4FD   $F9C2   ; Length of last program loaded or saved on tape
+EXE          $FAD2      $FAD8     $F4FF   $F9C4
+RAM_FILES    $FAD8      $FADE     $F505   $F9CA
 
 ;-----------------------------------------------------------------------------------------------
-RST38_VECT   $FADA      $FAE0     $F507   $F9CC   ; Start of RST 38H vector table (256). offset: 00, used by __CLEAR
-MAXRAM_VECT  $FADC                                ; offset: 02
-HCHGE        $FADE                                ; offset: 04
-HCHSNS       $FAE0                                ; offset: 06
-HOUTD        $FAE2                                ; offset: 08
-HLPTO        $FAE4                                ; offset: 10  Hook for LPTOUT std routine
-HSETF        $FAE6                                ; offset: 12, Hook 2 for Locate FCB
-HOOK_0E      $FAE8                                ; offset: 14, Hook for "read byte"   
-HRSLF        $FAEA                                ; offset: 16, Hook for "INPUT$"      
-HBAKU        $FAEC                                ; offset: 18, Hook for "LINE INPUT#" 
-HNTFL        $FAEE                                ; offset: 20, Close I/O buffer       
-HSAVE        $FAF0                                ; offset: 22, Hook for "SAVE"        
-HNOFO        $FAF2                                ; offset: 24, "OPEN": not found      
-HMERG        $FAF4                                ; offset: 26, Hook for "MERGE/LOAD"  
-HNULO        $FAF6                                ; offset: 28, Hook for "OPEN"        
-HGETP        $FAF8                                ; offset: 30, Hook 1 for Locate FCB  
-HRSLF        $FAEA                                ; offset: 16, Hook for "INPUT$"      
-HBAKU        $FAEC                                ; offset: 18, Hook for "LINE INPUT#" 
-HNTFL        $FAEE                                ; offset: 20, Close I/O buffer       
-HSAVE        $FAF0                                ; offset: 22, Hook for "SAVE"        
-HNOFO        $FAF2                                ; offset: 24, "OPEN": not found      
-HMERG        $FAF4                                ; offset: 26, Hook for "MERGE/LOAD"  
-HNULO        $FAF6                                ; offset: 28, Hook for "OPEN"        
-HGETP        $FAF8                                ; offset: 30, Hook 1 for Locate FCB  
-HOOK_20      $FAFA                                ; offset: 32               
-HBINS        $FAFC                                ; offset: 34, Hook 2 for "SAVE"      
-HBINL        $FAFE                                ; offset: 36, Hook for "MERGE/LOAD"  
-HEOF         $FB00                                ; offset: 38, Init Hook for EOF      
-HPARD        $FB02                                ; offset: 40, Hook 1 for "Parse device name" event      
-HNODE        $FB04                                ; offset: 42, Hook 2 for "Parse device name" event      
-HOOK_2C      $FB06                                ; offset: 44, Extra Hook for "Parse device name" event  
-HPOSD        $FB08                                ; offset: 46, Hook 3 for "Parse device name" event      
-HGEND        $FB0A                                ; offset: 48, I/O function dispatcher   
-TERM_F6_VECT $FB0C                $F53F           ; offset: 50, Terminal, F6 function key 
-TERM_F7_VECT $FB0E                $F541           ; offset: 52, Terminal, F7 function key 
-TERM_EOF_VECT$FB10                                ; offset: 54, Terminal, EOF related hook
-TXT_ESC_VECT $FB12                                ; offset: 56, Terminal, ESC related hook
-HWIDT        $FB14                $F547           ; offset: 58, Hook for "WIDTH" statemen 
-HOOK_3C                                           ; offset: 60          
-HSCRE                                             ; offset: 62, Hook for "SCREEN"       
-CRT_OPN_VECT $FB1A                                ; offset: 64, CRT open routine        
-                                                  ; offset: 66   
-CRT_OUT_VECT $FB1E                                ; offset: 68, CRT output file routine 
-W_OPN_VECT   $FB20                                ; offset: 70, WAND Open routine       
-W_CLS_VECT   $FB22                                ; offset: 72, WAND Close routine      
-W_GET_VECT   $FB24                                ; offset: 74, WAND Get routine 
-W_IO_VECT    $FB26                                ; offset: 76, WAND Special I/O 
-HLOF         $FB28                                ; offset: 78, Hook for "LOF"   
-HLOC         $FB2A                                ; offset: 80, Hook for "LOC"   
-HFILE        $FB2C                $F55D           ; offset: 82, Hook for "LFILES"
-HDSKI        $FB2E                                ; offset: 84, Hook for "DSKI$" 
-HDSKO        $FB30                                ; offset: 86, Hook for "DSKO$" 
-HKILL        $FB32                                ; offset: 88, Hook for "KILL"  
-HNAME        $FB34                                ; offset: 90, Hook for "NAME"  
-HSAVEM       $FB36                                ; offset: 92, Hook for "SAVEM" 
-HLOAD        $FB38                                ; offset: 94, Hook for "LOAD"  
+RST38_VECT   $FADA      $FAE0     $F507   $F9CC   ; Start of RST 38H vector table (256).
+;-----------------------------------------------------------------------------------------------
+; Hook Codes - byte offset in decimal
+
+HC_CLEAR       00         00        00     n/a    ; used by __CLEAR
+HC_MAXRAM      02         02
+HC_CHGE        04         04                      ; Allow access to other devices than the internal keyboard
+HC_CHSNS       06         06
+HC_OUTD        08         08
+
+HC_LPTO        10         12                      ; Hook for LPTOUT std routine
+HC_LCDPUT                 10
+
+HC_SETF        12         14                      ; Hook 2 for Locate FCB
+HC_INDSKC      14         16                      ; Hook for "read byte"   
+HC_RSLF        16         18                      ; Hook for "INPUT$"      
+HC_BAKU        18         20                      ; Hook for "LINE INPUT#" 
+HC_NTFL        20         22                      ; Close I/O buffer       
+HC_SAVE        22         24                      ; Hook for "SAVE"        
+HC_NOFO        24         26                      ; "OPEN": not found      
+HC_MERG        26         28                      ; Hook for "MERGE/LOAD"  
+HC_NULO        28         30                      ; Hook for "OPEN"        
+HC_GETP        30         32                      ; Hook 1 for Locate FCB  
+HC_FILOU       32         34                       
+HC_BINS        34         36                      ; Hook 2 for "SAVE"       
+HC_BINL        36         38                      ; Hook for "MERGE/LOAD"   
+HC_EOF         38         40                      ; Init Hook for EOF       
+HC_PARD        40         42                      ; Hook 1 for "Parse device name" event       
+HC_NODE        42         44                      ; Hook 2 for "Parse device name" event       
+HC_DEVNAM      44         46                      ; Extra Hook for "Parse device name" event   
+HC_POSD        46         48                      ; Hook 3 for "Parse device name" event       
+HC_GEND        48         50                      ; I/O function dispatcher   
+HC_FILES                  52
+HC_CHGCON                 54
+
+HC_TRMF6       50         56                      ; Terminal, F6 function key 
+HC_TRMF7       52         58                      ; Terminal, F7 function key 
+HC_TRMEND                 60
+HC_COMOPN                 62
+HC_COMCLS                 64
+HC_SD232C                 66
+
+HC_UPLD        54         68                      ; Terminal, EOF related hook
+HC_TEXT        56         70                      ; Terminal, ESC related hook
+HC_WIDT        58         72                      ; Hook for "WIDTH" statemen 
+HC_CRTPUT      60                                 ; Alternative patch for OUTC when SCREEN <> 0
+HC_SCRE        62         74                      ; Hook for "SCREEN"  
+HC_TVOPN       64         76                      ; CRT open routine   
+HC_TVCLS
+HC_TVOUT       68         80                      ; CRT output file routine 
+HC_WAOPN       70         82                      ; WAND Open routine       
+HC_WACLS       72         84                      ; WAND Close routine      
+HC_WAINP       74         86                      ; WAND Get routine 
+HC_WABCK       76         88                      ; WAND Special I/O 
+HC_LOF         78         90                      ; Hook for "LOF"   
+HC_LOC         80         92                      ; Hook for "LOC"   
+HC_FILE        82         94                      ; Hook for "LFILES"
+HC_DSKI        84         96                      ; Hook for "DSKI$" 
+HC_DSKO        86         98                      ; Hook for "DSKO$" 
+HC_KILL        88         100                     ; Hook for "KILL"  
+HC_NAME        90         102                     ; Hook for "NAME"  
+HC_MSAVE       92         104                     ; Hook for "SAVEM" 
+HC_MLOAD       94         106                     ; Hook for "LOAD"  
 ;-----------------------------------------------------------------------------------------------
 
+TEXT_END     $FB62      $FB74     $F615   $FA88   ; Pointer to the end of the file currently being edited
 DIMFLG       $FB64      $FB76     $F617   $FA8A   ; Create/Locate switch for variables (Locate=0, Create>0)
 VALTYP       $FB65      $FB77     $F618   $FA8B   ; Variable type in use (2-Integer, 3-String, 4-Single Precision, 5-Double Precision)
 OPRTYP       $FB66      $FB78     $F619   $FA8C   ; Temp operator number operations, also used as "DORES" by the (de)tokenizer
 
 MEMSIZ       $FB67      $FB79     $F61A   $FA9A   ; Start address for file buffer area
-TEMPPT       $FB69      $FB7B     $F61C   $FA9C
+TEMPPT       $FB69      $FB7B     $F61C   $FA9C   ; Start of free area of temporary descriptor
 TEMPST       $FB6B      $FB7D     $F61E   $FA9E   ; Temporary descriptors
 
-TMPSTR       $FB89      $FB9B     $F63C   $FABC
-FRETOP       $FB8C      $FB9E     $F63F   $FABF
+TMPSTR       $FB89      $FB9B     $F63C   $FABC   ; Temporary string
+FRETOP       $FB8C      $FB9E     $F63F   $FABF   ; Starting address of unused area of string area
 ENDFOR       $FB92      $FBA4     $F646   $FAC5   ; NEXT address of FOR statement
 DATLIN       $FB94      $FBA6     $F647   $FAC7   ; Line number of current data statement
 SUBFLG       $FB96      $FBA8     $F649   $FAC9   ; Flag for array for USR fn, 0 if no FOR/NEXT loop in progress, etc..
-FLGINP       $FB98      $FBAA     $F64B   $FACA
-TEMP         $FB99      $FBAB     $F64C   $FACB
+FLGINP       $FB98      $FBAA     $F64B   $FACA   ; Flag for INPUT or READ
+TEMP         $FB99      $FBAB     $F64C   $FACB   ; Temp. reservation for st.code
 TEMP3        $FB8E      $FBA0     $F641   $FAC1
 SAVTXT       $FB9B      $FBAD     $F64E   $FACE   ; Pointer to most recent or currently running line (e.g. used by RESUME)
 SAVSTK       $FB9D      $FBAF     $F650   $FAD0   ; Save stack when error occurs
@@ -321,7 +330,7 @@ KB_SHIFT     $FFA2   $FF63/$FF65
 KYHOW        $FFA3   $FF64/$FF66
 KYREPT       $FFA4   $FF65/$FF67
 KYWHAT       $FFA5   $FF66/$FF68
-KYBCNT       $FFAA   $FF6B/$FF6D
+KYBCNT       $FFAA   $FF6B/$FF6D          $FE68
 KYRDBF       $FFAB   $FF6C/$FF6E
 BRKCHR       $FFEB   $FFAC/$FF8E
 SHAPE        $FFEC   $FFAD/$FF90
