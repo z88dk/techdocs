@@ -47,11 +47,11 @@ DUPLEX       $F658      $F65F     $EF39   $F403   ; Full/half duplex switch (0-h
 ECHO         $F659      $F660     $EF3A   $F404   ; Terminal flag for 'echo' switch
 RS232LF      $F65A      $F661     $EF3B           ; Auto linefeed on RS232 output switch (0=off)
 STAT         $F65B      $F662     $EF3C           ; Start of textual RS232 parameter setting buffer
-PIVOTCALL    $F660      $F667     $EF2F   $F40C   ; Self modifying address called on CALL statement
-LASTCALL     $F661      $F668     $EF49           ; Address last called
-_OUT         $F667      $F66E     $EF52           ; Called on OUT statement
+PIVOTCALL    $F660      $F667     $EF48   $F40C   ; Self modifying address called on CALL statement
+LASTCALL     $F661      $F668     $EF49   $F40D   ; Address last called
+_OUT         $F667      $F66E     $EF52   $F413   ; Called on OUT statement (CALL _OUT)
 OTPORT       $F668      $F66F     $EF53   $F414
-_INP         $F66A      $F671     $EF55           ; Called on INP function
+_INP         $F66A      $F671     $EF55   $F44B   ; Called on INP function (CALL _INP)
 INPORT       $F66B      $F672     $EF56   $F44C
 ERR_CODE     $F672      $F679     $EF5D   $F453   ; Error code of last error
 LPTPOS       $F674      $F67B     $EF5F   $F455   ; Line printer head position
@@ -66,7 +66,7 @@ VLZADR       $F67E      $F685     $EF69   $F45F
 BUFFER       $F680      $F687     $EF6B   $F461
 INPBFR       $F681      $F688     $EF6C   $F462
 BUFMIN       $F684      $F68B     $EF6F   $F5A0
-KBUF         $F685      $F68C     $EF70           ; Input line buffer
+KBUF         $F685      $F68C     $EF70   $F5A1   ; Input line buffer
 
 EDTVARS      $F6DF      $F6E6
 TXT_ERRFLG   $F6E1      $F6E8     $EFCC   $F4FB   ; (EDTVARS+2)
@@ -79,7 +79,7 @@ STRG_ASKBUF  $F71F      $F726
 TXT_ESCADDR  $F765      $F76C
 CUR_TXTFILE  $F767      $F76E
 ENDBUF       $F787      $F78E
-TTYPOS       $F788      $F78F     $F073           ; Current horizontal position of cursor (0-39)
+TTYPOS       $F788      $F78F     $F073  $F6A4    ; Current horizontal position of cursor (0-39)
 FNKSTR       $F789      $F790     $F074           ; Function key definition area (128), also status bar
 FILETYPE     $F809      $F810            $F745    ; also end of FN key area  
 IPLBBUF      $F80A      $F811     $F0F5  $F7E6
@@ -158,7 +158,7 @@ LBLIST       $FABA      $FAC1     $F4E8   $F9AA   ; Address where last BASIC lis
 LBEDIT       $FABC      $FAC3             $F9AC
 STAKSV       $FABE      $FAC5     $F4EC   $F9AE   ; Storage for stack pointer on power up/down
 RAM          $FAC0      $FAC7     $F665   $F9B0   ; ?
-CAPTUR       $FAC2      $FAC9     $F4F0           ; Lowest RAM memory address used by system ($8000 if 32K RAM)
+CAPTUR       $FAC2      $FAC9     $F4F0   $F9B2   ; Lowest RAM memory address used by system ($8000 if 32K RAM)
 SV_TXTPOS    $FAC4      $FACB
 FNAME_END    $FAC6      $FACD
 CRTFLG       $FAC7      $FACE     $F4F5
@@ -178,11 +178,11 @@ RST38_VECT   $FADA      $FAE0     $F507   $F9CC   ; Start of RST 38H vector tabl
 ;-----------------------------------------------------------------------------------------------
 ; Hook Codes - byte offset in decimal
 
-HC_CLEAR       00         00        00     n/a    ; used by __CLEAR
+HC_CLEAR       00         00        00      ??    ; used by __CLEAR
 HC_MAXRAM      02         02
 HC_CHGE        04         04                      ; Allow access to other devices than the internal keyboard
 HC_CHSNS       06         06
-HC_OUTD        08         08
+HC_OUTD        08         08        08      08
 
 HC_LPTO        10         12                      ; Hook for LPTOUT std routine
 HC_LCDPUT                 10
@@ -302,7 +302,7 @@ MAXFIL       $FC82      $FC94     $F735           ; Maximum number of open files
 FILTAB       $FC83      $FC95     $F736   $FB63   ; Pointer to the 30 byte file number description pointer table, each entry points to the actual file table
 PTRFIL       $FC8C      $FC9E     $F73F           ; Pointer to the file description table for the last file used / current file
 FILFLG       $FC92      $FCA4
-FILNAM       $FC93      $FCA5     $F746           ; Area for file names / Filename of current BASIC program
+FILNAM       $FC93      $FCA5     $F746   $FB78   ; Area for file names / Filename of current BASIC program
 FILNM2       $FC9C      $FCAE     $F74F           ; Filename of last program loaded from tape
 NLONLY       $FCA7      $FCB9                     ; FLAG: an empty line was input (<> 0 when loading program)
 
