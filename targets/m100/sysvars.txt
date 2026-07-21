@@ -4,14 +4,14 @@ MAXRAM       $F5F0      $F5F0     $EEB0   $F380
 ATIDSV       $F5F2      $F5F2     $EEB2   $F382
 HIMEM        $F5F4      $F5F4     $EEB4   $F384
 BOOT_VECT    $F5F6      $F5F6     $EEB6   $F386   ; ..enter here with CALL BOOT_VECT
-BARCODE      $F5F9      $F5F9     $EEB9           ; reached from RST55
-UART         $F5FC      $F5FC     $EEBF           ; reached from RST65
-TIMER        $F5FF      $F5FF     $EEC2           ; reached from RST75
-_TRAP        $F602      $F602                     ; Reached from TRAP
-EXTROM_TST   $F605      $F605
+BARCODE      $F5F9      $F5F9     $EEB9   $F389   ; reached from RST55
+UART         $F5FC      $F5FC     $EEBF   $F38C   ; reached from RST65
+TIMER        $F5FF      $F5FF     $EEC2   $F38F   ; reached from RST75
+_TRAP        $F602      $F602     $EEC5   $F392   ; Reached from TRAP
+EXTROM_TST   $F605      $F605     $EEC8   $F395
 OPTROM       $F62A      $F62A     $EEF3   $F3BF   ; Option ROM flag (0=no opt. ROM)
 
-DIAL_SPEED   $F62B                $EEF4           ; Dial speed (1, or 2 for 10 or 20 pps)
+DIAL_SPEED   $F62B       n/a      $EEF4           ; Dial speed (1, or 2 for 10 or 20 pps)
 BNK1         n/a                  $EEF5           ; RAM Location in bank #1 of the active bank (port $d8)
 
 FNKPNT       $F62C      $F633     $EEF9   $F3E0
@@ -323,7 +323,7 @@ RS232_BUF    $FF46   $FFBE/$FFA1  $FFBB           ; Start of 64 character RS232 
 RS232_COUNT  $FF86      $FF47     $FCF5   $FE45   ; Number of characters in RS232_BUF if 40 characters -> CTRL-S
 CTRL_S_FLG   $FF8A      $FF4B       --    $F9B7
 RS232_BAUD   $FF8B      $FF4C
-COMMSK       $FF8D      $FF4E
+COMMSK       $FF8D      $FF4E             $FE4C
 CASS_HILO    $FF8E      $FF4F
 KBSITP       $FF8F      $FF50     $FD03
 REPCNT       $FF90      $FF51
