@@ -423,7 +423,7 @@ defc ON_TIME_TM    = $F944
 
 defc TRPTBL        = $F94B
 defc ON_COM_ADDR   = $F94C
-defc ON_COM        = $F950
+;defc ON_COM        = $F950
 defc ON_TIME_FLG   = $F94E
 defc ON_TIME       = $F94F
 defc DIRECTORY     = $F969
@@ -821,7 +821,7 @@ defc ON_TIME_TM  = $F93D
 
 defc TRPTBL      = $F944
 defc ON_COM_ADDR = $F945
-defc ON_COM      = $F945
+;defc ON_COM      = $F945
 defc ON_TIME_FLG = $F947
 defc ON_TIME     = $F948
 
