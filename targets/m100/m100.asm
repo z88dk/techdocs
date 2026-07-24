@@ -593,8 +593,8 @@ defc ARYTA2        = $FBF1      ; End point of search
 
 IF M10
 defc PRMFLG        = $FBF0      ; Flag to indicate whether PARM1 was searching
-ELSE
-defc PRMFLG        = $FBF2      ; Flag to indicate whether PARM1 was searching
+;ELSE
+;defc PRMFLG        = $FBF2      ; Flag to indicate whether PARM1 was searching
 ENDIF
 
 defc NOFUNS        = $FBF3      ; (byte), 0 if no function active
@@ -613,7 +613,6 @@ defc HOLD8         = $FC3A  ; (48 bytes) Double precision operations work area
 defc HOLD2         = $FC6A
 defc HOLD          = $FC72
 defc ARG           = $FC7B
-defc ARG_INT       = $FC7D
 defc RNDX          = $FC8B
 defc SEEDRD        = $FC8C
 
@@ -921,7 +920,7 @@ defc PRMPRV      = $FBD9      ; Pointer to previous parameter block
 defc PRMLN2      = $FBDB      ; (word), size of parameter block
 ; PARM2
 defc ARYTA2      = $FBDF      ; End point of search
-defc PRMFLG      = $FBE0      ; Flag to indicate whether PARM1 was searching
+;defc PRMFLG      = $FBE0      ; Flag to indicate whether PARM1 was searching
 defc NOFUNS      = $FBE1      ; (byte), 0 if no function active
 defc TEMP9       = $FBE2      ; Location of temporary storage for garbage collection
 defc FUNACT      = $FBE4      ; (word), active functions counter
@@ -938,7 +937,6 @@ defc HOLD8       = $FC28  ; (48 bytes) Double precision operations work area
 defc HOLD2       = $FC58  ; (8 bytes)
 defc HOLD        = $FC60  ; (9 bytes)
 defc ARG         = $FC69
-defc ARG_INT     = $FC6B
 defc RNDX        = $FC79
 defc SEEDRD      = $FC7A
 
@@ -6055,7 +6053,7 @@ CAS_INPUT_0:
   CALL CASIN
   LD (HL),A
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,CAS_INPUT_0
   CALL CASIN
   LD A,C
@@ -6092,7 +6090,7 @@ CAS_OUTPUT_1:
   LD A,(HL)
   CALL CSOUT
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,CAS_OUTPUT_1
   JP CAS_OPNO_CO_1
 
@@ -6372,7 +6370,7 @@ SETSER_7:
   LD (DE),A
   DEC HL
   DEC DE
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,SETSER_7
   POP HL
   JP INZCOM
@@ -6399,7 +6397,7 @@ SETSER_7:
   INC HL
   INC DE
   CALL MAKUPL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,SETSER_7
   EX DE,HL
   POP HL
@@ -6763,7 +6761,7 @@ __DAY_S_1:
   JP NZ,__DAY_S_2
   INC DE
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,__DAY_S_1
   POP HL
   LD A,$07
@@ -6773,7 +6771,7 @@ __DAY_S_1:
 
 __DAY_S_2:
   INC DE
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,__DAY_S_2
   POP HL
   DEC C
@@ -7039,7 +7037,7 @@ _RST75_2:
   JP NZ,L1B88  
   INC DE
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,_RST75_2
   OR (HL)
   JP NZ,_RST75_3
@@ -7117,7 +7115,7 @@ __KEY_1:
   LD B,$03
 __KEY_2:
   RST OUTDO
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,__KEY_2
   RET
 
@@ -7135,7 +7133,7 @@ OUTS_B_CHARS_0:
 OUTS_B_CHARS_1:
   RST OUTDO
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,OUTS_B_CHARS
   LD A,' '
   RET
@@ -7192,7 +7190,7 @@ KEY_CONFIG_0:
   INC HL
   DEC C
   JP Z,KEY_CONFIG_2
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,KEY_CONFIG_0
 KEY_CONFIG_1:
   LD (HL),B
@@ -7283,7 +7281,7 @@ LINE_3:
   LD E,L
   CALL LINE_5
   INC L
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,LINE_3
   POP HL
   RET
@@ -7381,7 +7379,7 @@ LINE_11:
   LD C,A
   CALL PIVOTCALL+3
 LINE_12:
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,LINE_10
   JP POPALL_0
   
@@ -7829,7 +7827,7 @@ CATALOG_2:
   LD A,(HL)
   RST OUTDO
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,CATALOG_2
   
   LD A,'.'
@@ -8114,7 +8112,7 @@ FINDFL_0:
   LD A,(DE)
   CP (HL)
   JP NZ,L20B3
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,FINDFL_0
   POP HL
   LD A,(HL)
@@ -8458,7 +8456,7 @@ SWAPNM_0:
   LD (DE),A
   INC DE
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,SWAPNM_0
   POP HL
   RET
@@ -8943,7 +8941,7 @@ LDIR_B:
   LD (DE),A
   INC HL
   INC DE
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,LDIR_B
   RET
 
@@ -9063,7 +9061,7 @@ GETPARM_VRFY:
 GETPARM_LOOP:
   LD (DE),A
   INC DE
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,GETPARM_LOOP
   JP GETPARM_DEV
 
@@ -9128,7 +9126,7 @@ CAS_OPNO_CO_1:
 CAS_OPNO_CO_2:
   XOR A
   CALL CSOUT
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,CAS_OPNO_CO_2
   JP CTOFF
 
@@ -9217,7 +9215,7 @@ CAS_OPNI_CO_4:
   CP (HL)
   JP NZ,CAS_OPNI_CO_5
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,CAS_OPNI_CO_4
   JP CAS_OPNI_CO_7
 CAS_OPNI_CO_5:
@@ -9230,7 +9228,7 @@ CAS_OPNI_CO_6:
   JP NZ,CAS_OPNI_CO_8
   INC DE
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,CAS_OPNI_CO_6
 CAS_OPNI_CO_7:
   POP AF
@@ -10582,7 +10580,7 @@ DECNRM_0:
   INC HL
   DEC C
   DEC C
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,DECNRM_0
   JP ZERO
 
@@ -10619,7 +10617,7 @@ DNORM1:
 DNORM3:
   LD (DE),A
   INC DE
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,DNORM3
 DNORM5:
   LD A,C               ;GET THE SHIFT COUNT
@@ -10655,7 +10653,7 @@ DADD_SWAP2:
   LD (HL),A
   RET NC
   DEC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,DADD_SWAP2
   LD A,(HL)
   INC (HL)
@@ -10681,7 +10679,7 @@ BCDADD:
   LD (DE),A
   DEC DE
   DEC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,BCDADD
   RET
 
@@ -10708,7 +10706,7 @@ BCDADD_2:
   LD (DE),A
   DEC DE
   DEC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,BCDADD_2
   RET C
   EX DE,HL
@@ -10726,7 +10724,7 @@ BCDADD_3:
   CCF
   LD (HL),A
   DEC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,BCDADD_3
   RET
 
@@ -10791,7 +10789,7 @@ DSHFTR:
 DSHFTR_0:
   LD (HL),A
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,DSHFTR_0
   POP HL
   POP AF
@@ -10811,7 +10809,7 @@ DSHFTR_3:
   RRA
   LD (HL),A
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,DSHFTR_3
   POP HL
   DEC C
@@ -10895,7 +10893,7 @@ DMUL_0:
 DMUL_1:
   LD (HL),A
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,DMUL_1
 
   POP DE
@@ -10981,7 +10979,7 @@ DMUL_12:
   LD (HL),A
   DEC HL
   DEC DE
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,DMUL_12
   DEC C
   JP NZ,DMUL_11
@@ -11044,7 +11042,7 @@ DDIV_2:
   JP NZ,DDIV_3
   DEC DE
   DEC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,DDIV_2
 DDIV_3:
   LD (DECTM2),HL
@@ -11080,7 +11078,7 @@ DDIV_7:
   LD (HL),A
   DEC HL
   DEC DE
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,DDIV_7
   LD A,(HL)
   CCF
@@ -11131,7 +11129,7 @@ DDIV_9:
   OR A
   JP NZ,DDIV_11
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,DDIV_9
   POP HL
   POP BC
@@ -11144,7 +11142,7 @@ DDIV_9:
 DDIV_10:
   LD (HL),A
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,DDIV_10
   JP DDIV_16
 
@@ -11178,7 +11176,7 @@ DDIV_14:
   ADD A,A
   LD (HL),A
 DDIV_15:
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,DDIV_5
 DDIV_16:
   LD HL,FACCU+8
@@ -12212,7 +12210,7 @@ LDDR_DEHL:
   LD (HL),A
   DEC DE
   DEC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,LDDR_DEHL
   RET
 
@@ -12555,7 +12553,7 @@ HL_CSNG_6:
   LD A,D
   OR E
   JP Z,HL_CSNG_7
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,HL_CSNG_1
 HL_CSNG_7:
   POP HL
@@ -12676,7 +12674,7 @@ CINT_SUB_2:
   RET C
   EX DE,HL
   LD HL,(DECTMP)
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,CINT_SUB_0
   LD HL,$8000
   RST CPDEHL
@@ -12739,15 +12737,15 @@ __INT:
   RET M                ;IT IS AN INTEGER, ALL DONE
   LD HL,FACCU+8
   LD C,$0E
-  JP NC,__INT_0
-  JP Z,TM_ERR
+  JP NC,__INT_0        ;CONVERT THE DOUBLE PRECISION NUMBER
+  JP Z,TM_ERR          ;BLOW UP ON STRINGS
   LD HL,FACCU+4
   LD C,$06
 __INT_0:
   LD A,(FACCU)
   OR A
   JP M,__INT_2
-  AND $7F
+  AND $7F              ;ABS
   SUB $41
   JP C,ZERO
   INC A
@@ -12765,7 +12763,7 @@ __INT_1:
   RET Z
   XOR A
   LD (HL),A
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,__INT_1
   RET
 
@@ -12802,7 +12800,7 @@ __INT_5:
   JP Z,__INT_6
   INC E
 __INT_6:
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,__INT_4
 __INT_7:
   INC E
@@ -12816,7 +12814,7 @@ __INT_7:
   EX DE,HL
   LD (ARG+6),HL
   LD (ARG+4),HL
-  LD (ARG_INT),HL       ; = ARG+2
+  LD (ARG+2),HL     ; = ARG+2
   LD H,B
   LD L,C
   LD (ARG),HL
@@ -13192,7 +13190,7 @@ FDIV:
 ; Used by the routines at INEG, FMULT_BCDE, FDIV and FEXP.
 BCDEFP_ARG:
   EX DE,HL
-  LD (ARG_INT),HL       ; = ARG+2
+  LD (ARG+2),HL       ; = ARG+2
   LD H,B
   LD L,C
   LD (ARG),HL
@@ -14445,7 +14443,7 @@ FOUTZS_35:
   OR A
   JP NZ,FOUTZS_36
   DEC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,FOUTZS_35
 FOUTZS_36:
   LD A,B
@@ -14755,7 +14753,7 @@ _CLREG:
 _CLREG_0:
   LD (HL),$08
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,_CLREG_0
   
   CALL INIT_RND
@@ -14926,14 +14924,14 @@ CLR_ALLINT_0:
   INC HL
   LD (HL),A
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,CLR_ALLINT_0
   LD HL,FNKSTAT
   LD B,$08
 CLR_ALLINT_1:
   LD (HL),A
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,CLR_ALLINT_1
   LD (ONGSBF),A
   RET
@@ -14958,7 +14956,7 @@ EXEC_ONGOSUB:
   AND L
   INC A
   JP Z,CLR_ALLINT_5
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,CLR_ALLINT_7
   LD HL,ON_TIME_FLG
   LD B,$09
@@ -14970,7 +14968,7 @@ CLR_ALLINT_4:
   INC HL
   INC HL
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,CLR_ALLINT_3
 CLR_ALLINT_5:
   POP HL
@@ -16583,7 +16581,7 @@ INXD_3:
   LD C,$01
 INXD_4:
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,INXD_2
   LD A,C
 INXD_5:
@@ -16638,7 +16636,7 @@ _INLIN_FILE_1:
   JP C,_INLIN_FILE_1
 _INLIN_FILE_2:
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,_INLIN_FILE_1
 _INLIN_FILE_3:
   XOR A
@@ -18457,7 +18455,7 @@ ZERO_MEM:
 INIT_PRINT_h:
   LD (HL),A
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,INIT_PRINT_h
   RET
 
@@ -19096,7 +19094,7 @@ TEL_GET_STAT_0:
   LD A,(HL)
   RST OUTDO
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,TEL_GET_STAT_0
 
 IF M100
@@ -19358,7 +19356,7 @@ TMDELA_1:
 TMDELA_2:
   LD B,$AC
 TMDELA_3:
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,TMDELA_3
   RET
 
@@ -19792,7 +19790,7 @@ CHGDSP_0:
 CHGDSP_1:
   LD (DE),A
   INC DE
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,CHGDSP_1
   JP FNKSB
  
@@ -20164,7 +20162,7 @@ __MENU:
 __MENU_1:
   LD (HL),$FF
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,__MENU_1
   LD L,B
   LD DE,MENUTAB_TBL
@@ -20440,7 +20438,7 @@ __MENU_23:
   ADD HL,DE
   EX DE,HL
   POP HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,__MENU_22
   RET
 
@@ -20517,7 +20515,7 @@ ENDIF
   LD HL,CSRY
   INC (HL)
   POP BC
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,DOTTED_FNAME_3
   CALL ESC_NOCURSOR
   POP HL
@@ -20683,7 +20681,7 @@ STFNK_3:
   DEC C
   LD (DE),A
   JP NZ,STFNK_3
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,STFNK_0
 
 ; Display function keys on 8th line if enabled
@@ -20750,7 +20748,7 @@ INRC_1:
   LD HL,11
   ADD HL,DE
   EX DE,HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,CHKF_1
   RET
 
@@ -22426,7 +22424,7 @@ TXT_CTL_U_0:
   LD BC,$0100
   CALL TXT_CTL_U_3
   POP BC
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,TXT_CTL_U_0
 TXT_CTL_U_1:
   LD A,C
@@ -23273,7 +23271,7 @@ SYMB_LOOP:
   CP (HL)
   RET Z
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,SYMB_LOOP
   CP '!'
   INC B
@@ -23651,7 +23649,7 @@ GET_TXTEND_3:
   OR E
   LD HL,(CUR_TXTFILE)
   RET Z
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,GET_TXTEND_3
   EX DE,HL
   RET
@@ -23928,7 +23926,7 @@ PARSE_COMMAND_1:
   INC DE
   INC HL
   JP NZ,PARSE_COMMAND_3
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,PARSE_COMMAND_1
   POP AF
   PUSH HL
@@ -23949,7 +23947,7 @@ PARSE_COMMAND_2:
 
 PARSE_COMMAND_3:
   INC DE
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,PARSE_COMMAND_3
 PARSE_COMMAND_4:
   INC DE
@@ -24087,7 +24085,7 @@ ENDIF
   OUT ($E8),A
   LD B,$24
 PRINTR_1:
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,PRINTR_1
 IF KC85 | M10
   EI
@@ -24565,7 +24563,7 @@ DATAW_0:
   LD B,$08
 DATAW_1:
   CALL DATAW_2
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,DATAW_1
   JP BREAK
 
@@ -24609,7 +24607,7 @@ ENDIF
   JP C,SYNCR
   CP $40
   JP NC,SYNCR
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,SYNCR_0
 ; This entry point is used by the routine at DATAW.
 SYNCR_1:
@@ -24641,7 +24639,7 @@ SYNCR_3:
 ; Used by the routine at SYNCR.
 L6FBA:
   INC L
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,SYNCR_2
   LD A,$40
   CP L
@@ -24755,7 +24753,7 @@ DATAR_0:
   CALL CASS_PROBE
   RET C
   CALL CASS_PROBE_10
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,DATAR_0
   XOR A
   RET
@@ -25141,7 +25139,7 @@ _DATAR_20:
   INC HL
   JP Z,DATAR_24
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,_DATAR_20
   POP AF
   RET
@@ -25642,7 +25640,7 @@ MUSIC_2:
   POP BC
   DEC C
   JP NZ,MUSIC_2
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,MUSIC_0
 MUSIC_3:
   IN A,($BA)
@@ -25746,7 +25744,7 @@ SET_CLOCK_HL_3:
   AND $0F
   LD (HL),A
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,SET_CLOCK_HL_0
   POP AF
   LD A,$02
@@ -25796,7 +25794,7 @@ PUT_SHAPE_0:
   CPL
   LD (HL),A
   DEC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,PUT_SHAPE_0
   INC HL
   LD D,$01
@@ -25869,7 +25867,7 @@ _DRAW_CHAR_0:
   CP (HL)
   JP Z,L714A        ; M10 only
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,_DRAW_CHAR_0
 _DRAW_CHAR_1:
 ENDIF
@@ -26312,7 +26310,7 @@ _BEEP_0:
   CALL _CLICK
   LD C,$50
   CALL DELAY_C
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,_BEEP_0
   JP SET_CLOCK_HL_16
 
@@ -26382,7 +26380,7 @@ _CLICK_6:
   LD A,(HL)
   CALL _CLICK_8
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,_CLICK_6
   CALL _CLICK_12
   OR A
@@ -26393,7 +26391,7 @@ _CLICK_7:
   CALL _CLICK_12
   LD (HL),A
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,_CLICK_7
   JP $E000
   
@@ -26999,7 +26997,7 @@ IF M100
 BOOT_5:
   LD (HL),A
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,BOOT_5
 ENDIF
 
@@ -27118,7 +27116,7 @@ FREEMEM_1:
   INC HL
   LD (HL),D
   INC HL
-  DEC B
+  DEC B                ; DJNZ
   JP NZ,FREEMEM_1
 IF KC85 | M10
   LD B,18       ; 18*2 = 36 words initialized with 'FC_ERR'
