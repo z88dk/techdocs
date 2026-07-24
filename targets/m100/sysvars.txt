@@ -18,9 +18,9 @@ TEL_F6_PIVOT  n/a       $F62E             $F3C2
 
 FNKPNT       $F62C      $F633     $EEF9   $F3E0
 PASPNT       $F62E      $F635     $EEFB   $F3E2
-FNKSWI       $F62F      $F636             
+FNKSWI       $F62F      $F636     $EEFC   
 FNKSTAT      $F630      $F637     $EEFD           ; Start of 8 byte table for each function key status (1=on, 0=off)
-SCREEN       $F638      $F63F             $F3E4
+SCREEN       $F638      $F63F     $EF05   $F3E4
 CSRX         $F639      $F640     $EF06   $F3E5   ; Cursor row (M100 1-8, M200 1-16)
 CSRY         $F63A      $F641     $EF07   $F3E6   ; Cursor column (1-40)
 ACTV_X       $F63B      $F642     $EF08   $F3E7   ; Number of active rows (M100 1-8,M200 1-16)
@@ -111,22 +111,23 @@ CSRITP       $F92F      $F936     $F21F   $F83E
 TIMCN2       $F930      $F937     $F220   $F83F
 TIMINT       $F931      $F938     $F221   $F840
 TMOFLG       $F932      $F939     $F222   $F841
-CLOCK_SS1    $F933      $F93A     $F223           ; Seconds (ones)
-CLOCK_SS2    $F934      $F93B     $F224           ; Seconds (tens)
-CLOCK_MM1    $F935      $F93C     $F225           ; Minutes (ones)
-CLOCK_MM2    $F936      $F93D     $F226           ; Minutes (tens)                      
-CLOCK_HH1    $F937      $F93E     $F227           ; Hours (ones)
-CLOCK_HH2    $F938      $F93F     $F228           ; Hours (tens)
-CLOCK_DT1    $F939      $F940     $F229           ; Date (ones)
-CLOCK_DT2    $F93A      $F941     $F22A           ; Date (tens)
-CLOCK_DAY    $F93B      $F942     $F22B           ; Day (0=Sunday, 1=Monday, etc.)
-ON_DATE      $F93C      $F943                     ; "ON DATE" low level flag (M10 and M100 only)
-ON_TIME_TM   $F93D      $F944     $F22D           ; Time for ON TIME interrupt (SSMMHH)
+CLOCK_SS1    $F933      $F93A     $               ; Seconds (ones)
+CLOCK_SS2    $F934      $F93B     $               ; Seconds (tens)
+CLOCK_MM1    $F935      $F93C     $               ; Minutes (ones)
+CLOCK_MM2    $F936      $F93D     $               ; Minutes (tens)                      
+CLOCK_HH1    $F937      $F93E     $               ; Hours (ones)
+CLOCK_HH2    $F938      $F93F     $               ; Hours (tens)
+CLOCK_DT1    $F939      $F940     $               ; Date (ones)
+CLOCK_DT2    $F93A      $F941     $               ; Date (tens)
+CLOCK_DAY    $F93B      $F942     $               ; Day (0=Sunday, 1=Monday, etc.)
+ON_DATE      $F93C      $F943     $FEB3           ; "ON DATE" low level flag (M10 and M100 only)
+ON_TIME_TM   $F93D      $F944     $               ; Time for ON TIME interrupt (SSMMHH)
 
-ON_COM_FLG   $F944      $F94B     $F234           ; (TRPTBL) On Com flag (0=off, 255=on)
-ON_COM       $F945      $F950     $F235           ; (TRPTBL) Address of On Com routine
-ON_TIME_FLG  $F947      $F94E     $F237           ; (TRPTBL) On time flag (0=off, 255=on)
-ON_TIME      $F948      $F94F     $F238           ; (TRPTBL) Address of on time routine
+TRPTBL       $F944      $F94B     $F234   $F84C   ; (TRPTBL) On Com flag (0=off, 255=on)
+ON_COM_FLG   $F944      $F94B     $F234    n/a    ; (TRPTBL) On Com flag (0=off, 255=on)
+ON_COM       $F945      $F950     $F235    n/a    ; (TRPTBL) Address of On Com routine
+ON_TIME_FLG  $F947      $F94E     $F237   $F84C   ; (TRPTBL) On time flag (0=off, 255=on)
+ON_TIME      $F948      $F94F     $F238   $F84D   ; (TRPTBL) Address of on time routine
 
 FNK_VECTBL   $F94A                $F23A           ; Function key vector table (24)
 
@@ -135,7 +136,7 @@ SCHDIR       $F98E   $F97F/$F995          $F865
 SUZUKI       $F99A   $F98B/$F9A1  $F295   $F871   ; Address of current BASIC program not saved
 HAYASHI      $F9A5   $F996/$F9AC  $F2A0   $F87C   ; Start of Paste buffer
 EDTDIR       $F9B0   $F9A1/$F9B7          $F887
-USRDIR       $F9BA      $F9C1     $F2B5   $F891
+USRDIR       $F9BA      $F9C1     $F2B5   $F891   
 END_DIR      $FA81      $FA80     
 DIRPNT       $FA8C      $FA93     $F4BB   $F979
 CASPRV       $FA8E      $FA95     $F4BD   $F97B
@@ -156,7 +157,7 @@ IPL_FNAME    $FAAF      $FAB6     $F4DD           ; Start of IPL filename
 LBLIST       $FABA      $FAC1     $F4E8   $F9AA   ; Address where last BASIC list started
 LBEDIT       $FABC      $FAC3     $F4EA   $F9AC
 STAKSV       $FABE      $FAC5     $F4EC   $F9AE   ; Storage for stack pointer on power up/down
-RAM          $FAC0      $FAC7     $F665   $F9B0   ; ?
+RAM          $FAC0      $FAC7      n/a    $F9B0   ; ?
 CAPTUR       $FAC2      $FAC9     $F4F0   $F9B2   ; Lowest RAM memory address used by system ($8000 if 32K RAM)
 SV_TXTPOS    $FAC4      $FACB     $F4F2   $F9B4
 FNAME_END    $FAC6      $FACD     $F4F4
@@ -278,6 +279,7 @@ OLDLIN       $FBAA      $FBBC     $FB5D   $FADD   ; Line where last break, END, 
 OLDTXT       $FBAC      $FBBE     $FB5F   $FADF   ; Address where program stopped on last break, END, or STOP (to be executed next with CONTINUE)
 DO_FILES     $FBAE      $FBC0     $F661   $FAE1   ; Pointer to the start of the DO files and end of the BA files.
 CO_FILES     $FBB0      $FBC2     $F663   $FAE3
+
 VARTAB       $FBB2      $FBC4     $F665   $FAE5   ; BASIC program end ptr (a.k.a. PROGND, Simple Variables)
 VAREND       $FBB4      $FBC6     $F667   $FAE7   ; start of array vars (aka ARYTAB)
 ARREND       $FBB6      $FBC8     $F669   $FAE9   ; free RAM
@@ -318,7 +320,7 @@ PTRFIL       $FC8C      $FC9E     $F73F           ; Pointer to the file descript
 FILFLG       $FC92      $FCA4             $FB72
 FILNAM       $FC93      $FCA5     $F746   $FB78   ; Area for file names / Filename of current BASIC program
 FILNM2       $FC9C      $FCAE     $F74F           ; Filename of last program loaded from tape
-NLONLY       $FCA7      $FCB9                     ; FLAG: an empty line was input (<> 0 when loading program)
+NLONLY       $FCA7      $FCB9     $F75A           ; FLAG: an empty line was input (<> 0 when loading program)
 
 ALT_LCD      $FCC0      $FCC0     $F7B0           ; Start of alternate LCD character buffer (M100=320, M200=640)
 ALT_LCD_END  $FDFF      $FDFF     $FA2F           ; End of alternate LCD character buffer
@@ -329,7 +331,7 @@ BEGLCD       $FE00      $FE00     $FA30           ; Begin of LCD memory (M100=32
 ENDLCD       $FF40      $FF40     $FCF0   $FE40   ; End of LCD memory
 XONXOFF      $FF41      $FF41     $FCF1   $FE41
 XONXOFF_FLG  $FF42      $FF42     $FCF2   $FE42   ; XON/XOFF enable flag.(0=disabled)
-RS232_FLG    $FF43      $FF43             ? $FEC2 ?
+RS232_FLG    $FF43      $FF43     $FCF3   ? $FEC2 ?
 SOUND_FLG    $FF44      $FF44     $FCF4           ; Sound flag (0=on).
 ROMSEL       $FF45      $FF46     $FCFF   $FE44
 
