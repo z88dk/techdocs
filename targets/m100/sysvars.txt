@@ -34,7 +34,7 @@ ESCCNT       $F646      $F64D     $EF13   $F3F2   ; ESCape mode flag for RST 20H
 ESCSAV       $F647      $F64E     $EF14   $F3F3   ; ESCape mode flag for RST 20H (0-normal video, not zero-ESCape mode)
 REVERSE      $F648      $F64F     $EF15   $F3F4   ; Reverse video switch (0=off)
 
-TXT_WIDTH    $F649      $F650     $EF2B
+TXT_WIDTH    $F649      $F650     $EF2B   $F3F5
 TXT_ASKBUF   $F64A      $F651
 GR_X         $F64E      $F655     $EF30   $F3FA   ; X coordinate of last graphic point plotted
 GR_Y         $F64F      $F656     $EF31   $F3FB   ; Y coordinate of last graphic point plotted
@@ -158,15 +158,15 @@ LBEDIT       $FABC      $FAC3     $F4EA   $F9AC
 STAKSV       $FABE      $FAC5     $F4EC   $F9AE   ; Storage for stack pointer on power up/down
 RAM          $FAC0      $FAC7     $F665   $F9B0   ; ?
 CAPTUR       $FAC2      $FAC9     $F4F0   $F9B2   ; Lowest RAM memory address used by system ($8000 if 32K RAM)
-SV_TXTPOS    $FAC4      $FACB
-FNAME_END    $FAC6      $FACD
+SV_TXTPOS    $FAC4      $FACB     $F4F2   $F9B4
+FNAME_END    $FAC6      $FACD     $F4F4
 CRTFLG       $FAC7      $FACE     $F4F5
 MENU_FLG     $FAC8      $FACF     $F4F6
 RST38_OFFS   $FAC9      $FAD0     $F4F7           ;Offset of last RST 38H call
 SV_CSRY      $FACA      $FAD1     $F4F8
 BLINK        $FACB      $FAD2     $F4F9   $F4FC
 SV_LABEL_LN  $FACC      $FAD3     $F4FA   $F4FE
-LPT_FLAG     $FACD
+LPT_FLAG     $FACD       n/a               n/a
 TOP          $FACE      $FAD4     $F4FF   $F9C0
 PRLEN        $FAD0      $FAD6     $F4FD   $F9C2   ; Length of last program loaded or saved on tape
 EXE          $FAD2      $FAD8     $F4FF   $F9C4
@@ -288,7 +288,7 @@ PRMLEN       $FBD6      $FBE8     $F689   $FB09   ; Number of bytes of obj table
 PRMPRV       $FBD9      $FBEB     $F68C   $FB0C   ; Pointer to previous parameter block
 PRMLN2       $FBDB      $FBED     $F68E   $FB0E   ; Flag to indicate whether PARM1 was searching
 
-PRMFLG       $FBE0   $FBF2/$FBF0                  ; Flag to indicate whether PARM1 was searching
+PRMFLG       $FBE0     -- /$FBF0           n/a    ; Flag to indicate whether PARM1 was searching
 NOFUNS       $FBE1      $FBF3     $F694   $FB14   ; 0 if no function active
 TEMP9        $FBE2      $FBF4     $F695   $FB15   ; Location of temporary storage for garbage collection
 FUNACT       $FBE4      $FBF6     $F697   $FB17   ; Active functions counter
@@ -297,20 +297,25 @@ FBUFFR       $FBE7      $FBF9     $F69B   $FB36   ; Buffer for FOUT (e.g. for nu
 DECTMP       $FC12      $FC24     $F6C5
 DECTM2       $FC14      $FC26     $F6C7
 DECCNT       $FC16      $FC28     $F6C9
-FACCU        $FC18      $FC2A     $F6CB   $FB2B   ; Start of FAC1 for single (4) and double (8) precision number (aka FACCU)
-FACLOW       $FC1A      $FC2C     $F6CD   $FB28   ; Start of FAC1 for integers
-HOLD8        $FC28      $FC3A                     ; (48 bytes) Double precision operations work area
-HOLD2        $FC58      $FC6A                     ; (8 bytes)
-HOLD         $FC60      $FC72                     ; (9 bytes)
-ARG          $FC69      $FC7B     $F71C           ; a.k.a. FAC2, Start for FAC2 for single (4) and double (8) precision numbers
-ARG_INT      $FC6B      $FC7D     $F71E           ; Start of FAC2 for integers
+
+; The PC-8201 stores the FP values in a non-packed format: sign is in FACCU+2 and exponent in FACCU+3.
+; While on the other platforms sign and exponent are stored in FACCU.
+FACCU        $FC18      $FC2A     $F6CB   $FB28   ; Start of FAC1 (single=4-byte, double=8-byte mantissa format)
+FACLOW       $FC1A      $FC2C     $F6CD   $FB24   ; Least-significant mantissa bytes of FAC1 (PC-8201: FACLOW-1 = guard byte)
+HOLD8        $FC28      $FC3A     $F6DB    n/a    ; (48 bytes) Double precision operations work area
+HOLD2        $FC58      $FC6A     $F70B    n/a    ; (8 bytes)
+HOLD         $FC60      $FC72     $F713    n/a    ; (9 bytes)
+ARG          $FC69      $FC7B     $F71C   $FB35   ; FAC2, start of second floating-point accumulator
+FPARG         n/a        n/a       n/a    $FB2E
 RNDX         $FC79      $FC8B     $F72C   $F426   ; PTR to value to initialize the "last random number" variable
+
+FPEXP        FACCU      FACCU     FACCU   $FB2B   ; Start of FAC1 for integers
 SEEDRD       $FC7A      $FC8C     $F72D
 
 MAXFIL       $FC82      $FC94     $F735           ; Maximum number of open files
 FILTAB       $FC83      $FC95     $F736   $FB63   ; Pointer to the 30 byte file number description pointer table, each entry points to the actual file table
 PTRFIL       $FC8C      $FC9E     $F73F           ; Pointer to the file description table for the last file used / current file
-FILFLG       $FC92      $FCA4
+FILFLG       $FC92      $FCA4             $FB72
 FILNAM       $FC93      $FCA5     $F746   $FB78   ; Area for file names / Filename of current BASIC program
 FILNM2       $FC9C      $FCAE     $F74F           ; Filename of last program loaded from tape
 NLONLY       $FCA7      $FCB9                     ; FLAG: an empty line was input (<> 0 when loading program)
@@ -332,13 +337,13 @@ RS232_BUF    $FF46   $FFBE/$FFA1  $FFBB           ; Start of 64 character RS232 
 RS232_COUNT  $FF86      $FF47     $FCF5   $FE45   ; Number of characters in RS232_BUF if 40 characters -> CTRL-S
 CTRL_S_FLG   $FF8A      $FF4B     $FCF9   $F9B7
 RS232_BAUD   $FF8B      $FF4C     $FCFA   $FE4A
-COMMSK       $FF8D      $FF4E             $FE4C
+COMMSK       $FF8D      $FF4E     $FCFC   $FE4C
 CASS_HILO    $FF8E      $FF4F
-KBSITP       $FF8F      $FF50     $FD03
-REPCNT       $FF90      $FF51
-KYDATA       $FF91      $FF52
+KBSITP       $FF8F      $FF50     $FD03   $FE4D
+REPCNT       $FF90      $FF51     $FD04   $FE4E
+KYDATA       $FF91      $FF52     $FD05   $FE4F
 
-KB_SHIFT     $FFA2   $FF63/$FF65  $FD16           ; 8 bits for storing shift, ctrl, grph, code, num, and caps lock
+KB_SHIFT     $FFA2   $FF63/$FF65  $FD16   $FE60   ; 8 bits for storing shift, ctrl, grph, code, num, and caps lock
 KYHOW        $FFA3   $FF64/$FF66
 KYREPT       $FFA4   $FF65/$FF67                  ; a.k.a. SCNCNT on MSX, wait count for repeat
 KYWHAT       $FFA5   $FF66/$FF68
