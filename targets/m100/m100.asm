@@ -7,6 +7,11 @@
 
 ; TODO:  FIX data space after HL_CSNG_7
 
+; The PC-8201 BASIC appears significantly closer to MBASIC than the M100/M10/KC85 family.
+; Both the token layout and the floating-point implementation resemble the traditional
+; Microsoft BASIC architecture, whereas the Model 100 family and MSX BASIC use a packed
+; floating-point format and a substantially reorganized token map.
+
 
 defc CR = 13
 defc LF = 10
@@ -26,158 +31,169 @@ defc CONCON   = 09  ; $09 - TOKEN RETURNED BY CHRGET AFTER CONSTANT SCANNED
 defc ONEFUN      =  TK_SGN
 
 
-defc TK_END      =  $80
-defc TK_FOR      =  $81
-defc TK_NEXT     =  $82
-defc TK_DATA     =  $83
-defc TK_INPUT    =  $84
-defc TK_DIM      =  $85
-defc TK_READ     =  $86
-defc TK_LET      =  $87
-defc TK_GOTO     =  $88
-defc TK_RUN      =  $89
-defc TK_IF       =  $8A
-defc TK_RESTORE  =  $8B
-defc TK_GOSUB    =  $8C
-defc TK_RETURN   =  $8D
-defc TK_REM      =  $8E
-defc TK_STOP     =  $8F
+defc TK_END      =  $80 ; --> $81 on PC-8201, $81 on MSX
+defc TK_FOR      =  $81 ; --> $82 on PC-8201, $82 on MSX
+defc TK_NEXT     =  $82 ; --> $83 on PC-8201, $83 on MSX
+defc TK_DATA     =  $83 ; --> $84 on PC-8201, $84 on MSX
+defc TK_INPUT    =  $84 ; --> $85 on PC-8201, $85 on MSX
+defc TK_DIM      =  $85 ; --> $86 on PC-8201, $86 on MSX
+defc TK_READ     =  $86 ; --> $87 on PC-8201, $87 on MSX
+defc TK_LET      =  $87 ; --> $88 on PC-8201, $88 on MSX
+defc TK_GOTO     =  $88 ; --> $89 on PC-8201, $89 on MSX
+defc TK_RUN      =  $89 ; --> $8A on PC-8201, $8A on MSX
+defc TK_IF       =  $8A ; --> $8B on PC-8201, $8B on MSX
+defc TK_RESTORE  =  $8B ; --> $8C on PC-8201, $8C on MSX
+defc TK_GOSUB    =  $8C ; --> $8D on PC-8201, $8D on MSX
+defc TK_RETURN   =  $8D ; --> $8E on PC-8201, $8E on MSX
+defc TK_REM      =  $8E ; --> $8F on PC-8201, $8F on MSX
+defc TK_STOP     =  $8F ; --> $90 on PC-8201, $90 on MSX
 
-defc TK_WIDTH    =  $90
-defc TK_ELSE     =  $91
-defc TK_LINE     =  $92
-defc TK_EDIT     =  $93
-defc TK_ERROR    =  $94
-defc TK_RESUME   =  $95
-defc TK_OUT      =  $96
-defc TK_ON       =  $97
-defc TK_DSKO_S   =  $98
-defc TK_OPEN     =  $99
-defc TK_CLOSE    =  $9A
-defc TK_LOAD     =  $9B
-defc TK_MERGE    =  $9C
-defc TK_FILES    =  $9D
-defc TK_SAVE     =  $9E
-defc TK_LFILES   =  $9F
+defc TK_WIDTH    =  $90 ; --> $A0 on PC-8201, $A0 on MSX
+defc TK_ELSE     =  $91 ; --> $A1 on PC-8201, $A1 on MSX
+defc TK_LINE     =  $92 ; --> $AF on PC-8201, $AF on MSX
+defc TK_EDIT     =  $93 ; --> $BB on PC-8201
+defc TK_ERROR    =  $94 ; --> $A6 on PC-8201, $A6 on MSX
+defc TK_RESUME   =  $95 ; --> $A7 on PC-8201, $A7 on MSX
+defc TK_OUT      =  $96 ; --> $9C on PC-8201, $9C on MSX
+defc TK_ON       =  $97 ; --> $95 on PC-8201, $95 on MSX
+defc TK_DSKO_S   =  $98 ; --> $C2 on PC-8201, $D1 on MSX
+defc TK_OPEN     =  $99 ; --> $C5 on PC-8201, $B0 on MSX
+defc TK_CLOSE    =  $9A ; --> $CA on PC-8201, $B4 on MSX
+defc TK_LOAD     =  $9B ; --> $CB on PC-8201, $B5 on MSX
+defc TK_MERGE    =  $9C ; --> $CC on PC-8201, $B6 on MSX
+defc TK_FILES    =  $9D ; --> $CD on PC-8201, $B7 on MSX
+defc TK_SAVE     =  $9E ; --> $D2 on PC-8201, $BA on MSX
+defc TK_LFILES   =  $9F ; --> $D3 on PC-8201, $BB on MSX
 
-defc TK_LPRINT   =  $A0
-defc TK_DEF      =  $A1
-defc TK_POKE     =  $A2
-defc TK_PRINT    =  $A3
-defc TK_CONT     =  $A4
-defc TK_LIST     =  $A5
-defc TK_LLIST    =  $A6
-defc TK_CLEAR    =  $A7
-defc TK_CLOAD    =  $A8
-defc TK_CSAVE    =  $A9
-defc TK_TIME_S   =  $AA
-defc TK_DATE_S   =  $AB
-defc TK_DAY_S    =  $AC
-defc TK_COM      =  $AD
-defc TK_MDM      =  $AE
-defc TK_KEY      =  $AF
+defc TK_LPRINT   =  $A0 ; --> $9D on PC-8201, $9D on MSX
+defc TK_DEF      =  $A1 ; --> $97 on PC-8201, $97 on MSX
+defc TK_POKE     =  $A2 ; --> $98 on PC-8201, $98 on MSX
+defc TK_PRINT    =  $A3 ; --> $91 on PC-8201, $91 on MSX
+defc TK_CONT     =  $A4 ; --> $99 on PC-8201, $99 on MSX
+defc TK_LIST     =  $A5 ; --> $93 on PC-8201, $93 on MSX
+defc TK_LLIST    =  $A6 ; --> $9E on PC-8201, $9E on MSX
+defc TK_CLEAR    =  $A7 ; --> $92 on PC-8201, $92 on MSX
+defc TK_CLOAD    =  $A8 ; --> $9B on PC-8201, $9B on MSX
+defc TK_CSAVE    =  $A9 ; --> $9A on PC-8201, $9A on MSX
+defc TK_TIME_S   =  $AA ; --> $EA on PC-8201
+defc TK_DATE_S   =  $AB ; --> $EB on PC-8201
+defc TK_DAY_S    =  $AC ; 
+defc TK_COM      =  $AD ; --> $B6 on PC-8201
+defc TK_MDM      =  $AE ; 
+defc TK_KEY      =  $AF ; --> $B4 on PC-8201, $CC on MSX
 
-defc TK_CLS      =  $B0
-defc TK_BEEP     =  $B1
-defc TK_SOUND    =  $B2
-defc TK_LCOPY    =  $B3
-defc TK_PSET     =  $B4
-defc TK_PRESET   =  $B5
-defc TK_MOTOR    =  $B6
-defc TK_MAX      =  $B7
-defc TK_POWER    =  $B8
-defc TK_CALL     =  $B9
-defc TK_MENU     =  $BA
-defc TK_IPL      =  $BB
-defc TK_NAME     =  $BC
-defc TK_KILL     =  $BD
-defc TK_SCREEN   =  $BE
-defc TK_NEW      =  $BF
+defc TK_CLS      =  $B0 ; --> $BE on PC-8201, $9F on MSX
+defc TK_BEEP     =  $B1 ; --> $B2 on PC-8201, $C0 on MSX
+;defc TK_FORMAT   =  $B3 ; --> on PC-8201 only
+defc TK_SOUND    =  $B2 ; --> $BA on PC-8201, $C4 on MSX
+defc TK_LCOPY    =  $B3 ;
+defc TK_PSET     =  $B4 ; --> $B1 on PC-8201, $C2 on MSX
+defc TK_PRESET   =  $B5 ; --> $B0 on PC-8201, $C3 on MSX
+defc TK_MOTOR    =  $B6 ; --> $B9 on PC-8201, $CE on MSX
+defc TK_MAX      =  $B7 ; --> $B7 on PC-8201, $CD on MSX
+defc TK_POWER    =  $B8 ; --> $BF on PC-8201
+defc TK_CALL     =  $B9 ; -->                 $CA on MSX
+defc TK_MENU     =  $BA ; --> $A8 on PC-8201
+defc TK_IPL      =  $BB ; -->                 $D5 on MSX
+defc TK_NAME     =  $BC ; --> $CE on PC-8201, $D3 on MSX
+defc TK_KILL     =  $BD ; --> $CF on PC-8201, $D4 on MSX
+defc TK_SCREEN   =  $BE ; --> $BD on PC-8201, $C5 on MSX
+defc TK_NEW      =  $BF ; --> $94 on PC-8201, $94 on MSX
 
+defc TK_TAB      =  $C0 ; --> $D9 on PC-8201, $DB on MSX
+defc TK_TO       =  $C1 ; --> $D7 on PC-8201, $D9 on MSX
+defc TK_USING    =  $C2 ; --> $E2 on PC-8201, $E4 on MSX
+defc TK_VARPTR   =  $C3 ; -->     ???         $E7 on MSX
+defc TK_ERL      =  $C4 ; --> $DF on PC-8201, $E1 on MSX
+defc TK_ERR      =  $C5 ; --> $E0 on PC-8201, $E2 on MSX
+defc TK_STRING_S =  $C6 ; --> $E1 on PC-8201, $E3 on MSX
+defc TK_INSTR    =  $C7 ; --> $E3 on PC-8201, $E5 on MSX
+defc TK_DSKI_S   =  $C8 ; --> $E8 on PC-8201, $EA on MSX
+defc TK_INKEY_S  =  $C9 ; --> $E9 on PC-8201, $EC on MSX
 
-defc TK_TAB      =  $C0
-defc TK_TO       =  $C1
-defc TK_USING    =  $C2
-defc TK_VARPTR   =  $C3
-defc TK_ERL      =  $C4
-defc TK_ERR      =  $C5
-defc TK_STRING_S =  $C6
-defc TK_INSTR    =  $C7
-defc TK_DSKI_S   =  $C8
-defc TK_INKEY_S  =  $C9
-defc TK_CSRLIN   =  $CA
-defc TK_OFF      =  $CB
-defc TK_HIMEM    =  $CC
-defc TK_THEN     =  $CD
-defc TK_NOT      =  $CE
-defc TK_STEP     =  $CF
+;defc TK_TIME     =  $EA    ; -> on PC-8201 only
+;defc TK_DATE     =  $EB    ; -> on PC-8201 only
+;defc TK_STATUS   =  $EE    ; -> on PC-8201 only
+
+defc TK_CSRLIN   =  $CA  ; --> $E6 on PC-8201, $E8 on MSX
+defc TK_OFF      =  $CB  ; --> $E7 on PC-8201, $EB on MSX
+defc TK_HIMEM    =  $CC  ; 
+defc TK_THEN     =  $CD  ; --> $D8 on PC-8201, $DA on MSX
+defc TK_NOT      =  $CE  ; --> $DE on PC-8201, $E0 on MSX
+defc TK_STEP     =  $CF  ; --> $DA on PC-8201, $DC on MSX
 
 
 ; OPERATORS
 
-defc TK_PLUS     =  $D0 ; Token for '+'
-defc TK_MINUS    =  $D1 ; Token for '-'
-defc TK_STAR     =  $D2 ; Token for '*'
-defc TK_SLASH    =  $D3 ; Token for '/'
+defc TK_PLUS     =  $D0 ; Token for '+'   --> $F3 on PC-8201, $F1 on MSX
+defc TK_MINUS    =  $D1 ; Token for '-'   --> $F4 on PC-8201, $F2 on MSX
+defc TK_STAR     =  $D2 ; Token for '*'   --> $F5 on PC-8201, $F3 on MSX
+defc TK_SLASH    =  $D3 ; Token for '/'   --> $F6 on PC-8201, $F4 on MSX
 
 ; 8K OPERATORS
 
-defc TK_EXPONENT =  $D4 ; Token for '^'
-defc TK_AND      =  $D5 ; Token for 'AND'
-defc TK_OR       =  $D6 ; Token for 'OR'
+defc TK_EXPONENT =  $D4 ; Token for '^'   --> $F7 on PC-8201, $F5 on MSX
+defc TK_AND      =  $D5 ; Token for 'AND' --> $F8 on PC-8201, $F6 on MSX
+defc TK_OR       =  $D6 ; Token for 'OR'  --> $F9 on PC-8201, $F7 on MSX
 
 ; EXTENDED OPERATORS
 
-defc TK_XOR      =  $D7 ; Token for 'XOR'
-defc TK_EQV      =  $D8 ; Token for 'EQV'
-defc TK_IMP      =  $D9 ; Token for 'IMP'
-defc TK_MOD      =  $DA ; Token for 'MOD'
-defc TK_BKSLASH  =  $DB ; Token for '\'
+defc TK_XOR      =  $D7 ; Token for 'XOR' --> $FA on PC-8201, $F8 on MSX
+defc TK_EQV      =  $D8 ; Token for 'EQV' --> $FB on PC-8201, $F9 on MSX
+defc TK_IMP      =  $D9 ; Token for 'IMP' --> $FC on PC-8201, $FA on MSX
+defc TK_MOD      =  $DA ; Token for 'MOD' --> $FD on PC-8201, $FB on MSX
+defc TK_BKSLASH  =  $DB ; Token for '\'   --> $FE on PC-8201, $FC on MSX
 
 ; RELATIONAL OPERATORS
 
-defc TK_GREATER  =  $DC ; Token for '>'
-defc TK_EQUAL    =  $DD ; Token for '='
-defc TK_MINOR    =  $DE ; Token for '<'
+defc TK_GREATER  =  $DC ; Token for '>' --> $F0 on PC-8201, $EE on MSX
+defc TK_EQUAL    =  $DD ; Token for '=' --> $F1 on PC-8201, $EF on MSX
+defc TK_MINOR    =  $DE ; Token for '<' --> $F2 on PC-8201, $F0 on MSX
+
+; FUNCTIONS
+
+defc TK_SGN      =  $DF  ; --> $04 on PC-8201 and MSX
+defc TK_INT      =  $E0  ; --> $05 on PC-8201 and MSX
+defc TK_ABS      =  $E1  ; --> $06 on PC-8201 and MSX
+defc TK_FRE      =  $E2  ; --> $0F on PC-8201 and MSX
+defc TK_INP      =  $E3  ; --> $10 on PC-8201 and MSX
+defc TK_LPOS     =  $E4  ; --> $1B on PC-8201 ($1C on MSX)
+defc TK_POS      =  $E5  ; --> $11 on PC-8201 and MSX
+defc TK_SQR      =  $E6  ; --> $07 on PC-8201 and MSX
+defc TK_RND      =  $E7  ; --> $08 on PC-8201 and MSX
+defc TK_LOG      =  $E8  ; --> $0A on PC-8201 and MSX
+defc TK_EXP      =  $E9  ; --> $0B on PC-8201 and MSX
+defc TK_COS      =  $EA  ; --> $0C on PC-8201 and MSX
+defc TK_SIN      =  $EB  ; --> $09 on PC-8201 and MSX
+defc TK_TAN      =  $EC  ; --> $0D on PC-8201 and MSX
+defc TK_ATN      =  $ED  ; --> $0E on PC-8201 and MSX
+defc TK_PEEK     =  $EE  ; --> $17 on PC-8201 and MSX
+defc TK_EOF      =  $EF  ; --> $27 on PC-8201 ($2B on MSX)
+
+defc TK_LOC      =  $F0  ; --> $28 on PC-8201, $2C on MSX
+defc TK_LOF      =  $F1  ; --> $29 on PC-8201, $2D on MSX
+defc TK_CINT     =  $F2  ; --> $1F on PC-8201, $1E on MSX
+defc TK_CSNG     =  $F3  ; --> $20 on PC-8201, $1F on MSX (CSGN on MSX)
+defc TK_CDBL     =  $F4  ; --> $21 on PC-8201, $20 on MSX
+defc TK_FIX      =  $F5  ; --> $22 on PC-8201, $21 on MSX
+defc TK_LEN      =  $F6  ; --> $12 on PC-8201 and MSX
+defc TK_STR_S    =  $F7  ; --> $13 on PC-8201 and MSX
+defc TK_VAL      =  $F8  ; --> $14 on PC-8201 and MSX
+defc TK_ASC      =  $F9  ; --> $15 on PC-8201 and MSX
+defc TK_CHR_S    =  $FA  ; --> $16 on PC-8201 and MSX
+defc TK_SPACE_S  =  $FB  ; --> $18 on PC-8201, $19 on MSX
+defc TK_LEFT_S   =  $FC  ; --> $01 on PC-8201 and MSX
+defc TK_RIGHT_S  =  $FD  ; --> $02 on PC-8201 and MSX
+defc TK_MID_S    =  $FE  ; --> $03 on PC-8201 and MSX
+
+;defc TK_EXEC     =  $BC ; --> on PC-8201 only
+;defc TK_STATUS   =  $EE ; --> on PC-8201 only
+
+defc TK_APOSTROPHE  =  $FF   ; --> $E4 on PC-8201, $E6 on MSX
 
 
-defc TK_SGN      =  $DF
-defc TK_INT      =  $E0
-defc TK_ABS      =  $E1
-defc TK_FRE      =  $E2
-defc TK_INP      =  $E3
-defc TK_LPOS     =  $E4
-defc TK_POS      =  $E5
-defc TK_SQR      =  $E6
-defc TK_RND      =  $E7
-defc TK_LOG      =  $E8
-defc TK_EXP      =  $E9
-defc TK_COS      =  $EA
-defc TK_SIN      =  $EB
-defc TK_TAN      =  $EC
-defc TK_ATN      =  $ED
-defc TK_PEEK     =  $EE
-defc TK_EOF      =  $EF
-
-defc TK_LOC      =  $F0
-defc TK_LOF      =  $F1
-defc TK_CINT     =  $F2
-defc TK_CSNG     =  $F3
-defc TK_CDBL     =  $F4
-defc TK_FIX      =  $F5
-defc TK_LEN      =  $F6
-defc TK_STR_S    =  $F7
-defc TK_VAL      =  $F8
-defc TK_ASC      =  $F9
-defc TK_CHR_S    =  $FA
-defc TK_SPACE_S  =  $FB
-defc TK_LEFT_S   =  $FC
-defc TK_RIGHT_S  =  $FD
-defc TK_MID_S    =  $FE
-
-defc TK_APOSTROPHE  =  $FF
-
-;; defc LSTOPK      =  TK_BKSLASH+1-TK_PLUS
+;; This definition was still used on MBASIC.COM and PC-8201 but has been abandoned here and on the MSX
+;; MSX: defc LSTOPK  =  TK_BKSLASH+1-TK_PLUS
 
 
 
@@ -1666,7 +1682,7 @@ IF M100
   LD DE,$4354   ; "TC"
 ENDIF  
 IF KC85 | M10
-  LD DE, $4241  ; "AB"
+  LD DE, $4241  ; "AB", also on M200
 ENDIF
   JP CPDEHL
 
@@ -5520,7 +5536,7 @@ ENDIF
   CALL _RST75_6
   POP AF
 
-IF KC85 | M10
+IF KC85 | M10          ; Also PC-8201
   RET NC
   XOR A
   LD (LPTPOS),A
@@ -12450,10 +12466,10 @@ CONIS1:
 ;
 ; Used by the routines at STEP, EVAL3, GETWORD and _ASCTFP.
 __CSNG:
-  RST GETYPR        ;SEE WHAT KIND OF NUMBER WE HAVE
-  RET PO            ;WE ALREADY HAVE A SNG, ALL DONE
+  RST GETYPR        ;SEE WHAT KIND OF NUMBER WE HAVE             ;SET COND CODES ACC. TO TYPE
+  RET PO            ;WE ALREADY HAVE A SNG, ALL DONE             ;IF ALREADY S.P. RETURN
   JP M,CONSI        ;WE HAVE AN INTEGER, CONVERT IT
-  JP Z,TM_ERR       ;STRINGS!! -- ERROR!!
+  JP Z,TM_ERR       ;STRINGS!! -- ERROR!!                        ;CAN'T FORCE A STRING
                     ;DBL PREC -- FALL INTO CONSD
 ;CONSD:
   CALL VALSNG       ;IF NOT INTEGER FORCE DOUBLE TO S.P.
@@ -26881,7 +26897,7 @@ ENDIF
 IF M10
   AND $88
 ELSE
-  AND $82
+  AND $82       ; Also M200
 ENDIF
   LD A,$ED
   OUT ($BA),A
