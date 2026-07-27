@@ -16722,14 +16722,14 @@ PLOOP2:
   CP OCTCON              ;IS IT SMALLER THAN SMALLEST EMBEDDED CONSTANT?   (Not a number constant prefix ?)
   JR C,NTEMBL            ;YES, DONT TREAT AS ONE
   CP DBLCON+1            ;IS IT EMBEDED CONSTANT?
-  JP C,NUMLIN            ; JP if control code       ;PRINT LEADING SPACE IF NESC.
-  CP '"'
+  JP C,NUMLIN            ; JP if control code       		;PRINT LEADING SPACE IF NESC.
+  CP '"'                                            		;IS IT A QUOTATION
   JR NZ,DETOKEN_NEXT_2
   LD A,(OPRTYP)     ; Temp operator number operations
   XOR $01
   LD (OPRTYP),A     ; Temp operator number operations
   LD A,'"'
-DETOKEN_NEXT_2:
+DETOKEN_NEXT_2:                                             ;IS IT A COLON ENDING DATA?
   CP ':'
   JR NZ,NTEMBL
   LD A,(OPRTYP)     ; Temp operator number operations
@@ -16741,19 +16741,19 @@ DETOKEN_NEXT_2:
 DETOKEN_NEXT_3:
   LD A,':'
 NTEMBL:
-  OR A
+  OR A                                                  ;SET CC'S
   JP P,DETOKEN_NEXT
   LD A,(OPRTYP)     ; Temp operator number operations
-  RRA
+  RRA                                                   ;THE LSB IS THE QUOTE BIT
   JR C,_DETOKEN_NEXT
-  RRA
-  RRA
-  JR NC,DETOKEN
-  LD A,(HL)
-  CP TK_APOSTROPHE       ;SINGLE QUOTE TOKEN?
+  RRA                                                   ;GET THE REM BIT
+  RRA                                                   ;AND SEE IF SET
+  JR NC,DETOKEN                                         ;IF NOT JUST CHECK DATA BIT
+  LD A,(HL)                                             ;MUST SEE IF ITS SNGQTK
+  CP TK_APOSTROPHE        ; SINGLE QUOTE TOKEN?         ;AND PRECEDED BY ":REM"
   PUSH HL
-  PUSH BC
-  LD HL,__DETOKEN_NEXT
+  PUSH BC                 ; SAVE BUFFER POINTER
+  LD HL,__DETOKEN_NEXT    ; PLACE TO RETURN ON FAILURE
   PUSH HL
   RET NZ
   
@@ -16774,11 +16774,12 @@ NTEMBL:
   LD A,(BC)
   CP ':'
   RET NZ
-  
-  POP AF
-  POP AF
-  POP HL
-  INC D     ; add 4 to line byte counter D
+	
+  POP AF    ;GET RID OF RETURN ON FAIL ADDRESS
+  POP AF    ;GET RID OF BAD BUFFER POINTER
+  POP HL    ;GET BACK POINTER INTO LINE
+
+  INC D     ;UPDATE CHAR COUNT   ; add 4 to line byte counter D
   INC D
   INC D
   INC D                ;FIX UP CHAR COUNT
@@ -16823,6 +16824,9 @@ DETOKEN:
   CP TK_REM
   CALL Z,SET_REM_FLAG
 
+
+
+; a.k.a. RESEXP
 PLOOPR:
   LD A,(HL)
   INC A                    ;SET ZERO IF FN TOKEN
@@ -16832,12 +16836,12 @@ PLOOPR:
   LD A,(HL)                ;GET CHAR
   AND $7F                  ;TURN OFF HIGH BIT
 NTFNTK:
-  INC HL
-  CP TK_ELSE
-  JR NZ,DETOKEN_1
+  INC HL                   ;ADVANCE TO POINT AFTER
+  CP TK_ELSE               ;ELSE?
+  JR NZ,NOTELS
   DEC BC
   INC D
-DETOKEN_1:
+NOTELS:
   PUSH HL                  ;SAVE TEXT PTR.
   PUSH BC                  ;SAVE DEPOSIT PTR.
   PUSH DE                  ;SAVE CHAR COUNT.
@@ -16846,7 +16850,7 @@ IF NOHOOK
    DEFS 3
  ENDIF
 ELSE
-  CALL HBUFL            ; Hook for Detokenise event
+  CALL HBUFL            ; Hook for Detokenise event  (handle extended reserved words)
 ENDIF
 
   LD HL,WORDS-1           ;GET PTR TO START OF RESERVED WORD LIST
