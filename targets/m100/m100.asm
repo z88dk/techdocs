@@ -5,8 +5,6 @@
 ; z80asm -b -m -DM10 -oM10.ROM m100.asm
 
 
-; TODO:  FIX data space after HL_CSNG_7
-
 ; The PC-8201 BASIC appears significantly closer to MBASIC than the M100/M10/KC85 family.
 ; Both the token layout and the floating-point implementation resemble the traditional
 ; Microsoft BASIC architecture, whereas the Model 100 family and MSX BASIC use a packed
