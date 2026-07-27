@@ -10,6 +10,8 @@
 ; Microsoft BASIC architecture, whereas the Model 100 family and MSX BASIC use a packed
 ; floating-point format and a substantially reorganized token map.
 
+; NOTE, there was probably a small bug in FP_ATNTAB, fixed on the KC85 and on the MSX.
+
 
 defc CR = 13
 defc LF = 10
@@ -5207,7 +5209,7 @@ CHGET_0:
   LD HL,(FNKPNT)
   INC H
   DEC H
-  JP Z,CHGET_4
+  JP Z,CHGET_4    ; branch if definitely not a null Function key
   LD B,(HL)
   LD A,B
   OR A
@@ -11009,15 +11011,15 @@ DMUL_12:
 ; and INTEXP.
 DDIV:
   LD A,(ARG)
-  OR A                  ;CHECK FOR DIVISION BY ZERO
+  OR A                  ;CHECK FOR DIVISION BY ZERO         ;Denominator zero?
   JP Z,O_ERR            ;GET THE EXPONENT OF ARG
   LD B,A
   LD HL,FACCU           ;IF FAC=0 THEN ANS IS ZERO
   LD A,(HL)
-  OR A
-  JP Z,ZERO
+  OR A                                                      ;Numerator zero?
+  JP Z,ZERO                                                 ;EXIT1
   XOR B
-  AND $80
+  AND $80                                                   ;Strip to sign bit
   LD C,A
   LD A,B
   AND $7F
@@ -11229,7 +11231,7 @@ __COS:                    ;WILL CALCULATE X=FAC/(2*PI)
   LD HL,FP_EPSILON        ;FP_EPSILON: 1/(2*PI) =~ 0.159155
   CALL MULPHL
   LD A,(FACCU)
-  AND $7F
+  AND $7F                 ; ARG = DP 1/4
   LD (FACCU),A
   LD HL,FP_QUARTER
   CALL FSUBS
@@ -11307,7 +11309,7 @@ __TAN:
     ;IDEA: USE IDENTITIES TO GET ARG BETWEEN 0 AND 1 AND THEN USE AN
     ;APPROXIMATION POLYNOMIAL TO COMPUTE ARCTAN(X)
 __ATN:
-  LD A,(FACCU)
+  LD A,(FACCU)                                         ;WANT ONLY POSITIVE X
   OR A
   RET Z
   CALL M,NEGAFT     ; Negate result after if -ve       ;IF ARG IS NEGATIVE, USE:  ARCTAN(X)=-ARCTAN(-X)
@@ -11324,12 +11326,12 @@ __ATN:
   JP DSUB           ; Number > 1 - Sub from PI/2       ; SUBTRACT THE RESULT FROM PI/2
 
 __ATN_0:
-  LD HL,FP_TAN15
-  CALL CMPPHL
-  JP M,ATN_SUMSER   ; Evaluate sum of series
+  LD HL,FP_TAN15                                       ;FETCH TAN(PI/12)
+  CALL CMPPHL                                          ;SEE IF LARGER
+  JP M,ATN_SUMSER   ; Evaluate sum of series           ;IF NOT PROCEED
   CALL STAKFP
-  LD HL,FP_SQR3
-  CALL ADDPHL
+  LD HL,FP_SQR3                                        ;FETCH SQR(3)
+  CALL ADDPHL                                          ;(FAC)=X+SQR(3)
   CALL XSTKFP
   LD HL,FP_SQR3
   CALL MULPHL
@@ -11338,12 +11340,12 @@ __ATN_0:
   CALL USTAKARG
   CALL DDIV
   CALL ATN_SUMSER   ; Evaluate sum of series
-  LD HL,FP_SIXTHPI
-  JP ADDPHL
+  LD HL,FP_SIXTHPI                                     ;FETCH PI/6
+  JP ADDPHL                                            ;ADD PI/6 TO FAC
 
 ATN_SUMSER:
-  LD HL,FP_ATNTAB    ; Coefficient table                ;EVALUATE APPROXIMATION POLYNOMIAL
-  JP SUMSER          ; Evaluate sum of series
+  LD HL,FP_ATNTAB    ; (ATNC2), Coefficient table      ;GWBASIC used HART 4940, M100 doesn't
+  JP SUMSER          ; Evaluate sum of series          ;EVALUATE APPROXIMATION POLYNOMIAL
 
 
 ;**********************************************************
@@ -11900,10 +11902,10 @@ FP_ATNTAB:
   DEFB $bf,$90,$81,$34,$32,$24,$70,$50      ; -1/11   =~ -0.09081343224705
   DEFB $40,$11,$11,$07,$94,$18,$40,$29      ;  1/9    =~  0.11110794184029
 IF KC85
-; MSX style ATN table
+; MSX style ATN table (most probably the right values)
   DEFB $C0,$14,$28,$57,$08,$55,$48,$84      ; -1/7    =~ -0.14285708554884
 ELSE
-; TRS80 M100 style ATN table
+; TRS80 M100 style ATN table (probably $56 is a type error)
   DEFB $C0,$14,$28,$56,$08,$55,$48,$84      ; -1/7    =~ -0.14285608554884
 ENDIF
   DEFB $40,$19,$99,$99,$99,$94,$89,$67      ;  1/5    =~  0.19999999948967
