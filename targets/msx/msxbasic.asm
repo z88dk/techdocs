@@ -8911,7 +8911,7 @@ HL_CSNG_2:
   OR A
   JR Z,HL_CSNG_6
   PUSH AF
-  LD A,40h          ; '@'
+  LD A,40h
   ADD A,B
   LD (FACCU),A
   POP AF
@@ -8949,12 +8949,26 @@ HL_CSNG_7:
   RET P
   JP NEG
 
+;
+; Negative powers used by HL_CSNG to decompose a 16-bit integer
+; into decimal digits while building the floating-point mantissa.
+;
+; Values are stored as 16-bit two's-complement numbers:
+;
+;   D8F0h = -10000
+;   FC18h = -1000
+;   FF9Ch = -100
+;   FFF6h = -10
+;   FFFFh = -1
+;
 
 HL_CSNG_CONST:
-  DEFB $F0,$D8,$18,$FC,$9C
-  DEFB $FF,$F6,$FF,$FF,$FF
+  DEFB $F0,$D8
+  DEFB $18,$FC
+  DEFB $9C,$FF
+  DEFB $F6,$FF
+  DEFB $FF,$FF
   
-
 
 ; 'CDBL' BASIC function
     ;FORCE THE FAC TO BE A DOUBLE PRECISION NUMBER
