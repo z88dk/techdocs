@@ -9046,32 +9046,45 @@ CINT_SUB:
   LD DE,$0000
   LD C,D
   INC HL
-CINT_SUB_0:
+  
+; Extract next decimal digit from the packed BCD mantissa.
+; C = digit index
+; even index -> use high nibble
+; odd  index -> use low nibble
+
+NEXT_DIGIT:
   LD A,C
   INC C
   RRA
   LD A,(HL)
-  JR C,CINT_SUB_1
-  RRA
-  RRA
-  RRA
-  RRA
-  JR CINT_SUB_2
+  JR C,ODD_DIGIT
 
-CINT_SUB_1:
+  ; Even digit: move high nibble into low nibble position.
+  RRA
+  RRA
+  RRA
+  RRA
+  JR ENTER_DIGIT
+
+  ; Odd digit.
+  ; Advance to next BCD byte after consuming
+  ; the low nibble of the current one
+ODD_DIGIT:
   INC HL
-CINT_SUB_2:
+
+  ; A = selected decimal digit (0..9)
+ENTER_DIGIT:
   AND $0F
   LD (DECTMP),HL
-  LD H,D
+  LD H,D            ; Multiply current result by 10.
   LD L,E
-  ADD HL,HL
+  ADD HL,HL         ; *2
   RET C
-  ADD HL,HL
+  ADD HL,HL         ; *4
   RET C
-  ADD HL,DE
+  ADD HL,DE         ; *5
   RET C
-  ADD HL,HL
+  ADD HL,HL         ; *10
   RET C
   LD E,A
   LD D,$00
@@ -9079,20 +9092,20 @@ CINT_SUB_2:
   RET C
   EX DE,HL
   LD HL,(DECTMP)
-  DJNZ CINT_SUB_0
-  LD HL,$8000       ; 32768
-  RST DCOMPR        ; Compare HL with DE.
-  LD A,(FACCU)
-  RET C
-  JR Z,CINT_RET1
-  POP HL
-  OR A
-  RET P
+  DJNZ NEXT_DIGIT
+  LD HL,$8000       ; HL = LOWEST 16-BIT INTEGER (-32768)
+  RST DCOMPR        ; COMPARE DE WITH HL
+  LD A,(FACCU)      ; GET SIGN OF ORIGINAL VALUE
+  RET C             ; RETURN IF MAGNITUDE IS LESS THAN 32768
+  JR Z,CINT_RET1    ; EXACTLY 32768, HANDLE SPECIAL CASE
+  POP HL            ; DISCARD RETURN ADDRESS (OVERFLOW PATH)
+  OR A              ; TEST SIGN
+  RET P             ; POSITIVE VALUE > 32767 => INTEGER OVERFLOW
   EX DE,HL
-  CALL INEGHL
+  CALL INEGHL       ; NEGATIVE VALUE, NEGATE MAGNITUDE
   EX DE,HL
-  OR A
-  RET
+  OR A              ; CLEAR CARRY, PRESERVE SIGN TEST
+  RET               ; RETURN WITH VALUE IN DE
 
 CINT_RET1:
   OR A
@@ -9141,73 +9154,77 @@ __INT:
   RET M             ;IT IS AN INTEGER, ALL DONE
   LD HL,FACCU+8     ;GET EXPONENT
   LD C,$0E
-  JR NC,__INT_0
-  JP Z,TM_ERR               ; If string type, Err $0D - "Type mismatch"
+  JR NC,__INT_0     ;CONVERT THE DOUBLE PRECISION NUMBER
+  JP Z,TM_ERR       ;BLOW UP ON STRINGS ("Type mismatch")
   LD HL,FACCU+4
   LD C,$06
 __INT_0:
-  LD A,(FACCU)
-  OR A
-  JP M,__FIX_2
+  LD A,(FACCU)      ; LOAD SIGN/EXPONENT BYTE
+  OR A              ; SET FLAGS FROM SIGN
+  JP M,__FIX_2      ; IF NEGATIVE, USE SPECIAL FLOOR LOGIC
+
   AND $7F           ; ABS
-  SUB $41
-  JP C,ZERO
-  INC A
-  SUB C
-  RET NC
+  SUB $41           ; EXPONENT LESS THAN $41 MEANS |X| < 1
+  JP C,ZERO         ; THEREFORE INT(X)=0
+  INC A             ; ADJUST FRACTIONAL DIGIT COUNT
+  SUB C             ; CHECK WHETHER ANY FRACTIONAL DIGITS REMAIN
+  RET NC            ; NO FRACTIONAL PART, NUMBER IS ALREADY INTEGER
   CPL
-  INC A
-  LD B,A
+  INC A             ; CONVERT TO NUMBER OF NIBBLES TO CLEAR
+  LD B,A            ; LOOP COUNTER
 __INT_1:
-  DEC HL
+  DEC HL            ; POINT TO NEXT LEAST SIGNIFICANT BYTE
   LD A,(HL)
-  AND $F0
+  AND $F0           ; CLEAR LOW NIBBLE
   LD (HL),A
   DEC B
-  RET Z
+  RET Z             ; DONE IF THIS WAS THE LAST NIBBLE
   XOR A
-  LD (HL),A
-  DJNZ __INT_1
+  LD (HL),A         ; CLEAR ENTIRE BYTE
+  DJNZ __INT_1      ; CONTINUE WITH LESS SIGNIFICANT BYTES
   RET
   
 __FIX_2:
-  AND $7F           ; ABS
-  SUB $41
-  JR NC,__FIX_3
-  LD HL,$FFFF
+  AND $7F           ; GET ABSOLUTE VALUE OF EXPONENT
+  SUB $41           ; EXPONENT LESS THAN $41 MEANS |X| < 1
+  JR NC,__FIX_3     ; IF |X| >= 1, PROCESS NORMALLY
+  LD HL,$FFFF       ; FOR -1 < X < 0, INT(X) = -1
   JP MAKINT
   
 __FIX_3:
-  INC A
-  SUB C
-  RET NC
+  INC A             ; A = (EXP-$41)+1
+  SUB C             ; CHECK IF ANY FRACTIONAL DIGITS EXIST
+  RET NC            ; NUMBER IS ALREADY AN INTEGER
   CPL
-  INC A
-  LD B,A
-  LD E,$00
+  INC A             ; CONVERT TO NUMBER OF NIBBLES TO CLEAR
+  LD B,A            ; LOOP COUNTER
+  LD E,$00          ; FLAG: NO FRACTIONAL PART FOUND YET
+
 __FIX_4:
-  DEC HL
+  DEC HL            ; POINT TO NEXT LEAST SIGNIFICANT BYTE
   LD A,(HL)
-  LD D,A
-  AND $F0
+  LD D,A            ; SAVE ORIGINAL BYTE
+  AND $F0           ; CLEAR LOW NIBBLE
   LD (HL),A
-  CP D
+  CP D              ; WAS ANY NON-ZERO DATA REMOVED?
   JR Z,__FIX_5
-  INC E
+  INC E             ; YES, FRACTIONAL PART EXISTS (set flag)
 __FIX_5:
   DEC B
-  JR Z,__FIX_7
+  JR Z,__FIX_7      ; DONE IF LAST NIBBLE PROCESSED
   XOR A
-  LD (HL),A
-  CP D
+  LD (HL),A         ; CLEAR ENTIRE BYTE
+  CP D              ; WAS THE ORIGINAL BYTE ALREADY ZERO?
   JR Z,__FIX_6
-  INC E
+  INC E             ; RECORD LOSS OF NON-ZERO DATA
 __FIX_6:
-  DJNZ __FIX_4
+  DJNZ __FIX_4      ; PROCESS NEXT BYTE
+
 __FIX_7:
   INC E
-  DEC E
-  RET Z
+  DEC E             ; SET FLAGS ACCORDING TO E
+  RET Z             ; RETURN IF NO FRACTIONAL BITS WERE REMOVED
+
   LD A,C
   CP $06
   LD BC,$10C1       ; BCDE = 1 (float) 
