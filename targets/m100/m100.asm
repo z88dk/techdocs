@@ -12673,32 +12673,43 @@ CINT_SUB:
   LD DE,$0000
   LD C,D
   INC HL
-CINT_SUB_0:
+
+; Extract next decimal digit from the packed BCD mantissa.
+; C = digit index
+; even index -> use high nibble
+; odd  index -> use low nibble
+
+NEXT_DIGIT:
   LD A,C
   INC C
   RRA
   LD A,(HL)
-  JP C,CINT_SUB_1
+  JP C,ODD_DIGIT
   RRA
   RRA
   RRA
   RRA
-  JP CINT_SUB_2
+  JP ENTER_DIGIT
 
-CINT_SUB_1:
+  ; Odd digit.
+  ; Advance to next BCD byte after consuming
+  ; the low nibble of the current one
+ODD_DIGIT:
   INC HL
-CINT_SUB_2:
+
+  ; A = selected decimal digit (0..9)
+ENTER_DIGIT:
   AND $0F
   LD (DECTMP),HL
-  LD H,D
+  LD H,D            ; Multiply current result by 10.
   LD L,E
-  ADD HL,HL
+  ADD HL,HL         ; *2
   RET C
-  ADD HL,HL
+  ADD HL,HL         ; *4
   RET C
-  ADD HL,DE
+  ADD HL,DE         ; *5
   RET C
-  ADD HL,HL
+  ADD HL,HL         ; *10
   RET C
   LD E,A
   LD D,$00
@@ -12707,7 +12718,7 @@ CINT_SUB_2:
   EX DE,HL
   LD HL,(DECTMP)
   DEC B                ; DJNZ
-  JP NZ,CINT_SUB_0
+  JP NZ,NEXT_DIGIT
   LD HL,$8000
   RST CPDEHL
   LD A,(FACCU)
@@ -12777,9 +12788,9 @@ __INT_0:
   LD A,(FACCU)
   OR A
   JP M,__INT_2
-  AND $7F              ;ABS
-  SUB $41
-  JP C,ZERO
+  AND $7F              ; ABS
+  SUB $41              ; EXPONENT LESS THAN $41 MEANS |X| < 1
+  JP C,ZERO            ; THEREFORE INT(X)=0
   INC A
   SUB C
   RET NC
@@ -12800,44 +12811,46 @@ __INT_1:
   RET
 
 __INT_2:
-  AND $7F
-  SUB $41
-  JP NC,__INT_3
-  LD HL,$FFFF
+  AND $7F              ; GET ABSOLUTE VALUE OF EXPONENT
+  SUB $41              ; EXPONENT LESS THAN $41 MEANS |X| < 1
+  JP NC,__INT_3        ; IF |X| >= 1, PROCESS NORMALLY
+  LD HL,$FFFF          ; FOR -1 < X < 0, INT(X) = -1
   JP MAKINT
 
 __INT_3:
-  INC A
-  SUB C
-  RET NC
+  INC A                ; A = (EXP-$41)+1
+  SUB C                ; CHECK IF ANY FRACTIONAL DIGITS EXIST
+  RET NC               ; NUMBER IS ALREADY AN INTEGER
   CPL
-  INC A
-  LD B,A
-  LD E,$00
+  INC A                ; CONVERT TO NUMBER OF NIBBLES TO CLEAR
+  LD B,A               ; LOOP COUNTER
+  LD E,$00             ; FLAG: NO FRACTIONAL PART FOUND YET
 __INT_4:
-  DEC HL
+  DEC HL               ; POINT TO NEXT LEAST SIGNIFICANT BYTE
   LD A,(HL)
-  LD D,A
-  AND $F0
-  LD (HL),A                 ; WR Secondary slot SETFIL register
-  CP D
+  LD D,A               ; SAVE ORIGINAL BYTE
+  AND $F0              ; CLEAR LOW NIBBLE
+  LD (HL),A
+  CP D                 ; WAS ANY NON-ZERO DATA REMOVED?
   JP Z,__INT_5
-  INC E
+  INC E                ; YES, FRACTIONAL PART EXISTS (set flag)
 __INT_5:
   DEC B
-  JP Z,__INT_7
+  JP Z,__INT_7         ; DONE IF LAST NIBBLE PROCESSED
   XOR A
-  LD (HL),A                 ; WR Secondary slot SETFIL register
-  CP D
+  LD (HL),A            ; CLEAR ENTIRE BYTE
+  CP D                 ; WAS THE ORIGINAL BYTE ALREADY ZERO?
   JP Z,__INT_6
-  INC E
+  INC E                ; RECORD LOSS OF NON-ZERO DATA
 __INT_6:
   DEC B                ; DJNZ
-  JP NZ,__INT_4
+  JP NZ,__INT_4        ; PROCESS NEXT BYTE
+
 __INT_7:
   INC E
-  DEC E
-  RET Z
+  DEC E                ; SET FLAGS ACCORDING TO E
+  RET Z                ; RETURN IF NO FRACTIONAL BITS WERE REMOVED
+
   LD A,C
   CP $06            ; TK_ABS ?
   LD BC,$10C1       ; BCDE = 1 (float) 
