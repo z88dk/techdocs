@@ -7685,7 +7685,7 @@ __TAN:
     ;IDEA: USE IDENTITIES TO GET ARG BETWEEN 0 AND 1 AND THEN USE AN
     ;APPROXIMATION POLYNOMIAL TO COMPUTE ARCTAN(X)
 ; Routine at 10772
-__ATN:
+__ATN:                                                  ;WANT ONLY POSITIVE X
   LD A,(FACCU)
   OR A
   RET Z
@@ -7694,7 +7694,7 @@ __ATN:
   JP C,__ATN_0       ; Yes - Get arc tangnt
   CALL FACCU2ARG
   LD HL,FP_UNITY     ; BCDE = 1                         ;GET THE CONSTANT 1
-  CALL HL2FACCU                                        ;COMPUTE RECIPROCAL TO USE THE IDENTITY:
+  CALL HL2FACCU                                         ;COMPUTE RECIPROCAL TO USE THE IDENTITY:
   CALL DDIV          ; Get reciprocal of number         ;  ARCTAN(X)=PI/2-ARCTAN(1/X)
   CALL __ATN_0
   CALL FACCU2ARG
@@ -7703,12 +7703,12 @@ __ATN:
   JP DSUB            ; Number > 1 - Sub from PI/2       ; SUBTRACT THE RESULT FROM PI/2
   
 __ATN_0:
-  LD HL,FP_TAN15
-  CALL CMPPHL
-  JP M,ATN_SUMSER    ; Evaluate sum of series
+  LD HL,FP_TAN15                                        ;FETCH TAN(PI/12)
+  CALL CMPPHL                                           ;SEE IF LARGER
+  JP M,ATN_SUMSER    ; Evaluate sum of series           ;IF NOT PROCEED
   CALL STAKFP
-  LD HL,FP_SQR3
-  CALL ADDPHL
+  LD HL,FP_SQR3                                         ;FETCH SQR(3)
+  CALL ADDPHL                                           ;(FAC)=X+SQR(3)
   CALL XSTKFP
   LD HL,FP_SQR3
   CALL MULPHL
@@ -7717,12 +7717,12 @@ __ATN_0:
   CALL USTAKARG
   CALL DDIV
   CALL ATN_SUMSER    ; Evaluate sum of series
-  LD HL,FP_SIXTHPI
-  JP ADDPHL
+  LD HL,FP_SIXTHPI                                      ;FETCH PI/6
+  JP ADDPHL                                             ;ADD PI/6 TO FAC
   
 ATN_SUMSER:
-  LD HL,FP_ATNTAB    ; Coefficient table                ;EVALUATE APPROXIMATION POLYNOMIAL
-  JP SUMSER          ; Evaluate sum of series           
+  LD HL,FP_ATNTAB    ; (ATNC2), Coefficient table      ;GWBASIC used HART 4940, MSX doesn't
+  JP SUMSER          ; Evaluate sum of series          ;EVALUATE APPROXIMATION POLYNOMIAL
 
 
 ;**********************************************************
