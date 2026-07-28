@@ -79,7 +79,7 @@ TXT_ESCADDR  $F765      $F76C     $F050   $F581
 CUR_TXTFILE  $F767      $F76E     $F052   $F583
 ENDBUF       $F787      $F78E     $F072   $F5A3
 TTYPOS       $F788      $F78F     $F073   $F6A4   ; Current horizontal position of cursor (0-39)
-FNKSTR       $F789      $F790     $F074   $F685   ; Function key definition area (128, 192 on PC8201), also status bar
+FNKSTR       $F789      $F790     $F074   $F6A5   ; Function key definition area (128, 192 on PC8201), also status bar
 FILETYPE     $F809      $F810     $F0F4   $F745   ; also end of FN key area (not on PC8201)
 IPLBBUF      $F80A      $F811     $F0F5   $F7E6
 
@@ -147,11 +147,10 @@ PASPRV       $FAA1      $FAA8     $F4D0   $F98E
 RAMFILE      $FAA2      $FAA9     $F4D1   $F98F
 OPTROM_SIG   $FAA4      $FAAB     $F4D3   $F991   ; Optional ROM signature.  'TC' in M100/M200, 'AB' otherwise
 
-LPRINT_CH    $FAAC      $FAB3                     ; ASCII character last output to printer
+LPRINT_CH    $FAAC      $FAB3     $F4DB    n/a    ; ASCII character last output to printer
 LBL_LINE     $FAAD      $FAB4     $F4DC           ; Label line enable flag (0=not enabled)
 PORT_A8      $FAAE      $FAB5                     ; Contents of port 0A8H
 PORT_E8                           $FCFF           ; Contents of port 0E8H (M200)
-
 
 IPL_FNAME    $FAAF      $FAB6     $F4DD           ; Start of IPL filename
 LBLIST       $FABA      $FAC1     $F4E8   $F9AA   ; Address where last BASIC list started
@@ -160,12 +159,12 @@ STAKSV       $FABE      $FAC5     $F4EC   $F9AE   ; Storage for stack pointer on
 RAM          $FAC0      $FAC7      n/a    $F9B0   ; ?
 CAPTUR       $FAC2      $FAC9     $F4F0   $F9B2   ; Lowest RAM memory address used by system ($8000 if 32K RAM)
 SV_TXTPOS    $FAC4      $FACB     $F4F2   $F9B4
-FNAME_END    $FAC6      $FACD     $F4F4
+FNAME_END    $FAC6      $FACD     $F4F4   $F9B6
 CRTFLG       $FAC7      $FACE     $F4F5
 MENU_FLG     $FAC8      $FACF     $F4F6
 RST38_OFFS   $FAC9      $FAD0     $F4F7           ;Offset of last RST 38H call
 SV_CSRY      $FACA      $FAD1     $F4F8
-BLINK        $FACB      $FAD2     $F4F9   $F4FC
+BLINK        $FACB      $FAD2     $F4F9   $F9BE
 SV_LABEL_LN  $FACC      $FAD3     $F4FA   $F4FE
 LPT_FLAG     $FACD       n/a               n/a
 TOP          $FACE      $FAD4     $F4FF   $F9C0
@@ -250,15 +249,23 @@ HC_FORMAT      --         --               146    ; Hook for "FORMAT"
 
 ;-----------------------------------------------------------------------------------------------
 
+
 TEXT_END     $FB62      $FB74     $F615   $FA88   ; Pointer to the end of the file currently being edited
 DIMFLG       $FB64      $FB76     $F617   $FA8A   ; Create/Locate switch for variables (Locate=0, Create>0)
 VALTYP       $FB65      $FB77     $F618   $FA8B   ; Variable type in use (2-Integer, 3-String, 4-Single Precision, 5-Double Precision)
 OPRTYP       $FB66      $FB78     $F619   $FA8C   ; Temp operator number operations, also used as "DORES" by the (de)tokenizer
 
+DONUM         n/a        n/a       n/a    $FA8D   ; Indicates whether we have a number
+CONTXT        n/a        n/a       n/a    $FA8E   ; Text address used by CHRGTB
+CONSAV        n/a        n/a       n/a    $FA90   ; Saved token of constant after calling CHRGET
+CONTYP        n/a        n/a       n/a    $FA91   ; SAVED CONSTANT VALTYPE
+CONLO         n/a        n/a       n/a    $FA92   ; SAVED CONSTANT VALUE
+
 MEMSIZ       $FB67      $FB79     $F61A   $FA9A   ; Start address for file buffer area
 TEMPPT       $FB69      $FB7B     $F61C   $FA9C   ; Start of free area of temporary descriptor
 TEMPST       $FB6B      $FB7D     $F61E   $FA9E   ; Temporary descriptors
 
+DSCTMP       $FB89      $FB9B     $F63C   $FABA   ; String descriptor which is the result of string fun
 TMPSTR       $FB89      $FB9B     $F63C   $FABC   ; Temporary string
 FRETOP       $FB8C      $FB9E     $F63F   $FABF   ; Starting address of unused area of string area
 ENDFOR       $FB92      $FBA4     $F646   $FAC5   ; NEXT address of FOR statement
@@ -316,7 +323,7 @@ SEEDRD       $FC7A      $FC8C     $F72D
 
 MAXFIL       $FC82      $FC94     $F735           ; Maximum number of open files
 FILTAB       $FC83      $FC95     $F736   $FB63   ; Pointer to the 30 byte file number description pointer table, each entry points to the actual file table
-PTRFIL       $FC8C      $FC9E     $F73F           ; Pointer to the file description table for the last file used / current file
+PTRFIL       $FC8C      $FC9E     $F73F   $FB6C   ; Pointer to the file description table for the last file used / current file
 FILFLG       $FC92      $FCA4             $FB72
 FILNAM       $FC93      $FCA5     $F746   $FB78   ; Area for file names / Filename of current BASIC program
 FILNM2       $FC9C      $FCAE     $F74F           ; Filename of last program loaded from tape
