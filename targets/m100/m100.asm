@@ -1842,7 +1842,7 @@ PRG_END:
   JP Z,BASIC_MAIN_1
   LD A,(ONEFLG)
   OR A
-  LD E,$13
+  LD E,$13           ; Err $13 - "Device I/O error"
   JP NZ,ERROR
 BASIC_MAIN_1:
   JP ENDCON
