@@ -1088,7 +1088,7 @@ MENU_MSG:
 ; __INPUT, __READ, FDTLP, OPNPAR, VARPTR, NVRFIL, UCASE, DEPINT, __POKE,
 ; __POWER, __DATE_S, __DAY_S, OUTS_B_CHARS, LINE, MAX_FN, __SOUND, MOTOR_ON,
 ; __CALL, __SCREEN, __LCOPY, __NAME, __CSAVE, CSAVEM, __CLOAD, STRING_S,
-; LFRGNM, INSTR, __CLEAR, INXD, USING, __OPEN, __MERGE, __SAVE, INPUT_S, L4F2E,
+; LFRGNM, INSTR, __CLEAR, INXD, USING, __OPEN, __MERGE, __SAVE, INPUT_S, FILGET_0,
 ; TEL_SET_STAT, KBDMAP_LCASE and __MAX.
 
 SYNCHR:
@@ -1108,7 +1108,7 @@ SYNCHR:
 ; _HIMEM, SOUND_ON, MOTOR_OFF, __CALL, __SCREEN, __LCOPY, __KILL, __CSAVE,
 ; SAVEM, CSAVEM, __CLOAD, LOADM_RUNM, CLOADM, LDIR_B, PRPARM, STRING_S, __VAL,
 ; INSTR, _ASCTFP, PUFOUT, __CLEAR, __NEXT, INXD, GETVAR, SCPTLP, USING,
-; INKEY_S, FILIDX, __OPEN, NULOPN, __MERGE, __SAVE, __CLOSE, INPUT_S, L4F2E,
+; INKEY_S, FILIDX, __OPEN, NULOPN, __MERGE, __SAVE, __CLOSE, INPUT_S, FILGET_0,
 ; TELCOM_RDY, TEL_STAT, TEL_SET_STAT, TEL_LOGON, TEL_TERM, TEL_UPLD, DWNLDR,
 ; TEL_BYE, TEXT, TXT_CTL_Y, TXT_CTL_G, LOAD_BA_LBL, KBDMAP_LCASE and BOOT.
 CHRGTB:
@@ -1164,7 +1164,7 @@ TRAP:
 ;
 ; Used by the routines at TO, STEP, __PRINT, __READ, EVAL3, EVAL_VARIABLE, UCASE,
 ; GETWORD, STRING_S, INSTR, __FRE, INVSGN, VSIGN, __CINT, __CSNG, __CDBL,
-; TSTSTR, __FIX, __INT, _ASCTFP, __NEXT, GETVAR, L4F2E and KBDMAP_LCASE.
+; TSTSTR, __FIX, __INT, _ASCTFP, __NEXT, GETVAR, FILGET_0 and KBDMAP_LCASE.
 GETYPR:
   JP _GETYPR
   NOP
@@ -1194,7 +1194,7 @@ RST65:
 ; Used by the routines at CHGET, CHSNS, LPT_OUT, CRT_CTL, WAND_CTL, __EOF,
 ; _MAXRAM, __WIDTH, __SCREEN, __KILL, __NAME, SAVEM, LOADM_RUNM, HL_CSNG,
 ; __CLEAR, OUTC_SUB, FILIDX, SETFIL, __OPEN, NULOPN, CLSFIL, __MERGE, __SAVE,
-; __CLOSE, RDBYT, INPUT_S, L4F2E, __LOF, __LOC, __LFILES, __DSKO_S, DSKI_S,
+; __CLOSE, RDBYT, INPUT_S, FILGET_0, __LOF, __LOC, __LFILES, __DSKO_S, DSKI_S,
 ; GET_DEVICE, TELCOM_RDY, TEL_TERM, TEL_UPLD, TXT_ESC, FONT and KBDMAP_LCASE.
 RST38H:
   JP _RST38H
@@ -4847,7 +4847,7 @@ SETIO:
 
 ; Load 'A' with the next number in BASIC program
 ;
-; Used by the routines at TAB, VARPTR_BUF and L4F2E.
+; Used by the routines at TAB, VARPTR_BUF and FILGET_0.
 FNDNUM:
   RST CHRGTB        ; Gets next character (or token) from BASIC text.
 
@@ -4940,7 +4940,7 @@ __LIST_2:
 __LIST_END:
   LD A,(EDITMODE)
   AND A
-  JP NZ,__EDIT_1
+  JP NZ,EDIT_INIT
   LD A,$1A      ; EOF
   RST OUTDO
   JP READY
@@ -9425,7 +9425,7 @@ CRTST:
 ; Used by the routines at __INPUT and OPRND.
 QTSTR:
   LD B,'"'          ; Terminating quote              ;ASSUME STR ENDS ON QUOTE
-; This entry point is used by the routines at __LINE and L4F2E.
+; This entry point is used by the routines at __LINE and FILGET_0.
 ; Eval quoted string
 QTSTR_0:
   LD D,B            ; Quote to D
@@ -12645,7 +12645,7 @@ VALSNG_0:
     ;FORCE THE FAC TO BE A STRING
     ;ALTERS A ONLY
 ;
-; Used by the routines at __LINE, UCASE, CONCAT, GETSTR, INSTR, USING and L4F2E.
+; Used by the routines at __LINE, UCASE, CONCAT, GETSTR, INSTR, USING and FILGET_0.
 TSTSTR:
   RST GETYPR           ;SEE WHAT KIND OF VALUE WE HAVE
   RET Z                ;WE HAVE A STRING, EVERYTHING IS OK
@@ -13275,7 +13275,7 @@ POPHLRT:
     ;AT THE END, B AND THE EXPONENT (IN E) ARE USED TO DETERMINE HOW MANY
     ;TIMES WE MULTIPLY OR DIVIDE BY TEN TO GET THE CORRECT NUMBER.
     ;
-; Used by the routines at __READ, OPRND, __VAL and L4F2E.
+; Used by the routines at __READ, OPRND, __VAL and FILGET_0.
 FIN_DBL:
   EX DE,HL             ;SAVE THE TEXT POINTER IN (DE)
   LD BC,$00FF          ;CLEAR FLAGS:  B=DECIMAL PLACE COUNT,  C="." FLAG
@@ -15415,14 +15415,14 @@ __CLS:
 ; Protect line 8.  An ESC T is printed.
 ;
 ; Used by the routine at DSPFNK.
-L4235:
+PROTECT_BOTTOM_ROW:
   LD A,'T'
   JP ESCA
 
 ; Unprotect line 8.  An ESC U is printed.
 ;
 ; Used by the routines at ERAFNK and DSPFNK.
-RSTSYS:
+UNPROTECT_BOTTOM_ROW:
   LD A,'U'
   JP ESCA
 
@@ -15504,7 +15504,7 @@ EXTREV:
 
 ; print escape code in A
 ;
-; Used by the routines at L4235, RSTSYS, LOCK, UNLOCK, CURSON, CURSOFF, DELLIN,
+; Used by the routines at PROTECT_BOTTOM_ROW, UNPROTECT_BOTTOM_ROW, LOCK, UNLOCK, CURSON, CURSOFF, DELLIN,
 ; INSLIN, ERAEOL, _ESC_X, ENTREV and POSIT.
 ESCA:
   PUSH AF
@@ -15543,7 +15543,7 @@ ERAFNK:
   LD A,(LABEL_LN)       ; Label line/8th line protect status (0=off)
   AND A
   RET Z
-  CALL RSTSYS
+  CALL UNPROTECT_BOTTOM_ROW
   LD HL,(CSRX)
   PUSH HL
   CALL ESCA_0
@@ -15586,7 +15586,7 @@ ENDIF
   DEC L
 DSPFNK_0:
   PUSH HL
-  CALL RSTSYS
+  CALL UNPROTECT_BOTTOM_ROW
   CALL ESCA_0
   LD HL,FNKSTR
   LD E,$08
@@ -15618,7 +15618,7 @@ DSPFNK_3:
   CALL NZ,OUT_SPC
   JP NZ,DSPFNK_1
   CALL ERAEOL
-  CALL L4235
+  CALL PROTECT_BOTTOM_ROW
   POP AF
   
   AND A
@@ -16781,7 +16781,7 @@ __DIM:
 ; THAT POINT ALL VALUES MUST BE STORED ON THE STACK.
 ; ON RETURN, [A] DOES NOT REFLECT THE VALUE OF THE TERMINATING CHARACTER
 ;
-; Used by the routines at __LET, __LINE, __READ, EVAL_VARIABLE, __NEXT and L4F2E.
+; Used by the routines at __LET, __LINE, __READ, EVAL_VARIABLE, __NEXT and FILGET_0.
 GETVAR:
   XOR A             ; Find variable address,to DE            ;MAKE [A]=0
   LD (DIMFLG),A     ; Set locate / create flag               ;FLAG IT AS SUCH
@@ -18131,7 +18131,7 @@ _OPEN_0:
 
 ; Routine at 19768
 ;
-; Used by the routines at __CLOSE, INIT_PRINT_h and L4F2E.
+; Used by the routines at __CLOSE, INIT_PRINT_h and FILGET_0.
 CLSFIL:
   PUSH HL
   OR A
@@ -18376,7 +18376,7 @@ OUTC_FOUT:
   DEFB HC_FILOU         ; Offset: 32
   JP NM_ERR
   
-; This entry point is used by the routines at RDBYT and L4F2E.
+; This entry point is used by the routines at RDBYT and FILGET_0.
 OUTC_FOUT_0:
   PUSH AF
   PUSH DE
@@ -18396,7 +18396,7 @@ OUTC_FOUT_0:
 ; Routine at 20090
 ; a.k.a. INDSKC
 ;
-; Used by the routines at INXD, INPUT_S, L4F2E and TXT_CTL_V.
+; Used by the routines at INXD, INPUT_S, FILGET_0 and TXT_CTL_V.
 RDBYT:
   PUSH BC
   PUSH HL
@@ -18552,7 +18552,7 @@ EXEC_FILE:
 ; 6/27/80   PGA - FIX INPUT#1,D# SO IT USES FINDBL INSTEAD OF FIN AND THUS AVOIDS LOSING SIGNIFICANCE.
 
 ; Get stream number (default #channel=1)
-; This entry point is used by the routines at FILSTI and L4F2E.
+; This entry point is used by the routines at FILSTI and FILGET_0.
 FILINP:
   LD C,$01          ; (MD.SQI) MUST BE SEQUENTIAL INPUT
 
@@ -18565,7 +18565,7 @@ FILGET:
 
 ; Routine called by the PRINT statement to initialize a PRINT #: Get stream
 ; number (C=default #channel)
-L4F2E:
+FILGET_0:
   PUSH BC           ;SAVE EXPECTED MODE
   CALL FNDNUM       ; Numeric argument (0..255)
   RST SYNCHR        ;   Check syntax: next byte holds the byte to be found
@@ -18749,7 +18749,7 @@ STRCHR:
 ; NM error: bad file name
 ;
 ; Used by the routines at LCDLPT_OPN, CAS_OPN, COM_OPN, __EOF, __LCOPY, FINDCO,
-; FNAME, __SAVE, L4F2E and DSKI_S.
+; FNAME, __SAVE, FILGET_0 and DSKI_S.
 NM_ERR:
   LD E,$37
   
@@ -18789,7 +18789,7 @@ CF_ERR:
 
 ; BN error: bad file nuber
 ;
-; Used by the routines at FILIDX, __OPEN and L4F2E.
+; Used by the routines at FILIDX, __OPEN and FILGET_0.
 BN_ERR:
   LD E,$33
   
@@ -18805,7 +18805,7 @@ IE_ERR:
 
 ; EF error: end of file
 ;
-; Used by the routines at INPUT_S and L4F2E.
+; Used by the routines at INPUT_S and FILGET_0.
 EF_ERR:
   LD E,$36
   
@@ -18863,13 +18863,13 @@ PAR_DNAME:
   PUSH HL
   LD D,E
   CALL SCNBLK
-  JP Z,L5077_1
-L5077_0:
+  JP Z,PAR_DNAME_1
+PAR_DNAME_0:
   CP ':'
   JP Z,GET_DEVNAME
   CALL SCNBLK
-  JP P,L5077_0
-L5077_1:
+  JP P,PAR_DNAME_0
+PAR_DNAME_1:
   LD E,D
   POP HL
   XOR A
@@ -18879,7 +18879,7 @@ L5077_1:
   
 ; Routine at 20630
 ;
-; Used by the routine at L5077.
+; Used by the routine at PAR_DNAME.
 POSDSK:
   RST $38
   DEFB HC_POSD      ; Offset: 46
@@ -19103,10 +19103,9 @@ IF M100
 ENDIF
 
   DEFM "MENU"
-L51A1:
+
   DEFW __MENU
 
-L51A3:
   DEFB $FF
   
 TELCOM_BAR:
@@ -21216,9 +21215,10 @@ L5D40:
   ADD HL,DE
   DEC C
   RET
-  
+
+; Skip one space if present
 ; This entry point is used by the routines at IS_CRLF and SHOW_TIME.
-L5D40_0:
+SKIP_SPC:
   LD A,(HL)
   INC HL
   CP ' '
@@ -21320,7 +21320,7 @@ _BS_PRESSED:
 ; This entry point is used by the routines at TEL_FIND and SCL_LFND.
 SHOW_TIME_3:
   LD (MENUVARS+23),A
-  CALL L5D40_0
+  CALL SKIP_SPC
   EX DE,HL
   LD HL,(MENUVARS)
   EX DE,HL
@@ -21360,14 +21360,14 @@ SHOW_TIME_8:
 
 ; Routine at 24046
 TEXT:
-  LD HL,L5DFB
+  LD HL,TEXT_RESTART
   LD (ERRTRP),HL
   LD HL,TEXT_EMPTYBAR
   CALL STFNK
   XOR A
 
 ; Routine at 24059
-L5DFB:
+TEXT_RESTART:
   CALL NZ,__BEEP
   CALL STKINI
   LD HL,EDFILE_MSG
@@ -21443,14 +21443,14 @@ __EDIT_0:
   JP __LIST
 
 ; This entry point is used by the routine at __LIST.
-__EDIT_1:
+EDIT_INIT:
   CALL CLOSE_STREAM
   CALL __NEW_2
   LD A,(LABEL_LN)       ; Label line/8th line protect status (0=off)
   LD (SV_LABEL_LN),A
   LD HL,$0000
   LD (SAVE_CSRX),HL
-__EDIT_2:
+EDIT_INIT_0:
   CALL RESFPT
   CALL CLR_ALLINT
   LD HL,(EDTDIR)
@@ -21460,12 +21460,12 @@ __EDIT_2:
   PUSH HL
   XOR A             ; Text editor in BASIC mode
   LD HL,TXT_TO_BASIC        ; Return location to get back from editor
-  JP EDIT_TEXT_0
+  JP EDIT_RUN
 
 ; Routine at 24235
 TXT_TO_BASIC:
   XOR A
-  LD HL,L5EEB
+  LD HL,EDIT_RESTART
   LD (ERRTRP),HL
   LD HL,BLANK_BYTE
   LD D,RAM_DEVTYPE      ; 'RAM' device  ($F9 on KC85 and PC8201)
@@ -21506,7 +21506,7 @@ EDIT_OPN_TRP:
   JP ERROR
 
 ; Routine at 24299
-L5EEB:
+EDIT_RESTART:
   LD A,E
   PUSH AF
   LD HL,(FILTAB+4)
@@ -21522,24 +21522,24 @@ L5EEB:
   ADD HL,BC
   LD BC,$FFFF
   ADD HL,BC
-  JP C,__EDIT_5
+  JP C,EDIT_RESTART_0
   LD L,A
   LD H,A
   
-__EDIT_5:
+EDIT_RESTART_0:
   LD (SAVE_CSRX),HL
   CALL CLOSE_STREAM
   POP AF
   CP $07
   LD HL,ERR_MEMORY
-  JP Z,__EDIT_6
+  JP Z,EDIT_RESTART_1
   LD HL,ILLTXT_MSG
-__EDIT_6:
+EDIT_RESTART_1:
   CALL __CLS
   CALL PRS
   LD HL,TEXT_TXT
   CALL BANNER
-  JP __EDIT_2
+  JP EDIT_INIT_0
 
 ; This entry point is used by the routine at SCHEDL_DE.
 BANNER:
@@ -21584,7 +21584,7 @@ EDIT_TEXT:
   LD A,$01
   LD HL,__MENU
 ; This entry point is used by the routine at __EDIT.
-EDIT_TEXT_0:
+EDIT_RUN:
   LD (BASICMODE),A
   LD (TXT_ESCADDR),HL
   CALL EXTREV       ; Exit from reverse mode
@@ -24132,7 +24132,7 @@ PRINTR:
   LD C,A
 PRINTR_0:
   CALL BREAK
-  JP C,L6D6A
+  JP C,PRINTR_2
   
   IN A,($BB)
   AND $06
@@ -24162,7 +24162,7 @@ ENDIF
   defb $30      ; JR NC,N
 
 ; Used by the routine at PRINTR.
-L6D6A:
+PRINTR_2:
   LD A,C
   POP BC
   RET
