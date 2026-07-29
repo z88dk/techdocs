@@ -338,13 +338,13 @@ BEGLCD       $FE00      $FE00     $FA30           ; Begin of LCD memory (M100=32
 ENDLCD       $FF40      $FF40     $FCF0   $FE40   ; End of LCD memory
 XONXOFF      $FF41      $FF41     $FCF1   $FE41
 XONXOFF_FLG  $FF42      $FF42     $FCF2   $FE42   ; XON/XOFF enable flag.(0=disabled)
-RS232_FLG    $FF43      $FF43     $FCF3   ? $FEC2 ?
+RS232_FLG    $FF43      $FF43     $FCF3   $FEC2
 SOUND_FLG    $FF44      $FF44     $FCF4           ; Sound flag (0=on).
 ROMSEL       $FF45      $FF46     $FCFF   $FE44
 
 RS232_BUF    $FF46   $FFBE/$FFA1  $FFBB           ; Start of 64 character RS232 buffer
 RS232_COUNT  $FF86      $FF47     $FCF5   $FE45   ; Number of characters in RS232_BUF if 40 characters -> CTRL-S
-CTRL_S_FLG   $FF8A      $FF4B     $FCF9   $F9B7
+CTRL_S_FLG   $FF8A      $FF4B     $FCF9   $FE49
 RS232_BAUD   $FF8B      $FF4C     $FCFA   $FE4A
 COMMSK       $FF8D      $FF4E     $FCFC   $FE4C
 CASS_HILO    $FF8E      $FF4F
