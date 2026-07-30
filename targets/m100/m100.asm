@@ -4,6 +4,9 @@
 ; z80asm -b -m -DKC85 -oKC85.ROM m100.asm
 ; z80asm -b -m -DM10 -oM10.ROM m100.asm
 
+; UNFINISHED:
+; z80asm -b -m -DM100 -DM102 -oM102.ROM m100.asm
+
 
 ; The PC-8201 BASIC appears significantly closer to MBASIC than the M100/M10/KC85 family.
 ; Both the token layout and the floating-point implementation resemble the traditional
@@ -1076,7 +1079,11 @@ ENDIF
   ORG $0000
 
 ; Reset
+IF M102
+  JP M102_BOOT
+ELSE
   JP BOOT
+ENDIF
 
 MENU_MSG:
   DEFM "MENU"
@@ -1678,11 +1685,11 @@ EXTROM_TST_0:
   JP NZ,EXTROM_TST_0 - PIVOT_CODE + MAXRAM
   OUT ($E8),A       ; Page out the optional ROM
   LD HL,(OPTROM_SIG)
-IF M100
-  LD DE,$4354   ; "TC"
-ENDIF  
-IF KC85 | M10
-  LD DE, $4241  ; "AB", also on M200
+
+IF KC85 | M10 | M102
+  LD DE,$4241  ; "AB", also on M200
+ELSE
+  LD DE,$4354  ; M100 only: "TC"
 ENDIF
   JP CPDEHL
 
@@ -1732,10 +1739,12 @@ ENDIF
   
 IF KC85 | M10
   DEFM "37I1E"
+ELSE
+IF M102
+  DEFM "M7I1D"
+ELSE
+  DEFM "M7I1E"    ; M100 and M200
 ENDIF
-
-IF M100
-  DEFM "M7I1E"
 ENDIF
   
   JP $0000
@@ -3228,9 +3237,12 @@ __LET_3:
   LD D,(HL)         ; MSB of string address
 IF KC85 | M10
   LD HL,BUFFER      ;IF THE DATA IS IN BUF, OR IN DISK RANDOM BUFFER, COPY.
-ENDIF
-IF M100
+ELSE
+IF M102
+  LD HL,BUFMIN-1    ;IF THE DATA IS IN BUF, OR IN DISK RANDOM BUFFER, COPY.
+ELSE
   LD HL,BUFMIN      ;IF THE DATA IS IN BUF, OR IN DISK RANDOM BUFFER, COPY.
+ENDIF
 ENDIF
   RST CPDEHL            ; Compare HL with DE.. is string before program?
   JP C,__LET_5
@@ -7069,15 +7081,40 @@ L1B88:
   XOR A
   LD (ON_TIME_TM+6),A
 
-_RST75_3:
 
-IF KC85
-  JP _RST75_4
-ENDIF
+_RST75_3:
 
 IF M100 | M10
   LD A,(ON_DATE)
+ELSE
+  JP _RST75_4
 ENDIF
+
+
+IF M102
+
+;L1B8F:
+  CALL NXTDIR
+  RET Z
+  CP $F0
+  RET NZ
+  INC A
+  RET
+
+TXT_CTL_N_SUB:
+  LD HL,(CSRX)
+  LD (SAVE_CSRX),HL
+  LD HL,TXT_EXIT_ASK   ; 66E6h
+  LD (ERRTRP),HL
+  JP TXT_CTL_N_3
+
+; Probably the M102 needs a clean 16bit I/O port. 
+M102_BOOT:
+  XOR A       ; IN A,($00D8)
+  JP BOOT
+
+
+ELSE
 
   LD HL,ONDATEF
   CP (HL)
@@ -7097,10 +7134,13 @@ ENDIF
   JP NZ,_RST75_4
   LD (HL),A
 
+ENDIF
+
 _RST75_4:
   CALL _CLICK_1
 _RST75_5:
   JP _RST75_7
+
 
 ; This entry point is used by the routines at CHGET, LPT_BREAK, LCD_OUTPUT and
 ; TXT_CTL_U.
@@ -22638,7 +22678,7 @@ TXT_PASTE_0:
 ; TEXT control N routine
 ; FIND in text
 TXT_CTL_N:
-IF KC85 | M10
+IF KC85 | M10 | M102
   CALL TXT_CTL_N_SUB
 ENDIF
 IF M100
@@ -23917,9 +23957,11 @@ IF KC85
 ENDIF
 
 
-; Entry to BASIC   (6c4eh?)
+; Entry to BASIC
 BASIC:
+IF !M102
   CALL BASIC_1
+ENDIF
   CALL PRINT_COPYRIGHT
   LD HL,SUZUKI-1
   LD (DIRPNT),HL
@@ -24220,6 +24262,7 @@ RV232C_1:
 ; RST 6.5 (RS232 Interrupt on received character) routine
 ;
 ; Used by the routine at RST65.
+
 _UART:
   CALL UART
   PUSH HL
@@ -26913,7 +26956,9 @@ ENDIF
 ;
 ; Used by the routine at $0000.
 BOOT:
+IF KC85 | M10 | M100
   DI
+ENDIF
   LD SP,ALT_LCD
   
 IF KC85
