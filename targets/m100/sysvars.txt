@@ -358,7 +358,7 @@ KYREPT       $FFA4   $FF65/$FF67                  ; a.k.a. SCNCNT on MSX, wait c
 KYWHAT       $FFA5   $FF66/$FF68
 KYBCNT       $FFAA   $FF6B/$FF6D  $FD1E   $FE68   ; Number of characters in keyboard buffer.
 KYRDBF       $FFAB   $FF6C/$FF6E  $FD1F           ; Start of keyboard typeahead buffer
-BRKCHR       $FFEB   $FFAC/$FF8E
+BRKCHR       $FFEB   $FFAC/$FF8E  $FD5F   $FEA9
 SHAPE        $FFEC   $FFAD/$FF90          $FEAB   ; Start of 5 byte table describing the bit pattern currently under the cursor (used also as byte buffer by PLOT/UNPLOT)
 CSRSTS       $FFF2   $FFB3/$FF96
 CSRCNT       $FFF3   $FFB4/$FF97                  ; Set time til next cursor blink
@@ -366,4 +366,5 @@ LCD_ADDR     $FFF4   $FFB5/$FF98
 GFX_TEMP     $FFF6   $FFB7/$FF9A          $FEBB
 SAVSP        $FFF8   $FFB9/$FF9C
 IOFLAGS      $FFFA   $FFBB/$FF9E
+BOOTFLG      $FFFB   $FFBC/$FF9F
 
