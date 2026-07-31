@@ -1,4 +1,5 @@
-; Tandy M100 / Kyotronic KC85 / Olivetti M10  ROM disassembly
+
+; Tandy M100 / M102 / Kyotronic KC85 / Olivetti M10  ROM disassembly
 
 ; z80asm -b -m -DM100 -oM100.ROM m100.asm
 ; z80asm -b -m -DKC85 -oKC85.ROM m100.asm
@@ -13,7 +14,22 @@
 ; Microsoft BASIC architecture, whereas the Model 100 family and MSX BASIC use a packed
 ; floating-point format and a substantially reorganized token map.
 
-; NOTE, there was probably a small bug in FP_ATNTAB, fixed on the KC85 and on the MSX.
+; This compared disassembly shows the evolution from the classic extended BASIC 
+; (still used on the NEC-PC01) to the last 8-bit version ever programmed, also used on
+; the MSX.
+; It can be, in turn, compared to the MBASIC.COM source, the PC-8201 one as interesting
+; ancestors.   It also existed an MBASIC.COM version for MSDOS, which was created
+; starting from an automatic conversion from the BASIC-80 version.
+; The MSX BASIC evolved straight to GW-BASIC which inherited the "MaCro Language"
+; used for sound and graphics (still absent on the Kyocera models series.
+;
+; A small bug is clearly visible in the FP_ATNTAB, fixed on the KC85, the M102 and the MSX.
+; Considering that the BCD encoding allows to directly see the decimal digits paired
+; into HEX values, it might have been caused by a type error.
+; It confirms that this numeric encoding had been just introduced, comparing the MSX
+; version to the GW-BASIC shows an interesting trend inversion, a slighlty lower numeric
+; was preferred, possibly to take benefit of the 'better' i8086 CPU instruction set.
+; It surely boosted the speed slightly reducing the FP values accuracy.
 
 
 defc CR = 13
@@ -22,7 +38,7 @@ defc LF = 10
 
 ; --- Prefixes, Tokens.. --- 
 
-defc NUMLEV   = 60  ; = on MSX.  On CP/M it is 29: ; 0*20+19+2*5
+defc NUMLEV   = 60  ; Same on MSX.  On CP/M it is 29: 0*20+19+2*5
 
 defc OCTCON   = 11  ; $0B - EMBEDED OCTAL CONSTANT
 
@@ -684,6 +700,7 @@ defc LCD_ADDR      = $FF98
 defc GFX_TEMP      = $FF9A
 defc SAVSP         = $FF9C
 defc IOFLAGS       = $FF9E
+defc BOOTFLG       = $FF9F
 ELSE
 defc KB_SHIFT      = $FF63
 defc KYHOW         = $FF64
@@ -699,6 +716,7 @@ defc LCD_ADDR      = $FFB5
 defc GFX_TEMP      = $FFB7
 defc SAVSP         = $FFB9
 defc IOFLAGS       = $FFBB
+defc BOOTFLG       = $FFBC
 ENDIF
 
 ENDIF
@@ -1006,6 +1024,7 @@ defc LCD_ADDR    = $FFF4
 defc GFX_TEMP    = $FFF6
 defc SAVSP       = $FFF8
 defc IOFLAGS     = $FFFA
+defc BOOTFLG     = $FFFB
 
 
 ; Hook Code (byte offset) values
@@ -7094,6 +7113,7 @@ ENDIF
 IF M102
 
 ;L1B8F:
+NXTDIR_M102:
   CALL NXTDIR
   RET Z
   CP $F0
@@ -7137,7 +7157,7 @@ ELSE
 ENDIF
 
 _RST75_4:
-  CALL _CLICK_1
+  CALL BOOT_CLEAR
 _RST75_5:
   JP _RST75_7
 
@@ -8290,7 +8310,13 @@ IF KC85 | M10
 ENDIF
 
   XOR A
+
+IF M102
+  CALL RESFPT_M102
+ELSE
   LD (FILETYPE),A
+ENDIF
+
   LD HL,(RAM)       ; Lowest RAM memory address used by system ($8000 if 32K RAM)
   INC HL
 RESFPT_0:
@@ -8298,7 +8324,12 @@ RESFPT_0:
   LD HL,SCHDIR  ; 
   LD DE,$FFFF
 RESFPT_1:
+
+IF M102
+  CALL NXTDIR_M102
+ELSE
   CALL NXTDIR
+ENDIF
   JP Z,RESFPT_2
 
 IF KC85 | M10
@@ -9225,7 +9256,12 @@ IF KC85 | M10
   PUSH BC
 ENDIF
 
+IF M102
+  CALL $6C37   ; Shadow ROM ?
+ELSE
   CALL CAS_OPNI_SKIP
+ENDIF
+
 IF KC85 | M10
   JP CAS_OPNI_CO_0+1
 ENDIF
@@ -11941,7 +11977,7 @@ FP_ATNTAB:
   DEFB $3F,$75,$30,$71,$49,$13,$48,$00      ;  1/13.28   =~  0.0753071491348
   DEFB $bf,$90,$81,$34,$32,$24,$70,$50      ; -1/11   =~ -0.09081343224705
   DEFB $40,$11,$11,$07,$94,$18,$40,$29      ;  1/9    =~  0.11110794184029
-IF KC85
+IF KC85 | M102
 ; MSX style ATN table (most probably the right values)
   DEFB $C0,$14,$28,$57,$08,$55,$48,$84      ; -1/7    =~ -0.14285708554884
 ELSE
@@ -16596,8 +16632,16 @@ _INLIN_ENTER:
   CALL CR_LF
   XOR A
   LD (DE),A
+
 _INLIN_ENTER_0:
+
+IF M102
+  ;JP _TSTSTR
+  JP L0END    ; M102 TODO:  find the right label
+ELSE
   LD HL,BUFMIN
+ENDIF
+
 IF KC85 | M10
   LD (HL),','          ; a comma used, e.g. in "FILSTI"
 ENDIF
@@ -17362,12 +17406,18 @@ ENDDIM:
 ; Used by the routine at __PRINT.
 USING:
   CALL EVAL_0         ;EVALUATE THE "USING" STRING
+
+IF M102
+  CALL TSTSTR_M102
+ELSE
 IF M100 | M10
   CALL TSTSTR         ;MAKE SURE IT IS A STRING
 ENDIF
 IF KC85
   CALL _TSTSTR        ;MAKE SURE IT IS A STRING
 ENDIF
+ENDIF
+
   RST SYNCHR
   DEFB ';'            ;MUST BE DELIMITED BY A SEMI-COLON
   EX DE,HL            ;[D,E]=TEXT POINTER
@@ -18551,7 +18601,7 @@ POPHLRT2:
 
 ; Zero the memory starting at HL for B number of bytes
 ;
-; Used by the routines at INPUT_S, INITIO and POPALL_INT.
+; Used by the routines at INPUT_S, INITIO and POPALL_EI.
 ZERO_MEM:
   XOR A
 
@@ -19736,7 +19786,11 @@ ENDIF
 TEL_TERM_3:
   CALL RCVX
   JP Z,TEL_TERM_LOOP
+IF M102
+  CALL RV232C_M102
+ELSE
   CALL RV232C
+ENDIF
 IF KC85 | M10
   LD B,A
 ENDIF
@@ -20872,7 +20926,11 @@ GTXTTB_0:
   
 
 MONTHS:
+IF M102
+  DEFM "JanFebMarAprMayJunJulAugSepOctNovDec"
+ELSE
   DEFM "JanFebMarAprMayJunJlyAugSepOctNovDec"
+ENDIF
   
 COPYRIGHT_MSG:
   DEFM "(C)Microsoft"
@@ -23935,12 +23993,35 @@ ENDIF
   DEFB $88
   DEFW $0000
   DEFB $00
+
+IF M102
+
+BOOT_CLEAR_M102:
+  LD (BOOTFLG),A
+  JP BOOT_CLEAR
+
+  DEFB ' '
+
+ELSE
   DEFM "Suzuki "
-  
+ENDIF
+
   DEFB $C8
   DEFW $0000
   DEFB $00
+
+IF M102
+
+  PUSH BC
+  CALL CAS_OPNI_SKIP
+  POP BC
+  RET
+
+  DEFB 'i'
+
+ELSE
   DEFM "Hayashi"
+ENDIF
   
   DEFB $48
   DEFW $0000
@@ -23948,8 +24029,9 @@ ENDIF
 
 IF M102
 
+RESFPT_M102:
   LD (FILETYPE),A
-  JP NZ,RESFPT_3
+  JP RESFPT_3
 
   DEFB ' '
 
@@ -24131,11 +24213,15 @@ ENDIF
 
 IF M100
   OUT ($A8),A
-  CALL _CLICK_1
+IF M102
+  CALL BOOT_CLEAR_M102
+ELSE
+  CALL BOOT_CLEAR
+ENDIF
 ENDIF
 
 IF KC85 | M10
-  LD (IOFLAGS+1),A
+  LD (BOOTFLG),A
 ENDIF
 
   CALL INIT_LCD_ADDR
@@ -24149,7 +24235,7 @@ ENDIF
   LD A,$39
   OUT ($FE),A       ; Enable LCD
   EI
-  CALL _CLICK_4
+  CALL BOOT_PROBE
   JP NC,IOINIT_1
 IOINIT_0:
   XOR A
@@ -24166,7 +24252,7 @@ IOINIT_1:
   LD DE,$E000
   RST CPDEHL
   RET NC
-  CALL _CLICK_5
+  CALL EXT_BOOT
   PUSH AF
   JP C,IOINIT_0
 IOINIT_2:
@@ -24238,7 +24324,7 @@ RV232C:
   PUSH HL
   PUSH DE
   PUSH BC
-  LD HL,POPALL_INT+1
+  LD HL,POPALL_EI+1
   PUSH HL
   LD HL,RS232_COUNT
 RV232C_0:
@@ -24276,7 +24362,7 @@ _UART:
   PUSH DE
   PUSH BC
   PUSH AF
-  LD HL,POPALL_INT
+  LD HL,POPALL_EI
   PUSH HL
   IN A,($C8)
   LD HL,COMMSK
@@ -24523,7 +24609,7 @@ ENDIF
   CALL RES_RS232_FLAGS
   DEC A         ; $FF
   LD (RS232_FLG),A
-  JP POPALL_INT
+  JP POPALL_EI
 
 
 IF M100
@@ -24937,7 +25023,7 @@ ENDIF
 
   LD A,$FF
   OUT ($B9),A
-  JP Z,POPALL_INT_0
+  JP Z,POPALL_EI_0
 
 IF M10
   LD B,$FE
@@ -25211,7 +25297,7 @@ IF M100 | KC85
 DATAR_19:
   RRCA
   PUSH AF
-  JP C,POPALL_INT_1
+  JP C,POPALL_EI_1
 ELSE
   PUSH AF
   AND $88
@@ -25219,13 +25305,13 @@ ELSE
   LD E,$00
 ENDIF
   
-; This entry point is used by the routine at POPALL_INT.
+; This entry point is used by the routine at POPALL_EI.
 DATAR_20:
 IF M10
   POP AF
   RRCA
   PUSH AF
-  JP C,POPALL_INT_1
+  JP C,POPALL_EI_1
 ELSE
   LD HL,L7C49
   RRCA
@@ -25267,7 +25353,7 @@ ELSE
   ADD HL,BC
   PUSH DE
   LD D,A
-  CALL POPALL_INT_5
+  CALL POPALL_EI_5
   LD A,D
   POP DE
   JP Z,DATAR_24
@@ -25295,7 +25381,7 @@ ENDIF
 ELSE
 
   RRCA
-  CALL C,POPALL_INT_4
+  CALL C,POPALL_EI_4
   LD HL,KBDMAP_LCASE 
 
 ENDIF
@@ -25313,11 +25399,11 @@ IF M10
   ADD HL,DE
 ENDIF
 
-; This entry point is used by the routine at POPALL_INT.
+; This entry point is used by the routine at POPALL_EI.
 DATAR_23:
   ADD HL,BC
 
-; This entry point is used by the routine at POPALL_INT.
+; This entry point is used by the routine at POPALL_EI.
 DATAR_24:
   POP AF
   LD A,(HL)
@@ -25419,7 +25505,7 @@ _RST75_END:
 ; POP AF, BC, DE, and HL off stack, enable interrupts and return.
 ;
 ; Used by the routines at INZCOM and MUSIC.
-POPALL_INT:
+POPALL_EI:
   POP AF    ; --> used also as a relative offset (negative) to reach L71E9
 ;
   POP BC
@@ -25429,7 +25515,7 @@ POPALL_INT:
   RET
   
 ; This entry point is used by the routine at DATAR.
-POPALL_INT_0:
+POPALL_EI_0:
   LD HL,REPCNT
   DEC (HL)
   RET NZ
@@ -25443,16 +25529,16 @@ ENDIF
 
 IF M10
 
-POPALL_INT_1:
+POPALL_EI_1:
   LD E,$2F      ; ..hides a "CPL" instruction ?
   LD A,C
   LD HL,L7971
   CP $0D
-  JP Z,POPALL_INT_2
+  JP Z,POPALL_EI_2
   LD HL,L7952
   CP $2F
   JP C,DATAR_21
-POPALL_INT_2:
+POPALL_EI_2:
   POP AF
   ADD HL,BC
   LD A,(HL)
@@ -25461,21 +25547,21 @@ POPALL_INT_2:
 ELSE
 
 ; This entry point is used by the routine at DATAR.
-POPALL_INT_1:
+POPALL_EI_1:
   LD A,C
   CP $1A        ; EOF
   LD HL,KBDMAP_UCASE
   JP C,DATAR_23
   CP ','
-  JP C,POPALL_INT_2
+  JP C,POPALL_EI_2
   CP '0'
-  JP C,POPALL_INT_3
-POPALL_INT_2:
+  JP C,POPALL_EI_3
+POPALL_EI_2:
   POP AF
   PUSH AF
   JP DATAR_20
   
-POPALL_INT_3:
+POPALL_EI_3:
   SUB ','
   LD HL,L7D2F   ; "QRWZ"
   LD C,A
@@ -25488,7 +25574,7 @@ ENDIF
 IF M100 | KC85
 
 ; This entry point is used by the routine at DATAR.
-POPALL_INT_4:
+POPALL_EI_4:
   LD A,C
   CP $1A
   RET NC
@@ -25496,17 +25582,17 @@ POPALL_INT_4:
   RET
 
 ; This entry point is used by the routine at DATAR.
-POPALL_INT_5:
+POPALL_EI_5:
   LD A,(HL)
   LD E,$06
   LD HL,L7CF9
-POPALL_INT_6:
+POPALL_EI_6:
   CP (HL)
   INC HL
   RET Z
   INC HL
   DEC E
-  JP P,POPALL_INT_6
+  JP P,POPALL_EI_6
   RET
 
 ENDIF
@@ -25766,16 +25852,50 @@ MUSIC_3:
   CALL BAUDST_0
   EI
   RET
+
+IF M102
+
+TSTSTR_M102:
+  CALL TSTSTR
+  PUSH HL
+  LD HL,(FACLOW)
+  LD DE,MAXRAM
+  RST CPDEHL
+  EX DE,HL
+  CALL C,PUTTMP
+  POP HL
+  RET
+
+RV232C_M102:
+  CALL RV232C
+  RET C
+  CP $7F
+  SCF
+  CCF
+  RET NZ
+  LD B,A
+  LD A,(STAT)
+  CP $3A
+  LD A,B
+  CCF
+  RET
   
+  INC A
+  RET
+
+ELSE
+
+; Unreferenced piece of code, possibly related to the barcode reader
+UNUSED_DATAIN:
   PUSH HL
   PUSH DE
   PUSH BC
   PUSH AF
-  LD E,(HL)
+  LD E,(HL)          ; Data DST
   INC HL
   LD D,(HL)
   INC HL
-  LD C,(HL)
+  LD C,(HL)          ; Data LEN
   INC HL
   LD B,(HL)
   INC HL
@@ -25789,15 +25909,17 @@ MUSIC_3:
   LD A,(HL)
   OUT ($72),A
 
-MUSIC_4:
+UNUSED_DATAIN_LP:
   LD A,B
   OR C
-  JP Z,POPALL_INT
+  JP Z,POPALL_EI
   IN A,($73)
   LD (DE),A
   INC DE
   DEC BC
-  JP MUSIC_4
+  JP UNUSED_DATAIN_LP
+
+ENDIF
 
 ; Load the contents of the clock chip registers into the address pointed to by
 ; HL.
@@ -26439,26 +26561,36 @@ _CLICK:
   XOR $20
   OUT ($BA),A
   RET
-  
-_CLICK_0:
-  LD A,(IOFLAGS+1)
+
+
+; I/O assignments: (ext. boot)
+; (on PC-8201 the addresses were 70h..73h)
+
+; DATA       80h
+; CONTROL    81h
+; STATUS     82h
+; COMMAND    83h
+
+
+BOOT_PROBE_1:
+  LD A,(BOOTFLG)
   INC A
   RET
   
 ; This entry point is used by the routines at _RST75 and IOINIT.
-_CLICK_1:
-  LD HL,IOFLAGS+1
+BOOT_CLEAR:
+  LD HL,BOOTFLG
   IN A,($82)
   AND $07
-  JP Z,_CLICK_2
+  JP Z,BOOT_CLEAR_1
   LD (HL),$00
   RET
-  
-_CLICK_2:
+BOOT_CLEAR_1:
   OR (HL)
   RET NZ
   LD (HL),$FF
-_CLICK_3:
+
+BOOT_RESET:
   LD A,$C1
   OUT ($83),A
   IN A,($80)
@@ -26468,92 +26600,95 @@ _CLICK_3:
   RET
   
 ; This entry point is used by the routine at IOINIT.
-_CLICK_4:
+BOOT_PROBE:
 IF M100
-  CALL _CLICK_0
+  CALL BOOT_PROBE_1
 ENDIF
 IF KC85 | M10
-  CALL _CLICK_1
+  CALL BOOT_CLEAR
 ENDIF
   SCF
   RET NZ
   LD A,$03
   LD (IOFLAGS),A
   XOR A
-  CALL _CLICK_8
-  CALL _CLICK_12
+  CALL BOOT_SDBYTE
+  CALL BOOT_LDBYTE
   RLCA
   RLCA
   AND $03
   RET
   
 ; This entry point is used by the routine at IOINIT.
-_CLICK_5:
+EXT_BOOT:
   LD A,$03
   LD (IOFLAGS),A
-  LD HL,L770B
+  LD HL,BOOT_REQUEST
   LD B,$05
-_CLICK_6:
+BOOT_INIT:
   LD A,(HL)
-  CALL _CLICK_8
+  CALL BOOT_SDBYTE
   INC HL
   DEC B                ; DJNZ
-  JP NZ,_CLICK_6
-  CALL _CLICK_12
+  JP NZ,BOOT_INIT
+  CALL BOOT_LDBYTE
   OR A
   SCF
   RET NZ
   LD HL,$E000
-_CLICK_7:
-  CALL _CLICK_12
+EXT_BOOT_END:
+  CALL BOOT_LDBYTE
   LD (HL),A
   INC HL
   DEC B                ; DJNZ
-  JP NZ,_CLICK_7
+  JP NZ,EXT_BOOT_END
   JP $E000
   
-_CLICK_8:
+BOOT_SDBYTE:
   PUSH AF
-  
-_CLICK_9:
+BOOT_SD_LP:
   CALL BREAK
-  JP C,_CLICK_10
+  JP C,BOOT_ERROR
   IN A,($82)
   RLCA
-  JP NC,_CLICK_9
+  JP NC,BOOT_SD_LP
   LD A,(IOFLAGS)
   OUT ($81),A
   POP AF
   OUT ($80),A
   RET
   
-_CLICK_10:
+BOOT_ERROR:
   POP AF
-_CLICK_11:
+BOOT_STOP:
   POP AF
-  CALL _CLICK_3
+  CALL BOOT_RESET
   SCF
   RET
 
-_CLICK_12:
+BOOT_LDBYTE:
   CALL BREAK
-  JP C,_CLICK_11
+  JP C,BOOT_STOP
   IN A,($82)
   AND $20
-  JP Z,_CLICK_12
+  JP Z,BOOT_LDBYTE
   IN A,($80)
   RET
   
 ; Message at 30475
-L770B:
+BOOT_REQUEST:
   DEFB $02
   DEFB $01
   DEFB $00
   DEFB $00
   DEFB $01
+
   DEFB $00
 
+
 ; FONT: 5 bytes for 0..127 (ASCII), 6 bytes for 128..255 (GRAPHICS), total 1248 bytes
+
+;             M102 TODO: the font is different
 FONT:
 IF M10
 
@@ -26567,7 +26702,11 @@ ELSE
 ; KC85 and M100 GFX fonts are identical.
 
 ; 480 bytes for ASCII FONT
+IF M102
+  BINARY  "M102FONT_L.BIN"
+ELSE
   BINARY  "FONT_L.BIN"
+ENDIF
 
 ; 768 bytes for GFX SYMBOLS
   BINARY  "FONT_H.BIN"
