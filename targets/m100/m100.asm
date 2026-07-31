@@ -26806,7 +26806,7 @@ IF M10
 ; 12 pairs
 L79AD:
   DEFB $15
-  DEFM "."
+  DEFB "."
   DEFB $16
   DEFM ","
   DEFB $17
@@ -26928,7 +26928,7 @@ L7C49:
   DEFB $F3
   DEFB $F2
   DEFB $F1
-  DEFM $7E      ;"~"
+  DEFB $7E      ;"~"
   DEFB $F5
   DEFB $00
   DEFB $F8
@@ -26945,10 +26945,72 @@ L7C49:
   DEFB $00
   DEFB $00
   DEFB $00
-  DEFM $7C      ;"|"
+  DEFB $7C      ;"|"
   DEFB $00
-  
+
+
 KMAP3:
+
+IF M102
+  DEFB $A1
+  DEFB $D1
+  DEFB $BD
+  DEFB $CE
+  DEFB $CF
+  DEFB $CD
+  DEFB $BC
+  DEFB $CA
+  DEFB $C8
+  DEFB $A9
+  DEFB $BB
+  DEFB $A2
+  DEFB $00
+  DEFB $00
+  DEFB $CB
+  DEFB $C9
+  DEFB $B6
+  DEFB $D3
+  DEFB $C6
+  DEFB $00
+  DEFB $00
+  DEFB $00
+  DEFB $B8
+  DEFB $C7
+  DEFB $B7
+  DEFB $AC
+  DEFB $B5
+  DEFB $AD
+  DEFB $A0
+  DEFB $00
+  DEFB $D5
+  DEFB $AE
+  DEFB $C0
+  DEFB $00
+  DEFB $C1
+  DEFB $00
+  DEFB $00
+  DEFB $00
+  DEFB $C4
+  DEFB $C2
+  DEFB $C3
+  DEFB $AF
+  DEFB $C5
+  DEFB $BE
+  DEFB $DF
+  DEFB $D0
+  DEFB $DE
+  DEFB $00
+  DEFB $00
+  DEFB $D6
+  DEFB $DD
+  DEFB $DA
+  DEFB $D8
+  DEFB $B9
+  DEFB $D7
+  DEFB $BF
+  DEFB $00
+  DEFB $00
+ELSE
   DEFB $CE
   DEFB $A1
   DEFB $A2
@@ -27007,10 +27069,33 @@ KMAP3:
   DEFB $BF
   DEFB $00
   DEFB $00
-
+ENDIF
 
 ; Message at 31963
 KMAP2:
+IF M102
+  DEFB $DB
+  DEFB $D9
+  DEFB $B1
+  DEFB $D2
+  DEFB $00
+  DEFB $AA
+  DEFB $BA
+  DEFB $AB
+  DEFB $B3
+  DEFB $00
+  DEFB $B2
+  DEFB $00
+  DEFB $A5
+  DEFB $00
+  DEFB $A4
+  DEFB $00
+  DEFB $D4
+  DEFB $DC
+
+  DEFB $CC
+  DEFB $00
+ELSE
   DEFB $DB
   DEFB $D9
   DEFB $D8
@@ -27032,6 +27117,7 @@ KMAP2:
   
   DEFB $D0
   DEFB $00
+ENDIF
 
 ; Message at 31983
 KMAP1:
