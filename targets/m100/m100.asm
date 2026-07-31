@@ -2,11 +2,9 @@
 ; Tandy M100 / M102 / Kyotronic KC85 / Olivetti M10  ROM disassembly
 
 ; z80asm -b -m -DM100 -oM100.ROM m100.asm
+; z80asm -b -m -DM100 -DM102 -oM102.ROM m100.asm
 ; z80asm -b -m -DKC85 -oKC85.ROM m100.asm
 ; z80asm -b -m -DM10 -oM10.ROM m100.asm
-
-; UNFINISHED:
-; z80asm -b -m -DM100 -DM102 -oM102.ROM m100.asm
 
 
 ; The PC-8201 BASIC appears significantly closer to MBASIC than the M100/M10/KC85 family.
@@ -16636,8 +16634,7 @@ _INLIN_ENTER:
 _INLIN_ENTER_0:
 
 IF M102
-  ;JP _TSTSTR
-  JP L0END    ; M102 TODO:  find the right label
+  JP _INLIN_ENTER_M102
 ELSE
   LD HL,BUFMIN
 ENDIF
@@ -27705,6 +27702,15 @@ IF M100
 FACCU2ARG:
   CALL __CDBL
   JP FAC1_ARG
+
+IF M102
+
+_INLIN_ENTER_M102:
+  LD HL,BUFMIN
+  LD (HL),','
+  RET
+
+ENDIF
 ENDIF
 
 IF KC85 | M10
