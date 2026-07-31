@@ -24230,7 +24230,7 @@ ENDIF
   CALL LCD_INIT_3E
   CALL INIT_LCD_ADDR
   LD A,$39
-  OUT ($FE),A       ; Enable LCD
+  OUT ($FE),A         ; Enable LCD
   EI
   CALL BOOT_PROBE
   JP NC,IOINIT_1
@@ -24240,7 +24240,7 @@ IOINIT_1:
   LD (SEEDRD+7),A
   OR A
   JP Z,IOINIT_2
-  LD A,(IOFLAGS+2)
+  LD A,(BOOTFLG+1)    ; End of system variables table ?
   OR A
   JP NZ,IOINIT_2
   POP AF
