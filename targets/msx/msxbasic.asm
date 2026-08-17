@@ -26441,7 +26441,7 @@ _CSTART_0:
   OR H
   JR NZ,_CSTART_0
   LD B,$00
-  CALL L7D75
+  CALL EXTROM_TST   ; Boot an eventual external ROM
   LD HL,(BOTTOM)
   XOR A
   LD (HL),A
@@ -26522,28 +26522,28 @@ L7D61_0:
 ; Routine at 32117
 ;
 ; Used by the routine at _CSTART.
-L7D75:
+EXTROM_TST:
   DI
   LD C,$00
   LD DE,EXP0        ; Expansion slot #0
   LD HL,SLTATR
-L7D75_0:
+EXTROM_TST_0:
   LD A,(DE)
   OR C
   LD C,A
   PUSH DE
-L7D75_1:
+EXTROM_TST_1:
   INC HL
   PUSH HL
   LD HL,$4000
-L7D75_2:
+EXTROM_TST_2:
   CALL RDSLT_WORD
   PUSH HL
-  LD HL,$4241
+  LD HL,$4241       ; "AB" - ROM cartridge signature (as on the KC85, etc..)
   RST DCOMPR        ; Compare HL with DE.
   POP HL
   LD B,$00
-  JR NZ,L7D75_3
+  JR NZ,EXTROM_TST_3
   CALL RDSLT_WORD
   PUSH HL
   PUSH BC
@@ -26566,7 +26566,7 @@ L7D75_2:
   RR B
   LD DE,$FFF8       ; -8
   ADD HL,DE
-L7D75_3:
+EXTROM_TST_3:
   EX (SP),HL
   LD (HL),B
   INC HL
@@ -26575,7 +26575,7 @@ L7D75_3:
   ADD HL,DE
   LD A,H
   CP $C0
-  JR C,L7D75_2
+  JR C,EXTROM_TST_2
   POP HL
   INC HL
   LD A,C
@@ -26585,7 +26585,7 @@ L7D75_3:
   ADD A,$04
   LD C,A
   CP $90
-  JR C,L7D75_1
+  JR C,EXTROM_TST_1
   AND $03
   LD C,A
 L7DDF:
@@ -26596,27 +26596,27 @@ L7DDF:
   INC C
   LD A,C
   CP $04
-  JR C,L7D75_0
+  JR C,EXTROM_TST_0
   LD HL,SLTATR
   LD B,$40
 L7DEE:
   LD A,(HL)
   ADD A,A
-  JR C,L7D75_5
+  JR C,EXTROM_TST_5
   INC HL
   DJNZ L7DEE
   RET
 
-L7D75_5:
+EXTROM_TST_5:
   CALL L7E2A
   CALL ENASLT
   LD HL,(VARTAB)
   LD DE,$C000
   RST DCOMPR        ; Compare HL with DE.
-  JR NC,L7D75_6
+  JR NC,EXTROM_TST_6
   EX DE,HL
   LD (VARTAB),HL
-L7D75_6:
+EXTROM_TST_6:
   LD HL,($8008)     ;  Programs mostly start on 0x8000 (if not otherwise descripted by TXTTAB)
   INC HL
   LD (TXTTAB),HL
@@ -26627,7 +26627,7 @@ L7D75_6:
 
 ; Routine at 32282
 ;
-; Used by the routines at __CALL, L55F8, L564A and L7D75.
+; Used by the routines at __CALL, L55F8, L564A and EXTROM_TST.
 RDSLT_WORD:
   CALL RDSLT_WORD_0
   LD E,D
@@ -26645,7 +26645,7 @@ RDSLT_WORD_0:
 
 ; Routine at 32298
 ;
-; Used by the routines at __CALL, L55F8 and L7D75.
+; Used by the routines at __CALL, L55F8 and EXTROM_TST.
 L7E2A:
   LD A,$40
   SUB B
