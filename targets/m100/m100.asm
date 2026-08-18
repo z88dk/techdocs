@@ -26238,7 +26238,7 @@ L746D:
   LD B,A
   LD E,$01
   LD HL,SHAPE
-  CALL SET_LCD
+  CALL GET_LCD
   POP DE
   LD D,B
   LD A,E
@@ -26263,7 +26263,7 @@ L7497:
   LD (HL),A
   LD B,D
   LD E,$01
-  CALL GET_LCD
+  CALL SET_LCD
   JP SET_CLOCK_HL_16
   
 ; Routine at 29858
@@ -26329,7 +26329,7 @@ LOAD_SHAPE_3:
   ;JP C,$AFF6
   defb $da      ; JP C,NN
 
-SET_LCD:
+GET_LCD:
     DEFB $F6    ;OR $AF (masks XOR A)
 
 ; This entry point is used by the routine at UNPLOT.
@@ -26338,7 +26338,7 @@ SET_LCD:
 ;
 ; Used by the routine at L7497.
 ; Rebuild graphics character code to finalize PLOT/UNPLOT
-GET_LCD:
+SET_LCD:
   XOR A
   
 ; This entry point is used by the routine at L7497.
