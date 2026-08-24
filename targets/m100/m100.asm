@@ -25,7 +25,7 @@
 ; Considering that the BCD encoding allows to directly see the decimal digits paired
 ; into HEX values, it might have been caused by a type error.
 ; It confirms that this numeric encoding had been just introduced, comparing the MSX
-; version to the GW-BASIC shows an interesting trend inversion, a slighlty lower numeric
+; version to the GW-BASIC shows an interesting trend inversion, a slighlty lower precision
 ; was preferred, possibly to take benefit of the 'better' i8086 CPU instruction set.
 ; It surely boosted the speed slightly reducing the FP values accuracy.
 
