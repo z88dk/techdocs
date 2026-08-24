@@ -107,7 +107,7 @@ DAY          $F92B      $F932     $F21A           ; Day code (0=Sunday, 1=Monday
 MONTH        $F92C      $F933     $F21B           ; Current month (1-12) (M100 1 byte, M200, 2 bytes)
 YEAR         $F92D      $F934     $F21D           ; Year (ones)
 YEAR_2       $F92E      $F935     $F21E           ; Year (tens)
-CSRITP       $F92F      $F936     $F21F   $F83E
+CSRITP       $F92F      $F936     $F21F   $F83E   ; Clock service interval counter
 TIMCN2       $F930      $F937     $F220   $F83F
 TIMINT       $F931      $F938     $F221   $F840
 TMOFLG       $F932      $F939     $F222   $F841
@@ -348,23 +348,28 @@ CTRL_S_FLG   $FF8A      $FF4B     $FCF9   $FE49
 RS232_BAUD   $FF8B      $FF4C     $FCFA   $FE4A
 COMMSK       $FF8D      $FF4E     $FCFC   $FE4C
 CASS_HILO    $FF8E      $FF4F
-KBSITP       $FF8F      $FF50     $FD03   $FE4D
-REPCNT       $FF90      $FF51     $FD04   $FE4E
-KYDATA       $FF91      $FF52     $FD05   $FE4F
+KBSITP       $FF8F      $FF50     $FD03   $FE4D   ; Keyboard Scan Interval Timer
+REPCNT       $FF90      $FF51     $FD04   $FE4E   ; Initial key repeat delay timer (see also KYREPT)
+KYDATA       $FF91      $FF52     $FD05   $FE4F   ; Keyboard matrix state buffer
 
 KB_SHIFT     $FFA2   $FF63/$FF65  $FD16   $FE60   ; 8 bits for storing shift, ctrl, grph, code, num, and caps lock
-KYHOW        $FFA3   $FF64/$FF66
-KYREPT       $FFA4   $FF65/$FF67                  ; a.k.a. SCNCNT on MSX, wait count for repeat
-KYWHAT       $FFA5   $FF66/$FF68
+KYHOW        $FFA3   $FF64/$FF66          $FE61   ; Key translation control flags
+KYREPT       $FFA4   $FF65/$FF67          $FE62   ; a.k.a. SCNCNT on MSX, auto-repeat delay
+KYWHAT       $FFA5   $FF66/$FF68          $FE63   ; Active key scan structure
+KYWHAT_IDX   $FFA6   $FF67/$FF69          $FE64   ; - keymap index
+KYWHAT_MSK   $FFA7   $FF68/$FF6A          $FE65   ; - matrix bit mask
+KYWHAT_PTR   $FFA8   $FF69/$FF6B          $FE66   ; - key state pointer (word)
+
 KYBCNT       $FFAA   $FF6B/$FF6D  $FD1E   $FE68   ; Number of characters in keyboard buffer.
 KYRDBF       $FFAB   $FF6C/$FF6E  $FD1F           ; Start of keyboard typeahead buffer
 BRKCHR       $FFEB   $FFAC/$FF8E  $FD5F   $FEA9
-SHAPE        $FFEC   $FFAD/$FF90          $FEAB   ; Start of 5 byte table describing the bit pattern currently under the cursor (used also as byte buffer by PLOT/UNPLOT)
-CSRSTS       $FFF2   $FFB3/$FF96
-CSRCNT       $FFF3   $FFB4/$FF97                  ; Set time til next cursor blink
-LCD_ADDR     $FFF4   $FFB5/$FF98
+SHAPE        $FFEC   $FFAD/$FF90          $FEAB   ; Temporary LCD character pattern buffer (up to 6 bytes 'in vertical')
+CUR_SHAPE     n/a        n/a       n/a    $FEB1   ; cursor image buffer
+CSRSTS       $FFF2   $FFB3/$FF96          $FEB7   ; Cursor display state (bit 0 = cursor visible, bit 7 = cursor disabled/suppressed)
+CSRCNT       $FFF3   $FFB4/$FF97          $FEB8   ; Set time til next cursor blink
+LCD_ADDR     $FFF4   $FFB5/$FF98          $FEB9
 GFX_TEMP     $FFF6   $FFB7/$FF9A          $FEBB
-SAVSP        $FFF8   $FFB9/$FF9C
+SAVSP        $FFF8   $FFB9/$FF9C          $FEBD
 IOFLAGS      $FFFA   $FFBB/$FF9E
 BOOTFLG      $FFFB   $FFBC/$FF9F
 
