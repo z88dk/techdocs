@@ -59,7 +59,7 @@ ERR_CODE     $F672      $F679     $EF5D   $F453   ; Error code of last error
 LPTPOS       $F674      $F67B     $EF5F   $F455   ; Line printer head position
 PRTFLG       $F675      $F67C     $EF60   $F456   ; Current device (screen/printer)
 CLMLST       $F676      $F67D     $EF61   $F457   ; Column space
-STRBUF       $F678      $F67F     $EF63   $F459   ; Start of string buffer for BASIC
+STKTOP       $F678      $F67F     $EF63   $F459   ; (=STRBUF) Start of string buffer for BASIC
 CURLIN       $F67A      $F681     $EF65   $F45B   ; Current executing line number, FFFFH if no program running.
 BASTXT       $F67C      $F683     $EF67   $F45D   ; Start of BASIC program pointer
 VLZADR       $F67E      $F685     $EF69   $F45F
