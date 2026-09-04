@@ -6,8 +6,7 @@ it was originally written for the Quorum Spectrum clone and adapted to a the sta
 memory model (TPA at $6001) in 2005.
 
 The CP/M boot disk MUST NOT be used as a normal ZX Spectrum disk, just type RUN to boot.
-The CATalog you see on the Spectrum side is not significant anymore, to edit the disk content
-you need to ues CPMTOOLS, here's a valid diskdefs configuration:
+The CATalog you see in ZX Spectrum mode is not significant anymore, DO NOT TOUCH THE FILES WITH BASIC, to edit the disk content you need to ues CPMTOOLS, here's a valid diskdefs configuration:
 
 # ZX Quorum 128
 # ZX Profi (KLUG CP/M)
