@@ -57,4 +57,4 @@ How to run the .CM6 code on a standard CP/M environment:
 Append the program file to reloc.bin, 
 e.g. with MSDOS - COPY /B reloc.bin+program.cm6 program.com
 
-(l80.cm6 is usable only in this way)
+(we suggest to use l80.cm6 in this way, but it would work from within the ZX Spectrum if the .rel file is simple enough)
