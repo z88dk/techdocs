@@ -58,3 +58,6 @@ Append the program file to reloc.bin,
 e.g. with MSDOS - COPY /B reloc.bin+program.cm6 program.com
 
 (we suggest to use l80.cm6 in this way, but it would work from within the ZX Spectrum if the .rel file is simple enough)
+
+The Fortran compiler is still very limited, the file access library is still buggy.
+Small programs can be built within the ZX Spectrum, though!
