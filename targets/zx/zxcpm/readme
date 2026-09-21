@@ -59,5 +59,7 @@ e.g. with MSDOS - COPY /B reloc.bin+program.cm6 program.com
 
 (we suggest to use l80.cm6 in this way, but it would work from within the ZX Spectrum if the .rel file is simple enough)
 
-The Fortran compiler is still very limited, the file access library is still buggy.
-Small programs can be built within the ZX Spectrum, though!
+The Fortran compiler works surprisingly well, but only small programs can be built within the ZX Spectrum, due to the
+limited memory available to L80.CM6
+The same memory limit hits M80.CM6 (in a cross-development environment a standard M80.COM version will work fine it you 
+link it with a modified L80.CM6, see the suggestion above).
