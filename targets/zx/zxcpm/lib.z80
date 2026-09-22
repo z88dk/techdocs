@@ -1,0 +1,4253 @@
+	title	Librarian
+	name	('LIB')
+
+; DASMed version of DR's LIB.COM
+; By W. Cirsovius
+
+; Modified for ZXCPM by Stefano Bodrato
+; builds with SLR-ASM (z80asm.com)
+
+TRUE	equ	1
+FALSE	equ	0
+
+OS	equ	6000h
+BDOS	equ	6005h
+TPAtop	equ	BDOS+1
+FCB	equ	605ch
+CCP	equ	6080h
+DMA	equ	6080h
+TPA	equ	6100h
+
+
+.conout	equ	 2
+.string	equ	 9
+.consta	equ	11
+.open	equ	15
+.close	equ	16
+.delete	equ	19
+.rdseq	equ	20
+.wrseq	equ	21
+.make	equ	22
+.rename	equ	23
+.setdma	equ	26
+
+.drv	equ	 1
+.nam	equ	 8
+.ext	equ	 3
+_EX	equ	12
+_DIR	equ	16
+_CR	equ	32
+FCBlen	equ	33
+namlen	equ	15
+
+OSerr	equ	-1
+
+MAXDRV	equ	'Z'
+
+reclng	equ	128
+
+CCPlen	equ	128
+
+REL1	equ	4		; Records in REL 1 file
+REL2	equ	8		; Records in REL 2 file
+
+REC1	equ	REL1*reclng
+REC2	equ	REL2*reclng
+
+null	equ	00h
+lf	equ	0ah
+cr	equ	0dh
+eof	equ	1ah
+eot	equ	'$'
+
+eoIRL	equ	0feh		; Byte indicating end of IRL items
+
+PARSEOK	equ	 0
+PARSERR	equ	-1
+
+SCANERR	equ	-2
+ILLPARS	equ	-1
+
+MSB	equ	10000000b
+LOMASK	equ	00001111b
+UPPMASK	equ	11111000b
+UPPER	equ	01011111b
+NAMMASK	equ	00000111b
+ALLMASK	equ	11111111b
+
+ITEMLEN	equ	7
+
+BYTOFF	equ	3
+CMDPOS	equ	BYTOFF+1
+NAMPOS	equ	CMDPOS+2
+SYMLEN	equ	NAMPOS+6
+
+pubsymb	equ	0000b		; Entry symbol
+prgnam	equ	0010b		; Name of module
+MS.COMS	equ	0101b		; Define COMMON size
+MS.mino	equ	1000b		; External - offset
+setloc	equ	1011b		; Set location counter
+endmod	equ	1110b		; End of module
+endfile	equ	1111b		; End of file
+
+endbyte	equ	1b SHL 7 + 00b SHL 5 + endfile SHL 1
+
+endcode	equ	01101100b
+
+@comm	equ	11b		; COMMON address mode
+
+	.z80
+	aseg
+	org	6100h
+
+	jp	l019e		; Skip patch area
+;
+	db	'COPYRIGHT (C) 1980 DIGITAL RESEARCH '
+;
+	ds	90
+;
+	db	'654321'
+l0187:
+	db	'REL'
+l018a:
+	db	'IRL'
+l018d:
+	db	'FATAL ERROR',eot
+l0199:
+	db	1,endcode
+l019b:
+	db	eot
+l019c:
+	db	1,endcode
+;
+; %%%%%%%%%%%%%%%%%%%%%%%%
+; %%% LIB ENTERED HERE %%%
+; %%%%%%%%%%%%%%%%%%%%%%%%
+;
+l019e:
+	ld	sp,ll19f0	; Get local stack
+	call	l0a0d		; Init program
+	call	l13ba		; Scan input line
+	ld	hl,l1d12
+	ld	(l1ab0),hl	; Init command line pointer
+	ld	hl,l1ace
+	ld	(hl),FALSE	; Indicate line in progress
+	ld	c,TRUE		; Allow assignment
+	call	l1302		; Parse line
+	call	l0793		; Unpack file
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	a,(hl)
+	cp	'='		; Test assignment
+	jp	nz,l01de	; Nope
+	ld	a,(l1abe)	; Get <...> flag
+	ld	hl,l1abf	; Point to selection flag
+	or	(hl)
+	rra
+	jp	nc,l01d4	; No () or <> if = found
+	ld	bc,l1af8
+	call	l0aa3		; Syntax error if so
+l01d4:
+	ld	hl,l1ab8
+	ld	(hl),TRUE	; Set assignment '=' flag
+	ld	c,FALSE		; Do not allow assignment
+	call	l1302		; Parse line
+l01de:
+	ld	a,(l1ab8)	; Get assignment '=' flag
+	cpl
+	rra
+	jp	nc,l021c
+	ld	a,(l1ab7)	; Test 'I'ndex
+	rra
+	jp	nc,l0206	; Nope
+	ld	a,(l1abe)	; Get <...> flag
+	ld	hl,l1abf	; Point to selection flag
+	or	(hl)
+	rra
+	jp	nc,l01fe
+	ld	bc,l1af8
+	call	l0aa3		; Syntax error
+l01fe:
+	ld	hl,l1ab8
+	ld	(hl),TRUE	; Set assignment '=' flag
+	jp	l021c
+l0206:
+	ld	a,(l1aba)	; Get 'P'ublic flag
+	ld	hl,l1ab6	; Point to 'D'ump flag
+	or	(hl)
+	ld	hl,l1ab9	; Point to 'M'odule flag
+	or	(hl)
+	cpl
+	rra
+	jp	nc,l021c	; Got at least one option
+	ld	bc,l1af8
+	call	l0aa3		; Syntax error
+l021c:
+	call	l043c		; Prepare files
+	call	l09f9		; Execute the task
+	call	l04a7		; Close files if active
+	call	OS		; End of LIB
+	ei
+	halt
+;
+; Find entry ^BC and length in reg E - TRUE on match
+;
+l022a:
+	ld	hl,l1b0a
+	ld	(hl),e		; Save length
+	dec	hl
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	a,SYMLEN
+	ld	de,l1a00	; Point to top of memory
+	call	l198d		; HL:=^DE-ACCU
+	ld	(l1ab4),hl	; Set heap
+l023d:
+	ld	bc,l1a02	; Point to top of memory
+	ld	de,l1ab4	; Point to heap
+	call	l1980		; HL:=^DE-^BC
+	jp	c,l0281		; Scan done
+	ld	hl,(l1ab4)	; Get heap
+	ld	a,NAMMASK
+	and	(hl)		; Mask control bits
+	ld	hl,l1b0a
+	cp	(hl)		; Compare length
+	jp	nz,l0271
+	ld	hl,(l1b08)	; Get entry pointer
+	push	hl
+	ld	bc,NAMPOS
+	ld	hl,(l1ab4)	; Get heap
+	add	hl,bc		; Point to name
+	ld	b,h
+	ld	c,l
+	ld	hl,(l1b0a)	; Get length
+	ex	de,hl
+	call	l1631		; Compare
+	rra
+	jp	nc,l0271	; No match
+	ld	a,TRUE		; Return
+	ret
+l0271:
+	ld	a,SYMLEN
+	ld	de,l1ab4	; Point to heap
+	call	l198d		; HL:=^DE-ACCU
+	ex	de,hl
+	dec	hl
+	ld	(hl),e		; Save next pointer
+	inc	hl
+	ld	(hl),d
+	jp	l023d
+l0281:
+	ld	a,FALSE		; Indicate not found
+	ret
+;
+; Insert entry
+;
+; Reg DE holds value, reg C holds mode [0 for (..)] or [1 for <..>]
+;
+; <SP+2> holds ^entry, <SP+0> holds length
+;
+l0284:
+	ld	hl,l1b0f+1
+	ld	(hl),d		; Save value
+	dec	hl
+	ld	(hl),e
+	dec	hl
+	ld	(hl),c		; Save mode
+	dec	hl
+	pop	de
+	pop	bc
+	ld	(hl),c		; Save length
+	dec	hl
+	pop	bc
+	ld	(hl),b		; Save symbol pointer
+	dec	hl
+	ld	(hl),c
+	push	de
+	ld	a,SYMLEN
+	ld	de,l1a02	; Point to top of memory
+	call	l198d		; HL:=^DE-ACCU
+	ld	(l1ab4),hl	; Set heap
+	ld	hl,l1b11
+	ld	(hl),0		; Init count
+l02a6:
+	ld	a,SYMLEN-1
+	ld	hl,l1b11
+	cp	(hl)		; Test entry cleared
+	jp	c,l02c2		; Yeap
+	ld	hl,(l1b11)
+	ld	h,0
+	ex	de,hl
+	ld	hl,(l1ab4)	; Get heap
+	add	hl,de
+	ld	(hl),0		; Clear entry
+	ld	hl,l1b11
+	inc	(hl)		; Count up
+	jp	nz,l02a6
+l02c2:
+	ld	a,(l1b0e)	; Get control bit
+	and	1
+	rrca			; Shift into hi position
+	ld	hl,l1b0d
+	or	(hl)		; Combine with length
+	ld	hl,(l1ab4)	; Get heap
+	ld	(hl),a		; Insert bit
+	ld	hl,(l1b0d)	; Get length
+	ld	bc,NAMPOS
+	push	hl
+	ld	hl,(l1ab4)	; Get heap
+	add	hl,bc		; Point to name
+	ex	de,hl
+	ld	hl,(l1b0b)	; Get pointer to name
+	ld	b,h
+	ld	c,l
+	pop	hl
+l02e2:
+	ld	a,(bc)
+	ld	(de),a		; Unpack name
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,l02e2
+	ld	bc,CMDPOS
+	ld	hl,(l1ab4)	; Get heap
+	add	hl,bc		; Position for value
+	push	hl
+	ld	hl,(l1b0f)	; Get value
+	ex	de,hl
+	pop	hl
+	ld	(hl),e		; Store it
+	inc	hl
+	ld	(hl),d
+	ld	hl,(l1ab4)	; Get heap
+	ld	(l1a02),hl	; Set top of memory
+	ld	bc,l1a04
+	ld	de,l1a02	; Point to top of memory
+	call	l1980		; HL:=^DE-^BC
+	jp	nc,l0312	; ^DE >= ^BC
+	ld	hl,(l1a02)	; Get top of memory
+	ld	(l1a04),hl	; Set new pointer
+l0312:
+	ret
+;
+; Rename file
+;
+l0313:
+	ld	a,(l1ab7)	; Test 'I'ndex
+	rra
+	jp	nc,l032a	; Nope
+	ld	l,.drv+.nam+.ext
+	ld	de,l1a54
+	ld	bc,l1a75
+l0322:
+	ld	a,(bc)		; Unpack REL file
+	ld	(de),a
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,l0322
+l032a:
+	ld	l,.drv+.nam+.ext
+	ld	de,l1a75
+	ld	bc,l1a06
+l0332:
+	ld	a,(bc)		; Unpack IRL file
+	ld	(de),a
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,l0332
+	ld	a,(l1a75+.drv+.nam)
+	cp	' '
+	jp	nz,l036c
+	ld	a,(l1ab7)	; Test 'I'ndex
+	rra
+	jp	nc,l035c	; Nope
+	ld	l,.ext
+	ld	de,l1a75+.drv+.nam
+	ld	bc,l018a
+l0351:
+	ld	a,(bc)
+	ld	(de),a		; Set .IRL
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,l0351
+	jp	l036c
+l035c:
+	ld	l,.ext
+	ld	de,l1a75+.drv+.nam
+	ld	bc,l0187
+l0364:
+	ld	a,(bc)
+	ld	(de),a		; Set .REL
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,l0364
+l036c:
+	ld	bc,l1a75
+	call	l1870		; Delete file
+	ld	l,.drv+.nam+.ext
+	ld	de,l1a54+_DIR
+	ld	bc,l1a75
+l037a:
+	ld	a,(bc)		; Copy file
+	ld	(de),a
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,l037a
+	ld	bc,l1a54
+	call	l18d6		; Rename file
+	ret
+;
+; Write header to IRL file
+;
+; Format of header:
+;
+; Byte 0 - Extent number of first record in REL section
+; Byte 1 - Record number of first record in REL section
+; Bytes 2-127 - unused
+;
+l0389:
+	ld	hl,0
+	ld	(l1aaa),hl	; Clear resulting count
+	ld	bc,l1a75
+	call	l17e2		; Open file
+	ld	hl,(l19fa)	; Get extent number of first record
+	ld	c,l
+	call	l0b3a		; Write byte to IRL file
+	ld	hl,(l19fb)	; Get record number of first record
+	ld	c,l
+	call	l0b3a		; Write byte to IRL file
+	ld	hl,l1b12
+	ld	(hl),0		; Clear count
+l03a8:
+	ld	a,reclng-3
+	ld	hl,l1b12
+	cp	(hl)		; Test record filled
+	jp	c,l03c0		; Yeap
+	ld	c,0
+	call	l0b3a		; Write zeroes to IRL file
+	ld	a,(l1b12)
+	inc	a
+	ld	(l1b12),a
+	jp	nz,l03a8
+l03c0:
+	ld	bc,l2392	; Set buffer
+	push	bc
+	ld	de,l1a75	; Load FCB
+	ld	bc,reclng	; Load length
+	call	l177b		; Write disk buffer
+	ld	bc,l1a75
+	call	l1812		; Close file
+	ret
+;
+; Copy .REL to .IRL file
+;
+l03d4:
+	ld	a,0
+	ld	hl,l1aa6
+	call	l1998		; DE:=ACCU-^HL
+	jp	nc,l042c	; At start of buffer
+	ld	bc,l1a54
+	call	l17e2		; Open file if not at start
+l03e5:
+	ld	a,0
+	ld	de,l1aa6
+	call	l198d		; HL:=^DE-ACCU
+	or	l
+	jp	z,l0429
+	ld	bc,l1f92	; Set disk buffer
+	push	bc
+	ld	hl,(l1a96)	; Get length
+	ld	b,h
+	ld	c,l
+	ld	de,l1a54	; Load FCB
+	call	l1754		; Read disk buffer
+	ld	(l1b13),hl	; Save result
+	ld	bc,l1f92	; Set disk buffer
+	push	bc
+	ld	de,reclng
+	ld	hl,(l1b13)	; Get resulting record count
+	call	l1925		; HL:=HL MUL DE
+	ld	b,h		; Get length
+	ld	c,l
+	ld	de,l1a75	; Load FCB
+	call	l177b		; Write disk buffer
+	ld	bc,l1b13	; Point to resulting record count
+	ld	de,l1aa6
+	call	l1980		; HL:=^DE-^BC
+	ex	de,hl
+	dec	hl
+	ld	(hl),e		; Store into l1aa6
+	inc	hl
+	ld	(hl),d
+	jp	l03e5
+l0429:
+	jp	l043b
+l042c:
+	ld	bc,l2792	; Set disk buffer to start of free memory
+	push	bc
+	ld	hl,(l1aa2)	; Fetch length
+	ld	b,h
+	ld	c,l
+	ld	de,l1a75	; Load FCB
+	call	l177b		; Write disk buffer
+l043b:
+	ret
+;
+; Prepare files
+;
+l043c:
+	ld	bc,l1a04
+	ld	de,l1a00	; Point to top of memory
+	call	l1980		; HL:=^DE-^BC
+	jp	nc,l044e
+	ld	hl,(l1a00)	; Get top of memory
+	ld	(l1a04),hl	; Save upper limit of memory
+l044e:
+	ld	bc,l2792	; [Disk buffer to] start of free memory
+	ld	de,l1a04
+	call	l1985		; HL:=^DE-BC
+	ex	de,hl
+	ld	a,reclng
+	call	l1976		; HL:=DE-ACCU
+	ld	de,-reclng
+	call	l18f2		; HL:=HL AND DE
+	ld	(l1aa0),hl	; Set size in terms of record size
+	ld	a,(l1a06)	; Get drive
+	ld	(l1a54),a	; Unpack it
+	ld	(l1a75),a
+	ld	a,(l1ab7)	; Test 'I'ndex
+	rra
+	jp	nc,l0499	; Nope
+	ld	bc,l1a75
+	call	l179f		; Create new file
+	ld	hl,l1b15
+	ld	(hl),1
+l0481:
+	ld	a,reclng
+	ld	hl,l1b15
+	cp	(hl)		; Test record filled
+	jp	c,l0499		; Yeap
+	ld	c,0
+	call	l0b3a		; Zero one record of IRL file
+	ld	a,(l1b15)
+	inc	a
+	ld	(l1b15),a
+	jp	nz,l0481
+l0499:
+	ld	a,(l1ab8)	; Get assignment '=' flag
+	rra
+	jp	nc,l04a6	; Not set
+	ld	bc,l1a54
+	call	l179f		; Create new file
+l04a6:
+	ret
+;
+; Close files if active
+;
+l04a7:
+	ld	a,(l1ab7)	; Test 'I'ndex
+	ld	hl,l1ab8	; Point to assignment '=' flag
+	or	(hl)
+	cpl
+	rra			; Test either
+	jp	nc,l04b4	; Yeap
+	ret
+l04b4:
+	ld	a,(l1ab8)	; Get assignment '=' flag
+	rra
+	jp	nc,l0514	; Nope
+	ld	c,endbyte	; Set end of module for byte boundary
+	call	l0c8d		; Put byte to file
+;
+; Close selected REL file
+;
+l04c0:
+	ld	a,reclng-1
+	ld	de,l1aa2
+	call	l18f9		; HL:=^DE AND ACCU
+	ld	a,0
+	call	l196c		; HL:=ACCU-HL
+	or	l
+	jp	z,l04d9
+	ld	c,eof
+	call	l0c8d		; Put end of file to file
+	jp	l04c0
+l04d9:
+	ld	a,0
+	ld	hl,l1aa6
+	call	l1998		; DE:=ACCU-^HL
+	sbc	a,a
+	push	af
+	ld	a,(l1ab7)	; Test 'I'ndex
+	cpl
+	pop	bc
+	ld	c,b
+	or	c
+	rra
+	jp	nc,l0514	; Got possible IRL file
+	ld	hl,(l1aa2)
+	ex	de,hl
+	ld	hl,reclng
+	call	l1906		; DE:=DE DIV HL
+	ld	hl,(l1aa6)
+	add	hl,de
+	ld	(l1aa6),hl
+	ld	bc,l2792	; Set disk buffer to start of free memory
+	push	bc
+	ld	hl,(l1aa2)	; Fetch length
+	ld	b,h
+	ld	c,l
+	ld	de,l1a54	; Load FCB
+	call	l177b		; Write disk buffer
+	ld	bc,l1a54
+	call	l1812		; Close file
+;
+; Close active IRL file
+;
+l0514:
+	ld	a,(l1ab7)	; Test 'I'ndex
+	rra
+	jp	nc,l056c	; Nope
+	call	l0baa		; Calculate length of REL file image
+	call	l0be4		; Write REL file offset
+	ld	c,eoIRL
+	call	l0b3a		; Write end byte to IRL file
+l0526:
+	ld	a,reclng-1
+	ld	de,l1aaa
+	call	l18f9		; HL:=^DE AND ACCU
+	ld	a,0
+	call	l196c		; HL:=ACCU-HL
+	or	l
+	jp	z,l053f
+	ld	c,eof
+	call	l0b3a		; Write end of file to IRL file
+	jp	l0526
+l053f:
+	ld	bc,l2392	; Set disk buffer
+	push	bc
+	ld	hl,(l1aaa)	; Fetch length
+	ld	b,h
+	ld	c,l
+	ld	de,l1a75	; Load FCB
+	call	l177b		; Write disk buffer
+	ld	a,(l1a75+_EX)	; Fetch extent
+	ld	(l19fa),a	; Set as extent number of first record
+	ld	a,(l1a75+_CR)	; Get record
+	ld	(l19fb),a	; Set as record number of first record
+	call	l03d4		; Copy .REL to .IRL file
+	ld	bc,l1a75
+	call	l1812		; Close file
+	call	l0389		; Write header to IRL file
+	ld	bc,l1a54
+	call	l1870		; Delete file
+l056c:
+	call	l0313		; Rename file
+	ret
+;
+; Get state of entry - TRUE indicates bit set
+;
+l0570:
+	ld	hl,(l1ab4)	; Get heap
+	ld	a,01000000b
+	and	(hl)		; Extract bit
+	ld	c,a
+	ld	a,0
+	sub	c
+	sbc	a,a
+	ret
+;
+; Set state of entry
+;
+l057c:
+	ld	hl,(l1ab4)	; Get heap
+	ld	a,01000000b
+	or	(hl)		; Insert bit
+	ld	hl,(l1ab4)	; Get heap
+	ld	(hl),a		; Save
+	ret
+;
+; Get mode of entry - Return TRUE if <..>
+;
+l0587:
+	ld	hl,(l1ab4)	; Get heap
+	ld	a,(hl)
+	rlca			; Get bit
+	ret
+;
+; Calculate record position
+; Reg E holds record within extent in reg C
+;
+l058d:
+	ld	hl,l1b17
+	ld	(hl),e		; Save record
+	dec	hl
+	ld	(hl),c		; Save extent
+	ld	de,reclng
+	ld	hl,(l1b16)	; Get extent
+	ld	h,0
+	call	l1925		; HL:=HL MUL DE
+	push	hl
+	ld	hl,(l1b17)	; Get record
+	ld	h,0
+	pop	bc
+	add	hl,bc		; Build total record
+	ret
+;
+; Read new disk buffer from source stream file
+;
+l05a7:
+	ld	de,reclng
+	ld	hl,(l1a12+_EX)	; Get extent
+	ld	h,0
+	call	l1925		; HL:=HL MUL DE
+	push	hl
+	ld	hl,(l1a12+_CR)
+	ld	h,0
+	pop	bc
+	add	hl,bc		; Add record
+	ld	(l1aac),hl	; Save bit position
+	ld	bc,l1f92	; Set disk buffer
+	push	bc
+	ld	hl,(l1a96)	; Get length
+	ld	b,h
+	ld	c,l
+	ld	de,l1a12	; Load FCB
+	call	l1754		; Read disk buffer
+	ex	de,hl
+	ld	hl,(l1aac)	; Get bit position
+	add	hl,de		; Bump record count
+	dec	hl
+	ld	(l1aae),hl	; Store it
+	ret
+;
+; Read new disk buffer from stream file
+;
+l05d6:
+	ld	bc,l1d92	; Set buffer
+	push	bc
+	ld	hl,(l1a9b)	; Fetch length
+	ld	b,h
+	ld	c,l
+	ld	de,l1a33	; Load FCB
+	call	l1754		; Read disk buffer
+	ld	(l19fe),hl	; Set pointer
+	ret
+;
+; Position file to record ^BC and read buffer
+;
+l05e9:
+	ld	hl,l1b18+1
+	ld	(hl),b		; Save record
+	dec	hl
+	ld	(hl),c
+	ld	c,7
+	ld	hl,l1b18
+	call	l195c		; HL:=^HL SHR C
+	ex	de,hl
+	inc	hl
+	ld	(hl),e		;; ---> l1b1a
+	ld	a,reclng-1
+	ld	de,l1b18
+	call	l18f9		; HL:=^DE AND ACCU
+	ex	de,hl
+	ld	hl,l1b1b
+	ld	(hl),e
+	ld	a,(l1a12+_EX)
+	dec	hl
+	cp	(hl)		;; ---> l1b1a
+	jp	z,l0626		; Same extent
+	ld	a,(l1b1a)
+	ld	(l1a12+_EX),a	; Set this extent
+	ld	bc,l1a12
+	call	l1880		; Open file
+	cp	OSerr		; Test success
+	jp	nz,l0626	; Yeap
+	ld	bc,l018d
+	call	l0aa3		; Tell error
+l0626:
+	ld	a,(l1b1b)	; Get current record
+	ld	(l1a12+_CR),a	; Set into file
+	call	l05a7		; Read this buffer
+	ret
+;
+; Position new disk buffer
+;
+l0630:
+	ld	hl,l1b1e
+	ld	(hl),e		; Save byte offset
+	dec	hl
+	ld	(hl),c		; Save record
+	dec	hl
+	pop	de
+	pop	bc
+	ld	(hl),c		; Save extent
+	push	de
+	ld	hl,(l1b1c)	; Get extent
+	ld	c,l
+	ld	hl,(l1b1d)	; Get record
+	ex	de,hl
+	call	l058d		; Calculate record position
+	ld	(l1b1f),hl	; Save it
+	ld	bc,l1aac	; Point to bit position
+	ld	de,l1b1f	; Point to record position
+	call	l1980		; HL:=^DE-^BC
+	sbc	a,a
+	ld	de,l1aae	; Point to record count
+	ld	bc,l1b1f	; Point to record position
+	push	af
+	call	l1980		; HL:=^DE-^BC
+	sbc	a,a
+	pop	bc
+	ld	c,b
+	or	c
+	rra			; Test within buffer	
+	jp	nc,l066d
+	ld	hl,(l1b1f)	; Get record position
+	ld	b,h
+	ld	c,l
+	call	l05e9		; Position file
+l066d:
+	ld	bc,l1aac	; Point to bit position
+	ld	de,l1b1f	; Point to record position
+	call	l1980		; HL:=^DE-^BC
+	ld	de,reclng
+	call	l1925		; HL:=HL MUL DE
+	push	hl
+	ld	hl,(l1b1e)	; Get byte offset
+	ld	h,0
+	pop	bc
+	add	hl,bc		; Build result
+	ld	(l1a99),hl	; Set buffer index
+	ld	hl,l1a98
+	ld	(hl),0		; Clear bit count
+	ret
+;
+; Save file values into name record
+;
+l068d:
+	call	l057c		; Set state
+	ld	hl,(l1ab4)	; Get heap
+	inc	hl
+	ld	a,(l1ac4)	; Fetch extent of file
+	ld	(hl),a		; Store it
+	ld	hl,(l1ab4)
+	inc	hl
+	inc	hl
+	ld	a,(l1ac5)	; Fetch record of file
+	ld	(hl),a		; Store it
+	ld	bc,BYTOFF
+	ld	hl,(l1ab4)
+	add	hl,bc
+	ld	a,(l1ac6)	; Fetch byte offset of file
+	ld	(hl),a		; Store it
+	ret
+;
+; Position a module
+;
+l06ad:
+	ld	hl,l19fd
+	ld	(hl),TRUE	; Disable dump
+	ld	hl,l1ac3
+	ld	(hl),TRUE	; Set access flag
+l06b7:
+	call	l105c		; Read one item from REL file
+	ld	(l1b21),a	; Save mode
+	sub	prgnam		; Test name of program
+	add	a,-1
+	sbc	a,a
+	push	af
+	ld	a,(l1b21)	; Get mode
+	sub	endfile		; Test end of file
+	add	a,-1
+	sbc	a,a
+	pop	bc
+	ld	c,b
+	and	c
+	rra
+	jp	nc,l06d5	; Got at least one
+	jp	l06b7
+l06d5:
+	ld	a,(l1b21)	; Get mode
+	cp	endfile		; Test end of file
+	jp	nz,l06e5	; Nope
+	ld	hl,l1ad0+1
+	ld	(hl),endcode	; Indicate special entry
+	dec	hl
+	ld	(hl),1
+l06e5:
+	ld	hl,(l1ad0)
+	ex	de,hl
+	ld	bc,l1ad0+1
+	call	l022a		; Find entry
+	rra
+	jp	nc,l06f6	; Not found
+	call	l068d		; Save file values if so
+l06f6:
+	ret
+;
+; Skip over module
+;
+l06f7:
+	ld	hl,l19fd
+	ld	(hl),TRUE	; Disable dump
+l06fc:
+	call	l105c		; Read one item from REL file
+	cp	endmod		; Test end of module
+	jp	z,l0707		; Yeap, exit
+	jp	l06fc
+l0707:
+	ret
+;
+; Get file from list
+;
+l0708:
+	ld	bc,CMDPOS
+	ld	hl,(l1ab4)	; Get heap
+	add	hl,bc		; Point to selected item
+	ld	e,(hl)		; Fetch it
+	inc	hl
+	ld	d,(hl)
+	ex	de,hl
+	ld	(l1b22),hl	; Put into parameter block
+	ld	hl,l1a33
+	ld	(l1b22+2),hl	; Same for FCB
+	ld	bc,l1b22
+	call	l1413		; Parse file
+	ex	de,hl
+	ld	hl,ILLPARS
+	call	l196f		; HL:=DE-HL
+	jp	c,l0732
+	ld	bc,l1af8
+	call	l0aa3		; Syntax error
+l0732:
+	ld	a,(l1a33+.drv+.nam)
+	cp	' '		; Test extension given
+	jp	nz,l074a	; Yeap
+	ld	l,.ext
+	ld	de,l1a33+.drv+.nam
+	ld	bc,l0187
+l0742:
+	ld	a,(bc)
+	ld	(de),a		; Set .REL
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,l0742
+l074a:
+	ld	bc,l1a33
+	call	l17e2		; Open file
+	ld	hl,l19fc
+	ld	(hl),TRUE
+	inc	hl
+	ld	(hl),FALSE	; Enable dump flag
+	ld	hl,l1a9d
+	ld	(hl),8		; Set bit count
+	push	hl
+	ld	hl,(l1a9b)	; Get max index
+	ex	de,hl
+	pop	hl
+	inc	hl
+	ld	(hl),e		; Store it
+	inc	hl
+	ld	(hl),d
+	ld	hl,l1ac7
+	ld	(hl),TRUE	; Set IRL flag
+l076c:
+	call	l105c		; Read one item from REL file
+	cp	endfile		; Find end of file
+	jp	z,l0777
+	jp	l076c
+l0777:
+	ld	hl,l19fc
+	ld	(hl),FALSE
+	ret
+;
+; Skip over module
+;
+l077d:
+	ld	hl,l1ac7
+	ld	(hl),TRUE	; Set IRL flag
+	ld	hl,l19fd
+	ld	(hl),FALSE	; Enable dump
+l0787:
+	call	l105c		; Read one item from REL file
+	cp	endmod		; Wait for end of module
+	jp	z,l0792
+	jp	l0787
+l0792:
+	ret
+;
+; Unpack main file
+;
+l0793:
+	ld	l,.drv+.nam+.ext
+	ld	de,l1a06
+	ld	bc,l1a12
+l079b:
+	ld	a,(bc)		; Unpack name
+	ld	(de),a
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,l079b
+	ret
+;
+; Print current entry
+;
+l07a4:
+	ld	hl,l1b26
+	ld	(hl),1		; Init counter
+l07a9:
+	ld	a,(l1ad8)	; Get length
+	ld	hl,l1b26
+	cp	(hl)		; Test done
+	jp	c,l07cc		; Yeap
+	ld	a,(l1b26)
+	dec	a
+	ld	c,a
+	ld	b,0
+	ld	hl,l1ad8+1
+	add	hl,bc		; Position in buffer
+	ld	c,(hl)		; Get character
+	call	l182c		; Print it
+	ld	a,(l1b26)
+	inc	a		; Advance counter
+	ld	(l1b26),a
+	jp	nz,l07a9
+l07cc:
+	ret
+;
+; Find module in file
+;
+l07cd:
+	ld	hl,(l1ad8)
+	ex	de,hl
+	ld	bc,l1ad8+1
+	call	l022a		; Find entry - TRUE if found
+	push	af
+	call	l0570		; Get state - TRUE if bit set
+	pop	bc
+	ld	c,b
+	and	c
+	rra
+	jp	nc,l07fe
+	ld	hl,(l1ab4)	; Get heap
+	inc	hl
+	ld	c,(hl)		; Fetch extent
+	push	bc
+	ld	hl,(l1ab4)
+	inc	hl
+	inc	hl
+	ld	bc,BYTOFF
+	push	hl
+	ld	hl,(l1ab4)
+	add	hl,bc
+	ld	e,(hl)		; Fetch byte offset
+	pop	hl
+	ld	c,(hl)		; Fetch record
+	call	l0630		; Position new disk buffer
+	jp	l084a
+l07fe:
+	call	l06ad		; Position a module
+	ld	bc,l1ad0
+	push	bc
+	ld	e,2
+	ld	bc,l0199
+	call	l1631		; Compare end item
+	rra
+	jp	nc,l0820	; No match
+	ld	bc,l1aec
+	call	l1847		; Tell no module
+	call	l07a4		; Print current entry
+	ld	bc,l019b
+	call	l0aa3		; Abort with dummy message
+l0820:
+	ld	bc,l1ad0
+	push	bc
+	ld	a,(bc)
+	inc	a
+	ld	e,a
+	ld	bc,l1ad8
+	call	l1631		; Compare modules
+	rra
+	jp	nc,l0844	; No match
+	ld	hl,(l1ac4)	; Fetch extent of file
+	push	hl
+	ld	hl,(l1ac5)	; Fetch record of file
+	ld	c,l
+	ld	hl,(l1ac6)	; Fetch byte offset of file
+	ex	de,hl
+	call	l0630		; Position new disk buffer
+	ret
+;
+	jp	l0847
+l0844:
+	call	l06f7		; Skip over module
+l0847:
+	jp	l07fe
+l084a:
+	ret
+;
+; Search for module
+;
+l084b:
+	ld	hl,l1b27
+	ld	(hl),c		; Save state
+	ld	a,(l1ac0)	; Test any in item
+	rra
+	jp	nc,l0877	; Yeap
+	ld	hl,(l1acb)	; Get extent
+	push	hl
+	ld	hl,(l1acc)	; Get record number
+	ld	c,l
+	ld	e,0
+	call	l0630		; Position new disk buffer
+	ld	hl,(l1a96)	; Get max index
+	ld	(l1a99),hl	; Set buffer index
+	ld	hl,l1a98
+	ld	(hl),8		; Init bit count
+	call	l077d		; Skip over module
+	ld	hl,l1ac0
+	ld	(hl),FALSE	; Enable item
+	ret
+l0877:
+	ld	a,(l1b27)
+	rra			; Test state
+	jp	nc,l0884	; Go position
+	call	l07cd		; Find module in file
+	jp	l0887
+l0884:
+	call	l06ad		; Position a module
+l0887:
+	ld	bc,l1ad0
+	push	bc
+	ld	e,2
+	ld	bc,l019c
+	call	l1631		; Compare end item
+	rra
+	jp	nc,l0898	; No match
+	ret
+l0898:
+	ld	hl,(l1ad0)
+	ex	de,hl
+	ld	bc,l1ad0+1
+	call	l022a		; Find entry - TRUE if found
+	push	af
+	call	l0587		; Get mode - TRUE if <...>
+	pop	bc
+	ld	c,b
+	and	c
+	rra
+	jp	nc,l08c5	; Neither symbol found nor selection
+	ld	bc,CMDPOS
+	ld	hl,(l1ab4)	; Get heap
+	add	hl,bc
+	ld	a,0
+	call	l1998		; DE:=ACCU-^HL
+	jp	nc,l08bf
+	call	l0708		; Fetch file from list
+l08bf:
+	call	l06f7		; Skip over module
+	jp	l08df
+l08c5:
+	ld	a,(l1b27)	; Get flag
+	cpl
+	rra			; Test state
+	jp	nc,l08dc
+	ld	hl,(l1ac4)	; Fetch extent of file
+	push	hl
+	ld	hl,(l1ac5)	; Fetch record of file
+	ld	c,l
+	ld	hl,(l1ac6)	; Fetch byte offset of file
+	ex	de,hl
+	call	l0630		; Position new disk buffer
+l08dc:
+	call	l077d		; Skip over module
+l08df:
+	ret
+;
+; Find name on list and file
+;
+l08e0:
+	ld	bc,l1ad0
+	push	bc
+	ld	a,(bc)
+	inc	a
+	ld	e,a
+	ld	bc,l1ad8
+	call	l1631		; Compare modules
+	rra
+	jp	nc,l08f2	; No match
+	ret
+l08f2:
+	ld	c,FALSE
+	call	l084b		; Search for module
+	jp	l08e0		; Try next
+;
+	ret
+;
+; Position source file
+;
+l08fb:
+	ld	hl,l1acb
+	ld	(hl),0		; Clear values
+	inc	hl
+	ld	(hl),0
+	inc	hl
+	ld	(hl),0
+	ld	a,(l1a12+.drv+.nam)
+	cp	' '		; Test extension given
+	jp	nz,l091e	; Yeap
+	ld	l,.ext
+	ld	de,l1a12+.drv+.nam
+	ld	bc,l0187
+l0916:
+	ld	a,(bc)
+	ld	(de),a		; Set .REL
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,l0916
+l091e:
+	ld	bc,l1a12+.drv+.nam
+	push	bc
+	ld	e,.ext
+	ld	bc,l018a
+	call	l1631		; Compare if IRL
+	ld	(l1b28),a	; TRUE if so
+	ld	bc,l1a12
+	call	l17e2		; Open file
+	ld	a,(l1b28)	; Test IRL
+	rra
+	jp	nc,l097f	; Nope
+	ld	bc,DMA		; Set buffer
+	push	bc
+	ld	de,l1a12	; Load FCB
+	ld	bc,reclng	; Load length
+	call	l1754		; Read disk buffer
+	ld	a,l
+	rra
+	jp	nc,l094c	; *** WHY ??? ***
+l094c:
+	ld	a,(DMA)		; Fetch hi length
+	ld	(l1acb),a	; Into extent
+	ld	a,(DMA+1)	; Fetch lo length
+	ld	(l1acc),a	; Into record number
+	ld	hl,l1a12+_EX
+	ld	a,(l1acb)
+	cp	(hl)		; Test extent number found
+	jp	z,l0979		; Yeap
+	ld	a,(l1acb)
+	ld	(l1a12+_EX),a	; Set it into FCB
+	ld	bc,l1a12
+	call	l1880		; Open file
+	cp	OSerr		; Test success
+	jp	nz,l0979	; Yeap
+	ld	bc,l1ae0
+	call	l0aa3		; Index error
+l0979:
+	ld	a,(l1acc)	; Get record number
+	ld	(l1a12+_CR),a	; Into FCB
+l097f:
+	ld	hl,0
+	ld	(l1aac),hl	; Clear bit position
+	ld	(l1aae),hl	; Clear record count
+	ld	hl,(l1a96)	; Get max index
+	ld	(l1a99),hl	; Set buffer index
+	ld	hl,l1a98
+	ld	(hl),8		; Init bit count
+	ret
+;
+; Execute one task
+;
+l0994:
+	call	l08fb		; Position file
+	ld	hl,l1acf
+	ld	(hl),FALSE	; Set no end of selection
+	ld	a,(l1abf)	; Get selection flag
+	rra
+	jp	nc,l09e8	; Not requested
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	(l1b29),hl
+	ld	hl,(l1ac1)
+	ld	(l1ab0),hl	; Get back command line pointer
+l09af:
+	call	l112a		; Process selection item
+	ld	c,TRUE
+	call	l084b		; Search for module
+	ld	a,(l1abc)	; Test range selected
+	rra
+	jp	nc,l09d4	; Nope
+	call	l112a		; Process selection item
+	ld	a,(l1ad8)
+	cp	0		; Test module
+	jp	nz,l09d1	; Yeap
+	ld	hl,l1ad8
+	ld	(hl),1
+	inc	hl
+	ld	(hl),endcode	; Indicate special entry
+l09d1:
+	call	l08e0		; Find name on list and file
+l09d4:
+	ld	a,(l1acf)	; Test end of selection
+	rra
+	jp	nc,l09e2	; Nope
+	ld	hl,(l1b29)
+	ld	(l1ab0),hl	; Set command line pointer
+	ret
+l09e2:
+	jp	l09af
+;
+	jp	l09f8
+l09e8:
+	ld	hl,l1ad8+1
+	ld	(hl),endcode	; Indicate special entry
+	dec	hl
+	ld	(hl),1
+	ld	hl,l1ad0
+	ld	(hl),0		; Clear name
+	call	l08e0		; Find name on list and file
+l09f8:
+	ret
+;
+; %%%%%%%%%%%%%%%%%%%
+; %% THE MAIN TASK %%
+; %%%%%%%%%%%%%%%%%%%
+;
+l09f9:
+	call	l0994		; Do a run
+	ld	a,(l1ace)	; Test command line in progress
+	rra
+	jp	nc,l0a04	; Yeap, parse it
+	ret
+l0a04:
+	ld	c,FALSE		; Do not allow assignment
+	call	l1302		; Parse line
+	jp	l09f9
+;
+	ret
+;
+; Initialize library program
+;
+l0a0d:
+	ld	bc,l19f0
+	call	l1847		; Tell what we are
+	ld	l,CCPlen
+	ld	de,l1d12	; Load command line pointer
+	ld	bc,CCP
+l0a1b:
+	ld	a,(bc)
+	ld	(de),a		; Unpack command line
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,l0a1b
+	ld	hl,l1d12
+	ld	(l1ab0),hl	; Init command line pointer
+	ld	hl,FCB
+	ld	(l1ab0+2),hl	; Init file pointer
+	ld	hl,TPAtop
+	ld	(l19fe),hl	; Init pointer
+	ld	hl,(l19fe)
+	ld	e,(hl)		; Fetch top of memory
+	inc	hl
+	ld	d,(hl)
+	ex	de,hl
+	ld	(l1a00),hl	; Save it
+	ret
+;
+; Simple blanks
+;
+l0a40:
+	db	'   ',eot
+;
+; Print ASCII digit
+;
+l0a44:
+	ld	hl,l1c5e
+	ld	(hl),c		; Save digit
+	ld	a,9
+	ld	hl,l1c5e
+	cp	(hl)		; Test decimal
+	jp	c,l0a5d		; Nope
+	ld	a,(l1c5e)
+	add	a,'0'		; Add offset
+	ld	c,a
+	call	l182c		; Print it
+	jp	l0a68
+l0a5d:
+	ld	a,(l1c5e)	; Get digit
+	sub	10		; Make 0 relative
+	add	a,'A'		; Add ASCII offset
+	ld	c,a
+	call	l182c		; Print it
+l0a68:
+	ret
+;
+; Print ASCII byte
+;
+l0a69:
+	ld	hl,l1c5f
+	ld	(hl),c		; Save byte
+	ld	a,(l1c5f)
+	and	UPPMASK		; Mask hi
+	rra			; Shift into right place
+	rra
+	rra
+	rra
+	ld	c,a
+	call	l0a44		; Print ASCII digit
+	ld	a,(l1c5f)	; Get byte
+	and	LOMASK		; Get low bits
+	ld	c,a
+	call	l0a44		; Print ASCII digit
+	ret
+;
+; Print ASCII word
+;
+l0a84:
+	ld	hl,l1c60+1
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	a,ALLMASK
+	ld	de,l1c60
+	call	l18f9		; HL:=^DE AND ACCU
+	ld	c,l
+	call	l0a69		; Print low ASCII byte
+	ld	c,8
+	ld	hl,l1c60
+	call	l195c		; HL:=^HL SHR C
+	ld	c,l
+	call	l0a69		; Print hi ASCII byte
+	ret
+;
+; Give error message and abort
+;
+l0aa3:
+	ld	hl,l1c62+1
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	hl,(l1c62)
+	ld	b,h
+	ld	c,l
+	call	l1847		; Print message
+	call	OS		; Exit
+	ret
+;
+; Swap bytes in a word
+;
+l0ab5:
+	ld	hl,l1c64+1
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	c,8
+	ld	hl,l1c64
+	call	l195c		; HL:=^HL SHR C
+	ex	de,hl
+	ld	c,8
+	dec	hl
+	push	de		; Save lo
+	call	l194a		; HL:=^HL SHL 8
+	pop	de
+	call	l193c		; HL:=HL OR DE
+	ret
+;
+; Print address mode in reg C and address in reg DE
+;
+l0ad0:
+	ld	hl,l1c67+1
+	ld	(hl),d		; Save address
+	dec	hl
+	ld	(hl),e
+	dec	hl
+	ld	(hl),c		; Save mode
+	ld	hl,(l1c66)	; Get mode
+	ld	h,0
+	ld	bc,l1b34
+	add	hl,bc		; Point into character table
+	ld	c,(hl)		; Get it
+	call	l182c		; Print address mode
+	ld	hl,(l1c67)	; Get address
+	ld	b,h
+	ld	c,l
+	call	l0ab5		; Swap bytes in the word
+	ld	b,h
+	ld	c,l
+	call	l0a84		; Print ASCII word
+	ld	c,' '
+	call	l182c		; Print blank
+	ret
+;
+; Test if new line necessary
+;
+l0af8:
+	ld	hl,(l1b33)	; Get address mode
+	ld	h,0
+	ld	bc,l1b2b
+	add	hl,hl		; Position in segment
+	add	hl,bc
+	ld	a,LOMASK
+	call	l18fa		; HL:=^HL AND ACCU
+	ld	a,0
+	call	l196c		; HL:=ACCU-HL
+	or	l
+	sub	1
+	sbc	a,a		; TRUE on boundary
+	ld	hl,l1b43	; TRUE if on first position
+	or	(hl)		; Test ??? enabled
+	rra
+	jp	nc,l0b39	; Nope
+	call	l183c		; Give new line
+	ld	c,' '
+	call	l182c		; Print blank
+	ld	hl,(l1b33)	; Get address mode
+	ld	h,0
+	ld	bc,l1b2b
+	add	hl,hl
+	add	hl,bc
+	ld	e,(hl)		; Get address
+	inc	hl
+	ld	d,(hl)
+	ld	hl,(l1b33)	; Get mode
+	ld	c,l
+	call	l0ad0		; Print mode and address
+	ld	c,' '
+	call	l182c		; Print blank
+l0b39:
+	ret
+;
+; Write byte to REL file
+;
+l0b3a:
+	ld	hl,l1c69
+	ld	(hl),c
+	ld	hl,(l1aaa)	; Get index
+	ld	bc,l2392
+	add	hl,bc		; Position in buffer
+	ld	a,(l1c69)	; Get byte
+	ld	(hl),a		; Save it
+	ld	hl,(l1aaa)
+	inc	hl		; Update index
+	ld	(l1aaa),hl
+	ex	de,hl
+	ld	hl,l1aa8
+	call	l199b		; DE:=DE-^HL
+	jp	c,l0b6f		; Buffer not yet filled
+	ld	bc,l2392	; Set disk buffer
+	push	bc
+	ld	hl,(l1aa8)	; Fetch length
+	ld	b,h
+	ld	c,l
+	ld	de,l1a75	; Load FCB
+	call	l177b		; Write disk buffer
+	ld	hl,0
+	ld	(l1aaa),hl	; Init index
+l0b6f:
+	ret
+;
+; Compute stream values
+;
+l0b70:
+	ld	hl,(l1a99)	; Get buffer index
+	ex	de,hl
+	ld	hl,reclng
+	call	l1906		; DE:=DE DIV HL
+	ld	hl,(l1aac)	; Get bit position
+	add	hl,de
+	ld	(l1b44),hl
+	ld	hl,(l1a99)	; Get buffer index
+	ex	de,hl
+	call	l1908		; DE:=DE DIV BC;HL:=DE MOD BC
+	ex	de,hl
+	ld	hl,l1ac6
+	ld	(hl),e		; Save byte offset of file
+	ld	hl,(l1b44)
+	ex	de,hl
+	call	l1908		; DE:=DE DIV BC;HL:=DE MOD BC
+	ld	hl,l1ac4
+	ld	(hl),e		; Save extent of file
+	ld	hl,(l1b44)
+	ex	de,hl
+	call	l1908		; DE:=DE DIV BC;HL:=DE MOD BC
+	ex	de,hl
+	ld	hl,l1ac5
+	ld	(hl),e		; Save record of file
+	ld	hl,l1ac3
+	ld	(hl),FALSE	; Clear access flag
+	ret
+;
+; Calculate length of REL file image to position in index file
+;
+l0baa:
+	ld	hl,(l1aa2)
+	ex	de,hl
+	ld	hl,reclng
+	call	l1906		; DE:=DE DIV HL
+	ld	hl,(l1aa6)
+	add	hl,de
+	ld	(l1b44),hl
+	ld	hl,(l1aa2)
+	ex	de,hl
+	call	l1908		; DE:=DE DIV BC;HL:=DE MOD BC
+	ex	de,hl
+	ld	hl,l1aca
+	ld	(hl),e
+	ld	hl,(l1b44)
+	ex	de,hl
+	call	l1908		; DE:=DE DIV BC;HL:=DE MOD BC
+	ld	hl,l1ac8
+	ld	(hl),e
+	ld	hl,(l1b44)
+	ex	de,hl
+	call	l1908		; DE:=DE DIV BC;HL:=DE MOD BC
+	ex	de,hl
+	ld	hl,l1ac9
+	ld	(hl),e
+	ld	hl,l1ac7
+	ld	(hl),FALSE	; Clear IRL flag
+	ret
+;
+; Write REL file offset to IRL file
+;
+l0be4:
+	ld	hl,(l1ac8)	; Get hi value
+	ld	c,l
+	call	l0b3a		; Write to IRL file
+	ld	hl,(l1ac9)	; Get mid value
+	ld	c,l
+	call	l0b3a		; Write to IRL file
+	ld	hl,(l1aca)	; Get lo value
+	ld	c,l
+	call	l0b3a		; Write to IRL file
+	ret
+;
+; Fetch address from REL file
+;
+l0bfa:
+	ld	c,8
+	call	l157f		; Read low byte from REL file
+	push	af
+	ld	c,8
+	call	l157f		; Read high byte from REL file
+	ld	c,a
+	ld	b,0
+	ld	h,b
+	ld	l,c
+	ld	c,8
+	call	l194e		; HL:=HL SHL 8
+	pop	af
+	call	l1939		; HL:=HL OR ACCU
+	ret
+;
+; Read AField from REL file (mm.llllllll.hhhhhhhh)
+; mm		Address mode
+; llllllll	LO value
+; hhhhhhhh	HI value
+;
+l0c14:
+	ld	c,2
+	call	l157f		; Read address from REL file
+	ld	(l1b38),a	; Save address type
+	call	l0bfa		; Fetch address
+	ld	(l1b39),hl	; Save it
+	ret
+;
+; Read BField from REL file (ccc.ch1...cnn)
+; ccc		Length of symbol
+; chi		8 bit characters
+;
+l0c23:
+	ld	c,3
+	call	l157f		; Read length from REL file
+	ld	(l1b3b),a	; Save it
+	ld	hl,l1c6a
+	ld	(hl),1		; Init count
+l0c30:
+	ld	a,(l1b3b)
+	ld	hl,l1c6a
+	cp	(hl)		; Test all read
+	jp	c,l0c55		; Yeap
+	ld	c,8
+	call	l157f		; Read byte from REL file
+	push	af
+	ld	a,(l1c6a)
+	dec	a
+	ld	c,a
+	ld	b,0
+	ld	hl,l1b3c
+	add	hl,bc		; Position in BField
+	pop	bc
+	ld	c,b
+	ld	(hl),c		; Save character
+	ld	hl,l1c6a
+	inc	(hl)		; Advanve index
+	jp	nz,l0c30
+l0c55:
+	ret
+;
+; Print AField value
+;
+l0c56:
+	ld	hl,(l1b38)	; Get address type
+	ld	c,l
+	ld	hl,(l1b39)	; Get address
+	ex	de,hl
+	call	l0ad0		; Print mode and address
+	ret
+;
+; Print BField symbol
+;
+l0c62:
+	ld	hl,l1c6b
+	ld	(hl),1
+l0c67:
+	ld	a,(l1b3b)	; Get length of BField
+	ld	hl,l1c6b
+	cp	(hl)
+	jp	c,l0c87
+	ld	a,(l1c6b)
+	dec	a
+	ld	c,a
+	ld	b,0
+	ld	hl,l1b3c
+	add	hl,bc		; Position in BField
+	ld	c,(hl)		; Get character
+	call	l182c		; Print it
+	ld	hl,l1c6b
+	inc	(hl)
+	jp	nz,l0c67
+l0c87:
+	ld	c,' '
+	call	l182c		; Print blank
+	ret
+;
+; Put byte to REL file
+;
+l0c8d:
+	ld	hl,l1c6c
+	ld	(hl),c
+	ld	hl,(l1aa2)	; Get index
+	ld	bc,l2792	; [Disk buffer to] start of free memory
+	add	hl,bc		; Position in buffer
+	ld	a,(l1c6c)	; Get byte
+	ld	(hl),a		; save it
+	ld	hl,(l1aa2)
+	inc	hl		; Advance index
+	ld	(l1aa2),hl
+	ex	de,hl
+	ld	hl,l1aa0
+	call	l199b		; DE:=DE-^HL
+	jp	c,l0cd3		; Buffer not yet filled
+	ld	bc,l2792	; Set disk buffer to start of free memory
+	push	bc
+	ld	hl,(l1aa0)	; Fetch length
+	ld	b,h
+	ld	c,l
+	ld	de,l1a54	; Load FCB
+	call	l177b		; Write disk buffer
+	ld	hl,(l1aa0)
+	ex	de,hl
+	ld	hl,reclng
+	call	l1906		; DE:=DE DIV HL
+	ld	hl,(l1aa6)
+	add	hl,de		; Add records read
+	ld	(l1aa6),hl
+	ld	hl,0
+	ld	(l1aa2),hl	; Reset index
+l0cd3:
+	ret
+;
+; Write E bits from reg C to REL file
+;
+l0cd4:
+	ld	hl,l1c6e
+	ld	(hl),e		; Save bit count
+	dec	hl
+	ld	(hl),c		; Save bits
+	ld	a,(l1ac7)	; Get IRL flag
+	rra			; Test to be accessed
+	jp	nc,l0ce4	; Nope
+	call	l0baa		; Calculate length of REL file image
+l0ce4:
+	ld	a,(l1c6e)	; Get bit count
+	ld	hl,l1aa4
+	add	a,(hl)		; Calculate resulting bits
+	ld	c,a
+	ld	a,8
+	cp	c		; Test in byte range
+	jp	nc,l0d0f	; Yeap
+	ld	hl,l1aa4
+	ld	a,8
+	sub	(hl)		; Calculate remaining bits
+	ld	c,a
+	ld	a,(l1c6e)	; Get bit count
+	sub	c		; Build new count
+	ld	(l1c6e),a
+	ld	c,a
+	ld	hl,l1c6d	; Point to bits
+	call	l1954		; A:=^HL SHR C
+	ld	hl,l1aa5
+	or	(hl)		; Insert bits
+	ld	(hl),a
+	call	l0d26		; Write byte to REL file
+l0d0f:
+	call	l0d38		; Shift bits into right place
+	ld	hl,l1aa5
+	or	(hl)		; Insert them
+	ld	(hl),a
+	ld	a,(l1c6f)	; Get bit count
+	ld	(l1aa4),a	; Unpack resulting bit count
+	cp	8		; Test byte filled
+	jp	nz,l0d25	; Nope
+	call	l0d26		; Write byte to REL file
+l0d25:
+	ret
+;
+; Write byte to REL file
+;
+l0d26:
+	ld	hl,(l1aa5)	; Get current byte
+	ld	c,l
+	call	l0c8d		; Put byte to file
+	ld	hl,l1aa5
+	ld	(hl),0		; Clear current byte
+	ld	hl,l1aa4
+	ld	(hl),0		; Clear current bit count
+	ret
+;
+; Shift bits into right place
+;
+l0d38:
+	ld	a,(l1c6e)	; Get bit count
+	ld	hl,l1aa4	; Point to current bit count
+	add	a,(hl)		; Combine them
+	ld	(l1c6f),a	; Save bit count
+	cp	8		; Test byte filled
+	jp	nz,l0d4b	; Nope
+	ld	a,(l1c6d)	; Return bits
+	ret
+l0d4b:
+	ld	hl,l1c6f	; Point to bit count
+	ld	a,8
+	sub	(hl)
+	ld	c,a
+	ld	hl,l1c6d	; Point to bits
+	call	l1943		; A:=^HL SHL C
+	ret			; Return shifted bits
+;
+; Write a byte to REL file
+;
+l0d59:
+	ld	hl,l1c70
+	ld	(hl),c
+	ld	hl,(l1c70)	; Get byte
+	ld	c,l
+	ld	e,8
+	call	l0cd4		; Write eight bits to REL file
+	ret
+;
+; Write a word to REL file
+;
+l0d67:
+	ld	hl,l1c71+1
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	hl,(l1c71)
+	ld	a,l
+	ld	c,a		; Get low byte
+	call	l0d59		; Write to REL file
+	ld	hl,(l1c71)
+	ld	a,h
+	ld	c,a		; Get hi byte
+	call	l0d59		; Write to REL file
+	ret
+;
+; Write AField to REL file
+;
+l0d7e:
+	ld	hl,(l1b38)	; Get address type
+	ld	c,l
+	ld	e,2
+	call	l0cd4		; Write two bits to REL file
+	ld	hl,(l1b39)	; Get address
+	ld	b,h
+	ld	c,l
+	call	l0d67		; Write a word to REL file
+	ret
+;
+; Write BField to REL file
+;
+l0d90:
+	ld	hl,(l1b3b)	; Get length of BField
+	ld	c,l
+	ld	e,3
+	call	l0cd4		; Write three bits to REL file
+	ld	hl,l1c73
+	ld	(hl),1
+l0d9e:
+	ld	a,(l1b3b)	; Get length of BField
+	ld	hl,l1c73
+	cp	(hl)		; Test symbol written
+	jp	c,l0dbe		; Yeap
+	ld	a,(l1c73)
+	dec	a
+	ld	c,a
+	ld	b,0
+	ld	hl,l1b3c
+	add	hl,bc		; Position in BField
+	ld	c,(hl)		; Get character
+	call	l0d59		; Write a byte to REL file
+	ld	hl,l1c73
+	inc	(hl)
+	jp	nz,l0d9e
+l0dbe:
+	ret
+;
+; Write symbol to IRL file
+;
+l0dbf:
+	call	l0be4		; Write REL file offset
+	ld	hl,l1c74
+	ld	(hl),1
+l0dc7:
+	ld	a,(l1b3b)	; Get length of BField
+	ld	hl,l1c74
+	cp	(hl)		; Test symbol written
+	jp	c,l0de7		; Yeap
+	ld	a,(l1c74)
+	dec	a
+	ld	c,a
+	ld	b,0
+	ld	hl,l1b3c
+	add	hl,bc		; Position in BField
+	ld	c,(hl)		; Get character
+	call	l0b3a		; Write it to IRL file
+	ld	hl,l1c74
+	inc	(hl)
+	jp	nz,l0dc7
+l0de7:
+	ld	c,eoIRL
+	call	l0b3a		; Write end byte to IRL file
+	ret
+;
+; Process constant
+;
+l0ded:
+	ld	c,8
+	call	l157f		; Read byte from REL file
+	ld	(l1c75),a	; Save it
+	ld	a,(l19fd)	; Get dump flag
+	rra
+	jp	nc,l0dfd	; Enabled
+	ret
+l0dfd:
+	ld	a,(l1ab6)	; Test 'D'ump
+	rra
+	jp	nc,l0e2a	; Nope
+	call	l0af8		; Test if new line necessary
+	ld	hl,(l1c75)
+	ld	c,l
+	call	l0a69		; Print ASCII byte
+	ld	c,' '
+	call	l182c		; Print blank
+	ld	hl,(l1b33)	; Get address mode
+	ld	h,0
+	ld	bc,l1b2b
+	add	hl,hl
+	add	hl,bc		; Position within segment
+	ld	c,(hl)
+	inc	hl
+	ld	b,(hl)
+	inc	bc		; Update segment PC
+	dec	hl
+	ld	(hl),c		; Bring it back
+	inc	hl
+	ld	(hl),b
+	ld	hl,l1b43
+	ld	(hl),FALSE	; Set not first position
+l0e2a:
+	ld	a,(l1ab8)	; Get assignment '=' flag
+	rra
+	jp	nc,l0e3f	; Nope
+	ld	e,1
+	ld	c,0
+	call	l0cd4		; Write one bit to REL file
+	ld	hl,(l1c75)
+	ld	c,l
+	call	l0d59		; Write a byte to REL file
+l0e3f:
+	ret
+;
+; Set address
+;
+l0e40:
+	ld	hl,l1c76
+	ld	(hl),c		; Save address bits
+	call	l0bfa		; Fetch address
+	ld	(l1c77),hl
+	ld	a,(l19fd)	; Get dump flag
+	rra
+	jp	nc,l0e52	; Enabled
+	ret
+l0e52:
+	ld	a,(l1ab6)	; Test 'D'ump
+	rra
+	jp	nc,l0e95	; Nope
+	call	l0af8		; Test if new line necessary
+	ld	hl,(l1c76)	; Get mode
+	ld	c,l
+	ld	hl,(l1c77)	; Get address
+	ex	de,hl
+	call	l0ad0		; Print mode and address
+	ld	hl,(l1b33)	; Get address mode
+	ld	h,0
+	ld	bc,l1b2b
+	add	hl,hl
+	add	hl,bc
+	ld	c,(hl)
+	inc	hl
+	ld	b,(hl)
+	inc	bc		; Advance PC by two
+	inc	bc
+	dec	hl
+	ld	(hl),c
+	inc	hl
+	ld	(hl),b
+	ld	hl,(l1b33)	; Get address mode
+	ld	h,0
+	ld	bc,l1b2b
+	add	hl,hl
+	add	hl,bc
+	ld	a,LOMASK
+	call	l18fa		; HL:=^HL AND ACCU
+	ld	a,1
+	call	l196c		; HL:=ACCU-HL
+	or	l
+	sub	1
+	sbc	a,a
+	ld	(l1b43),a	; TRUE if on first position
+l0e95:
+	ld	a,(l1ab8)	; Get assignment '=' flag
+	rra
+	jp	nc,l0eb4	; Nope
+	ld	e,1
+	ld	c,1
+	call	l0cd4		; Write one bit to REL file
+	ld	hl,(l1c76)
+	ld	c,l
+	ld	e,2
+	call	l0cd4		; Write two bits to REL file
+	ld	hl,(l1c77)
+	ld	b,h
+	ld	c,l
+	call	l0d67		; Write a word to REL file
+l0eb4:
+	ret
+;
+; Process extended link
+;
+l0eb5:
+	ld	hl,l1c79
+	ld	(hl),c		; Save extended link
+	ld	a,(l1c79)	; Get extended link
+	sub	MS.COMS		; Test AField requested
+	sbc	a,a
+	cpl
+	push	af
+	ld	a,(l1c79)	; Get extended link
+	sub	endfile
+	add	a,0ffh
+	sbc	a,a
+	pop	bc
+	ld	c,b
+	and	c
+	rra
+	jp	nc,l0ed3	; Not item 5..14
+	call	l0c14		; Read AField
+l0ed3:
+	ld	a,MS.mino
+	ld	hl,l1c79	; Get extended link
+	cp	(hl)		; Test BField requested
+	jp	c,l0edf		; Not items 8..15
+	call	l0c23		; Read BField
+l0edf:
+	ld	a,(l1c79)	; Get extended link
+	cp	endmod		; Test end of item
+	jp	nz,l0f19
+	ld	a,(l19fc)
+	rra
+	jp	nc,l0f05
+l0eee:
+	ld	a,(l1a9d)	; Get bit count
+	cp	8		; Test byte boundary
+	jp	z,l0f02		; Yeap
+	ld	c,1
+	call	l157f		; Read bit from REL file
+	rra
+	jp	nc,l0eff	; ** WHY **
+l0eff:
+	jp	l0eee
+l0f02:
+	jp	l0f19
+l0f05:
+	ld	a,(l1a98)	; Get bit count
+	cp	8		; Test byte byte boundary
+	jp	z,l0f19		; Yeap
+	ld	c,1
+	call	l157f		; Read bit from REL file
+	rra
+	jp	nc,l0f16	; ** WHY **
+l0f16:
+	jp	l0f05
+l0f19:
+	ld	a,(l1c79)	; Get extended link
+	cp	prgnam		; Test name of module requested
+	jp	nz,l0f38	; Nope
+	ld	hl,(l1b3b)	; Get length of BField
+	ld	de,l1ad0+1
+	ld	bc,l1b3c	; Point to BField
+l0f2a:
+	ld	a,(bc)
+	ld	(de),a		; Unpack name of module
+	inc	bc
+	inc	de
+	dec	l
+	jp	nz,l0f2a
+	ld	a,(l1b3b)	; Get length of BField
+	ld	(l1ad0),a	; Set length of name of module
+l0f38:
+	ld	a,(l19fd)	; Get dump flag
+	rra
+	jp	nc,l0f40	; Enabled
+	ret
+l0f40:
+	ld	a,(l1ab6)	; Test 'D'ump
+	rra
+	jp	nc,l0fc5	; Nope
+	call	l183c		; Give new line
+	ld	hl,l1b43
+	ld	(hl),TRUE	; Set first position
+	ld	hl,(l1c79)	; Get extended link
+	ld	h,0
+	ld	bc,l1c3e
+	add	hl,hl		; Build index into table
+	add	hl,bc
+	ld	c,(hl)		; Fetch string pointer
+	inc	hl
+	ld	b,(hl)
+	call	l1847		; Print message
+	ld	a,MS.mino
+	ld	hl,l1c79	; Get extended link
+	cp	(hl)		; Test BField requested
+	jp	c,l0f6b		; Not items 8..15
+	call	l0c62		; Print BField symbol
+l0f6b:
+	ld	a,(l1c79)	; Get extended link
+	sub	MS.COMS		; Test AField requested
+	sbc	a,a
+	cpl
+	push	af
+	ld	a,(l1c79)	; Get extended link
+	sub	endfile
+	add	a,0ffh
+	sbc	a,a
+	pop	bc
+	ld	c,b
+	and	c
+	rra
+	jp	nc,l0f85	; Not item 5..14
+	call	l0c56		; Print AField value
+l0f85:
+	ld	a,(l1c79)	; Get extended link
+	cp	setloc		; Test set location counter
+	jp	nz,l0fa6	; Nope
+	ld	a,(l1b38)	; Get address type
+	ld	(l1b33),a
+	ld	hl,(l1b33)	; Get address mode
+	ld	h,0
+	ld	bc,l1b2b
+	add	hl,hl
+	add	hl,bc		; Position in segment table
+	push	hl
+	ld	hl,(l1b39)	; Get address
+	ex	de,hl
+	pop	hl
+	ld	(hl),e		; Store location counter into segment
+	inc	hl
+	ld	(hl),d
+l0fa6:
+	ld	a,(l1c79)	; Get extended link
+	cp	endmod		; Test end of module
+	jp	nz,l0fc5	; Nope
+	ld	hl,0
+	ld	(l1b2b),hl	; Clear ASEG
+	ld	(l1b2d),hl	; Clear CSEG
+	ld	(l1b2f),hl	; Clear DSEG
+	ld	(l1b31),hl	; Clear COMMON
+	ld	hl,l1b33
+	ld	(hl),1		; Force CSEG
+	call	l183c		; Give new line
+l0fc5:
+	ld	a,(l1aba)	; Test 'P'ublic
+	rra
+	jp	nc,l0fe0	; Nope
+	ld	a,(l1c79)	; Get extended link
+	cp	pubsymb		; Test public
+	jp	nz,l0fe0	; Nope
+	call	l183c		; Give new line
+	ld	bc,l0a40
+	call	l1847		; Print blanks
+	call	l0c62		; Print BField symbol
+l0fe0:
+	ld	a,(l1aba)	; Test 'P'ublic
+	ld	hl,l1ab9	; Test 'M'odules
+	or	(hl)
+	rra
+	jp	nc,l0ff9	; Neither
+	ld	a,(l1c79)	; Get extended link
+	cp	prgnam		; Test name of module
+	jp	nz,l0ff9	; Nope
+	call	l183c		; Give new line
+	call	l0c62		; Print BField symbol
+l0ff9:
+	ld	a,(l1ab8)	; Get assignment '=' flag
+	rra
+	jp	nc,l1049
+	ld	a,(l1c79)	; Get extended link
+	cp	endfile		; Test end of file
+	jp	nc,l102f	; Yeap
+	ld	e,3
+	ld	c,100b		; Indicate special item follows
+	call	l0cd4		; Write three bits to REL file
+	ld	hl,(l1c79)	; Get extended link
+	ld	c,l
+	ld	e,4
+	call	l0cd4		; Write four bits to REL file
+	ld	a,(l1c79)	; Get extended link
+	cp	MS.COMS		; Test BField
+	jp	c,l1023		; Not item 5..15
+	call	l0d7e		; Write AField to REL file
+l1023:
+	ld	a,MS.mino
+	ld	hl,l1c79	; Get extended link
+	cp	(hl)		; Test BField requested
+	jp	c,l102f		; Not items 8..15
+	call	l0d90		; Write BField to REL file
+l102f:
+	ld	a,(l1c79)	; Get extended link
+	cp	endmod		; Test end of module
+	jp	nz,l1049	; Nope
+l1037:
+	ld	a,(l1aa4)	; Get current bit count
+	cp	0		; Test byte boundary
+	jp	z,l1049		; Yeap
+	ld	e,1
+	ld	c,0b
+	call	l0cd4		; Write one bit to REL file
+	jp	l1037
+l1049:
+	ld	a,(l1ab7)	; Test 'I'ndex
+	rra
+	jp	nc,l105b	; Nope
+	ld	a,(l1c79)	; Get extended link
+	cp	pubsymb		; Test entry symbol
+	jp	nz,l105b	; Nope
+	call	l0dbf		; Write symbol to IRL file
+l105b:
+	ret
+;
+; Read one item from REL file
+;
+; Accu holds item type on exit:
+;
+; 00h..0fh: Special link item
+; 10h..12h: Mapped address mode [00h..02h]
+;    13h  : Constant byte
+;
+l105c:
+	ld	c,1
+	call	l157f		; Read bit from REL file
+	cp	0		; Test constant
+	jp	nz,l106f	; Nope
+	call	l0ded		; Process constant
+	ld	a,endfile+1+@comm; Map to 13h
+	ret
+;--
+	jp	l10a1
+l106f:
+	ld	c,2
+	call	l157f		; Read two bits from REL file
+	ld	(l1c7a),a	; Save them
+	ld	c,a
+	ld	a,0
+	cp	c		; Test special link item
+	jp	nc,l108e	; Yeap
+	ld	hl,(l1c7a)	; Get address bits
+	ld	c,l
+	call	l0e40		; Set address
+	ld	a,(l1c7a)	; Get address bits
+	add	a,endfile	; Map to 10h..12h
+	ret
+;--
+	jp	l10a1
+l108e:
+	ld	c,4
+	call	l157f		; Read four bits from REL file
+	ld	(l1c7a),a	; Save them
+	ld	hl,(l1c7a)	; Get extended link
+	ld	c,l
+	call	l0eb5
+	ld	a,(l1c7a)	; Return extended link
+	ret
+l10a1:
+	ret
+;
+l10a2:
+	db	null
+l10a3:
+	db	',','=',null,'>',')','-',-1
+l10aa:
+	db	',',')',-1
+l10ad:
+	db	',','>',-1
+l10b0:
+	db	',','=',null,-1
+;
+; Advance command line pointer
+;
+l10b4:
+	ld	hl,(l1ab0)	; Get command line pointer
+	inc	hl		; Advance it
+	ld	(l1ab0),hl
+	ret
+;
+; Find character in list - TRUE set if not in list
+;
+l10bc:
+	ld	hl,l1c7b+1
+	ld	(hl),b		; Save pointer
+	dec	hl
+	ld	(hl),c
+l10c2:
+	ld	hl,(l1c7b)	; Get list pointer
+	ld	a,(hl)
+	cp	-1		; Test end of list
+	jp	z,l10e5
+	ld	hl,(l1ab0)	; Get command line pointer
+	push	hl
+	ld	hl,(l1c7b)	; Get list pointer 
+	pop	bc
+	ld	a,(bc)
+	cp	(hl)		; Compare
+	jp	nz,l10db	; Not found
+	ld	a,FALSE		; Indicate found
+	ret
+l10db:
+	ld	hl,(l1c7b)
+	inc	hl		; Advance line pointer
+	ld	(l1c7b),hl
+	jp	l10c2
+l10e5:
+	ld	a,TRUE		; Indicate not found
+	ret
+;
+; Sample selection and test end
+;
+l10e8:
+	call	l10b4		; Advance command line pointer
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	a,(hl)		; Get character
+	sub	'>'		; Test end of selection
+	sub	1
+	sbc	a,a
+	push	af
+	ld	a,(hl)
+	sub	','		; Test end of selection list
+	sub	1
+	sbc	a,a
+	pop	bc
+	ld	c,b
+	or	c
+	rra
+	jp	nc,l110a	; Neither found
+	ld	hl,l1abd
+	ld	(hl),TRUE	; Set end
+	jp	l1129
+l110a:
+	ld	hl,FCB
+	ld	(l1ab0+2),hl	; Set file pointer
+	ld	bc,l1ab0	; Get command line pointer
+	call	l1413		; Parse file
+	ld	(l1ab0),hl	; Save new pointer
+	ex	de,hl
+	ld	hl,SCANERR
+	call	l196f		; HL:=DE-HL
+	jp	c,l1129
+	ld	bc,l1af8
+	call	l0aa3		; Syntax error
+l1129:
+	ret
+;
+; Process selection item
+;
+l112a:
+	ld	hl,l1abc
+	ld	(hl),FALSE	; Force no range
+	ld	hl,l1ad8
+	ld	(hl),0		; Init index
+	call	l10b4		; Advance command line pointer
+l1137:
+	ld	bc,l10a3
+	call	l10bc		; Find ',','=',null,'>',')' or '-'
+	rra
+	jp	nc,l1169	; Found
+	ld	hl,(l1ab0)	; Get command line pointer
+	push	hl
+	ld	hl,(l1ad8)
+	ld	h,0
+	ld	bc,l1ad8+1
+	add	hl,bc		; Position in buffer
+	pop	de
+	ld	a,(de)
+	ld	(hl),a		; Unpack character
+	ld	a,(l1ad8)
+	inc	a
+	ld	(l1ad8),a
+	cp	ITEMLEN		; Test in range
+	jp	c,l1163		; Yeap
+	ld	bc,l1af8
+	call	l0aa3		; Syntax error
+l1163:
+	call	l10b4		; Advance command line pointer
+	jp	l1137
+l1169:
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	a,(hl)
+	cp	'-'		; Test range selected
+	jp	nz,l1177	; Nope
+	ld	hl,l1abc
+	ld	(hl),TRUE	; Indicate it
+l1177:
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	a,(hl)
+	cp	')'		; Test end of selection
+	jp	nz,l1185	; Nope
+	ld	hl,l1acf
+	ld	(hl),TRUE	; Indicate it
+l1185:
+	ret
+;
+; Process selection (...)
+;
+l1186:
+	ld	a,(l1abf)	; Get selection flag
+	rra
+	jp	nc,l1193	; First request
+	ld	bc,l1af8
+	call	l0aa3		; Syntax error
+l1193:
+	ld	hl,l1abf
+	ld	(hl),TRUE	; Set selection requested
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	(l1ac1),hl	; Copy it
+l119e:
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	a,(hl)
+	cp	')'		; Test end of selection
+	jp	z,l1207		; Yeap
+	call	l112a		; Process selection item
+	ld	a,(l1ad8)	; Get index
+	cp	0		; Test any in line
+	jp	nz,l11ba	; Yeap
+	ld	hl,l1ac0
+	ld	(hl),TRUE	; Set empty item
+	jp	l11d8
+l11ba:
+	ld	hl,(l1ad8)
+	ex	de,hl
+	ld	bc,l1ad8+1
+	call	l022a		; Find entry
+	rra
+	jp	c,l11d8		; Found
+	ld	bc,l1ad8+1
+	push	bc
+	ld	hl,(l1ad8)
+	push	hl
+	ld	de,0
+	ld	c,0
+	call	l0284		; Insert name into list
+l11d8:
+	ld	a,(l1abc)	; Test range selected
+	rra
+	jp	nc,l11f4	; Nope
+	call	l112a		; Process selection item
+	ld	a,(l1ad8)
+	cp	0
+	jp	nz,l11f4
+	ld	hl,l1ad8
+	ld	(hl),1
+	ld	hl,l1ad8+1
+	ld	(hl),endcode	; Indicate special entry
+l11f4:
+	ld	bc,l10aa
+	call	l10bc		; Find ',' or ')'
+	rra
+	jp	nc,l1204	; Found
+	ld	bc,l1af8
+	call	l0aa3		; Syntax error
+l1204:
+	jp	l119e
+l1207:
+	ret
+;
+; Process	delete  <x=>
+; or		replace <x=y>
+;
+l1208:
+	ld	hl,l1abe
+	ld	(hl),TRUE	; Indicate <...>
+l120d:
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	a,(hl)
+	cp	'>'		; Test end of selection
+	jp	z,l12a4		; Yeap
+	ld	hl,(l1ab0)	; Get command line pointer
+	inc	hl
+	ld	(l1c7d),hl	; Save selection pointer
+	ld	hl,l1abd
+	ld	(hl),FALSE	; Set selection in progress
+	call	l112a		; Process selection item
+	ld	a,(l1ad8)	; Get length of item
+	cp	0		; Verify any input
+	jp	nz,l1233	; Yeap
+	ld	bc,l1af8
+	call	l0aa3		; Syntax error if not
+l1233:
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	a,(hl)
+	cp	'='		; Test assignment
+	jp	nz,l1258	; Nope
+	ld	hl,l1abb
+	ld	(hl),TRUE	; Set assignment in selection
+	ld	hl,(l1ab0)	; Get command line pointer
+	inc	hl
+	ld	(l1c7d),hl	; Save selection pointer
+	call	l10e8		; Sample selection
+	ld	a,(l1abd)	; Get selection flag
+	rra			; Test in progress
+	jp	nc,l1258	; Yeap
+	ld	hl,NULL
+	ld	(l1c7d),hl	; Clear selection pointer
+l1258:
+	ld	hl,(l1ad8)	; Get length of item
+	ex	de,hl
+	ld	bc,l1ad8+1
+	call	l022a		; Find entry
+	rra
+	jp	nc,l1280	; Not found
+	ld	bc,CMDPOS
+	ld	hl,(l1ab4)	; Get heap
+	add	hl,bc		; Build pointer
+	push	hl
+	ld	hl,(l1c7d)	; Get selection pointer
+	ex	de,hl
+	pop	hl
+	ld	(hl),e		; Store into list
+	inc	hl
+	ld	(hl),d
+	ld	hl,(l1ab4)	; Get heap
+	ld	a,MSB
+	or	(hl)
+	ld	(hl),a		; Mark entry
+	jp	l1291
+l1280:
+	ld	bc,l1ad8+1
+	push	bc
+	ld	hl,(l1ad8)
+	push	hl
+	ld	hl,(l1c7d)	; Get selection pointer
+	ex	de,hl
+	ld	c,1
+	call	l0284		; Insert name into list
+l1291:
+	ld	bc,l10ad
+	call	l10bc		; Find ',' or ,'>'
+	rra
+	jp	nc,l12a1	; Found
+	ld	bc,l1af8
+	call	l0aa3		; Syntax error if not
+l12a1:
+	jp	l120d
+l12a4:
+	ret
+;
+; Process option
+;
+l12a5:
+	call	l10b4		; Advance command line pointer
+l12a8:
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	a,(hl)		; Get character
+	cp	']'		; Test end of option
+	jp	z,l1301		; Yeap
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	a,(hl)
+	cp	'D'		; Test ASCII 'D'ump
+	jp	nz,l12c2
+	ld	hl,l1ab6
+	ld	(hl),TRUE	; Set 'D'ump
+	jp	l12fb
+l12c2:
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	a,(hl)
+	cp	'I'		; Test 'I'ndex creation
+	jp	nz,l12d3
+	ld	hl,l1ab7
+	ld	(hl),TRUE	; Set 'I'ndex
+	jp	l12fb
+l12d3:
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	a,(hl)
+	cp	'M'		; Test 'M'odules
+	jp	nz,l12e4
+	ld	hl,l1ab9
+	ld	(hl),TRUE	; Set 'M'odules
+	jp	l12fb
+l12e4:
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	a,(hl)
+	cp	'P'		; Test 'P'ublic
+	jp	nz,l12f5
+	ld	hl,l1aba
+	ld	(hl),TRUE	; Set 'P'ublic
+	jp	l12fb
+l12f5:
+	ld	bc,l1af8
+	call	l0aa3		; Syntax error
+l12fb:
+	call	l10b4		; Advance command line pointer
+	jp	l12a8
+l1301:
+	ret
+;
+; Parse command line
+; Entry TRUE if assignment allowed
+;
+l1302:
+	ld	hl,l1c7f
+	ld	(hl),c		; Set assignment flag
+	ld	hl,l1abe
+	ld	(hl),FALSE	; Indicate no <...>
+	ld	hl,l1abf
+	ld	(hl),FALSE	; Set no selection requested
+	ld	hl,(l1a00)	; Get top of memory
+	ld	(l1a02),hl	; Set to current top of memory
+	call	l10b4		; Advance command line pointer
+	ld	hl,l1a12
+	ld	(l1ab0+2),hl	; Set file pointer
+	ld	bc,l1ab0	; Get command line pointer
+	call	l1413		; Parse file
+	ld	(l1ab0),hl	; Set result
+	ex	de,hl
+	ld	hl,SCANERR
+	call	l196f		; HL:=DE-HL
+	jp	c,l1338		; Parse was successfull
+	ld	bc,l1af8
+	call	l0aa3		; Syntax error
+l1338:
+	ld	a,0
+	ld	de,l1ab0	; Get command line pointer
+	call	l198d		; HL:=^DE-ACCU
+	or	l		; Test empty line
+	jp	nz,l134a	; Nope
+	ld	hl,l10a2
+	ld	(l1ab0),hl	; Set dummy command line pointer
+l134a:
+	ld	bc,l10b0
+	call	l10bc		; Find ',' , '=' or null
+	rra
+	jp	nc,l138d	; Found
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	a,(hl)
+	cp	'('		; Test selection
+	jp	nz,l1363	; Nope
+	call	l1186		; Process it
+	jp	l1387
+l1363:
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	a,(hl)
+	cp	'<'		; Test delete or replace
+	jp	nz,l1372	; Nope
+	call	l1208		; Process it
+	jp	l1387
+l1372:
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	a,(hl)
+	cp	'['		; Test option
+	jp	nz,l1381	; Nope, but should be
+	call	l12a5		; Process option
+	jp	l1387
+l1381:
+	ld	bc,l1af8
+	call	l0aa3		; Syntax error
+l1387:
+	call	l10b4		; Advance command line pointer
+	jp	l134a
+;
+; Found ',','=' or null
+;
+l138d:
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	a,(hl)
+	cp	null		; Test end of line
+	jp	nz,l139e
+	ld	hl,l1ace
+	ld	(hl),TRUE	; Indicate end
+	jp	l13b9
+l139e:
+	ld	hl,(l1ab0)	; Get command line pointer
+	ld	a,(hl)
+	sub	'='		; Test assignment allowed
+	sub	1
+	sbc	a,a
+	push	af
+	ld	a,(l1c7f)	; Get flag
+	cpl
+	pop	bc
+	ld	c,b
+	and	c
+	rra
+	jp	nc,l13b9	; Ok
+	ld	bc,l1af8
+	call	l0aa3		; Syntax error
+l13b9:
+	ret
+;
+; Scan the input line the first time
+;
+l13ba:
+	ld	hl,l1ace
+	ld	(hl),FALSE	; Indicate command line in progress
+	ld	c,TRUE		; Allow assignment
+	call	l1302		; Parse line
+l13c4:
+	ld	a,(l1ace)	; Test command line in progress
+	rra
+	jp	c,l13d3		; Nope, end
+	ld	c,FALSE		; Do not allow assignment
+	call	l1302		; Parse line
+	jp	l13c4
+l13d3:
+	ret
+;
+; FCB delimiters
+;
+l13d4:
+	db	cr,' =.:<>_[],()'
+delilen	equ	$-l13d4
+;
+; Convert character to upper case
+;
+l13e1:
+	ld	hl,l1c80
+	ld	(hl),c		; Save character
+	ld	a,(l1c80)
+	cp	' '		; Test printable
+	jp	nc,l13f0	; Yeap
+	ld	a,cr		; Return end on control
+	ret
+l13f0:
+	ld	a,(l1c80)	; Get character
+	sub	'a'		; Test lower range
+	sbc	a,a
+	cpl
+	push	af
+	ld	a,'z'
+	ld	hl,l1c80
+	sub	(hl)
+	sbc	a,a
+	cpl
+	pop	bc
+	ld	c,b
+	and	c
+	rra
+	jp	nc,l140f	; Nope
+	ld	a,(l1c80)
+	and	UPPER		; Convert to upper case
+	ld	(l1c80),a
+l140f:
+	ld	a,(l1c80)
+	ret
+;
+; Parse file - PB in ^BC
+;
+l1413:
+	ld	hl,l1c81+1
+	ld	(hl),b		; Save PB
+	dec	hl
+	ld	(hl),c
+	ld	hl,(l1c81)
+	ld	e,(hl)		; Fetch address of name
+	inc	hl
+	ld	d,(hl)
+	ex	de,hl
+	ld	(l1c83),hl
+	ld	hl,(l1c81)
+	inc	hl
+	inc	hl
+	ld	e,(hl)		; Fetch address of FCB
+	inc	hl
+	ld	d,(hl)
+	ex	de,hl
+	ld	(l1c85),hl
+	ld	hl,l1c87
+	ld	(hl),' '	; Set blank
+	ld	hl,l1c89
+	ld	(hl),0		; Clear FCB pointer
+	dec	hl
+	ld	(hl),-1		; Clear name pointer
+l143c:
+	ld	a,(l1c89)	; Get FCB pointer
+	cp	namlen		; Test too long
+	jp	nc,l1457	; Yeap
+	ld	a,(l1c89)
+	cp	.nam+.ext	; Test end of name and extension
+	jp	nz,l1451	; Nope
+	ld	hl,l1c87
+	ld	(hl),null	; Set end character
+l1451:
+	call	l156c		; Blank entire FCB
+	jp	l143c
+;
+; FCB is blanked now
+; Start parser
+;
+l1457:
+	ld	hl,(l1c85)	; Get address of FCB
+	ld	(hl),0		; Set default drive
+l145c:
+	call	l152b		; Load current character from file name
+l145f:
+	ld	a,(l1c87)	; Get current character
+	cp	' '		; Test blank
+	jp	nz,l146d	; Nope
+	call	l152b		; Load current character from file name
+	jp	l145f		; Skip leading blanks
+l146d:
+	call	l1541		; Test delimiter
+	rra
+	jp	nc,l1478	; Nope
+	ld	hl,PARSERR	; Invalid if so
+	ret
+l1478:
+	ld	hl,l1c89
+	ld	(hl),0		; Clear FCB pointer
+l147d:
+	call	l1541		; Test delimiter
+	rra
+	jp	c,l1499		; Yeap
+	ld	a,(l1c89)	; Get FCB pointer
+	cp	.nam		; Test valid range
+	jp	c,l1490		; Yeap
+	ld	hl,PARSERR	; Error on overflow
+	ret
+l1490:
+	call	l156c		; Unpack current character to FCB
+	call	l152b		; Load current character from file name
+	jp	l147d		; Sample next
+;
+; Found delimiter - verify drive delimiter
+;
+l1499:
+	ld	a,(l1c87)	; Get current character
+	cp	':'		; Test drive delimiter
+	jp	nz,l14e4	; Nope
+	ld	hl,(l1c85)	; Get address of FCB
+	ld	a,(hl)
+	sub	0		; Must be default drive
+	sub	1
+	sbc	a,a
+	push	af
+	ld	a,(l1c89)	; Get FCB pointer
+	sub	1		; Must be at first position
+	sub	1
+	sbc	a,a
+	pop	bc
+	ld	c,b
+	and	c
+	rra
+	jp	c,l14be		; Ok
+	ld	hl,PARSERR	; Invalid if neither
+	ret
+l14be:
+	ld	hl,(l1c85)	; Get address of FCB
+	inc	hl
+	ld	a,(hl)
+	sub	'A'
+	inc	a
+	ld	hl,(l1c85)	; Get address of FCB
+	ld	(hl),a
+	ld	c,a
+	ld	a,MAXDRV-'A'+1
+	cp	c		; Verify correct drive range
+	jp	nc,l14d5
+	ld	hl,PARSERR	; Invalid if not
+	ret
+l14d5:
+	ld	hl,(l1c89)	; Get FCB pointer
+	ld	h,0
+	ex	de,hl
+	ld	hl,(l1c85)	; Get address of FCB
+	add	hl,de
+	ld	(hl),' '	; Blank entry
+	jp	l1527
+;
+; Found not ':'
+;
+l14e4:
+	ld	hl,l1c89	; Get FCB pointer
+	ld	(hl),.nam	; Force name length
+	ld	a,(l1c87)	; Get current character
+	cp	'.'		; Test extension delimiter
+	jp	nz,l1510	; Nope
+	call	l152b		; Load current character from file name
+l14f4:
+	call	l1541		; Test delimiter
+	rra
+	jp	c,l1510		; Yeap
+	ld	a,(l1c89)	; Get FCB pointer
+	cp	.nam+.ext	; Test range
+	jp	c,l1507
+	ld	hl,PARSERR	; Error if overflow
+	ret
+l1507:
+	call	l156c		; Unpack current character to FCB
+	call	l152b		; Load current character from file name
+	jp	l14f4
+l1510:
+	ld	a,(l1c87)	; Get current character
+	cp	cr		; Test end of line
+	jp	nz,l151c	; Nope
+	ld	hl,PARSEOK	; Return end if so
+	ret
+l151c:
+	ld	hl,(l1c88)	; Get name pointer
+	ld	h,0
+	ex	de,hl
+	ld	hl,(l1c83)	; Get address of name
+	add	hl,de		; Return end pointer
+	ret
+l1527:
+	jp	l145c
+	ret
+;
+; Load current character from file name
+;
+l152b:
+	ld	a,(l1c88)	; Get name pointer
+	inc	a		; Advance it
+	ld	(l1c88),a
+	ld	c,a
+	ld	b,0
+	ld	hl,(l1c83)	; Get address of name
+	add	hl,bc		; Position in name
+	ld	c,(hl)		; Get character
+	call	l13e1		; Convert character to upper case
+	ld	(l1c87),a	; Save current character
+	ret
+;
+; Test delimiter - return TRUE if so
+;
+l1541:
+	ld	hl,l1c8a
+	ld	(hl),0		; Clear list index
+l1546:
+	ld	a,delilen-1
+	ld	hl,l1c8a
+	cp	(hl)		; Test list done
+	jp	c,l1569
+	ld	hl,(l1c8a)
+	ld	h,0
+	ld	bc,l13d4
+	add	hl,bc		; Position in list
+	ld	a,(l1c87)	; Get current character
+	cp	(hl)
+	jp	nz,l1562
+	ld	a,TRUE		; Indicate delimiter found
+	ret
+l1562:
+	ld	hl,l1c8a
+	inc	(hl)
+	jp	nz,l1546
+l1569:
+	ld	a,FALSE		; Indicate no delimiter found
+	ret
+;
+; Unpack current character to FCB
+;
+l156c:
+	ld	a,(l1c89)	; Get FCB pointer
+	inc	a		; Advance it
+	ld	(l1c89),a
+	ld	c,a
+	ld	b,0
+	ld	hl,(l1c85)	; Get address of FCB
+	add	hl,bc		; Position in FCB
+	ld	a,(l1c87)	; Load current character
+	ld	(hl),a		; Unpack it
+	ret
+;
+; Read C bits from REL file
+;
+l157f:
+	ld	a,(l19fc)
+	rra
+	jp	c,l15e4
+	ld	b,00000000b	; Init result
+l1588:
+	ld	hl,l1a98
+	inc	(hl)		; Advance bit count
+	ld	a,(hl)		; Get count
+	cp	0+1		; Test first position
+	jp	z,l15b6
+	cp	8+1		; Test within byte range
+	jp	c,l15c2
+	ld	(hl),1		; Reset bit count
+	ld	hl,(l1a99)	; Get buffer index
+	inc	hl		; Advance it
+	ld	(l1a99),hl
+	ex	de,hl
+	ld	hl,(l1a96)	; Get max index
+	ld	a,e
+	sub	l		; Test in range
+	ld	a,d
+	sbc	a,h
+	jp	c,l15b6		; Yeap
+	ld	hl,0
+	ld	(l1a99),hl	; Clear buffer index
+	push	bc
+	call	l05a7		; Read buffer
+	pop	bc
+l15b6:
+	ld	hl,(l1a99)	; Get buffer index
+	ex	de,hl
+	ld	hl,l1f92	; Set disk buffer
+	add	hl,de		; Build buffer address
+	ld	a,(hl)		; Get byte
+	ld	(l1c8b),a	; Save it
+l15c2:
+	ld	a,b		; Get bit state
+	rlca			; Shift it
+	and	11111110b	; Clear LSB
+	ld	b,a
+	ld	a,(l1c8b)	; Get REL byte
+	rlca			; Shift bit out
+	ld	(l1c8b),a
+	and	00000001b	; Extract resulting bit
+	or	b		; Insert it
+	ld	b,a
+	ld	a,(l1ac3)	; Get access flag
+	rra			; Test it
+	jp	nc,l15de	; Not set
+	push	bc
+	call	l0b70		; Compute stream values
+	pop	bc
+l15de:
+	dec	c		; Test all read
+	jp	nz,l1588	; Nope
+	ld	a,b		; Get result
+	ret
+l15e4:
+	ld	b,00000000b	; Init result
+l15e6:
+	ld	hl,l1a9d
+	inc	(hl)		; Advance bit count
+	ld	a,(hl)
+	cp	8+1		; Test bits filled
+	jp	c,l161b		; Nope
+	ld	(hl),1		; Reset bit count
+	ld	hl,(l1a9e)	; Get buffer index
+	inc	hl		; Advance it
+	ld	(l1a9e),hl
+	ex	de,hl
+	ld	hl,(l1a9b)	; Get max index
+	ld	a,e
+	sub	l		; Test in range
+	ld	a,d
+	sbc	a,h
+	jp	c,l160f		; Yeap
+	ld	hl,0
+	ld	(l1a9e),hl	; Clear buffer index
+	push	bc
+	call	l05d6		; Read buffer
+	pop	bc
+l160f:
+	ld	hl,(l1a9e)	; Get buffer index
+	ex	de,hl
+	ld	hl,l1d92	; Set disk buffer
+	add	hl,de		; Build buffer address
+	ld	a,(hl)		; Get byte
+	ld	(l1c8c),a	; Save it
+l161b:
+	ld	a,b		; Get bit state
+	rlca			; Shift it
+	and	11111110b	; Clear LSB
+	ld	b,a
+	ld	a,(l1c8c)	; Get REL byte
+	rlca			; Shift bit out
+	ld	(l1c8c),a
+	and	00000001b	; Extract resulting bit
+	or	b		; Insert it
+	ld	b,a
+	dec	c		; Test all read
+	jp	nz,l15e6	; Nope
+	ld	a,b		; Get result
+	ret
+;
+; Compare ^BC:^<SP> for E bytes - TRUE set on match
+;
+l1631:
+	ld	a,e		; Get length
+	pop	hl
+	ex	(sp),hl		; Get second string
+	ld	e,a
+l1635:
+	ld	a,(bc)
+	cp	(hl)		; Compare
+	jp	nz,l1643	; No match
+	inc	bc
+	inc	hl
+	dec	e		; Do all
+	jp	nz,l1635
+	ld	a,TRUE		; Success
+	ret
+l1643:
+	xor	a
+	ret
+;
+; Dummy string
+;
+l1645:
+	db	eot
+;
+; Print name of file
+;
+l1646:
+	ld	hl,l1cde+1
+	ld	(hl),b		; save FCB
+	dec	hl
+	ld	(hl),c
+	ld	hl,l1ce0
+	ld	(hl),1		; Init index
+l1651:
+	ld	a,.nam+.ext
+	ld	hl,l1ce0
+	cp	(hl)		; Test all printed
+	jp	c,l168c		; Yeap
+	ld	hl,(l1ce0)	; Get index
+	ld	h,0
+	ex	de,hl
+	ld	hl,(l1cde)
+	add	hl,de		; Position in FCB
+	ld	a,(hl)
+	cp	' '		; Test blank
+	jp	z,l1678		; Yeap, skip it
+	ld	hl,(l1ce0)
+	ld	h,0
+	ex	de,hl
+	ld	hl,(l1cde)
+	add	hl,de
+	ld	c,(hl)		; Get chracater from FCB
+	call	l182c		; Print it
+l1678:
+	ld	a,(l1ce0)
+	cp	.nam		; Test at end of name
+	jp	nz,l1685	; Nope
+	ld	c,'.'
+	call	l182c		; Print extension delimiter
+l1685:
+	ld	hl,l1ce0
+	inc	(hl)		; Advance index
+	jp	nz,l1651
+l168c:
+	ret
+;
+; Print error message and related FCB, then abort
+;
+l168d:
+	ld	hl,l1ce3+1
+	ld	(hl),d		; Save FCB
+	dec	hl
+	ld	(hl),e
+	dec	hl
+	ld	(hl),b		; Save message
+	dec	hl
+	ld	(hl),c
+	ld	hl,(l1ce1)
+	ld	b,h
+	ld	c,l
+	call	l1847		; Print message
+	ld	hl,(l1ce3)
+	ld	b,h
+	ld	c,l
+	call	l1646		; Print name of file
+	ld	bc,l1645
+	call	l0aa3		; Abort with empty message
+	ret
+;
+; Read or write [mode in reg E] disk buffer ^<SP+2>
+; FCB in ^BC, byte length in <SP+0>
+;
+l16ae:
+	ld	hl,l1ceb
+	ld	(hl),e		; Save R/W mode
+	dec	hl
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	dec	hl
+	pop	de
+	pop	bc
+	ld	(hl),b		; Save byte length
+	dec	hl
+	ld	(hl),c
+	dec	hl
+	pop	bc
+	ld	(hl),b		; Save disk buffer
+	dec	hl
+	ld	(hl),c
+	push	de
+	call	l1857		; Get state of console
+	rra			; Test key pressed
+	jp	nc,l16cf	; Nope
+	ld	bc,l1c8d
+	call	l0aa3		; Else abort
+l16cf:
+	ld	hl,0		; Init result
+	ld	(l1cdc),hl
+l16d5:
+	ld	a,reclng
+	ld	de,l1ce7
+	call	l198d		; HL:=^DE-ACCU
+	ex	de,hl
+	dec	hl
+	ld	(hl),e		; Count down
+	inc	hl
+	ld	(hl),d
+	ld	hl,-reclng
+	call	l196f		; HL:=DE-HL
+	or	l		; Test all read
+	jp	z,l174d		; Yeap
+	ld	hl,(l1ce5)
+	ld	b,h
+	ld	c,l
+	call	l1860		; Set disk buffer
+	ld	a,(l1ceb)	; Get mode
+	cp	FALSE		; Test read
+	jp	nz,l1724	; Nope, write
+	ld	hl,(l1ce9)	; Get FCB
+	ld	b,h
+	ld	c,l
+	call	l1890		; Read record
+	ld	c,a
+	ld	a,0
+	cp	c		; Test success
+	jp	nc,l1721	; Yeap
+	ld	a,0
+	ld	de,l1cdc
+	call	l198d		; HL:=^DE-ACCU
+	or	l		; Test at least one record read
+	jp	nz,l1720	; Yeap
+	ld	bc,l1c95
+	call	l0aa3		; Read error if not
+	jp	l1721
+l1720:
+	ret
+l1721:
+	jp	l1739
+l1724:
+	ld	hl,(l1ce9)	; Get FCB
+	ld	b,h
+	ld	c,l
+	call	l18a0		; Write record
+	ld	c,a
+	ld	a,0
+	cp	c		; Test success
+	jp	nc,l1739	; Yeap
+	ld	bc,l1ca5
+	call	l0aa3		; Write error if not
+l1739:
+	ld	de,reclng
+	ld	hl,(l1ce5)	; Get disk buffer
+	add	hl,de		; Advance it
+	ld	(l1ce5),hl
+	ld	hl,(l1cdc)
+	inc	hl		; Advance records read
+	ld	(l1cdc),hl
+	jp	l16d5
+l174d:
+	ld	bc,DMA
+	call	l1860		; Set default disk buffer
+	ret
+;
+; Read disk buffer ^<SP+0>
+; FCB in ^DE, byte length in reg BC
+;
+l1754:
+	ld	hl,l1cf0+1
+	ld	(hl),d		; Save FCB
+	dec	hl
+	ld	(hl),e
+	dec	hl
+	ld	(hl),b		; Save length
+	dec	hl
+	ld	(hl),c
+	dec	hl
+	pop	de
+	pop	bc
+	ld	(hl),b		; Save disk buffer
+	dec	hl
+	ld	(hl),c
+	push	de
+	ld	hl,(l1cec)	; Get disk buffer
+	push	hl
+	ld	hl,(l1cee)	; Get length
+	push	hl
+	ld	hl,(l1cf0)	; Get FCB
+	ld	b,h
+	ld	c,l
+	ld	e,FALSE
+	call	l16ae		; Read buffer
+	ld	hl,(l1cdc)	; Return records read
+	ret
+;
+; Write disk buffer ^<SP+0>
+; FCB in ^DE, byte length in reg BC
+;
+l177b:
+	ld	hl,l1cf6+1
+	ld	(hl),d		; Save FCB
+	dec	hl
+	ld	(hl),e
+	dec	hl
+	ld	(hl),b		; Save length
+	dec	hl
+	ld	(hl),c
+	dec	hl
+	pop	de
+	pop	bc
+	ld	(hl),b		; Save disk buffer
+	dec	hl
+	ld	(hl),c
+	push	de
+	ld	hl,(l1cf2)	; Get disk buffer
+	push	hl
+	ld	hl,(l1cf4)	; Get length
+	push	hl
+	ld	hl,(l1cf6)	; Get FCB
+	ld	b,h
+	ld	c,l
+	ld	e,TRUE
+	call	l16ae		; Write buffer
+	ret
+;
+; Create new file ^BC
+;
+l179f:
+	ld	hl,l1cf8+1
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	hl,(l1cf8)
+	ld	b,h
+	ld	c,l
+	call	l1870		; Delete file
+	ld	hl,l1cfa
+	ld	(hl),.drv+.nam+.ext
+l17b2:
+	ld	a,_CR
+	ld	hl,l1cfa
+	cp	(hl)		; Test all cleared
+	jp	c,l17ce		; Yeap
+	ld	hl,(l1cfa)
+	ld	h,0
+	ex	de,hl
+	ld	hl,(l1cf8)
+	add	hl,de
+	ld	(hl),0		; Clear remainder of FCB
+	ld	hl,l1cfa
+	inc	(hl)
+	jp	nz,l17b2
+l17ce:
+	ld	hl,(l1cf8)
+	ld	b,h
+	ld	c,l
+	call	l18b0		; Create file
+	cp	OSerr		; Test success
+	jp	nz,l17e1	; Yeap
+	ld	bc,l1cc3
+	call	l0aa3		; Tell create error
+l17e1:
+	ret
+;
+; Open file ^BC
+;
+l17e2:
+	ld	hl,l1cfb+1
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	bc,_EX
+	ld	hl,(l1cfb)
+	add	hl,bc
+	ld	(hl),0		; Clear extent
+	ld	bc,_CR
+	ld	hl,(l1cfb)
+	add	hl,bc
+	ld	(hl),0		; Clear current record
+	ld	hl,(l1cfb)
+	ld	b,h
+	ld	c,l
+	call	l1880		; Open file
+	cp	OSerr		; Test success
+	jp	nz,l1811	; Yeap
+	ld	hl,(l1cfb)
+	ex	de,hl
+	ld	bc,l1cd2
+	call	l168d		; Tell no file
+l1811:
+	ret
+;
+; Close file ^BC
+;
+l1812:
+	ld	hl,l1cfd+1
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	hl,(l1cfd)
+	ld	b,h
+	ld	c,l
+	call	l18c0		; Close file
+	cp	OSerr		; Test success
+	jp	nz,l182b	; Yeap
+	ld	bc,l1cb6
+	call	l0aa3		; Close error
+l182b:
+	ret
+;
+; Put character in reg C to console
+;
+l182c:
+	ld	hl,l1cff
+	ld	(hl),c
+	ld	hl,(l1cff)
+	ld	h,0
+	ex	de,hl
+	ld	c,.conout
+	call	l18e6		; Put to console
+	ret
+;
+; Give new line on console
+;
+l183c:
+	ld	c,cr
+	call	l182c		; Print new line
+	ld	c,lf
+	call	l182c
+	ret
+;
+; Print string ^BC on console
+;
+l1847:
+	ld	hl,l1d00+1
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	hl,(l1d00)	; Get pointer
+	ex	de,hl
+	ld	c,.string
+	call	l18e6		; Write to console
+	ret
+;
+; Get state of console
+;
+l1857:
+	ld	de,0
+	ld	c,.consta
+	call	l18e9		; Get console state
+	ret
+;
+; Set disk buffer ^BC
+;
+l1860:
+	ld	hl,l1d02+1
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	hl,(l1d02)
+	ex	de,hl
+	ld	c,.setdma
+	call	l18e6		; Set disk buffer
+	ret
+;
+; Delete file ^BC
+;
+l1870:
+	ld	hl,l1d04+1
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	hl,(l1d04)
+	ex	de,hl
+	ld	c,.delete
+	call	l18e9		; Delete file
+	ret
+;
+; Open file ^BC
+;
+l1880:
+	ld	hl,l1d06+1
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	hl,(l1d06)
+	ex	de,hl
+	ld	c,.open
+	call	l18e9		; Open file
+	ret
+;
+; Read record from file ^BC
+;
+l1890:
+	ld	hl,l1d08+1
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	hl,(l1d08)
+	ex	de,hl
+	ld	c,.rdseq
+	call	l18e9		; Read record
+	ret
+;
+; Write record to file ^BC
+;
+l18a0:
+	ld	hl,l1d0a+1
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	hl,(l1d0a)
+	ex	de,hl
+	ld	c,.wrseq
+	call	l18e9		; Write record
+	ret
+;
+; Create file ^BC
+;
+l18b0:
+	ld	hl,l1d0c+1
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	hl,(l1d0c)
+	ex	de,hl
+	ld	c,.make
+	call	l18e9		; Create file
+	ret
+;
+; Close file ^BC
+;
+l18c0:
+	ld	hl,l1d0e+1
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	bc,DMA
+	call	l1860		; Set disk buffer
+	ld	hl,(l1d0e)
+	ex	de,hl
+	ld	c,.close
+	call	l18e9		; Close file
+	ret
+;
+; Rename file ^BC
+;
+l18d6:
+	ld	hl,l1d10+1
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	hl,(l1d10)
+	ex	de,hl
+	ld	c,.rename
+	call	l18e9		; Rename file
+	ret
+;
+; OS hook
+;
+l18e6:
+	jp	BDOS		; Execute OS call
+l18e9:
+	jp	BDOS		; Execute OS call
+l18ec:	;; *** NOT USED ***
+	jp	BDOS		; Execute OS call
+;
+; %%% SYSCALL SUPPORT %%%
+;
+; HL:=HL AND ACCU
+;
+l18ef:	;; *** NOT USED ***
+	ld	e,a
+	ld	d,0
+;
+; HL:=HL AND DE
+;
+l18f2:
+	ld	a,e
+	and	l
+	ld	l,a
+	ld	a,d
+	and	h
+	ld	h,a
+	ret
+;
+; HL:=^DE AND ACCU
+;
+l18f9:
+	ex	de,hl
+;
+; HL:=^HL AND ACCU
+;
+l18fa:
+	ld	e,a
+	ld	d,0
+	ex	de,hl
+	ld	a,(de)
+	and	l
+	ld	l,a
+	inc	de
+	ld	a,(de)
+	and	h
+	ld	h,a
+	ret
+;
+; DE:=DE DIV HL
+; HL:=DE MOD HL
+;
+l1906:
+	ld	b,h		; Copy divisor
+	ld	c,l
+;
+; DE:=DE DIV BC
+; HL:=DE MOD BC
+;
+l1908:
+	ld	hl,0		; Init quotient
+	ld	a,16		; Set bit count
+l190d:
+	push	af
+	add	hl,hl		; Divide
+	ex	de,hl
+	sub	a
+	add	hl,hl
+	ex	de,hl
+	adc	a,l
+	sub	c
+	ld	l,a
+	ld	a,h
+	sbc	a,b
+	ld	h,a
+	inc	de
+	jp	nc,l191f
+	add	hl,bc
+	dec	de
+l191f:
+	pop	af
+	dec	a
+	jp	nz,l190d
+	ret
+;
+; HL:=HL MUL DE
+;
+l1925:
+	ld	b,h		; Copy number
+	ld	c,l
+	ld	hl,0		; Init result
+	ld	a,16		; Set bit count
+l192c:
+	add	hl,hl		; Multiply
+	ex	de,hl
+	add	hl,hl
+	ex	de,hl
+	jp	nc,l1934
+	add	hl,bc
+l1934:
+	dec	a
+	jp	nz,l192c
+	ret
+;
+; HL:=HL OR ACCU
+;
+l1939:
+	ld	e,a
+	ld	d,0
+;
+; HL:=HL OR DE
+;
+l193c:
+	ld	a,e
+	or	l
+	ld	l,a
+	ld	a,d
+	or	h
+	ld	h,a
+	ret
+;
+; A:=^HL SHL C
+;
+l1943:
+	ld	a,(hl)
+l1944:
+	add	a,a
+	dec	c
+	jp	nz,l1944
+	ret
+;
+; HL:=^HL SHL C
+;
+l194a:
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	ex	de,hl
+;
+; HL:=HL SHL C
+;
+l194e:
+	add	hl,hl		; Shift it left
+	dec	c		; For a number of bits
+	jp	nz,l194e
+	ret
+;
+; A:=^HL SHR C
+;
+l1954:
+	ld	a,(hl)
+l1955:
+	or	a
+	rra
+	dec	c
+	jp	nz,l1955
+	ret
+;
+; HL:=^HL SHR C
+;
+l195c:
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+	ex	de,hl
+l1960:
+	ld	a,h
+	or	a
+	rra
+	ld	h,a
+	ld	a,l
+	rra
+	ld	l,a
+	dec	c
+	jp	nz,l1960
+	ret
+;
+; HL:=ACCU-HL
+;
+l196c:
+	ld	e,a
+	ld	d,0
+;
+; HL:=DE-HL
+;
+l196f:
+	ld	a,e
+	sub	l
+	ld	l,a
+	ld	a,d
+	sbc	a,h
+	ld	h,a
+	ret
+;
+; HL:=DE-ACCU
+;
+l1976:
+	ld	c,a
+	ld	b,0
+	ld	a,e
+	sub	c
+	ld	l,a
+	ld	a,d
+	sbc	a,b
+	ld	h,a
+	ret
+;
+; HL:=^DE-^BC
+;
+l1980:
+	ld	l,c
+	ld	h,b
+	ld	c,(hl)
+	inc	hl
+	ld	b,(hl)
+;
+; HL:=^DE-BC
+;
+l1985:
+	ld	a,(de)
+	sub	c
+	ld	l,a
+	inc	de
+	ld	a,(de)
+	sbc	a,b
+	ld	h,a
+	ret
+;
+; HL:=^DE-ACCU
+;
+l198d:
+	ld	l,a
+	ld	h,0
+	ld	a,(de)
+	sub	l
+	ld	l,a
+	inc	de
+	ld	a,(de)
+	sbc	a,h
+	ld	h,a
+	ret
+;
+; DE:=ACCU-^HL
+;
+l1998:
+	ld	e,a
+	ld	d,0
+;
+; DE:=DE-^HL
+;
+l199b:
+	ld	a,e
+	sub	(hl)
+	ld	e,a
+	ld	a,d
+	inc	hl
+	sbc	a,(hl)
+	ld	d,a
+	ex	de,hl
+	ret
+;
+; Local stack
+;
+	ds	2*38
+ll19f0	equ	$
+
+l19f0:
+	db	'LIB 1.1'
+	db	cr,lf,eot
+l19fa:
+	db	0		; Extent number of first record
+l19fb:
+	db	0		; Record number of first record
+l19fc:
+	db	FALSE
+l19fd:
+	db	FALSE		; Dump flag [FALSE if enabled]
+l19fe:
+	dw	0		; Work pointer
+l1a00:
+	dw	0		; Top of memory
+l1a02:
+	dw	0		; Current top of memory
+l1a04:
+	dw	-1		; Upper limit of memory
+;
+; Work space for file
+;
+l1a06:
+	ds	.drv+.nam+.ext
+;
+; File control blocks
+;
+l1a12:
+	ds	FCBlen
+l1a33:
+	ds	FCBlen
+l1a54:
+	db	0,'REL     $$$'
+	ds	FCBlen-.drv-.nam-.ext
+l1a75:
+	db	0,'IRL     $$$'
+	ds	FCBlen-.drv-.nam-.ext
+;
+
+;	.comment	*
+;
+;File selection thru l19fc
+;
+;l19fc	TRUE	FALSE
+;	l1a9d	l1a98	Bit count
+;	l1a9e	l1a99	Buffer index
+;	l1a9b	l1a96	Max index
+;	l05d6	l05a7	Read buffer
+;++	l1a33	l1a12	FCB		++
+;	l1d92	l1f92	Disk buffer
+;	l1c8c	l1c8b	REL byte
+;			*
+l1a96:
+	dw	REC2		; Max buffer size (8 records)
+l1a98:
+	db	0		; Bit count
+l1a99:
+	dw	0		; Buffer index
+l1a9b:
+	dw	REC1		; Max buffer size (4 records)
+l1a9d:
+	db	0		; Bit count
+l1a9e:
+	dw	0		; Buffer index
+l1aa0:
+	dw	0		; Buffer size
+l1aa2:
+	dw	0		; Byte count
+l1aa4:
+	db	0		; Current bit count
+l1aa5:
+	db	0		; Current byte
+l1aa6:
+	dw	0
+l1aa8:
+	dw	REC2		; Max buffer size (8 records)
+l1aaa:
+	dw	0		; Resulting count
+l1aac:
+	dw	0		; Bit position in source stream file
+l1aae:
+	dw	0		; Record count of source stream file
+l1ab0:
+	dw	0		; Command line pointer
+	dw	0		; File pointer
+l1ab4:
+	dw	0		; Heap pointer
+l1ab6:
+	db	FALSE		; [D]ump option
+l1ab7:
+	db	FALSE		; [I]ndex option
+l1ab8:
+	db	FALSE		; Assignment '=' flag
+l1ab9:
+	db	FALSE		; [M]odule option
+l1aba:
+	db	FALSE		; [P]ublic option
+l1abb:
+	db	FALSE		; Assignment in selection <...=...>
+l1abc:
+	db	FALSE		; TRUE if range (..-..) seleted
+l1abd:
+	db	FALSE		; Selection flag (set if , or > found)
+l1abe:
+	db	FALSE		; <...> flag
+l1abf:
+	db	FALSE		; TRUE if selection (...) requested
+l1ac0:
+	db	FALSE		; TRUE if item empty
+l1ac1:
+	dw	0		; Copy of command line
+l1ac3:
+	db	FALSE		; Access flag
+l1ac4:
+	db	0		; Extent of file
+l1ac5:
+	db	0		; Record of file
+l1ac6:
+	db	0		; Byte offset of file
+l1ac7:
+	db	FALSE		; IRL access flag
+l1ac8:
+	db	0
+l1ac9:
+	db	0
+l1aca:
+	db	0
+l1acb:
+	db	0		; Extent number
+l1acc:
+	db	0		; Record number
+;
+	db	0
+l1ace:
+	db	FALSE		; TRUE if end of command line
+l1acf:
+	db	FALSE		; TRUE if end of selectin ')'
+l1ad0:
+	db	0		; Length of name of module
+	ds	ITEMLEN
+l1ad8:
+	db	0		; Length of subitem
+	ds	ITEMLEN		; Subitem
+l1ae0:
+	db	'INDEX ERROR',eot
+l1aec:
+	db	'NO MODULE: ',eot
+l1af8:
+	db	'SYNTAX ERROR',eot
+;
+	db	0,0,0
+l1b08:
+	dw	0
+l1b0a:
+	db	0
+l1b0b:
+	dw	0
+l1b0d:
+	db	0
+l1b0e:
+	db	0
+l1b0f:
+	dw	0
+l1b11:
+	db	0
+l1b12:
+	db	0
+l1b13:
+	dw	0		; Resulting record count
+l1b15:
+	db	0
+l1b16:
+	db	0
+l1b17:
+	db	0
+l1b18:
+	dw	0
+l1b1a:
+	db	0
+l1b1b:
+	db	0
+l1b1c:
+	db	0
+l1b1d:
+	db	0
+l1b1e:
+	db	0
+l1b1f:
+	dw	0
+l1b21:
+	db	0
+l1b22:
+	dw	0,0		; Parse parameter block
+l1b26:
+	db	0
+l1b27:
+	db	0
+l1b28:
+	db	FALSE		; TRUE for .IRL file
+l1b29:
+	dw	0
+;
+; Segment addresses
+;
+l1b2b:
+	dw	0		; ASEG
+l1b2d:
+	dw	0		; CSEG
+l1b2f:
+	dw	0		; DSEG
+l1b31:
+	dw	0		; COMMON
+;
+l1b33:
+	db	01b		; Current address mode
+l1b34:
+	db	'A','P','D','C'
+l1b38:
+	db	0		; Address type
+l1b39:
+	dw	0		; Address
+l1b3b:
+	db	0		; Length of BField
+l1b3c:
+	ds	7		; Name of BField
+l1b43:
+	db	FALSE		; TRUE if on first position
+l1b44:
+	dw	0
+l1b46:
+	db	'entry symbol ',eot
+l1b54:
+	db	'select common block ',eot
+l1b69:
+	db	'program name ',eot
+l1b77:
+	db	'request ',eot
+l1b80:
+	db	'error 4 ',eot
+l1b89:
+	db	'define common size ',eot
+l1b9d:
+	db	'chain external ',eot
+l1bad:
+	db	'define entry point ',eot
+l1bc1:
+	db	'error 8 ',eot
+l1bca:
+	db	'external + offset ',eot
+l1bdd:
+	db	'define data size ',eot
+l1bef:
+	db	'set program counter ',eot
+l1c04:
+	db	'chain address ',eot
+l1c13:
+	db	'define program size ',eot
+l1c28:
+	db	'end program ',eot
+l1c35:
+	db	'end file',eot
+l1c3e:
+	dw	l1b46,l1b54,l1b69,l1b77
+	dw	l1b80,l1b89,l1b9d,l1bad
+	dw	l1bc1,l1bca,l1bdd,l1bef
+	dw	l1c04,l1c13,l1c28,l1c35
+l1c5e:
+	db	0
+l1c5f:
+	db	0
+l1c60:
+	dw	0
+l1c62:
+	dw	0
+l1c64:
+	dw	0
+l1c66:
+	db	0
+l1c67:
+	dw	0
+l1c69:
+	db	0
+l1c6a:
+	db	0
+l1c6b:
+	db	0
+l1c6c:
+	db	0
+l1c6d:
+	db	0		; REL file bits for output
+l1c6e:
+	db	0		; REL file bit count for output
+l1c6f:
+	db	0		; Bit count
+l1c70:
+	db	0
+l1c71:
+	dw	0
+l1c73:
+	db	0
+l1c74:
+	db	0
+l1c75:
+	db	0
+l1c76:
+	db	0
+l1c77:
+	dw	0
+l1c79:
+	db	0		; Extended link item
+l1c7a:
+	db	0
+l1c7b:
+	dw	0
+l1c7d:
+	dw	0		; Selection pointer
+l1c7f:
+	db	FALSE
+l1c80:
+	db	0
+l1c81:
+	dw	0
+;
+l1c83:
+	dw	0		; Address of file name
+l1c85:
+	dw	0		; Address of FCB
+;
+l1c87:
+	db	0		; Current character
+l1c88:
+	db	0		; Name pointer
+l1c89:
+	db	0		; FCB pointer
+l1c8a:
+	db	0
+l1c8b:
+	db	0		; REL byte
+l1c8c:
+	db	0		; REL byte
+l1c8d:
+	db	'ABORTED',eot
+l1c95:
+	db	'DISK READ ERROR',eot
+l1ca5:
+	db	'DISK WRITE ERROR',eot
+l1cb6:
+	db	'CANNOT CLOSE',eot
+l1cc3:
+	db	'DIRECTORY FULL',eot
+l1cd2:
+	db	'NO FILE: ',eot
+
+l1cdc	equ	$
+;;l1cdc	equ	1cdch
+
+l1cde	equ	1cdeh
+l1ce0	equ	1ce0h
+l1ce1	equ	1ce1h
+l1ce3	equ	1ce3h
+l1ce5	equ	1ce5h
+l1ce7	equ	1ce7h
+l1ce9	equ	1ce9h
+l1ceb	equ	1cebh
+l1cec	equ	1cech
+l1cee	equ	1ceeh
+l1cf0	equ	1cf0h
+l1cf2	equ	1cf2h
+l1cf4	equ	1cf4h
+l1cf6	equ	1cf6h
+l1cf8	equ	1cf8h
+l1cfb	equ	1cfbh
+l1cfd	equ	1cfdh
+l1cfa	equ	1cfah
+l1cff	equ	1cffh
+l1d00	equ	1d00h
+l1d02	equ	1d02h
+l1d04	equ	1d04h
+l1d06	equ	1d06h
+l1d08	equ	1d08h
+l1d0a	equ	1d0ah
+l1d0c	equ	1d0ch
+l1d0e	equ	1d0eh
+l1d10	equ	1d10h
+l1d12	equ	1d12h		; Command line starts her [128 Bytes]
+l1d92	equ	1d92h		; Disk buffer
+l1f92	equ	l1d92+REC1	;;1f92h		; Disk buffer
+l2392	equ	l1f92+REC2	;;2392h
+l2792	equ	l2392+REC2	;;2792h
+
+	end
+
