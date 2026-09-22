@@ -15540,7 +15540,7 @@ FININL:
   LD (HL),$00           ;PUT A ZERO AT THE END OF BUF
   LD HL,BUFMIN			;SETUP POINTER
 
-; Print and go to new line
+; A.K.A. CRDO - Print and go to new line
 ;
 ; Used by the routines at _ERROR_REPORT, __PRINT, PRNTNB, LNOMOD, __LIST,
 ; __FILES, CAYSTR, PINLIN, DELCHR, TTYLIN, NOTAB, CONSOLE_CRLF, NOTSCI, NOTDGI,
@@ -15626,7 +15626,7 @@ STALL:
   CALL Z,INCHRI           ; Yes - Get another character   ;IF PAUSE, READ NEXT CHAR
   LD (CHARC),A            ;SAVE CHAR IN THE BUFFER
   CP $03                  ;^C?
-  CALL Z,KILIN            ;TYPE ^C
+  CALL Z,CTLPT            ;TYPE ^C
   JP __STOP
 
 ; Routine at 19898
@@ -16072,7 +16072,7 @@ CTROPT:
   LD A,$0F                ;PRINT AN ^O.
 
 ; This entry point is used by the routines at TTYLIN and STALL.
-KILIN:
+CTLPT:
   PUSH AF                 ;SAVE CURRENT CHAR
   SUB $03                 ;CONTROL-C?
   JR NZ,NTCTCT
@@ -17722,8 +17722,8 @@ QINLIN_0:
 ;
 ; Used by the routines at PROMPT, QINLIN and TTYLIN.
 PINLIN:
-  XOR A
-  LD (CHARC),A
+  XOR A             ; clear type ahead char
+  LD (CHARC),A      ; like so
   XOR A
   LD (INTFLG),A     ; FLAG TO DO CR
 ; This entry point is used by the routines at __LINE, NOTQTI and TTYLIN.
@@ -17733,33 +17733,33 @@ INLIN:
   JR NZ,TTYLIN
 ; This entry point is used by the routine at QINLIN.
 PINLIN_1:
-  CALL OUTDO_CRLF
-  LD HL,-1
-  JP __EDIT_3
+  CALL OUTDO_CRLF   ; type crlf
+  LD HL,-1          ; get special line #
+  JP __EDIT_3       ; go to edit code.
 
 ; This entry point is used by the routine at TTYLIN.
 RUBOUT:
-  LD A,(RUBSW)
-  OR A
-  LD A,'\\'
-  LD (RUBSW),A
-  JR NZ,ECHDEL
-  DEC B
-  JR Z,QINLIN_0
-  CALL OUTDO
-  INC B
+  LD A,(RUBSW)      ; are we already rubbing out?
+  OR A              ; set cc'S
+  LD A,'\\'         ; get ready to type backslash
+  LD (RUBSW),A      ; make rubsw non-zero if not already
+  JR NZ,ECHDEL      ; not rubbing back to beggining
+  DEC B             ; at beginning of line?
+  JR Z,QINLIN_0     ; set first byte in buf to zero
+  CALL OUTDO        ; send backslash
+  INC B             ; effectively skip next instruction
 ECHDEL:
-  DEC HL
-  DEC B
-  JR Z,OTKLN
-  LD A,(HL)
-  CALL OUTDO
-  JR MORINP
+  DEC HL            ; back up line posit
+  DEC B             ; back up char count by 1
+  JR Z,OTKLN        ; and re-set up input
+  LD A,(HL)         ; otherwise get char to echo
+  CALL OUTDO        ; send it
+  JR MORINP         ; and get next char
 
 
 IF ORIGINAL
 ; Routine at 19232
-L4B20:
+L4B20:                    ; back arrow so decrement count
   DEC B                   ; Unused.   This was the entry point for 'DELCHR'
                           ;           in previous BASIC versions.
 ENDIF
@@ -17769,9 +17769,9 @@ ENDIF
 ;
 ; Used by the routine at TTYLIN.
 DELCHR:
-  DEC HL
+  DEC HL                  ; back up pointer
   CALL OUTDO
-  JR NZ,MORINP
+  JR NZ,MORINP            ; not too many so continue
 ; This entry point is used by the routines at PINLIN and TTYLIN.
 OTKLN:
   CALL OUTDO              ; Output character in A
@@ -17784,65 +17784,65 @@ OTKLN:
 ; Used by the routine at PINLIN.
 TTYLIN:
   LD HL,BUF
-  LD B,$01
+  LD B,$01                ; character count
   PUSH AF
-  XOR A
-  LD (RUBSW),A
+  XOR A                   ; always clear rubout switch
+  LD (RUBSW),A            ; by storing in
   POP AF
 ; This entry point is used by the routines at QINLIN and PUTBUF.
 INLNC1:
-  LD C,A
-  CP $7F                 ; RUBOUT ?
-  JR Z,RUBOUT
-  LD A,(RUBSW)
-  OR A
-  JR Z,TTYLIN_1
-  LD A,'\\'
-  CALL OUTDO
-  XOR A
-  LD (RUBSW),A
-TTYLIN_1:
-  LD A,C
-  CP $07
-  JR Z,PUTCTL
+  LD C,A                  ; save current char in [c]
+  CP $7F                  ; character delete (RUBOUT) ?
+  JR Z,RUBOUT             ; do it
+  LD A,(RUBSW)            ; been doing a rubout?
+  OR A                    ; set cc'S
+  JR Z,NOTRUB             ; nope.
+  LD A,'\\'               ; get ready to type slash
+  CALL OUTDO              ; send it
+  XOR A                   ; clear rubsw
+  LD (RUBSW),A            ; like so.
+NOTRUB:
+  LD A,C                  ; get back current char
+  CP $07                  ; is it bob albrecht ringing the bell
+  JR Z,GOODCH             ; for school kids?
   CP $03                  ; CTL-C ?
-  CALL Z,KILIN
-  SCF
-  RET Z
-  CP $0D
-  JP Z,NEXT_LINE
+  CALL Z,CTLPT            ; type ^ followed by char, and crlf
+  SCF                     ; return with carry on
+  RET Z                   ; if it was control-c
+  CP $0D                  ; is it a carriage return?
+  JP Z,GFNINL
   CP $09                  ; Is it TAB ?
-  JR Z,PUTCTL
-  CP $0A
-  JR NZ,TTYLIN_2
-  DEC B
-  JR Z,PINLIN
-  INC B
-  JR PUTCTL
+  JR Z,GOODCH             ; save it
+  CP $0A                  ; LF ?
+  JR NZ,CHKFUN            ; no, see if funny char
+  DEC B                   ; see if only char on line
+  JR Z,PINLIN             ; it is, ignore
+  INC B                   ; restore b
+  JR GOODCH               ; is lf and not null line
 
-TTYLIN_2:
+CHKFUN:
   CP $15                  ; Is it control "U"?
-  CALL Z,KILIN            ; Yes - Get another line (wipe current buffer)
+  CALL Z,CTLPT            ; Yes - Get another line (wipe current buffer)
   JP Z,PINLIN
-  CP $08                  ; Is it delete (backspace: ctl-H) ?
-  JR NZ,NO_DELETE         ; No, skip over
-DO_DELETE:
-  DEC B
+  CP $08                  ; Is it delete (backspace: CTL-H) ?
+  JR NZ,NTBKSP            ; No, skip over
+;DRBKSP:
+  DEC B                   ; at start of line?
   JP Z,INLIN
+  CALL OUTDO              ; send backspace
+  LD A,' '                ; send space to wipe out char
   CALL OUTDO
-  LD A,' '
-  CALL OUTDO
-  LD A,$08
+  LD A,$08                ; send another backspace
   JR DELCHR
 
-NO_DELETE:
-  CP $18                  ; CTL-X ?
-  JR NZ,TTYLIN_3
+NTBKSP:
+  CP $18                  ; is it CTL-X (line delete)
+  JR NZ,NTCTLX            ; no
   LD A,'#'                ; Print '#' to confirm
   JR OTKLN                ; .. and remove the current line being inserted
 
-TTYLIN_3:
-  CP $12                  ; Is it control "R"?
+NTCTLX:
+  CP $12                  ; CTL-R ?
   JR NZ,PUTBUF            ; No - Put in buffer
   PUSH BC                 ; Save buffer length
   PUSH DE                 ; Save DE
@@ -17861,65 +17861,67 @@ TTYLIN_3:
 ;
 ; Used by the routine at TTYLIN.
 PUTBUF:
-  CP ' '                  ; Is it a control code?
+  CP ' '                  ; check for funny characters
   JP C,MORINP             ; Yes - Ignore
+
+                          ; philips must echo controls
 ; This entry point is used by the routine at TTYLIN.
-PUTCTL:
+GOODCH:
   LD A,B                  ; Get number of bytes in buffer
   OR A
-  JR NZ,PUTBUF_0
+  JR NZ,OUTBND            ; no cause for bell
   PUSH HL
-  LD HL,(PTRFIL)
-  LD A,H                  ; Test for line overflow
-  OR L
-  POP HL
-  LD A,$07                ; CTRL-G: Set a bell
+  LD HL,(PTRFIL)          ; see if reading from disk
+  LD A,H                  ; by testing for ptrfil
+  OR L                    ; non-zero
+  POP HL                  ; restore [h,l]
+  LD A,$07                ; not reading from disk, send bell
   JR Z,OUTIT              ; Ring bell if buffer full
-  LD HL,BUF
-  CALL ATOH
-  EX DE,HL
-  LD (CURLIN),HL
-  JP BUFOV_ERR
+  LD HL,BUF               ; make [h,l] point to buff
+  CALL ATOH               ; get line number
+  EX DE,HL                ; get line # in [h,l]
+  LD (CURLIN),HL          ; save in current line #
+  JP BUFOV_ERR            ; give line buffer overflow error
 
-PUTBUF_0:
-  LD A,C
-  LD (HL),C
-  INC HL
-  INC B
+OUTBND:
+  LD A,C                  ; restore  current character into [a]
+  LD (HL),C               ; store this character
+  INC HL                  ; bump pointer into buf
+  INC B                   ; increment character count
 OUTIT:
-  CALL OUTDO
-  SUB $0A
-  JP NZ,MORINP
-  LD (TTYPOS),A
-  LD A,$0D
-  CALL OUTDO
+  CALL OUTDO              ; send the char
+  SUB $0A                 ; lf??
+  JP NZ,MORINP            ; no, get next char
+  LD (TTYPOS),A           ; make sure ttypos=0.
+  LD A,$0D                ; send cr.
+  CALL OUTDO              ; by calling outchr
 PUTBUF_1:
-  CALL INCHR		; Get character and test ^O
-  OR A
-  JR Z,PUTBUF_1
-  CP $0D
-  JP Z,MORINP
-  JP INLNC1
+  CALL INCHR		      ; eat next char
+  OR A                    ; null after lf?
+  JR Z,PUTBUF_1           ; dont let it get by
+  CP $0D                  ; a carriage return??
+  JP Z,MORINP             ; eat it & get next char
+  JP INLNC1               ; use it
   
 ; This entry point is used by the routine at TTYLIN.
-NEXT_LINE:
-  LD A,(INTFLG)
-  OR A
-  JP Z,FININL
-  XOR A
-  LD (HL),A
-  LD HL,BUFMIN			; "," ..
+GFNINL:
+  LD A,(INTFLG)           ; (TEMPA) - do cr or not?
+  OR A                    ; test
+  JP Z,FININL             ; yes
+  XOR A                   ; make zero
+  LD (HL),A               ; store terminator
+  LD HL,BUFMIN			  ; get pointer to start of buf
   RET
 
 ; This entry point is used by the routines at __LINE and __INPUT.
 SCNSEM:
-  PUSH AF
-  LD A,$00
-  LD (INTFLG),A
-  POP AF
-  CP ';'
-  RET NZ
-  LD (INTFLG),A
+  PUSH AF                 ; save char
+  LD A,$00                ; assume no semi
+  LD (INTFLG),A           ; (TEMPA) 
+  POP AF                  ; get back char
+  CP ';'                  ; is it a semi?
+  RET NZ                  ; no
+  LD (INTFLG),A           ; (TEMPA) - flag no cr from inlin
   JP CHRGTB
 
 
@@ -18024,7 +18026,7 @@ __WEND_4:
   CP C
   RET NZ
   PUSH HL
-  LD A,(HL)               ;PICK UP THE WEND TEXT POINTER
+  LD A,(HL)               ;(5.21 or newer) PICK UP THE WEND TEXT POINTER
   INC HL
   LD H,(HL)
   LD L,A
@@ -18312,7 +18314,7 @@ NTFN2T:
 ; This entry point is used by the routine at VALTYP.
 SCNSMP:
   POP HL                 ;Rescan variable name for start
-  CALL PTRGET            ;Evaluate as simple
+  CALL PTRGET            ;(5.21 or later) evaluate as simple (via stub)
 ;COMPTR:
   LD A,D                 ;If var not found, [D,E]=0
   OR E
@@ -18321,9 +18323,9 @@ SCNSMP:
   OR $80                 ;Set COMMON bit
   LD B,A
 
-  LD DE,COMPT2
+  LD DE,COMPT2           ;5.21 or later: push return address
   PUSH DE
-  LD DE,VARRET
+  LD DE,VARRET           ;5.21 or later: push parameter for noarys (a.k.a. PTRRTN)
   PUSH DE
   
   LD A,(VALTYP)          ;Must have VALTYP in [D]
