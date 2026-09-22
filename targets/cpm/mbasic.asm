@@ -21053,7 +21053,7 @@ ACCFL2:
 
 ; This entry point is used by the routine at __OPEN.
 VARECS:
-  CP $03                ;Random?
+  CP $03                ; (md.rnd) Random?
   RET NZ                ;No, give error later if he gave record length
   DEC HL                ;Back up pointer
   CALL CHRGTB           ;Test for eol
@@ -21067,7 +21067,7 @@ NOTSEP:
   PUSH HL               ;Save text pointer
   LD HL,(MAXREC)        ;Is size ok?
   CALL DCOMPR
-  JP C,FC_ERR
+  JP C,FC_ERR           ;no, give error
   LD HL,$00A9           ;Stuff into data block: (FD.SIZ) POINT TO RECORD SIZE  
   ADD HL,BC
   LD (HL),E
@@ -21556,8 +21556,8 @@ ENCDBL:
   JR NZ,CNTZER            ;Still non-Zero
   LD C,N1                 ;Re-initialize counter 1
 CNTZER:
-  ;DEC B                   ;dedecrement counter-2
-  DJNZ ENCDBL            ;Still non-zero, go for more
+  ;DEC B                   ;decrement counter-2
+  DJNZ ENCDBL             ;Still non-zero, go for more
   LD B,N2                 ;Re-initialize counter 2
   JR ENCDBL               ;Keep going until done
 
@@ -21598,7 +21598,7 @@ DECDBL:
   LD C,N1                ;Re-initialize counter 1
 CNTZR2:
   ;DEC B
-  DJNZ DECDBL           ;Decrement counter-2, Still non-zero, go for more
+  DJNZ DECDBL            ;Decrement counter-2, Still non-zero, go for more
   LD B,N2                ;Re-initialize counter 2
   JR DECDBL              ;Keep going until done
 
